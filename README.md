@@ -58,7 +58,7 @@ We plan to **launch a public beta** in **2–3 weeks**, but we’ll continue ite
 
 1. **Clone the Repository**  
    ```bash
-   git clone https://github.com/your-org/TPDP.git
+   git clone https://github.com/Jaal-Yantra-Textiles/v2/
    ```
 
 2. **Install Dependencies**  
