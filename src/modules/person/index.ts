@@ -4,6 +4,11 @@ import PersonService from "./service";
 
 export const PERSON_MODULE = "person";
 
-export default Module(PERSON_MODULE, {
+const PersonModule = Module(PERSON_MODULE, {
   service: PersonService,
 });
+
+
+export { PersonModule }
+
+export default PersonModule

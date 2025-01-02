@@ -4,6 +4,9 @@ import PersonTypeService from "./service";
 
 export const PERSON_TYPE_MODULE = "person_type";
 
-export default Module(PERSON_TYPE_MODULE, {
+ const PersonTypeModule =  Module(PERSON_TYPE_MODULE, {
   service: PersonTypeService,
 });
+
+export { PersonTypeModule }
+export default PersonTypeModule
