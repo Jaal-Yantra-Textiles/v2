@@ -4,22 +4,27 @@ import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@med
 
 export type UpdatePersonTagsStepInput = {
   person_id: string;
-  tags: string[];
+  name: string[];
 };
 
 export type UpdatePersonTagsWorkFlowInput = {
   person_id: string;
-  tags: string[];
+  name: string[];
 };
 
 export const updatePersonTagsStep = createStep(
   "update-person-tags-step",
   async (input: UpdatePersonTagsStepInput, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
+    console.log(input)
     const originalTags = await personService.listTags(input);
     const updatedTags = await personService.updateTags({
-      person_id: input.person_id,
-      tags: input.tags,
+      selector:{
+        person_id: input.person_id
+      },
+      data: {
+        name: input.name
+      }
     });
 
     return new StepResponse(updatedTags, originalTags);

@@ -16,8 +16,6 @@ class PersonService extends MedusaService({
   constructor() {
     super(...arguments)
   }
-
-  
 }
 
 export default PersonService;

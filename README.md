@@ -1,4 +1,4 @@
-# Textile Production & Design Pipeline (TPDP)
+# Textile Production & Design Pipeline (TP/DP)
 
 **A modern, open-source platform built on [MedusaJS](https://docs.medusajs.com/) to unify pre-production, production, and post-production workflows in the textile industry.**  
 TPDP streamlines communication and collaboration between **designers**, **suppliers**, and **customers**—closing the loop on all stages of textile development and manufacturing.
@@ -63,7 +63,7 @@ We plan to **launch a public beta** in **2–3 weeks**, but we’ll continue ite
 
 2. **Install Dependencies**  
    ```bash
-   cd TPDP
+   cd v2
    yarn install
    ```
    or

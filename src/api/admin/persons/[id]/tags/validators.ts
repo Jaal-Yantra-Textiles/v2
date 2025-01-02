@@ -5,5 +5,15 @@ export const tagSchema = z.object({
 });
 
 export const deleteTagSchema = z.object({
-  tag_ids: z.array(z.string().min(1, "Tag ID is required")),
+  tagId: z.array(z.string().min(1, "Tag ID is required")),
 });
+
+export const updateTagSchema = z.object({
+  name: z.array(z.string().min(1, "Tag value is required")),
+});
+
+export type UpdateTagsForPerson = z.infer<typeof updateTagSchema>;
+
+export type DeleteTagForPerson = z.infer<typeof deleteTagSchema>;
+
+

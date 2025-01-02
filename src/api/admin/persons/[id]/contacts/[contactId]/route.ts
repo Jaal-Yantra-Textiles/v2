@@ -57,7 +57,6 @@ export const POST = async (
 
     res.status(200).json({ contact: updatedContact });
   } catch (error) {
-    console.log(error)
     res.status(400).json({ error: error.message });
   }
 };
@@ -98,7 +97,6 @@ export const DELETE = async (
 
     res.status(204).end();
   } catch (error) {
-    console.log(error);
     throw error;
   }
 };

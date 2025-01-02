@@ -435,6 +435,15 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamptz",
@@ -468,61 +477,31 @@
           "mappedType": "datetime"
         }
       },
-      "name": "tag",
-      "schema": "public",
-      "indexes": [
-        {
-          "keyName": "IDX_tag_deleted_at",
-          "columnNames": [],
-          "composite": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_tag_deleted_at\" ON \"tag\" (deleted_at) WHERE deleted_at IS NULL"
-        },
-        {
-          "keyName": "tag_pkey",
-          "columnNames": [
-            "id"
-          ],
-          "composite": false,
-          "primary": true,
-          "unique": true
-        }
-      ],
-      "checks": [],
-      "foreignKeys": {}
-    },
-    {
-      "columns": {
-        "person_id": {
-          "name": "person_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "text"
-        },
-        "tag_id": {
-          "name": "tag_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "text"
-        }
-      },
       "name": "person_tags",
       "schema": "public",
       "indexes": [
         {
+          "keyName": "IDX_person_tags_person_id",
+          "columnNames": [],
+          "composite": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_person_tags_person_id\" ON \"person_tags\" (person_id) WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_person_tags_deleted_at",
+          "columnNames": [],
+          "composite": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_person_tags_deleted_at\" ON \"person_tags\" (deleted_at) WHERE deleted_at IS NULL"
+        },
+        {
           "keyName": "person_tags_pkey",
           "columnNames": [
-            "person_id",
-            "tag_id"
+            "id"
           ],
-          "composite": true,
+          "composite": false,
           "primary": true,
           "unique": true
         }
@@ -539,20 +518,6 @@
             "id"
           ],
           "referencedTableName": "public.person",
-          "deleteRule": "cascade",
-          "updateRule": "cascade"
-        },
-        "person_tags_tag_id_foreign": {
-          "constraintName": "person_tags_tag_id_foreign",
-          "columnNames": [
-            "tag_id"
-          ],
-          "localTableName": "public.person_tags",
-          "referencedColumnNames": [
-            "id"
-          ],
-          "referencedTableName": "public.tag",
-          "deleteRule": "cascade",
           "updateRule": "cascade"
         }
       }

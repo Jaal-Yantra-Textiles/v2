@@ -32,6 +32,5 @@ export const refetchPersonTags = async (
     ],
   });
   const persons = await remoteQuery(queryObject);
-  console.log("TagsForPerson",persons)
   return persons[0]?.tags || [];
 };

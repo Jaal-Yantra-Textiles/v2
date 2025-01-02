@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import {  deleteTagSchema, tagSchema } from "./validators";
+import {  deleteTagSchema, tagSchema, UpdateTagsForPerson } from "./validators";
 import { TagAllowedFields, refetchPersonTags } from "./helpers";
 
 import createPersonTagsWorkflow from "../../../../../workflows/persons/create-person-tags";
@@ -27,9 +27,9 @@ export const POST = async (
       console.warn("Error reported at", errors);
       throw errors;
     }
-    console.log(result)
+  
     const tags = await refetchPersonTags(personId, req.scope);
-    console.log(tags)
+
     res.status(201).json({ tags })
 };
 
@@ -62,7 +62,7 @@ export const GET = async (
 };
 
 export const PUT = async (
-  req: MedusaRequest & {
+  req: MedusaRequest<UpdateTagsForPerson> & {
     remoteQueryConfig?: {
       fields?: TagAllowedFields[];
     };
@@ -75,7 +75,7 @@ export const PUT = async (
     const { result, errors } = await updatePersonTagsWorkflow.run({
       input: {
         person_id: personId,
-        tags: req.validatedBody,
+        ...req.validatedBody
       },
     });
 
@@ -85,39 +85,10 @@ export const PUT = async (
     }
 
     const tags = await refetchPersonTags(personId, req.scope);
-    res.status(200).json({ tags });
+    res.status(201).json({ tags });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error });
   }
 };
 
-export const DELETE = async (
-  req: MedusaRequest & {
-    remoteQueryConfig?: {
-      fields?: TagAllowedFields[];
-    };
-  },
-  res: MedusaResponse,
-) => {
-  const personId = req.params.id;
-  const validatedBody = deleteTagSchema.parse(req.body);
 
-  try {
-    const { result, errors } = await deletePersonTagsWorkflow.run({
-      input: {
-        person_id: personId,
-        tag_ids: validatedBody.tag_ids,
-      },
-    });
-
-    if (errors.length > 0) {
-      console.warn("Error reported at", errors);
-      throw errors;
-    }
-
-    res.status(204).end();
-  } catch (error) {
-    console.log(error);
-    throw error;
-  }
-};

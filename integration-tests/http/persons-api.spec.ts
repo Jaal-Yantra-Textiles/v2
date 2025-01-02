@@ -569,20 +569,16 @@ medusaIntegrationTestRunner({
         );
 
         expect(response.status).toBe(201);
-        expect(response.data.tags).toEqual(
-          expect.arrayContaining(
-            tagValues.map(value => 
-              expect.objectContaining({
-                value,
-                id: expect.any(String),
-                person_id: personId,
-                person: {
-                  id: personId,
-                },
-              })
-            )
-          )
-        );
+        expect(response.data.tags).toEqual([
+          expect.objectContaining({
+            id: expect.any(String),
+            name: expect.arrayContaining(tagValues),
+            person_id: personId,
+            created_at: expect.any(String),  // Changed to expect.any(String)
+            updated_at: expect.any(String),  // Changed to expect.any(String)
+            deleted_at: null
+          })
+        ]);
       });
 
       it("should update tags for a person", async () => {
@@ -602,21 +598,18 @@ medusaIntegrationTestRunner({
           headers
         );
 
-        expect(response.status).toBe(200);
-        expect(response.data.tags).toEqual(
-          expect.arrayContaining(
-            updatedTagValues.map(value => 
-              expect.objectContaining({
-                value,
-                id: expect.any(String),
-                person_id: personId,
-                person: {
-                  id: personId,
-                },
-              })
-            )
-          )
-        );
+
+        expect(response.status).toBe(201);
+        expect(response.data.tags).toEqual([
+          expect.objectContaining({
+            id: expect.any(String),
+            name: expect.arrayContaining(updatedTagValues),
+            person_id: personId,
+            created_at: expect.any(String),  // Changed to expect.any(String)
+            updated_at: expect.any(String),  // Changed to expect.any(String)
+            deleted_at: null
+          })
+        ]);
 
         // Verify old tags are removed
         expect(response.data.tags.map(t => t.value)).not.toContain("customer");
@@ -630,16 +623,14 @@ medusaIntegrationTestRunner({
           headers
         );
 
-        expect(createResponse.data.tags).toHaveLength(2);
+        expect(createResponse.data.tags).toHaveLength(1);
+        expect(createResponse.data.tags[0].name).toEqual(expect.arrayContaining(["customer", "vip"]));
         const tagToDelete = createResponse.data.tags[0];
         expect(tagToDelete).toBeDefined();
 
         const response = await api.delete(
-          `/admin/persons/${personId}/tags`,
-          {
-            headers,
-            data: { tag_ids: [tagToDelete.id] },
-          }
+          `/admin/persons/${personId}/tags/${tagToDelete.id}`,
+          headers,
         );
 
         expect(response.status).toBe(204);

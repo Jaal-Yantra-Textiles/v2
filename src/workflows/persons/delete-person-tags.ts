@@ -4,12 +4,12 @@ import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@med
 
 export type DeletePersonTagsStepInput = {
   person_id: string;
-  tag_ids: string[];
+  id: string;
 };
 
 export type DeletePersonTagsWorkFlowInput = {
   person_id: string;
-  tag_ids: string[];
+  id: string;
 };
 
 export const deletePersonTagsStep = createStep(
@@ -17,9 +17,9 @@ export const deletePersonTagsStep = createStep(
   async (input: DeletePersonTagsStepInput, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
     const originalTags = await personService.listTags(input);
+    console.log(originalTags)
     await personService.deleteTags({
-      person_id: input.person_id,
-      tag_ids: input.tag_ids,
+      id: input.id
     });
 
     return new StepResponse(true, originalTags);

@@ -1,8 +1,8 @@
 import {
   defineMiddlewares,
-  errorHandler,
   MedusaErrorHandlerFunction,
   validateAndTransformBody,
+  validateAndTransformQuery,
   
 } from "@medusajs/framework/http";
 import { personSchema, UpdatePersonSchema } from "./admin/persons/validators";
@@ -11,7 +11,7 @@ import {
 } from "./admin/persontype/validators";
 import { addressSchema } from "./admin/persons/[id]/addresses/validators";
 import { contactSchema } from "./admin/persons/[id]/contacts/validators";
-import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
+import { tagSchema, DeleteTagForPerson, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
 import * as z from "zod";
 
 export default defineMiddlewares({
@@ -61,7 +61,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/persons/:id/tags",
       method: "DELETE",
-      middlewares: [validateAndTransformBody(deleteTagSchema)],
+      middlewares: [validateAndTransformQuery(deleteTagSchema, {})],
     },
     // PersonType routes
     {
