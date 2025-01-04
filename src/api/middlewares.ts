@@ -8,7 +8,7 @@ import {
 import { personSchema, UpdatePersonSchema } from "./admin/persons/validators";
 import {
   personTypeSchema,
-} from "./admin/persontype/validators";
+} from "./admin/persontypes/validators";
 import { addressSchema } from "./admin/persons/[id]/addresses/validators";
 import { contactSchema } from "./admin/persons/[id]/contacts/validators";
 import { tagSchema, DeleteTagForPerson, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
@@ -65,17 +65,17 @@ export default defineMiddlewares({
     },
     // PersonType routes
     {
-      matcher: "/admin/persontype",
+      matcher: "/admin/persontypes",
       method: "POST",
       middlewares: [validateAndTransformBody(personTypeSchema)],
     },
     {
-      matcher: "/admin/persontype/:id",
+      matcher: "/admin/persontypes/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(personTypeSchema)],
     },
     {
-      matcher: "/admin/persontype/:id",
+      matcher: "/admin/persontypes/:id",
       method: "DELETE",
       middlewares: [],
     },

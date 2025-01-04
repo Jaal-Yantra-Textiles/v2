@@ -2,6 +2,7 @@ const { loadEnv } = require("@medusajs/utils");
 loadEnv("test", process.cwd());
 
 module.exports = {
+  setupFiles: ["./integration-tests/setup.ts"],
   silent: true,
   verbose: false,
   transform: {

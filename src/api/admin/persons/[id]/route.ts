@@ -5,19 +5,54 @@ import { PERSON_MODULE } from "../../../../modules/person";
 import updatePersonWorkflow from "../../../../workflows/update-person";
 import { PersonAllowedFields, refetchPerson } from "../helpers";
 import { AdminUpdatePerson } from "@medusajs/framework/types";
-import { MedusaError } from "@medusajs/framework/utils";
+import { MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const personService: PersonService = req.scope.resolve(PERSON_MODULE);
   const { id } = req.params;
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
 
   try {
-    const person = await personService.retrievePerson(id, {
-      relations: ["addresses"],
+    // Fetch person details
+    const { data: person } = await query.graph({
+      entity: "person",
+      filters: { id },
+      fields: [
+        "*",
+        "person_type.*"
+        // "id",
+        // "first_name",
+        // "last_name",
+        // "email",
+        // "date_of_birth",
+        // "metadata",
+        // "created_at",
+        // "updated_at",
+        // "deleted_at",
+        // "state",
+        // "avatar",
+        // "addresses.*",
+        // "contact_details.*",
+        // "tags.*",
+        // "person_type.*",
+      ],
     });
-    res.status(200).json({ person });
+
+    if (!person?.length) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Person with id "${id}" not found`
+      );
+    }
+
+    res.status(200).json({ person: person[0] });
   } catch (error) {
-    res.status(404).json({ error: error.message });
+    if (error instanceof MedusaError) {
+      throw error;
+    }
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      error.message
+    );
   }
 };
 

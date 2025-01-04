@@ -1,9 +1,10 @@
 // src/modules/person/services/person-service.ts
-import { MedusaService } from "@medusajs/framework/utils";
+import { MedusaError, MedusaService } from "@medusajs/framework/utils";
 import Person from "../person/models/person";
 import Address from "./models/person_address";
 import ContactDetail from "./models/person_contact";
 import Tag from "./models/person_tags";
+import PersonTypeService from "../persontype/service";
 
 class PersonService extends MedusaService({
   Person,
@@ -16,6 +17,7 @@ class PersonService extends MedusaService({
   constructor() {
     super(...arguments)
   }
+
 }
 
 export default PersonService;

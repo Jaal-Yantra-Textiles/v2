@@ -1,4 +1,4 @@
-import { Modules } from "@medusajs/utils";
+import { ContainerRegistrationKeys, Modules } from "@medusajs/utils";
 import Scrypt from "scrypt-kdf";
 import { getContainer } from "./use_container.js";
 import { ApiKeyType } from "@medusajs/utils";
@@ -29,7 +29,6 @@ export const createAdminUser = async ( container?) => {
   const userModule = appContainer.resolve(Modules.USER);
   const authModule = appContainer.resolve(Modules.AUTH);
   const apiModule = appContainer.resolve(Modules.API_KEY);
-
   const user = await userModule.createUsers({
     first_name: "Admin",
     last_name: "User",

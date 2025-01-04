@@ -9,6 +9,10 @@ const PersonModule = Module(PERSON_MODULE, {
 });
 
 
+
 export { PersonModule }
 
+
 export default PersonModule
+
+

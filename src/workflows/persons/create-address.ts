@@ -11,11 +11,11 @@ import { PERSON_MODULE } from "../../modules/person";
 type CreateAddressStepInput = {
   person_id: string;
   
-      street: string;
-      city: string;
-      state: string;
-      postal_code: string;
-      country: string;
+  street: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
   
   
 };
