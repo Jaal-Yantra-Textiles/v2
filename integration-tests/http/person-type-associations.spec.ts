@@ -117,6 +117,7 @@ medusaIntegrationTestRunner({
         
         // Delete the person
         await api.delete(`/admin/persons/${personId}`, headers).catch(() => {});
+        
       });
     });
   },

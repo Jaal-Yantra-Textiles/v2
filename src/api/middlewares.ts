@@ -13,6 +13,10 @@ import { addressSchema } from "./admin/persons/[id]/addresses/validators";
 import { contactSchema } from "./admin/persons/[id]/contacts/validators";
 import { tagSchema, DeleteTagForPerson, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
 import * as z from "zod";
+import { rawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
+import { AdminGetInventoryItemParams } from "@medusajs/medusa/api/admin/inventory-items/validators";
+
+import * as QueryConfig from "../api/admin/inventory-items/[id]/query-config"
 
 export default defineMiddlewares({
   routes: [
@@ -79,6 +83,16 @@ export default defineMiddlewares({
       method: "DELETE",
       middlewares: [],
     },
+    // Inventory Associations
+
+    {
+      matcher: "/admin/inventory-items/:id/rawmaterials",
+      method: "POST",
+      middlewares: [validateAndTransformBody(rawMaterialSchema)],
+    },
+
+
+
   ],
   errorHandler: ((
     error: any, // or whatever type you prefer

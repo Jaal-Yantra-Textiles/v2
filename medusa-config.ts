@@ -21,6 +21,25 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/persontype",
     },
+    {
+      resolve: "./src/modules/inventory_orders",
+    },
+    {
+      resolve: "./src/modules/internal_payments",
+    },
+    {
+      resolve: "./src/modules/company",
+    },
+    {
+      resolve: "./src/modules/website",
+    },
+    {
+      resolve: "./src/modules/designs",
+    },
+    {
+      resolve: "./src/modules/raw_material",
+    },
+
     // {
     //   resolve: "@medusajs/medusa/workflow-engine-redis",
     //   options: {

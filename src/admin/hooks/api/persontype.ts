@@ -38,7 +38,7 @@ export const usePersonType = (
     queryKey: personTypeQueryKeys.detail(id),
     queryFn: async () =>
       sdk.client.fetch<{ personType: AdminPersonType }>(
-        `/admin/persontype/${id}`,
+        `/admin/persontypes/${id}`,
         {
           method: "GET",
           query,
@@ -64,7 +64,7 @@ export const usePersonTypes = (
   const { data, ...rest } = useQuery({
     queryFn: async () =>
       sdk.client.fetch<PaginatedResponse<{ personTypes: AdminPersonType[] }>>(
-        `/admin/persontype`,
+        `/admin/persontypes`,
         {
           method: "GET",
           query,
@@ -88,7 +88,7 @@ export const useCreatePersonType = (
     mutationFn: async (payload: AdminCreatePersonType) => {
       console.log("Mutation starting with payload:", payload);
       const response = sdk.client.fetch<{ personType: AdminPersonType }>(
-        `/admin/persontype`,
+        `/admin/persontypes`,
         {
           method: "POST",
           body: payload,
@@ -106,10 +106,6 @@ export const useCreatePersonType = (
       });
     },
     onSuccess: async (data, variables, context) => {
-      console.log("onSuccess called");
-      console.log("Current queries:", queryClient.getQueryCache().getAll());
-      console.log("Invalidating with key:", personTypeQueryKeys.lists());
-
       try {
         await queryClient.invalidateQueries({
           queryKey: personTypeQueryKeys.lists(),
@@ -146,7 +142,7 @@ export const useUpdatePersonType = (
   return useMutation({
     mutationFn: async (payload: AdminUpdatePersonType) =>
       sdk.client.fetch<{ personType: AdminPersonType }>(
-        `/admin/persontype/${id}`,
+        `/admin/persontypes/${id}`,
         {
           method: "POST",
           body: payload,

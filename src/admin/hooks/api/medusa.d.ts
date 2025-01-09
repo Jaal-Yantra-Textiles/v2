@@ -2,6 +2,174 @@
 import { AdminPostCustomersReq, AdminCustomersRes } from "@medusajs/medusa";
 import { PaginatedResponse } from "@medusajs/types";
 
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
+
+export type Person = {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  type: string
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export type CreatePersonInput = {
+  email: string
+  first_name: string
+  last_name: string
+  type: string
+}
+
+export type CreatePersonRequest = MedusaRequest<CreatePersonInput>
+
+export type CreatePersonResponse = MedusaResponse<{
+  person: Person
+}>
+
+export type GetPersonsParams = {
+  type?: string
+  email?: string
+}
+
+export type GetPersonsRequest = MedusaRequest<GetPersonsParams>
+
+export type GetPersonsResponse = MedusaResponse<{
+  persons: Person[]
+  count: number
+  offset: number
+  limit: number
+}>
+
+export type PersonType = {
+  id: string
+  name: string
+  description?: string
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export type CreatePersonTypeInput = {
+  name: string
+  description?: string
+}
+
+export type CreatePersonTypeRequest = MedusaRequest<CreatePersonTypeInput>
+
+export type CreatePersonTypeResponse = MedusaResponse<{
+  person_type: PersonType
+}>
+
+export type GetPersonTypesParams = {
+  name?: string
+}
+
+export type GetPersonTypesRequest = MedusaRequest<GetPersonTypesParams>
+
+export type GetPersonTypesResponse = MedusaResponse<{
+  person_types: PersonType[]
+  count: number
+  offset: number
+  limit: number
+}>
+
+export type Address = {
+  id: string
+  address_1: string
+  address_2?: string
+  city: string
+  country_code: string
+  postal_code: string
+  province?: string
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export type CreateAddressInput = {
+  address_1: string
+  address_2?: string
+  city: string
+  country_code: string
+  postal_code: string
+  province?: string
+}
+
+export type CreateAddressRequest = MedusaRequest<CreateAddressInput>
+
+export type CreateAddressResponse = MedusaResponse<{
+  address: Address
+}>
+
+export type RawMaterial = {
+  id: string
+  name: string
+  description: string
+  composition: string
+  specifications: any | null
+  unit_of_measure: string
+  minimum_order_quantity: number
+  lead_time_days: number
+  color: string
+  width: string
+  weight: string
+  grade: string
+  certification: any | null
+  usage_guidelines: string | null
+  storage_requirements: string | null
+  status: string
+  metadata: any | null
+  material_type_id: string
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+  material_type: {
+    id: string
+    name: string
+    description: string | null
+    category: string
+    properties: any | null
+    metadata: any | null
+    created_at: string
+    updated_at: string
+    deleted_at: string | null
+  }
+}
+
+export type CreateRawMaterialInput = {
+  rawMaterialData: {
+    name: string
+  status: string
+  composition?: string
+  material_type?: {
+    name: string
+    category: string
+  }
+  unit_of_measure?: string
+  minimum_order_quantity?: number
+  lead_time_days?: number
+  }
+}
+
+export type CreateRawMaterialRequest = MedusaRequest<CreateRawMaterialInput>
+
+export type CreateRawMaterialResponse = MedusaResponse<{
+  raw_material: RawMaterial
+}>
+
+export type GetInventoryRawMaterialsParams = {
+  status?: string
+  material_type?: string
+}
+
+export type GetInventoryRawMaterialsRequest = MedusaRequest<GetInventoryRawMaterialsParams>
+
+export type GetInventoryRawMaterialsResponse = MedusaResponse<{
+  raw_material: RawMaterial
+}>
+
 declare module "@medusajs/types" {
   export namespace HttpTypes {
     export interface AdminPerson {
@@ -101,5 +269,12 @@ declare module "@medusajs/types" {
     created_at: string;
     updated_at: string;
     q?: string | undefined;
+  }
+
+  export namespace HttpTypes {
+    export interface AdminPostInventoryItemsRawMaterialsReq extends CreateRawMaterialRequest {}
+    export interface AdminPostInventoryItemsRawMaterialsRes extends CreateRawMaterialResponse {}
+    export interface AdminGetInventoryItemsRawMaterialsParams extends GetInventoryRawMaterialsRequest {}
+    export interface AdminGetInventoryItemsRawMaterialsRes extends GetInventoryRawMaterialsResponse {}
   }
 }
