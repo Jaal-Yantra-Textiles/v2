@@ -144,9 +144,17 @@ const InventoryRawMaterialWidget = ({
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
-        <div>
+        <div className="flex items-center gap-x-4">
           <Heading level="h2">Raw Materials</Heading>
+          {inventory_item?.raw_materials && (
+            <StatusBadge color={materialStatusColor(inventory_item.raw_materials.status)}>
+              {inventory_item.raw_materials.status}
+            </StatusBadge>
+          )}
         </div>
+        {inventory_item?.raw_materials && (
+          <ActionMenu groups={getItemActionGroups(inventory_item.raw_materials.id)} />
+        )}
         {shouldShowAddAction && (
           <ActionMenu
             groups={[
@@ -164,7 +172,7 @@ const InventoryRawMaterialWidget = ({
         )}
       </div>
 
-      <div className="p-4">
+      <div className="p-0">
         {!inventory_item?.raw_materials ? (
           <div className="flex flex-col items-center justify-center h-32 border rounded-lg">
             <p className="text-ui-fg-subtle mb-4">No raw materials added yet</p>
@@ -178,23 +186,13 @@ const InventoryRawMaterialWidget = ({
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <div className="flex items-center gap-x-4">
-                <div>
-                  <Heading className="mb-1">{inventory_item.raw_materials.name}</Heading>
-                  {inventory_item.raw_materials.description && (
-                    <Text size="small" className="text-ui-fg-subtle">
-                      {inventory_item.raw_materials.description}
-                    </Text>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-x-4">
-                <StatusBadge color={materialStatusColor(inventory_item.raw_materials.status)}>
-                  {inventory_item.raw_materials.status}
-                </StatusBadge>
-                <ActionMenu groups={getItemActionGroups(inventory_item.raw_materials.id)} />
-              </div>
+            <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4 border-b">
+              <Text size="small" leading="compact" weight="plus">
+                Material Name
+              </Text>
+              <Text size="small" leading="compact">
+                {inventory_item.raw_materials.name || "-"}
+              </Text>
             </div>
 
             {/* Material Type */}

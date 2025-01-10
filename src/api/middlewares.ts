@@ -14,9 +14,8 @@ import { contactSchema } from "./admin/persons/[id]/contacts/validators";
 import { tagSchema, DeleteTagForPerson, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
 import * as z from "zod";
 import { rawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
-import { AdminGetInventoryItemParams } from "@medusajs/medusa/api/admin/inventory-items/validators";
+import { designSchema, UpdateDesignSchema } from "./admin/designs/validators";
 
-import * as QueryConfig from "../api/admin/inventory-items/[id]/query-config"
 
 export default defineMiddlewares({
   routes: [
@@ -90,7 +89,28 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(rawMaterialSchema)],
     },
+    {
+      matcher: "/admin/designs",
+      method: "POST",
+      middlewares: [validateAndTransformBody(designSchema)],
+    },
+    {
+      matcher: "/admin/designs/:id",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(UpdateDesignSchema)],
+    },
 
+    {
+      matcher: "/admin/designs/:id",
+      method: "GET",
+      middlewares: [],
+    },
+
+    {
+      matcher: "/admin/designs/:id",
+      method: "DELETE",
+      middlewares: [],
+    },
 
 
   ],
@@ -135,3 +155,4 @@ export default defineMiddlewares({
     next(error);
   }) as MedusaErrorHandlerFunction,
 });
+

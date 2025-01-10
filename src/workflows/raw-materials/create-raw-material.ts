@@ -46,7 +46,6 @@ const createRawMaterialData = createStep(
     const rawMaterial = await rawMaterialService.createRawMaterials({
       ...input.rawMaterialData
     })
-    console.log(rawMaterial)
     return new StepResponse(rawMaterial, rawMaterial.id)
   },
   async (rawMaterial, { container }) => {
@@ -58,7 +57,7 @@ const createRawMaterialData = createStep(
 const createRawMaterialLink = createStep(
   "create-raw-material-link",
   async (input: { inventoryId: string, rawMaterialId: string }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = []
 
     links.push({
@@ -78,7 +77,7 @@ const createRawMaterialLink = createStep(
     return new StepResponse(links)
   },
   async (links: LinkDefinition[], { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
     await remoteLink.dismiss(links)
   }
 )
