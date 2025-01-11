@@ -32,7 +32,7 @@ export const POST = async(req: MedusaRequest, res: MedusaResponse) => {
     // Check if all personTypes exist
     await refetchPersonType(personTypeIds, req.scope);
 
-    const { result:list } = await associatePersonTypesWorkflow.run({
+    const { result:list } = await associatePersonTypesWorkflow(req.scope).run({
         input: {
             personId: id,
             typeIds: personTypeIds

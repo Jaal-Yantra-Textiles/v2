@@ -2,8 +2,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http";
-import DesignService from "../../../modules/designs/service";
-import { DESIGN_MODULE } from "../../../modules/designs";
+
 import { Design } from "./validators";
 import createDesignWorkflow from "../../../workflows/designs/create-design";
 import listDesignsWorkflow from "../../../workflows/designs/list-designs";
@@ -18,9 +17,9 @@ export const POST = async (
   },
   res: MedusaResponse,
 ) => {
-  const { result, errors } = await createDesignWorkflow.run({
+  const { result, errors } = await createDesignWorkflow(req.scope).run({
     input: req.validatedBody,
-  });
+  })
 
   if (errors.length > 0) {
     console.warn("Error reported at", errors);

@@ -1,6 +1,4 @@
-import { container } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { LinkDefinition } from "@medusajs/framework/types"
 import {
   createStep,
   WorkflowResponse,
@@ -18,8 +16,8 @@ type AssociatePersonTypesInput = {
 
 const prepareLinkDefinitionsStep = createStep(
   "prepare-link-definitions",
-  async (input: AssociatePersonTypesInput) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+  async (input: AssociatePersonTypesInput, { container }) => {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
     const links: string[] = []
 
     // Create a separate link for each type ID

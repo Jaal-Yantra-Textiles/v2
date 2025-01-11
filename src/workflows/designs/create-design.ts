@@ -19,7 +19,7 @@ type CreateDesignStepInput = {
   design_type?: DesignType;
   status?: DesignStatus;
   priority?: PriorityLevel;
-  target_completion_date?: Date;
+  target_completion_date?: string | Date;
   design_files?: string[];
   thumbnail_url?: string;
   custom_sizes?: Record<string, any>;
@@ -31,7 +31,7 @@ type CreateDesignStepInput = {
   estimated_cost?: number;
   designer_notes?: string;
   feedback_history?: Array<{
-    date: Date;
+    date: string | Date;
     feedback: string;
     author: string;
   }>;
@@ -41,6 +41,7 @@ type CreateDesignStepInput = {
 export const createDesignStep = createStep(
   "create-design-step",
   async (input: CreateDesignStepInput, { container }) => {
+    const link = container.resolve(ContainerRegistrationKeys.LINK);
     const designService: DesignService = container.resolve(DESIGN_MODULE);
     const design = await designService.createDesigns(input);
     return new StepResponse(design, design.id);

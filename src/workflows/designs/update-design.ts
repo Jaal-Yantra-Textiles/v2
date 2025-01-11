@@ -53,7 +53,6 @@ export const updateDesignStep = createStep(
         ...input,
       },
     });
-    console.log(originalDesign,design)
     return new StepResponse(design, { id: input.id, originalData: originalDesign });
   },
   // Compensation function to restore original state
