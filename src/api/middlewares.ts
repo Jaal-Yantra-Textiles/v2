@@ -15,6 +15,7 @@ import { tagSchema, DeleteTagForPerson, deleteTagSchema } from "./admin/persons/
 import * as z from "zod";
 import { rawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
 import { designSchema, UpdateDesignSchema } from "./admin/designs/validators";
+import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 
 
 export default defineMiddlewares({
@@ -111,7 +112,17 @@ export default defineMiddlewares({
       method: "DELETE",
       middlewares: [],
     },
-
+    // Task-Templates 
+    {
+      matcher: "/admin/task-templates",
+      method: "POST",
+      middlewares: [validateAndTransformBody(taskTemplateSchema)],
+    },
+    {
+      matcher: "/admin/task-templates/:id",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(updateTaskTemplateSchema)],
+    },
 
   ],
   errorHandler: ((

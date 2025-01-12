@@ -40,6 +40,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/raw_material",
     },
+    {
+      resolve: "./src/modules/tasks",
+    },
 
     // {
     //   resolve: "@medusajs/medusa/workflow-engine-redis",
