@@ -72,7 +72,6 @@ const createRawMaterialLink = createStep(
         inventory_id: input.inventoryId
       }
     })
-
     await remoteLink.create(links)
     return new StepResponse(links)
   },

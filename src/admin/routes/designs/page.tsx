@@ -1,7 +1,7 @@
 import { Container, Heading, Text } from "@medusajs/ui";
 import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { Users, PencilSquare } from "@medusajs/icons";
+import { ToolsSolid, PencilSquare } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { usePersons } from "../../hooks/api/persons";
 import { useMemo } from "react";
@@ -113,6 +113,6 @@ const PersonsPage = () => {
 export default PersonsPage;
 
 export const config = defineRouteConfig({
-  label: "Persons",
-  icon: Users,
+  label: "Designs",
+  icon: ToolsSolid,
 });

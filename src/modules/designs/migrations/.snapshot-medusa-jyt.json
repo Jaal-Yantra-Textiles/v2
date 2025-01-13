@@ -227,19 +227,19 @@
           "mappedType": "datetime"
         }
       },
-      "name": "designs",
+      "name": "design",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_designs_deleted_at",
+          "keyName": "IDX_design_deleted_at",
           "columnNames": [],
           "composite": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_designs_deleted_at\" ON \"designs\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_design_deleted_at\" ON \"design\" (deleted_at) WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "designs_pkey",
+          "keyName": "design_pkey",
           "columnNames": [
             "id"
           ],
@@ -460,7 +460,7 @@
           "referencedColumnNames": [
             "id"
           ],
-          "referencedTableName": "public.designs",
+          "referencedTableName": "public.design",
           "updateRule": "cascade"
         }
       }

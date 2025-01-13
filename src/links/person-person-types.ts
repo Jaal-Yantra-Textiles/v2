@@ -7,7 +7,6 @@ export default defineLink(
   {
     linkable: PersonModule.linkable.person,
     isList: true,
-   
   },
   PersonTypeModule.linkable.personType
 )

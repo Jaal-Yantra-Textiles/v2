@@ -1,7 +1,7 @@
 import { model } from "@medusajs/framework/utils";
 import DesignSpecification from "./design_specification";
 
-const Design = model.define("designs", {
+const Design = model.define("design", {
   id: model.id().primaryKey(),
   name: model.text().searchable(),
   description: model.text(),

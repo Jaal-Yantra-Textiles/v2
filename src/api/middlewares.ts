@@ -16,6 +16,8 @@ import * as z from "zod";
 import { rawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
 import { designSchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
+import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
+import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
 
 
 export default defineMiddlewares({
@@ -112,6 +114,27 @@ export default defineMiddlewares({
       method: "DELETE",
       middlewares: [],
     },
+
+    //Task on Designs 
+
+    {
+      matcher: "/admin/designs/:id/tasks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(AdminPostDesignTasksReq)],
+    },
+    // Must add queryParams stuff here
+    {
+      matcher: "/admin/designs/:id/tasks/:taskId",
+      method: "GET",
+      middlewares: [],
+    },
+
+    {
+      matcher: "/admin/designs/:id/tasks/:taskId",
+      method: "POST",
+      middlewares: [validateAndTransformBody(AdminPutDesignTaskReq)],
+    },
+
     // Task-Templates 
     {
       matcher: "/admin/task-templates",

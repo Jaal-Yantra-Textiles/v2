@@ -38,6 +38,7 @@ export const POST = async(req: MedusaRequest, res: MedusaResponse) => {
             typeIds: personTypeIds
         }
     })
+    console.log(list)
     return res.status(200).json({
         personTypesLink: {
             list,

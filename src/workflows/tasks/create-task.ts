@@ -4,12 +4,13 @@ import {
   StepResponse,
   WorkflowResponse,
   when,
+  transform,
 } from "@medusajs/framework/workflows-sdk";
 import TaskService from "../../modules/tasks/service";
 import { TASKS_MODULE } from "../../modules/tasks";
 
 type CreateTaskStepInput = {
-  title: string;
+  title?: string;
   description?: string;
   status?: string;
   priority?: string;
@@ -22,19 +23,7 @@ type CreateTaskStepInput = {
   metadata?: Record<string, any>;
 };
 
-type CreateTaskInput = {
-  title: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  due_date?: Date;
-  assignee_id?: string;
-  template_ids?: string[];
-  eventable?: boolean;
-  notifiable?: boolean;
-  message?: string;
-  metadata?: Record<string, any>;
-};
+type CreateTaskInput = CreateTaskStepInput;
 
 // Step for creating task with templates
 export const createTaskWithTemplatesStep = createStep(
@@ -56,21 +45,28 @@ export const createTaskDirectlyStep = createStep(
   }
 );
 
+// Export the workflow
 export const createTaskWorkflow = createWorkflow(
   "create-task",
   (input: CreateTaskInput) => {
+    // Transform to get template IDs
+    const templateIds = transform(
+      { input },
+      (data) => data.input.template_ids || []
+    )
+
     // When task has templates
     const withTemplatesResult = when(
-      input,
-      (input) => Boolean(input.template_ids?.length)
+      templateIds,
+      (ids) => ids.length > 0
     ).then(() => {
       return createTaskWithTemplatesStep(input);
     });
 
     // When task has no templates
     const withoutTemplatesResult = when(
-      input,
-      (input) => !Boolean(input.template_ids?.length)
+      templateIds,
+      (ids) => ids.length === 0
     ).then(() => {
       return createTaskDirectlyStep(input);
     });

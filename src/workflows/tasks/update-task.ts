@@ -27,7 +27,12 @@ export const updateTaskStep = createStep(
   "update-task-step",
   async (input: UpdateTaskStepInput, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
-    const task = await taskService.updateTasks(input.id, input.update);
+    const task = await taskService.updateTasks({
+      selector: {
+        id: input.id,
+      },
+      data: input.update,
+    });
     return new StepResponse(task);
   }
 );

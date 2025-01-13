@@ -13,31 +13,30 @@ class TaskService extends MedusaService({
 
     async createTaskWithTemplates(data: any) {
         const { template_ids, ...taskData } = data;
+        // Set default dates
+        const now = new Date()
+        taskData.start_date = taskData.start_date || now
+        taskData.end_date = taskData.end_date || new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000))
 
-        // If template_ids are provided, merge template properties with task data
-        if (template_ids?.length) {
-            const templates = await this.listTaskTemplates(template_ids);
+        const templates = await this.listTaskTemplates({id: template_ids});
             
-            // Merge template properties into task data
-            templates.forEach(template => {
-                taskData.priority = taskData.priority || template.priority;
-                taskData.eventable = taskData.eventable ?? template.eventable;
-                taskData.notifiable = taskData.notifiable ?? template.notifiable;
-                taskData.message = taskData.message || template.message_template;
-                
-                // Merge metadata
-                if (template.metadata) {
-                    taskData.metadata = {
-                        ...template.metadata,
-                        ...taskData.metadata
-                    };
-                }
-            });
-        }
-
-        // Create the task with merged data
-        const task = await this.createTasks(taskData);
-        return task;
+        // Create task data for each template
+        const tasksToCreate = templates.map(template => ({
+            ...taskData,
+            title: template.name,
+            description: template.description || taskData.description,
+            priority: template.priority || taskData.priority,
+            eventable: template.eventable ?? taskData.eventable,
+            notifiable: template.notifiable ?? taskData.notifiable,
+            metadata: {
+                ...(template.metadata || {}),
+                ...(taskData.metadata || {}),
+                template_id: template.id,
+                template_name: template.name
+            }
+        }))
+        // Create all tasks in a single call
+        return await this.createTasks(tasksToCreate)
     }
 }
 

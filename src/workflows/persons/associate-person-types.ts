@@ -7,7 +7,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { PERSON_MODULE } from "../../modules/person"
 import { PERSON_TYPE_MODULE } from "../../modules/persontype"
-
+import { LinkDefinition } from "@medusajs/framework/types"
 
 type AssociatePersonTypesInput = {
   personId: string
@@ -18,30 +18,29 @@ const prepareLinkDefinitionsStep = createStep(
   "prepare-link-definitions",
   async (input: AssociatePersonTypesInput, { container }) => {
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
-    const links: string[] = []
+    const links:  LinkDefinition[] = []
 
     // Create a separate link for each type ID
     for (const typeId of input.typeIds) {
-      const link = await remoteLink.create({
-        [PERSON_MODULE]: {
-          person_id: input.personId
-        },
-        [PERSON_TYPE_MODULE]: {
-          person_type_id: typeId
-        },
-        data: {
-          person_id: input.personId,
-          person_type_id: typeId
-        }
-      })
-      links.push(link as unknown as string)
+     links.push({
+      [PERSON_MODULE]: {
+        person_id: input.personId
+      },
+      [PERSON_TYPE_MODULE]: {
+        person_type_id: typeId
+      },
+      data: {
+        person_id: input.personId,
+        person_type_id: typeId
+      }
+     })
     }
-
+    await remoteLink.create(links)
     return new StepResponse(links)
   }, 
   async (links, { container }) => {
     if (!links?.length) return
-    const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
     
     // Rollback each link individually
     for (const link of links) {

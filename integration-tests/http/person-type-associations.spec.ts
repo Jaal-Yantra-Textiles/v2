@@ -57,6 +57,8 @@ medusaIntegrationTestRunner({
             headers
           );
 
+         
+
           expect(associateResponse.status).toBe(200);
           expect(associateResponse.data.message).toContain(`Person ${personId} successfully associated with ${personTypeIds.length} types`);
           
@@ -73,7 +75,7 @@ medusaIntegrationTestRunner({
           // Verify the associated types match
           const receivedTypeIds = getResponse.data.person.person_type.map(type => type.id);
           expect(receivedTypeIds).toEqual(expect.arrayContaining(personTypeIds));
-          
+         
           // Verify type details are included
           getResponse.data.person.person_type.forEach(type => {
             expect(type).toHaveProperty("name");
