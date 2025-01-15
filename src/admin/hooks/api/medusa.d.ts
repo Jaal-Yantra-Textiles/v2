@@ -246,6 +246,7 @@ declare module "@medusajs/types" {
     }
     export interface AdminUpdatePersonType
       extends Partial<AdminCreatePersonType> {}
+
   }
 
   export interface AdminPersonTypeResponse {
