@@ -1,4 +1,5 @@
 import { model } from "@medusajs/framework/utils";
+import { TaskDependency } from "./task-dependency";
 
 const Task = model.define("task", {
     id: model.id().primaryKey(),
@@ -6,7 +7,7 @@ const Task = model.define("task", {
     description: model.text().nullable(),
     
     start_date: model.dateTime(),
-    end_date: model.dateTime(),
+    end_date: model.dateTime().nullable(),
     
     status: model.enum(['pending', 'in_progress', 'completed', 'cancelled'])
         .default('pending'),
@@ -23,6 +24,23 @@ const Task = model.define("task", {
     
     metadata: model.json().nullable(),
     completed_at: model.dateTime().nullable(),
+
+    // Parent-child relationship
+    parent_task: model.belongsTo(() => Task, {
+        mappedBy: "subtasks",
+    }).nullable(),
+
+    subtasks: model.hasMany(() => Task, {
+        mappedBy: "parent_task",
+    }),
+    
+    // Dependency relationships
+    outgoing_dependencies: model.hasMany(() => TaskDependency, {
+        mappedBy: "source_task",
+    }),
+    incoming_dependencies: model.hasMany(() => TaskDependency, {
+        mappedBy: "target_task",
+    })
 });
 
 export default Task;

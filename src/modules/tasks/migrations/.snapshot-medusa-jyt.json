@@ -49,7 +49,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "length": 6,
           "mappedType": "datetime"
         },
@@ -150,6 +150,15 @@
           "length": 6,
           "mappedType": "datetime"
         },
+        "parent_task_id": {
+          "name": "parent_task_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamptz",
@@ -187,6 +196,14 @@
       "schema": "public",
       "indexes": [
         {
+          "keyName": "IDX_task_parent_task_id",
+          "columnNames": [],
+          "composite": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_parent_task_id\" ON \"task\" (parent_task_id) WHERE deleted_at IS NULL"
+        },
+        {
           "keyName": "IDX_task_deleted_at",
           "columnNames": [],
           "composite": false,
@@ -205,7 +222,21 @@
         }
       ],
       "checks": [],
-      "foreignKeys": {}
+      "foreignKeys": {
+        "task_parent_task_id_foreign": {
+          "constraintName": "task_parent_task_id_foreign",
+          "columnNames": [
+            "parent_task_id"
+          ],
+          "localTableName": "public.task",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.task",
+          "deleteRule": "set null",
+          "updateRule": "cascade"
+        }
+      }
     },
     {
       "columns": {
@@ -301,6 +332,157 @@
       ],
       "checks": [],
       "foreignKeys": {}
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "dependency_type": {
+          "name": "dependency_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'blocking'",
+          "enumItems": [
+            "blocking",
+            "related",
+            "subtask"
+          ],
+          "mappedType": "enum"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
+        "source_task_id": {
+          "name": "source_task_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "target_task_id": {
+          "name": "target_task_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        }
+      },
+      "name": "task_dependency",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "IDX_task_dependency_source_task_id",
+          "columnNames": [],
+          "composite": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_source_task_id\" ON \"task_dependency\" (source_task_id) WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_task_dependency_target_task_id",
+          "columnNames": [],
+          "composite": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_target_task_id\" ON \"task_dependency\" (target_task_id) WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_task_dependency_deleted_at",
+          "columnNames": [],
+          "composite": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_deleted_at\" ON \"task_dependency\" (deleted_at) WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "task_dependency_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {
+        "task_dependency_source_task_id_foreign": {
+          "constraintName": "task_dependency_source_task_id_foreign",
+          "columnNames": [
+            "source_task_id"
+          ],
+          "localTableName": "public.task_dependency",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.task",
+          "updateRule": "cascade"
+        },
+        "task_dependency_target_task_id_foreign": {
+          "constraintName": "task_dependency_target_task_id_foreign",
+          "columnNames": [
+            "target_task_id"
+          ],
+          "localTableName": "public.task_dependency",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.task",
+          "updateRule": "cascade"
+        }
+      }
     },
     {
       "columns": {

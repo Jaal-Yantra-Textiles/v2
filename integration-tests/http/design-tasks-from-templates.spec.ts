@@ -61,13 +61,57 @@ const fabricSourcingTemplate = {
   }
 }
 
+const productionPlanningTemplate = {
+  name: "Production Planning Template",
+  description: "Master template for production planning",
+  priority: "high",
+  estimated_duration: 720,
+  required_fields: {
+    "production_quantity": { type: "number", required: true },
+    "target_completion": { type: "date", required: true }
+  },
+  eventable: true,
+  notifiable: true,
+  metadata: {
+    type: "planning",
+    department: "production"
+  },
+  category: {
+    name: "Production Planning",
+    description: "Tasks related to production planning and scheduling"
+  }
+};
+
+const qualityControlTemplate = {
+  name: "Quality Control Template",
+  description: "Template for quality control checks",
+  priority: "high",
+  estimated_duration: 120,
+  required_fields: {
+    "quality_standards": { type: "string", required: true },
+    "inspection_points": { type: "array", required: true }
+  },
+  eventable: true,
+  notifiable: true,
+  metadata: {
+    type: "quality",
+    department: "quality_control"
+  },
+  category: {
+    name: "Quality Control",
+    description: "Tasks related to quality assurance"
+  }
+};
+
 medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let headers
     let designId
     let templateIds = {
       pattern: "",
-      fabric: ""
+      fabric: "",
+      production: "",
+      quality: ""
     }
   
     beforeEach(async () => {
@@ -88,6 +132,14 @@ medusaIntegrationTestRunner({
       const fabricResponse = await api.post("/admin/task-templates", fabricSourcingTemplate, headers)
       expect(fabricResponse.status).toBe(201)
       templateIds.fabric = fabricResponse.data.task_template.id
+
+      const productionResponse = await api.post("/admin/task-templates", productionPlanningTemplate, headers)
+      expect(productionResponse.status).toBe(201)
+      templateIds.production = productionResponse.data.task_template.id
+
+      const qualityResponse = await api.post("/admin/task-templates", qualityControlTemplate, headers)
+      expect(qualityResponse.status).toBe(201)
+      templateIds.quality = qualityResponse.data.task_template.id
     })
   
     describe("POST /admin/designs/:id/tasks", () => {
@@ -99,13 +151,14 @@ medusaIntegrationTestRunner({
           },
           headers
         )
-  
+      
         expect(response.status).toBe(200)
         expect(response.data.taskLinks.count).toBe(2)
         expect(response.data.message).toContain(`Design ${designId} successfully created 2 tasks from templates`)
   
         // Verify tasks were created with correct properties
-        const tasksList = response.data.taskLinks.list[1]
+        const tasksList = response.data.taskLinks.list
+        console.log(tasksList, response.data)
         expect(tasksList).toHaveLength(2)
   
         const tasks = tasksList.map(task => ({
@@ -144,9 +197,7 @@ medusaIntegrationTestRunner({
   
         expect(response.status).toBe(200)
         expect(response.data.taskLinks.count).toBe(1)
-        expect(response.data.message).toContain("duplicate template names were removed")
-        expect(response.data.originalCount).toBe(2)
-        expect(response.data.processedCount).toBe(1)
+        expect(response.data.message).toContain(`Design ${designId} successfully created 1 tasks from templates`)
       })
   
       it("should handle non-existent template names", async () => {
@@ -183,7 +234,7 @@ medusaIntegrationTestRunner({
             headers
           )
         } catch (error) {
-          
+          console.log(error.response.data)
           expect(error.response.data.issues[0]).toEqual({
             code: "too_small",
             message: "At least one template name is required",
@@ -192,5 +243,166 @@ medusaIntegrationTestRunner({
         }
       })
     })
+
+    describe("Parent-Child Task Creation", () => {
+      let designId;
+      let productionTemplateId;
+      let qualityTemplateId;
+
+      beforeEach(async () => {
+        // Create design
+        const designResponse = await api.post("/admin/designs", testDesign, headers);
+        designId = designResponse.data.design.id;
+
+        // Use existing template IDs
+        productionTemplateId = templateIds.production;
+        qualityTemplateId = templateIds.quality;
+      });
+
+      it("should create multiple parent tasks with child tasks", async () => {
+        // First parent-child structure
+        const productionTask = {
+          template_names: ["Production Planning Template"],
+          child_tasks: [
+            { title: "Material Preparation", priority: "high" },
+            { title: "Quality Check", priority: "medium" }
+          ],
+          dependency_type: "blocking"
+        };
+
+        const productionResponse = await api.post(
+          `/admin/designs/${designId}/tasks`,
+          productionTask,
+          headers
+        );
+
+        // Second parent-child structure
+        const qualityTask = {
+          template_names: ["Quality Control Template"],
+          child_tasks: [
+            { title: "Initial Inspection", priority: "high" },
+            { title: "Final Testing", priority: "high" },
+            { title: "Documentation", priority: "medium" }
+          ],
+          dependency_type: "blocking"
+        };
+
+        const qualityResponse = await api.post(
+          `/admin/designs/${designId}/tasks`,
+          qualityTask,
+          headers
+        );
+
+
+
+        // Verify both responses have correct structure
+        for (const response of [productionResponse, qualityResponse]) {
+          expect(response.status).toBe(200);
+          expect(response.data.taskLinks).toEqual(
+            expect.objectContaining({
+              list: expect.arrayContaining([
+                expect.objectContaining({
+                  id: expect.any(String),
+                  title: expect.any(String),
+                  start_date: expect.any(String),
+                  status: expect.any(String),
+                  subtasks: expect.arrayContaining([
+                    expect.objectContaining({
+                      id: expect.any(String),
+                      title: expect.any(String),
+                      parent_task_id: expect.any(String),
+                      priority: expect.any(String)
+                    })
+                  ])
+                })
+              ]),
+              count: expect.any(Number)
+            })
+          );
+        }
+
+        // Verify specific counts
+        expect(productionResponse.data.taskLinks.list[0].subtasks).toHaveLength(2);
+        expect(qualityResponse.data.taskLinks.list[0].subtasks).toHaveLength(3);
+
+        // Verify parent-child relationships
+        const verifyParentChild = (response: any) => {
+          const parent = response.data.taskLinks.list[0];
+          const children = parent.subtasks;
+          
+          children.forEach((child: any) => {
+            expect(child.parent_task_id).toBe(parent.id);
+          });
+        };
+
+        verifyParentChild(productionResponse);
+        verifyParentChild(qualityResponse);
+      });
+
+      it("should create parent and child tasks both from templates", async () => {
+        const taskData = {
+          template_names: [productionPlanningTemplate.name],
+          metadata: {
+            production_quantity: 1000,
+            target_completion: "2025-07-30"
+          },
+          child_tasks: [
+            {
+              template_names: [qualityControlTemplate.name],
+              metadata: {
+                quality_standards: "ISO 9001",
+                inspection_points: ["stitching", "fabric", "finish"]
+              }
+            }
+          ],
+          dependency_type: "blocking"
+        };
+
+        const response = await api.post(
+          `/admin/designs/${designId}/tasks`,
+          taskData,
+          headers
+        );
+
+        console.log(response.data.taskLinks.list[0].subtasks[0])
+
+        expect(response.status).toBe(200);
+        expect(response.data.taskLinks).toEqual(
+          expect.objectContaining({
+            list: expect.arrayContaining([
+              expect.objectContaining({
+                id: expect.any(String),
+                title: productionPlanningTemplate.name,
+                status: expect.any(String),
+                metadata: expect.objectContaining({
+                  production_quantity: 1000,
+                  target_completion: "2025-07-30",
+                  template_name: productionPlanningTemplate.name
+                }),
+                subtasks: expect.arrayContaining([
+                  expect.objectContaining({
+                    id: expect.any(String),
+                    title: qualityControlTemplate.name,
+                    parent_task_id: expect.any(String),
+                    metadata: expect.objectContaining({
+                      quality_standards: "ISO 9001",
+                      inspection_points: expect.arrayContaining(["stitching", "fabric", "finish"]),
+                      template_name: qualityControlTemplate.name
+                    })
+                  })
+                ])
+              })
+            ]),
+            count: 1
+          })
+        );
+
+        // Verify parent-child relationship
+        const parent = response.data.taskLinks.list[0];
+        const child = parent.subtasks[0];
+        expect(child.parent_task_id).toBe(parent.id);
+        expect(parent.subtasks).toHaveLength(1);
+      });
+    });
   }
 })

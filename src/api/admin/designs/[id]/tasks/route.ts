@@ -2,6 +2,8 @@ import { MedusaError } from "@medusajs/utils"
 import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framework"
 import { createTasksFromTemplatesWorkflow } from "../../../../../workflows/designs/create-tasks-from-templates"
 import { getDesignTasksWorkflow } from "../../../../../workflows/designs/get-design-tasks"
+import { AdminPostDesignTasksReqType } from "./validators"
+import { refetchRawMaterial, refetchTask } from "./helpers"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
@@ -33,45 +35,58 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 }
 
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+export const POST = async (req: MedusaRequest<AdminPostDesignTasksReqType>, res: MedusaResponse) => {
   const { id } = req.params
-  
+
   // Validate design exists
   const designExists = await refetchEntity(
     "design",
     id,
     req.scope,
-    ["id"]
+    ["id"],
   )
-  
+
   if (!designExists) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_FOUND,
-      `Design with id ${id} was not found`
-    )
+    throw new Error(`Design not found for the id ${id}`)
   }
 
-  // Validate request body and remove duplicates
-  const originalBody = req.validatedBody as { template_names?: string[] }
-  const originalLength = originalBody.template_names?.length ?? 0
-  
-  // Explicitly remove duplicates using Set
-  const uniqueTemplateNames = [...new Set(originalBody.template_names)]
-
-  const { result: list } = await createTasksFromTemplatesWorkflow(req.scope).run({
+  // Run workflow with validated body
+  const {result: list} = await createTasksFromTemplatesWorkflow(req.scope).run({
     input: {
+      ...req.validatedBody,
       designId: id,
-      templateNames: uniqueTemplateNames
-    }
-  })
+    },
+  });
+
+  // Get workflow response data
+  const workflowResponse = list[0];
+
+  const taskLinks = list[1];
+
+  // Determine which tasks to fetch based on workflow response
+  let taskIds: string[] = [];
   
+  if (workflowResponse.withTemplates) {
+    // For template-based tasks, get all task IDs
+    taskIds = taskLinks.map(task => task.id);
+  } else if (workflowResponse.withParent) {
+    // For parent-child tasks, get parent task ID
+    taskIds = taskLinks.map(task => task.id);
+  } else if (workflowResponse.withoutTemplates) {
+    // For single task without templates
+    taskIds = [taskLinks[0].task.id];
+  }
+
+  // Fetch full task details
+  const tasks = await refetchTask(taskIds, req.scope, [
+    "*"
+  ]);
+
   return res.status(200).json({
     taskLinks: {
-      list: list[1],
-      count: list[1].length
+      list: Array.isArray(tasks) ? tasks : [tasks],
+      count: taskLinks.length,
     },
-    message: `Design ${id} successfully created ${list[1].length} tasks from templates${originalLength > uniqueTemplateNames.length ? ' (duplicate template names were removed)' : ''}`,
-    originalCount: originalLength,
-    processedCount: uniqueTemplateNames.length
-  })
+    message: `Design ${id} successfully created ${taskLinks.length} tasks from templates`,
+  });
 }

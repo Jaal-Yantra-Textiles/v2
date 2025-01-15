@@ -1,18 +1,20 @@
 import { MedusaService } from "@medusajs/framework/utils";
 import Task from "./models/task";
 import TaskTemplate, { TaskCategory } from "./models/tasktemplate";
+import { TaskDependency } from "./models/task-dependency";
 
 class TaskService extends MedusaService({
     Task,
     TaskTemplate,
     TaskCategory,
+    TaskDependency
 }) {
     constructor() {
         super(...arguments);
     }
 
     async createTaskWithTemplates(data: any) {
-        const { template_ids, ...taskData } = data;
+        const { template_ids, parent_task_id, dependency_type, ...taskData } = data;
         // Set default dates
         const now = new Date()
         taskData.start_date = taskData.start_date || now
@@ -28,6 +30,10 @@ class TaskService extends MedusaService({
             priority: template.priority || taskData.priority,
             eventable: template.eventable ?? taskData.eventable,
             notifiable: template.notifiable ?? taskData.notifiable,
+            parent_task_id: parent_task_id,
+            dependency_type: dependency_type,
+            start_date: taskData.start_date,
+            end_date: taskData.end_date,
             metadata: {
                 ...(template.metadata || {}),
                 ...(taskData.metadata || {}),
@@ -35,6 +41,7 @@ class TaskService extends MedusaService({
                 template_name: template.name
             }
         }))
+        
         // Create all tasks in a single call
         return await this.createTasks(tasksToCreate)
     }

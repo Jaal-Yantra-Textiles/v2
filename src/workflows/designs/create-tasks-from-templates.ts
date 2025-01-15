@@ -1,101 +1,93 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import {
-  createStep,
-  WorkflowResponse,
-  StepResponse,
   createWorkflow,
+  createStep,
   transform,
+  StepResponse,
+  WorkflowResponse
 } from "@medusajs/framework/workflows-sdk"
 import { LinkDefinition } from "@medusajs/framework/types"
 import { DESIGN_MODULE } from "../../modules/designs"
-import { TASKS_MODULE } from "../../modules/tasks"
-import TaskService from "../../modules/tasks/service"
 import { createTaskWorkflow } from "../tasks/create-task"
+import { AdminPostDesignTasksReqType } from "../../api/admin/designs/[id]/tasks/validators"
+import { TASKS_MODULE } from "../../modules/tasks"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
-type CreateTasksFromTemplatesInput = {
+// Extend the validator type with designId
+type CreateTasksInput = AdminPostDesignTasksReqType & {
   designId: string
-  templateNames: string[]
 }
 
-const validateAndRetrieveTemplatesStep = createStep(
-  "validate-and-retrieve-templates",
-  async (input: CreateTasksFromTemplatesInput, { container }) => {
-    const taskTemplateService: TaskService = container.resolve(TASKS_MODULE)
+export const determineTaskDataStep = createStep(
+  "determine-task-data",
+  async (input: any) => {
+    if (input.withTemplates) {
+      return new StepResponse(input.withTemplates);
+    } 
     
-    const templates = await taskTemplateService.listTaskTemplates({
-      name: input.templateNames
-    }, {
-      relations: ["category"]
-    })
-
-    if (templates.length !== input.templateNames.length) {
-      const foundNames = templates.map(t => t.name)
-      const missingNames = input.templateNames.filter(name => !foundNames.includes(name))
-      throw new Error(`Templates not found: ${missingNames.join(", ")}`)
+    if (input.withParent) {
+      const parentResponse = input.withParent;
+      if ('parent' in parentResponse && 'children' in parentResponse) {
+        // For parent-child relationships, only return the parent task
+        return new StepResponse([parentResponse.parent[0]]);
+      }
+      return new StepResponse([parentResponse]);
+    } 
+    
+    if (input.withoutTemplates) {
+      return new StepResponse([input.withoutTemplates]);
     }
-
-    return new StepResponse(templates)
+    
+    throw new Error("No valid task response found");
   }
 )
 
-const createDesignTaskLinksStep = createStep(
-  "create-design-task-links",
+export const createDesignTaskLinksStep = createStep(
+  "create-design-task-links-step",
   async (input: { tasks: any[], designId: string }, { container }) => {
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = []
-
     for (const task of input.tasks) {
       links.push({
         [DESIGN_MODULE]: {
-          design_id: input.designId
+          design_id: input.designId,
         },
         [TASKS_MODULE]: {
-          task_id: task.id
+          task_id: task.id,
         },
-        data: {
-          design_id: input.designId,
-          task_id: task.id
-        }
       })
     }
 
-    await remoteLink.create(links)
-    return new StepResponse(links)
-  },
-  async (links, { container }) => {
-    if (!links?.length) return
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
-    
-    for (const link of links) {
-      await remoteLink.dismiss(link)
-    }
+    const createdLinks = await remoteLink.create(links)
+    return new StepResponse(createdLinks)
   }
 )
 
 export const createTasksFromTemplatesWorkflow = createWorkflow(
   "create-tasks-from-templates",
-  (input: CreateTasksFromTemplatesInput) => {
-    const validateStep = validateAndRetrieveTemplatesStep(input)
-    
-    // Transform templates into task input
-    const taskInput = transform(
-      { templates: validateStep },
-      (data) => ({
-        template_ids: data.templates.map(t => t.id)
-      })
-    )
+  (input: CreateTasksInput) => {
+    // Transform input to match CreateTaskStepInput | CreateTaskWithParentInput
+    const transformedInput = transform(
+      { input },
+      (data) => {
+        const { designId, ...taskInput } = data.input;
+        return taskInput;
+      }
+    );
 
     // Create tasks with templates
     const createTasksStep = createTaskWorkflow.runAsStep({
-      input: taskInput
-    })
+      input: transformedInput
+    });
+
+    // Determine task data from the response
+    const taskDataStep = determineTaskDataStep(createTasksStep);
 
     // Create links for all tasks
     const createLinksStep = createDesignTaskLinksStep({
-      tasks: createTasksStep,
+      tasks: taskDataStep,
       designId: input.designId
-    })
+    });
 
-    return new WorkflowResponse([validateStep, createTasksStep, createLinksStep])
+    return new WorkflowResponse([createTasksStep, taskDataStep, createLinksStep]);
   }
 )
