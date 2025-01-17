@@ -20,9 +20,7 @@ export type TaskTemplateAllowedFields =
   | "updated_at"
   | "deleted_at"
   | "*"
-  | "category.name"
-  | "category.description"
-  | "category.metadata";
+  | "category.*";
 
 export const refetchTaskTemplate = async (
   templateId: string,

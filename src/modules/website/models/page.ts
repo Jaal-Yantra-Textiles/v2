@@ -1,7 +1,7 @@
 import { model } from "@medusajs/framework/utils";
 import Website from "./website";
 
-const Page = model.define("website_pages", {
+const Page = model.define("page", {
   id: model.id().primaryKey(),
   title: model.text().searchable(),
   slug: model.text().unique(),

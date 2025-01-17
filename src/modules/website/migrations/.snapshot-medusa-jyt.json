@@ -137,27 +137,27 @@
           "mappedType": "datetime"
         }
       },
-      "name": "websites",
+      "name": "website",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_websites_domain_unique",
+          "keyName": "IDX_website_domain_unique",
           "columnNames": [],
           "composite": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_websites_domain_unique\" ON \"websites\" (domain) WHERE deleted_at IS NULL"
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_website_domain_unique\" ON \"website\" (domain) WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_websites_deleted_at",
+          "keyName": "IDX_website_deleted_at",
           "columnNames": [],
           "composite": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_websites_deleted_at\" ON \"websites\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_website_deleted_at\" ON \"website\" (deleted_at) WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "websites_pkey",
+          "keyName": "website_pkey",
           "columnNames": [
             "id"
           ],
@@ -341,35 +341,35 @@
           "mappedType": "datetime"
         }
       },
-      "name": "website_pages",
+      "name": "page",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_website_pages_slug_unique",
+          "keyName": "IDX_page_slug_unique",
           "columnNames": [],
           "composite": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_website_pages_slug_unique\" ON \"website_pages\" (slug) WHERE deleted_at IS NULL"
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_page_slug_unique\" ON \"page\" (slug) WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_website_pages_website_id",
+          "keyName": "IDX_page_website_id",
           "columnNames": [],
           "composite": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_website_pages_website_id\" ON \"website_pages\" (website_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_page_website_id\" ON \"page\" (website_id) WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_website_pages_deleted_at",
+          "keyName": "IDX_page_deleted_at",
           "columnNames": [],
           "composite": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_website_pages_deleted_at\" ON \"website_pages\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_page_deleted_at\" ON \"page\" (deleted_at) WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "website_pages_pkey",
+          "keyName": "page_pkey",
           "columnNames": [
             "id"
           ],
@@ -380,16 +380,16 @@
       ],
       "checks": [],
       "foreignKeys": {
-        "website_pages_website_id_foreign": {
-          "constraintName": "website_pages_website_id_foreign",
+        "page_website_id_foreign": {
+          "constraintName": "page_website_id_foreign",
           "columnNames": [
             "website_id"
           ],
-          "localTableName": "public.website_pages",
+          "localTableName": "public.page",
           "referencedColumnNames": [
             "id"
           ],
-          "referencedTableName": "public.websites",
+          "referencedTableName": "public.website",
           "updateRule": "cascade"
         }
       }

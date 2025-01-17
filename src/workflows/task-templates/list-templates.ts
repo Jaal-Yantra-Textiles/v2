@@ -28,8 +28,13 @@ export const listTaskTemplatesStep = createStep(
   async (input: ListTaskTemplatesInput, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
     const [templates, count] = await taskService.listAndCountTaskTemplates(
-      input.filters,
-      input.config
+      {
+        ...input.filters
+      },
+      {
+        relations: ["category"]
+      }
+      
     );
     return new StepResponse({ templates, count });
   }

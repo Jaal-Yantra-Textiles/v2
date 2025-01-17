@@ -1,7 +1,7 @@
 import { model } from "@medusajs/framework/utils";
 import Page from "./page";
 
-const Website = model.define("websites", {
+const Website = model.define("website", {
   id: model.id().primaryKey(),
   domain: model.text().unique(),
   name: model.text().searchable(),
@@ -19,7 +19,7 @@ const Website = model.define("websites", {
   metadata: model.json().nullable(),
   
   // Relationship with Pages
-  pages: model.hasMany(() => Page, { mappedBy: "website" }),
+  pages: model.hasMany(() => Page),
 });
 
 export default Website;

@@ -9,6 +9,7 @@ class WebsiteService extends MedusaService({
   constructor() {
     super(...arguments)
   }
+
 }
 
 export default WebsiteService;

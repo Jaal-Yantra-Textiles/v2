@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 const categorySchema = z.object({
+  id: z.string().optional(),
   name: z.string().optional(),
   description: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.any()).optional()
 });
 
 export const taskTemplateSchema = z.object({
@@ -17,6 +18,7 @@ export const taskTemplateSchema = z.object({
   notifiable: z.boolean().optional(),
   message_template: z.string().optional(),
   metadata: z.record(z.any()).optional(),
+  
 });
 
 export const updateTaskTemplateSchema = taskTemplateSchema.partial();

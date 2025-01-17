@@ -17,7 +17,7 @@ export const POST = async (
   },
   res: MedusaResponse,
 ) => {
-  
+
   const { result, errors } = await createTaskTemplateWorkflow(req.scope).run({
     input: req.validatedBody,
   });

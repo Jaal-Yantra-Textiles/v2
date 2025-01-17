@@ -3,7 +3,8 @@ import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framewor
 import { createTasksFromTemplatesWorkflow } from "../../../../../workflows/designs/create-tasks-from-templates"
 import { getDesignTasksWorkflow } from "../../../../../workflows/designs/get-design-tasks"
 import { AdminPostDesignTasksReqType } from "./validators"
-import { refetchRawMaterial, refetchTask } from "./helpers"
+import { refetchTask } from "./helpers"
+
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params

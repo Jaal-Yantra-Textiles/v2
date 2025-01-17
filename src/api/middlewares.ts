@@ -3,7 +3,6 @@ import {
   MedusaErrorHandlerFunction,
   validateAndTransformBody,
   validateAndTransformQuery,
-  
 } from "@medusajs/framework/http";
 import { personSchema, UpdatePersonSchema } from "./admin/persons/validators";
 import {
@@ -11,14 +10,24 @@ import {
 } from "./admin/persontypes/validators";
 import { addressSchema } from "./admin/persons/[id]/addresses/validators";
 import { contactSchema } from "./admin/persons/[id]/contacts/validators";
-import { tagSchema, DeleteTagForPerson, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
+import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
 import * as z from "zod";
 import { rawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
 import { designSchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
-
+import { 
+  websiteSchema, 
+  updateWebsiteSchema, 
+  deleteWebsiteSchema 
+} from "./admin/websites/validators";
+import {
+  pageSchema,
+  createPagesSchema,
+  updatePageSchema,
+  deletePageSchema,
+} from "./admin/websites/[id]/pages/validators";
 
 export default defineMiddlewares({
   routes: [
@@ -147,6 +156,43 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(updateTaskTemplateSchema)],
     },
 
+    // Website routes
+    {
+      matcher: "/admin/websites",
+      method: "POST",
+      middlewares: [validateAndTransformBody(websiteSchema)],
+    },
+    {
+      matcher: "/admin/websites/:id",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(updateWebsiteSchema)],
+    },
+    {
+      matcher: "/admin/websites/:id",
+      method: "DELETE",
+      middlewares: [],
+    },
+    // Website Pages routes
+    {
+      matcher: "/admin/websites/:id/pages",
+      method: "POST",
+      middlewares: [validateAndTransformBody(z.union([pageSchema, createPagesSchema]))],
+    },
+    {
+      matcher: "/admin/websites/:id/pages/:pageId",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(updatePageSchema)],
+    },
+    {
+      matcher: "/admin/websites/:id/pages/:pageId",
+      method: "DELETE",
+      middlewares: [], 
+    },
+    {
+      matcher: "/web/health",
+      method: "GET",
+      middlewares: [],
+    },
   ],
   errorHandler: ((
     error: any, // or whatever type you prefer
@@ -189,4 +235,3 @@ export default defineMiddlewares({
     next(error);
   }) as MedusaErrorHandlerFunction,
 });
-
