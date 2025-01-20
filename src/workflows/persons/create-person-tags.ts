@@ -17,7 +17,7 @@ export const createPersonTagsStep = createStep(
   "create-person-step-tags",
   async (input: CreatePersonTagsStepInput, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
-    console.log(input)
+    
     const personTags = await personService.createTags({
       name: input.name,
       person_id: input.person_id

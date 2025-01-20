@@ -20,6 +20,11 @@ const Website = model.define("website", {
   
   // Relationship with Pages
   pages: model.hasMany(() => Page),
-});
+})
+.cascades(
+  {
+    delete: ['pages']
+  }
+)
 
 export default Website;

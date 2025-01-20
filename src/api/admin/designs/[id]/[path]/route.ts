@@ -7,11 +7,11 @@ export const GET = async (
 ) => {
   const { id, path } = req.params
 
-  console.log(id,req.params)
+ 
 
   // Check if the path is for notes
   if (path === "notes") {
-    console.log("Received request for notes path:", { designId: id, path })
+    
     return res.json({
       message: "Notes path handler",
       designId: id,
@@ -20,7 +20,7 @@ export const GET = async (
   }
 
   if (path === "test") {
-    console.log("Received request for notes path:", { designId: id, path })
+    
     return res.json({
       message: "Test path handler",
       designId: id,

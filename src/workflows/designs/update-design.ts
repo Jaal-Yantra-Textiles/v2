@@ -44,7 +44,7 @@ export const updateDesignStep = createStep(
     const designService: DesignService = container.resolve(DESIGN_MODULE);
     // Store the original design data for compensation
     const originalDesign = await designService.retrieveDesign(input.id);
-    console.log(input)
+  
     const design = await designService.updateDesigns({
       selector: {
         id: input.id,

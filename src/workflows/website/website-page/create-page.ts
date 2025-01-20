@@ -3,9 +3,13 @@ import {
   createWorkflow,
   StepResponse,
   WorkflowResponse,
+  createHook
 } from "@medusajs/framework/workflows-sdk";
 import { WEBSITE_MODULE } from "../../../modules/website";
 import WebsiteService from "../../../modules/website/service";
+import { emitEventStep } from "@medusajs/medusa/core-flows";
+import { MedusaError } from "@medusajs/framework/utils";
+
 
 export type CreatePageStepInput = {
   website_id: string;
@@ -28,19 +32,35 @@ export const createPageStep = createStep(
     
     // First verify the website exists
     await websiteService.retrieveWebsite(input.website_id);
+
+    // Check if a page with this slug already exists
+    try {
+      const existingPage = await websiteService.retrievePage(input.slug);
+      if (existingPage) {
+        throw new MedusaError(
+          MedusaError.Types.DUPLICATE_ERROR,
+          `A page with slug "${input.slug}" already exists. Please use a unique slug.`
+        );
+      }
+    } catch (error) {
+      // If error is NOT_FOUND, that's good - means no duplicate
+      if (error.type !== MedusaError.Types.NOT_FOUND) {
+        throw error;
+      }
+    }
     
     // Create the Page entity
-    const newPage = await websiteService.createPages({
+    const page = await websiteService.createPages({
       ...input,
-      last_modified: new Date()
-    });
+      last_modified: new Date(),
+      published_at: new Date()
+    })
 
     // Return the created entity and its ID for potential compensation
-    return new StepResponse(newPage, newPage.id);
+    return new StepResponse(page,page.id);
   },
-  async (id: string, { container }) => {
+  async (id: string , { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
-
     // Delete the created page to compensate
     await websiteService.softDeletePages(id);
   },
@@ -52,6 +72,20 @@ export const createPageWorkflow = createWorkflow(
   "create-page",
   (input: CreatePageWorkflowInput) => {
     const newPage = createPageStep(input);
-    return new WorkflowResponse(newPage);
+    // Emit the page.created event
+    emitEventStep({
+      eventName: "page.created",
+      data: {
+        id: newPage.id,
+      },
+    });
+
+    const pageCreatedHook = createHook(
+      "pageCreated",
+      { page_id: newPage.id },
+    )
+    return new WorkflowResponse(newPage, {
+      hooks: [pageCreatedHook],
+    });
   },
 );

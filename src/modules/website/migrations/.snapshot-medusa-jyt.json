@@ -390,6 +390,197 @@
             "id"
           ],
           "referencedTableName": "public.website",
+          "deleteRule": "cascade",
+          "updateRule": "cascade"
+        }
+      }
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'Content'",
+          "enumItems": [
+            "Hero",
+            "Header",
+            "Footer",
+            "MainContent",
+            "ContactForm",
+            "Feature",
+            "Gallery",
+            "Testimonial",
+            "Product",
+            "Section",
+            "Custom"
+          ],
+          "mappedType": "enum"
+        },
+        "content": {
+          "name": "content",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "json"
+        },
+        "settings": {
+          "name": "settings",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "0",
+          "mappedType": "integer"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'Active'",
+          "enumItems": [
+            "Active",
+            "Inactive",
+            "Draft"
+          ],
+          "mappedType": "enum"
+        },
+        "page_id": {
+          "name": "page_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        }
+      },
+      "name": "block",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "IDX_block_page_id",
+          "columnNames": [],
+          "composite": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_block_page_id\" ON \"block\" (page_id) WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_block_deleted_at",
+          "columnNames": [],
+          "composite": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_block_deleted_at\" ON \"block\" (deleted_at) WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "unique_block_type_per_page",
+          "columnNames": [],
+          "composite": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"unique_block_type_per_page\" ON \"block\" (page_id, type) WHERE type IN ('Hero', 'Header', 'Footer', 'MainContent', 'ContactForm') AND deleted_at IS NULL"
+        },
+        {
+          "keyName": "block_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {
+        "block_page_id_foreign": {
+          "constraintName": "block_page_id_foreign",
+          "columnNames": [
+            "page_id"
+          ],
+          "localTableName": "public.block",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.page",
           "updateRule": "cascade"
         }
       }

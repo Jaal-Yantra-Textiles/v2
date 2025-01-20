@@ -16,7 +16,7 @@ export const updatePersonTagsStep = createStep(
   "update-person-tags-step",
   async (input: UpdatePersonTagsStepInput, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
-    console.log(input)
+    
     const originalTags = await personService.listTags(input);
     const updatedTags = await personService.updateTags({
       selector:{

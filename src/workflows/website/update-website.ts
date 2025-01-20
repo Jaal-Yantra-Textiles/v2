@@ -24,7 +24,7 @@ export const updateWebsiteStep = createStep(
   "update-website-step",
   async (input: UpdateWebsiteStepInput, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
-    console.log(input)
+  
     // Get the current state for compensation
     const originalWebsite = await websiteService.retrieveWebsite(input.id);
     

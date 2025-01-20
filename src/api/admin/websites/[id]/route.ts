@@ -50,7 +50,7 @@ export const PUT = async (
   res: MedusaResponse,
 ) => {
   const { id } = req.params;
-  console.log(id)
+ 
   const { result, errors } = await updateWebsiteWorkflow(req.scope).run({
     input: {
       id,

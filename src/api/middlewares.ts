@@ -28,6 +28,7 @@ import {
   updatePageSchema,
   deletePageSchema,
 } from "./admin/websites/[id]/pages/validators";
+import { blockSchema, createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 
 export default defineMiddlewares({
   routes: [
@@ -183,6 +184,31 @@ export default defineMiddlewares({
       method: "PUT",
       middlewares: [validateAndTransformBody(updatePageSchema)],
     },
+
+    {
+      matcher: "/admin/websites/:id/pages/:pageId/blocks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(createBlocksSchema)],
+    },
+
+    {
+      matcher: "/admin/websites/:id/pages/:pageId/blocks",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(ReadBlocksQuerySchema, {})],
+    },
+
+    {
+      matcher: "/admin/websites/:id/pages/:pageId/blocks/:blockId",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(updateBlockSchema)],
+    },
+
+    {
+      matcher: "/admin/websites/:id/pages/:pageId/blocks/:blockId",
+      method: "DELETE",
+      middlewares: [],
+    },
+
     {
       matcher: "/admin/websites/:id/pages/:pageId",
       method: "DELETE",
@@ -190,6 +216,11 @@ export default defineMiddlewares({
     },
     {
       matcher: "/web/health",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/web/website/:domain",
       method: "GET",
       middlewares: [],
     },
@@ -229,6 +260,12 @@ export default defineMiddlewares({
       return res.status(404).json({
         message: error.message,
       });
+    }
+
+    if (error.type === "duplicate_error") {
+      return res.status(400).json({
+        message: error.message,
+      })
     }
 
     // For everything else, fall back to the default error handler

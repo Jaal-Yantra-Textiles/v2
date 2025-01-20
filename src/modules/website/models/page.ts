@@ -1,5 +1,6 @@
 import { model } from "@medusajs/framework/utils";
 import Website from "./website";
+import Block  from "./blocks";
 
 const Page = model.define("page", {
   id: model.id().primaryKey(),
@@ -31,6 +32,11 @@ const Page = model.define("page", {
   
   // Relationship with Website
   website: model.belongsTo(() => Website, { mappedBy: "pages" }),
-});
+  // Relationship with blocks
+  blocks: model.hasMany(() => Block),
+}).cascades(
+  {delete: ['blocks']}
+)
+
 
 export default Page;

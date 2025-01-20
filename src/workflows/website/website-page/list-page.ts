@@ -33,7 +33,7 @@ export const listPageStep = createStep(
       input.config
     );
 
-    console.log(pages)
+    
 
     return new StepResponse(pages);
   }

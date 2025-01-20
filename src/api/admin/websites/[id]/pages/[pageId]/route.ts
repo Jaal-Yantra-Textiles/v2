@@ -7,8 +7,7 @@ import { DeletePageSchema, UpdatePageSchema } from "../validators";
 import { deletePageWorkflow } from "../../../../../../workflows/website/website-page/delete-page";
 import { WEBSITE_MODULE } from "../../../../../../modules/website";
 import WebsiteService from "../../../../../../modules/website/service";
-import { PageAllowedFields, refetchPage } from "../helpers";
-import { MedusaError } from "@medusajs/framework/utils";
+import { refetchPage } from "../helpers";
 import { updatePageWorkflow } from "../../../../../../workflows/website/website-page/update-page";
 
 export const DELETE = async (

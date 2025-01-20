@@ -17,7 +17,7 @@ export const deletePersonTagsStep = createStep(
   async (input: DeletePersonTagsStepInput, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
     const originalTags = await personService.listTags(input);
-    console.log(originalTags)
+   
     await personService.deleteTags({
       id: input.id
     });

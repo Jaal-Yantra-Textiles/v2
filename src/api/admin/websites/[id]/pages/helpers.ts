@@ -32,7 +32,7 @@ export const refetchPage = async (
 
   const { data: pages } = await remoteQuery.graph({
     entity: "pages",
-    filters: { id: pageId, website_id: websiteId },
+    filters: { id: pageId},
     fields: ['*'],
   });
 

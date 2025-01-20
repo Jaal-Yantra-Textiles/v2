@@ -151,6 +151,144 @@ medusaIntegrationTestRunner({
           expect(response.data.pages).toHaveLength(2);
           expect(response.data.pages[0].website_id).toBe(websiteId);
         });
+
+        it("should handle bulk page creation with duplicates", async () => {
+          // First create some initial pages
+          const initialPages = {
+            pages: [
+              {
+                title: "Home",
+                slug: "home",
+                content: "Welcome to Test Website",
+                page_type: "Home",
+                status: "Published"
+              },
+              {
+                title: "About",
+                slug: "about",
+                content: "About Test Website",
+                page_type: "About",
+                status: "Published"
+              }
+            ]
+          };
+
+          // Create initial pages
+          const initialResponse = await api.post(
+            `/admin/websites/${websiteId}/pages`,
+            initialPages,
+            headers
+          );
+          expect(initialResponse.status).toBe(201);
+          expect(initialResponse.data.message).toBe("All pages created successfully");
+          expect(initialResponse.data.pages).toHaveLength(2);
+
+          // Try to create mix of new and duplicate pages
+          const mixedPages = {
+            pages: [
+              {
+                title: "Home",  // Duplicate
+                slug: "home",
+                content: "Updated Home Content",
+                page_type: "Home",
+                status: "Published"
+              },
+              {
+                title: "About", // Duplicate
+                slug: "about",
+                content: "Updated About Content",
+                page_type: "About",
+                status: "Published"
+              },
+              {
+                title: "Contact", // New
+                slug: "contact",
+                content: "Contact Us",
+                page_type: "Contact",
+                status: "Published"
+              },
+              {
+                title: "Products", // New
+                slug: "products",
+                content: "Our Products",
+                page_type: "Custom",
+                status: "Published"
+              }
+            ]
+          };
+
+          const mixedResponse = await api.post(
+            `/admin/websites/${websiteId}/pages`,
+            mixedPages,
+            headers
+          );
+
+          // Should return 207 for partial success
+          expect(mixedResponse.status).toBe(207);
+          expect(mixedResponse.data.message).toBe("Some pages were created successfully while others failed");
+          
+          // Should have created the new pages
+          expect(mixedResponse.data.pages).toHaveLength(2);
+          expect(mixedResponse.data.pages.map(p => p.slug)).toContain("contact");
+          expect(mixedResponse.data.pages.map(p => p.slug)).toContain("products");
+          
+          // Should have errors for duplicate pages
+          expect(mixedResponse.data.errors).toHaveLength(2);
+          expect(mixedResponse.data.errors).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                slug: "home",
+                error: expect.stringContaining("already exists")
+              }),
+              expect.objectContaining({
+                slug: "about",
+                error: expect.stringContaining("already exists")
+              })
+            ])
+          );
+        });
+
+        it("should handle all duplicate pages gracefully", async () => {
+          // First create some initial pages
+          const initialPages = {
+            pages: [
+              {
+                title: "Home",
+                slug: "home",
+                content: "Welcome to Test Website",
+                page_type: "Home",
+                status: "Published"
+              }
+            ]
+          };
+
+          // Create initial page
+          const initialResponse = await api.post(
+            `/admin/websites/${websiteId}/pages`,
+            initialPages,
+            headers
+          );
+  
+          expect(initialResponse.status).toBe(201);
+
+          // Try to create the same page again
+          const duplicateResponse = await api.post(
+            `/admin/websites/${websiteId}/pages`,
+            initialPages,
+            headers
+          ).catch(e => e.response);
+
+          // Should return 400 for complete failure
+          expect(duplicateResponse.status).toBe(400);
+          expect(duplicateResponse.data.message).toBe("Failed to create pages");
+          expect(duplicateResponse.data.errors).toHaveLength(1);
+          expect(duplicateResponse.data.errors[0]).toEqual(
+            expect.objectContaining({
+              slug: "home",
+              error: expect.stringContaining("already exists")
+            })
+          );
+        });
       });
 
       describe("GET /admin/websites/:id/pages", () => {

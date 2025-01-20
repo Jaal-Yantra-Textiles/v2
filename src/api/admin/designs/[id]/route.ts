@@ -42,7 +42,6 @@ export const PUT = async (
   },
   res: MedusaResponse,
 ) => {
-  console.log(req.body)
   const { result, errors } = await updateDesignWorkflow.run({
     input: {
       id: req.params.id,
