@@ -1,6 +1,7 @@
 import { AwilixContainer } from "awilix";
 import { DESIGN_MODULE } from "../../../modules/designs";
 import DesignService from "../../../modules/designs/service";
+import { Design } from "./validators";
 
 export type DesignAllowedFields = "*" | keyof Design;
 

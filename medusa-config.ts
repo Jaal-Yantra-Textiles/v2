@@ -1,4 +1,5 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
+import path from "path";
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd());
 
@@ -13,6 +14,21 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     },
   },
+
+  admin: {
+    vite: () => ({
+       // Keep Medusa's default config
+      resolve: {
+        alias: {
+          '@/components': path.resolve(__dirname, './src/admin/components'),
+          '@/lib/utils': path.resolve(__dirname, './src/admin/lib/utils'),
+
+        },
+        // Keep Medusa's existing resolve options
+      }
+    })
+  },
+
 
   modules: [
     {

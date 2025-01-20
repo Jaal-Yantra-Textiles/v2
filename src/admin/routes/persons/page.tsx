@@ -113,6 +113,6 @@ const PersonsPage = () => {
 export default PersonsPage;
 
 export const config = defineRouteConfig({
-  label: "Persons",
+  label: "People",
   icon: Users,
 });
