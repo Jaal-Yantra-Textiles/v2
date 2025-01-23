@@ -29,14 +29,14 @@ export interface CustomSize {
 }
 
 export interface AdminDesign {
-  id?: string;
+  id: string;
   name: string;
   description?: string;
   inspiration_sources?: string[];
   design_type?: "Original" | "Derivative" | "Custom" | "Collaboration";
   status?: "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold";
   priority?: "Low" | "Medium" | "High" | "Urgent";
-  target_completion_date?: string | Date;
+  target_completion_date: string | Date;
   design_files?: string[];
   thumbnail_url?: string;
   custom_sizes?: CustomSize;
@@ -76,6 +76,8 @@ export interface AdminDesignsQuery {
 
 const DESIGN_QUERY_KEY = "designs" as const;
 export const personsQueryKeys = queryKeysFactory(DESIGN_QUERY_KEY);
+
+
 
 export const useDesign = (
   id: string,
@@ -163,7 +165,7 @@ export const useUpdateDesign = (
   return useMutation({
     mutationFn: async (payload: UpdateAdminDesignPayload) =>
       sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}`, {
-        method: "POST",
+        method: "PUT",
         body: payload,
       }),
     onSuccess: (data, variables, context) => {

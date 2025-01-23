@@ -37,6 +37,12 @@ export const deletePageSchema = z.object({
   pageId: z.string().uuid("Invalid ID format"),
 });
 
+// Modified to directly use the union without the payload wrapper
+export const postPagesSchema = z.union([
+  pageSchema,
+  createPagesSchema
+]);
+
 export const updatePageSchema = pageBaseSchema.partial();
 
 export type PageSchema = z.infer<typeof pageSchema>;

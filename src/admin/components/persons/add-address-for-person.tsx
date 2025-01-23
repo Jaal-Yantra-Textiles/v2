@@ -11,6 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
 const addressSchema = z.object({
+  id: z.string(),
   street: z.string().min(1, "Street is required"),
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State is required"),
@@ -23,6 +24,7 @@ type AddressFormData = z.infer<typeof addressSchema>;
 const AddAddressForPerson = () => {
   const form = useForm<AddressFormData>({
     defaultValues: {
+      id: '',
       street: "",
       city: "",
       state: "",
@@ -39,22 +41,22 @@ const AddAddressForPerson = () => {
   const handleSubmit = form.handleSubmit(async (data) => {
     console.log('Form submitted with data:', data);
     try {
-      console.log('Making API call...');
+     
       const response = await mutateAsync({
         addresses: [data],
       });
       console.log('API response:', response);
       
       if (response?.person) {
-        console.log('Success, showing toast and redirecting...');
+        
         toast.success('Address added successfully');
         handleSuccess(`/persons/${id}`);
       } else {
-        console.error('No person in response:', response);
+        
         toast.error('Failed to add address: No response from server');
       }
     } catch (error: any) {
-      console.error('Error adding address:', error);
+      
       toast.error(error?.message || 'Failed to add address');
       // Don't close the modal on error
       return;

@@ -21,7 +21,7 @@ export const listWebsiteStep = createStep(
   "list-website-step",
   async (input: ListWebsiteStepInput, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
-    
+
     // List Website entities
     const websites = await websiteService.listAndCountWebsites(
       input.filters,

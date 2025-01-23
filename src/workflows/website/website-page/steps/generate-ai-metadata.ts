@@ -1,5 +1,6 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { Mistral } from '@mistralai/mistralai';
+import { ChatCompletionResponse } from "@mistralai/mistralai/models/components";
 
 type PageContext = {
   title: string;
@@ -23,7 +24,7 @@ export const generateAIMetadataStep = createStep(
     }
 
     try {
-      const chatResponse = await client.agents.complete({
+      const chatResponse: ChatCompletionResponse = await client.agents.complete({
         agentId: process.env.AGENT_ID as string,
         messages: [
           {
@@ -33,7 +34,9 @@ export const generateAIMetadataStep = createStep(
         ],
       });
 
-      const metadata = JSON.parse(chatResponse.choices[0].message.content)
+      const response = chatResponse.choices?.[0]?.message?.content
+      
+      const metadata = JSON.parse(response as string);
       return new StepResponse(metadata);
     } catch (error) {
       console.error("Error generating AI metadata:", error);

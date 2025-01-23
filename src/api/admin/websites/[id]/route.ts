@@ -7,9 +7,8 @@ import { DeleteWebsiteSchema, UpdateWebsiteSchema } from "../validators";
 import { deleteWebsiteWorkflow } from "../../../../workflows/website/delete-website";
 import { WEBSITE_MODULE } from "../../../../modules/website";
 import WebsiteService from "../../../../modules/website/service";
-import { WebsiteAllowedFields, refetchWebsite } from "../helpers";
-import { MedusaError } from "@medusajs/framework/utils";
 import { updateWebsiteWorkflow } from "../../../../workflows/website/update-website";
+import { refetchWebsite } from "../helpers";
 
 export const DELETE = async (
   req: MedusaRequest<DeleteWebsiteSchema>,
@@ -38,7 +37,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params;
 
   try {
-    const website = await websiteService.retrieveWebsite(id);
+    const website = await websiteService.retrieveWebsite(id, 
+      {
+        relations:['pages']  
+      }
+    );
     res.status(200).json({ website });
   } catch (error) {
     res.status(404).json({ error: error.message });

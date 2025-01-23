@@ -1,7 +1,7 @@
 import {
   MedusaRequest,
   MedusaResponse,
-  refetchEntity,
+  
 } from "@medusajs/framework/http";
 import PersonService from "../../../modules/person/service";
 import { PERSON_MODULE } from "../../../modules/person";

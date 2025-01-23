@@ -7,10 +7,10 @@ import { DeletePersonTypeSchema, UpdatePersonTypeSchema } from "../validators";
 import { deletePersonTypeWorkflow } from "../../../../workflows/person_type/delete-person_type";
 import { PERSON_TYPE_MODULE } from "../../../../modules/persontype";
 import PersonTypeService from "../../../../modules/persontype/service";
-import { AdminPersonTypeResponse } from "@medusajs/framework/types";
 import { PersonTypeAllowedFields, refetchPersonType } from "../helpers";
 import { MedusaError } from "@medusajs/framework/utils";
 import { updatePersonTypeWorkflow } from "../../../../workflows/person_type/update-person_type";
+import { AdminPersonTypeResponse } from "../../../../admin/hooks/api/personandtype";
 
 export const DELETE = async (
   req: MedusaRequest<DeletePersonTypeSchema>,

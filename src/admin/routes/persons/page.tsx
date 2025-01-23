@@ -12,7 +12,8 @@ import { usePersonTableFilters } from "../../hooks/filters/usePersonsTablefilter
 import { usePersonTableColumns } from "../../hooks/columns/usePersonTableColumns";
 import { EntityActions } from "../../components/persons/personsActions";
 import { createColumnHelper } from "@tanstack/react-table";
-import { AdminPerson } from "@medusajs/framework/types";
+import { AdminPerson } from "../../hooks/api/personandtype";
+
 
 const columnHelper = createColumnHelper<AdminPerson>();
 export const useColumns = () => {

@@ -10,9 +10,9 @@ export interface RequiredField {
 }
 
 export interface TaskCategory {
-  name: string;
-  description: string;
-  metadata?: Record<string, any>;
+  id?: string;
+  name?: string;
+  description?: string;
 }
 
 export interface AdminTaskTemplate {

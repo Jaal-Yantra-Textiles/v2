@@ -4,8 +4,9 @@ import PersonService from "../../../../modules/person/service";
 import { PERSON_MODULE } from "../../../../modules/person";
 import updatePersonWorkflow from "../../../../workflows/update-person";
 import { PersonAllowedFields, refetchPerson } from "../helpers";
-import { AdminUpdatePerson } from "@medusajs/framework/types";
+
 import { MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { AdminUpdatePerson } from "../../../../admin/hooks/api/personandtype";
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params;

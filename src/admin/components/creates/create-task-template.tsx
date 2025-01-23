@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button, Heading, Input, Text, toast, Select, Checkbox, Popover } from "@medusajs/ui";
+import { Button, Heading, Input, Text, toast, Select, Checkbox } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { Form } from "../common/form";
@@ -27,7 +27,7 @@ const taskTemplateSchema = z.object({
   category: z.object({
     id: z.string().optional(),
     name: z.string().min(2, "Category name is required"),
-    description: z.string().optional(),
+    description: z.string().default(""),  // Set default empty string
   }),
 });
 
@@ -67,7 +67,12 @@ export const CreateTaskTemplateComponent = () => {
 
     const payload = {
       ...data,
-      category: existingCategory ? { id: existingCategory.id } : categoryData,
+      category: existingCategory 
+        ? { id: existingCategory.id }
+        : {
+            name: categoryData.name,
+            description: categoryData.description || ""
+          },
       required_fields: {},
       metadata: {
         type: "default",
@@ -263,16 +268,16 @@ export const CreateTaskTemplateComponent = () => {
                 <div className="flex flex-col gap-y-2">
                   <div className="flex items-center gap-x-2">
                     <Checkbox 
-                      checked={form.watch("eventable")}
-                      onCheckedChange={(checked) => form.setValue("eventable", checked)}
+                      checked={form.watch("eventable") || false}
+                      onCheckedChange={(checked: boolean) => form.setValue("eventable", checked)}
                     />
                     <Text className="text-sm">Enable Events</Text>
                   </div>
 
                   <div className="flex items-center gap-x-2">
                     <Checkbox 
-                      checked={form.watch("notifiable")}
-                      onCheckedChange={(checked) => form.setValue("notifiable", checked)}
+                      checked={form.watch("notifiable") || false}
+                      onCheckedChange={(checked: boolean) => form.setValue("notifiable", checked)}
                     />
                     <Text className="text-sm">Enable Notifications</Text>
                   </div>

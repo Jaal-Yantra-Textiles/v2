@@ -16,7 +16,7 @@ import {
   AdminPersonDeleteResponse,
   AdminPersonResponse,
   AdminUpdatePerson,
-} from "@medusajs/framework/types";
+} from "../api/personandtype";
 
 const PERSONS_QUERY_KEY = "persons" as const;
 export const personsQueryKeys = queryKeysFactory(PERSONS_QUERY_KEY);

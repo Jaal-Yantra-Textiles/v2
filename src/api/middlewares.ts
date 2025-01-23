@@ -19,16 +19,15 @@ import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
 import { 
   websiteSchema, 
-  updateWebsiteSchema, 
-  deleteWebsiteSchema 
+  updateWebsiteSchema,
 } from "./admin/websites/validators";
 import {
   pageSchema,
   createPagesSchema,
   updatePageSchema,
-  deletePageSchema,
+  postPagesSchema,
 } from "./admin/websites/[id]/pages/validators";
-import { blockSchema, createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
+import {  createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 
 export default defineMiddlewares({
   routes: [
@@ -177,7 +176,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/websites/:id/pages",
       method: "POST",
-      middlewares: [validateAndTransformBody(z.union([pageSchema, createPagesSchema]))],
+      middlewares: [validateAndTransformBody(postPagesSchema)],
     },
     {
       matcher: "/admin/websites/:id/pages/:pageId",

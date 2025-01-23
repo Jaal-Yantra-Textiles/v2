@@ -24,6 +24,7 @@ module.exports = defineConfig({
           '@/lib/utils': path.resolve(__dirname, './src/admin/lib/utils'),
 
         },
+        
         // Keep Medusa's existing resolve options
       }
     })

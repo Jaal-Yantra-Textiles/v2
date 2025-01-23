@@ -1,6 +1,7 @@
-import { AdminPerson } from "@medusajs/framework/types";
+
 import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
+import { AdminPerson } from "../api/personandtype";
 
 const columnHelper = createColumnHelper<AdminPerson>();
 

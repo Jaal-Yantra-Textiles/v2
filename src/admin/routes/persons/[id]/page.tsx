@@ -25,7 +25,7 @@ const PersonDetailPage = () => {
     throw new Error("Person not found");
   }
 
-  console.log(person)
+
 
   // Render main content when data is available
   return (

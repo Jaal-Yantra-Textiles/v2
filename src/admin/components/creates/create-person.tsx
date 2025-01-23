@@ -38,7 +38,6 @@ export const CreatePersonComponent = () => {
         last_name: data.last_name,
         email: data.email,
         date_of_birth: data.date_of_birth,
-        metadata: {}
       },
       {
         onSuccess: ({ person }) => {

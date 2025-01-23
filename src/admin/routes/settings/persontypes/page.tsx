@@ -4,7 +4,7 @@ import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { DocumentSeries, PencilSquare, Trash } from "@medusajs/icons";
 import { useMemo } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
-import { AdminPersonType } from "@medusajs/framework/types";
+
 import { usePersonTypeTableColumns } from "../../../hooks/columns/usePersonTypeTableColumns";
 import { EntityActions } from "../../../components/persons/personsActions";
 import { usePersonTypeTableQuery } from "../../../hooks/queries/persontype/usePersonTypeTableQuery";
@@ -13,6 +13,7 @@ import { useDataTable } from "../../../hooks/usedataTable";
 import CreateButton from "../../../components/creates/create-button";
 import { DataTable } from "../../../components/table/data-table";
 import { useDeletePersonTypeAction } from "../../../hooks/delete/useDeletePersonTypes";
+import { AdminPersonType } from "../../../hooks/api/personandtype";
 
 const columnHelper = createColumnHelper<AdminPersonType>();
 

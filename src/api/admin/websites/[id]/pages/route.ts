@@ -8,12 +8,13 @@ import {
 } from "../../../../../workflows/website/website-page/list-page";
 
 export const POST = async (
-  req: MedusaRequest<CreatePagesSchema | PageSchema>,
+  req: MedusaRequest<CreatePagesSchema | PageSchema >,
   res: MedusaResponse,
 ) => {
   const websiteId = req.params.id;
-
+  console.log("Received POST request for pages:", req.validatedBody)
   if ('pages' in req.validatedBody) {
+    
     // Batch create pages using the bulk workflow
     const { result } = await createBulkPagesWorkflow(req.scope).run({
       input: {

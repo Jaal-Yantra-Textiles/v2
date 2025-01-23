@@ -12,8 +12,18 @@ import { sdk } from "../../lib/sdk";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 import { WebsiteSchema, UpdateWebsiteSchema } from "../../../api/admin/websites/validators";
 
+type Pages= [ {
+  id: string,
+  title: string,
+  slug: string, 
+  content: string,
+  page_type: string,
+  status: string,
+}]
+
 export type AdminWebsite = WebsiteSchema & {
   id: string;
+  pages: Pages
   created_at: Date;
   updated_at: Date;
 };
@@ -64,6 +74,7 @@ export const useWebsite = (
         method: "GET",
         query,
       }),
+      
     ...options,
   });
   return { ...data, ...rest };
@@ -130,7 +141,7 @@ export const useUpdateWebsite = (
   return useMutation({
     mutationFn: async (payload: UpdateAdminWebsitePayload) =>
       sdk.client.fetch<AdminWebsiteResponse>(`/admin/websites/${id}`, {
-        method: "POST",
+        method: "PUT",
         body: payload,
       }),
     onSuccess: (data, variables, context) => {

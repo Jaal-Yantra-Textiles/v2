@@ -18,8 +18,7 @@ export const POST = async (
 };
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { q, status } = req.query;
-  const name = q;
+  const { name, status, domain } = req.query;
   const offset = parseInt(req.query.offset as string) || 0;
   const limit = parseInt(req.query.limit as string) || 10;
 
@@ -32,6 +31,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters: {
       name,
       status,
+      domain,
     }
   };
 

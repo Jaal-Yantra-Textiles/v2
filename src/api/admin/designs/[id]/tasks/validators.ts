@@ -59,32 +59,37 @@ const MultipleTasksCreation = z.object({
     .min(1, "At least one task is required")
 })
 
-export const AdminPostDesignTasksReq = z.union([
-  TemplateBasedCreation,
-  ParentTaskSchema,
-  MultipleTasksCreation
-]).refine(
-  (data) => {
-    // Check template_names in all possible locations
-    if ('template_names' in data && 
-        Array.isArray(data.template_names) && 
-        data.template_names.length === 0) {
-      return false
-    }
-    
-    if ('tasks' in data && Array.isArray(data.tasks)) {
-      return !data.tasks.some(task => 
-        task.template_names && task.template_names.length === 0
-      )
-    }
-    
-    return true
-  },
-  {
-    message: "Invalid template_names configuration",
-    path: ["template_names"]
+// Create a validator function
+const validateTemplateNames = (data: any) => {
+  if ('template_names' in data &&
+    Array.isArray(data.template_names) &&
+    data.template_names.length === 0) {
+    return false;
   }
-)
+  if ('tasks' in data && Array.isArray(data.tasks)) {
+    return !data.tasks.some(task =>
+      task.template_names && task.template_names.length === 0
+    );
+  }
+  return true;
+};
+
+// Use it in the schema definition
+export const AdminPostDesignTasksReq = z.object({
+  payload: z.union([
+    TemplateBasedCreation,
+    ParentTaskSchema,
+    MultipleTasksCreation
+  ]).superRefine((data, ctx) => {
+    if (!validateTemplateNames(data)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid template_names configuration",
+        path: ["template_names"]
+      });
+    }
+  })
+}).strict();
 
 // ============= Simplified Version =============
 export const AdminPostDesignTasksSimplified = z.object({
