@@ -13,6 +13,7 @@ type UpdateTaskTemplateInput = {
     name?: string;
     description?: string;
     category?: {
+      id?: string;
       name?: string;
       description?: string;
       metadata?: Record<string, any>;
@@ -24,6 +25,7 @@ type UpdateTaskTemplateInput = {
     notifiable?: boolean;
     message_template?: string;
     metadata?: Record<string, any>;
+    category_id?: string;
   };
 };
 
@@ -32,28 +34,52 @@ export const updateTaskTemplateStep = createStep(
   async (input: UpdateTaskTemplateInput, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
     
-    // Store the original template for compensation
+    // Store the original template for compensation and comparison
     const originalTemplate = await taskService.retrieveTaskTemplate(input.id);
     
-    // Update the template
+    // If category update is requested
+    if (input.update.category) {
+      const updateCategory = input.update.category;
+
+      // If category ID is provided, check if it's different from current
+      if (updateCategory.id) {
+        if (originalTemplate.category_id !== updateCategory.id) {
+          // Only update the category ID if it's different
+          input.update.category_id = updateCategory.id;
+        } 
+      } else {
+          // Create new category
+          const newCategory = await taskService.createTaskCategories({
+            name: updateCategory.name,
+            description: updateCategory.description,
+            metadata: updateCategory.metadata,
+          });
+          
+          // Update input with new category ID
+          input.update.category_id = newCategory.id;
+        
+      }
+    }
+    
+    // Update the template with new data
     const updatedTemplate = await taskService.updateTaskTemplates({
       selector: {
         id: input.id,
       },
       data: {
-        ...input.update
+        ...input.update,
       }
     });
     
     return new StepResponse(updatedTemplate, {
       id: updatedTemplate.id,
-      original: originalTemplate
+      compensation: originalTemplate
     });
   },
-  async (data: { id: string; original: any }, { container }) => {
+  async (data: { id: string; compensation: any }, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
     // Restore the template to its original state
-    await taskService.updateTaskTemplates(data.id, data.original);
+    await taskService.updateTaskTemplates(data.id, data.compensation.update);
   }
 );
 

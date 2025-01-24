@@ -139,7 +139,7 @@ export const useUpdateTaskTemplate = (
   return useMutation({
     mutationFn: async (payload: UpdateAdminTaskTemplatePayload) =>
       sdk.client.fetch<AdminTaskTemplateResponse>(`/admin/task-templates/${id}`, {
-        method: "POST",
+        method: "PUT",
         body: payload,
       }),
     onSuccess: (data, variables, context) => {

@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-   presets: [require("@medusajs/ui-preset")],
+    darkMode: ["class"],
+    presets: [require("@medusajs/ui-preset")],
    content: [
     './src/admin/**/*.{js,jsx,ts,tsx}',
     // Add your components path

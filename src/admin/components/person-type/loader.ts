@@ -2,7 +2,8 @@ import { LoaderFunctionArgs } from "react-router-dom";
 import { queryClient } from "../../lib/query-client";
 import { sdk } from "../../lib/sdk";
 import { personTypeQueryKeys } from "../../hooks/api/persontype";
-import { AdminPersonType } from "@medusajs/framework/types";
+import { AdminPersonType } from "./person-type-general-section";
+
 
 const personTypeDetailQuery = (id: string) => ({
   queryKey: personTypeQueryKeys.detail(id),
