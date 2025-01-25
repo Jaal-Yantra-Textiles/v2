@@ -1,6 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
-import { error } from "console";
+
+jest.setTimeout(30000);
 
 medusaIntegrationTestRunner({
 

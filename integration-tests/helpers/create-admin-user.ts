@@ -24,40 +24,29 @@ export const getAuthHeaders = async (api) => {
   };
 };
 
-export const createAdminUser = async ( container?) => {
-  const appContainer = container ?? getContainer()!;
-  const userModule = appContainer.resolve(Modules.USER);
-  const authModule = appContainer.resolve(Modules.AUTH);
-  const apiModule = appContainer.resolve(Modules.API_KEY);
+export const createAdminUser = async (container) => {
+  const userModule = container.resolve("userModule");
+  const apiModule = container.resolve("apiModule");
+  const roleModule = container.resolve("roleModule");
+
+  // Create admin role if it doesn't exist
+  const role = await roleModule.createRole({
+    name: "admin",
+    permissions: ["*"],
+  });
+
+  // Create user with random timestamp to ensure uniqueness
+  const timestamp = Date.now();
   const user = await userModule.createUsers({
-    first_name: "Admin",
-    last_name: "User",
-    email: "admin@medusa.js",
+    first_name: `Admin_${timestamp}`,
+    last_name: `User_${timestamp}`,
+    email: `admin_${timestamp}@medusa.js`,
   });
 
   const apiKey = await apiModule.createApiKeys({
-    title: "testing",
-    type: ApiKeyType.PUBLISHABLE,
-    created_by: user.id,
+    user_id: user.id,
+    role_id: role.id,
   });
 
-  const hashConfig = { logN: 15, r: 8, p: 1 };
-  const passwordHash = await Scrypt.kdf("somepassword", hashConfig);
-
-  const authIdentity = await authModule.createAuthIdentities({
-    provider_identities: [
-      {
-        provider: "emailpass",
-        entity_id: "admin@medusa.js",
-        provider_metadata: {
-          password: passwordHash.toString("base64"),
-        },
-      },
-    ],
-    app_metadata: {
-      user_id: user.id,
-    },
-  });
-
-  return { user, authIdentity, apiKey };
+  return { user, apiKey };
 };
