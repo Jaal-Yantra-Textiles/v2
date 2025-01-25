@@ -1,0 +1,80 @@
+name: Test and Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jyt_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Create test environment file
+      run: |
+        cat << EOF > .env.test
+        DATABASE_TYPE=postgres
+        DATABASE_URL=postgres://postgres:postgres@localhost:5432/jyt_test
+        REDIS_URL=redis://localhost:6379
+        JWT_SECRET=secret
+        COOKIE_SECRET=secret
+        ADMIN_CORS=http://localhost:7001
+        STORE_CORS=http://localhost:8000
+        NODE_ENV=test
+        EOF
+
+    - name: Run integration tests
+      run: npm run test:integration:http
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/jyt_test
+
+    - name: Semantic Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: npx semantic-release
+
+  notify:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify on success
+        if: ${{ needs.test.result == 'success' }}
+        run: |
+          echo "Tests passed and release completed successfully!"
+
+      - name: Notify on failure
+        if: ${{ needs.test.result == 'failure' }}
+        run: |
+          echo "Tests or release failed!"
