@@ -12,7 +12,7 @@ export const POST = async (
   res: MedusaResponse,
 ) => {
   const websiteId = req.params.id;
-  console.log("Received POST request for pages:", req.validatedBody)
+  
   if ('pages' in req.validatedBody) {
     
     // Batch create pages using the bulk workflow

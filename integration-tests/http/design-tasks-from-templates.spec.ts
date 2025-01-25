@@ -147,6 +147,7 @@ medusaIntegrationTestRunner({
         const response = await api.post(
           `/admin/designs/${designId}/tasks`,
           {
+            type: "template",
             template_names: [patternMakingTemplate.name, fabricSourcingTemplate.name]
           },
           headers
@@ -158,7 +159,6 @@ medusaIntegrationTestRunner({
   
         // Verify tasks were created with correct properties
         const tasksList = response.data.taskLinks.list
-        console.log(tasksList, response.data)
         expect(tasksList).toHaveLength(2)
   
         const tasks = tasksList.map(task => ({
@@ -190,6 +190,7 @@ medusaIntegrationTestRunner({
         const response = await api.post(
           `/admin/designs/${designId}/tasks`,
           {
+            type: "template",
             template_names: [patternMakingTemplate.name, patternMakingTemplate.name]
           },
           headers
@@ -205,6 +206,7 @@ medusaIntegrationTestRunner({
           api.post(
             `/admin/designs/${designId}/tasks`,
             {
+              type: "template",
               template_names: ["Non-existent Template"]
             },
             headers
@@ -217,6 +219,7 @@ medusaIntegrationTestRunner({
           api.post(
             `/admin/designs/non-existent-id/tasks`,
             {
+              type: "template",
               template_names: [patternMakingTemplate.name]
             },
             headers
@@ -229,6 +232,7 @@ medusaIntegrationTestRunner({
           await api.post(
             `/admin/designs/${designId}/tasks`,
             {
+              type: "template",
               template_names: []
             },
             headers
@@ -262,38 +266,63 @@ medusaIntegrationTestRunner({
       it("should create multiple parent tasks with child tasks", async () => {
         // First parent-child structure
         const productionTask = {
+          type: "template",
           template_names: ["Production Planning Template"],
           child_tasks: [
-            { title: "Material Preparation", priority: "high" },
-            { title: "Quality Check", priority: "medium" }
+            { 
+              type: "task",
+              title: "Material Preparation", 
+              priority: "high",
+              dependency_type: "subtask" 
+            },
+            { 
+              type: "task",
+              title: "Production Schedule", 
+              priority: "medium",
+              dependency_type: "subtask" 
+            }
           ],
           dependency_type: "blocking"
-        };
+        }
 
         const productionResponse = await api.post(
           `/admin/designs/${designId}/tasks`,
           productionTask,
           headers
-        );
+        )
 
         // Second parent-child structure
         const qualityTask = {
+          type: "template",
           template_names: ["Quality Control Template"],
           child_tasks: [
-            { title: "Initial Inspection", priority: "high" },
-            { title: "Final Testing", priority: "high" },
-            { title: "Documentation", priority: "medium" }
+            { 
+              type: "task",
+              title: "Initial Inspection", 
+              priority: "high",
+              dependency_type: "subtask" 
+            },
+            { 
+              type: "task",
+              title: "Mid-Production Check", 
+              priority: "medium",
+              dependency_type: "subtask" 
+            },
+            { 
+              type: "task",
+              title: "Final Quality Check", 
+              priority: "high",
+              dependency_type: "subtask" 
+            }
           ],
           dependency_type: "blocking"
-        };
+        }
 
         const qualityResponse = await api.post(
           `/admin/designs/${designId}/tasks`,
           qualityTask,
           headers
-        );
-
-
+        )
 
         // Verify both responses have correct structure
         for (const response of [productionResponse, qualityResponse]) {
@@ -341,6 +370,7 @@ medusaIntegrationTestRunner({
 
       it("should create parent and child tasks both from templates", async () => {
         const taskData = {
+          type: "template",
           template_names: [productionPlanningTemplate.name],
           metadata: {
             production_quantity: 1000,
@@ -348,14 +378,15 @@ medusaIntegrationTestRunner({
           },
           child_tasks: [
             {
+              type: "template",
               template_names: [qualityControlTemplate.name],
               metadata: {
                 quality_standards: "ISO 9001",
                 inspection_points: ["stitching", "fabric", "finish"]
-              }
+              },
+              dependency_type: "subtask"
             }
-          ],
-          dependency_type: "blocking"
+          ]
         };
 
         const response = await api.post(
@@ -364,44 +395,64 @@ medusaIntegrationTestRunner({
           headers
         );
 
-        console.log(response.data.taskLinks.list[0].subtasks[0])
-
         expect(response.status).toBe(200);
-        expect(response.data.taskLinks).toEqual(
+        expect(response.data.taskLinks.count).toBe(1);
+        
+        const parentTask = response.data.taskLinks.list[0];
+        
+        // Verify parent task properties
+        expect(parentTask).toEqual(
           expect.objectContaining({
-            list: expect.arrayContaining([
-              expect.objectContaining({
-                id: expect.any(String),
-                title: productionPlanningTemplate.name,
-                status: expect.any(String),
-                metadata: expect.objectContaining({
-                  production_quantity: 1000,
-                  target_completion: "2025-07-30",
-                  template_name: productionPlanningTemplate.name
-                }),
-                subtasks: expect.arrayContaining([
-                  expect.objectContaining({
-                    id: expect.any(String),
-                    title: qualityControlTemplate.name,
-                    parent_task_id: expect.any(String),
-                    metadata: expect.objectContaining({
-                      quality_standards: "ISO 9001",
-                      inspection_points: expect.arrayContaining(["stitching", "fabric", "finish"]),
-                      template_name: qualityControlTemplate.name
-                    })
-                  })
-                ])
-              })
-            ]),
-            count: 1
+            id: expect.any(String),
+            title: productionPlanningTemplate.name,
+            description: productionPlanningTemplate.description,
+            status: "pending",
+            priority: "high",
+            eventable: true,
+            notifiable: true,
+            parent_task_id: null,
+            metadata: expect.objectContaining({
+              department: "production",
+              type: "planning",
+              production_quantity: 1000,
+              target_completion: "2025-07-30",
+              template_id: expect.any(String),
+              template_name: productionPlanningTemplate.name
+            }),
+            start_date: expect.any(String),
+            end_date: expect.any(String),
+            created_at: expect.any(String),
+            updated_at: expect.any(String),
+            completed_at: null,
+            deleted_at: null,
+            assigned_by: null,
+            assigned_to: null,
+            message: null
           })
         );
 
-        // Verify parent-child relationship
-        const parent = response.data.taskLinks.list[0];
-        const child = parent.subtasks[0];
-        expect(child.parent_task_id).toBe(parent.id);
-        expect(parent.subtasks).toHaveLength(1);
+        // Verify child task properties
+        expect(parentTask.subtasks).toHaveLength(1);
+        const childTask = parentTask.subtasks[0];
+        expect(childTask).toEqual(
+          expect.objectContaining({
+            id: expect.any(String),
+            parent_task_id: parentTask.id,
+            status: "pending",
+            priority: "high",
+            title: expect.any(String),
+            created_at: expect.any(String),
+            updated_at: expect.any(String),
+            start_date: expect.any(String),
+            completed_at: null,
+            deleted_at: null,
+            assigned_by: null,
+            assigned_to: null,
+            message: null,
+            eventable: false,
+            notifiable: false
+          })
+        );
       });
     });
   }

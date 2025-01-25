@@ -22,102 +22,49 @@ const BaseTaskSchema = z.object({
   status: z.enum(TASK_STATUSES).optional(),
   due_date: z.preprocess(dateTransformer, z.date()).optional(),
   metadata: z.record(z.any()).optional(),
-  template_names: z.array(z.string())
-    .min(1, "At least one template name is required")
-    .optional(),
 })
 
 // ============= Child Task Schema =============
-const ChildTaskSchema = BaseTaskSchema.extend({
-  dependency_type: z.enum(DEPENDENCY_TYPES).optional()
+const ChildTaskSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  priority: z.enum(TASK_PRIORITIES).optional(),
+  status: z.enum(TASK_STATUSES).optional(),
+  dependency_type: z.enum(DEPENDENCY_TYPES)
+})
+
+// ============= Template Based Creation Schema =============
+const TemplateBasedCreation = z.object({
+  template_names: z.array(z.string())
+    .min(1, "At least one template name is required"),
+  child_tasks: z.array(ChildTaskSchema).optional(),
+  metadata: z.record(z.any()).optional()
 })
 
 // ============= Parent Task Schema =============
 const ParentTaskSchema = BaseTaskSchema.extend({
-  parent_task_id: z.string().optional(),
-  child_tasks: z.array(ChildTaskSchema).optional(),
-  dependency_type: z.enum(DEPENDENCY_TYPES).optional()
-}).refine(
-  (data) => !data.template_names || data.template_names.length > 0,
-  {
-    message: "template_names array cannot be empty",
-    path: ["template_names"]
-  }
-)
-
-// ============= API Request Schemas =============
-const TemplateBasedCreation = BaseTaskSchema.extend({
   template_names: z.array(z.string())
     .min(1, "At least one template name is required"),
-  metadata: z.record(z.any()).optional(),
+  parent_task_id: z.string().optional(),
   child_tasks: z.array(ChildTaskSchema).optional(),
   dependency_type: z.enum(DEPENDENCY_TYPES).optional()
 })
 
+// ============= Multiple Tasks Creation Schema =============
 const MultipleTasksCreation = z.object({
   tasks: z.array(ParentTaskSchema)
     .min(1, "At least one task is required")
 })
 
-// Create a validator function
-const validateTemplateNames = (data: any) => {
-  if ('template_names' in data &&
-    Array.isArray(data.template_names) &&
-    data.template_names.length === 0) {
-    return false;
-  }
-  if ('tasks' in data && Array.isArray(data.tasks)) {
-    return !data.tasks.some(task =>
-      task.template_names && task.template_names.length === 0
-    );
-  }
-  return true;
-};
-
-// Use it in the schema definition
-export const AdminPostDesignTasksReq = z.object({
-  payload: z.union([
-    TemplateBasedCreation,
-    ParentTaskSchema,
-    MultipleTasksCreation
-  ]).superRefine((data, ctx) => {
-    if (!validateTemplateNames(data)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Invalid template_names configuration",
-        path: ["template_names"]
-      });
-    }
-  })
-}).strict();
-
-// ============= Simplified Version =============
-export const AdminPostDesignTasksSimplified = z.object({
-  template_names: z.array(z.string())
-    .min(1, "At least one template name is required")
-    .transform(names => [...new Set(names)]), // Remove duplicates
-  tasks: z.array(
-    z.object({
-      title: z.string().optional(),
-      description: z.string().optional(),
-      status: z.enum(TASK_STATUSES).optional(),
-      priority: z.enum(TASK_PRIORITIES).optional(),
-      due_date: z.string().datetime().optional(),
-      assignee_id: z.string().optional(),
-      parent_task_id: z.string().optional(),
-      dependency_type: z.enum([...DEPENDENCY_TYPES, "parent"]).optional(),
-      eventable: z.boolean().optional(),
-      notifiable: z.boolean().optional(),
-      metadata: z.record(z.any()).optional()
-    })
-  )
-    .optional()
-    .default([])
-})
+// Export the schema
+export const AdminPostDesignTasksReq = z.discriminatedUnion("type", [
+  TemplateBasedCreation.extend({ type: z.literal("template") }),
+  ParentTaskSchema.extend({ type: z.literal("task") }),
+  MultipleTasksCreation.extend({ type: z.literal("multiple") })
+])
 
 // ============= Type Exports =============
 export type BaseTaskType = z.infer<typeof BaseTaskSchema>
 export type ChildTaskType = z.infer<typeof ChildTaskSchema>
 export type ParentTaskType = z.infer<typeof ParentTaskSchema>
 export type AdminPostDesignTasksReqType = z.infer<typeof AdminPostDesignTasksReq>
-export type AdminPostDesignTasksSimplifiedType = z.infer<typeof AdminPostDesignTasksSimplified>

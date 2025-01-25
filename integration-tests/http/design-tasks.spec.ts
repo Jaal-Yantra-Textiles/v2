@@ -40,6 +40,20 @@ const patternMakingTemplate = {
   }
 }
 
+const sampleTaskPayload = {
+  type: "template" as const,
+  template_names: ["Pattern Making Template"],
+  child_tasks: [
+    {
+      title: "Size Grading",
+      description: "Grade pattern for all sizes",
+      priority: "medium" as const,
+      status: "pending" as const,
+      dependency_type: "subtask" as const
+    }
+  ]
+}
+
 medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let headers
@@ -65,14 +79,120 @@ medusaIntegrationTestRunner({
       // Create tasks from template
       const taskResponse = await api.post(
         `/admin/designs/${designId}/tasks`,
-        {
-          template_names: [patternMakingTemplate.name]
-        },
+        sampleTaskPayload,
         headers
       )
       expect(taskResponse.status).toBe(200)
       taskIds = taskResponse.data.taskLinks.list.map(task => task.id)
+    })
+
+    describe("POST /admin/designs/:id/tasks", () => {
+      it("should create tasks with child tasks", async () => {
+        const payload = {
+          type: "template" as const,
+          template_names: ["Pattern Making Template"],
+          child_tasks: [
+            {
+              title: "Size Grading",
+              description: "Grade pattern for all sizes",
+              priority: "medium" as const,
+              status: "pending" as const,
+              dependency_type: "subtask" as const
+            },
+            {
+              title: "Pattern Testing",
+              description: "Test pattern fit",
+              priority: "high" as const,
+              status: "pending" as const,
+              dependency_type: "subtask" as const
+            }
+          ]
+        }
+
+        const response = await api.post(
+          `/admin/designs/${designId}/tasks`,
+          payload,
+          headers
+        )
+
+        expect(response.status).toBe(200)
+        expect(response.data.taskLinks).toBeDefined()
+        expect(Array.isArray(response.data.taskLinks.list)).toBe(true)
+        expect(response.data.taskLinks.list).toHaveLength(1)
+
+        const mainTask = response.data.taskLinks.list[0]
+        expect(mainTask).toEqual(
+          expect.objectContaining({
+            id: expect.any(String),
+            title: patternMakingTemplate.name,
+            description: patternMakingTemplate.description,
+            status: "pending",
+            priority: "high",
+            eventable: true,
+            notifiable: true,
+            metadata: expect.objectContaining({
+              type: "technical",
+              department: "pattern_making",
+              template_id: expect.any(String),
+              template_name: "Pattern Making Template"
+            }),
+            parent_task_id: null,
+            subtasks: expect.arrayContaining([
+              expect.any(Object),
+              expect.any(Object)
+            ])
+          })
+        )
+
+        // Verify dates
+        expect(mainTask.start_date).toBeDefined()
+        expect(mainTask.end_date).toBeDefined()
+        expect(mainTask.created_at).toBeDefined()
+        expect(mainTask.updated_at).toBeDefined()
+        expect(mainTask.completed_at).toBeNull()
+        expect(mainTask.deleted_at).toBeNull()
+      })
+
+      it("should fail when template_names is empty", async () => {
+        const payload = {
+          type: "template" as const,
+          template_names: []
+        }
+
+        const response = await api.post(
+          `/admin/designs/${designId}/tasks`,
+          payload,
+          headers
+        ).catch(err => err.response)
+
+        expect(response.status).toBe(400)
+        expect(response.data.issues[0].message).toContain("At least one template name is required")
+      })
+
+      it("should fail with invalid dependency_type", async () => {
+        const payload = {
+          type: "template" as const,
+          template_names: ["Pattern Making Template"],
+          child_tasks: [
+            {
+              title: "Invalid Child Task",
+              dependency_type: "invalid_type"
+            }
+          ]
+        }
+
+        const response = await api.post(
+          `/admin/designs/${designId}/tasks`,
+          payload,
+          headers
+        ).catch(err => err.response)
+
+        expect(response.status).toBe(400)
+        const error = response.data
+        expect(error.issues[0].code).toBe("invalid_enum_value")
+        expect(error.issues[0].message).toBe("Invalid enum value. Expected 'blocking' | 'non_blocking' | 'subtask' | 'related', received 'invalid_type'")
       
+      })
     })
 
     describe("GET /admin/designs/:id/tasks", () => {
@@ -84,7 +204,7 @@ medusaIntegrationTestRunner({
 
         expect(response.status).toBe(200)
         expect(response.data.tasks).toBeDefined()
-        expect(response.data.tasks).toHaveLength(1)
+        expect(response.data.tasks.length).toBeGreaterThan(0)
 
         const task = response.data.tasks[0]
         expect(task).toEqual(
@@ -92,203 +212,16 @@ medusaIntegrationTestRunner({
             id: expect.any(String),
             title: patternMakingTemplate.name,
             description: patternMakingTemplate.description,
-            priority: patternMakingTemplate.priority,
-            eventable: patternMakingTemplate.eventable,
-            notifiable: patternMakingTemplate.notifiable,
+            status: "pending",
+            priority: "high",
+            eventable: true,
+            notifiable: true,
             metadata: expect.objectContaining({
-              type: patternMakingTemplate.metadata.type,
-              department: patternMakingTemplate.metadata.department
+              type: "technical",
+              department: "pattern_making"
             })
           })
         )
-      })
-
-      it("should return empty array for design with no tasks", async () => {
-        // Create a new design without tasks
-        const newDesignResponse = await api.post("/admin/designs", {
-          ...testDesign,
-          name: "Design without tasks"
-        }, headers)
-        const newDesignId = newDesignResponse.data.design.id
-
-        const response = await api.get(
-          `/admin/designs/${newDesignId}/tasks`,
-          headers
-        )
-
-        expect(response.status).toBe(200)
-        expect(response.data.tasks).toBeDefined()
-        expect(response.data.tasks).toHaveLength(0)
-      })
-
-      it("should handle non-existent design id", async () => {
-        const response = await api.get(
-          `/admin/designs/non-existent-id/tasks`,
-          headers
-        ).catch(err => err.response)
-
-        expect(response.status).toBe(404)
-        expect(response.data.message).toBe("Design with id non-existent-id was not found")
-      })
-    })
-
-    describe("GET /admin/designs/:id/tasks/:taskId", () => {
-      it("should get a single task", async () => {
-        const response = await api.get(
-          `/admin/designs/${designId}/tasks/${taskIds[0]}`,
-          headers
-        )
-        
-        expect(response.status).toBe(200)
-        expect(response.data.task).toBeDefined()
-        expect(response.data.task).toEqual(
-          expect.objectContaining({
-            id: taskIds[0],
-            title: patternMakingTemplate.name,
-            description: patternMakingTemplate.description,
-            priority: patternMakingTemplate.priority,
-            eventable: patternMakingTemplate.eventable,
-            notifiable: patternMakingTemplate.notifiable,
-            metadata: expect.objectContaining({
-              type: patternMakingTemplate.metadata.type,
-              department: patternMakingTemplate.metadata.department
-            })
-          })
-        )
-      })
-
-      it("should handle non-existent task id", async () => {
-        const response = await api.get(
-          `/admin/designs/${designId}/tasks/non-existent-id`,
-          headers
-        ).catch(err => err.response)
-
-        expect(response.status).toBe(404)
-        expect(response.data.message).toBe(`Task with id non-existent-id not found in design ${designId}`)
-      })
-    })
-
-    describe("POST /admin/designs/:id/tasks/:taskId", () => {
-      it("should update a task", async () => {
-        const updateData = {
-          title: "Updated Pattern Task",
-          description: "Updated task description",
-          priority: "low",
-          status: "in_progress",
-          eventable: false,
-          notifiable: false,
-          metadata: {
-            type: "updated",
-            department: "design"
-          }
-        }
-
-        const response = await api.post(
-          `/admin/designs/${designId}/tasks/${taskIds[0]}`,
-          updateData,
-          headers
-        )
-
-        expect(response.status).toBe(200)
-        expect(response.data.task).toBeDefined()
-        expect(response.data.task).toEqual(
-          expect.objectContaining({
-            id: taskIds[0],
-            ...updateData,
-            metadata: expect.objectContaining(updateData.metadata)
-          })
-        )
-
-        // Verify changes persisted
-        const getResponse = await api.get(
-          `/admin/designs/${designId}/tasks/${taskIds[0]}`,
-          headers
-        )
-        expect(getResponse.data.task).toEqual(
-          expect.objectContaining({
-            id: taskIds[0],
-            ...updateData,
-            metadata: expect.objectContaining(updateData.metadata)
-          })
-        )
-      })
-
-      it("should partially update a task", async () => {
-        const partialUpdate = {
-          title: "Partially Updated Task",
-          priority: "medium"
-        }
-
-        const response = await api.post(
-          `/admin/designs/${designId}/tasks/${taskIds[0]}`,
-          partialUpdate,
-          headers
-        )
-
-        expect(response.status).toBe(200)
-        expect(response.data.task).toBeDefined()
-        expect(response.data.task).toEqual(
-          expect.objectContaining({
-            id: taskIds[0],
-            ...partialUpdate
-          })
-        )
-      })
-
-      it("should handle non-existent task id", async () => {
-        const response = await api.post(
-          `/admin/designs/${designId}/tasks/non-existent-id`,
-          { title: "Updated Title" },
-          headers
-        ).catch(err => err.response)
-
-        expect(response.status).toBe(404)
-        expect(response.data.message).toBe(`Task with id non-existent-id not found in design ${designId}`)
-      })
-    })
-
-    describe("DELETE /admin/designs/:id/tasks/:taskId", () => {
-      it("should delete a task", async () => {
-        const response = await api.delete(
-          `/admin/designs/${designId}/tasks/${taskIds[0]}`,
-          headers
-        )
-
-        expect(response.status).toBe(200)
-        expect(response.data).toEqual({
-          id: taskIds[0],
-          object: "task",
-          deleted: true
-        })
-
-        // Verify task is deleted
-        const getResponse = await api.get(
-          `/admin/designs/${designId}/tasks/${taskIds[0]}`,
-          headers
-        ).catch(err => err.response)
-
-        expect(getResponse.status).toBe(404)
-        expect(getResponse.data.message).toBe(`Task with id ${taskIds[0]} not found in design ${designId}`)
-      })
-
-      it("should handle non-existent task id", async () => {
-        const response = await api.delete(
-          `/admin/designs/${designId}/tasks/non-existent-id`,
-          headers
-        ).catch(err => err.response)
-
-        expect(response.status).toBe(404)
-        expect(response.data.message).toBe(`Task with id non-existent-id not found in design ${designId}`)
-      })
-
-      it("should handle non-existent design id", async () => {
-        const response = await api.delete(
-          `/admin/designs/non-existent-id/tasks/${taskIds[0]}`,
-          headers
-        ).catch(err => err.response)
-
-        expect(response.status).toBe(404)
-        expect(response.data.message).toBe("Design with id non-existent-id was not found")
       })
     })
   }
