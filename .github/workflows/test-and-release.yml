@@ -16,7 +16,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: jyt_test
+          POSTGRES_DB: postgres
         ports:
           - 5432:5432
         options: >-
@@ -39,11 +39,17 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: Setup Database Permissions
+      run: |
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "ALTER USER postgres CREATEDB;"
+      env:
+        PGPASSWORD: postgres
+
     - name: Create test environment file
       run: |
         cat << EOF > .env.test
         DATABASE_TYPE=postgres
-        DATABASE_URL=postgres://postgres:postgres@localhost:5432/jyt_test
+        DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
         REDIS_URL=redis://localhost:6379
         JWT_SECRET=secret
         COOKIE_SECRET=secret
@@ -56,7 +62,9 @@ jobs:
       run: npm run test:integration:http
       env:
         NODE_ENV: test
-        DATABASE_URL: postgres://postgres:postgres@localhost:5432/jyt_test
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
 
     - name: Semantic Release
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
