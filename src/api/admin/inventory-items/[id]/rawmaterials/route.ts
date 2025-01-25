@@ -5,10 +5,6 @@ import {
 import { RawMaterial } from "./validators";
 import { createRawMaterialWorkflow } from "../../../../../workflows/raw-materials/create-raw-material";
 import { RawMaterialAllowedFields, refetchRawMaterial } from "./helpers";
-import { AdminGetInventoryItemParamsType } from "@medusajs/medusa/api/admin/inventory-items/validators";
-import { HttpTypes } from "@medusajs/framework/types";
-import { MedusaError } from "@medusajs/framework/utils";
-import { refetchInventoryItem } from "@medusajs/medusa/api/admin/inventory-items/helpers";
 
 export const POST = async (
   req: MedusaRequest<RawMaterial> & {

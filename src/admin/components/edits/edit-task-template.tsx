@@ -1,17 +1,12 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Input, Select, Switch } from "@medusajs/ui";
-import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { AdminTaskTemplate, useUpdateTaskTemplate } from "../../hooks/api/task-templates";
 import { useTaskTemplateCategories } from "../../hooks/api/task-template-categories";
-import { KeyboundForm } from "../utilitites/key-bound-form";
-import { Form } from "../common/form";
-import { useRouteModal } from "../modal/use-route-modal";
-import { RouteDrawer } from "../modal/route-drawer/route-drawer";
 import { CategorySearch } from "../common/category-search";
 import { useState } from "react";
 import { toast } from "sonner";
+import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
+import { useRouteModal } from "../modal/use-route-modal";
 
 const taskTemplateSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -51,28 +46,7 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
 
   const { mutateAsync, isPending } = useUpdateTaskTemplate(template.id!);
 
-  const form = useForm<TaskTemplateFormData>({
-    resolver: zodResolver(taskTemplateSchema),
-    defaultValues: {
-      name: template.name,
-      description: template.description,
-      category: {
-        id: template.category?.id,
-        name: template.category?.name || "",
-        description: template.category?.description || "",
-      },
-      estimated_duration: template.estimated_duration || 0,
-      priority: template.priority || "medium",
-      eventable: template.eventable || false,
-      notifiable: template.notifiable || false,
-      message_template: template.message_template || "",
-    },
-  });
-
-  const selectedCategory = form.watch("category");
-  const isNewCategory = !selectedCategory.id && selectedCategory.name;
-
-  const handleSubmit = form.handleSubmit(async (data) => {
+  const handleSubmit = async (data: TaskTemplateFormData) => {
     await mutateAsync(
       {
         name: data.name,
@@ -107,207 +81,100 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
         },
       }
     );
-  });
+  };
+
+  const fields: FieldConfig<TaskTemplateFormData>[] = [
+    {
+      name: "name",
+      type: "text",
+      label: t("fields.name"),
+      required: true,
+    },
+    {
+      name: "description",
+      type: "text",
+      label: t("fields.description"),
+    },
+    {
+      name: "category",
+      type: "custom",
+      label: t("fields.category"),
+      customComponent: CategorySearch,
+      customProps: {
+        categories,
+        defaultValue: template.category || "",
+        onSelect: (category: any) => ({
+          id: category?.id,
+          name: category?.name,
+          description: category?.description || "",
+        }),
+        onValueChange: (value: string) => {
+          setSearchQuery(value);
+          return {
+            id: undefined,
+            name: value,
+          };
+        },
+      },
+    },
+    {
+      name: "priority",
+      type: "select",
+      label: t("fields.priority"),
+      options: priorityOptions,
+      required: true,
+      gridCols: 1,
+    },
+    {
+      name: "estimated_duration",
+      type: "number",
+      label: t("fields.estimatedDuration"),
+      required: true,
+      gridCols: 1,
+    },
+    {
+      name: "eventable",
+      type: "switch",
+      label: t("fields.eventable"),
+      hint: t("taskTemplate.eventableDescription"),
+    },
+    {
+      name: "notifiable",
+      type: "switch",
+      label: t("fields.notifiable"),
+      hint: t("taskTemplate.notifiableDescription"),
+    },
+    {
+      name: "message_template",
+      type: "text",
+      label: t("fields.messageTemplate"),
+    },
+  ];
 
   return (
-    <RouteDrawer.Form form={form}>
-      <KeyboundForm
-        onSubmit={handleSubmit}
-        className="flex flex-1 flex-col overflow-hidden"
-      >
-        <RouteDrawer.Body className="flex flex-1 flex-col gap-y-8 overflow-y-auto">
-          <div className="flex flex-col gap-y-4">
-            <Form.Field
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <Form.Item>
-                  <Form.Label>{t("fields.name")}</Form.Label>
-                  <Form.Control>
-                    <Input {...field} />
-                  </Form.Control>
-                  <Form.ErrorMessage />
-                </Form.Item>
-              )}
-            />
-
-            <Form.Field
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <Form.Item>
-                  <Form.Label>{t("fields.description")}</Form.Label>
-                  <Form.Control>
-                    <Input {...field} value={field.value || ""} />
-                  </Form.Control>
-                  <Form.ErrorMessage />
-                </Form.Item>
-              )}
-            />
-
-            <Form.Field
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <Form.Item>
-                  <Form.Label>{t("fields.category")}</Form.Label>
-                  <Form.Control>
-                    <CategorySearch
-                      defaultValue={field.value.name}
-                      categories={categories}
-                      onSelect={(category) => {
-                        if (category) {
-                          field.onChange({
-                            id: category.id,
-                            name: category.name,
-                            description: category.description || "",
-                          });
-                        }
-                      }}
-                      onValueChange={(value) => {
-                        setSearchQuery(value);
-                        field.onChange({
-                          ...field.value,
-                          id: undefined,
-                          name: value,
-                        });
-                      }}
-                      error={form.formState.errors.category?.name?.message}
-                    />
-                  </Form.Control>
-                  <Form.ErrorMessage />
-                </Form.Item>
-              )}
-            />
-
-            {isNewCategory && (
-              <Form.Field
-                control={form.control}
-                name="category.description"
-                render={({ field }) => (
-                  <Form.Item>
-                    <Form.Label>{t("fields.categoryDescription")}</Form.Label>
-                    <Form.Control>
-                      <Input {...field} value={field.value || ""} />
-                    </Form.Control>
-                    <Form.ErrorMessage />
-                  </Form.Item>
-                )}
-              />
-            )}
-
-            <div className="grid grid-cols-2 gap-x-8">
-              <Form.Field
-                control={form.control}
-                name="priority"
-                render={({ field: { value, onChange, ...rest } }) => (
-                  <Form.Item>
-                    <Form.Label>{t("fields.priority")}</Form.Label>
-                    <Form.Control>
-                      <Select value={value} onValueChange={onChange} {...rest}>
-                        <Select.Trigger>
-                          <Select.Value placeholder="Select priority" />
-                        </Select.Trigger>
-                        <Select.Content>
-                          {priorityOptions.map((option) => (
-                            <Select.Item key={option.value} value={option.value}>
-                              {option.label}
-                            </Select.Item>
-                          ))}
-                        </Select.Content>
-                      </Select>
-                    </Form.Control>
-                    <Form.ErrorMessage />
-                  </Form.Item>
-                )}
-              />
-
-              <Form.Field
-                control={form.control}
-                name="estimated_duration"
-                render={({ field }) => (
-                  <Form.Item>
-                    <Form.Label>{t("fields.estimatedDuration")}</Form.Label>
-                    <Form.Control>
-                      <Input
-                        type="number"
-                        autoComplete="off"
-                        {...field}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
-                      />
-                    </Form.Control>
-                    <Form.ErrorMessage />
-                  </Form.Item>
-                )}
-              />
-            </div>
-
-            <div className="flex flex-col gap-y-4">
-              <Form.Field
-                control={form.control}
-                name="eventable"
-                render={({ field: { value, onChange } }) => (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Form.Label>{t("fields.eventable")}</Form.Label>
-                      <Form.Hint>
-                        {t("taskTemplate.eventableDescription")}
-                      </Form.Hint>
-                    </div>
-                    <Switch checked={value} onCheckedChange={onChange} />
-                  </div>
-                )}
-              />
-
-              <Form.Field
-                control={form.control}
-                name="notifiable"
-                render={({ field: { value, onChange } }) => (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Form.Label>{t("fields.notifiable")}</Form.Label>
-                      <Form.Hint>
-                        {t("taskTemplate.notifiableDescription")}
-                      </Form.Hint>
-                    </div>
-                    <Switch checked={value} onCheckedChange={onChange} />
-                  </div>
-                )}
-              />
-
-              <Form.Field
-                control={form.control}
-                name="message_template"
-                render={({ field }) => (
-                  <Form.Item>
-                    <Form.Label>{t("fields.messageTemplate")}</Form.Label>
-                    <Form.Control>
-                      <Input
-                        {...field}
-                        value={field.value || ""}
-                        onChange={(e) => field.onChange(e.target.value || null)}
-                      />
-                    </Form.Control>
-                    <Form.ErrorMessage />
-                  </Form.Item>
-                )}
-              />
-            </div>
-          </div>
-        </RouteDrawer.Body>
-        <RouteDrawer.Footer>
-          <div className="flex items-center justify-end gap-x-2">
-            <RouteDrawer.Close asChild>
-              <Button size="small" variant="secondary">
-                {t("actions.cancel")}
-              </Button>
-            </RouteDrawer.Close>
-            <Button size="small" type="submit" isLoading={isPending}>
-              {t("actions.save")}
-            </Button>
-          </div>
-        </RouteDrawer.Footer>
-      </KeyboundForm>
-    </RouteDrawer.Form>
+    <DynamicForm<TaskTemplateFormData>
+      fields={fields}
+      defaultValues={{
+        name: template.name,
+        description: template.description,
+        category: {
+          id: template.category?.id,
+          name: template.category?.name || "",
+          description: template.category?.description || "",
+        },
+        estimated_duration: template.estimated_duration || 0,
+        priority: template.priority || "medium",
+        eventable: template.eventable || false,
+        notifiable: template.notifiable || false,
+        message_template: template.message_template || "",
+      }}
+      onSubmit={handleSubmit}
+      customValidation={taskTemplateSchema}
+      layout={{
+        showDrawer: true,
+        gridCols: 1,
+      }}
+      isPending={isPending}
+    />
   );
 };

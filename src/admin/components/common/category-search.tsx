@@ -11,7 +11,7 @@ export type Category = {
 };
 
 type CategorySearchProps = {
-  defaultValue?: string;
+  defaultValue?: Category | string;
   onSelect: (category: Category | null) => void;
   onValueChange: (value: string) => void;
   categories: Category[];
@@ -27,7 +27,9 @@ export const CategorySearch = ({
 }: CategorySearchProps) => {
   const { t } = useTranslation();
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [inputValue, setInputValue] = useState(defaultValue);
+  const [inputValue, setInputValue] = useState(
+    typeof defaultValue === "string" ? defaultValue : defaultValue?.name || ""
+  );
 
   const {
     onSearchValueChange: setCategorySearch,
@@ -66,6 +68,13 @@ export const CategorySearch = ({
     setShowCategoryDropdown(false);
   };
 
+  // Set initial category if defaultValue is a Category object
+  useEffect(() => {
+    if (typeof defaultValue === "object" && defaultValue !== null) {
+      onSelect(defaultValue);
+    }
+  }, [defaultValue, onSelect]);
+
   // Update dropdown visibility based on matching categories
   useEffect(() => {
     if (!debouncedQuery || matchingCategories.length === 0) {
@@ -102,23 +111,20 @@ export const CategorySearch = ({
               <button
                 key={category.id}
                 type="button"
-                className="w-full px-4 py-2 text-left text-sm hover:bg-ui-bg-base-hover focus:bg-ui-bg-base-hover focus:outline-none"
+                className="w-full px-4 py-2 text-left hover:bg-ui-bg-base-hover"
                 onClick={() => handleCategorySelect(category)}
-                onMouseDown={(e) => e.preventDefault()}
               >
                 {category.name}
               </button>
             ))}
           </div>
         )}
+        {showNewCategoryHint && (
+          <div className="text-ui-fg-subtle mt-2 text-sm">
+            {t("common.pressEnterToCreateCategory")}
+          </div>
+        )}
       </div>
-      {showNewCategoryHint && (
-        <Form.Hint className="text-ui-fg-subtle mt-2">
-          {t("common.newCategoryHint", {
-            name: inputValue,
-          })}
-        </Form.Hint>
-      )}
       {error && <Form.ErrorMessage>{error}</Form.ErrorMessage>}
     </Form.Item>
   );

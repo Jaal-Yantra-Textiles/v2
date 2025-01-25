@@ -28,6 +28,7 @@ import {
   postPagesSchema,
 } from "./admin/websites/[id]/pages/validators";
 import {  createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
+import { AdminPostDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 
 export default defineMiddlewares({
   routes: [
@@ -122,6 +123,14 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id",
       method: "DELETE",
       middlewares: [],
+    },
+
+    // Inventory linkin on designs 
+
+    {
+      matcher: "/admin/designs/:id/inventory",
+      method: "POST",
+      middlewares: [validateAndTransformBody(AdminPostDesignInventoryReq)],
     },
 
     //Task on Designs 
