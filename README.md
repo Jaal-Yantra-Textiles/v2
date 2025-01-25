@@ -1,5 +1,7 @@
 # Textile Production & Design Pipeline (TP/DP)
 
+[![Test and Release](https://github.com/Jaal-Yantra-Textiles/v2/actions/workflows/test-and-release.yml/badge.svg)](https://github.com/Jaal-Yantra-Textiles/v2/actions/workflows/test-and-release.yml)
+
 **A modern, open-source platform built on [MedusaJS](https://docs.medusajs.com/) to unify pre-production, production, and post-production workflows in the textile industry.**  
 TPDP streamlines communication and collaboration between **designers**, **suppliers**, and **customers**—closing the loop on all stages of textile development and manufacturing.
 
