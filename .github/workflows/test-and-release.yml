@@ -39,9 +39,13 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Setup Database Permissions
+    - name: Setup Database User and Permissions
       run: |
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "ALTER USER postgres CREATEDB;"
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE USER runner WITH PASSWORD 'runner';"
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "ALTER USER runner WITH SUPERUSER CREATEDB CREATEROLE;"
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE postgres TO runner;"
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO runner;"
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "ALTER USER runner WITH LOGIN;"
       env:
         PGPASSWORD: postgres
 
@@ -49,7 +53,7 @@ jobs:
       run: |
         cat << EOF > .env.test
         DATABASE_TYPE=postgres
-        DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+        DATABASE_URL=postgresql://runner:runner@localhost:5432/postgres
         REDIS_URL=redis://localhost:6379
         JWT_SECRET=secret
         COOKIE_SECRET=secret
@@ -62,9 +66,9 @@ jobs:
       run: npm run test:integration:http
       env:
         NODE_ENV: test
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: postgres
+        DATABASE_URL: postgresql://runner:runner@localhost:5432/postgres
+        POSTGRES_USER: runner
+        POSTGRES_PASSWORD: runner
 
     - name: Semantic Release
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
