@@ -14,8 +14,9 @@ jobs:
       postgres:
         image: postgres:13
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_USER: runner
+          POSTGRES_PASSWORD: runner
           POSTGRES_DB: postgres
         ports:
           - 5432:5432
@@ -39,15 +40,11 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Setup Database User and Permissions
+    - name: Setup Database Permissions
       run: |
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE USER runner WITH PASSWORD 'runner';"
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "ALTER USER runner WITH SUPERUSER CREATEDB CREATEROLE;"
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE postgres TO runner;"
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO runner;"
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "ALTER USER runner WITH LOGIN;"
-      env:
-        PGPASSWORD: postgres
+        psql -h localhost -U runner -d postgres -c "ALTER USER runner WITH SUPERUSER CREATEDB CREATEROLE;"
+        psql -h localhost -U runner -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE postgres TO runner;"
+        psql -h localhost -U runner -d postgres -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO runner;"
 
     - name: Create test environment file
       run: |
