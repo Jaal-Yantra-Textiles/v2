@@ -21,20 +21,24 @@ import { Form } from "../common/form";
 import { Plus, Minus, ChevronDown } from "@medusajs/icons";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useState } from "react";
+import { useCreateDesignTask } from "../../hooks/api/design-tasks";
+
+const TASK_PRIORITIES = ["low", "medium", "high"] as const;
+const TASK_STATUSES = ["pending", "in_progress", "completed", "blocked"] as const;
+const DEPENDENCY_TYPES = ["blocking", "non_blocking", "subtask", "related"] as const;
 
 const taskSchema = z.object({
   title: z.string().min(2, "Title is required"),
   description: z.string(),
-  priority: z.enum(["low", "medium", "high"]),
-  estimated_duration: z.number().min(1, "Duration must be at least 1 minute"),
-  status: z.enum(["pending", "in_progress", "completed", "cancelled"]),
-  due_date: z.string(),
-  subtasks: z.array(z.object({
+  priority: z.enum(TASK_PRIORITIES),
+  status: z.enum(TASK_STATUSES),
+  due_date: z.date(),
+  child_tasks: z.array(z.object({
     title: z.string().min(2, "Title is required"),
     description: z.string(),
-    estimated_duration: z.number().min(1, "Duration must be at least 1 minute"),
-    status: z.enum(["pending", "in_progress", "completed", "cancelled"]),
-    due_date: z.string(),
+    priority: z.enum(TASK_PRIORITIES),
+    status: z.enum(TASK_STATUSES),
+    dependency_type: z.enum(DEPENDENCY_TYPES),
   })),
 });
 
@@ -50,7 +54,14 @@ const statusOptions = [
   { value: "pending", label: "Pending" },
   { value: "in_progress", label: "In Progress" },
   { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
+  { value: "blocked", label: "Blocked" },
+];
+
+const dependencyOptions = [
+  { value: "blocking", label: "Blocking" },
+  { value: "non_blocking", label: "Non-blocking" },
+  { value: "subtask", label: "Subtask" },
+  { value: "related", label: "Related" },
 ];
 
 export const CreateDesignTaskComponent = () => {
@@ -59,32 +70,32 @@ export const CreateDesignTaskComponent = () => {
   const { handleSuccess } = useRouteModal();
   const prompt = usePrompt();
   const [isMainTaskExpanded, setIsMainTaskExpanded] = useState(true);
+  const { mutateAsync: createTask, isPending } = useCreateDesignTask(id!);
 
   const form = useForm<TaskFormData>({
     defaultValues: {
       title: "",
       description: "",
       priority: "medium",
-      estimated_duration: 60,
       status: "pending",
-      due_date: new Date().toISOString().split('T')[0],
-      subtasks: [],
+      due_date: new Date(),
+      child_tasks: [],
     },
     resolver: zodResolver(taskSchema),
   });
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
-    name: "subtasks",
+    name: "child_tasks",
   });
 
   const handleAddSubtask = () => {
     append({
       title: "",
       description: "",
-      estimated_duration: 30,
+      priority: "medium",
       status: "pending",
-      due_date: new Date().toISOString().split('T')[0],
+      dependency_type: "subtask",
     });
     setIsMainTaskExpanded(false);
   };
@@ -99,9 +110,31 @@ export const CreateDesignTaskComponent = () => {
 
     if (!res) return;
 
-    // API integration will be added later
-    console.log("Form data:", data);
-    handleSuccess(`/designs/${id}`);
+    try {
+      // Create a single task with child tasks
+      const taskPayload = {
+        type: "task" as const,
+        title: data.title,
+        description: data.description,
+        priority: data.priority,
+        status: data.status,
+        due_date: data.due_date,
+        ...(data.child_tasks.length > 0 && { child_tasks: data.child_tasks }),
+      };
+
+      await createTask(taskPayload, {
+        onSuccess: () => {
+          toast.success(t("tasks.create.success"));
+          handleSuccess(`/designs/${id}`);
+        },
+        onError: (error) => {
+          toast.error(error.message);
+        },
+      });
+    } catch (error) {
+      console.error("Failed to create task:", error);
+      toast.error(t("tasks.create.error"));
+    }
   });
 
   return (
@@ -218,27 +251,6 @@ export const CreateDesignTaskComponent = () => {
 
                       <Form.Field
                         control={form.control}
-                        name="estimated_duration"
-                        render={({ field }) => (
-                          <Form.Item>
-                            <Form.Label>{t("fields.estimatedDuration")}</Form.Label>
-                            <Form.Control>
-                              <Input
-                                type="number"
-                                autoComplete="off"
-                                {...field}
-                                onChange={(e) => field.onChange(Number(e.target.value))}
-                              />
-                            </Form.Control>
-                            <Form.ErrorMessage />
-                          </Form.Item>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                      <Form.Field
-                        control={form.control}
                         name="status"
                         render={({ field: { value, onChange, ...rest } }) => (
                           <Form.Item>
@@ -265,32 +277,32 @@ export const CreateDesignTaskComponent = () => {
                           </Form.Item>
                         )}
                       />
+                    </div>
 
-                      <Form.Field
-                        control={form.control}
-                        name="due_date"
-                        render={({ field }) => (
-                          <Form.Item>
-                            <Form.Label>{t("fields.dueDate")}</Form.Label>
-                            <Form.Control>
+                    <Form.Field
+                      control={form.control}
+                      name="due_date"
+                      render={({ field }) => (
+                        <Form.Item>
+                          <Form.Label>{t("fields.dueDate")}</Form.Label>
+                          <Form.Control>
                             <DatePicker
-                                value={new Date(field.value)}
-                                onChange={(date) => {
-                                 field.onChange(date);
+                              value={field.value}
+                              onChange={(date) => {
+                                field.onChange(date);
                               }}
                             />
-                            </Form.Control>
-                            <Form.ErrorMessage />
-                          </Form.Item>
-                        )}
-                      />
-                    </div>
+                          </Form.Control>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )}
+                    />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Subtasks Section */}
+            {/* Child Tasks Section */}
             {fields.length > 0 && (
               <div className="relative flex flex-col gap-y-6 pl-8">
                 {/* Vertical connector from main task */}
@@ -301,7 +313,7 @@ export const CreateDesignTaskComponent = () => {
                     key={field.id}
                     className="relative ml-8"
                   >
-                    {/* Horizontal connector to subtask */}
+                    {/* Horizontal connector to child task */}
                     <div className="absolute -left-8 top-4 h-0.5 w-8 border-t-2 border-dashed border-ui-border-base" />
                     
                     {/* Circle connector */}
@@ -312,7 +324,7 @@ export const CreateDesignTaskComponent = () => {
                         <div className="flex-1">
                           <Form.Field
                             control={form.control}
-                            name={`subtasks.${index}.title`}
+                            name={`child_tasks.${index}.title`}
                             render={({ field }) => (
                               <Form.Item>
                                 <Form.Label>{t("fields.title")}</Form.Label>
@@ -327,7 +339,7 @@ export const CreateDesignTaskComponent = () => {
                           <div className="mt-4">
                             <Form.Field
                               control={form.control}
-                              name={`subtasks.${index}.description`}
+                              name={`child_tasks.${index}.description`}
                               render={({ field }) => (
                                 <Form.Item>
                                   <Form.Label>{t("fields.description")}</Form.Label>
@@ -343,19 +355,27 @@ export const CreateDesignTaskComponent = () => {
                           <div className="mt-4 grid grid-cols-2 gap-x-4">
                             <Form.Field
                               control={form.control}
-                              name={`subtasks.${index}.estimated_duration`}
-                              render={({ field }) => (
+                              name={`child_tasks.${index}.priority`}
+                              render={({ field: { value, onChange, ...rest } }) => (
                                 <Form.Item>
-                                  <Form.Label>{t("fields.estimatedDuration")}</Form.Label>
+                                  <Form.Label>{t("fields.priority")}</Form.Label>
                                   <Form.Control>
-                                    <Input
-                                      type="number"
-                                      autoComplete="off"
-                                      {...field}
-                                      onChange={(e) =>
-                                        field.onChange(Number(e.target.value))
-                                      }
-                                    />
+                                    <Select 
+                                      value={value} 
+                                      onValueChange={onChange}
+                                      {...rest}
+                                    >
+                                      <Select.Trigger>
+                                        <Select.Value placeholder="Select priority" />
+                                      </Select.Trigger>
+                                      <Select.Content>
+                                        {priorityOptions.map((option) => (
+                                          <Select.Item key={option.value} value={option.value}>
+                                            {option.label}
+                                          </Select.Item>
+                                        ))}
+                                      </Select.Content>
+                                    </Select>
                                   </Form.Control>
                                   <Form.ErrorMessage />
                                 </Form.Item>
@@ -364,7 +384,38 @@ export const CreateDesignTaskComponent = () => {
 
                             <Form.Field
                               control={form.control}
-                              name={`subtasks.${index}.status`}
+                              name={`child_tasks.${index}.dependency_type`}
+                              render={({ field: { value, onChange, ...rest } }) => (
+                                <Form.Item>
+                                  <Form.Label>{t("fields.dependencyType")}</Form.Label>
+                                  <Form.Control>
+                                    <Select 
+                                      value={value} 
+                                      onValueChange={onChange}
+                                      {...rest}
+                                    >
+                                      <Select.Trigger>
+                                        <Select.Value placeholder="Select dependency type" />
+                                      </Select.Trigger>
+                                      <Select.Content>
+                                        {dependencyOptions.map((option) => (
+                                          <Select.Item key={option.value} value={option.value}>
+                                            {option.label}
+                                          </Select.Item>
+                                        ))}
+                                      </Select.Content>
+                                    </Select>
+                                  </Form.Control>
+                                  <Form.ErrorMessage />
+                                </Form.Item>
+                              )}
+                            />
+                          </div>
+
+                          <div className="mt-4">
+                            <Form.Field
+                              control={form.control}
+                              name={`child_tasks.${index}.status`}
                               render={({ field: { value, onChange, ...rest } }) => (
                                 <Form.Item>
                                   <Form.Label>{t("fields.status")}</Form.Label>
@@ -391,32 +442,16 @@ export const CreateDesignTaskComponent = () => {
                               )}
                             />
                           </div>
-
-                          <div className="mt-4">
-                            <Form.Field
-                              control={form.control}
-                              name={`subtasks.${index}.due_date`}
-                              render={({ field }) => (
-                                <Form.Item>
-                                  <Form.Label>{t("fields.dueDate")}</Form.Label>
-                                  <Form.Control>
-                                    <Input type="date" {...field} />
-                                  </Form.Control>
-                                  <Form.ErrorMessage />
-                                </Form.Item>
-                              )}
-                            />
-                          </div>
                         </div>
 
-                        <Button
-                          variant="secondary"
+                        <IconButton
                           size="small"
+                          variant="transparent"
                           onClick={() => remove(index)}
-                          className="ml-4"
+                          className="ml-2"
                         >
                           <Minus className="text-ui-fg-subtle" />
-                        </Button>
+                        </IconButton>
                       </div>
                     </div>
                   </div>
@@ -429,14 +464,15 @@ export const CreateDesignTaskComponent = () => {
         <RouteFocusModal.Footer>
           <div className="flex items-center justify-end gap-x-2">
             <RouteFocusModal.Close asChild>
-              <Button variant="secondary" size="small">
+              <Button size="small" variant="secondary">
                 {t("actions.cancel")}
               </Button>
             </RouteFocusModal.Close>
             <Button
-              variant="primary"
               size="small"
+              variant="primary"
               type="submit"
+              isLoading={isPending}
             >
               {t("actions.create")}
             </Button>

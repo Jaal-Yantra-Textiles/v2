@@ -6,6 +6,7 @@ import {
   } from "@medusajs/framework/workflows-sdk";
   import { DESIGN_MODULE } from "../../modules/designs";
   import DesignService from "../../modules/designs/service";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
   
   export type ListDesignsStepInput = {
     id: string
@@ -15,12 +16,16 @@ import {
     "list-single-design-step",
     async (input: ListDesignsStepInput, { container }) => {
       const designService: DesignService = container.resolve(DESIGN_MODULE);
-        
-      const design = await designService.retrieveDesign(
-        input.id
-      );
-  
-      return new StepResponse(design, design.id);
+      
+      const query = container.resolve(ContainerRegistrationKeys.QUERY)
+      const {data: design} = await query.graph({
+        entity: 'designs',
+        fields: ['*', "tasks.*"],
+        filters: {
+          id: input.id
+        }
+      })
+      return new StepResponse(design[0], design[0]?.id);
     },
   );
   

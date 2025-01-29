@@ -1,15 +1,24 @@
-import { AwilixContainer } from "awilix";
-import { DESIGN_MODULE } from "../../../modules/designs";
-import DesignService from "../../../modules/designs/service";
+
+
 import { Design } from "./validators";
+import { MedusaContainer } from "@medusajs/framework";
 
 export type DesignAllowedFields = "*" | keyof Design;
 
 export const refetchDesign = async (
   designId: string,
-  container: AwilixContainer,
+  container: MedusaContainer,
   fields: DesignAllowedFields[] = ["*"]
 ) => {
-  const designService: DesignService = container.resolve(DESIGN_MODULE);
-  return await designService.retrieveDesign(designId);
+
+  const query = container.resolve("query")
+  const { data: design } = await query.graph({
+    entity: "designs",
+    filters: {
+      id: designId
+    },
+    fields: fields
+  })
+
+  return design[0]
 };

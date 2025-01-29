@@ -6,6 +6,7 @@ import { DesignTasksSection } from "../../../components/designs/design-tasks-sec
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
+import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 
 
 const DesignDetailPage = () => {
@@ -28,20 +29,21 @@ const DesignDetailPage = () => {
   }
 
   return (
-      <TwoColumnLayout 
-        firstCol={
-          <div className="flex flex-col gap-y-4">
-            <DesignGeneralSection design={design} />
-            <DesignMediaSection design={design} />
-            <DesignInventorySection design={design} />
-          </div>
-        }
-        secondCol={
-          <div className="flex flex-col gap-y-4">
-            <DesignTasksSection design={design} />
-          </div>
-        }
-      />
+      <TwoColumnPage 
+        data={design}
+        showJSON
+        showMetadata
+      >
+        <TwoColumnPage.Main>
+          <DesignGeneralSection design={design} />
+         
+          <DesignMediaSection design={design} />
+        </TwoColumnPage.Main>
+        <TwoColumnPage.Sidebar>
+          <DesignInventorySection design={design} />
+          <DesignTasksSection design={design} />
+        </TwoColumnPage.Sidebar>
+        </TwoColumnPage>
   );
 };
 

@@ -75,7 +75,7 @@ export const POST = async (req: MedusaRequest<AdminPostDesignTasksReqType>, res:
     taskIds = taskLinks.map(task => task.id);
   } else if (workflowResponse.withoutTemplates) {
     // For single task without templates
-    taskIds = [taskLinks[0].task.id];
+    taskIds = [taskLinks[0].id];
   }
 
   // Fetch full task details

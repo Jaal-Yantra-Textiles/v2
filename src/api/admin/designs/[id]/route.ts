@@ -7,9 +7,9 @@ import updateDesignWorkflow from "../../../../workflows/designs/update-design";
 import deleteDesignWorkflow from "../../../../workflows/designs/delete-design";
 import { DesignAllowedFields, refetchDesign } from "../helpers";
 import listSingleDesignsWorkflow from "../../../../workflows/designs/list-single-design";
+import { MedusaError } from "@medusajs/framework/utils";
 
-// GET single design
-// @todo Have to change this to use for the workflow
+
 export const GET = async (
   req: MedusaRequest & {
     params: { id: string };
@@ -19,17 +19,21 @@ export const GET = async (
   },
   res: MedusaResponse
 ) => {
-  try {
-    const {result} = await listSingleDesignsWorkflow.run({
+  const design = await refetchDesign(req.params.id, req.scope, req.remoteQueryConfig?.fields || ["*"])
+
+  if (!design) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Design with id ${req.params.id} was not found`
+    )
+  }
+    const {result} = await listSingleDesignsWorkflow(req.scope).run({
       input: {
         id: req.params.id,
       },
     })
-   
+
     res.status(200).json({ design: result });
-  } catch (error) {
-    res.status(404).json({ error: "Design not found" });
-  }
 };
 
 // Update design
@@ -81,5 +85,9 @@ export const DELETE = async (
     throw errors;
   }
 
-  res.status(204).send();
+  res.status(204).send({
+    id: req.params.id,
+    object: "design",
+    deleted: true,
+  });
 };

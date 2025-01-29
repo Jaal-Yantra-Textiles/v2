@@ -43,8 +43,7 @@ const TemplateBasedCreation = z.object({
 
 // ============= Parent Task Schema =============
 const ParentTaskSchema = BaseTaskSchema.extend({
-  template_names: z.array(z.string())
-    .min(1, "At least one template name is required"),
+  template_names: z.array(z.string()).optional(),
   parent_task_id: z.string().optional(),
   child_tasks: z.array(ChildTaskSchema).optional(),
   dependency_type: z.enum(DEPENDENCY_TYPES).optional()

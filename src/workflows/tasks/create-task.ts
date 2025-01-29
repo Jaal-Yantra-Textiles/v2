@@ -64,7 +64,7 @@ export const createTaskWithParentStep = createStep(
   "create-task-with-parent-step",
   async (input: CreateTaskWithParentInput, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
-
+    
     // Create parent task
     const { template_ids, originalInput } = input;
     const { child_tasks, dependency_type, ...parentData } = originalInput;

@@ -1,12 +1,13 @@
 import { model } from "@medusajs/framework/utils";
 import { TaskDependency } from "./task-dependency";
+import { now } from "lodash";
 
 const Task = model.define("task", {
     id: model.id().primaryKey(),
     title: model.text().searchable(),
     description: model.text().nullable(),
     
-    start_date: model.dateTime(),
+    start_date: model.dateTime().default(new Date()),
     end_date: model.dateTime().nullable(),
     
     status: model.enum(['pending', 'in_progress', 'completed', 'cancelled'])
