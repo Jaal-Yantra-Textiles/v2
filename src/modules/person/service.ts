@@ -4,7 +4,6 @@ import Person from "../person/models/person";
 import Address from "./models/person_address";
 import ContactDetail from "./models/person_contact";
 import Tag from "./models/person_tags";
-import PersonTypeService from "../persontype/service";
 
 class PersonService extends MedusaService({
   Person,

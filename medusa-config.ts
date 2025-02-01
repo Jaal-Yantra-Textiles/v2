@@ -63,6 +63,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/notes",
     },
+    {
+      resolve: "./src/modules/partner",
+    },
 
     // {
     //   resolve: "@medusajs/medusa/workflow-engine-redis",

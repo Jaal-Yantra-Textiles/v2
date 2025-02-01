@@ -28,3 +28,5 @@ build
 .vscode/
 
 static/
+
+/medusa-docs

@@ -3,6 +3,7 @@ import {
   MedusaErrorHandlerFunction,
   validateAndTransformBody,
   validateAndTransformQuery,
+  authenticate,
 } from "@medusajs/framework/http";
 import { personSchema, UpdatePersonSchema } from "./admin/persons/validators";
 import {
@@ -29,9 +30,26 @@ import {
 } from "./admin/websites/[id]/pages/validators";
 import {  createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 import { AdminPostDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
+import { partnerSchema } from "./partners/validators";
 
 export default defineMiddlewares({
   routes: [
+    {
+      matcher: "/partners",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"], {
+          allowUnregistered: true,
+        }),
+        validateAndTransformBody(partnerSchema),
+      ],
+    },
+    {
+      matcher: "/partners/*",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     {
       matcher: "/admin/persons",
       method: "POST",
