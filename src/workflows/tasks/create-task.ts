@@ -231,7 +231,6 @@ export const createTaskWorkflow = createWorkflow(
     const inputWithTemplateIds = transform(
       { templateIds: templateIdsStep },
       (data) => (
-        
         {
         ...input,
         template_ids: data.templateIds,

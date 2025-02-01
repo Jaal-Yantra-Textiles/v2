@@ -6,7 +6,8 @@ import { MedusaError } from "@medusajs/framework/utils"
 import createPartnerAdminWorkflow from "../../workflows/partner/create-partner-admin"
 import { partnerSchema } from "./validators"
 import type { z } from "zod"
-import { refetchPartner } from "./helpers"
+import { refetchPartner, refetchPartnerForThisAdmin } from "./helpers"
+import { listPeopleOfPartner } from "../../workflows/partner/list-partner-people"
 
 type RequestBody = z.infer<typeof partnerSchema>
 
@@ -42,3 +43,6 @@ export const POST = async (
         partner: partnerWithAdmin,
     })
 }
+
+
+

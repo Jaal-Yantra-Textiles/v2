@@ -75,14 +75,11 @@ const createPartnerAdminWorkflow = createWorkflow(
             partner: input.partner,
             admin: input.admin,
         })
-
-
         setAuthAppMetadataStep({
             authIdentityId: input.authIdentityId,
             actorType: "partner",
-            value: partnerWithAdmin.partnerAdmin.id,
+            value: partnerWithAdmin.partnerAdmin.id,  
         })
-
         return new WorkflowResponse(
             partnerWithAdmin
         )

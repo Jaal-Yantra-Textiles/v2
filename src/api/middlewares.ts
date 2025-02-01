@@ -23,14 +23,13 @@ import {
   updateWebsiteSchema,
 } from "./admin/websites/validators";
 import {
-  pageSchema,
-  createPagesSchema,
   updatePageSchema,
   postPagesSchema,
 } from "./admin/websites/[id]/pages/validators";
 import {  createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 import { AdminPostDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 import { partnerSchema } from "./partners/validators";
+import { partnerPeopleSchema } from "./partners/[id]/validators";
 
 export default defineMiddlewares({
   routes: [
@@ -45,7 +44,24 @@ export default defineMiddlewares({
       ],
     },
     {
-      matcher: "/partners/*",
+      matcher: "/partners/details",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    
+    {
+      matcher: "/partners/:id",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(partnerPeopleSchema),
+      ],
+    },
+    {
+      matcher: "/partners/:id",
+      method: "GET",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
       ],

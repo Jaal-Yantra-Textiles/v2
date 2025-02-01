@@ -29,7 +29,7 @@ export const createPersonStep = createStep(
   },
 );
 
-type CreatePersonWorkFlowInput = {
+export type CreatePersonWorkFlowInput = {
   first_name: string;
   last_name: string;
   email: string;
