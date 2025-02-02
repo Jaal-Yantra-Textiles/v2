@@ -1,6 +1,6 @@
 import { Migration } from '@mikro-orm/migrations';
 
-export class Migration20250129124902 extends Migration {
+export class Migration20250202122454 extends Migration {
 
   async up(): Promise<void> {
     this.addSql('alter table if exists "task" alter column "start_date" drop default;');

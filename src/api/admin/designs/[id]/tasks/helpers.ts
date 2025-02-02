@@ -16,6 +16,8 @@ export const refetchTask = async (
     fields: [
       "*",
      "subtasks.*",
+     "incoming.*",
+     "outgoing.*"
     ],
   })
 

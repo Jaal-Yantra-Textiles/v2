@@ -38,7 +38,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 export const POST = async (req: MedusaRequest<AdminPostDesignTasksReqType>, res: MedusaResponse) => {
   const { id } = req.params
-
+  
   // Validate design exists
   const designExists = await refetchEntity(
     "design",
@@ -48,7 +48,10 @@ export const POST = async (req: MedusaRequest<AdminPostDesignTasksReqType>, res:
   )
 
   if (!designExists) {
-    throw new Error(`Design not found for the id ${id}`)
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Design not found for the id ${id}`
+    )
   }
 
   // Run workflow with validated body

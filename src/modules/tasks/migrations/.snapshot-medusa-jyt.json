@@ -233,7 +233,7 @@
             "id"
           ],
           "referencedTableName": "public.task",
-          "deleteRule": "set null",
+          "deleteRule": "cascade",
           "updateRule": "cascade"
         }
       }
@@ -368,8 +368,8 @@
           "nullable": true,
           "mappedType": "json"
         },
-        "source_task_id": {
-          "name": "source_task_id",
+        "outgoing_task_id": {
+          "name": "outgoing_task_id",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -377,8 +377,8 @@
           "nullable": false,
           "mappedType": "text"
         },
-        "target_task_id": {
-          "name": "target_task_id",
+        "incoming_task_id": {
+          "name": "incoming_task_id",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -423,20 +423,20 @@
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_task_dependency_source_task_id",
+          "keyName": "IDX_task_dependency_outgoing_task_id",
           "columnNames": [],
           "composite": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_source_task_id\" ON \"task_dependency\" (source_task_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_outgoing_task_id\" ON \"task_dependency\" (outgoing_task_id) WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_task_dependency_target_task_id",
+          "keyName": "IDX_task_dependency_incoming_task_id",
           "columnNames": [],
           "composite": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_target_task_id\" ON \"task_dependency\" (target_task_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_incoming_task_id\" ON \"task_dependency\" (incoming_task_id) WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_task_dependency_deleted_at",
@@ -458,28 +458,30 @@
       ],
       "checks": [],
       "foreignKeys": {
-        "task_dependency_source_task_id_foreign": {
-          "constraintName": "task_dependency_source_task_id_foreign",
+        "task_dependency_outgoing_task_id_foreign": {
+          "constraintName": "task_dependency_outgoing_task_id_foreign",
           "columnNames": [
-            "source_task_id"
+            "outgoing_task_id"
           ],
           "localTableName": "public.task_dependency",
           "referencedColumnNames": [
             "id"
           ],
           "referencedTableName": "public.task",
+          "deleteRule": "cascade",
           "updateRule": "cascade"
         },
-        "task_dependency_target_task_id_foreign": {
-          "constraintName": "task_dependency_target_task_id_foreign",
+        "task_dependency_incoming_task_id_foreign": {
+          "constraintName": "task_dependency_incoming_task_id_foreign",
           "columnNames": [
-            "target_task_id"
+            "incoming_task_id"
           ],
           "localTableName": "public.task_dependency",
           "referencedColumnNames": [
             "id"
           ],
           "referencedTableName": "public.task",
+          "deleteRule": "cascade",
           "updateRule": "cascade"
         }
       }

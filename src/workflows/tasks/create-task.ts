@@ -5,10 +5,10 @@ import {
   WorkflowResponse,
   when,
   transform,
+  createHook
 } from "@medusajs/framework/workflows-sdk";
 import TaskService from "../../modules/tasks/service";
 import { TASKS_MODULE } from "../../modules/tasks";
-import { AdminPostDesignTasksReqType } from "../../api/admin/designs/[id]/tasks/validators";
 import { Task } from "../../../.medusa/types/query-entry-points";
 
 
@@ -272,11 +272,28 @@ export const createTaskWorkflow = createWorkflow(
     ).then(() => {
       return createTaskDirectlyStep(input);
     });
+
+    const taskCreatedHook = createHook(
+      "taskCreated",
+      {
+        task: {
+          withParent,
+          withTemplates,
+          withoutTemplates,
+          input,
+          inputWithTemplateIds:{
+            template_ids: inputWithTemplateIds.template_ids?.templateIds,
+            child_template_ids: inputWithTemplateIds.child_template_ids?.childTemplateIds
+          }
+      }
+    })
     
     return new WorkflowResponse({
       withParent,
       withTemplates,
       withoutTemplates,
+    },{
+      hooks: [taskCreatedHook]
     });
   }
 );

@@ -6,10 +6,11 @@ export const TaskDependency = model.define("task_dependency", {
     dependency_type: model.enum(['blocking', 'related', 'subtask'])
       .default('blocking'),
     metadata: model.json().nullable(),
-    source_task: model.belongsTo(() => Task, {
-      mappedBy: "outgoing_dependencies",
+
+    outgoing_task: model.belongsTo(() => Task, {
+      mappedBy: "outgoing"
     }),
-    target_task: model.belongsTo(() => Task, {
-      mappedBy: "incoming_dependencies",
+    incoming_task: model.belongsTo(() => Task, {
+      mappedBy: "incoming",
     })
   });

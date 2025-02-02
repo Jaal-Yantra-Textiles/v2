@@ -1,13 +1,13 @@
 import { model } from "@medusajs/framework/utils";
 import { TaskDependency } from "./task-dependency";
-import { now } from "lodash";
 
-const Task = model.define("task", {
+
+const Task = model.define("task",  {
     id: model.id().primaryKey(),
     title: model.text().searchable(),
     description: model.text().nullable(),
     
-    start_date: model.dateTime().default(new Date()),
+    start_date: model.dateTime(),
     end_date: model.dateTime().nullable(),
     
     status: model.enum(['pending', 'in_progress', 'completed', 'cancelled'])
@@ -25,6 +25,10 @@ const Task = model.define("task", {
     
     metadata: model.json().nullable(),
     completed_at: model.dateTime().nullable(),
+     
+    // Dependency relationships
+    outgoing: model.hasMany(() => TaskDependency, { mappedBy: 'outgoing_task' }),
+    incoming: model.hasMany(() => TaskDependency, { mappedBy: 'incoming_task' }),
 
     // Parent-child relationship
     parent_task: model.belongsTo(() => Task, {
@@ -34,14 +38,11 @@ const Task = model.define("task", {
     subtasks: model.hasMany(() => Task, {
         mappedBy: "parent_task",
     }),
-    
-    // Dependency relationships
-    outgoing_dependencies: model.hasMany(() => TaskDependency, {
-        mappedBy: "source_task",
-    }),
-    incoming_dependencies: model.hasMany(() => TaskDependency, {
-        mappedBy: "target_task",
-    })
-});
+   
+}).cascades(
+    {
+        delete: ['outgoing', 'incoming', 'subtasks']
+    }
+);
 
 export default Task;
