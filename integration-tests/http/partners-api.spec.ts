@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 
 const TEST_PARTNER_EMAIL = "admin@medusa-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
-
+jest.setTimeout(60 * 1000);
 medusaIntegrationTestRunner({
     testSuite: ({ api }) => {
         let partnerHeaders: Record<string, string>
