@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v1.1.0...v1.2.0) (2025-02-05)
+
+
+### Features
+
+* **test, fix:** Tasks can be claimed and finished through partners , next step web blocks and deployment ([b7f7bf1](https://github.com/Jaal-Yantra-Textiles/v2/commit/b7f7bf1ffd5014c2836c6f9dab3960a5c0fd0fdc))
+
 # [1.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v1.0.0...v1.1.0) (2025-02-04)
 
 
