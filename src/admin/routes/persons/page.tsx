@@ -4,7 +4,7 @@ import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { Users, PencilSquare } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { usePersons } from "../../hooks/api/persons";
-import { useMemo } from "react";
+import {  useMemo } from "react";
 import { DataTable } from "../../components/table/data-table";
 import { useDataTable } from "../../hooks/usedataTable";
 import { usePersonsTableQuery } from "../../hooks/usePersontableQuery";
@@ -14,6 +14,7 @@ import { EntityActions } from "../../components/persons/personsActions";
 import { createColumnHelper } from "@tanstack/react-table";
 import { AdminPerson } from "../../hooks/api/personandtype";
 
+import { UIMatch } from 'react-router-dom'
 
 const columnHelper = createColumnHelper<AdminPerson>();
 export const useColumns = () => {
@@ -24,7 +25,7 @@ export const useColumns = () => {
       {
         icon: <PencilSquare />,
         label: "Edit",
-        to: (personType: AdminPerson) => `/persontype/${personType.id}/edit`,
+        to: (person: AdminPerson) => `/persons/${person.id}/edit`,
       },
       // Add more actions as needed
     ],
@@ -48,6 +49,7 @@ export const useColumns = () => {
 };
 
 const PersonsPage = () => {
+  
   const { searchParams, raw } = usePersonsTableQuery({ pageSize: 10 });
 
   const {
@@ -81,7 +83,9 @@ const PersonsPage = () => {
     throw error;
   }
 
+ 
   return (
+    
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <div>
@@ -108,12 +112,18 @@ const PersonsPage = () => {
         }}
       />
     </Container>
+   
   );
 };
 
 export default PersonsPage;
 
+
+
 export const config = defineRouteConfig({
   label: "People",
   icon: Users,
 });
+
+
+

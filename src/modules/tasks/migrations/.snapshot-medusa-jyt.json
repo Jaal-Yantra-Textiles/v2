@@ -65,7 +65,8 @@
             "pending",
             "in_progress",
             "completed",
-            "cancelled"
+            "cancelled",
+            "accepted"
           ],
           "mappedType": "enum"
         },
@@ -83,6 +84,15 @@
             "high"
           ],
           "mappedType": "enum"
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
         },
         "eventable": {
           "name": "eventable",

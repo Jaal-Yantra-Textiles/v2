@@ -19,22 +19,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       filters: { id },
       fields: [
         "*",
-        "person_type.*"
-        // "id",
-        // "first_name",
-        // "last_name",
-        // "email",
-        // "date_of_birth",
-        // "metadata",
-        // "created_at",
-        // "updated_at",
-        // "deleted_at",
-        // "state",
-        // "avatar",
-        // "addresses.*",
-        // "contact_details.*",
-        // "tags.*",
-        // "person_type.*",
+        "person_type.*",
+        "partner.*",
+        "partner.handle"
       ],
     });
 

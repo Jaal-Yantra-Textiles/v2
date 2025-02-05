@@ -56,7 +56,10 @@ export interface AdminPersonsListResponse {
 export interface AdminPersonsListParams {
   limit: number;
   offset: number;
-  order?: string;
+  order?: string | undefined;
+  email?: string;
+  date_of_birth?: Date;
+  state?: string;
   created_at: string;
   updated_at: string;
   q?: string;

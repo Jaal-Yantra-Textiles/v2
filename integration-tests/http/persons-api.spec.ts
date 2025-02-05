@@ -43,6 +43,139 @@ medusaIntegrationTestRunner({
       });
     });
 
+    describe("GET /admin/persons", () => {
+      // Helper function to create test persons
+      const createTestPersons = async () => {
+        const persons = [
+          {
+            first_name: "John",
+            last_name: "Doe",
+            email: "john.doe@example.com",
+            date_of_birth: "1990-01-01",
+            state: "Onboarding"
+          },
+          {
+            first_name: "Jane",
+            last_name: "Smith",
+            email: "jane.smith@example.com",
+            date_of_birth: "1992-02-02",
+            state: "Onboarding Finished"
+          },
+          {
+            first_name: "Bob",
+            last_name: "Johnson",
+            email: "bob.johnson@example.com",
+            date_of_birth: "1985-03-03",
+            state: "Stalled"
+          },
+          {
+            first_name: "Sarah",
+            last_name: "Johnson",
+            email: "sarah.johnson@example.com",
+            date_of_birth: "1988-04-04",
+            state: "Conflicted"
+          },
+          {
+            first_name: "James",
+            last_name: "Wilson",
+            email: "james.wilson@example.com",
+            date_of_birth: "1995-05-05",
+            state: "Onboarding"
+          }
+        ];
+
+        return Promise.all(persons.map(person => 
+          api.post("/admin/persons", person, headers)
+        ));
+      };
+
+      beforeEach(async () => {
+        await createTestPersons();
+      });
+
+      it("should list persons with pagination", async () => {
+        const response = await api.get("/admin/persons?limit=3&offset=0", headers);
+        console.log(response.data)
+        expect(response.status).toBe(200);
+        expect(response.data.persons.length).toBe(3);
+        expect(response.data.count).toBeGreaterThan(3);
+        expect(response.data.limit).toBe("3");
+        expect(response.data.offset).toBe("0");
+      });
+
+      it("should respect maximum limit of 10", async () => {
+        const response = await api.get("/admin/persons?limit=20", headers);
+
+        expect(response.status).toBe(200);
+        expect(response.data.persons.length).toBeLessThanOrEqual(10);
+      });
+
+      it("should filter by search query", async () => {
+        const response = await api.get("/admin/persons?q=john", headers);
+
+        expect(response.status).toBe(200);
+        expect(response.data.persons.length).toBeGreaterThan(0);
+        response.data.persons.forEach(person => {
+          expect(person.first_name.toLowerCase() + " " + person.last_name.toLowerCase())
+            .toMatch(/john/);
+        });
+      });
+
+      it("should filter by state", async () => {
+        const response = await api.get("/admin/persons?state=Onboarding", headers);
+
+        expect(response.status).toBe(200);
+        expect(response.data.persons.length).toBeGreaterThan(0);
+        response.data.persons.forEach(person => {
+          expect(person.state).toBe("Onboarding");
+        });
+      });
+
+      it("should filter by email", async () => {
+        const response = await api.get("/admin/persons?email=john.doe@example.com", headers);
+
+        expect(response.status).toBe(200);
+        expect(response.data.persons.length).toBe(1);
+        expect(response.data.persons[0].email).toBe("john.doe@example.com");
+      });
+
+      it("should handle multiple filters", async () => {
+        const response = await api.get(
+          "/admin/persons?state=Onboarding&q=john", 
+          headers
+        );
+
+        expect(response.status).toBe(200);
+        response.data.persons.forEach(person => {
+          expect(person.state).toBe("Onboarding");
+          expect(person.first_name.toLowerCase() + " " + person.last_name.toLowerCase())
+            .toMatch(/john/);
+        });
+      });
+
+      it("should handle empty results", async () => {
+        const response = await api.get(
+          "/admin/persons?q=nonexistentperson", 
+          headers
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data.persons).toHaveLength(0);
+        expect(response.data.count).toBe(0);
+      });
+
+      it("should handle invalid filters gracefully", async () => {
+        const response = await api.get(
+          "/admin/persons?invalid_filter=value", 
+          headers
+        );
+
+        expect(response.status).toBe(200);
+        // Invalid filter should be ignored
+        expect(response.data.persons.length).toBeGreaterThan(0);
+      });
+    });
+
     describe("GET /admin/persons/:id", () => {
       it("should retrieve a person", async () => {
         const created = await api.post(

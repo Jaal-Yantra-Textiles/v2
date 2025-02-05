@@ -63,7 +63,6 @@
     "@semantic-release/github": "^9.2.6",
     "@semantic-release/npm": "^11.0.2",
     "@semantic-release/release-notes-generator": "^12.1.0",
-    "semantic-release": "^23.0.0",
     "@swc/core": "1.5.7",
     "@swc/jest": "^0.2.36",
     "@types/jest": "^29.5.13",
@@ -75,6 +74,7 @@
     "prop-types": "^15.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "semantic-release": "^23.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.2",
     "vite": "^5.4.12"

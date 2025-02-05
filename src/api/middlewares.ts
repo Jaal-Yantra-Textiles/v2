@@ -6,6 +6,12 @@ import {
   authenticate,
 } from "@medusajs/framework/http";
 import { personSchema, UpdatePersonSchema } from "./admin/persons/validators";
+
+// Helper function to wrap Zod schemas for compatibility with validateAndTransformBody
+const wrapSchema = <T extends z.ZodType>(schema: T) => {
+  return z.preprocess((obj) => obj, schema) as any;
+};
+
 import {
   personTypeSchema,
 } from "./admin/persontypes/validators";
@@ -30,6 +36,7 @@ import {  createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from ".
 import { AdminPostDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 import { partnerSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
+import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 
 export default defineMiddlewares({
   routes: [
@@ -40,7 +47,7 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"], {
           allowUnregistered: true,
         }),
-        validateAndTransformBody(partnerSchema),
+        validateAndTransformBody(wrapSchema(partnerSchema)),
       ],
     },
     {
@@ -56,7 +63,7 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
-        validateAndTransformBody(partnerPeopleSchema),
+        validateAndTransformBody(wrapSchema(partnerPeopleSchema)),
       ],
     },
     {
@@ -67,62 +74,74 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/tasks/:taskId/accept",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/admin/persons",
       method: "POST",
-      middlewares: [validateAndTransformBody(personSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(personSchema))],
+    },
+    {
+      matcher: "/admin/persons",
+      method: "GET",
+      middlewares: [],
     },
     {
       matcher: "/admin/persons/:id",
       method: "POST",
-      middlewares: [validateAndTransformBody(UpdatePersonSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(UpdatePersonSchema))],
     },
     {
       matcher: "/admin/persons/:id/addresses",
       method: "POST",
-      middlewares: [validateAndTransformBody(addressSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(addressSchema))],
     },
     {
       matcher: "/admin/persons/:id/addresses/:addressId",
       method: "POST",
-      middlewares: [validateAndTransformBody(addressSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(addressSchema))],
     },
     // Contact routes
     {
       matcher: "/admin/persons/:id/contacts",
       method: "POST",
-      middlewares: [validateAndTransformBody(contactSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(contactSchema))],
     },
     {
       matcher: "/admin/persons/:id/contacts/:contactId",
       method: "POST",
-      middlewares: [validateAndTransformBody(contactSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(contactSchema))],
     },
     // Tag routes
     {
       matcher: "/admin/persons/:id/tags",
       method: "POST",
-      middlewares: [validateAndTransformBody(tagSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(tagSchema))],
     },
     {
       matcher: "/admin/persons/:id/tags",
       method: "PUT",
-      middlewares: [validateAndTransformBody(tagSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(tagSchema))],
     },
     {
       matcher: "/admin/persons/:id/tags",
       method: "DELETE",
-      middlewares: [validateAndTransformQuery(deleteTagSchema, {})],
+      middlewares: [validateAndTransformQuery(wrapSchema(deleteTagSchema), {})],
     },
     // PersonType routes
     {
       matcher: "/admin/persontypes",
       method: "POST",
-      middlewares: [validateAndTransformBody(personTypeSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(personTypeSchema))],
     },
     {
       matcher: "/admin/persontypes/:id",
       method: "POST",
-      middlewares: [validateAndTransformBody(personTypeSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(personTypeSchema))],
     },
     {
       matcher: "/admin/persontypes/:id",
@@ -134,17 +153,17 @@ export default defineMiddlewares({
     {
       matcher: "/admin/inventory-items/:id/rawmaterials",
       method: "POST",
-      middlewares: [validateAndTransformBody(rawMaterialSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(rawMaterialSchema))],
     },
     {
       matcher: "/admin/designs",
       method: "POST",
-      middlewares: [validateAndTransformBody(designSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(designSchema))],
     },
     {
       matcher: "/admin/designs/:id",
       method: "PUT",
-      middlewares: [validateAndTransformBody(UpdateDesignSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateDesignSchema))],
     },
 
     {
@@ -164,7 +183,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/designs/:id/inventory",
       method: "POST",
-      middlewares: [validateAndTransformBody(AdminPostDesignInventoryReq)],
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostDesignInventoryReq))],
     },
 
     //Task on Designs 
@@ -172,7 +191,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/designs/:id/tasks",
       method: "POST",
-      middlewares: [validateAndTransformBody(AdminPostDesignTasksReq)],
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostDesignTasksReq))],
     },
     // Must add queryParams stuff here
     {
@@ -184,31 +203,37 @@ export default defineMiddlewares({
     {
       matcher: "/admin/designs/:id/tasks/:taskId",
       method: "POST",
-      middlewares: [validateAndTransformBody(AdminPutDesignTaskReq)],
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPutDesignTaskReq))],
+    },
+
+    {
+      matcher: "/admin/designs/:id/tasks/:taskId/assign",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostDesignTaskAssignReq))],
     },
 
     // Task-Templates 
     {
       matcher: "/admin/task-templates",
       method: "POST",
-      middlewares: [validateAndTransformBody(taskTemplateSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(taskTemplateSchema))],
     },
     {
       matcher: "/admin/task-templates/:id",
       method: "PUT",
-      middlewares: [validateAndTransformBody(updateTaskTemplateSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(updateTaskTemplateSchema))],
     },
 
     // Website routes
     {
       matcher: "/admin/websites",
       method: "POST",
-      middlewares: [validateAndTransformBody(websiteSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(websiteSchema))],
     },
     {
       matcher: "/admin/websites/:id",
       method: "PUT",
-      middlewares: [validateAndTransformBody(updateWebsiteSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(updateWebsiteSchema))],
     },
     {
       matcher: "/admin/websites/:id",
@@ -219,30 +244,30 @@ export default defineMiddlewares({
     {
       matcher: "/admin/websites/:id/pages",
       method: "POST",
-      middlewares: [validateAndTransformBody(postPagesSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(postPagesSchema))],
     },
     {
       matcher: "/admin/websites/:id/pages/:pageId",
       method: "PUT",
-      middlewares: [validateAndTransformBody(updatePageSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(updatePageSchema))],
     },
 
     {
       matcher: "/admin/websites/:id/pages/:pageId/blocks",
       method: "POST",
-      middlewares: [validateAndTransformBody(createBlocksSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(createBlocksSchema))],
     },
 
     {
       matcher: "/admin/websites/:id/pages/:pageId/blocks",
       method: "GET",
-      middlewares: [validateAndTransformQuery(ReadBlocksQuerySchema, {})],
+      middlewares: [validateAndTransformQuery(wrapSchema(ReadBlocksQuerySchema), {})],
     },
 
     {
       matcher: "/admin/websites/:id/pages/:pageId/blocks/:blockId",
       method: "PUT",
-      middlewares: [validateAndTransformBody(updateBlockSchema)],
+      middlewares: [validateAndTransformBody(wrapSchema(updateBlockSchema))],
     },
 
     {

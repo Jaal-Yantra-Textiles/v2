@@ -10,12 +10,12 @@ const Task = model.define("task",  {
     start_date: model.dateTime(),
     end_date: model.dateTime().nullable(),
     
-    status: model.enum(['pending', 'in_progress', 'completed', 'cancelled'])
+    status: model.enum(['pending', 'in_progress', 'completed', 'cancelled', 'accepted'])
         .default('pending'),
     
     priority: model.enum(['low', 'medium', 'high'])
         .default('medium'),
-    
+    transaction_id: model.text().nullable(),
     eventable: model.boolean().default(false),
     notifiable: model.boolean().default(false),
     message: model.text().nullable(),
