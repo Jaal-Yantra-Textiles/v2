@@ -35,10 +35,10 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: '>=20'
-        cache: 'npm'
+        cache: 'yarn'
 
     - name: Install dependencies
-      run: npm ci
+      run: yarn install --frozen-lockfile
 
     - name: Setup Database Permissions
       run: |
@@ -60,7 +60,7 @@ jobs:
         EOF
 
     - name: Run integration tests
-      run: npm run test:integration:http
+      run: yarn test:integration:http
       env:
         NODE_ENV: test
         DATABASE_URL: postgresql://runner:runner@localhost:5432/postgres
@@ -83,15 +83,15 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "20.x"
-          cache: 'npm'
+          cache: 'yarn'
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+        run: yarn semantic-release
 
   notify:
     needs: test

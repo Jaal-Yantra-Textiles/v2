@@ -13,8 +13,11 @@ const notifyPartnerStep = createStep(
         async: true,
    },
     async (input: {input: AssignTaskWorkFlowInput, task: any}, { container }) => {
+        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.info("Notifying partner...")
         const eventService = container.resolve(Modules.EVENT_BUS)
         if (input.task.eventable){
+            logger.info("Partner notified...")
             eventService.emit({
                 name: "task_assigned",
                 data: {
@@ -83,7 +86,7 @@ export const runTaskAssignmentWorkflow = createWorkflow(
         awaitTaskClaim()
         awaitTaskFinish()
         // So, these long workflows, are good  now we can run like bill submitted and etc 
-        
+        // Create and arrange the order of the workflows,
         return new WorkflowResponse('Success')
     }
 )

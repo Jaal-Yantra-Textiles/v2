@@ -17,6 +17,9 @@ export async function POST(
             }
         }
     })
+
+    // Partner will submit the bill also alonside , either pre-agreed
+    // or through the task form
     
     if (errors && errors.length > 0) {    
         console.warn("Error reported at", errors);
@@ -25,7 +28,7 @@ export async function POST(
 
     const setStepSuccess = await setStepSuccessWorkflow(req.scope).run({
         input: {
-            stepId: 'await-task-claim',
+            stepId: 'await-task-finish',
             updatedTask: result
         }
     })

@@ -22,10 +22,12 @@ export async function POST(
         console.warn("Error reported at", errors);
         throw errors;
     }
-
+    /**
+     * Here the partner is not notified but set the claim task success
+     */
     const setStepSuccess = await setStepSuccessWorkflow(req.scope).run({
         input: {
-            stepId: 'notify-partner',
+            stepId: 'await-task-claim',
             updatedTask: result
         }
         
