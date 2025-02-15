@@ -11,14 +11,24 @@ import {
 import { sdk } from "../../lib/sdk";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 import { WebsiteSchema, UpdateWebsiteSchema } from "../../../api/admin/websites/validators";
+import { Block } from "./pages";
+
 
 type Pages= [ {
   id: string,
   title: string,
   slug: string, 
   content: string,
-  page_type: string,
-  status: string,
+  page_type: "Home" | "About" | "Contact" | "Blog" | "Product" | "Service" | "Portfolio" | "Landing" | "Custom";
+  status: "Draft" | "Published" | "Archived";
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string;
+  published_at?: string;
+  metadata?: Record<string, unknown>;
+  blocks?: Block[];
+  created_at: Date;
+  updated_at: Date;
 }]
 
 export type AdminWebsite = WebsiteSchema & {

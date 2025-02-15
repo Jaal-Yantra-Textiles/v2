@@ -53,7 +53,7 @@ export const createPageStep = createStep(
     const page = await websiteService.createPages({
       ...input,
       last_modified: new Date(),
-      published_at: new Date()
+      published_at: new Date(),
     })
 
     // Return the created entity and its ID for potential compensation

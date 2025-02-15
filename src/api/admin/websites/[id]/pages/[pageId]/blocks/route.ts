@@ -8,14 +8,8 @@ import {
 import {
   listBlocksWorkflow,
 } from "../../../../../../../workflows/website/page-blocks/list-blocks";
-import {
-  deleteBlockWorkflow,
-} from "../../../../../../../workflows/website/page-blocks/delete-block";
-import {
-  updateBlockWorkflow,
-} from "../../../../../../../workflows/website/page-blocks/update-block";
-import { BlockSchema, CreateBlocksSchema, UpdateBlockSchema } from "./validators";
-import { refetchBlock } from "./helpers";
+import { BlockSchema, CreateBlocksSchema } from "./validators";
+
 
 export const POST = async (
   req: MedusaRequest<CreateBlocksSchema | BlockSchema>,

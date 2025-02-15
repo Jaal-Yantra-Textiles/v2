@@ -58,7 +58,6 @@ const pageTypeOptions = [
   { value: "Home", label: "Home" },
   { value: "About", label: "About" },
   { value: "Contact", label: "Contact" },
-  { value: "Blog", label: "Blog" },
   { value: "Product", label: "Product" },
   { value: "Service", label: "Service" },
   { value: "Portfolio", label: "Portfolio" },

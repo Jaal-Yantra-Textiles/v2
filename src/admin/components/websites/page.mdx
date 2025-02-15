@@ -1,0 +1,883 @@
+---
+title: "DataTable"
+description: "A Table component with advanced functionalities like pagination, filtering, and more."
+---
+
+The `DataTable` component is useful if you're displaying large data with functionalities like pagination, filtering, sorting, and searching. It's also the recommended table component to use when creating customizations in the Medusa Admin.
+
+<Note>
+
+This component is available after Medusa UI v4.0.4 (or Medusa v2.4.0). It is built on top of the [Table](./table.mdx) component. If you want a table with more control over its styling and functionality, use that component instead.
+
+</Note>
+
+## Simple Example
+
+---
+
+<ComponentExample name="data-table-demo" disableCenterAlignPreview />
+
+## Usage
+
+---
+
+You import the `DataTable` component from `@medusajs/ui`.
+
+```tsx
+import { 
+  DataTable,
+} from "@medusajs/ui"
+```
+
+### Columns Preparation
+
+Before using the `DataTable` component, you need to prepare its columns using the `createDataTableColumnHelper` utility:
+
+```tsx
+import {
+  // ...
+  createDataTableColumnHelper,
+} from "@medusajs/ui"
+
+const data = [
+  {
+    id: "1",
+    title: "Shirt",
+    price: 10
+  },
+  // other data...
+]
+
+const columnHelper = createDataTableColumnHelper<typeof data[0]>()
+
+const columns = [
+  columnHelper.accessor("title", {
+    header: "Title",
+    enableSorting: true,
+  }),
+  columnHelper.accessor("price", {
+    header: "Price",
+  }),
+]
+```
+
+The `createDataTableColumnHelper` utility is a function that returns a helper used to generates column configurations for the `DataTable` component. 
+
+For each column in the table, use the `accessor` method of the column helper to specify configurations for a specific column. The `accessor` method accepts the column's key in the table's data as the first parameter, and an object with the following properties as the second parameter:
+
+- `header`: The table header text for the column.
+- `enableSorting`: (optional) A boolean that indicates whether data in the table can be sorted by this column. More on sorting in [this section](#datatable-with-sorting).
+
+### Create Table Instance
+
+The `DataTable` component expects a table instance created using the `useDataTable` hook. Import that hook from `@medusajs/ui`:
+
+```tsx
+import {
+  // ...
+  useDataTable,
+} from "@medusajs/ui"
+```
+
+Then, inside the component that will render `DataTable`, create a table instance using the `useDataTable` hook:
+
+```tsx
+export default function ProductTable () {
+  const table = useDataTable({
+    columns,
+    data,
+    getRowId: (product) => product.id,
+    rowCount: data.length,
+    isLoading: false,
+  })
+}
+```
+
+The `useDataTable` hook accepts an object with the following properties:
+
+- `columns`: An array of column configurations generated using the `createDataTableColumnHelper` utility.
+- `data`: The data to be displayed in the table.
+- `getRowId`: A function that returns the unique identifier of a row. The identifier must be a string.
+- `rowCount`: The total number of rows in the table. If you're fetching data from the Medusa application with pagination or filters, this will be the total count, not the count of the data returned in the current page.
+- `isLoading`: A boolean that indicates whether the table is loading data. This is useful when loading data from the Medusa application for the first time or in between pages.
+
+### Render DataTable
+
+Finally, render the `DataTable` component with the table instance created using the `useDataTable` hook:
+
+```tsx
+export default function ProductTable () {
+  // ...
+  return (
+    <DataTable instance={table}>
+      <DataTable.Toolbar className="flex flex-col items-start justify-between gap-2 md:flex-row md:items-center">
+        <Heading>Products</Heading>
+      </DataTable.Toolbar>
+      <DataTable.Table />
+    </DataTable>
+  )
+}
+```
+
+In the `DataTable` component, you pass the following child components:
+
+1. `DataTable.Toolbar`: The toolbar component shown at the top of the table. You can also add buttons for custom actions.
+2. `DataTable.Table`: The table component that renders the data.
+
+Refer to the examples later on this page to learn how to add pagination, filtering, and other functionalities using the `DataTable` component.
+
+## API Reference
+
+---
+
+<ComponentReference mainComponent="DataTable" componentsToShow={[
+  "DataTable",
+  "DataTable.Table",
+  "DataTable.Pagination",
+  "DataTable.FilterMenu",
+  "DataTable.Search",
+  "DataTable.CommandBar",
+  "DataTable.SortingMenu",
+]} />
+
+## Example with Data Fetching
+
+---
+
+Refer to [this Admin Components guide](https://docs.medusajs.com/resources/admin-components/components/data-table) for an example on using the `DataTable` component with data fetching from the Medusa application.
+
+
+## Configure Cell Rendering
+
+---
+
+<ComponentExample name="data-table-custom-cell" disableCenterAlignPreview />
+
+The `accessor` method of the `createDataTableColumnHelper` utility accepts a `cell` property that you can use to customize the rendering of the cell content.
+
+For example:
+
+```tsx
+const products = [
+  {
+    id: "1",
+    title: "Shirt",
+    price: 10,
+    is_active: true
+  },
+  {
+    id: "2",
+    title: "Pants",
+    price: 20,
+    is_active: true
+  }
+]
+
+const columnHelper = createDataTableColumnHelper<typeof products[0]>()
+
+const columns = [
+  columnHelper.accessor("is_active", {
+    header: "Status",
+    cell: ({ getValue }) => {
+      const isActive = getValue()
+      return (
+        <Badge color={isActive ? "green" : "grey"}>
+          {isActive ? "Active" : "Inactive"}
+        </Badge>
+      )
+    }
+  }),
+  // ...
+]
+```
+
+The `cell` property's value is a function that returns a string or a React node to be rendered in the cell. The function receives as a parameter an object having a `getValue` property to get the raw value of the cell.
+
+## DataTable with Search
+
+---
+
+<ComponentExample name="data-table-search" disableCenterAlignPreview />
+
+The object passed to the `useDataTable` hook accepts a `search` property that you can use to enable and configure the search functionality in the `DataTable` component:
+
+```tsx
+// `useState` imported from `React`
+const [search, setSearch] = useState("")
+
+const table = useDataTable({
+  // ...
+  search: {
+    state: search,
+    onSearchChange: setSearch
+  }
+})
+```
+
+`search` accepts the following properties:
+
+- `state`: The search query string. This must be a React state variable, as its value will be used for the table's search input.
+- `onSearchChange`: A function that updates the search query string. Typically, this would be the setter function of the state variable, but you can also perform custom actions if necessary.
+
+Next, you must implement the search filtering. For example, if you're retrieving data from the Medusa application, you pass the search query to the API to filter the data.
+
+For example, when using a simple array as in the example above, this is how you filter the data by the search query:
+
+```tsx
+const [search, setSearch] = useState<string>("")
+
+const shownProducts = useMemo(() => {
+  return products.filter((product) => product.title.toLowerCase().includes(search.toLowerCase()))
+}, [search]) 
+
+const table = useDataTable({
+  columns,
+  data: shownProducts,
+  getRowId: (product) => product.id,
+  rowCount: products.length,
+  isLoading: false,
+  // Pass the state and onSearchChange to the table instance.
+  search: {
+    state: search,
+    onSearchChange: setSearch
+  }
+})
+```
+
+Then, render the `DataTable.Search` component as part of the `DataTable`'s children:
+
+```tsx
+return (
+  <DataTable instance={table}>
+    <DataTable.Toolbar className="flex flex-col items-start justify-between gap-2 md:flex-row md:items-center">
+      <Heading>Products</Heading>
+      {/* This component renders the search bar */}
+      <DataTable.Search placeholder="Search..." />
+    </DataTable.Toolbar>
+    <DataTable.Table />
+  </DataTable>
+)
+```
+
+This will show a search input at the top of the table, in the data table's toolbar.
+
+## DataTable with Pagination
+
+---
+
+<ComponentExample name="data-table-pagination" disableCenterAlignPreview />
+
+The object passed to the `useDataTable` hook accepts a `pagination` property that you can use to enable and configure the pagination functionality in the `DataTable` component.
+
+First, import the `DataTablePaginationState` type from `@medusajs/ui`:
+
+```tsx
+import {
+  // ...
+  DataTablePaginationState,
+} from "@medusajs/ui"
+```
+
+Then, create a state variable to manage the pagination:
+
+```tsx
+const [pagination, setPagination] = useState<DataTablePaginationState>({
+  pageSize: 15,
+  pageIndex: 0,
+})
+```
+
+The pagination state variable of type `DataTablePaginationState` is an object with the following properties:
+
+- `pageSize`: The number of rows to display per page.
+- `pageIndex`: The current page index. It's zero-based, meaning the first page would be `0`.
+
+Next, pass the pagination object to the `useDataTable` hook:
+
+```tsx
+const table = useDataTable({
+  // ...
+  pagination: {
+    state: pagination,
+    onPaginationChange: setPagination,
+  },
+})
+```
+
+`pagination` accepts the following properties:
+
+- `state`: The pagination state object. This must be a React state variable of type `DataTablePaginationState`.
+- `onPaginationChange`: A function that updates the pagination state object. Typically, this would be the setter function of the state variable, but you can also perform custom actions if necessary.
+
+You must also implement the pagination logic, such as fetching data from the Medusa application with the pagination parameters.
+
+For example, when using a simple array as in the example above, this is how you paginate the data:
+
+```tsx
+const [pagination, setPagination] = useState<DataTablePaginationState>({
+  pageSize: PAGE_SIZE,
+  pageIndex: 0,
+})
+
+const shownProducts = useMemo(() => {
+  return products.slice(
+    pagination.pageIndex * pagination.pageSize,
+    (pagination.pageIndex + 1) * pagination.pageSize
+  )
+}, [pagination])
+
+const table = useDataTable({
+  data: shownProducts,
+  columns,
+  rowCount: products.length,
+  getRowId: (product) => product.id,
+  pagination: {
+    // Pass the pagination state and updater to the table instance
+    state: pagination,
+    onPaginationChange: setPagination,
+  },
+  isLoading: false,
+});
+```
+
+Finally, render the `DataTable.Pagination` component as part of the `DataTable`'s children:
+
+```tsx
+return (
+  <DataTable instance={table}>
+    <DataTable.Toolbar>
+      <Heading>Products</Heading>
+    </DataTable.Toolbar>
+    <DataTable.Table />
+    {/** This component will render the pagination controls **/}
+    <DataTable.Pagination />
+  </DataTable>
+)
+```
+
+This will show the pagination controls at the end of the table.
+
+## DataTable with Filters
+
+---
+
+<ComponentExample name="data-table-filters" disableCenterAlignPreview />
+
+The object passed to the `useDataTable` hook accepts a `filters` property that you can use to enable and configure the filtering functionality in the `DataTable` component.
+
+First, add the following imports from the `@medusajs/ui` package:
+
+```tsx
+import {
+  // ...
+  createDataTableFilterHelper,
+  DataTableFilteringState,
+} from "@medusajs/ui"
+```
+
+The `createDataTableFilterHelper` utility is a function that returns a helper function to generate filter configurations for the `DataTable` component. The `DataTableFilteringState` type is an object that represents the filtering state of the table.
+
+Then, create the filters using the `createDataTableFilterHelper` utility:
+
+<Note title="Tip">
+
+Create the filters outside the component rendering the `DataTable` component. 
+
+</Note>
+
+```tsx
+const filterHelper = createDataTableFilterHelper<typeof products[0]>()
+
+const filters = [
+  filterHelper.accessor("title", {
+    type: "select",
+    label: "Title",
+    options: products.map((product) => ({
+      label: product.title,
+      value: product.title.toLowerCase()
+    }))
+  }),
+]
+```
+
+The filter helper returned by `createDataTableFilterHelper` has an `accessor` method that accepts the column's key in the data as the first parameter, and an object with the following properties as the second parameter:
+
+- `type`: The type of filter. It can be either:
+    - `select`: A select dropdown filter.
+    - `radio`: A radio button filter.
+    - `date`: A date filter.
+- `label`: The label text for the filter.
+- `options`: If the filter type is `select` or `radio`, an array of dropdown options. Each option has a `label` and `value` property.
+
+<Note>
+
+Refer to [this section](#filtering-date-values) to learn how to use date filters.
+
+</Note>
+
+Next, in the component rendering the `DataTable` component, create a state variable to manage the filtering, and pass the filters to the `useDataTable` hook:
+
+```tsx
+const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+
+const table = useDataTable({
+  // ...
+  filters,
+  filtering: {
+    state: filtering,
+    onFilteringChange: setFiltering,
+  },
+})
+```
+
+You create a `filtering` state variable of type `DataTableFilteringState` to manage the filtering state. You can also set initial filters as explained in [this section](#initial-filter-values).
+
+The `useDataTable` hook accepts the following properties for filtering:
+
+- `filters`: An array of filter configurations generated using the `createDataTableFilterHelper` utility.
+- `filtering`: An object with the following properties:
+    - `state`: The filtering state object. This must be a React state variable of type `DataTableFilteringState`.
+    - `onFilteringChange`: A function that updates the filtering state object. Typically, this would be the setter function of the state variable, but you can also perform custom actions if necessary.
+
+You must also implement the logic of filtering the data based on the filter conditions, such as sending the filter conditions to the Medusa application when fetching data.
+
+For example, when using a simple array as in the example above, this is how you filter the data based on the filter conditions:
+
+```tsx
+const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+
+const shownProducts = useMemo(() => {
+  return products.filter((product) => {
+    return Object.entries(filtering).every(([key, value]) => {
+      if (!value) {
+        return true
+      }
+      if (typeof value === "string") {
+        // @ts-ignore
+        return product[key].toString().toLowerCase().includes(value.toString().toLowerCase())
+      }
+      if (Array.isArray(value)) {
+        // @ts-ignore
+        return value.includes(product[key].toLowerCase())
+      }
+      if (typeof value === "object") {
+        // @ts-ignore
+        const date = new Date(product[key])
+        let matching = false
+        if ("$gte" in value && value.$gte) {
+          matching = date >= new Date(value.$gte as number)
+        }
+        if ("$lte" in value && value.$lte) {
+          matching = date <= new Date(value.$lte as number)
+        }
+        if ("$lt" in value && value.$lt) {
+          matching = date < new Date(value.$lt as number)
+        }
+        if ("$gt" in value && value.$gt) {
+          matching = date > new Date(value.$gt as number)
+        }
+        return matching
+      }
+    })
+  })
+}, [filtering])
+
+const table = useDataTable({
+  data: shownProducts,
+  columns,
+  getRowId: (product) => product.id,
+  rowCount: products.length,
+  isLoading: false,
+  filtering: {
+    state: filtering,
+    onFilteringChange: setFiltering,
+  },
+  filters
+})
+```
+
+When filters are selected, the `filtering` state object will contain the filter conditions, where the key is the column key and the value can be:
+
+- `undefined` if the user is still selecting the value.
+- A string if the filter type is `radio`, as the user can choose only one value.
+- An array of strings if the filter type is `select`, as the user can choose multiple values.
+- An object with the filter conditions if the filter type is `date`. The filter conditions for dates are explained more in [this section](#filtering-date-values).
+
+Finally, render the `DataTable.FilterMenu` component as part of the `DataTable`'s children:
+
+```tsx
+return (
+  <DataTable instance={table}>
+    <DataTable.Toolbar className="flex justify-between items-center">
+      <Heading>Products</Heading>
+      {/** This component will render a menu that allows the user to choose which filters to apply to the table data. **/}
+      <DataTable.FilterMenu tooltip="Filter" />
+    </DataTable.Toolbar>
+    <DataTable.Table />
+  </DataTable>
+)
+```
+
+This will show a filter menu at the top of the table, in the data table's toolbar.
+
+### Filtering Date Values
+
+<ComponentExample name="data-table-filters-date" disableCenterAlignPreview />
+
+Consider your data has a `created_at` field that contains date values. To filter the data based on date values, you can add a `date` filter using the filter helper:
+
+```tsx
+const filters = [
+  // ...
+  filterHelper.accessor("created_at", {
+    type: "date",
+    label: "Created At",
+    format: "date",
+    formatDateValue: (date) => date.toLocaleString(),
+    rangeOptionStartLabel: "From",
+    rangeOptionEndLabel: "To",
+    rangeOptionLabel: "Between",
+    options: [
+      {
+        label: "Today",
+        value: {
+          $gte: new Date(new Date().setHours(0, 0, 0, 0)).toString(),
+          $lte: new Date(new Date().setHours(23, 59, 59, 999)).toString()
+        }
+      },
+      {
+        label: "Yesterday",
+        value: {
+          $gte: new Date(new Date().setHours(0, 0, 0, 0) - 24 * 60 * 60 * 1000).toString(),
+          $lte: new Date(new Date().setHours(0, 0, 0, 0)).toString()
+        }
+      },
+      {
+        label: "Last Week",
+        value: {
+          $gte: new Date(new Date().setHours(0, 0, 0, 0) - 7 * 24 * 60 * 60 * 1000).toString(),
+          $lte: new Date(new Date().setHours(0, 0, 0, 0)).toString()
+        },
+      },
+    ]
+  }),
+]
+```
+
+When the filter type is `date`, the filter configuration object passed as a second parameter to the `accessor` method accepts the following properties:
+
+- `format`: The format of the date value. It can be either `date` to filter by dates, or `datetime` to filter by dates and times.
+- `formatDateValue`: A function that formats the date value when displaying it in the filter options.
+- `rangeOptionStartLabel`: (optional) The label for the start date input in the range filter.
+- `rangeOptionEndLabel`: (optional) The label for the end date input in the range filter.
+- `rangeOptionLabel`: (optional) The label for the range filter option.
+- `options`: By default, the filter will allow the user to filter between two dates. You can also set this property to an array of filter options to quickly choose from. Each option has a `label` and `value` property. The `value` property is an object that represents the filter condition. In this example, the filter condition is an object with a `$gte` property that specifies the date that the data should be greater than or equal to. Allowed properties are:
+    - `$gt`: Greater than.
+    - `$lt`: Less than.
+    - `$lte`: Less than or equal to.
+    - `$gte`: Greater than or equal to.
+
+When the user selects a date filter option, the `filtering` state object will contain the filter conditions, where the key is the column key and the value is an object with the filter conditions. You must handle the filter logic as explained earlier.
+
+For example, when using a simple array as in the example above, this is how you filter the data based on the date filter conditions:
+
+```tsx
+const shownProducts = useMemo(() => {
+  return products.filter((product) => {
+    return Object.entries(filtering).every(([key, value]) => {
+      if (!value) {
+        return true
+      }
+      // other types checks...
+      if (typeof value === "object") {
+        // @ts-ignore
+        const date = new Date(product[key])
+        let matching = false
+        if ("$gte" in value && value.$gte) {
+          matching = date >= new Date(value.$gte as number)
+        }
+        if ("$lte" in value && value.$lte) {
+          matching = date <= new Date(value.$lte as number)
+        }
+        if ("$lt" in value && value.$lt) {
+          matching = date < new Date(value.$lt as number)
+        }
+        if ("$gt" in value && value.$gt) {
+          matching = date > new Date(value.$gt as number)
+        }
+        return matching
+      }
+    })
+  })
+}, [filtering])
+```
+
+### Initial Filter Values
+
+<ComponentExample name="data-table-filters-initial" disableCenterAlignPreview />
+
+If you want to set initial filter values, you can set the initial state of the `filtering` state variable:
+
+```tsx
+const [filtering, setFiltering] = useState<DataTableFilteringState>({
+  title: ["shirt"]
+})
+```
+
+The user can still change the filter values, but the initial values will be applied when the table is first rendered.
+
+## DataTable with Sorting
+
+---
+
+<ComponentExample name="data-table-sorting" disableCenterAlignPreview />
+
+The object passed to the `useDataTable` hook accepts a `sorting` property that you can use to enable and configure the sorting functionality in the `DataTable` component.
+
+First, in the `columns` array created by the columns helper, specify for the sortable columns the following properties:
+
+```tsx
+const columns = [
+  columnHelper.accessor("title", {
+    header: "Title",
+    // Enables sorting for the column.
+    enableSorting: true,
+    // If omitted, the header will be used instead if it's a string, 
+    // otherwise the accessor key (id) will be used.
+    sortLabel: "Title",
+    // If omitted the default value will be "A-Z"
+    sortAscLabel: "A-Z",
+    // If omitted the default value will be "Z-A"
+    sortDescLabel: "Z-A",
+  }),
+]
+```
+
+The `accessor` method of the helper function accepts the following properties for sorting:
+
+- `enableSorting`: A boolean that indicates whether data in the table can be sorted by this column.
+- `sortLabel`: The label text for the sort button in the column header. If omitted, the `header` will be used instead if it's a string, otherwise the accessor key (id) will be used.
+- `sortAscLabel`: The label text for the ascending sort button. If omitted, the default value will be `A-Z`.
+- `sortDescLabel`: The label text for the descending sort button. If omitted, the default value will be `Z-A`.
+
+Next, in the component rendering the `DataTable` component, create a state variable to manage the sorting, and pass the sorting object to the `useDataTable` hook:
+
+```tsx
+import {
+  // ...
+  DataTableSortingState
+} from "@medusajs/ui"
+
+export default function ProductTable () {
+  const [sorting, setSorting] = useState<DataTableSortingState | null>(null);
+
+  const table = useDataTable({
+    // ...
+    sorting: {
+      state: sorting,
+      onSortingChange: setSorting,
+    },
+  })
+
+  // ...
+}
+```
+
+You create a state variable of type `DataTableSortingState` to manage the sorting state. You can also set initial sorting values as explained in [this section](#initial-sort-values).
+
+The `sorting` object passed to the `useDataTable` hook accepts the following properties:
+
+- `state`: The sorting state object. This must be a React state variable of type `DataTableSortingState`.
+- `onSortingChange`: A function that updates the sorting state object. Typically, this would be the setter function of the state variable, but you can also perform custom actions if necessary.
+
+You must also implement the sorting logic, such as sending the sorting conditions to the Medusa application when fetching data.
+
+For example, when using a simple array as in the example above, this is how you sort the data based on the sorting conditions:
+
+```tsx
+const [sorting, setSorting] = useState<DataTableSortingState | null>(null);
+
+const shownProducts = useMemo(() => {
+  if (!sorting) {
+    return products
+  }
+  return products.slice().sort((a, b) => {
+    // @ts-ignore
+    const aVal = a[sorting.id]
+    // @ts-ignore
+    const bVal = b[sorting.id]
+    if (aVal < bVal) {
+      return sorting.desc ? 1 : -1
+    }
+    if (aVal > bVal) {
+      return sorting.desc ? -1 : 1
+    }
+    return 0
+  })
+}, [sorting])
+
+const table = useDataTable({
+  data: shownProducts,
+  columns,
+  getRowId: (product) => product.id,
+  rowCount: products.length,
+  sorting: {
+    // Pass the pagination state and updater to the table instance
+    state: sorting,
+    onSortingChange: setSorting,
+  },
+  isLoading: false,
+})
+```
+
+The `sorting` state object has the following properties:
+
+- `id`: The column key to sort by.
+- `desc`: A boolean that indicates whether to sort in descending order.
+
+Finally, render the `DataTable.SortingMenu` component as part of the `DataTable`'s children:
+
+```tsx
+return (
+  <DataTable instance={table}>
+    <DataTable.Toolbar className="flex justify-between items-center">
+      <Heading>Products</Heading>
+      {/** This component will render a menu that allows the user to choose which column to sort by and in what direction. **/}
+      <DataTable.SortingMenu tooltip="Sort" />
+    </DataTable.Toolbar>
+    <DataTable.Table />
+  </DataTable>
+)
+```
+
+This will show a sorting menu at the top of the table, in the data table's toolbar.
+
+### Initial Sort Values
+
+<ComponentExample name="data-table-sorting-initial" disableCenterAlignPreview />
+
+If you want to set initial sort values, you can set the initial state of the `sorting` state variable:
+
+```tsx
+const [sorting, setSorting] = useState<DataTableSortingState | null>({
+  id: "title",
+  desc: false,
+})
+```
+
+The user can still change the sort values, but the initial values will be applied when the table is first rendered.
+
+## DataTable with Command Bar
+
+---
+
+<ComponentExample name="data-table-commands" disableCenterAlignPreview />
+
+The object passed to the `useDataTable` hook accepts a `commands` object property that you can use to add custom actions to the `DataTable` component.
+
+First, add the following imports from `@medusajs/ui`:
+
+```tsx
+import {
+  // ...
+  createDataTableCommandHelper,
+  DataTableRowSelectionState,
+} from "@medusajs/ui"
+```
+
+The `createDataTableCommandHelper` utility is a function that returns a helper function to generate command configurations for the `DataTable` component. The `DataTableRowSelectionState` type is an object that represents the row selection state of the table.
+
+Then, in the `columns` array created by the columns helper, add a `select` column:
+
+```tsx
+const columns = [
+  // Commands requires a select column.
+  columnHelper.select(),
+  // ...
+]
+```
+
+The `select` method of the helper function adds a select column to the table. This column will render checkboxes in each row to allow the user to select rows.
+
+Next, create the commands using the `createDataTableCommandHelper` utility:
+
+<Note title="Tip">
+
+Create the commands outside the component rendering the `DataTable` component.
+
+</Note>
+
+```tsx
+const commandHelper = createDataTableCommandHelper()
+
+const useCommands = () => {
+  return [
+    commandHelper.command({
+      label: "Delete",
+      shortcut: "D",
+      action: async (selection) => {
+        const productsToDeleteIds = Object.keys(selection)
+
+        // TODO remove products from the server
+      }
+    })
+  ]
+}
+```
+
+The `createDataTableCommandHelper` utility is a function that returns a helper function to generate command configurations for the `DataTable` component.
+
+You create a function that returns an array of command configurations. This is useful if the command's action requires initializing other functions or hooks.
+
+The `command` method of the helper function accepts the following properties:
+
+- `label`: The label text for the command.
+- `shortcut`: The keyboard shortcut for the command. This shortcut only works when rows are selected in the table.
+- `action`: A function that performs the action when the command is executed. The function receives the selected rows as an object, where the key is the row's `id` field and the value is a boolean indicating that the row is selected. You can send a request to the server within this function to perform the action.
+
+Then, in the component rendering the `DataTable` component, create a state variable to manage the selected rows, and pass the commands to the `useDataTable` hook:
+
+```tsx
+const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({})
+
+const commands = useCommands()
+
+const instance = useDataTable({
+  data: products,
+  columns,
+  getRowId: (product) => product.id,
+  rowCount: products.length,
+  isLoading: false,
+  commands,
+  rowSelection: {
+    state: rowSelection,
+    onRowSelectionChange: setRowSelection,
+  },
+})
+```
+
+You create a state variable of type `DataTableRowSelectionState` to manage the selected rows. You also retrieve the commands by calling the `useCommand` function.
+
+The `useDataTable` hook accepts the following properties for commands:
+
+- `commands`: An array of command configurations generated using the `createDataTableCommandHelper` utility.
+- `rowSelection`: An object that enables selecting rows in the table. It accepts the following properties:
+    - `state`: The row selection state object. This must be a React state variable of type `DataTableRowSelectionState`.
+    - `onRowSelectionChange`: A function that updates the row selection state object. Typically, this would be the setter function of the state variable, but you can also perform custom actions if necessary.
+
+Finally, render the `DataTable.CommandBar` component as part of the `DataTable`'s children:
+
+```tsx
+return (
+  <DataTable instance={instance}>
+    <DataTable.Toolbar className="flex justify-between items-center">
+      <Heading>Products</Heading>
+    </DataTable.Toolbar>
+    <DataTable.Table />
+    {/** This component will the command bar when the user has selected at least one row. **/}
+    <DataTable.CommandBar selectedLabel={(count) => `${count} selected`} />
+  </DataTable>
+)
+```
+
+This will show a command bar when the user has selected at least one row in the table.

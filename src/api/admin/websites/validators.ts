@@ -25,7 +25,7 @@ export const updateWebsiteSchema = z.object({
   supported_languages: z.array(z.string()).optional(),
   favicon_url: z.string().url().optional(),
   analytics_id: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.unknown()).optional().nullable(),
 });
 
 export type WebsiteSchema = z.infer<typeof websiteSchema>;

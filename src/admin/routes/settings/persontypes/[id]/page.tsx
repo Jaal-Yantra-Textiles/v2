@@ -1,4 +1,4 @@
-import { useLoaderData, useParams } from "react-router-dom";
+import { UIMatch, useLoaderData, useParams } from "react-router-dom";
 import { usePersonType } from "../../../../hooks/api/persontype";
 import { SingleColumnPageSkeleton } from "../../../../components/table/skeleton";
 import { SingleColumnPage } from "../../../../components/pages/single-column-pages";
@@ -36,3 +36,11 @@ const PersonTypeDetail = () => {
 };
 
 export default PersonTypeDetail;
+
+
+export const handle = {
+  breadcrumb: (match: UIMatch<{ id: string }>) => {
+    const { id } = match.params;
+    return `${id}`;
+  },
+};

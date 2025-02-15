@@ -12,9 +12,33 @@ import { sdk } from "../../lib/sdk";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 import { websiteQueryKeys } from "./websites";
 
+export type BlockType = "MainContent" | "Gallery" | "Section" | "Custom";
+
+export type BlockContent = {
+  text?: string;
+  images?: string[];
+  layout?: "full" | "split" | "grid";
+  columns?: number;
+};
+
+export type BlockSettings = {
+  backgroundColor?: string;
+  textColor?: string;
+  padding?: string;
+  alignment?: "left" | "center" | "right";
+};
+
+export type Block = {
+  name: string;
+  type: BlockType;
+  content?: BlockContent;
+  settings?: BlockSettings;
+  order: number;
+};
+
 export type AdminPage = {
   id: string;
-  website_id: string;
+  website_id?: string;
   title: string;
   slug: string;
   content: string;
@@ -25,6 +49,7 @@ export type AdminPage = {
   meta_keywords?: string;
   published_at?: string;
   metadata?: Record<string, unknown>;
+  blocks?: Block[];
   created_at: Date;
   updated_at: Date;
 };
@@ -32,7 +57,7 @@ export type AdminPage = {
 export type CreateAdminPagePayload = {
   title: string;
   slug: string;
-  content: string;
+  content?: string;
   page_type: AdminPage["page_type"];
   status?: AdminPage["status"];
   meta_title?: string;
@@ -40,6 +65,7 @@ export type CreateAdminPagePayload = {
   meta_keywords?: string;
   published_at?: string;
   metadata?: Record<string, unknown>;
+  blocks?: Block[];
 };
 
 export type CreateAdminPagesPayload = {
@@ -140,6 +166,71 @@ export const useCreatePages = (
           body: payload,
         }
       ),
+    onSuccess: () => {
+      // Invalidate pages list queries
+      queryClient.invalidateQueries({ queryKey: pageQueryKeys.lists() });
+      
+      // Invalidate both website list and detail queries
+      queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
+    },
+    ...options,
+  });
+};
+
+export const useCreatePagesWithBlocks = (
+  websiteId: string,
+  options?: UseMutationOptions<
+    AdminPagesResponse,
+    FetchError,
+    CreatePagesPayload
+  >
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreatePagesPayload) => {
+      // Handle single page or multiple pages payload
+      const singlePage = !('pages' in payload);
+      const pagePayload = singlePage ? payload : payload.pages[0];
+      
+      // Extract blocks if they exist
+      const { blocks, ...pageData } = pagePayload;
+      
+      // Create the page first
+      const response = await sdk.client.fetch<AdminPagesResponse>(
+        `/admin/websites/${websiteId}/pages`,
+        {
+          method: "POST",
+          body: singlePage ? pageData : { pages: [pageData] },
+        }
+      );
+
+      // Extract the created page
+      const page = ('page' in response ? response.page : response.pages[0]) as AdminPage;
+      
+      // Create blocks in a separate request if they exist
+      if (blocks?.length) {
+        // Create blocks for the page
+        await sdk.client.fetch(
+          `/admin/websites/${websiteId}/pages/${page.id}/blocks`,
+          {
+            method: "POST",
+            body: {
+              blocks: blocks.map(block => ({
+                name: block.name,
+                type: block.type,
+                content: block.content || {},
+                settings: block.settings || {},
+                order: block.order,
+                status: "Active"
+              }))
+            },
+          }
+        );
+      }
+
+      return response;
+    },
     onSuccess: () => {
       // Invalidate pages list queries
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.lists() });

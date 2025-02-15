@@ -84,3 +84,7 @@ export const config = defineRouteConfig({
   label: "Websites",
   icon: PencilSquare,
 });
+
+export const handle = {
+  breadcrumb: () => "Websites",
+};

@@ -120,3 +120,8 @@ export const config = defineRouteConfig({
   label: "Person Types",
   icon: DocumentSeries,
 });
+
+
+export const handle = {
+  breadcrumb: () => "Person Types",
+};

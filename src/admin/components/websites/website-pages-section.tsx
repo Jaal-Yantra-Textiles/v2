@@ -1,74 +1,157 @@
-import { Container, Heading, Text, StatusBadge } from "@medusajs/ui";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState } from "@medusajs/ui";
 import { AdminWebsite } from "../../hooks/api/websites";
 import { ActionMenu } from "../common/action-menu";
 import { Plus } from "lucide-react";
+
+;
+import { usePagesColumns } from "./hooks/use-pages-columns";
+import { AdminPage } from "../../hooks/api/pages";
+import { useMemo, useState } from "react";
 
 interface WebsitePagesSectionProps {
   website: AdminWebsite;
 }
 
-const pageStatusColor = (status: string) => {
-  switch (status) {
-    case "published":
-      return "green";
-    case "draft":
-      return "orange";
-    case "archived":
-      return "red";
-    default:
-      return "grey";
-  }
-};
-
 export function WebsitePagesSection({ website }: WebsitePagesSectionProps) {
+  if (!website) return null;
+
+  const pages = website.pages?.filter(page => page.page_type !== "Blog") || [];
+
+  const columns = usePagesColumns();
+
+  const filterHelper = createDataTableFilterHelper<AdminPage>();
+
+  const filters = [
+    filterHelper.accessor("status", {
+      type: "select",
+      label: "Status",
+      options: [
+        { label: "Draft", value: "Draft" },
+        { label: "Published", value: "Published" },
+        { label: "Archived", value: "Archived" },
+      ],
+    }),
+    filterHelper.accessor("page_type", {
+      type: "select",
+      label: "Page Type",
+      options: [
+        { label: "Home", value: "Home" },
+        { label: "About", value: "About" },
+        { label: "Contact", value: "Contact" },
+        { label: "Custom", value: "Custom" },
+      ],
+    }),
+  ];
+
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageSize: 10,
+    pageIndex: 0,
+  })
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [search, setSearch] = useState<string>("")
+
+  const filteredPages = useMemo(() => {
+    let result = pages;
+
+    // Apply search first
+    if (search) {
+      result = result.filter((page) => 
+        page.title.toLowerCase().includes(search.toLowerCase())
+      )
+    }
+
+    // Then apply filters
+    result = result.filter((page) => {
+      return Object.entries(filtering).every(([key, value]) => {
+        if (!value) {
+          return true
+        }
+        
+        // Get the actual value from the page
+        const pageValue = page[key as keyof typeof page]
+        console.log('Filtering:', {
+          key,
+          value,
+          pageValue,
+          page
+        })
+
+        // For status and page_type, do exact match
+        if (key === 'status' || key === 'page_type') {
+          if (Array.isArray(value)) {
+            return value.some(v => v === pageValue)
+          }
+          return pageValue === value
+        }
+
+        // For other string values, do includes match
+        if (typeof value === 'string') {
+          return pageValue?.toString().toLowerCase().includes(value.toString().toLowerCase())
+        }
+
+        return true
+      })
+    })
+
+    return result
+  }, [pages, filtering])
+
+  const paginatedPages = useMemo(() => {
+    const start = pagination.pageIndex * pagination.pageSize
+    const end = start + pagination.pageSize
+    return filteredPages.slice(start, end)
+  }, [filteredPages, pagination])
+  
+  const table = useDataTable({
+    columns,
+    data: paginatedPages,
+    getRowId: (row) => row.id,
+    onRowClick: (row) => {
+      console.log('Row clicked:', row)
+    },
+    rowCount: filteredPages.length,
+    isLoading: false,
+    filters,
+    pagination: {
+      state: pagination,
+      onPaginationChange: setPagination,
+    },
+    search: {
+      state: search,
+      onSearchChange: setSearch
+    },
+    filtering: {
+      state: filtering,
+      onFilteringChange: setFiltering,
+    }
+  });
+
   return (
     <Container className="divide-y p-0">
-      
-      <div className="flex items-center justify-between px-6 py-4">
-        <div>
-          <Heading>Pages</Heading>
-          <Text className="text-ui-fg-subtle" size="small">
-            All pages associated with this website
-          </Text>
-        </div>
-        <div className="flex items-center gap-x-4">
-          <ActionMenu groups={[{
+
+      <DataTable instance={table}>
+        <DataTable.Toolbar className="flex justify-between items-center">
+          <div>
+            <Heading>Pages</Heading>
+            <Text className="text-ui-fg-subtle" size="small">
+              All pages associated with this website
+            </Text>
+          </div>
+          <div className="flex items-center gap-x-2">
+            <DataTable.Search />
+            <DataTable.FilterMenu tooltip="Filter pages" />
+            <ActionMenu groups={[{
               actions: [{
-                
                 label: 'Add Pages',
                 icon: <Plus />,
                 to: `/websites/${website.id}/create`,
               }],
-             
-          }]} />
+            }]} />
           </div>
-      </div>
-      {website.pages && website.pages.length > 0 ? (
-        website.pages.map((page) => (
-          <div key={page.id} className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
-            <div className="flex flex-col">
-              <Text size="small" leading="compact" weight="plus">
-                {page.title}
-              </Text>
-              <Text size="small" leading="compact" className="text-ui-fg-subtle">
-                {page.slug}
-              </Text>
-            </div>
-            <div className="flex items-center justify-end">
-              <StatusBadge color={pageStatusColor(page.status)}>
-                {page.status}
-              </StatusBadge>
-              
-            </div>
-          </div>
-        ))
-      ) : (
-        <div className="px-6 py-4">
-          <Text className="text-ui-fg-subtle" size="small">
-            No pages found
-          </Text>
-        </div>
-      )}
+        </DataTable.Toolbar>
+        <DataTable.Table />
+        <DataTable.Pagination />
+      </DataTable>
     </Container>
   );
 }
