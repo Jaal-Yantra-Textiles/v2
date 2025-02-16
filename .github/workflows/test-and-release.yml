@@ -14,8 +14,7 @@ jobs:
       postgres:
         image: postgres:latest
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: postgres
         ports:
           - 5432:5432
@@ -41,15 +40,15 @@ jobs:
 
     - name: Setup Database
       run: |
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE USER runner WITH PASSWORD 'runner' SUPERUSER CREATEDB CREATEROLE;"
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE postgres TO runner;"
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO runner;"
+        psql -h localhost -U postgres -d postgres -c "CREATE USER runner SUPERUSER CREATEDB CREATEROLE;"
+        psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE postgres TO runner;"
+        psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO runner;"
 
     - name: Create test environment file
       run: |
         cat << EOF > .env.test
         DATABASE_TYPE=postgres
-        DATABASE_URL=postgresql://runner:runner@localhost:5432/postgres
+        DATABASE_URL=postgresql://runner@localhost:5432/postgres
         REDIS_URL=redis://localhost:6379
         JWT_SECRET=secret
         COOKIE_SECRET=secret
@@ -62,7 +61,7 @@ jobs:
       run: yarn test:integration:http
       env:
         NODE_ENV: test
-        DATABASE_URL: postgresql://runner:runner@localhost:5432/postgres
+        DATABASE_URL: postgresql://runner@localhost:5432/postgres
         POSTGRES_USER: runner
         POSTGRES_PASSWORD: runner
 
