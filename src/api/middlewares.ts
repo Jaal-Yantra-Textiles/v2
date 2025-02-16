@@ -304,6 +304,12 @@ export default defineMiddlewares({
     // Option 2: check if error is an instance of ZodError
     
     if (error instanceof MedusaError) {
+      if (error.type == 'not_found'){
+        return res.status(404).json({
+          error: "ValidatorError",
+          issues: error.message,
+        });
+      }
       return res.status(400).json({
         error: "ValidatorError",
         issues: error.message,

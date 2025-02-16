@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
+import { error } from "console";
 
 jest.setTimeout(30000);
 
@@ -307,14 +308,8 @@ medusaIntegrationTestRunner({
           response: {
             status: 400,
             data: {
-              error: "ZodError",
-              issues: [
-                {
-                  code: "too_small",
-                  message: "Street is required",
-                  path: "street"
-                }
-              ]
+              error: "ValidatorError",
+              issues: "Invalid request: Value for field 'street' too small, expected at least: '1'"
             }
           }
         });
@@ -336,7 +331,8 @@ medusaIntegrationTestRunner({
           response: {
             status: 404,
             data: expect.objectContaining({
-              message: expect.stringContaining("Person with id \"non-existent-id\" not found"),
+              error: "ValidatorError",
+              issues: expect.stringContaining("Person with id \"non-existent-id\" not found"),
             }),
           },
         });
@@ -493,7 +489,8 @@ medusaIntegrationTestRunner({
           response: {
             status: 404,
             data: expect.objectContaining({
-              message: expect.stringContaining(`Address with id \"non-existent-id\" not found for person \"${personId}\"`)
+              error: "ValidatorError",
+              issues: expect.stringContaining(`Address with id \"non-existent-id\" not found for person \"${personId}\"`)
             }),
           },
         });
@@ -511,7 +508,8 @@ medusaIntegrationTestRunner({
           response: {
             status: 404,
             data: expect.objectContaining({
-              message: expect.stringContaining(`Address with id \"${addressId}\" not found for person \"non-existent-id\"`)
+              error: "ValidatorError",
+              issues: expect.stringContaining(`Address with id \"${addressId}\" not found for person \"non-existent-id\"`)
             }),
           },
         });
