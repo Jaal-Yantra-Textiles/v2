@@ -98,7 +98,10 @@ medusaIntegrationTestRunner({
           .catch((err) => err.response);
 
         expect(response.status).toBe(404);
-        expect(response.data.message).toContain("not found");
+        
+        expect(response.data).toEqual({
+          message: "InventoryItem with id: non-existent-id was not found"
+        });
       });
 
       it("should fail when linking to non-existent design", async () => {
@@ -111,7 +114,11 @@ medusaIntegrationTestRunner({
           .catch((err) => err.response);
 
         expect(response.status).toBe(404);
-        expect(response.data.message).toContain("not found");
+        console.log(response.data);
+        expect(response.data).toEqual({
+          error: 'ValidatorError',
+          issues: 'Design with id "non-existent-id" not found'
+        });
       });
     });
   }

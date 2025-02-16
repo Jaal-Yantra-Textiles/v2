@@ -166,7 +166,10 @@ medusaIntegrationTestRunner({
         ).catch(err => err.response)
 
         expect(response.status).toBe(400)
-        expect(response.data.issues[0].message).toContain("At least one template name is required")
+        expect(response.data).toEqual({
+          error: "ValidatorError",
+          issues: "Invalid request: Value for field 'template_names' too small, expected at least: '1'"
+        })
       })
 
       it("should fail with invalid dependency_type", async () => {
@@ -189,8 +192,8 @@ medusaIntegrationTestRunner({
 
         expect(response.status).toBe(400)
         const error = response.data
-        expect(error.issues[0].code).toBe("invalid_enum_value")
-        expect(error.issues[0].message).toBe("Invalid enum value. Expected 'blocking' | 'non_blocking' | 'subtask' | 'related', received 'invalid_type'")
+        expect(error.error).toBe("ValidatorError")
+        expect(error.issues).toBe("Invalid request: Expected: 'blocking, non_blocking, subtask, related' for field 'child_tasks, 0, dependency_type', but got: 'invalid_type'")
       
       })
     })

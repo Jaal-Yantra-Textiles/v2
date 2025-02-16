@@ -239,10 +239,9 @@ medusaIntegrationTestRunner({
           )
         } catch (error) {
           console.log(error.response.data)
-          expect(error.response.data.issues[0]).toEqual({
-            code: "too_small",
-            message: "At least one template name is required",
-            path: "template_names"
+          expect(error.response.data).toEqual({
+            error: 'ValidatorError',
+            issues: "Invalid request: Value for field 'template_names' too small, expected at least: '1'"
           })
         }
       })
