@@ -5,7 +5,7 @@ import { useCallback } from "react";
 
 const columnHelper = createDataTableColumnHelper<AdminPage>();
 
-const pageStatusColor = (status: string) => {
+const blogStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
     case "published":
       return "green";
@@ -18,7 +18,7 @@ const pageStatusColor = (status: string) => {
   }
 };
 
-export const usePagesColumns = () => {
+export const useBlogColumns = () => {
   const getActions = useCallback(
     (row: { original: AdminPage }) => {
       const mainActions: DataTableAction<AdminPage>[] = [
@@ -27,7 +27,7 @@ export const usePagesColumns = () => {
           label: "Edit",
           onClick: () => {
             // TODO: Implement edit action
-            console.log("Edit", row.original.id);
+            console.log("Edit blog", row.original.id);
           },
         },
       ];
@@ -38,7 +38,7 @@ export const usePagesColumns = () => {
           label: "Delete",
           onClick: () => {
             // TODO: Implement delete action
-            console.log("Delete", row.original.id);
+            console.log("Delete blog", row.original.id);
           },
         },
       ];
@@ -69,7 +69,7 @@ export const usePagesColumns = () => {
       cell: ({ getValue }) => {
         const status = getValue();
         return (
-          <StatusBadge color={pageStatusColor(status)}>
+          <StatusBadge color={blogStatusColor(status)}>
             {status}
           </StatusBadge>
         );
@@ -77,18 +77,18 @@ export const usePagesColumns = () => {
       enableSorting: true,
       sortLabel: "Status",
     }),
-    columnHelper.accessor("page_type", {
-      header: "Type",
+    columnHelper.accessor("published_at", {
+      header: "Published Date",
       cell: ({ getValue }) => {
-        const pageType = getValue();
+        const date = getValue();
         return (
           <Text size="small" leading="compact">
-            {pageType}
+            {date ? new Date(date).toLocaleDateString() : "Not published"}
           </Text>
         );
       },
       enableSorting: true,
-      sortLabel: "Page Type",
+      sortLabel: "Published Date",
     }),
     columnHelper.action({
       actions: (ctx) => getActions({ original: ctx.row.original }),
