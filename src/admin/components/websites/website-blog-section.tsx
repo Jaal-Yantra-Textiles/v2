@@ -5,28 +5,18 @@ import { ActionMenu } from "../common/action-menu";
 import { Plus } from "lucide-react";
 import { useBlogColumns } from "./hooks/use-blog-columns";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface WebsiteBlogSectionProps {
   website: AdminWebsite;
 }
 
-const blogStatusColor = (status: string) => {
-  switch (status.toLowerCase()) {
-    case "published":
-      return "green";
-    case "draft":
-      return "orange";
-    case "archived":
-      return "red";
-    default:
-      return "grey";
-  }
-};
+
 
 export function WebsiteBlogSection({ website }: WebsiteBlogSectionProps) {
   // Filter pages to only show blogs
   const blogs = website.pages?.filter(page => page.page_type === "Blog") || [];
-
+  const navigate = useNavigate();
   const columns = useBlogColumns();
   const filterHelper = createDataTableFilterHelper<AdminPage>();
 
@@ -106,6 +96,9 @@ export function WebsiteBlogSection({ website }: WebsiteBlogSectionProps) {
     data: paginatedBlogs,
     getRowId: (row) => row.id,
     rowCount: filteredBlogs.length,
+    onRowClick: (_, row) => {
+      navigate(`/websites/${website.id}/pages/${row.id}`)
+    },
     isLoading: false,
     filters,
     pagination: {

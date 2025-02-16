@@ -3,7 +3,7 @@ import { AdminWebsite } from "../../hooks/api/websites";
 import { ActionMenu } from "../common/action-menu";
 import { Plus } from "lucide-react";
 
-;
+import { useNavigate } from "react-router-dom";
 import { usePagesColumns } from "./hooks/use-pages-columns";
 import { AdminPage } from "../../hooks/api/pages";
 import { useMemo, useState } from "react";
@@ -14,6 +14,8 @@ interface WebsitePagesSectionProps {
 
 export function WebsitePagesSection({ website }: WebsitePagesSectionProps) {
   if (!website) return null;
+
+  const navigate = useNavigate();
 
   const pages = website.pages?.filter(page => page.page_type !== "Blog") || [];
 
@@ -106,8 +108,8 @@ export function WebsitePagesSection({ website }: WebsitePagesSectionProps) {
     columns,
     data: paginatedPages,
     getRowId: (row) => row.id,
-    onRowClick: (row) => {
-      console.log('Row clicked:', row)
+    onRowClick: (_, row) => {
+      navigate(`/websites/${website.id}/pages/${row.id}`)
     },
     rowCount: filteredPages.length,
     isLoading: false,

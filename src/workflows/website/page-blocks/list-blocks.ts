@@ -43,10 +43,10 @@ export const listBlocksStep = createStep(
 
     // Merge page_id with other filters
     const filters = {
+      page_id: input.page_id,  // Always filter by page_id
       ...input.filters
     };
 
-   
 
     // Set default config if not provided
     const config = {
@@ -55,13 +55,13 @@ export const listBlocksStep = createStep(
       order: { order: "ASC" },
       ...input.config
     };
+    
 
     // Get blocks with count
     const [blocks, count] = await websiteService.listAndCountBlocks(
       filters,
       config
     );
-
   
 
     return new StepResponse({

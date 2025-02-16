@@ -78,7 +78,7 @@ export const ReadBlocksQuerySchema = z.object({
 export const blockSchema = blockBaseSchema;
 
 export const createBlocksSchema = z.object({
-  blocks: z.array(blockBaseSchema),
+  blocks: z.array(blockBaseSchema).min(1, "At least one block is required"),
 });
 
 export const deleteBlockSchema = z.object({

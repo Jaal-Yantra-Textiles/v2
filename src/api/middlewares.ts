@@ -37,6 +37,7 @@ import { AdminPostDesignInventoryReq } from "./admin/designs/[id]/inventory/vali
 import { partnerSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
+import { MedusaError } from "@medusajs/framework/utils";
 
 export default defineMiddlewares({
   routes: [
@@ -301,8 +302,15 @@ export default defineMiddlewares({
     // Option 1: standard name check
     // if (error.name === "ZodError") {
     // Option 2: check if error is an instance of ZodError
-    console.log(error)
+    
+    if (error instanceof MedusaError) {
+      return res.status(400).json({
+        error: "ValidatorError",
+        issues: error.message,
+      });
+    }
     if (error instanceof z.ZodError) {
+      
       /*
        * ZodError has an `issues` array. But in some scenarios, it might be missing or
        * shaped unexpectedly. We’ll guard against that possibility.
