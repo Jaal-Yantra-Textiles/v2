@@ -41,9 +41,9 @@ jobs:
 
     - name: Setup Database
       run: |
-        psql -h localhost -U postgres -d postgres -c "CREATE USER runner WITH PASSWORD 'runner' SUPERUSER CREATEDB CREATEROLE;"
-        psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE postgres TO runner;"
-        psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO runner;"
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE USER runner WITH PASSWORD 'runner' SUPERUSER CREATEDB CREATEROLE;"
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE postgres TO runner;"
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO runner;"
 
     - name: Create test environment file
       run: |
