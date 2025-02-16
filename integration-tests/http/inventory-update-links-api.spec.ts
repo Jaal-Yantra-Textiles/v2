@@ -150,8 +150,9 @@ medusaIntegrationTestRunner({
           headers
         ).catch(error => error.response);
         expect(response.status).toBe(400);
+        
         expect(response.data.error).toContain('ValidatorError')
-        expect(response.data.issues[0].message).toContain("Invalid request: Field 'rawMaterialData, composition' is required");
+        expect(response.data.issues).toContain("Invalid request: Field 'rawMaterialData, composition' is required");
       });
     });
   }

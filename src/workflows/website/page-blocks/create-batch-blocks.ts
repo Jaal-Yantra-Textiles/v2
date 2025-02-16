@@ -9,7 +9,17 @@ import { WEBSITE_MODULE } from "../../../modules/website";
 import WebsiteService from "../../../modules/website/service";
 
 import { CreateBlockStepInput } from "./create-block";
-import { Block } from "../../../../.medusa/types/query-entry-points";
+
+type Block = {
+  id: string;
+  name: string;
+  type: string;
+  content: Record<string, unknown>;
+  settings?: Record<string, unknown> | null;
+  order?: number;
+  status?: "Active" | "Inactive" | "Draft";
+  metadata?: Record<string, unknown> | null;
+};
 
 export type CreateBatchBlocksStepInput = {
   blocks: CreateBlockStepInput[];

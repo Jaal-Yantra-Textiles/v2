@@ -120,5 +120,104 @@ medusaIntegrationTestRunner({
         expect(page).not.toHaveProperty("updated_at");
       });
     });
+
+    describe("GET /web/website/:domain/:page", () => {
+      it("should return 404 for non-existent page", async () => {
+        const response = await api
+          .get("/web/website/test-public.example.com/non-existent")
+          .catch((e) => e.response);
+        
+        expect(response.status).toBe(404);
+        expect(response.data.message).toBe("Page not found");
+      });
+
+      it("should return page with blocks in correct order", async () => {
+        // First create some blocks for the home page
+        const blocks = [
+          {
+            name: "Hero Section",
+            type: "Hero",
+            content: { title: "Welcome", subtitle: "To our website" },
+            settings: { background: "dark" },
+            status: "Active",
+            order: 1,
+          },
+          {
+            name: "Features Section",
+            type: "Feature",
+            content: { features: ["Feature 1", "Feature 2"] },
+            settings: { layout: "grid" },
+            status: "Active",
+            order: 2,
+          },
+          {
+            name: "Header Section",
+            type: "Header",
+            content: { logo: "logo.png" },
+            settings: { sticky: true },
+            status: "Active",
+            order: 0,
+          },
+        ];
+
+        // Get the home page ID
+        const pagesResponse = await api.get(
+          `/admin/websites/${websiteId}/pages`,
+          headers
+        );
+        
+        const homePage = pagesResponse.data.pages.find(
+          (p) => p.slug === "home"
+        );
+
+        // Add blocks to the home page
+        await api.post(
+          `/admin/websites/${websiteId}/pages/${homePage.id}/blocks`,
+          {blocks},
+          headers
+        )
+        // Now fetch the page through the public API
+        const response = await api.get(
+          "/web/website/test-public.example.com/home"
+        );
+
+        expect(response.status).toBe(200);
+        
+        // Check page data
+        expect(response.data.title).toBe("Published Home");
+        expect(response.data.slug).toBe("home");
+        expect(response.data.status).toBe("Published");
+        
+        // Check blocks
+        expect(response.data.blocks).toHaveLength(3);
+        
+        // Verify blocks are in correct order
+        const blockOrders = response.data.blocks.map((b) => b.order);
+        expect(blockOrders).toEqual([0, 1, 2]);
+
+        // Verify block content structure
+        const headerBlock = response.data.blocks.find((b) => b.type === "Header");
+        expect(headerBlock).toMatchObject({
+          type: "Header",
+          content: { logo: "logo.png" },
+          order: 0,
+        });
+
+        // Verify website info is included
+        expect(response.data.website).toMatchObject({
+          name: "Test Public Website",
+          domain: "test-public.example.com",
+        });
+      });
+
+      it("should not return draft pages", async () => {
+        const response = await api
+          .get("/web/website/test-public.example.com/contact")
+          .catch((e) => e.response);
+        
+        expect(response.status).toBe(404);
+        expect(response.data.message).toBe("Page not found");
+      });
+    });
   }  
 })

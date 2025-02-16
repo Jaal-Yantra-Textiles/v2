@@ -1,4 +1,4 @@
-import { Badge, Button, Heading, Input, toast, ProgressTabs, ProgressStatus, Text, Textarea } from "@medusajs/ui";
+import { Badge, Button, Heading, Input, toast, ProgressTabs, ProgressStatus, Textarea } from "@medusajs/ui";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
