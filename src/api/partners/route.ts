@@ -36,7 +36,7 @@ export const POST = async (
         })
 
     // Refetch partner with admin details
-    const partnerWithAdmin = await refetchPartner(result.partner.id, req.scope)
+    const partnerWithAdmin = await refetchPartner(result.createdPartner.id, req.scope)
 
     res.json({
         partner: partnerWithAdmin,

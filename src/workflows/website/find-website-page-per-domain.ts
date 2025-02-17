@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { WEBSITE_MODULE } from "../../modules/website";
 import WebsiteService from "../../modules/website/service";
+import { MedusaError } from "@medusajs/framework/utils";
 
 export type FindWebsitePagePerDomainStepInput = {
   domain: string;
@@ -27,7 +28,10 @@ export const findWebsitePagePerDomainStep = createStep(
     );
 
     if (!websites[0]?.length) {
-      throw new Error("Website not found");
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Website with domain ${input.domain} not found`
+      )
     }
 
     const website = websites[0][0];
@@ -36,7 +40,10 @@ export const findWebsitePagePerDomainStep = createStep(
     const page = website.pages?.find(p => p.slug === input.pageSlug && p.status === "Published");
 
     if (!page) {
-      throw new Error("Page not found");
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Page with slug - ${input.pageSlug} not found`
+      );
     }
 
     // Sort blocks if they exist

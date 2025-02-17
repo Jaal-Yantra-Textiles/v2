@@ -37,7 +37,7 @@ const createPartnerAndAdminStep = createStep(
     }: Omit<CreatePartnerAdminWorkflowInput, "authIdentityId">, 
     { container }) => {
         const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
-
+        let createdPartner: any
         // Create partner
         const partner = await partnerService.createPartners(partnerData).catch(err => {
             if(err.message.includes("already exists")){
@@ -46,25 +46,32 @@ const createPartnerAndAdminStep = createStep(
                     `A partner with handle "${partnerData.handle}" already exists. Please use a unique handle.`
                 )
             }
+        }).then((partner) => {
+            partner = createdPartner
         })
         
         // Create partner admin
         const partnerAdmin = await partnerService.createPartnerAdmins({
             ...adminData,
-            partner_id: partner.id
+            partner_id: createdPartner.id
         })
         const partnerWithAdmin = {
-            partner, 
+            createdPartner, 
             partnerAdmin
         }
-        return new StepResponse(partnerWithAdmin, partnerWithAdmin)
+        return new StepResponse(partnerWithAdmin, {
+            partner: partnerWithAdmin.createdPartner,
+            partnerAdmin: partnerWithAdmin.partnerAdmin
+        })
     },
     async (partnerWithAdmin, { container }) => {
         const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
+        if(partnerWithAdmin){
+            await partnerService.deletePartnerAdmins(partnerWithAdmin.partnerAdmin.id)
+            await partnerService.deletePartners(partnerWithAdmin?.partner.id)
+        }
 
-        // Delete in reverse order
-        await partnerService.deletePartnerAdmins(partnerWithAdmin?.partnerAdmin.id)
-        await partnerService.deletePartners(partnerWithAdmin?.partner.id)
+        
     }
 )
 

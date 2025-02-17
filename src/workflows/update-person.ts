@@ -14,7 +14,7 @@ type UpdatePersonStepInput = {
     first_name?: string;
     last_name?: string;
     email?: string;
-    date_of_birth?: string;
+    date_of_birth?: Date;
     metadata?: Record<string, any>;
   };
 };
@@ -28,13 +28,22 @@ export const updatePersonStep = createStep(
       selector: {
         id: input.id,
       },
-      data: input.update,
+      data: {
+        ...input.update
+      }
     });
     return new StepResponse(updatedPerson, originalPerson);
   },
   async (originalPerson, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
-    await personService.updatePeople(originalPerson);
+    await personService.updatePeople({
+      selector: {
+        id: originalPerson?.id
+      },
+      data: {
+        ...originalPerson
+      }
+    });
   },
 );
 

@@ -82,7 +82,7 @@ export const POST = async (
     throw errors;
   }
   const person = await refetchPerson(
-    result.id,
+    result[0].id,
     req.scope,
     req.remoteQueryConfig?.fields || ["*"],
   );

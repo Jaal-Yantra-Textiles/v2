@@ -34,8 +34,11 @@ export const createPageStep = createStep(
     await websiteService.retrieveWebsite(input.website_id);
 
     // Check if a page with this slug already exists
+    // This needs to be fixed to use the slug as the identifier to filter 
     try {
-      const existingPage = await websiteService.retrievePage(input.slug);
+      const existingPage = await websiteService.listPages({
+        slug: input.slug
+      });
       if (existingPage) {
         throw new MedusaError(
           MedusaError.Types.DUPLICATE_ERROR,
@@ -43,6 +46,7 @@ export const createPageStep = createStep(
         );
       }
     } catch (error) {
+      console.log(error)
       // If error is NOT_FOUND, that's good - means no duplicate
       if (error.type !== MedusaError.Types.NOT_FOUND) {
         throw error;

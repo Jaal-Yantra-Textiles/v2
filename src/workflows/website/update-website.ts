@@ -14,7 +14,7 @@ export type UpdateWebsiteStepInput = {
   description?: string;
   status?: "Active" | "Inactive" | "Maintenance" | "Development";
   primary_language?: string;
-  supported_languages?: string[];
+  supported_languages?: Record<string, unknown>;
   favicon_url?: string;
   analytics_id?: string;
   metadata?: Record<string, unknown>;
@@ -30,12 +30,12 @@ export const updateWebsiteStep = createStep(
     
     // Update the Website entity
     const updatedWebsite = await websiteService.updateWebsites({
-      selector:{
-      id: input.id,
-    },
-    data: {
-      ...input,
-    }
+        selector:{
+        id: input.id,
+      },
+      data: {
+        ...input,
+      }
   });
 
     // Return the updated entity and compensation data
@@ -49,8 +49,14 @@ export const updateWebsiteStep = createStep(
 
     // Restore the original state to compensate
     await websiteService.updateWebsites(
-      compensationData.id,
-      compensationData.originalData
+    {
+      selector: {
+        id: compensationData.id
+      },
+      data: {
+        ...compensationData.originalData
+      }
+    }
     );
   },
 );

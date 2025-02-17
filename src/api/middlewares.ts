@@ -4,7 +4,13 @@ import {
   validateAndTransformBody,
   validateAndTransformQuery,
   authenticate,
+  MedusaRequest,
+  MedusaResponse,
+  MedusaNextFunction,
 } from "@medusajs/framework/http";
+import { ConfigModule } from "@medusajs/framework/types";
+import { parseCorsOrigins } from "@medusajs/framework/utils";
+import cors from "cors";
 import { personSchema, UpdatePersonSchema } from "./admin/persons/validators";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody
@@ -39,8 +45,32 @@ import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { MedusaError } from "@medusajs/framework/utils";
 
+// Utility function to create CORS middleware with configurable options
+const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
+  return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
+
+    const configModule: ConfigModule = req.scope.resolve("configModule");
+    
+    // Merge provided options with default CORS settings
+    const defaultOptions = {
+      origin: parseCorsOrigins(process.env.WEB_CORS as string),
+      credentials: true,
+    };
+
+   
+
+    const options = { ...defaultOptions, ...corsOptions };
+    return cors(options)(req, res, next);
+  };
+};
+
 export default defineMiddlewares({
   routes: [
+    // CORS middleware for public web routes
+    {
+      matcher: "/web/*",
+      middlewares: [createCorsMiddleware()],
+    },
     {
       matcher: "/partners",
       method: "POST",
@@ -285,7 +315,7 @@ export default defineMiddlewares({
     {
       matcher: "/web/health",
       method: "GET",
-      middlewares: [],
+      middlewares: [createCorsMiddleware()],
     },
     {
       matcher: "/web/website/:domain",
@@ -304,6 +334,7 @@ export default defineMiddlewares({
     // Option 2: check if error is an instance of ZodError
     
     if (error instanceof MedusaError) {
+      
       if (error.type == 'not_found'){
         return res.status(404).json({
           error: "ValidatorError",

@@ -23,7 +23,7 @@ const pageBaseSchema = z.object({
   meta_title: z.string().optional(),
   meta_description: z.string().optional(),
   meta_keywords: z.string().optional(),
-  published_at: z.string().datetime().optional(),
+  published_at: z.date().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 

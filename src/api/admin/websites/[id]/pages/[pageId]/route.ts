@@ -49,6 +49,7 @@ export const PUT = async (
   req: AuthenticatedMedusaRequest<UpdatePageSchema>,
   res: MedusaResponse,
 ) => {
+  
   const { id: websiteId, pageId } = req.params;
   const { result, errors } = await updatePageWorkflow(req.scope).run({
     input: {
@@ -62,6 +63,8 @@ export const PUT = async (
     console.warn("Error reported at", errors);
     throw errors;
   }
+
+  console.log(result)
 
   
   const page = await refetchPage(result.id, websiteId, req.scope, ["*"]);
