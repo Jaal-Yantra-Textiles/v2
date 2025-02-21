@@ -1,7 +1,8 @@
 import { Container, Heading } from "@medusajs/ui";
 import { Plus } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
-import { AdminDesign } from "../../hooks/api/designs";
+import { AdminDesign } from "../../hooks/api/designs";  
+import { useNavigate } from "react-router-dom";
 
 
 interface DesignInventorySectionProps {
@@ -9,6 +10,7 @@ interface DesignInventorySectionProps {
 }
 
 export const DesignInventorySection = ({ design }: DesignInventorySectionProps) => {
+  const navigate  = useNavigate()
   return (
     <Container>
       <div className="flex items-center justify-between">
@@ -20,7 +22,9 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
                 {
                   label: "Add Inventory",
                   icon: <Plus />,
-                  onClick: () => {/* TODO: Implement add inventory */},
+                  onClick: () => {
+                    navigate(`/designs/${design.id}/addinv`);
+                  },
                 },
               ],
             },

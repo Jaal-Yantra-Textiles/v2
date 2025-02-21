@@ -30,13 +30,25 @@ export interface CreateRawMaterialInput {
   }
 }
 
-type RawMaterial = {
+export interface MaterialType {
+  id: string
+  name: string
+  description: string | null
+  category: "Fiber" | "Yarn" | "Fabric" | "Trim" | "Dye" | "Chemical" | "Accessory" | "Other"
+  properties: any | null
+  metadata: any | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface RawMaterial {
   id: string
   name: string
   description: string
   composition: string
   specifications: any | null
-  unit_of_measure: string
+  unit_of_measure: "Meter" | "Yard" | "Kilogram" | "Gram" | "Piece" | "Roll" | "Other"
   minimum_order_quantity: number
   lead_time_days: number
   color: string
@@ -46,48 +58,55 @@ type RawMaterial = {
   certification: any | null
   usage_guidelines: string | null
   storage_requirements: string | null
-  status: string
+  status: "Active" | "Discontinued" | "Under_Review" | "Development"
   metadata: any | null
   material_type_id: string
   created_at: string
   updated_at: string
   deleted_at: string | null
-  material_type: {
+  material_type: MaterialType
+}
+
+export interface InventoryItem {
+  id: string
+  sku: string
+  origin_country: string | null
+  hs_code: string | null
+  mid_code: string | null
+  material: string | null
+  weight: string | null
+  length: string | null
+  height: string | null
+  width: string | null
+  requires_shipping: boolean
+  description: string
+  title: string
+  thumbnail: string | null
+  metadata: any | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+  raw_materials?: RawMaterial
+  location_levels: Array<{
     id: string
-    name: string
-    description: string | null
-    category: string
-    properties: any | null
+    inventory_item_id: string
+    location_id: string
+    stocked_quantity: number
+    reserved_quantity: number
+    incoming_quantity: number
     metadata: any | null
     created_at: string
     updated_at: string
     deleted_at: string | null
-  }
+  }>
 }
 
-interface RawMaterialResponse {
-  inventory_item: {
-    id: string;
-    sku: string;
-    origin_country: string | null;
-    hs_code: string | null;
-    mid_code: string | null;
-    material: string | null;
-    weight: string | null;
-    length: string | null;
-    height: string | null;
-    width: string | null;
-    requires_shipping: boolean;
-    description: string;
-    title: string;
-    thumbnail: string | null;
-    metadata: any | null;
-    created_at: string;
-    updated_at: string;
-    deleted_at: string | null
-    raw_materials: RawMaterial;
-    location_levels: [{}]
-  }
+export interface InventoryItemsResponse {
+  inventory_items: InventoryItem[]
+}
+
+export interface InventoryItemResponse {
+  inventory_item: InventoryItem
 }
 
 const INVENTORY_ITEMS_RAW_MATERIAL_QUERY_KEY = "inventory_items_raw_materials" as const
@@ -102,7 +121,7 @@ export const useInventoryItem = (
     UseQueryOptions<
       HttpTypes.AdminInventoryItemResponse,
       FetchError,
-      RawMaterialResponse,
+      InventoryItemResponse,
       QueryKey
     >,
     "queryKey" | "queryFn"
@@ -117,11 +136,33 @@ export const useInventoryItem = (
   return { ...data, ...rest }
 }
 
+export const useInventoryItems = (
+  query?: HttpTypes.AdminInventoryItemParams,
+  options?: Omit<
+    UseQueryOptions<
+      HttpTypes.AdminInventoryItemListResponse,
+      FetchError,
+      InventoryItemsResponse,
+      QueryKey
+    >,
+    "queryKey" | "queryFn"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: () => sdk.admin.inventoryItem.list(query),
+    queryKey: inventoryItemsRawMaterialQueryKeys.list(query),
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
+
 
 export const useCreateRawMaterial = (
   inventoryId: string,
   options?: UseMutationOptions<
-    RawMaterial,
+    InventoryItem,
     FetchError,
     CreateRawMaterialInput
   >
@@ -130,14 +171,14 @@ export const useCreateRawMaterial = (
 
   return useMutation({
     mutationFn: async (payload: CreateRawMaterialInput) => {
-      const  response  = await sdk.client.fetch<RawMaterialResponse>(
+      const  response  = await sdk.client.fetch<InventoryItem>(
         `/admin/inventory-items/${inventoryId}/rawmaterials`,
         {
           method: "POST",
           body: payload
         }
       )
-      return response.inventory_item.raw_materials
+      return response
     },
     onSuccess: async (data, variables, context) => {
       queryClient.invalidateQueries({
