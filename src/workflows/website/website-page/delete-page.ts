@@ -15,12 +15,14 @@ export const deletePageStep = createStep(
   "delete-page-step",
   async (input: DeletePageStepInput, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
-    
     // Get the current state for compensation
     const pageToDelete = await websiteService.retrievePage(input.id);
     
+    
     // Delete the Page entity
-    await websiteService.deletePages(input.id);
+    await websiteService.softDeletePages({
+      id: input.id
+    });
 
     // Return the deleted entity data for compensation
     return new StepResponse({ success: true }, pageToDelete);

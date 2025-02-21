@@ -1,6 +1,6 @@
 import { Text, StatusBadge, createDataTableColumnHelper, DataTableAction } from "@medusajs/ui";
 import { AdminPage } from "../../../hooks/api/pages";
-import { Pencil, Trash } from "lucide-react";
+import { PencilSquare, Trash } from "@medusajs/icons";
 import { useCallback } from "react";
 
 const columnHelper = createDataTableColumnHelper<AdminPage>();
@@ -23,11 +23,11 @@ export const usePagesColumns = () => {
     (row: { original: AdminPage }) => {
       const mainActions: DataTableAction<AdminPage>[] = [
         {
-          icon: <Pencil />,
+          icon: <PencilSquare />,
           label: "Edit",
           onClick: () => {
             // TODO: Implement edit action
-            console.log("Edit", row.original.id);
+            
           },
         },
       ];

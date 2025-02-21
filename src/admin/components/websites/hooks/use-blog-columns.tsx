@@ -1,7 +1,8 @@
 import { Text, StatusBadge, createDataTableColumnHelper, DataTableAction } from "@medusajs/ui";
 import { AdminPage } from "../../../hooks/api/pages";
-import { Pencil, Trash } from "lucide-react";
+import { PencilSquare, Trash } from "@medusajs/icons";
 import { useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 
 const columnHelper = createDataTableColumnHelper<AdminPage>();
 
@@ -19,15 +20,16 @@ const blogStatusColor = (status: string) => {
 };
 
 export const useBlogColumns = () => {
+  const navigate = useNavigate();
   const getActions = useCallback(
     (row: { original: AdminPage }) => {
       const mainActions: DataTableAction<AdminPage>[] = [
         {
-          icon: <Pencil />,
+          icon: <PencilSquare/>,
           label: "Edit",
           onClick: () => {
             // TODO: Implement edit action
-            console.log("Edit blog", row.original.id);
+            navigate(`/websites/${row.original.website_id}/pages/${row.original.id}/edit`)
           },
         },
       ];

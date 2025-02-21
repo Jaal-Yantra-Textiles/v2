@@ -22,10 +22,10 @@ export const updateWebsiteSchema = z.object({
   description: z.string().optional(),
   status: z.enum(["Active", "Inactive", "Maintenance", "Development"]).optional(),
   primary_language: z.string().optional(),
-  supported_languages: z.array(z.string()).optional(),
+  supported_languages: z.record(z.string()).optional(),
   favicon_url: z.string().url().optional(),
   analytics_id: z.string().optional(),
-  metadata: z.record(z.unknown()).optional().nullable(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 export type WebsiteSchema = z.infer<typeof websiteSchema>;

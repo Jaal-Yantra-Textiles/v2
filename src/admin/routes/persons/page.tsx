@@ -14,7 +14,7 @@ import { EntityActions } from "../../components/persons/personsActions";
 import { createColumnHelper } from "@tanstack/react-table";
 import { AdminPerson } from "../../hooks/api/personandtype";
 
-import { UIMatch } from 'react-router-dom'
+
 
 const columnHelper = createColumnHelper<AdminPerson>();
 export const useColumns = () => {

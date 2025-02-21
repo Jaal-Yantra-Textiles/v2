@@ -1,6 +1,7 @@
+import { Modules } from "@medusajs/framework/utils";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
-import { Mistral } from '@mistralai/mistralai';
-import { ChatCompletionResponse } from "@mistralai/mistralai/models/components";
+
+import { INotificationModuleService } from "@medusajs/types";
 
 type PageContext = {
   title: string;
@@ -15,31 +16,72 @@ export type GenerateAIMetadataStepInput = {
 export const generateAIMetadataStep = createStep(
   "generate-ai-metadata-step",
   async (input: GenerateAIMetadataStepInput, {container, context}) => {
-    const client = new Mistral({ apiKey: process.env.MISTRA_API_KEY });
-  
     if (process.env.NODE_ENV === "test") {
       const json = JSON.parse("{\n  \"meta_title\": \"Cici Label - Leading Fashion Brand in Textiles\",\n  \"meta_description\": \"Discover Cici Label, the best in the world of textiles. Explore our stylish and sustainable fashion collection.\",\n  \"meta_keywords\": \"Cici Label, Fashion Brand, Textiles, Sustainable Fashion, Best in the World, Home\"\n}")
-    
       return new StepResponse(json);
     }
+    const notificationModuleService: INotificationModuleService = 
+      container.resolve(Modules.NOTIFICATION);
 
     try {
-      const chatResponse: ChatCompletionResponse = await client.agents.complete({
-        agentId: process.env.AGENT_ID as string,
-        messages: [
-          {
-            role: "user",
-            content: `Generate the metadata for the page and return the output in key values json. The metadata for the page is oriented towards textiles and should be SEO Friendly. Here is the page context: ${JSON.stringify(input.pageContext)}`,
-          },
-        ],
+      const response = await fetch('http://localhost:4111/api/workflows/seoWorkflow/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          triggerData: input.pageContext
+        })
       });
 
-      const response = chatResponse.choices?.[0]?.message?.content
+      if (!response.ok) {
+        throw new Error(`Workflow request failed: ${response.statusText}`);
+      }
+
+      const workflowResult = await response.json();
       
-      const metadata = JSON.parse(response as string);
-      return new StepResponse(metadata);
+      // Check if workflow execution was successful
+      if (workflowResult.results.validateMetadata?.status === 'failed') {
+        const error = workflowResult.results.validateMetadata.error;
+        await notificationModuleService.createNotifications({
+          to: "saranshis@pm.me",
+          channel: "email",
+          template: "metadata-validation-failed",
+          data: {
+            page: input.pageContext,
+            error,
+            metadata: workflowResult.results.generateMetadata?.output
+          },
+        });
+        throw new Error(`Metadata validation failed: ${error}`);
+      }
+
+      if (workflowResult.results.generateMetadata?.status === 'success') {
+        const metadata = workflowResult.results.generateMetadata.output;
+        await notificationModuleService.createNotifications({
+          to: "saranshis@pm.me",
+          channel: "email",
+          template: "metadata-created",
+          data: {
+            page: input.pageContext,
+            metadata
+          },
+        });
+        return new StepResponse(metadata);
+      }
+
+      throw new Error('Workflow execution failed');
     } catch (error) {
       console.error("Error generating AI metadata:", error);
+      await notificationModuleService.createNotifications({
+        to: "saranshis@pm.me",
+        channel: "email",
+        template: "metadata-error",
+        data: {
+          page: input.pageContext,
+          error: error.message
+        },
+      });
       throw error;
     }
   }

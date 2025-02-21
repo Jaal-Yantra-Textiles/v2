@@ -9,7 +9,8 @@ import {
 } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { ActionMenu } from "../common/action-menu";
-import { AdminPage } from "../../hooks/api/pages";
+import { AdminPage, useDeletePage } from "../../hooks/api/pages";
+import { useNavigate } from "react-router-dom";
 
 const pageStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
@@ -32,6 +33,8 @@ interface PageGeneralSectionProps {
 export const PageGeneralSection = ({ page, websiteId }: PageGeneralSectionProps) => {
   const { t } = useTranslation();
   const prompt = usePrompt();
+  const { mutateAsync } = useDeletePage(websiteId, page.id);
+  const navigate = useNavigate();
   const handleDelete = async () => {
     const res = await prompt({
       title: t("pages.delete.title", "Delete Page"),
@@ -49,8 +52,19 @@ export const PageGeneralSection = ({ page, websiteId }: PageGeneralSectionProps)
       return;
     }
 
-    // TODO: Implement delete functionality
-    toast.error("Delete functionality not implemented yet");
+    await mutateAsync(undefined, {
+      onSuccess: () => {
+        toast.success(
+          t("pages.delete.successToast", {
+            name: page.title,
+          }),
+        );
+        navigate(`/websites/${websiteId}`, { replace: true });
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    })
   };
 
   return (

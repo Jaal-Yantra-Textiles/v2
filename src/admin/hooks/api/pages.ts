@@ -286,6 +286,8 @@ export const useDeletePage = (
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
     },
     ...options,
   });

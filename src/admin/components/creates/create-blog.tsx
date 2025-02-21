@@ -1,4 +1,4 @@
-import { Badge, Button, Heading, Input, toast, ProgressTabs, ProgressStatus, Textarea } from "@medusajs/ui";
+import { Badge, Button, Heading, Input, toast, ProgressTabs, ProgressStatus, Textarea, Tooltip } from "@medusajs/ui";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,6 +14,7 @@ import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { Block as BlockNoteBlock } from "@blocknote/core";
 import type { Block, BlockType } from "../../hooks/api/pages";
+import { InformationCircleSolid } from "@medusajs/icons"
 
 const blockSchema = z.object({
   name: z.string(),
@@ -272,10 +273,36 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
                 name="slug"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label>Slug</Form.Label>
+                    <div className="flex items-center gap-x-2">
+                      <Form.Label>Slug</Form.Label>
+                      <Tooltip content="Path will be prefixed with /blog/ unless you start with a forward slash (/) for a custom path.">
+                        <InformationCircleSolid className="text-ui-fg-subtle" />
+                      </Tooltip>
+                    </div>
                     <Form.Control>
-                      <Input placeholder="my-blog-post" {...field} />
+                      <Input 
+                        placeholder="my-blog-post" 
+                        {...field} 
+                        onChange={(e) => {
+                          let value = e.target.value;
+                          // If value doesn't start with /, apply blog path formatting
+                          if (!value.startsWith('/')) {
+                            value = value
+                              .toLowerCase()
+                              .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except hyphens
+                              .replace(/\s+/g, '-')          // Convert spaces to hyphens
+                              .replace(/-+/g, '-');         // Replace multiple hyphens with single hyphen
+                          }
+                          field.onChange(value);
+                        }}
+                      />
                     </Form.Control>
+                    <Form.Hint className="text-ui-fg-subtle">
+                      {form.watch('slug')?.startsWith('/') ? 
+                        `Slug: ${form.watch('slug')}` : 
+                        `Slug with: /blog/${form.watch('slug')}`
+                      }
+                    </Form.Hint>
                     <Form.ErrorMessage />
                   </Form.Item>
                 )}

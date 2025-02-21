@@ -332,7 +332,12 @@ export default defineMiddlewares({
     // Option 1: standard name check
     // if (error.name === "ZodError") {
     // Option 2: check if error is an instance of ZodError
-    
+    console.log(error)
+    if (error.__isMedusaError){
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
     if (error instanceof MedusaError) {
       
       if (error.type == 'not_found'){

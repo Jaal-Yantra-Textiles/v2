@@ -24,13 +24,16 @@
     "swc": true
   },
   "include": [
-    "**/*",
-    ".medusa/types/*"
+    "**/*", 
+    ".medusa/types/*",
+    "src/mastra/*"
+
   ],
   "exclude": [
     "node_modules",
     ".medusa/server",
     ".medusa/admin",
-    ".cache"
+    ".cache",
+    ".mastra"
   ]
 }

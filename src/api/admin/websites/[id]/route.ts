@@ -66,7 +66,7 @@ export const PUT = async (
     throw errors;
   }
 
-  const website = await refetchWebsite(result.id, req.scope);
+  const website = await refetchWebsite(result[0].id, req.scope);
 
   res.status(200).json({ website });
 };

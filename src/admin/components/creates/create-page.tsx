@@ -148,8 +148,15 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
         payload,
         {
           onSuccess: () => {
-            toast.success("Pages created successfully");
-            handleSuccess(`/websites/${websiteId}`);
+            if (values.pages.length === 1) {
+              toast.success(" Page created successfully");
+              handleSuccess(`/websites/${websiteId}`);
+              return;
+            } else {
+              toast.success(" Pages created successfully");
+              handleSuccess(`/websites/${websiteId}`);
+            }
+            
           },
           onError: (error) => {
             toast.error(error.message || "Failed to create pages");
@@ -234,7 +241,19 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
                             <Form.Item>
                               <Form.Label>Slug</Form.Label>
                               <Form.Control>
-                                <Input autoComplete="off" {...field} />
+                                <Input 
+                                  autoComplete="off" 
+                                  {...field} 
+                                  onChange={(e) => {
+                                    // Convert spaces to hyphens and remove special characters
+                                    const value = e.target.value
+                                      .toLowerCase()
+                                      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except hyphens
+                                      .replace(/\s+/g, '-')          // Convert spaces to hyphens
+                                      .replace(/-+/g, '-')          // Replace multiple hyphens with single hyphen
+                                    field.onChange(value)
+                                  }}
+                                />
                               </Form.Control>
                               <Form.ErrorMessage />
                             </Form.Item>

@@ -1,5 +1,6 @@
 /dist
 .env
+.env.development
 .DS_Store
 /uploads
 /node_modules
@@ -30,4 +31,6 @@ build
 static/
 
 /medusa-docs
+
+.mastra/
 

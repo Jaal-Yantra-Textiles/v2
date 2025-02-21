@@ -8,7 +8,7 @@ import {
 import { WEBSITE_MODULE } from "../../../modules/website";
 import WebsiteService from "../../../modules/website/service";
 import { emitEventStep } from "@medusajs/medusa/core-flows";
-import { MedusaError } from "@medusajs/framework/utils";
+
 
 
 export type CreatePageStepInput = {
@@ -30,38 +30,18 @@ export const createPageStep = createStep(
   async (input: CreatePageStepInput, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
     
-    // First verify the website exists
-    await websiteService.retrieveWebsite(input.website_id);
+      // First verify the website exists
+      await websiteService.retrieveWebsite(input.website_id);
+      
+      // Create the Page entity - database will handle uniqueness
+      const page = await websiteService.createPages({
+        ...input,
+        last_modified: new Date(),
+        published_at: new Date(),
+      })
 
-    // Check if a page with this slug already exists
-    // This needs to be fixed to use the slug as the identifier to filter 
-    try {
-      const existingPage = await websiteService.listPages({
-        slug: input.slug
-      });
-      if (existingPage) {
-        throw new MedusaError(
-          MedusaError.Types.DUPLICATE_ERROR,
-          `A page with slug "${input.slug}" already exists. Please use a unique slug.`
-        );
-      }
-    } catch (error) {
-      console.log(error)
-      // If error is NOT_FOUND, that's good - means no duplicate
-      if (error.type !== MedusaError.Types.NOT_FOUND) {
-        throw error;
-      }
-    }
-    
-    // Create the Page entity
-    const page = await websiteService.createPages({
-      ...input,
-      last_modified: new Date(),
-      published_at: new Date(),
-    })
-
-    // Return the created entity and its ID for potential compensation
-    return new StepResponse(page,page.id);
+      // Return the created entity and its ID for potential compensation
+      return new StepResponse(page, page.id); 
   },
   async (id: string , { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);

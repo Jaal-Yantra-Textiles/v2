@@ -37,18 +37,19 @@ const createPartnerAndAdminStep = createStep(
     }: Omit<CreatePartnerAdminWorkflowInput, "authIdentityId">, 
     { container }) => {
         const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
-        let createdPartner: any
         // Create partner
-        const partner = await partnerService.createPartners(partnerData).catch(err => {
-            if(err.message.includes("already exists")){
+        let createdPartner: any
+        try {
+            createdPartner = await partnerService.createPartners(partnerData)
+        } catch (err: any) {
+            if (err.message.includes("already exists")) {
                 throw new MedusaError(
                     MedusaError.Types.DUPLICATE_ERROR,
                     `A partner with handle "${partnerData.handle}" already exists. Please use a unique handle.`
                 )
             }
-        }).then((partner) => {
-            partner = createdPartner
-        })
+            throw err
+        }
         
         // Create partner admin
         const partnerAdmin = await partnerService.createPartnerAdmins({

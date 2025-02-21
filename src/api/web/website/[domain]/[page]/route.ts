@@ -33,7 +33,6 @@ export const GET = async (
         content: block.content,
         order: block.order,
       })) || [],
-      website: result.website
     };
 
     res.status(200).json(publicPageData);

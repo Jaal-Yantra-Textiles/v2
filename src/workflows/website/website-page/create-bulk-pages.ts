@@ -11,7 +11,9 @@ import WebsiteService from "../../../modules/website/service";
 import { emitEventStep } from "@medusajs/medusa/core-flows";
 import { MedusaError } from "@medusajs/framework/utils";
 import { CreatePageStepInput } from "./create-page";
-import { Page } from "../../../../.medusa/types/query-entry-points";
+import { InferTypeOf } from "@medusajs/framework/types"
+import  Page  from "../../../modules/website/models/page";
+export type PageObject = InferTypeOf<typeof Page>
 
 export type CreateBulkPagesStepInput = {
   pages: CreatePageStepInput[];
@@ -21,7 +23,7 @@ export const createBulkPagesStep = createStep(
   "create-bulk-pages-step",
   async (input: CreateBulkPagesStepInput, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
-    const createdPages: Page[] = [];
+    const createdPages: PageObject[] = [];
     const errors: Array<{ slug: string; error: string }> = [];
 
     // Check each page for existing slugs and create if unique
@@ -95,7 +97,7 @@ export const createBulkPagesWorkflow = createWorkflow(
     // Transform the result to get page IDs for events
     const pageIds = transform(
       result,
-      (data) => data.created.map((page: Page) => ({ id: page.id }))
+      (data) => data.created.map((page: PageObject) => ({ id: page.id }))
     );
 
     // Emit events using transformed data

@@ -1,4 +1,4 @@
-import { AddressDetails, PersonWithAddress } from "@medusajs/framework/types";
+
 import { Container, Heading } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { PencilSquare } from "@medusajs/icons";
@@ -7,6 +7,7 @@ import { ActionMenu } from "../common/action-menu";
 import { DataTable } from "../../components/table/data-table";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useDataTable } from "../../hooks/usedataTable";
+import { AddressDetails, PersonWithAddress } from "../../hooks/api/personandtype";
 
 interface PersonsAddressSectionProps {
   person: PersonWithAddress;

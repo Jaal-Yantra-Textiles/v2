@@ -144,6 +144,7 @@
           "keyName": "IDX_website_domain_unique",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_website_domain_unique\" ON \"website\" (domain) WHERE deleted_at IS NULL"
@@ -152,6 +153,7 @@
           "keyName": "IDX_website_deleted_at",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_website_deleted_at\" ON \"website\" (deleted_at) WHERE deleted_at IS NULL"
@@ -162,12 +164,14 @@
             "id"
           ],
           "composite": false,
+          "constraint": true,
           "primary": true,
           "unique": true
         }
       ],
       "checks": [],
-      "foreignKeys": {}
+      "foreignKeys": {},
+      "nativeEnums": {}
     },
     {
       "columns": {
@@ -345,17 +349,10 @@
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_page_slug_unique",
-          "columnNames": [],
-          "composite": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_page_slug_unique\" ON \"page\" (slug) WHERE deleted_at IS NULL"
-        },
-        {
           "keyName": "IDX_page_website_id",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_page_website_id\" ON \"page\" (website_id) WHERE deleted_at IS NULL"
@@ -364,9 +361,19 @@
           "keyName": "IDX_page_deleted_at",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_page_deleted_at\" ON \"page\" (deleted_at) WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_page_slug_website_id_unique",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_page_slug_website_id_unique\" ON \"page\" (slug, website_id) WHERE deleted_at IS NULL"
         },
         {
           "keyName": "page_pkey",
@@ -374,6 +381,7 @@
             "id"
           ],
           "composite": false,
+          "constraint": true,
           "primary": true,
           "unique": true
         }
@@ -393,7 +401,8 @@
           "deleteRule": "cascade",
           "updateRule": "cascade"
         }
-      }
+      },
+      "nativeEnums": {}
     },
     {
       "columns": {
@@ -539,6 +548,7 @@
           "keyName": "IDX_block_page_id",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_block_page_id\" ON \"block\" (page_id) WHERE deleted_at IS NULL"
@@ -547,6 +557,7 @@
           "keyName": "IDX_block_deleted_at",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_block_deleted_at\" ON \"block\" (deleted_at) WHERE deleted_at IS NULL"
@@ -555,6 +566,7 @@
           "keyName": "unique_block_type_per_page",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"unique_block_type_per_page\" ON \"block\" (page_id, type) WHERE type IN ('Hero', 'Header', 'Footer', 'MainContent', 'ContactForm') AND deleted_at IS NULL"
@@ -565,6 +577,7 @@
             "id"
           ],
           "composite": false,
+          "constraint": true,
           "primary": true,
           "unique": true
         }
@@ -583,7 +596,9 @@
           "referencedTableName": "public.page",
           "updateRule": "cascade"
         }
-      }
+      },
+      "nativeEnums": {}
     }
-  ]
+  ],
+  "nativeEnums": {}
 }

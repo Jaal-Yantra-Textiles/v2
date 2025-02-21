@@ -5,7 +5,7 @@ import Block  from "./blocks";
 const Page = model.define("page", {
   id: model.id().primaryKey(),
   title: model.text().searchable(),
-  slug: model.text().unique(),
+  slug: model.text(),
   content: model.text(),
   page_type: model.enum([
     "Home",
@@ -36,7 +36,12 @@ const Page = model.define("page", {
   blocks: model.hasMany(() => Block),
 }).cascades(
   {delete: ['blocks']}
-)
+).indexes([
+  {
+    on: ["slug", "website_id"],
+    unique: true,
+  },
+])
 
 
 export default Page;

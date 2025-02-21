@@ -16,7 +16,7 @@ export const DELETE = async (
 ) => {
   const { pageId } = req.params;
 
-  const { result, errors } = await deletePageWorkflow(req.scope).run({
+  const {  errors } = await deletePageWorkflow(req.scope).run({
     input: {
       id: pageId,
     },

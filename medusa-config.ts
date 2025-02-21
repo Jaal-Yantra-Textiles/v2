@@ -67,6 +67,19 @@ module.exports = defineConfig({
       resolve: "./src/modules/partner",
     },
 
+    {
+      resolve: "@medusajs/medusa/notification",
+      options: {
+        providers: [{
+          resolve: "@medusajs/medusa/notification-local",
+          id: "local",
+          options: {
+            channels: ["email"],
+          },
+        }]
+      }
+    }
+
     // {
     //   resolve: "@medusajs/medusa/workflow-engine-redis",
     //   options: {
