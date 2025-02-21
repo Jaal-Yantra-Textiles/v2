@@ -93,7 +93,7 @@ const InventoryRawMaterialWidget = ({
     try {
       toast.success("Raw material deleted successfully")
     } catch (error) {
-      toast.error(error)
+      toast.error('Error deleting raw material')
     }
   }
 

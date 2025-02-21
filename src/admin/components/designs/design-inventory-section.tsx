@@ -1,4 +1,6 @@
-import { Button, Container, Heading } from "@medusajs/ui";
+import { Container, Heading } from "@medusajs/ui";
+import { Plus } from "@medusajs/icons";
+import { ActionMenu } from "../common/action-menu";
 import { AdminDesign } from "../../hooks/api/designs";
 
 
@@ -11,12 +13,19 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
     <Container>
       <div className="flex items-center justify-between">
         <Heading level="h2">Inventory Used</Heading>
-        <Button
-          variant="secondary"
-          onClick={() => {/* TODO: Implement add inventory */}}
-        >
-          Add Inventory
-        </Button>
+        <ActionMenu
+          groups={[
+            {
+              actions: [
+                {
+                  label: "Add Inventory",
+                  icon: <Plus />,
+                  onClick: () => {/* TODO: Implement add inventory */},
+                },
+              ],
+            },
+          ]}
+        />
       </div>
       <div className="mt-4">
         

@@ -71,7 +71,7 @@ export const RawMaterialForm = () => {
         }
       },
       {
-        onSuccess: (rawMaterial) => {
+        onSuccess: () => {
           toast.success("Raw material created successfully");
           handleSuccess(`/inventory/${inventoryId}`);
         },
