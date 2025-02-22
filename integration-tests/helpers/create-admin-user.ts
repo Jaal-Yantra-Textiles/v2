@@ -2,6 +2,7 @@ import {  Modules } from "@medusajs/utils";
 import Scrypt from "scrypt-kdf";
 import { getContainer } from "./use_container.js";
 import { ApiKeyType } from "@medusajs/utils";
+import { randomBytes} from "crypto";
 
 const getAuthToken = async (
   api,
@@ -24,15 +25,22 @@ export const getAuthHeaders = async (api) => {
   };
 };
 
+function generateRandomString(length) {
+  return randomBytes(Math.ceil(length / 2)) // Generate random bytes
+    .toString('hex') // Convert to hexadecimal
+    .slice(0, length); // Trim to desired length
+}
+
 export const createAdminUser = async ( container?) => {
   const appContainer = container ?? getContainer()!;
   const userModule = appContainer.resolve(Modules.USER);
   const authModule = appContainer.resolve(Modules.AUTH);
   const apiModule = appContainer.resolve(Modules.API_KEY);
+  const randomEmail = generateRandomString(4)
   const user = await userModule.createUsers({
     first_name: "Admin",
     last_name: "User",
-    email: `admin@medusa.js`,
+    email: `admin@jyt.tech`,
   });
 
   const apiKey = await apiModule.createApiKeys({

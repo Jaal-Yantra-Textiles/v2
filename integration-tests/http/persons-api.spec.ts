@@ -308,8 +308,7 @@ medusaIntegrationTestRunner({
           response: {
             status: 400,
             data: {
-              error: "ValidatorError",
-              issues: "Invalid request: Value for field 'street' too small, expected at least: '1'"
+              message: "Invalid request: Value for field 'street' too small, expected at least: '1'"
             }
           }
         });
@@ -330,9 +329,8 @@ medusaIntegrationTestRunner({
         ).rejects.toMatchObject({
           response: {
             status: 404,
-            data: expect.objectContaining({
-              error: "ValidatorError",
-              issues: expect.stringContaining("Person with id \"non-existent-id\" not found"),
+            data: expect.objectContaining({    
+              message: expect.stringContaining("Person with id \"non-existent-id\" not found"),
             }),
           },
         });
@@ -489,8 +487,7 @@ medusaIntegrationTestRunner({
           response: {
             status: 404,
             data: expect.objectContaining({
-              error: "ValidatorError",
-              issues: expect.stringContaining(`Address with id \"non-existent-id\" not found for person \"${personId}\"`)
+              message: expect.stringContaining(`Address with id \"non-existent-id\" not found for person \"${personId}\"`)
             }),
           },
         });
@@ -508,8 +505,7 @@ medusaIntegrationTestRunner({
           response: {
             status: 404,
             data: expect.objectContaining({
-              error: "ValidatorError",
-              issues: expect.stringContaining(`Address with id \"${addressId}\" not found for person \"non-existent-id\"`)
+              message: expect.stringContaining(`Address with id \"${addressId}\" not found for person \"non-existent-id\"`)
             }),
           },
         });

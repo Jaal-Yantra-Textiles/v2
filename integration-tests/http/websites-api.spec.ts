@@ -56,7 +56,7 @@ medusaIntegrationTestRunner({
 
           const response = await api.post("/admin/websites", invalidWebsite, headers).catch(e => e.response);
           expect(response.status).toBe(400);
-          expect(response.data.issues).toBeDefined();
+          expect(response.data.message).toBeDefined();
         });
       });
 
@@ -355,22 +355,29 @@ medusaIntegrationTestRunner({
           pageId = response.data.page.id;
         });
 
+       
+
         it("should update a page", async () => {
           const updateData = {
             title: "Updated Home Page",
             status: "Published",
-            published_at: new Date().toISOString(),
+            published_at: new Date("2025-02-22T15:15:49.000Z"),
           };
 
           const response = await api.put(
             `/admin/websites/${websiteId}/pages/${pageId}`,
             updateData,
             headers
-          );
-          
+          ).catch(error => {
+            console.log('API Error Response:', error.response?.data);
+            return error.response;
+          });
+
           expect(response.status).toBe(200);
+          expect(response.data.page).toBeDefined();
           expect(response.data.page.title).toBe(updateData.title);
           expect(response.data.page.status).toBe(updateData.status);
+          expect(new Date(response.data.page.published_at)).toEqual(updateData.published_at);
         });
       });
 

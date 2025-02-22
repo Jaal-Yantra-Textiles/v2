@@ -7,6 +7,9 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import PersonService from "../modules/person/service";
 import { PERSON_MODULE } from "../modules/person";
+import { InferTypeOf } from "@medusajs/framework/types"
+import Person from "../modules/person/models/person";
+export type Person = InferTypeOf<typeof Person>
 
 type UpdatePersonStepInput = {
   id: string;
@@ -31,7 +34,7 @@ export const updatePersonStep = createStep(
       data: {
         ...input.update
       }
-    });
+    }) as unknown as Person;
     return new StepResponse(updatedPerson, originalPerson);
   },
   async (originalPerson, { container }) => {

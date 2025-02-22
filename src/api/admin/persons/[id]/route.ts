@@ -80,9 +80,9 @@ export const POST = async (
   if (errors.length > 1) {
     console.warn("Error reported at", errors);
     throw errors;
-  }
+  } 
   const person = await refetchPerson(
-    result[0].id,
+    result.id, 
     req.scope,
     req.remoteQueryConfig?.fields || ["*"],
   );

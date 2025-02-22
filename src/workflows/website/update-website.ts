@@ -6,6 +6,9 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { WEBSITE_MODULE } from "../../modules/website";
 import WebsiteService from "../../modules/website/service";
+import { InferTypeOf } from "@medusajs/framework/types"
+import Website  from "../../modules/website/models/website";
+export type Website = InferTypeOf<typeof Website>
 
 export type UpdateWebsiteStepInput = {
   id: string;
@@ -36,7 +39,7 @@ export const updateWebsiteStep = createStep(
       data: {
         ...input,
       }
-  });
+  })  as unknown as Website;
 
     // Return the updated entity and compensation data
     return new StepResponse(updatedWebsite, {
@@ -57,7 +60,7 @@ export const updateWebsiteStep = createStep(
         ...compensationData.originalData
       }
     }
-    );
+    )
   },
 );
 
