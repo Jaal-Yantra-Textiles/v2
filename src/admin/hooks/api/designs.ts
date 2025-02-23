@@ -197,3 +197,57 @@ export const useDeleteDesign = (
     ...options,
   });
 };
+
+export interface LinkDesignInventoryPayload {
+  inventoryIds: string[];
+}
+
+export interface DesignInventoryResponse {
+  inventory_items: string[];
+}
+
+export const useDesignInventory = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<
+      DesignInventoryResponse,
+      FetchError,
+      DesignInventoryResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  return useQuery({
+    queryKey: personsQueryKeys.detail(id, ["inventory"]),
+    queryFn: async () =>
+      sdk.client.fetch<DesignInventoryResponse>(`/admin/designs/${id}/inventory`, {
+        method: "GET",
+      }),
+    ...options,
+  });
+};
+
+export const useLinkDesignInventory = (
+  id: string,
+  options?: UseMutationOptions<
+    AdminDesignResponse,
+    FetchError,
+    LinkDesignInventoryPayload
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: LinkDesignInventoryPayload) =>
+      sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}/inventory`, {
+        method: "POST",
+        body: data,
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};

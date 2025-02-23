@@ -1,9 +1,11 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Checkbox } from "@medusajs/ui";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Checkbox, CommandBar } from "@medusajs/ui";
 import { useInventoryItems, InventoryItem } from "../../hooks/api/raw-materials";
 import { ActionMenu } from "../common/action-menu";
 import { Plus } from "@medusajs/icons";
 import { useInventoryColumns } from "./hooks/use-inventory-columns";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import { useLinkDesignInventory, useDesignInventory } from "../../hooks/api/designs";
+import { toast } from "@medusajs/ui";
 
 
 interface DesignInventoryTableProps {
@@ -12,7 +14,55 @@ interface DesignInventoryTableProps {
 
 export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
-  const { inventory_items = [], isLoading } = useInventoryItems({
+  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
+
+  const handleDelete = () => {
+    // Implement delete functionality for selected items
+    console.log('Delete selected items', Object.keys(selectedRows));
+  };
+
+  const handleEdit = () => {
+    // Implement edit functionality for selected items
+    console.log('Edit selected items', Object.keys(selectedRows));
+  };
+
+  const handleMoveUp = () => {
+    // Implement move up functionality
+    console.log('Move items up', Object.keys(selectedRows));
+  };
+
+  const handleMoveDown = () => {
+    // Implement move down functionality
+    console.log('Move items down', Object.keys(selectedRows));
+  };
+
+  const linkInventory = useLinkDesignInventory(designId);
+
+  const addInventoryToDesign = () => {
+    const selectedItemIds = Object.keys(selectedRows);
+    if (selectedItemIds.length === 0) return;
+
+    linkInventory.mutate(
+      { inventoryIds: selectedItemIds },
+      {
+        onSuccess: () => {
+          // Clear selections after successful linking
+          toast.success("Inventory items linked successfully");
+          setSelectedRows({});
+        },
+        onError: (error) => {
+          console.error("Failed to link inventory items:", error);
+          // You might want to show a notification here
+          toast.error("Failed to link inventory items");
+        },
+      }
+    );
+  }
+  // Fetch linked inventory items
+  const { data: linkedInventory, isLoading: isLoadingLinked } = useDesignInventory(designId);
+  const linkedItemIds = useMemo(() => new Set(linkedInventory?.inventory_items || []), [linkedInventory]);
+
+  const { inventory_items = [], isLoading: isLoadingItems } = useInventoryItems({
     fields: "+raw_materials.*, +raw_materials.material_type.*"
   });
   
@@ -63,6 +113,9 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
   }, [inventory_items, filtering, search]);
 
   const handleRowSelect = useCallback((rowId: string) => {
+    // Don't allow selecting linked items
+    if (linkedItemIds.has(rowId)) return;
+
     setSelectedRows(prev => {
       const newState = { ...prev };
       if (newState[rowId]) {
@@ -72,21 +125,27 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
       }
       return newState;
     });
-  }, []);
+  }, [linkedItemIds]);
 
   const handleSelectAll = useCallback((checked: boolean) => {
     if (checked) {
       const allSelected = filteredItems.reduce((acc, item) => {
-        acc[item.id] = true;
+        // Don't select linked items
+        if (!linkedItemIds.has(item.id)) {
+          acc[item.id] = true;
+        }
         return acc;
       }, {} as Record<string, boolean>);
       setSelectedRows(allSelected);
     } else {
       setSelectedRows({});
     }
-  }, [filteredItems]);
+  }, [filteredItems, linkedItemIds]);
+
+  const isLoading = isLoadingItems || isLoadingLinked;
 
   const columns = useInventoryColumns({
+    linkedItemIds,
     selectedRows,
     handleSelectAll,
     handleRowSelect,
@@ -150,8 +209,47 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     },
   });
 
+  // Update command bar visibility when selections change
+  useEffect(() => {
+    const hasSelections = Object.keys(selectedRows).length > 0;
+    setIsCommandBarOpen(hasSelections);
+  }, [selectedRows]);
+
   return (
     <Container className="divide-y p-0">
+      <CommandBar open={isCommandBarOpen}>
+        <CommandBar.Bar>
+          <CommandBar.Value>{Object.keys(selectedRows).length} selected</CommandBar.Value>
+          <CommandBar.Command
+            action={addInventoryToDesign}
+            label="Add to Design"
+            shortcut="a"
+          />
+          <CommandBar.Seperator />
+          <CommandBar.Command
+            action={handleDelete}
+            label="Delete"
+            shortcut="d"
+          />
+          <CommandBar.Seperator />
+          <CommandBar.Command
+            action={handleEdit}
+            label="Edit"
+            shortcut="e"
+          />
+          <CommandBar.Seperator />
+          <CommandBar.Command
+            action={handleMoveUp}
+            label="Move Up"
+            shortcut="↑"
+          />
+          <CommandBar.Command
+            action={handleMoveDown}
+            label="Move Down"
+            shortcut="↓"
+          />
+        </CommandBar.Bar>
+      </CommandBar>
       <DataTable instance={table}>
         <DataTable.Toolbar className="flex justify-between items-center">
           <div>

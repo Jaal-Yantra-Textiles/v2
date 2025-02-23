@@ -121,5 +121,60 @@ medusaIntegrationTestRunner({
         });
       });
     });
+
+    describe("GET /admin/designs/:id/inventory", () => {
+      it("should return linked inventory items", async () => {
+        // First link some inventory items
+        await api.post(
+          `/admin/designs/${designId}/inventory`,
+          { inventoryIds: [cottonFabricId, buttonsId] },
+          headers
+        );
+
+        const response = await api.get(
+          `/admin/designs/${designId}/inventory`,
+          headers
+        );
+
+        console.log(response.data)
+
+        expect(response.status).toBe(200);
+        expect(response.data.design).toBeDefined();
+        expect(Array.isArray(response.data.design.inventory_items)).toBe(true);
+        expect(response.data.design.inventory_items.length).toBe(2);
+
+        // Check if both inventory items are present
+        const inventoryIds = response.data.design.inventory_items.map(item => item.id);
+        expect(inventoryIds).toContain(cottonFabricId);
+        expect(inventoryIds).toContain(buttonsId);
+      });
+
+      it("should return empty array for design with no inventory", async () => {
+        // Create a new design without linking any inventory
+        const newDesignResponse = await api.post("/admin/designs", testDesign, headers);
+        const newDesignId = newDesignResponse.data.design.id;
+
+        const response = await api.get(
+          `/admin/designs/${newDesignId}/inventory`,
+          headers
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data.design).toBeDefined();
+        expect(Array.isArray(response.data.design.inventory_items)).toBe(true);
+        expect(response.data.design.inventory_items).toHaveLength(0);
+      });
+
+      it("should fail for non-existent design", async () => {
+        const response = await api
+          .get(`/admin/designs/non-existent-id/inventory`, headers)
+          .catch((err) => err.response);
+        
+        expect(response.status).toBe(404);
+        expect(response.data).toEqual({
+          message: 'Design with id: non-existent-id was not found'
+        });
+      });
+    });
   }
 });

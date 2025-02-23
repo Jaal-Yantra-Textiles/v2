@@ -49,7 +49,6 @@ const createDesignInventoryLinks = createStep(
   async (input: { design_id: string; inventory_ids: string[] }, { container }) => {
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = []
-    console.log(input)
    input.inventory_ids.map(inventoryId => (
     links.push({
       [DESIGN_MODULE]: {
@@ -63,7 +62,6 @@ const createDesignInventoryLinks = createStep(
         inventory_id: inventoryId
       }
     })))
-    console.log(links)
     await remoteLink.create(links)
     return new StepResponse(links)
   },

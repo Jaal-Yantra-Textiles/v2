@@ -6,6 +6,7 @@ const AddDesignInventoryPage = () => {
     const { id } = useParams()
   return (
     <RouteFocusModal>
+      <RouteFocusModal.Header />
       <DesignInventoryTable designId={id!} />
     </RouteFocusModal>
   );

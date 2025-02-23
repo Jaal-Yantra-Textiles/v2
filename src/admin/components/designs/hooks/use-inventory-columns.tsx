@@ -1,4 +1,4 @@
-import { Text, StatusBadge, createDataTableColumnHelper, DataTableAction, Checkbox } from "@medusajs/ui";
+import { Text, StatusBadge, createDataTableColumnHelper, DataTableAction, Checkbox, Tooltip } from "@medusajs/ui";
 import { PencilSquare, Trash } from "@medusajs/icons";
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +25,7 @@ interface SelectionProps {
   handleSelectAll: (checked: boolean) => void;
   handleRowSelect: (id: string) => void;
   filteredItems: InventoryItem[];
+  linkedItemIds: Set<string>;
 }
 
 export const useInventoryColumns = (selectionProps?: SelectionProps) => {
@@ -68,14 +69,32 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
           />
         </div>
       ),
-      cell: ({ row }) => (
-        <div className="flex justify-center">
+      cell: ({ row }) => {
+        const isLinked = selectionProps.linkedItemIds.has(row.id);
+        const checkbox = (
           <Checkbox
             checked={!!selectionProps.selectedRows[row.id]}
             onCheckedChange={() => selectionProps.handleRowSelect(row.id)}
+            disabled={isLinked}
           />
-        </div>
-      ),
+        );
+
+        if (isLinked) {
+          return (
+            <div className="flex justify-center">
+              <Tooltip content="Already linked to this design">
+                <div>{checkbox}</div>
+              </Tooltip>
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex justify-center">
+            {checkbox}
+          </div>
+        );
+      },
     }) : columnHelper.display({
       id: "select",
       header: () => <div className="flex justify-center"><Checkbox /></div>,
