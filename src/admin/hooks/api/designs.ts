@@ -79,9 +79,13 @@ export const personsQueryKeys = queryKeysFactory(DESIGN_QUERY_KEY);
 
 
 
+export interface DesignQuery {
+  fields?: string[];
+}
+
 export const useDesign = (
   id: string,
-  query?: Record<string, any>,
+  query?: DesignQuery,
   options?: Omit<
     UseQueryOptions<
       AdminDesignResponse,
@@ -97,7 +101,10 @@ export const useDesign = (
     queryFn: async () =>
       sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}`, {
         method: "GET",
-        query,
+        query: {
+          ...query,
+          fields: query?.fields ? query.fields.join(",") : undefined,
+        },
       }),
     ...options,
   });

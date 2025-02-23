@@ -26,7 +26,7 @@ import { contactSchema } from "./admin/persons/[id]/contacts/validators";
 import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
 import * as z from "zod";
 import { rawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
-import { designSchema, UpdateDesignSchema } from "./admin/designs/validators";
+import { designSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
@@ -200,7 +200,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/designs/:id",
       method: "GET",
-      middlewares: [],
+      middlewares: [validateAndTransformQuery(wrapSchema(ReadDesignsQuerySchema), {})],
     },
 
     {

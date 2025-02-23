@@ -9,18 +9,20 @@ import {
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
   
   export type ListDesignsStepInput = {
-    id: string
+    id: string;
+    fields: string[]
   };
   
   export const listSingleDesignStep = createStep(
     "list-single-design-step",
     async (input: ListDesignsStepInput, { container }) => {
       const designService: DesignService = container.resolve(DESIGN_MODULE);
-      
+      console.log(input.fields)
+      input.fields.push('*')
       const query = container.resolve(ContainerRegistrationKeys.QUERY)
       const {data: design} = await query.graph({
         entity: 'designs',
-        fields: ['*', "tasks.*"],
+        fields: input.fields || ['*'],
         filters: {
           id: input.id
         }

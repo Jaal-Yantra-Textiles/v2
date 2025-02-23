@@ -10,7 +10,7 @@ export const refetchDesign = async (
   container: MedusaContainer,
   fields: DesignAllowedFields[] = ["*"]
 ) => {
-
+  console.log(fields)
   const query = container.resolve("query")
   const { data: design } = await query.graph({
     entity: "designs",

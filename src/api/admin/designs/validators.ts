@@ -45,5 +45,14 @@ export const designSchema = z.object({
 
 export const UpdateDesignSchema = designSchema.partial();
 
+export const ReadDesignsQuerySchema = z.object({
+  fields: z.string().optional(),
+  filters: z.object({}).optional(),
+  sort: z.array(z.string()).default(["created_at", "desc"]).optional(),
+  limit: z.number().default(20).optional(),
+  offset: z.number().default(0).optional(),
+})
+
 export type Design = z.infer<typeof designSchema>;
 export type UpdateDesign = z.infer<typeof UpdateDesignSchema>;
+export type ReadDesigns = z.infer<typeof ReadDesignsQuerySchema>;

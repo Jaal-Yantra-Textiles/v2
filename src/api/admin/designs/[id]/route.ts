@@ -13,14 +13,13 @@ import { MedusaError } from "@medusajs/framework/utils";
 export const GET = async (
   req: MedusaRequest & {
     params: { id: string };
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: DesignAllowedFields[];
     };
   },
   res: MedusaResponse
 ) => {
-  const design = await refetchDesign(req.params.id, req.scope, req.remoteQueryConfig?.fields || ["*"])
-
+  const design = await refetchDesign(req.params.id, req.scope, req.queryConfig?.fields || ["*"])
   if (!design) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
@@ -30,6 +29,7 @@ export const GET = async (
     const {result} = await listSingleDesignsWorkflow(req.scope).run({
       input: {
         id: req.params.id,
+        fields: req.queryConfig?.fields || ["*"],
       },
     })
 
