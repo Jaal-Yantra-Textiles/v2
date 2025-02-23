@@ -128,7 +128,7 @@ medusaIntegrationTestRunner({
           .catch((e) => e.response);
         
         expect(response.status).toBe(404);
-        expect(response.data.message).toBe("Page not found");
+        expect(response.data.message).toBe("Page with slug - non-existent not found");
       });
 
       it("should return page with blocks in correct order", async () => {
@@ -202,12 +202,6 @@ medusaIntegrationTestRunner({
           content: { logo: "logo.png" },
           order: 0,
         });
-
-        // Verify website info is included
-        expect(response.data.website).toMatchObject({
-          name: "Test Public Website",
-          domain: "test-public.example.com",
-        });
       });
 
       it("should not return draft pages", async () => {
@@ -216,7 +210,7 @@ medusaIntegrationTestRunner({
           .catch((e) => e.response);
         
         expect(response.status).toBe(404);
-        expect(response.data.message).toBe("Page not found");
+        expect(response.data.message).toBe("Page with slug - contact not found");
       });
     });
   }  

@@ -116,8 +116,8 @@ medusaIntegrationTestRunner({
         expect(response.status).toBe(404);
         console.log(response.data);
         expect(response.data).toEqual({
-          error: 'ValidatorError',
-          issues: 'Design with id "non-existent-id" not found'
+          
+          message: 'Design with id "non-existent-id" not found'
         });
       });
     });

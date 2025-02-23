@@ -167,8 +167,7 @@ medusaIntegrationTestRunner({
 
         expect(response.status).toBe(400)
         expect(response.data).toEqual({
-          error: "ValidatorError",
-          issues: "Invalid request: Value for field 'template_names' too small, expected at least: '1'"
+           message: "Invalid request: Value for field 'template_names' too small, expected at least: '1'"
         })
       })
 
@@ -192,8 +191,7 @@ medusaIntegrationTestRunner({
 
         expect(response.status).toBe(400)
         const error = response.data
-        expect(error.error).toBe("ValidatorError")
-        expect(error.issues).toBe("Invalid request: Expected: 'blocking, non_blocking, subtask, related' for field 'child_tasks, 0, dependency_type', but got: 'invalid_type'")
+        expect(error.message).toBe("Invalid request: Expected: 'blocking, non_blocking, subtask, related' for field 'child_tasks, 0, dependency_type', but got: 'invalid_type'")
       
       })
     })

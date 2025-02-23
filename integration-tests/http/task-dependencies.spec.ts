@@ -242,6 +242,7 @@ medusaIntegrationTestRunner({
 
                 // Verify outgoing dependencies from parent to children
                 const [dep1, dep2] = parentTask.outgoing
+            
                 expect(dep1).toEqual(expect.objectContaining({
                     dependency_type: 'subtask',
                     outgoing_task_id: parentTask.id,

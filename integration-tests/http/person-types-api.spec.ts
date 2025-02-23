@@ -42,7 +42,7 @@ medusaIntegrationTestRunner({
 
         const response = await api.post("/admin/persontypes", invalidPersonType, headers).catch(e => e.response);
         expect(response.status).toBe(400);
-        expect(response.data.issues).toBeDefined();
+        expect(response.data.message).toBeDefined();
       });
     });
 
