@@ -6,6 +6,7 @@ import { useInventoryColumns } from "./hooks/use-inventory-columns";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { useLinkDesignInventory, useDesignInventory } from "../../hooks/api/designs";
 import { toast } from "@medusajs/ui";
+import { RouteFocusModal } from "../modal/route-focus-modal";
 
 
 interface DesignInventoryTableProps {
@@ -215,7 +216,25 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     setIsCommandBarOpen(hasSelections);
   }, [selectedRows]);
 
+  // Add escape key handler to clear selections
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isCommandBarOpen) {
+        setSelectedRows({});
+        setIsCommandBarOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscapeKey);
+    
+    return () => {
+      window.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [isCommandBarOpen]);
+
   return (
+    <RouteFocusModal>
+      <RouteFocusModal.Header></RouteFocusModal.Header>
     <Container className="divide-y p-0">
       <CommandBar open={isCommandBarOpen}>
         <CommandBar.Bar>
@@ -279,6 +298,8 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
+      
     </Container>
+    </RouteFocusModal>
   );
 }

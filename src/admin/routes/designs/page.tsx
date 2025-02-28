@@ -12,7 +12,7 @@ import { useDesignsTableQuery } from "../../hooks/queries/designs/useDesignsTabl
 import { AdminDesign, useDesigns } from "../../hooks/api/designs";
 import { useDesignsTableFilters } from "../../hooks/filters/useDesignsTableFilters";
 import { useDesignsTableColumns } from "../../hooks/columns/useDesignsTableColumns";
-
+import { Outlet } from "react-router-dom"
 const columnHelper = createColumnHelper<AdminDesign>();
 export const useColumns = () => {
   const columns = useDesignsTableColumns();
@@ -80,6 +80,7 @@ const DesignsPage = () => {
   }
 
   return (
+    <div>
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <div>
@@ -106,6 +107,7 @@ const DesignsPage = () => {
         }}
       />
     </Container>
+    </div>
   );
 };
 
@@ -115,3 +117,8 @@ export const config = defineRouteConfig({
   label: "Designs",
   icon: ToolsSolid,
 });
+
+
+export const handle = {
+  breadcrumb: () => "Designs",
+};

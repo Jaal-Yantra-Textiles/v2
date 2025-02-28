@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { UIMatch, useParams } from "react-router-dom";
 import { useDesign } from "../../../hooks/api/designs";
 import { DesignGeneralSection } from "../../../components/designs/design-general-section";
 import { DesignTasksSection } from "../../../components/designs/design-tasks-section";
@@ -34,6 +34,7 @@ const DesignDetailPage = () => {
         data={design}
         showJSON
         showMetadata
+        hasOutlet={true}
       >
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
@@ -43,9 +44,17 @@ const DesignDetailPage = () => {
         <TwoColumnPage.Sidebar>
           <DesignInventorySection design={design} />
           <DesignTasksSection design={design} />
-        </TwoColumnPage.Sidebar>
+        </TwoColumnPage.Sidebar>  
         </TwoColumnPage>
   );
 };
 
 export default DesignDetailPage;
+
+
+export const handle = {
+  breadcrumb: (match: UIMatch<{ id: string }>) => {
+    const { id } = match.params;
+    return `${id}`;
+  },
+};

@@ -1,4 +1,4 @@
-import {   UIMatch, useParams } from "react-router-dom";
+import {   Outlet, UIMatch, useParams } from "react-router-dom";
 import { usePerson } from "../../../hooks/api/persons";
 import { SingleColumnPageSkeleton } from "../../../components/table/skeleton";
 import { SingleColumnPage } from "../../../components/pages/single-column-pages";
@@ -35,7 +35,6 @@ const PersonDetailPage = () => {
   return (
     
     <SingleColumnPage data={person} hasOutlet={true} showJSON showMetadata={true} >
-      
       <PersonGeneralSection person={person} />
       <PersonsAddressSection person={person} />
     </SingleColumnPage>

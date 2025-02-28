@@ -20,6 +20,7 @@ export const GET = async (
   res: MedusaResponse
 ) => {
   const design = await refetchDesign(req.params.id, req.scope, req.queryConfig?.fields || ["*"])
+  
   if (!design) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,

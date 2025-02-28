@@ -1,4 +1,4 @@
-import { PencilSquare, Plus, Trash } from "@medusajs/icons";
+import { PencilSquare } from "@medusajs/icons";
 import {
   Container,
   Heading,
@@ -136,5 +136,6 @@ export function WebsiteGeneralSection({ website }: WebsiteGeneralSectionProps) {
         </Text>
       </div>
     </Container>
+    
   );
 }
