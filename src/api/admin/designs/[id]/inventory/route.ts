@@ -65,8 +65,5 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
       throw errors;
     }
 
-    res.status(200).json({ design: result });
+    res.status(200).json(result);
   };
-  
-  
-  

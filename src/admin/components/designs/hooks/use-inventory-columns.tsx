@@ -82,7 +82,7 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
         if (isLinked) {
           return (
             <div className="flex justify-center">
-              <Tooltip content="Already linked to this design">
+              <Tooltip content="This inventory item is already linked to this design">
                 <div>{checkbox}</div>
               </Tooltip>
             </div>
@@ -134,28 +134,46 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
     columnHelper.accessor((row) => row.raw_materials?.name ?? row.title, {
       id: "name",
       header: "Name",
-      cell: ({ row }) => (
-        <div className="flex flex-col">
-          <Text size="small" leading="compact" weight="plus">
-            {row.original.raw_materials?.name ?? row.original.title}
-          </Text>
-          {row.original.raw_materials && (
-            <Text size="small" leading="compact" className="text-ui-fg-subtle">
-              {row.original.raw_materials.composition}
+      cell: ({ row }) => {
+        const isLinked = selectionProps?.linkedItemIds?.has(row.id);
+        const name = row.original.raw_materials?.name ?? row.original.title;
+        const composition = row.original.raw_materials?.composition;
+        
+        const content = (
+          <div className="flex flex-col">
+            <Text size="small" leading="compact" weight="plus" className={isLinked ? "text-ui-fg-subtle" : ""}>
+              {name}
             </Text>
-          )}
-        </div>
-      ),
+            {row.original.raw_materials && (
+              <Text size="small" leading="compact" className="text-ui-fg-subtle">
+                {composition}
+              </Text>
+            )}
+          </div>
+        );
+        
+        if (isLinked) {
+          return (
+            <Tooltip content="This inventory item is already linked to this design">
+              {content}
+            </Tooltip>
+          );
+        }
+        
+        return content;
+      },
       enableSorting: true,
       sortLabel: "Name",
     }),
     columnHelper.accessor((row) => row.raw_materials?.material_type?.category ?? "N/A", {
       id: "category",
       header: "Category",
-      cell: ({ getValue }) => {
-        const category = getValue();
+      cell: ({ row }) => {
+        const isLinked = selectionProps?.linkedItemIds?.has(row.id);
+        const category = row.original.raw_materials?.material_type?.category ?? "N/A";
+        
         return (
-          <Text size="small" leading="compact" className={category === "N/A" ? "text-ui-fg-subtle" : ""}>
+          <Text className={isLinked ? "text-ui-fg-subtle" : ""}>
             {category}
           </Text>
         );
@@ -163,34 +181,21 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
       enableSorting: true,
       sortLabel: "Category",
     }),
-    columnHelper.accessor((row) => row.raw_materials?.unit_of_measure ?? "N/A", {
-      id: "unit",
-      header: "Unit of Measure",
-      cell: ({ getValue }) => {
-        const unit = getValue();
-        return (
-          <Text size="small" leading="compact" className={unit === "N/A" ? "text-ui-fg-subtle" : ""}>
-            {unit}
-          </Text>
-        );
-      },
-      enableSorting: true,
-      sortLabel: "Unit",
-    }),
-
     columnHelper.accessor((row) => row.raw_materials?.status ?? "N/A", {
       id: "status",
       header: "Status",
-      cell: ({ getValue }) => {
-        const status = getValue();
-        return status !== "N/A" ? (
-          <StatusBadge color={inventoryStatusColor(status)}>
+      cell: ({ row }) => {
+        const isLinked = selectionProps?.linkedItemIds?.has(row.id);
+        const status = row.original.raw_materials?.status ?? "N/A";
+        const statusColor = inventoryStatusColor(status);
+        
+        return (
+          <StatusBadge 
+            color={statusColor} 
+            className={`capitalize ${isLinked ? "opacity-60" : ""}`}
+          >
             {status.replace("_", " ")}
           </StatusBadge>
-        ) : (
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Not Available
-          </Text>
         );
       },
       enableSorting: true,

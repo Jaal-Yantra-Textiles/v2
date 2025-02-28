@@ -135,16 +135,13 @@ medusaIntegrationTestRunner({
           `/admin/designs/${designId}/inventory`,
           headers
         );
-
-        console.log(response.data)
-
         expect(response.status).toBe(200);
-        expect(response.data.design).toBeDefined();
-        expect(Array.isArray(response.data.design.inventory_items)).toBe(true);
-        expect(response.data.design.inventory_items.length).toBe(2);
+        expect(response.data).toBeDefined();
+        expect(Array.isArray(response.data.inventory_items)).toBe(true);
+        expect(response.data.inventory_items.length).toBe(2);
 
         // Check if both inventory items are present
-        const inventoryIds = response.data.design.inventory_items.map(item => item.id);
+        const inventoryIds = response.data.inventory_items.map(item => item.id);
         expect(inventoryIds).toContain(cottonFabricId);
         expect(inventoryIds).toContain(buttonsId);
       });
@@ -160,9 +157,9 @@ medusaIntegrationTestRunner({
         );
 
         expect(response.status).toBe(200);
-        expect(response.data.design).toBeDefined();
-        expect(Array.isArray(response.data.design.inventory_items)).toBe(true);
-        expect(response.data.design.inventory_items).toHaveLength(0);
+        expect(response.data).toBeDefined();
+        expect(Array.isArray(response.data.inventory_items)).toBe(true);
+        expect(response.data.inventory_items).toHaveLength(0);
       });
 
       it("should fail for non-existent design", async () => {

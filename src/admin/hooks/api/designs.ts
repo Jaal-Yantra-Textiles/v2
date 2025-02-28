@@ -75,9 +75,7 @@ export interface AdminDesignsQuery {
 }
 
 const DESIGN_QUERY_KEY = "designs" as const;
-export const personsQueryKeys = queryKeysFactory(DESIGN_QUERY_KEY);
-
-
+export const designQueryKeys = queryKeysFactory(DESIGN_QUERY_KEY);
 
 export interface DesignQuery {
   fields?: string[];
@@ -97,7 +95,7 @@ export const useDesign = (
   >,
 ) => {
   const { data, ...rest } = useQuery({
-    queryKey: personsQueryKeys.detail(id),
+    queryKey: designQueryKeys.detail(id),
     queryFn: async () =>
       sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}`, {
         method: "GET",
@@ -132,7 +130,7 @@ export const useDesigns = (
           query,
         },
       ),
-    queryKey: personsQueryKeys.list(query),
+    queryKey: designQueryKeys.list(query),
     ...options,
   });
   return { ...data, ...rest };
@@ -153,7 +151,7 @@ export const useCreateDesign = (
         body: payload,
       }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,
@@ -176,8 +174,8 @@ export const useUpdateDesign = (
         body: payload,
       }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,
@@ -195,9 +193,9 @@ export const useDeleteDesign = (
         method: "DELETE",
       }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({
-        queryKey: personsQueryKeys.detail(id),
+        queryKey: designQueryKeys.detail(id),
       });
       options?.onSuccess?.(data, variables, context);
     },
@@ -226,7 +224,7 @@ export const useDesignInventory = (
   >,
 ) => {
   return useQuery({
-    queryKey: personsQueryKeys.detail(id, ["inventory"]),
+    queryKey: designQueryKeys.detail(id, ["inventory"]),
     queryFn: async () =>
       sdk.client.fetch<DesignInventoryResponse>(`/admin/designs/${id}/inventory`, {
         method: "GET",
@@ -251,8 +249,8 @@ export const useLinkDesignInventory = (
         body: data,
       }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,

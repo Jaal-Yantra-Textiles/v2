@@ -1,4 +1,4 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Checkbox, CommandBar } from "@medusajs/ui";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Checkbox, CommandBar, Tooltip } from "@medusajs/ui";
 import { useInventoryItems, InventoryItem } from "../../hooks/api/raw-materials";
 import { ActionMenu } from "../common/action-menu";
 import { Plus } from "@medusajs/icons";
@@ -61,7 +61,26 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
   }
   // Fetch linked inventory items
   const { data: linkedInventory, isLoading: isLoadingLinked } = useDesignInventory(designId);
-  const linkedItemIds = useMemo(() => new Set(linkedInventory?.inventory_items || []), [linkedInventory]);
+  
+  
+  // Create a Set of just the IDs from linked inventory items
+  const linkedItemIds = useMemo(() => {
+    if (!linkedInventory?.inventory_items || !Array.isArray(linkedInventory.inventory_items)) {
+      return new Set<string>();
+    }
+    
+    // Define a type for the inventory item that can be either a string or an object with an id
+    type InventoryItemOrId = string | { id: string; [key: string]: any };
+    
+    // Extract just the IDs from the inventory items
+    return new Set(
+      linkedInventory.inventory_items.map((item: InventoryItemOrId) => 
+        typeof item === 'string' ? item : item.id
+      )
+    );
+  }, [linkedInventory]);
+
+  
 
   const { inventory_items = [], isLoading: isLoadingItems } = useInventoryItems({
     fields: "+raw_materials.*, +raw_materials.material_type.*"
@@ -192,7 +211,13 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     getRowId: (row) => row.id,
     rowCount: filteredItems.length,
     onRowClick: (_, row) => {
-     // navigate(`/designs/${designId}/inventory/${row.id}`);
+      // Only handle selection for non-linked items
+      const rowId = row.id as string;
+      
+      // Check if the item is in the linkedItemIds Set
+      if (!linkedItemIds.has(rowId)) {
+        handleRowSelect(rowId);
+      }
     },
     isLoading,
     filters,
@@ -210,6 +235,25 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     },
   });
 
+  // Add styling for linked items
+  useEffect(() => {
+    // Add a style element for linked inventory items
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+      .linked-inventory {
+        background-color: #f8f9fa !important;
+      }
+      .linked-inventory:hover {
+        background-color: #f8f9fa !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+    
+    return () => {
+      document.head.removeChild(styleEl);
+    };
+  }, []);
+
   // Update command bar visibility when selections change
   useEffect(() => {
     const hasSelections = Object.keys(selectedRows).length > 0;
@@ -220,12 +264,19 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isCommandBarOpen) {
+        // Clear all selections
         setSelectedRows({});
         setIsCommandBarOpen(false);
+        
+        // Prevent default behavior to avoid conflicts with other handlers
+        event.preventDefault();
       }
     };
 
-    window.addEventListener('keydown', handleEscapeKey);
+    // Add the event listener when the command bar is open
+    if (isCommandBarOpen) {
+      window.addEventListener('keydown', handleEscapeKey);
+    }
     
     return () => {
       window.removeEventListener('keydown', handleEscapeKey);
@@ -298,7 +349,6 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
-      
     </Container>
     </RouteFocusModal>
   );
