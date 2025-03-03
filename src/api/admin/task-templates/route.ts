@@ -12,7 +12,7 @@ import { TaskTemplateAllowedFields, refetchTaskTemplate } from "./helpers";
 export const POST = async (
   req: MedusaRequest<TaskTemplate> & {
     remoteQueryConfig?: {
-      fields?: TaskTemplateAllowedFields[];
+      fields?: string[] | TaskTemplateAllowedFields[];
     };
   },
   res: MedusaResponse,
@@ -30,7 +30,7 @@ export const POST = async (
   const template = await refetchTaskTemplate(
     result.id,
     req.scope,
-    req.remoteQueryConfig?.fields || ["*"],
+    ["*","category.*"],
   );
 
   res.status(201).json({ task_template: template });
@@ -49,7 +49,7 @@ export const GET = async (
       expand?: string[];
     };
     remoteQueryConfig?: {
-      fields?: TaskTemplateAllowedFields[];
+      fields?: string[] | TaskTemplateAllowedFields[];
     };
   },
   res: MedusaResponse

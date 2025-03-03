@@ -45,9 +45,14 @@ export const updateTaskTemplateStep = createStep(
         let existingCategory: any;
         
         try {
-          existingCategory = await taskService.restoreTaskCategories({
+          const categories = await taskService.listTaskCategories({
             name: categoryName
           });
+          
+          // Check if we got any results
+          if (categories && categories.length > 0) {
+            existingCategory = categories[0];
+          }
         } catch (error) {
           // Category not found, will create a new one
         }

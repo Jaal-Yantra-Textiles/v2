@@ -1,6 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
-import { resolve } from "path"
+
 
 jest.setTimeout(30000)
 
@@ -34,10 +34,7 @@ const patternMakingTemplate = {
     type: "technical",
     department: "pattern_making"
   },
-  category: {
-    name: "Pattern Development",
-    description: "Tasks related to pattern creation and grading"
-  }
+  category: "Pattern Development"
 }
 
 const sampleTaskPayload = {

@@ -1,7 +1,6 @@
 import { MedusaContainer } from "@medusajs/framework/types";
 import {
   ContainerRegistrationKeys,
-  remoteQueryObjectFromString,
 } from "@medusajs/framework/utils";
 
 export type TaskTemplateAllowedFields =
@@ -9,6 +8,7 @@ export type TaskTemplateAllowedFields =
   | "name"
   | "description"
   | "category"
+  | "category_id"
   | "estimated_duration"
   | "priority"
   | "required_fields"
@@ -20,21 +20,27 @@ export type TaskTemplateAllowedFields =
   | "updated_at"
   | "deleted_at"
   | "*"
-  | "category.*";
+  | "category.*"
+  | "category.id"
+  | "category.name"
+  | "category.description"
+  | "category.metadata"
+  | "category.created_at"
+  | "category.updated_at"
+  | "category.deleted_at";
 
 export const refetchTaskTemplate = async (
   templateId: string,
   scope: MedusaContainer,
-  fields: TaskTemplateAllowedFields[] = ["*"],
+  fields: string[] | TaskTemplateAllowedFields[] = ["*","category.*" ],
 ) => {
-  const remoteQuery = scope.resolve(ContainerRegistrationKeys.REMOTE_QUERY);
-  const queryObject = remoteQueryObjectFromString({
-    entryPoint: "task_template",
-    variables: {
-      filters: { id: templateId },
+  const remoteQuery = scope.resolve(ContainerRegistrationKeys.QUERY);
+  const templates = await remoteQuery.graph({
+    entity: 'task_templates',
+    filters: {
+      id: templateId
     },
-    fields: fields,
+    fields: fields
   });
-  const templates = await remoteQuery(queryObject);
-  return templates[0];
+  return templates.data[0];
 };

@@ -25,7 +25,7 @@ export const createTaskTemplateStep = createStep(
   "create-task-template-step",
   async (input: CreateTaskTemplateInput, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
-   
+    
     const template = await taskService.createTaskTemplates({
       ...input,
     });
@@ -38,10 +38,64 @@ export const createTaskTemplateStep = createStep(
   }
 );
 
+export const checkCategory = createStep(
+  "check-category",
+  async (input: CreateTaskTemplateInput, { container }) => {
+    const taskService: TaskService = container.resolve(TASKS_MODULE);
+    let category;
+    
+    // Check for existing category using either category_id or category name
+    if (input.category_id) {
+      try {
+        category = await taskService.retrieveTaskCategory(input.category_id);
+      } catch (error) {
+        // Category not found by ID
+      }
+    } else if (input.category) {
+      try {
+        const categories = await taskService.listTaskCategories({
+          name: input.category
+        });
+        
+        if (categories && categories.length > 0) {
+          category = categories[0];
+        }
+      } catch (error) {
+        // No categories found by name
+      }
+    }
+    
+    // Create new category if none found
+    if (!category && input.category) {
+      category = await taskService.createTaskCategories({
+        name: input.category
+      });
+      
+      // Update input with new category_id
+      input.category_id = category.id;
+    }
+    
+    // Remove category field as we're using category_id
+    if (input.category && input.category_id) {
+      delete input.category;
+    }
+    
+    return new StepResponse(input);
+  }
+)
+
 export const createTaskTemplateWorkflow = createWorkflow(
-  "create-task-template",
+  {
+    name: "create-task-template",
+    store: true
+  },
   (input: CreateTaskTemplateInput) => {
-    const result = createTaskTemplateStep(input);
+    // First check/create category if needed
+    const inputWithCategory = checkCategory(input);
+    
+    // Then create the template with the processed input
+    const result = createTaskTemplateStep(inputWithCategory);
+    
     return new WorkflowResponse(result);
   }
 );

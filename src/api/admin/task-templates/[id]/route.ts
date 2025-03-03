@@ -13,7 +13,7 @@ export const GET = async (
   req: MedusaRequest & {
     params: { id: string };
     remoteQueryConfig?: {
-      fields?: TaskTemplateAllowedFields[];
+      fields?: string[] | TaskTemplateAllowedFields[];
     };
   },
   res: MedusaResponse
@@ -39,7 +39,7 @@ export const PUT = async (
   req: MedusaRequest<UpdateTaskTemplate> & {
     params: { id: string };
     remoteQueryConfig?: {
-      fields?: TaskTemplateAllowedFields[];
+      fields?: string[] | TaskTemplateAllowedFields[];
     };
   },
   res: MedusaResponse,
@@ -59,7 +59,7 @@ export const PUT = async (
   const template = await refetchTaskTemplate(
     req.params.id,
     req.scope,
-    req.remoteQueryConfig?.fields || ["*","category.*"],
+    ["*","category.*", "category.name"],
   );
 
 

@@ -20,13 +20,7 @@ const bugFixTemplate = {
     type: "technical",
     team: "engineering"
   },
-  category: {
-    name: "Bug Fixes",
-    description: "Tasks related to fixing bugs in the application",
-    metadata: {
-      priority: "high"
-    }
-  }
+  category: "Bug Fixes"
 };
 
 const featureTemplate = {
@@ -46,13 +40,7 @@ const featureTemplate = {
     type: "feature",
     team: "product"
   },
-  category: {
-    name: "Feature Templates",
-    description: "Tasks related to feature development",
-    metadata: {
-      priority: "medium"
-    }
-  }
+  category: 'Feature Templates'
 };
 
 medusaIntegrationTestRunner({
@@ -168,6 +156,9 @@ medusaIntegrationTestRunner({
         expect(response.data.task_template).toMatchObject({
           ...bugFixTemplate,
           id: bugFixTemplateId,
+          category: {
+            name: bugFixTemplate.category
+          }
         });
       });
 
@@ -181,6 +172,9 @@ medusaIntegrationTestRunner({
         expect(response.data.task_template).toMatchObject({
           ...featureTemplate,
           id: featureTemplateId,
+          category: {
+            name: featureTemplate.category
+          }
         });
       });
 
@@ -216,7 +210,10 @@ medusaIntegrationTestRunner({
         expect(response.data.task_template).toMatchObject({
           ...bugFixTemplate,
           ...updateData,
-          id: bugFixTemplateId
+          id: bugFixTemplateId,
+          category: {
+            name: bugFixTemplate.category
+          }
         });
       });
 
@@ -236,7 +233,10 @@ medusaIntegrationTestRunner({
         expect(response.data.task_template).toMatchObject({
           ...featureTemplate,
           ...updateData,
-          id: featureTemplateId
+          id: featureTemplateId,
+          category: {
+            name: featureTemplate.category
+          }
         });
       });
 
@@ -249,6 +249,163 @@ medusaIntegrationTestRunner({
           )
           .catch((err) => err.response);
         expect(response.status).toBe(404);
+      });
+      
+      it("should create a template with an existing category", async () => {
+        // First get the existing template to fetch its category ID
+        const getTemplateResponse = await api.get(
+          `/admin/task-templates/${bugFixTemplateId}`,
+          headers
+        );
+        
+        expect(getTemplateResponse.status).toBe(200);
+        const existingCategoryId = getTemplateResponse.data.task_template.category.id;
+        
+        // Create a template using the category ID from the existing template
+        const templateWithExistingCategory = {
+          name: "Template with Existing Category",
+          description: "This template uses an existing category",
+          priority: "medium",
+          eventable: true,
+          notifiable: true,
+          estimated_duration: 120,
+          metadata: {
+            type: "documentation",
+            team: "technical_writing"
+          },
+          category_id: existingCategoryId // Using existing category ID directly
+        };
+        
+        const response = await api.post(
+          "/admin/task-templates",
+          templateWithExistingCategory,
+          headers
+        );
+        console.log("response", response.data)
+        expect(response.status).toBe(201);
+        expect(response.data.task_template).toMatchObject({
+          ...templateWithExistingCategory,
+          category: {
+            id: existingCategoryId,
+            name: getTemplateResponse.data.task_template.category.name
+          }
+        });
+        
+        // Store the ID for later tests
+        const templateWithExistingCategoryId = response.data.task_template.id;
+        
+        // Verify the category ID matches the existing one
+        const getExistingResponse = await api.get(
+          `/admin/task-templates/${templateWithExistingCategoryId}`,
+          headers
+        );
+        
+        // Category IDs should match since we're using the same ID
+        expect(getExistingResponse.data.task_template.category.id)
+          .toBe(existingCategoryId);
+      });
+      
+      it("should update a template's category by name", async () => {
+        // First create a template
+        const templateToUpdate = {
+          name: "Template for Category Update",
+          description: "This template will have its category updated",
+          priority: "low",
+          category: "Initial Category"
+        };
+        
+        const createResponse = await api.post(
+          "/admin/task-templates",
+          templateToUpdate,
+          headers
+        );
+        
+        expect(createResponse.status).toBe(201);
+        const templateId = createResponse.data.task_template.id;
+        const initialCategoryId = createResponse.data.task_template.category.id;
+        
+        // Update the template with a new category name
+        const updateData = {
+          category: "Updated Category"
+        };
+        
+        const updateResponse = await api.put(
+          `/admin/task-templates/${templateId}`,
+          updateData,
+          headers
+        );
+        
+        expect(updateResponse.status).toBe(200);
+        expect(updateResponse.data.task_template.category.name).toBe("Updated Category");
+        
+        // Verify the update persisted and category ID changed
+        const getResponse = await api.get(
+          `/admin/task-templates/${templateId}`,
+          headers
+        );
+        
+        expect(getResponse.data.task_template.category.name).toBe("Updated Category");
+        expect(getResponse.data.task_template.category.id).not.toBe(initialCategoryId);
+      });
+      
+      it("should update a template's category by ID", async () => {
+        // First create a new category
+        // Since we don't have direct category API access, we'll create a template with this category
+        const categoryTemplate = {
+          name: "Category Reference Template",
+          description: "This template creates a category we can reference",
+          category: "Reference Category"
+        };
+        
+        const categoryCreationResponse = await api.post(
+          "/admin/task-templates",
+          categoryTemplate,
+          headers
+        );
+        
+        expect(categoryCreationResponse.status).toBe(201);
+        const referenceCategoryId = categoryCreationResponse.data.task_template.category.id;
+        
+        // Now create our test template
+        const templateToUpdate = {
+          name: "Template for Category ID Update",
+          description: "This template will have its category updated by ID",
+          priority: "low",
+          category: "Another Category"
+        };
+        
+        const createResponse = await api.post(
+          "/admin/task-templates",
+          templateToUpdate,
+          headers
+        );
+        
+        expect(createResponse.status).toBe(201);
+        const templateId = createResponse.data.task_template.id;
+        const initialCategoryId = createResponse.data.task_template.category.id;
+        
+        // Update the template with an existing category ID
+        const updateData = {
+          category_id: referenceCategoryId
+        };
+        
+        const updateResponse = await api.put(
+          `/admin/task-templates/${templateId}`,
+          updateData,
+          headers
+        );
+        
+        expect(updateResponse.status).toBe(200);
+        
+        // Verify the update persisted
+        const getResponse = await api.get(
+          `/admin/task-templates/${templateId}`,
+          headers
+        );
+        
+        expect(getResponse.data.task_template.category.id).toBe(referenceCategoryId);
+        expect(getResponse.data.task_template.category.name).toBe("Reference Category");
+        expect(getResponse.data.task_template.category.id).not.toBe(initialCategoryId);
       });
     });
 

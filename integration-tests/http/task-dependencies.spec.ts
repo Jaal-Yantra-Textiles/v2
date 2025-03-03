@@ -33,10 +33,7 @@ const researchTemplate = {
         type: "research",
         department: "design"
     },
-    category: {
-        name: "Market Research",
-        description: "Tasks related to market analysis"
-    }
+    category: "Market Research"
 }
 
 const designTemplate = {
@@ -54,10 +51,7 @@ const designTemplate = {
         type: "design",
         department: "design"
     },
-    category: {
-        name: "Design Creation",
-        description: "Tasks related to design development"
-    }
+    category: "Design Creation"
 }
 
 const patternTemplate = {
@@ -75,10 +69,7 @@ const patternTemplate = {
         type: "technical",
         department: "pattern"
     },
-    category: {
-        name: "Pattern Development",
-        description: "Tasks related to pattern creation"
-    }
+    category: "Pattern Development"
 }
 
 medusaIntegrationTestRunner({

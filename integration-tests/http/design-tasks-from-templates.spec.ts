@@ -33,10 +33,7 @@ const patternMakingTemplate = {
     type: "technical",
     department: "pattern_making"
   },
-  category: {
-    name: "Pattern Development",
-    description: "Tasks related to pattern creation and grading"
-  }
+  category: "Pattern Development"
 }
 
 const fabricSourcingTemplate = {
@@ -55,10 +52,7 @@ const fabricSourcingTemplate = {
     type: "sourcing",
     department: "materials"
   },
-  category: {
-    name: "Material Sourcing",
-    description: "Tasks related to fabric and material sourcing"
-  }
+  category: "Material Sourcing"
 }
 
 const productionPlanningTemplate = {
@@ -76,10 +70,7 @@ const productionPlanningTemplate = {
     type: "planning",
     department: "production"
   },
-  category: {
-    name: "Production Planning",
-    description: "Tasks related to production planning and scheduling"
-  }
+  category: "Production Planning"
 };
 
 const qualityControlTemplate = {
@@ -97,10 +88,7 @@ const qualityControlTemplate = {
     type: "quality",
     department: "quality_control"
   },
-  category: {
-    name: "Quality Control",
-    description: "Tasks related to quality assurance"
-  }
+  category: "Quality Control"
 };
 
 medusaIntegrationTestRunner({
