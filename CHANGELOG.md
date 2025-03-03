@@ -1,3 +1,29 @@
+# [3.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v2.0.0...v3.0.0) (2025-03-03)
+
+
+### Bug Fixes
+
+* **Fixed Design Page:** Design page now show the all the data required for displaying ([d5b8ddb](https://github.com/Jaal-Yantra-Textiles/v2/commit/d5b8ddb6b33f44bf0136d0020dea41b68ebe6a10))
+* **Raw Material UI:** Fixed raw material UI and type issues ([8f44ab6](https://github.com/Jaal-Yantra-Textiles/v2/commit/8f44ab6750859915fb8f05f4dd84bc2b5be5a7e1))
+* Middleware, UI Fix, Edit For Page , Workflow Fixes ([39c58c2](https://github.com/Jaal-Yantra-Textiles/v2/commit/39c58c293f56b225bb2b8a829c89b78033209221))
+* **test user random:** Now we have randomly generated user for tests with unique emails ([7581cf0](https://github.com/Jaal-Yantra-Textiles/v2/commit/7581cf09b06bc33af5f6a8673d86b850727aec5d))
+
+
+### Features
+
+* **Add inventory from the design now:** Add inventory from the design now ([307fc71](https://github.com/Jaal-Yantra-Textiles/v2/commit/307fc71c37dd0c62549d4b6fda915cde2ab91938))
+* **2:** Jyt-AI for automating basic stuff choosing the Mastra.AI for all that relying on the OPEN AI for now ([b564de7](https://github.com/Jaal-Yantra-Textiles/v2/commit/b564de71ca4ad044d5e3270d2b4fc6c180358bd0))
+
+
+### Tests
+
+* **API tests:** API tests for the Inventory Linking Full Coverage done. ([feb406d](https://github.com/Jaal-Yantra-Textiles/v2/commit/feb406dc1504df08a752a15d499827dd41cf9706))
+
+
+### BREAKING CHANGES
+
+* **API tests:** API inventory
+
 # [2.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v1.2.0...v2.0.0) (2025-02-16)
 
 
