@@ -1,58 +1,70 @@
-# Textile Production & Design Pipeline (TP/DP)
+# Medo: Textile Production Workflow Platform
 
 [![Test and Release](https://github.com/Jaal-Yantra-Textiles/v2/actions/workflows/test-and-release.yml/badge.svg)](https://github.com/Jaal-Yantra-Textiles/v2/actions/workflows/test-and-release.yml)
 
-**A modern, open-source platform built on [MedusaJS](https://docs.medusajs.com/) to unify pre-production, production, and post-production workflows in the textile industry.**  
-TPDP streamlines communication and collaboration between **designers**, **suppliers**, and **customers**—closing the loop on all stages of textile development and manufacturing.
+<p align="center">
+  <img src="design.gif" alt="Medo Design Workflow" width="100%">
+</p>
+
+**A specialized, open-source platform built on [MedusaJS](https://docs.medusajs.com/) that unifies textile and garment production workflows from design to delivery.**
+
+Medo streamlines communication and collaboration among textile designers, manufacturers, suppliers, and stakeholders—creating a single source of truth for your entire production pipeline.
 
 ## Overview
 
-1. Label using this technology is reserved for [cicilabel(cicilabel)](https://cicilabel.com).
+Textile and garment manufacturing involves numerous interconnected processes: design conceptualization, pattern making, material sourcing, dyeing, cutting, assembly, quality control, and distribution. Disconnected systems and communication gaps between these stages lead to inefficiencies, errors, and delayed deliveries.
 
-Textile manufacturing involves numerous moving parts: design specs, sourcing raw materials, dyeing, cutting, assembly, quality control, shipping, and more. Miscommunication and disconnected systems can lead to delays, errors, and added costs.
+Medo solves these challenges by bringing everyone in the textile production chain—**designers**, **pattern makers**, **suppliers**, **manufacturers**, **quality control**, and **distributors**—into a unified platform. Built on top of **MedusaJS**, Medo provides industry-specific tracking that follows each garment from concept to consumer.
 
-TPDP seeks to solve these challenges by bringing **all** stakeholders—**designers**, **suppliers**, **manufacturers**, **clients**, etc.—into a single, accessible platform. Built on top of **MedusaJS**, TPDP provides a modular approach that can be customized and extended to fit unique business processes.
-
-> **TL;DR**: **TPDP** is your single source of truth for tracking and managing the life cycle of textile designs, from concept to consumer.
+> **TL;DR**: Medo is your single source of truth for tracking, automating, and managing the entire textile production lifecycle with unprecedented detail and visibility.
 
 ---
 
-## Features
+## Key Modules
 
-### 1. Person Module
-Store and manage data for **suppliers**, **designers**, **vendors**, **logistics partners**, and more in one place.  
-- Centralize **contact information**, **roles** (supplier, designer, etc.), and **metadata** about each stakeholder.  
-- Maintain a complete address and contact history.  
-- Flexible architecture allows for future enhancements like rating suppliers or tracking compliance information.
+### 1. Task Templates & Categories
+Design reusable task blueprints with structured metadata and categorization.
+- Create templates with consistent **requirements**, **priorities**, and **durations**
+- Organize tasks into logical categories for better workflow management
+- Add custom metadata for industry-specific requirements
 
-### 2. Design Module
-Track the **pre-production** and **post-production** lifecycle of a design.  
-- Create detailed records of **design specs**, **colors**, **materials**, and **planned timelines**.  
-- Monitor **production stages**: from **dyeing**, **cutting**, **assembly**, to **final QA** and shipping.  
-- View **movement of stocks** (raw materials to finished goods) in real-time.  
-- Generate or import **technical packets** and **BOM (Bill of Materials)**.
+### 2. Task Management & Dependencies
+Track the full lifecycle of tasks from creation to completion.
+- Build complex workflows with **parent-child relationships** and dependencies
+- Monitor task progress with status tracking and notifications
+- Assign tasks to team members and partners
 
-### 3. Extensible Architecture (Powered by MedusaJS)
-TPDP is modular by design:
-- **MedusaJS** provides a robust foundation of APIs and service layers.
-- You can easily add or remove modules (e.g., **Inventory**, **Sales**, **Finance**) to suit your workflow.
-- Built-in **ORM** integrations, migrations, and advanced relationships support.
+### 3. Person & Partner Management
+Store and manage data for team members, partners, vendors, and more in one place.
+- Centralize **contact information**, **roles**, and **metadata** about each stakeholder
+- Maintain complete address and contact history
+- Assign tasks and track performance metrics
 
-### 4. Roadmap & Coming Soon
-- **Inventory & Stock Management**: Extended functionality to link Design with real-time warehouse data.  
-- **Quality Control**: A module to log QC checks, defects, and related documentation.  
-- **Collaborative Design Feedback**: Let clients comment on designs, request changes, and approve final specs.  
-- **Analytics & Reporting**: Generate dashboards that track production milestones, supplier performance, and costs.
+### 4. Textile Design & Production Tracking
+Manage the complete lifecycle of textile and garment designs with industry-specific tools.
+- Create detailed records of design specs, color palettes, materials, and technical drawings
+- Monitor production stages including pattern making, cutting, dyeing, stitching, and finishing
+- Track material consumption, wastage, and efficiency metrics
+- Generate comprehensive technical packets and bill of materials (BOM)
 
-We plan to **launch a public beta** in **2–3 weeks**, but we’ll continue iterating on new modules and features based on community feedback.  
+### 5. Website & Content Management
+Manage your online presence with integrated content tools.
+- Create and publish blogs and pages
+- Customize content with flexible block structure
+- Integrated with your workflow systems
 
 ---
 
-## Why TPDP?
+## Why Choose Medo?
 
-1. **Closes the Gap** between pre-production (design, planning) and post-production (quality checks, distribution).  
-2. **Unifies Communications** by keeping all parties’ data—**designers, suppliers, customers, and more**—within the same interface.  
-3. **Flexible & Extendable** thanks to MedusaJS. Whether you’re a small design studio or a large-scale textile manufacturer, you can customize the modules to fit your operations.
+1. **Textile-Specific Workflows**: Purpose-built for the unique needs of textile and garment production
+2. **End-to-End Traceability**: Follow each design from concept sketch to finished garment with detailed tracking
+3. **Supply Chain Integration**: Connect designers, material suppliers, manufacturers, and distributors in one system
+4. **Quality Control**: Built-in processes for textile-specific quality assurance and compliance
+5. **Production Optimization**: Identify bottlenecks and inefficiencies with specialized metrics for textile manufacturing
+6. **Extensible Architecture**: Thanks to MedusaJS, you can easily expand functionality to meet your specific production needs
+7. **Partner Mobile App**: Empower your production partners to choose, start and finish tasks directly from their mobile devices for real-time visibility
+8. **Integrated E-commerce**: As a designer, launch your own e-commerce store without the overhead of building and maintaining a separate website
 
 ---
 
@@ -68,42 +80,51 @@ We plan to **launch a public beta** in **2–3 weeks**, but we’ll continue ite
    cd v2
    yarn install
    ```
-   or
-   ```bash
-   npm install
-   ```
 
 3. **Set Up Environment**  
    - Copy `.env.template` to `.env`  
-   - Fill in your database credentials and other required environment variables.
+   - Fill in your database credentials and other required environment variables
 
 4. **Run Migrations**  
    ```bash
    yarn medusa migrations run
    ```
-   This ensures your database schema is up-to-date for the Person and Design modules.
 
 5. **Start the Server**  
    ```bash
    yarn start
    ```
-   TPDP will be accessible on the configured port (e.g., `localhost:9000`).
+   Medo will be accessible on the configured port (e.g., `localhost:9000`)
 
 ---
 
-## Integration Tests
+## API Structure
 
-We rely on **integration tests** to validate that each module (e.g., **Person** and **Design**) works correctly, from creating records to associating them.  
+Medo provides a comprehensive set of RESTful APIs:
 
-### Person Module Tests
-- Ensures that **suppliers**, **designers**, and other stakeholder types can be created, retrieved, and updated.  
-- Validates **relationships** (e.g., linking a Person to a specific design or production order).  
+- **/admin/task-templates**: Create and manage task templates and categories
+- **/admin/tasks**: Handle task creation, assignment, and status updates
+- **/admin/persons**: Manage stakeholders and their information
+- **/admin/designs**: Track design and production processes
+- **/admin/websites**: Manage website content and blocks
+- **/partners**: Partner-specific endpoints for task management
+
+All APIs follow consistent patterns with proper validation and error handling.
+
+---
+
+## Testing
+
+We prioritize thorough testing to ensure reliability:
+
+- **Integration Tests**: Validate that each module works correctly with real data flows
+- **API Tests**: Confirm that all endpoints handle requests and responses properly
+- **Workflow Tests**: Ensure complex business processes execute as expected
 
 Run tests with:  
 ```bash
 yarn test
 ```
-*(We will soon provide a detailed test coverage report.)*
 
 ---
 
@@ -111,26 +132,26 @@ yarn test
 
 We welcome community contributions. Whether you want to fix a bug, add a feature, or propose a new module, feel free to:
 
-1. Fork this repo.  
+1. Fork this repo  
 2. Create a new branch: `git checkout -b feature/new-module`  
 3. Commit your changes: `git commit -m 'Add new module'`  
 4. Push to the branch: `git push origin feature/new-module`  
-5. Open a **Pull Request**.
+5. Open a **Pull Request**
 
 ---
 
 ## License
 
-TPDP is released under the [MIT License](LICENSE). You’re free to use, modify, and distribute this software for both commercial and non-commercial purposes.
+Medo is released under the [MIT License](LICENSE). You're free to use, modify, and distribute this software for both commercial and non-commercial purposes.
 
 ---
 
 ## Contact
 
-- **Issues & Requests**: Submit an [issue on GitHub](https://github.com/Jaal-Yantra-Textiles/v2/issues).  
-- **Discussions**: Share your ideas or questions in [GitHub Discussions](https://github.com/Jaal-Yantra-Textiles/v2).  
-- **Email**: info@jaalyantra.com (for more detailed inquiries)
+- **Issues & Requests**: Submit an [issue on GitHub](https://github.com/Jaal-Yantra-Textiles/v2/issues)  
+- **Discussions**: Share your ideas or questions in [GitHub Discussions](https://github.com/Jaal-Yantra-Textiles/v2)  
+- **Email**: info@medo.dev (for more detailed inquiries)
 
-We’re excited to see how you use TPDP to optimize your textile pipeline—from pre-production concepts to post-production logistics. Stay tuned for more modules and updates as we approach our official launch! 
+We're excited to see how you use Medo to optimize your workflows and processes. Stay tuned for more modules and updates!
 
-**Happy Designing & Producing!**
+**Start automating your textile workflows today!**
