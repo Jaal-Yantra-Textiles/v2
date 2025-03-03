@@ -66,10 +66,10 @@ const setTransactionID = createStep(
        })
        return new StepResponse(task, task.id)
     },
-    async (_, { container }) => {
+    async (task, { container }) => {
         const taskService = container.resolve(TASKS_MODULE);
          await taskService.updateTasks({
-            id: _.id,
+            id: task,
             transaction_id: null
         })
     }

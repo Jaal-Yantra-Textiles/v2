@@ -6,7 +6,7 @@ import {
   } from "@medusajs/framework/workflows-sdk";
   import { DESIGN_MODULE } from "../../modules/designs";
   import DesignService from "../../modules/designs/service";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
   
   export type ListDesignsStepInput = {
     id: string;
@@ -17,7 +17,6 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
     "list-single-design-step",
     async (input: ListDesignsStepInput, { container }) => {
       const designService: DesignService = container.resolve(DESIGN_MODULE);
-      console.log(input.fields)
       input.fields.push('*')
       const query = container.resolve(ContainerRegistrationKeys.QUERY)
       const {data: design} = await query.graph({
@@ -27,6 +26,13 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
           id: input.id
         }
       })
+      if (!design[0]) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_FOUND,
+          `Design with id ${input.id} was not found`
+        )
+      }
+      console.log("Design at the workflow",design[0])
       return new StepResponse(design[0], design[0]?.id);
     },
   );

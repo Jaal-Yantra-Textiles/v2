@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";
 import { setStepSuccessWorkflow } from "../../../../../workflows/tasks/task-engine/task-steps";
+import { Status } from "../../../../../workflows/tasks/create-task";
 
 export async function POST(
     req: AuthenticatedMedusaRequest,
@@ -13,7 +14,7 @@ export async function POST(
         input: {
             id: taskId,
             update:{
-                status: "completed"
+                status: Status.completed
             }
         }
     })

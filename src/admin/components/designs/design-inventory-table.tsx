@@ -1,4 +1,4 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Checkbox, CommandBar, Tooltip } from "@medusajs/ui";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, CommandBar } from "@medusajs/ui";
 import { useInventoryItems, InventoryItem } from "../../hooks/api/raw-materials";
 import { ActionMenu } from "../common/action-menu";
 import { Plus } from "@medusajs/icons";

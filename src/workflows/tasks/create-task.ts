@@ -9,14 +9,34 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import TaskService from "../../modules/tasks/service";
 import { TASKS_MODULE } from "../../modules/tasks";
-import { Task } from "../../../.medusa/types/query-entry-points";
+import { InferTypeOf } from "@medusajs/framework/types"
+import Task  from "../../modules/tasks/models/task" // relative path to the model
 
+export type Task = InferTypeOf<typeof Task>
+
+/**
+ * This workflow needs Compen Function
+ */
+
+export enum Status {
+  pending = "pending",
+  in_progress = "in_progress",
+  completed = "completed",
+  cancelled = "cancelled",
+  accepted = "accepted",
+}
+
+export enum PriorityLevel {
+  low = "low",
+  medium = "medium",
+  high = "high",
+}
 
 type CreateTaskStepInput = {
   title?: string;
   description?: string;
-  status?: string;
-  priority?: string;
+  status?: Status;
+  priority?: PriorityLevel;
   due_date?: Date;
   assignee_id?: string;
   template_names?: string[];  // Optional template names to create task from
@@ -88,21 +108,35 @@ export const createTaskWithParentStep = createStep(
           title: childTask.title || `Child Task ${childTasks.length + 1}`,
           start_date: childTask.start_date || new Date(),
           status: childTask.status || "pending",
-          priority: childTask.priority || parentTask[0].priority || "medium",
-          parent_task: parentTask[0].id,
+          priority: childTask.priority || (Array.isArray(parentTask) ? parentTask[0].priority : parentTask.priority) || "medium",
+          parent_task: Array.isArray(parentTask) ? parentTask[0].id : parentTask.id,
           dependency_type: input.originalInput.dependency_type
         };
 
         // Use template if available for this child task
         if (input.child_template_ids && input.child_template_ids[index]) {
-          const child = await taskService.createTaskWithTemplates({
+          const createdTasks = await taskService.createTaskWithTemplates({
             ...childTaskData,
             template_ids: input.child_template_ids[index]
           });
-          childTasks.push(child);
+          
+          if (Array.isArray(createdTasks)) {
+            createdTasks.forEach((task: Task) => {
+              childTasks.push(task);
+            });
+          } else {
+            childTasks.push(createdTasks as Task);
+          }
         } else {
-          const child = await taskService.createTasks(childTaskData);
-          childTasks.push(child);
+          const createdTask = await taskService.createTasks(childTaskData);
+          
+          if (Array.isArray(createdTask)) {
+            createdTask.forEach((task: Task) => {
+              childTasks.push(task);
+            });
+          } else {
+            childTasks.push(createdTask as Task);
+          }
         }
       }));
     }
@@ -154,7 +188,7 @@ export const createTaskWithTemplatesStep = createStep(
   "create-task-with-templates-step",
   async (input: CreateTaskInput, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
-    const task = await taskService.createTaskWithTemplates(input);
+    const task = await taskService.createTaskWithTemplates(input) as unknown as Task;
     return new StepResponse(task, task.id);
   }
 );
@@ -233,8 +267,8 @@ export const createTaskWorkflow = createWorkflow(
       (data) => (
         {
         ...input,
-        template_ids: data.templateIds,
-        child_template_ids: data.templateIds
+        template_ids: data?.templateIds?.templateIds,
+        child_template_ids: data?.templateIds?.childTemplateIds
       })
     );
 
@@ -247,8 +281,8 @@ export const createTaskWorkflow = createWorkflow(
       //inputWithTemplateIds
       return createTaskWithParentStep({
         originalInput: input,
-        template_ids: inputWithTemplateIds.template_ids?.templateIds,
-        child_template_ids: inputWithTemplateIds.child_template_ids?.childTemplateIds
+        template_ids: inputWithTemplateIds.template_ids,
+        child_template_ids: inputWithTemplateIds.child_template_ids
       });
     });
 
@@ -260,7 +294,7 @@ export const createTaskWorkflow = createWorkflow(
     ).then(() => {
       return createTaskWithTemplatesStep({
         originalInput: input,
-        template_ids: inputWithTemplateIds.template_ids?.templateIds
+        template_ids: inputWithTemplateIds.template_ids
       });
     });
 
@@ -282,11 +316,12 @@ export const createTaskWorkflow = createWorkflow(
           withoutTemplates,
           input,
           inputWithTemplateIds:{
-            template_ids: inputWithTemplateIds.template_ids?.templateIds,
-            child_template_ids: inputWithTemplateIds.child_template_ids?.childTemplateIds
+            template_ids: inputWithTemplateIds.template_ids,
+            child_template_ids: inputWithTemplateIds.child_template_ids
           }
+        }
       }
-    })
+    )
 
  
     

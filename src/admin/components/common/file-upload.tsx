@@ -10,7 +10,7 @@ interface FileUploadProps {
   preview?: string
 }
 
-export const FileUpload = ({ accept, value, onChange, isLoading, preview }: FileUploadProps) => {
+export const FileUpload = ({ accept, onChange, isLoading, preview }: FileUploadProps) => {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleClick = () => {

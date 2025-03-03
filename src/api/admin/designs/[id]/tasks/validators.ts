@@ -1,8 +1,9 @@
 import { z } from "zod"
+import { PriorityLevel, Status } from "../../../../../workflows/tasks/create-task"
 
 // ============= Constants =============
 const TASK_PRIORITIES = ["low", "medium", "high"] as const
-const TASK_STATUSES = ["pending", "in_progress", "completed", "blocked"] as const
+const TASK_STATUSES = ["pending", "in_progress", "completed", "cancelled", "accepted"] as const
 const DEPENDENCY_TYPES = ["blocking", "non_blocking", "subtask", "related"] as const
 
 // ============= Utilities =============
@@ -18,8 +19,8 @@ const dateTransformer = (val: unknown): Date | undefined => {
 const BaseTaskSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
-  priority: z.enum(TASK_PRIORITIES).optional(),
-  status: z.enum(TASK_STATUSES).optional(),
+  priority: z.nativeEnum(PriorityLevel).optional(),
+  status: z.nativeEnum(Status).optional(),
   due_date: z.preprocess(dateTransformer, z.date()).optional(),
   metadata: z.record(z.any()).optional(),
 })

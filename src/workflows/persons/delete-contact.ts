@@ -24,13 +24,27 @@ export const deleteContactStep = createStep(
     // Rollback: recreate the contact if deletion fails
     if (originalContact) {
       const personService: PersonService = container.resolve(PERSON_MODULE);
-      await personService.createContactDetails(originalContact);
+      const {
+        person_id,
+        phone_number, 
+        type
+      } = originalContact
+      await personService.createContactDetails(
+        {
+          person_id,
+          phone_number,
+          type
+        }
+      );
     }
   },
 );
 
 export const deleteContactWorkflow = createWorkflow(
-  "delete-contact",
+ {
+  name: 'delete-contact',
+  store: true
+ },
   (input: DeleteContactWorkFlowInput) => {
     const result = deleteContactStep(input);
     return new WorkflowResponse(result);

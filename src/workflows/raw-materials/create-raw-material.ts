@@ -49,8 +49,11 @@ const createRawMaterialData = createStep(
     return new StepResponse(rawMaterial, rawMaterial.id)
   },
   async (rawMaterial, { container }) => {
+    if (!rawMaterial){
+      return 
+    }
     const rawMaterialService: RawMaterialService = container.resolve(RAW_MATERIAL_MODULE)
-    await rawMaterialService.deleteRawMaterials(rawMaterial.id)
+    await rawMaterialService.deleteRawMaterials(rawMaterial)
   }
 )
 

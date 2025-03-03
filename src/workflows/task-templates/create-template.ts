@@ -10,19 +10,14 @@ import { TASKS_MODULE } from "../../modules/tasks";
 type CreateTaskTemplateInput = {
   name: string;
   description?: string;
-  priority?: string;
+  priority?: 'low'| 'medium' | 'high' | undefined;
   estimated_duration?: number;
   required_fields?: Record<string, any>;
   eventable?: boolean;
   notifiable?: boolean;
   message_template?: string;
   metadata?: Record<string, any>;
-  category?: {
-    id?: string;
-    name?: string;
-    description?: string;
-    metadata?: Record<string, any>;
-  };
+  category?: string;
   category_id?: string;
 };
 
@@ -30,11 +25,10 @@ export const createTaskTemplateStep = createStep(
   "create-task-template-step",
   async (input: CreateTaskTemplateInput, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
-    if (input.category?.id) {
-      input.category_id = input.category.id
-      delete input.category
-    }
-    const template = await taskService.createTaskTemplates({...input});
+   
+    const template = await taskService.createTaskTemplates({
+      ...input,
+    });
     return new StepResponse(template, template.id);
   },
   async (id: string, { container }) => {

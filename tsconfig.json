@@ -18,7 +18,8 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "checkJs": false,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "noErrorTruncation": true
   },
   "ts-node": {
     "swc": true
@@ -34,6 +35,7 @@
     ".medusa/server",
     ".medusa/admin",
     ".cache",
-    ".mastra"
+    "jyt-ai/"
+
   ]
 }

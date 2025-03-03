@@ -1,4 +1,3 @@
-
 import PersonService from "../../modules/person/service";
 import { PERSON_MODULE } from "../../modules/person";
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk";
@@ -27,7 +26,28 @@ export const deleteAddressStep = createStep(
     // Rollback: recreate the address if deletion fails
     if (originalAddress) {
       const personService: PersonService = container.resolve(PERSON_MODULE);
-      await personService.createAddresses(originalAddress);
+      
+      // Extract only the properties needed for recreating the address
+      const {
+        id,
+        street,
+        city,
+        state,
+        postal_code,
+        country,
+        person_id
+      } = originalAddress;
+      
+      // Use the person_id instead of the full person object
+      await personService.createAddresses({
+        id,
+        street,
+        city,
+        state,
+        postal_code,
+        country,
+        person_id
+      });
     }
   },
 );

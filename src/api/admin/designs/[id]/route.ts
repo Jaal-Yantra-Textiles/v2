@@ -19,15 +19,7 @@ export const GET = async (
   },
   res: MedusaResponse
 ) => {
-  const design = await refetchDesign(req.params.id, req.scope, req.queryConfig?.fields || ["*"])
-  
-  if (!design) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_FOUND,
-      `Design with id ${req.params.id} was not found`
-    )
-  }
-    const {result} = await listSingleDesignsWorkflow(req.scope).run({
+      const {result} = await listSingleDesignsWorkflow(req.scope).run({
       input: {
         id: req.params.id,
         fields: req.queryConfig?.fields || ["*"],

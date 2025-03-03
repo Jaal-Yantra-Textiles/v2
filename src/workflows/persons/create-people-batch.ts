@@ -11,7 +11,7 @@ export type CreatePersonWorkFlowInput = {
     first_name: string;
     last_name: string;
     email: string;
-    date_of_birth?: string;
+    date_of_birth?: Date;
     metadata?: Record<string, any>;
 };
 
@@ -25,7 +25,7 @@ const createPeopleBatchStep = createStep(
     async (people, { container }) => {
         const personService: PersonService = container.resolve(PERSON_MODULE);
         // Delete all created people in case of rollback
-        for (const person of people) {
+        for (const person of people!) {
             await personService.deletePeople(person.id);
         }
     }

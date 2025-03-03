@@ -12,7 +12,7 @@ type CreatePersonStepInput = {
   first_name: string;
   last_name: string;
   email: string;
-  date_of_birth?: string; // Optional field
+  date_of_birth?: Date | null | undefined; // Optional field
   metadata?: Record<string, any>; // Optional field for additional data
 };
 
@@ -25,7 +25,7 @@ export const createPersonStep = createStep(
   },
   async (personId, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
-    await personService.deletePeople(personId);
+    await personService.deletePeople(personId!);
   },
 );
 
@@ -33,7 +33,7 @@ export type CreatePersonWorkFlowInput = {
   first_name: string;
   last_name: string;
   email: string;
-  date_of_birth?: string; // Optional field
+  date_of_birth?: Date | null; // Optional field
   metadata?: Record<string, any>;
 };
 export const createPersonWorkflow = createWorkflow(

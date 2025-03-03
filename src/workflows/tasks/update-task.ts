@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import TaskService from "../../modules/tasks/service";
 import { TASKS_MODULE } from "../../modules/tasks";
+import { PriorityLevel, Status } from "./create-task";
 
 
 type UpdateTaskStepInput = {
@@ -13,8 +14,8 @@ type UpdateTaskStepInput = {
   update: {
     title?: string;
     description?: string;
-    status?: string;
-    priority?: string;
+    status?: Status;
+    priority?: PriorityLevel;
     due_date?: Date;
     assignee_id?: string;
     category_id?: string;

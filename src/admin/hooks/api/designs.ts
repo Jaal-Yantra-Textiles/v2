@@ -45,7 +45,7 @@ export interface AdminDesign {
   estimated_cost?: number;
   designer_notes?: string;
   feedback_history?: FeedbackHistory[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, any> | null | undefined;
   created_at?: Date;
   updated_at?: Date;
 }

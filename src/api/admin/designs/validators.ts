@@ -31,7 +31,10 @@ export const designSchema = z.object({
     "On_Hold"
   ]).optional(),
   priority: z.enum(["Low", "Medium", "High", "Urgent"]).optional(),
-  target_completion_date: z.union([z.string(), z.date()]).optional(),
+  target_completion_date: z.union([z.date(), z.string().datetime()]).optional().transform((val) => {
+    if (!val) return null;
+    return val instanceof Date ? val : new Date(val);
+  }),
   design_files: z.array(z.string()).optional(),
   thumbnail_url: z.string().url().optional(),
   custom_sizes: z.record(z.any()).optional(),

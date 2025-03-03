@@ -38,13 +38,18 @@ export const updatePersonStep = createStep(
     return new StepResponse(updatedPerson, originalPerson);
   },
   async (originalPerson, { container }) => {
+    if (!originalPerson) return;
     const personService: PersonService = container.resolve(PERSON_MODULE);
     await personService.updatePeople({
       selector: {
-        id: originalPerson?.id
+        id: originalPerson.id
       },
       data: {
-        ...originalPerson
+        first_name: originalPerson.first_name, 
+        last_name: originalPerson.last_name,
+        email: originalPerson.email,
+        date_of_birth: originalPerson.date_of_birth,
+        metadata: originalPerson.metadata
       }
     });
   },

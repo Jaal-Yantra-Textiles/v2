@@ -7,6 +7,9 @@ import {
 import { WEBSITE_MODULE } from "../../../modules/website";
 import WebsiteService from "../../../modules/website/service";
 import { MedusaError } from "@medusajs/framework/utils";
+import Block from "../../../modules/website/models/blocks";
+import { InferTypeOf } from "@medusajs/framework/types"
+export type Block = InferTypeOf<typeof Block>;
 
 export type UpdateBlockStepInput = {
   block_id: string;
@@ -16,7 +19,7 @@ export type UpdateBlockStepInput = {
   settings?: Record<string, unknown>;
   order?: number;
   status?: "Active" | "Inactive" | "Draft";
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> ;
 };
 
 export const updateBlockStep = createStep(
@@ -59,9 +62,8 @@ export const updateBlockStep = createStep(
       },
       data:{
         ...input,
-        block_id: undefined // Remove block_id as it's not part of the update data
       }
-    });
+    }) as unknown as Block;
 
     return new StepResponse(updatedBlock, {
       blockId: input.block_id,
@@ -72,9 +74,13 @@ export const updateBlockStep = createStep(
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
     
     // Restore the block to its previous state
-    await websiteService.updateBlocks(compensation.blockId, {
-      ...compensation.previousData,
-      id: undefined // Remove id as it's not part of the update data
+    await websiteService.updateBlocks({
+      selector: {
+        id: compensation.blockId
+      },
+      data: {
+        ...compensation.previousData,
+      }
     });
   }
 );

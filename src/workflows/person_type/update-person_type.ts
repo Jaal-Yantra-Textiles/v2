@@ -7,6 +7,9 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { PERSON_TYPE_MODULE } from "../../modules/persontype";
 import PersonTypeService from "../../modules/persontype/service";
+import { InferTypeOf } from "@medusajs/framework/types"
+import PersonType  from "../../modules/persontype/models/persontype"
+export type PersonType = InferTypeOf<typeof PersonType>
 
 export type UpdatePersonTypeStepInput = {
   id: string;
@@ -34,7 +37,7 @@ export const updatePersonTypeStep = createStep(
         name: input.name,
         description: input.description,
       },
-    });
+    }) as unknown as PersonType;
 
     // Return the updated entity and the previous state for compensation
     return new StepResponse(updatedPersonType, currentPersonType);
@@ -44,7 +47,7 @@ export const updatePersonTypeStep = createStep(
       container.resolve(PERSON_TYPE_MODULE);
 
     // Revert to the previous state
-    await personTypeService.updatePersonTypes(previousState, {
+    await personTypeService.updatePersonTypes(previousState!, {
       name: previousState?.name,
       description: previousState?.description,
     });

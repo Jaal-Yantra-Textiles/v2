@@ -15,26 +15,19 @@ type UpdateDesignStepInput = {
   id: string;
   name?: string;
   description?: string;
-  inspiration_sources?: string[];
+  inspiration_sources?: Record<string, any>;
   design_type?: DesignType;
   status?: DesignStatus;
   priority?: PriorityLevel;
   target_completion_date?: Date;
-  design_files?: string[];
+  design_files?: Record<string, any>;
   thumbnail_url?: string;
   custom_sizes?: Record<string, any>;
-  color_palette?: Array<{
-    name: string;
-    code: string;
-  }>;
-  tags?: string[];
+  color_palette?: Record<string, any>;
+  tags?: Record<string, any>;
   estimated_cost?: number;
   designer_notes?: string;
-  feedback_history?: Array<{
-    date: Date;
-    feedback: string;
-    author: string;
-  }>;
+  feedback_history?: Record<string, any>;
   metadata?: Record<string, any>;
 };
 
@@ -58,7 +51,12 @@ export const updateDesignStep = createStep(
   // Compensation function to restore original state
   async (data: { id: string; originalData: any }, { container }) => {
     const designService: DesignService = container.resolve(DESIGN_MODULE);
-    await designService.updateDesigns(data.id, data.originalData);
+    await designService.updateDesigns({
+      selector: {
+        id: data.id,
+      },
+      data: data.originalData,
+    });
   }
 );
 

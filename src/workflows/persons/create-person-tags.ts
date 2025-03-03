@@ -9,7 +9,7 @@ import { PERSON_MODULE } from "../../modules/person";
 import PersonService from "../../modules/person/service";
 
 type CreatePersonTagsStepInput = {
-  name: string[];
+  name: Record<string, unknown>;
   person_id:string,
 };
 
@@ -26,13 +26,13 @@ export const createPersonTagsStep = createStep(
   },
   async (personId, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
-    await personService.deleteTags(personId);
+    await personService.deleteTags(personId!);
   },
 );
 
 type CreatePersonTagsWorkFlowInput = {
   person_id: string;
-  name: string[];
+  name: Record<string, unknown>;
 };
 
 const createPersonWorkflow = createWorkflow(

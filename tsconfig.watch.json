@@ -1,0 +1,11 @@
+{
+    "extends": "./tsconfig.json",
+    "exclude": [
+      "node_modules",
+      ".medusa/server",
+      ".medusa/admin",
+      ".cache",
+      "jyt-ai/",
+      "src/admin"
+    ]
+  }

@@ -15,26 +15,19 @@ type PriorityLevel = "Low" | "Medium" | "High" | "Urgent";
 type CreateDesignStepInput = {
   name: string;
   description?: string;
-  inspiration_sources?: string[];
+  inspiration_sources?: Record<string, any>;
   design_type?: DesignType;
   status?: DesignStatus;
   priority?: PriorityLevel;
-  target_completion_date?: string | Date;
-  design_files?: string[];
+  target_completion_date?: null | Date;
+  design_files?: Record<string, any>;
   thumbnail_url?: string;
   custom_sizes?: Record<string, any>;
-  color_palette?: Array<{
-    name: string;
-    code: string;
-  }>;
-  tags?: string[];
+  color_palette?:  Record<string, any>;
+  tags?: Record<string, any>;
   estimated_cost?: number;
   designer_notes?: string;
-  feedback_history?: Array<{
-    date: string | Date;
-    feedback: string;
-    author: string;
-  }>;
+  feedback_history?:  Record<string, any>;
   metadata?: Record<string, any>;
 };
 
@@ -49,7 +42,7 @@ export const createDesignStep = createStep(
   // Compensation function to handle rollback
   async (designId, { container }) => {
     const designService: DesignService = container.resolve(DESIGN_MODULE);
-    await designService.deleteDesigns(designId);
+    await designService.deleteDesigns(designId!);
   },
 );
 

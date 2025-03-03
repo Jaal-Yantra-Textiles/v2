@@ -29,7 +29,7 @@ export const createAddressStep = createStep(
   },
   async (addressId, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
-    await personService.deleteAddresses(addressId);
+    await personService.deleteAddresses(addressId!);
   },
 );
 

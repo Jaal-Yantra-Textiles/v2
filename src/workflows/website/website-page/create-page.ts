@@ -21,7 +21,7 @@ export type CreatePageStepInput = {
   meta_title?: string;
   meta_description?: string;
   meta_keywords?: string;
-  published_at?: Date | string;
+  published_at?: Date | string | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -53,7 +53,10 @@ export const createPageStep = createStep(
 export type CreatePageWorkflowInput = CreatePageStepInput;
 
 export const createPageWorkflow = createWorkflow(
-  "create-page",
+  {
+    name: "create-page",
+    store: true,
+  },
   (input: CreatePageWorkflowInput) => {
     const newPage = createPageStep(input);
     // Emit the page.created event

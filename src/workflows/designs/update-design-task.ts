@@ -10,16 +10,30 @@ import designTasksLink from "../../links/design-tasks-link"
 import TaskService from "../../modules/tasks/service"
 import { refetchEntity } from "@medusajs/framework"
 
+enum Status {
+  pending = "pending",
+  in_progress = "in_progress",
+  completed = "completed",
+  cancelled = "cancelled",
+  accepted = "accepted",
+}
+
+enum PriorityLevel {
+  low = "low",
+  medium = "medium",
+  high = "high",
+}
+
 type UpdateDesignTaskInput = {
   designId: string
   taskId: string
   update: {
     title?: string
     description?: string
-    status?: string
-    priority?: string
-    start_date?: Date | string
-    end_date?: Date | string
+    status?: Status
+    priority?: PriorityLevel
+    start_date?: Date 
+    end_date?: Date 
     eventable?: boolean
     notifiable?: boolean
     metadata?: Record<string, any>

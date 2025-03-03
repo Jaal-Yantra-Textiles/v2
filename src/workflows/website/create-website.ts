@@ -13,7 +13,7 @@ export type CreateWebsiteStepInput = {
   description?: string;
   status?: "Active" | "Inactive" | "Maintenance" | "Development";
   primary_language?: string;
-  supported_languages?: string[];
+  supported_languages?: Record<string, unknown> | null;
   favicon_url?: string;
   analytics_id?: string;
   metadata?: Record<string, unknown>;

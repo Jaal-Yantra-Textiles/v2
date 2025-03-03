@@ -12,7 +12,7 @@ import { useDesignsTableQuery } from "../../hooks/queries/designs/useDesignsTabl
 import { AdminDesign, useDesigns } from "../../hooks/api/designs";
 import { useDesignsTableFilters } from "../../hooks/filters/useDesignsTableFilters";
 import { useDesignsTableColumns } from "../../hooks/columns/useDesignsTableColumns";
-import { Outlet } from "react-router-dom"
+
 const columnHelper = createColumnHelper<AdminDesign>();
 export const useColumns = () => {
   const columns = useDesignsTableColumns();

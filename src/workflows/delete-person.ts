@@ -7,6 +7,9 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import PersonService from "../modules/person/service";
 import { PERSON_MODULE } from "../modules/person";
+import { InferTypeOf } from "@medusajs/framework/types";
+import Person from "../modules/person/models/person";
+export type Person = InferTypeOf<typeof Person>;
 
 type DeletePersonStepInput = {
   id: string;
@@ -18,11 +21,38 @@ export const deletePersonStep = createStep(
     const personService: PersonService = container.resolve(PERSON_MODULE);
     const person = await personService.retrievePerson(input.id);
     await personService.deletePeople(input.id);
-    return new StepResponse(null, person);
+    return new StepResponse(undefined, person);
   },
-  async (personData, { container }) => {
-    const personService: PersonService = container.resolve(PERSON_MODULE);
-    await personService.createPeople(personData);
+  async (person, { container }) => {
+    // Only create the person if it's defined
+    if (person) {
+      const personService: PersonService = container.resolve(PERSON_MODULE);
+      
+      // Extract only the base properties that createPeople expects
+      // This excludes relationship properties like addresses, contact_details, etc.
+      const {
+        id,
+        first_name,
+        last_name,
+        email,
+        date_of_birth,
+        metadata,
+        avatar,
+        state
+      } = person;
+      
+      // Pass only the expected properties to createPeople
+      await personService.createPeople({
+        id,
+        first_name,
+        last_name,
+        email,
+        date_of_birth,
+        metadata,
+        avatar,
+        state
+      });
+    }
   },
 );
 
