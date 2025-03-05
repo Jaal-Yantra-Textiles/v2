@@ -70,11 +70,15 @@ export const UploadMediaFormItem = ({
         return
       }
 
-      files.forEach((f) => append({ 
-        ...f, 
-        isThumbnail: false,
-        field_id: uuidv4() // Generate a unique ID for each new field
-      }))
+      files.forEach((f) => {
+        const newId = uuidv4(); // Generate a unique ID for the new file
+        append({ 
+          ...f, 
+          isThumbnail: false,
+          field_id: newId, // Use for draggable components
+          id: newId // Use the same ID for backend persistence
+        });
+      })
     },
     [form, append, hasInvalidFiles]
   )
@@ -110,3 +114,5 @@ export const UploadMediaFormItem = ({
     />
   )
 }
+
+export default UploadMediaFormItem

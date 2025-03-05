@@ -27,3 +27,5 @@ export const DesignMedia = () => {
     </RouteFocusModal>
   )
 }
+
+export default DesignMedia

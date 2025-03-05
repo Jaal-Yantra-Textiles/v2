@@ -68,3 +68,5 @@ const renderView = (view: View, design: AdminDesign) => {
       return <EditDesignMediaForm design={design} />
   }
 }
+
+export default DesignMediaView

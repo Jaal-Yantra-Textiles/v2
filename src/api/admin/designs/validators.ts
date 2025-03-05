@@ -44,6 +44,11 @@ export const designSchema = z.object({
   designer_notes: z.string().optional(),
   feedback_history: feedbackHistorySchema.optional(),
   metadata: z.record(z.any()).optional(),
+  media_files: z.array(z.object({
+    id: z.string().optional(),
+    url: z.string().url(),
+    isThumbnail: z.boolean().optional().default(false)
+  })).optional()
 });
 
 export const UpdateDesignSchema = designSchema.partial();

@@ -128,23 +128,45 @@ export const EditDesignMediaForm = ({ design }: DesignMediaViewProps) => {
 
     const withUpdatedUrls = media.map((entry, i) => {
       const toUploadIndex = filesToUpload.findIndex((m) => m.index === i)
-      if (toUploadIndex > -1) {
-        return { ...entry, url: uploaded[toUploadIndex]?.url }
+      if (toUploadIndex > -1 && uploaded[toUploadIndex]) {
+        // For newly uploaded files, use the ID returned from the upload API
+        // or generate one if not available
+        return { 
+          ...entry, 
+          url: uploaded[toUploadIndex].url,
+          id: uploaded[toUploadIndex].id || entry.field_id // Use the ID from the API or fallback to field_id
+        }
       }
       return entry
     })
     
     const thumbnail = withUpdatedUrls.find((m) => m.isThumbnail)?.url
+    
+    // Create the base payload
+    const payload = {
+      media_files: withUpdatedUrls.map((file) => {
+        // Create media file object with required properties
+        const mediaFile = {
+          url: file.url,
+          isThumbnail: file.isThumbnail
+        };
+        
+        // Only include id if it exists and is not empty
+        if (file.id) {
+          Object.assign(mediaFile, { id: file.id });
+        }
+        
+        return mediaFile;
+      })
+    }
+    
+    // Only add thumbnail_url if a thumbnail is selected
+    if (thumbnail) {
+      Object.assign(payload, { thumbnail_url: thumbnail })
+    }
 
     await mutateAsync(
-      {
-        media_files: withUpdatedUrls.map((file) => ({ 
-          url: file.url, 
-          id: file.id,
-          isThumbnail: file.isThumbnail
-        })),
-        thumbnail_url: thumbnail || null,
-      },
+      payload,
       {
         onSuccess: () => {
           toast.success("Media updated successfully")
@@ -445,3 +467,5 @@ const MediaGridItemOverlay = ({
     </div>
   )
 }
+
+export default EditDesignMediaForm

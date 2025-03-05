@@ -1,6 +1,8 @@
-import { Button, Container, Empty, Heading, Text } from "@medusajs/ui"
+import { Alert, Button, Container, Heading, Text } from "@medusajs/ui"
 import { AdminDesign } from "../../../../../../hooks/api/designs"
 import { useDesignMediaViewContext } from "../design-media-view"
+import { RouteFocusModal } from "../../../../../../components/modal/route-focus-modal"
+
 
 type DesignMediaGalleryProps = {
   design: AdminDesign
@@ -10,6 +12,7 @@ export const DesignMediaGallery = ({ design }: DesignMediaGalleryProps) => {
   const { goToEdit } = useDesignMediaViewContext()
 
   return (
+    <RouteFocusModal>
     <Container>
       <div className="flex flex-col gap-y-4">
         <div className="flex flex-col gap-y-1">
@@ -21,12 +24,13 @@ export const DesignMediaGallery = ({ design }: DesignMediaGalleryProps) => {
         </div>
 
         {!design.media_files || design.media_files.length === 0 ? (
-          <Empty 
-            title="No media files"
-            description="Add media files to your design"
-            buttonText="Upload media files"
-            buttonAction={goToEdit}
-          />
+          <div className="flex flex-col items-center justify-center py-12">
+            <Alert  title="No media files available" variant="warning" >            
+                <Button variant="secondary" onClick={goToEdit}>
+                  Upload media files
+                </Button>
+              </Alert>
+          </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             {design.media_files.map((media, index) => (
@@ -50,5 +54,8 @@ export const DesignMediaGallery = ({ design }: DesignMediaGalleryProps) => {
         )}
       </div>
     </Container>
+    </RouteFocusModal>
   )
 }
+
+export default DesignMediaGallery

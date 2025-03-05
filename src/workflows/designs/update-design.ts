@@ -19,6 +19,7 @@ type UpdateDesignStepInput = {
   design_type?: DesignType;
   status?: DesignStatus;
   priority?: PriorityLevel;
+  media_files?: Record<string, any>;
   target_completion_date?: Date;
   design_files?: Record<string, any>;
   thumbnail_url?: string;
