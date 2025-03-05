@@ -5,9 +5,8 @@ import { queryKeysFactory } from "../../lib/query-key-factory";
 
 import { HttpTypes } from "@medusajs/framework/types";
 
-export interface CreateRawMaterialInput {
-  rawMaterialData: {
-    name: string
+export interface RawMaterialData {
+  name: string
   description: string
   composition: string
   unit_of_measure?: "Meter" | "Yard" | "Kilogram" | "Gram" | "Piece" | "Roll" | "Other"
@@ -27,7 +26,14 @@ export interface CreateRawMaterialInput {
     category?: "Fiber" | "Yarn" | "Fabric" | "Trim" | "Dye" | "Chemical" | "Accessory" | "Other"
     properties?: Record<string, any>
   }
-  }
+}
+
+export interface CreateRawMaterialInput {
+  rawMaterialData: RawMaterialData
+}
+
+export interface UpdateRawMaterialInput {
+  rawMaterialData: RawMaterialData
 }
 
 export interface MaterialType {
@@ -187,4 +193,58 @@ export const useCreateRawMaterial = (
       options?.onSuccess?.(data, variables, context)
     },
   })
+}
+
+export const useUpdateRawMaterial = (
+  inventoryId: string,
+  materialId: string,
+  options?: UseMutationOptions<
+    InventoryItem,
+    FetchError,
+    UpdateRawMaterialInput
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: UpdateRawMaterialInput) => {
+      const response = await sdk.client.fetch<InventoryItem>(
+        `/admin/inventory-items/${inventoryId}/rawmaterials/${materialId}`,
+        {
+          method: "PUT",
+          body: payload
+        }
+      )
+      return response
+    },
+    onSuccess: async (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: ["raw-materials"],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ["raw-materials", inventoryId, materialId],
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
+export const useRawMaterial = (
+  inventoryId: string,
+  materialId: string,
+  options?: UseQueryOptions<
+    InventoryItem,
+    FetchError
+  >
+) => {
+  return useQuery<InventoryItem, FetchError>(
+    ["raw-materials", inventoryId, materialId],
+    async () => {
+      const response = await sdk.client.fetch<InventoryItem>(
+        `/admin/inventory-items/${inventoryId}/rawmaterials/${materialId}`
+      )
+      return response
+    },
+    options
+  )
 }

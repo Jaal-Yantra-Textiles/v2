@@ -28,6 +28,12 @@ export interface CustomSize {
   };
 }
 
+export interface DesignMedia {
+  id?: string;
+  url: string;
+  isThumbnail?: boolean;
+}
+
 export interface AdminDesign {
   id: string;
   name: string;
@@ -45,6 +51,7 @@ export interface AdminDesign {
   estimated_cost?: number;
   designer_notes?: string;
   feedback_history?: FeedbackHistory[];
+  media_files?: DesignMedia[];
   metadata?: Record<string, any> | null | undefined;
   created_at?: Date;
   updated_at?: Date;

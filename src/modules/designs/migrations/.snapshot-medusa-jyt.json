@@ -185,6 +185,15 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "media_files": {
+          "name": "media_files",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
         "raw_estimated_cost": {
           "name": "raw_estimated_cost",
           "type": "jsonb",
@@ -234,6 +243,7 @@
           "keyName": "IDX_design_deleted_at",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_design_deleted_at\" ON \"design\" (deleted_at) WHERE deleted_at IS NULL"
@@ -244,12 +254,14 @@
             "id"
           ],
           "composite": false,
+          "constraint": true,
           "primary": true,
           "unique": true
         }
       ],
       "checks": [],
-      "foreignKeys": {}
+      "foreignKeys": {},
+      "nativeEnums": {}
     },
     {
       "columns": {
@@ -427,6 +439,7 @@
           "keyName": "IDX_design_specifications_design_id",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_design_specifications_design_id\" ON \"design_specifications\" (design_id) WHERE deleted_at IS NULL"
@@ -435,6 +448,7 @@
           "keyName": "IDX_design_specifications_deleted_at",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_design_specifications_deleted_at\" ON \"design_specifications\" (deleted_at) WHERE deleted_at IS NULL"
@@ -445,6 +459,7 @@
             "id"
           ],
           "composite": false,
+          "constraint": true,
           "primary": true,
           "unique": true
         }
@@ -461,9 +476,12 @@
             "id"
           ],
           "referencedTableName": "public.design",
+          "deleteRule": "cascade",
           "updateRule": "cascade"
         }
-      }
+      },
+      "nativeEnums": {}
     }
-  ]
+  ],
+  "nativeEnums": {}
 }

@@ -38,9 +38,12 @@ const Design = model.define("design", {
   designer_notes: model.text().nullable(),
   feedback_history: model.json().nullable(), // Track feedback and changes
   metadata: model.json().nullable(),
+  media_files: model.json().nullable(),
   
   // Relationships
   specifications: model.hasMany(() => DesignSpecification, { mappedBy: "design" }),
+}).cascades({
+  delete: ['specifications']
 });
 
 export default Design;

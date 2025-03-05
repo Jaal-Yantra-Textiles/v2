@@ -53,7 +53,6 @@ export const POST = async (req: MedusaRequest<AdminPostDesignTasksReqType>, res:
       `Design not found for the id ${id}`
     )
   }
-
   // Run workflow with validated body
   const {result: list} = await createTasksFromTemplatesWorkflow(req.scope).run({
     input: {

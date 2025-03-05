@@ -71,8 +71,45 @@ const createDesignInventoryLinks = createStep(
   }
 )
 
+const adjustInventoryStep = createStep(
+  "adjust-inventory",
+  async (input: { design_id: string; inventory_ids: string[] }, { container }) => {
+    const inventoryService = container.resolve(Modules.INVENTORY)
+    
+    // Get all inventory levels with their location IDs for the input inventory items
+    const inventoryLevelsPromises = input.inventory_ids.map(async (inventoryId) => {
+      const levels = await inventoryService.listInventoryLevels({
+        inventory_item_id: inventoryId
+      })
+      return { inventoryId, levels }
+    })
+    
+    const inventoryLevelsResults = await Promise.all(inventoryLevelsPromises)
+    
+    // Process each inventory item and its locations recursively
+    for (const { inventoryId, levels } of inventoryLevelsResults) {
+      // If there are location levels, adjust inventory for each location
+      if (levels.length > 0) {
+        const adjustments = levels.map(level => ({
+          inventoryItemId: inventoryId,
+          locationId: level.location_id,
+          adjustment: -1
+        }))
+        
+        await inventoryService.adjustInventory(adjustments)
+      }
+    }
+    
+    return new StepResponse(inventoryLevelsResults)
+  }
+)
+
+
 export const linkDesignInventoryWorkflow = createWorkflow(
-  "link-design-inventory",
+  {
+    name: "link-design-inventory",
+    store: true
+  },
   (input: LinkDesignInventoryInput) => {
     // First validate that all inventory items exist
      validateInventoryItems({ 
@@ -84,7 +121,13 @@ export const linkDesignInventoryWorkflow = createWorkflow(
       design_id: input.design_id,
       inventory_ids: input.inventory_ids
     })
+
+    // once the links are set adjust the inventory
+    const adjustmentResult = adjustInventoryStep({
+      design_id: input.design_id,
+      inventory_ids: input.inventory_ids
+    })
     
-    return new WorkflowResponse([linksResult])
+    return new WorkflowResponse([linksResult, adjustmentResult])
   }
 )

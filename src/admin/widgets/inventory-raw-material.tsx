@@ -103,7 +103,7 @@ const InventoryRawMaterialWidget = ({
         {
           label: "Edit",
           icon: <PencilSquare />,
-          onClick: () => navigate(`/inventory/${data.id}/raw-materials/${rawMaterialId}/edit`),
+          to: `raw-materials/edit`,
         },
       ],
     },

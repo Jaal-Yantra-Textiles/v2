@@ -38,6 +38,7 @@ type CreateTaskStepInput = {
   status?: Status;
   priority?: PriorityLevel;
   due_date?: Date;
+  start_date?: Date;
   assignee_id?: string;
   template_names?: string[];  // Optional template names to create task from
   eventable?: boolean;
@@ -74,6 +75,9 @@ export const createTaskDirectlyStep = createStep(
   "create-task-directly-step",
   async (input: CreateTaskInput, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
+    if(!input.start_date){
+      input.start_date = new Date()
+    }
     const task = await taskService.createTasks(input);
     return new StepResponse(task, task.id);
   }

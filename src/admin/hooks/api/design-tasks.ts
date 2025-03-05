@@ -24,6 +24,7 @@ export interface AdminDesignTask {
   priority?: TaskPriority;
   status: TaskStatus;
   due_date?: Date;
+  start_date?: Date;
   parent_task_id?: string;
   dependency_type?: DependencyType;
   template_names?: string[];

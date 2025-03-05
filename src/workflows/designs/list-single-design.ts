@@ -32,7 +32,6 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
           `Design with id ${input.id} was not found`
         )
       }
-      console.log("Design at the workflow",design[0])
       return new StepResponse(design[0], design[0]?.id);
     },
   );
