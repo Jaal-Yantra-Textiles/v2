@@ -72,6 +72,7 @@ export interface AdminDesignsQuery {
   status?: AdminDesign["status"];
   priority?: AdminDesign["priority"];
   tags?: string[];
+  q?: string;
 }
 
 const DESIGN_QUERY_KEY = "designs" as const;

@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { UIMatch, useParams } from "react-router-dom";
 import { SingleColumnPage } from "../../../../components/pages/single-column-pages";
 import { useTaskTemplate } from "../../../../hooks/api/task-templates";
 import { TaskTemplateGeneralSection } from "../../../../components/task-templates/task-template-general-section";
@@ -17,11 +17,16 @@ export default function TaskTemplateDetailPage() {
   }
 
   return (
-    <SingleColumnPage showJSON showMetadata data={template}>
-     
+    <SingleColumnPage showJSON showMetadata data={template} hasOutlet={true}>
         <TaskTemplateGeneralSection template={template} />
         <TaskTemplateCategorySection template={template} />
-    
     </SingleColumnPage>
   );
 }
+
+export const handle = {
+  breadcrumb: (match: UIMatch<{ id: string }>) => {
+    const { id } = match.params;
+    return `${id}`;
+  },
+};

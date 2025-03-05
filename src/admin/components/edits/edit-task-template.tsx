@@ -11,11 +11,14 @@ import { useRouteModal } from "../modal/use-route-modal";
 const taskTemplateSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
-  category: z.object({
-    id: z.string().optional(),
-    name: z.string().min(1, "Category name is required"),
-    description: z.string().optional(),
-  }),
+  category: z.union([
+    z.string(),
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      isExisting: z.boolean().optional()
+    })
+  ]).optional(),
   estimated_duration: z.number().min(0),
   priority: z.enum(["low", "medium", "high"]),
   eventable: z.boolean(),
@@ -47,26 +50,48 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
   const { mutateAsync, isPending } = useUpdateTaskTemplate(template.id!);
 
   const handleSubmit = async (data: TaskTemplateFormData) => {
-    await mutateAsync(
-      {
-        name: data.name,
-        description: data.description,
-        category: data.category.id 
-          ? { 
-              id: data.category.id,
-              name: data.category.name,
-              description: data.category.description,
-            }
-          : {
-              name: data.category.name,
-              description: data.category.description || "",
-            },
-        priority: data.priority,
-        estimated_duration: data.estimated_duration,
-        eventable: data.eventable,
-        notifiable: data.notifiable,
-        message_template: data.message_template,
-      },
+    // Debug the received category data
+    console.log('Category data received:', data.category);
+    console.log('Category type:', typeof data.category);
+    if (typeof data.category === 'object') {
+      console.log('Category object keys:', Object.keys(data.category || {}));
+    }
+    
+    // Create request payload
+    const payload: any = {
+      name: data.name,
+      description: data.description,
+      priority: data.priority,
+      estimated_duration: data.estimated_duration,
+      eventable: data.eventable,
+      notifiable: data.notifiable,
+      message_template: data.message_template,
+    };
+    
+    // Handle category based on whether it's an existing one or new
+    if (data.category) {
+      // Check if it's an object with isExisting flag
+      if (typeof data.category === 'object' && data.category !== null) {
+        if (data.category.isExisting) {
+          // For existing categories, send the ID as category_id
+          payload.category_id = data.category.id;
+          // Make sure we don't also send category name
+          delete payload.category;
+        } else if (data.category.name) {
+          // If it has a name but not isExisting, it might be a different object format
+          payload.category = data.category.name;
+        }
+      } else if (typeof data.category === 'string') {
+        // For new categories, send the name string as category
+        payload.category = data.category;
+        // Make sure we don't accidentally send a category_id
+        delete payload.category_id;
+      }
+    }
+    
+
+    
+    await mutateAsync(payload,
       {
         onSuccess: ({ task_template }) => {
           toast.success(
@@ -102,18 +127,25 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
       customComponent: CategorySearch,
       customProps: {
         categories,
-        defaultValue: template.category || "",
-        onSelect: (category: any) => ({
-          id: category?.id,
-          name: category?.name,
-          description: category?.description || "",
-        }),
+        defaultValue: template.category?.name || "",
+        onSelect: (category: any) => {
+          console.log('Field onSelect called with:', category);
+          // Always return the category object with id and name
+          // This allows us to distinguish between new and existing categories
+          if (category?.id) {
+            const result = { id: category.id, name: category.name, isExisting: true };
+            console.log('Field onSelect returning object:', result);
+            return result;
+          }
+          console.log('Field onSelect returning string:', category?.name || "");
+          return category?.name || "";
+        },
         onValueChange: (value: string) => {
+          console.log('Field onValueChange called with:', value);
           setSearchQuery(value);
-          return {
-            id: undefined,
-            name: value,
-          };
+          // Return a simple string value for new categories
+          console.log('Field onValueChange returning:', value);
+          return value;
         },
       },
     },
@@ -157,11 +189,9 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
       defaultValues={{
         name: template.name,
         description: template.description,
-        category: {
-          id: template.category?.id,
-          name: template.category?.name || "",
-          description: template.category?.description || "",
-        },
+        category: template.category?.id ? 
+          { id: template.category.id, name: template.category.name, isExisting: true } : 
+          template.category?.name || "",
         estimated_duration: template.estimated_duration || 0,
         priority: template.priority || "medium",
         eventable: template.eventable || false,

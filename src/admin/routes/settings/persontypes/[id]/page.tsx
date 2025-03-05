@@ -29,7 +29,7 @@ const PersonTypeDetail = () => {
   }
 
   return (
-    <SingleColumnPage showJSON showMetadata data={personType}>
+    <SingleColumnPage showJSON showMetadata data={personType} hasOutlet={true}>
       <PersonTypeGeneralSection personType={personType} />
     </SingleColumnPage>
   );

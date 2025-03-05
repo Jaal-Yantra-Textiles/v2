@@ -25,7 +25,7 @@ export const TaskTemplateGeneralSection = ({ template }: { template: AdminTaskTe
         {
           label: t("actions.edit"),
           icon: <PencilSquare />,
-          to: `/settings/task-templates/${template.id}/edit`,
+          to: `edit`,
         },
       ],
     },

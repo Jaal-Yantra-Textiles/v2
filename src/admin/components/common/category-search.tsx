@@ -18,13 +18,18 @@ type CategorySearchProps = {
   error?: string;
 };
 
-export const CategorySearch = ({
-  defaultValue = "",
-  onSelect,
-  onValueChange,
-  categories,
-  error,
-}: CategorySearchProps) => {
+export const CategorySearch = (props: CategorySearchProps & Record<string, any>) => {
+  const {
+    defaultValue = "",
+    onSelect,
+    onValueChange,
+    categories,
+    error,
+    // Extract react-hook-form properties
+    value: formValue,
+    onChange: formOnChange,
+    ...otherProps
+  } = props;
   const { t } = useTranslation();
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [inputValue, setInputValue] = useState(
@@ -51,7 +56,15 @@ export const CategorySearch = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputValue(value);
-    onValueChange(value);
+    
+    // When user types, clear any previously selected category
+    // and use the typed value instead
+    const processedValue = onValueChange(value);
+    
+    // Update the form field value directly
+    if (formOnChange) {
+      formOnChange(processedValue);
+    }
     
     if (value.length >= 3) {
       setCategorySearch(value);
@@ -63,7 +76,13 @@ export const CategorySearch = ({
 
   const handleCategorySelect = (category: Category) => {
     setInputValue(category.name);
-    onSelect(category);
+    const result = onSelect(category);
+    
+    // Update the form field value directly
+    if (formOnChange) {
+      formOnChange(result);
+    }
+    
     setCategorySearch("");
     setShowCategoryDropdown(false);
   };
@@ -71,9 +90,19 @@ export const CategorySearch = ({
   // Set initial category if defaultValue is a Category object
   useEffect(() => {
     if (typeof defaultValue === "object" && defaultValue !== null) {
-      onSelect(defaultValue);
+      const result = onSelect(defaultValue);
+      
+      // Update the form field value directly
+      if (formOnChange) {
+        formOnChange(result);
+      }
+    } else if (formValue === undefined && defaultValue) {
+      // If no form value but defaultValue is provided, use it
+      if (formOnChange) {
+        formOnChange(defaultValue);
+      }
     }
-  }, [defaultValue, onSelect]);
+  }, [defaultValue, onSelect, formOnChange, formValue]);
 
   // Update dropdown visibility based on matching categories
   useEffect(() => {

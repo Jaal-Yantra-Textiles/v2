@@ -26,7 +26,7 @@ export interface AdminTaskTemplate {
   notifiable: boolean;
   message_template: string;
   metadata?: Record<string, any> | null | undefined;
-  category: TaskCategory;
+  category: TaskCategory & string;
   created_at?: Date;
   updated_at?: Date;
 }

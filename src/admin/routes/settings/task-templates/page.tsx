@@ -114,5 +114,9 @@ export default TaskTemplatesPage;
 
 export const config = defineRouteConfig({
   label: "Task Templates",
-    icon: ListBullet,
+  icon: ListBullet,
 });
+
+export const handle = {
+  breadcrumb: () => "Task Templates",
+};
