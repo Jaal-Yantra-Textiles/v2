@@ -1,3 +1,26 @@
+# [4.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v3.0.0...v4.0.0) (2025-03-06)
+
+
+### Bug Fixes
+
+* Fixed the task template category onSelect , design page table update ([92a1167](https://github.com/Jaal-Yantra-Textiles/v2/commit/92a116758b32ba97c130fc038b00045fe51c4cf7))
+
+
+### Continuous Integration
+
+* Fixed the ci node version issue ([893c5da](https://github.com/Jaal-Yantra-Textiles/v2/commit/893c5da009e8dc6910f095eb6a8832ec07862104))
+
+
+### Features
+
+* **design:** design media file upload feature ([d3e4119](https://github.com/Jaal-Yantra-Textiles/v2/commit/d3e4119a9351b4783f722f2fe0b967190a1845bb))
+* Media support for the designs enabled ([4292926](https://github.com/Jaal-Yantra-Textiles/v2/commit/42929265165f2ff8d8511fdb2067baa408f95963))
+
+
+### BREAKING CHANGES
+
+*
+
 # [3.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v2.0.0...v3.0.0) (2025-03-03)
 
 
