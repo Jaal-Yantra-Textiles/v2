@@ -1,0 +1,82 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [ main, master ]  # Trigger on push to main or master branch
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  deploy-server:
+    name: Deploy Server to Railway
+    runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Install Node.js
+        run: |
+          apt-get update
+          apt-get install -y nodejs npm
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Replace medusa-config.ts with production version
+        run: |
+          # Copy production config to medusa-config.ts
+          cp medusa-config.prod.ts medusa-config.ts
+          echo "✅ Production configuration copied to medusa-config.ts"
+      
+      - name: Prepare server deployment
+        run: |
+          # Run the deployment script in non-interactive mode
+          node deploy-railway.js --mode=server --ci
+          
+          # Display generated environment variables for debugging (masked secrets)
+          echo "Generated environment file for server mode:"
+          cat .env.railway.server | grep -v "SECRET\|KEY\|TOKEN"
+      
+      - name: Deploy to Railway
+        run: railway up --service=medusa-server --detach
+        
+  deploy-worker:
+    name: Deploy Worker to Railway
+    runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    needs: deploy-server
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Install Node.js
+        run: |
+          apt-get update
+          apt-get install -y nodejs npm
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Replace medusa-config.ts with production version
+        run: |
+          # Copy production config to medusa-config.ts
+          cp medusa-config.prod.ts medusa-config.ts
+          echo "✅ Production configuration copied to medusa-config.ts"
+      
+      - name: Prepare worker deployment
+        run: |
+          # Run the deployment script in non-interactive mode
+          node deploy-railway.js --mode=worker --ci
+          
+          # Display generated environment variables for debugging (masked secrets)
+          echo "Generated environment file for worker mode:"
+          cat .env.railway.worker | grep -v "SECRET\|KEY\|TOKEN"
+      
+      - name: Deploy to Railway
+        run: railway up --service=medusa-worker --detach

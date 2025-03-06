@@ -5,6 +5,7 @@
 /uploads
 /node_modules
 yarn-error.log
+.env.railway.worker
 
 .idea
 
@@ -35,3 +36,4 @@ static/
 .mastra/
 
 test_logs.txt
+
