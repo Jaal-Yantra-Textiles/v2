@@ -40,7 +40,7 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
-          args: "up --service=medusa-server --detach"
+          args: "railway up --service=medusa-server --detach"
         
   deploy-worker:
     name: Deploy Worker to Railway
@@ -77,4 +77,4 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
-          args: "up --service=medusa-worker --detach"
+          args: "railway up --service=medusa-worker --detach"
