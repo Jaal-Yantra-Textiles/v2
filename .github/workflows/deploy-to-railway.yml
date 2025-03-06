@@ -9,6 +9,7 @@ jobs:
   deploy-server:
     name: Deploy Server to Railway
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
     
@@ -34,21 +35,14 @@ jobs:
         run: |
           # Run the deployment script in non-interactive mode
           node deploy-railway.js --mode=server --ci
-          
-          # Display generated environment variables for debugging (masked secrets)
-          echo "Generated environment file for server mode:"
-          cat .env.railway.server | grep -v "SECRET\|KEY\|TOKEN"
       
       - name: Deploy to Railway
-        uses: docker://ghcr.io/railwayapp/cli:latest
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        with:
-          args: up --service=medusa-server --detach
+        run: railway up --service=medusa-server --detach
         
   deploy-worker:
     name: Deploy Worker to Railway
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
     needs: deploy-server
@@ -75,14 +69,6 @@ jobs:
         run: |
           # Run the deployment script in non-interactive mode
           node deploy-railway.js --mode=worker --ci
-          
-          # Display generated environment variables for debugging (masked secrets)
-          echo "Generated environment file for worker mode:"
-          cat .env.railway.worker | grep -v "SECRET\|KEY\|TOKEN"
       
       - name: Deploy to Railway
-        uses: docker://ghcr.io/railwayapp/cli:latest
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        with:
-          args: up --service=medusa-worker --detach
+        run: railway up --service=medusa-worker --detach
