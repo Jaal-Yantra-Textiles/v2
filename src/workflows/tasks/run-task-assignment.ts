@@ -1,6 +1,7 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { TASKS_MODULE } from "../../modules/tasks"
+import TaskService from "../../modules/tasks/service"
 
 type AssignTaskWorkFlowInput = {
     taskId: string,
@@ -59,7 +60,7 @@ const awaitTaskFinish = createStep(
 const setTransactionID = createStep(
     "set-transaction-id-for-task",
     async (input: {input: AssignTaskWorkFlowInput, task: any}, { container, context }) => {
-       const taskService = container.resolve(TASKS_MODULE);
+       const taskService: TaskService = container.resolve(TASKS_MODULE);
        const task = await taskService.updateTasks({
            id: input.task.id,
            transaction_id: context.transactionId
@@ -67,7 +68,7 @@ const setTransactionID = createStep(
        return new StepResponse(task, task.id)
     },
     async (task, { container }) => {
-        const taskService = container.resolve(TASKS_MODULE);
+        const taskService: TaskService = container.resolve(TASKS_MODULE);
          await taskService.updateTasks({
             id: task,
             transaction_id: null

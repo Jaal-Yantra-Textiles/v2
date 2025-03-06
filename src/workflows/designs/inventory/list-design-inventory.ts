@@ -7,9 +7,7 @@ export const listDesignInventoryStep = createStep(
     'list-design-inventory',
     async (input: ListDesignInventoryWorkFlowInput, { container }) => {
         const query = container.resolve(ContainerRegistrationKeys.QUERY)
-        const designService = container.resolve(DESIGN_MODULE);
-        const ifDesignExist = await designService.retrieveDesign(input.design_id)
-        const { data, metadata } = await query.graph({
+        const { data } = await query.graph({
             entity: 'designs',
             fields: ['inventory_items.*'],
             filters: {
