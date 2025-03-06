@@ -38,6 +38,7 @@ jobs:
       - name: Deploy to Railway
         uses: docker://ghcr.io/railwayapp/cli:latest
         env:
+          SVC_ID: patient-spirit
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
           args: "railway up --service=medusa-server --detach"
@@ -75,6 +76,7 @@ jobs:
       - name: Deploy to Railway
         uses: docker://ghcr.io/railwayapp/cli:latest
         env:
+          SVC_ID: patient-spirit
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
           args: "railway up --service=medusa-worker --detach"
