@@ -5,7 +5,7 @@
     "buildCommand": "yarn install && node deploy-railway.js --mode=$MEDUSA_WORKER_MODE --ci"
   },
   "deploy": {
-    "startCommand": "cd .medusa/server && yarn install && yarn predeploy && yarn run start",
+    "startCommand": "cd .medusa/server && yarn predeploy && yarn run start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",
