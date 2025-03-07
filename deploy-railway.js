@@ -178,6 +178,9 @@ DATABASE_URL=\${Postgres.DATABASE_URL}
 REDIS_URL=\${Redis.REDIS_URL}?family=0
 MEDUSA_BACKEND_URL=
 
+# Vite environment variables (must be prefixed with VITE_)
+VITE_MEDUSA_BACKEND_URL=
+
 # S3 Config - set these in Railway for file storage
 S3_FILE_URL=
 S3_ACCESS_KEY_ID=
@@ -194,6 +197,9 @@ MEDUSA_WORKER_MODE=worker
 PORT=9000
 DATABASE_URL=\${Postgres.DATABASE_URL}
 REDIS_URL=\${Redis.REDIS_URL}?family=0
+
+# Vite environment variables (must be prefixed with VITE_)
+VITE_MEDUSA_BACKEND_URL=
 
 # S3 Config - set these in Railway for file storage
 S3_FILE_URL=

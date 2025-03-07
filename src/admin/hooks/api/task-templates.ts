@@ -1,6 +1,6 @@
 import { FetchError } from "@medusajs/js-sdk";
 import { QueryKey, UseMutationOptions, UseQueryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { sdk } from "../../lib/sdk";
+import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 
 export interface RequiredField {

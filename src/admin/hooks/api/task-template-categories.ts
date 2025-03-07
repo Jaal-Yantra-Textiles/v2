@@ -4,7 +4,7 @@ import {
   UseQueryOptions,
   useQuery,
 } from "@tanstack/react-query";
-import { sdk } from "../../lib/sdk";
+import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 
 export interface TaskTemplateCategory {

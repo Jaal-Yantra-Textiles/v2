@@ -8,7 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { sdk } from "../../lib/sdk";
+import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 import { pageQueryKeys } from "./pages";
 

@@ -1,5 +1,5 @@
 import { QueryKey, useMutation, UseMutationOptions, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query"
-import { sdk } from "../../lib/sdk"
+import { sdk } from "../../lib/config"
 import { FetchError } from "@medusajs/js-sdk"
 import { queryKeysFactory } from "../../lib/query-key-factory";
 

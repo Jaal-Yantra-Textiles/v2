@@ -1,6 +1,6 @@
 import { LoaderFunctionArgs } from "react-router-dom";
 import { queryClient } from "../../lib/query-client";
-import { sdk } from "../../lib/sdk";
+import { sdk } from "../../lib/config";
 import { personTypeQueryKeys } from "../../hooks/api/persontype";
 import { AdminPersonType } from "./person-type-general-section";
 
