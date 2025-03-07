@@ -165,41 +165,43 @@ console.log('Generating environment variables template...');
 const cookieSecret = generateSecureSecret();
 const jwtSecret = generateSecureSecret();
 
-const serverEnvVars = `COOKIE_SECRET=${cookieSecret}
-JWT_SECRET=${jwtSecret}
-STORE_CORS=https://your-store-frontend-url.com
-ADMIN_CORS=https://your-railway-app-url.railway.app
-AUTH_CORS=https://your-store-frontend-url.com,https://your-railway-app-url.railway.app
+const serverEnvVars = `# Required variables - set these in Railway
+COOKIE_SECRET=
+JWT_SECRET=
+STORE_CORS=
+ADMIN_CORS=
+AUTH_CORS=
 DISABLE_MEDUSA_ADMIN=false
 MEDUSA_WORKER_MODE=server
 PORT=9000
 DATABASE_URL=\${Postgres.DATABASE_URL}
 REDIS_URL=\${Redis.REDIS_URL}?family=0
-MEDUSA_BACKEND_URL=https://your-railway-app-url.railway.app
+MEDUSA_BACKEND_URL=
 
-# S3 Config (Fill these with your actual values)
-S3_FILE_URL=https://your-bucket-url.s3.amazonaws.com
-S3_ACCESS_KEY_ID=your-access-key
-S3_SECRET_ACCESS_KEY=your-secret-key
-S3_REGION=your-region
-S3_BUCKET=your-bucket-name
-S3_ENDPOINT=https://s3.your-region.amazonaws.com`;
+# S3 Config - set these in Railway for file storage
+S3_FILE_URL=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_REGION=
+S3_BUCKET=
+S3_ENDPOINT=`;
 
-const workerEnvVars = `COOKIE_SECRET=${cookieSecret}
-JWT_SECRET=${jwtSecret}
+const workerEnvVars = `# Required variables - set these in Railway
+COOKIE_SECRET=
+JWT_SECRET=
 DISABLE_MEDUSA_ADMIN=true
 MEDUSA_WORKER_MODE=worker
 PORT=9000
 DATABASE_URL=\${Postgres.DATABASE_URL}
 REDIS_URL=\${Redis.REDIS_URL}?family=0
 
-# S3 Config (Fill these with your actual values)
-S3_FILE_URL=https://your-bucket-url.s3.amazonaws.com
-S3_ACCESS_KEY_ID=your-access-key
-S3_SECRET_ACCESS_KEY=your-secret-key
-S3_REGION=your-region
-S3_BUCKET=your-bucket-name
-S3_ENDPOINT=https://s3.your-region.amazonaws.com`;
+# S3 Config - set these in Railway for file storage
+S3_FILE_URL=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_REGION=
+S3_BUCKET=
+S3_ENDPOINT=`;
 
 const envVars = mode === 'server' ? serverEnvVars : workerEnvVars;
 const envFilePath = path.join(process.cwd(), `.env.railway.${mode}`);
@@ -207,7 +209,7 @@ const envFilePath = path.join(process.cwd(), `.env.railway.${mode}`);
 try {
   fs.writeFileSync(envFilePath, envVars);
   console.log(`✅ Environment variables template created at .env.railway.${mode}`);
-  console.log('⚠️ Remember to update the placeholder values with your actual values before deployment.');
+  console.log('⚠️ For security, environment variables are empty. Set actual values in Railway dashboard.');
 } catch (error) {
   console.error('Error writing environment variables template:', error.message);
   restoreDevConfig();
@@ -239,26 +241,7 @@ const restorePrompt = `Would you like to restore your development configuration 
 if (isNonInteractive) {
   console.log('Running in CI mode - keeping production configuration for deployment');
   
-  // Generate Railway deployment files for use with railway CLI or GitHub Action
-  try {
-    // Create a Railway specific config file that can be used by the railway CLI
-    const railwayConfigPath = path.join(process.cwd(), `.railway.${mode}.toml`);
-    const railwayConfigContent = `[build]
-builder = "nixpacks"
-buildCommand = ""
-
-[deploy]
-startCommand = "${startCommand}"
-healthcheckPath = "/health"
-healthcheckTimeout = 300
-restartPolicyType = "on-failure"
-restartPolicyMaxRetries = 5`;
-
-    fs.writeFileSync(railwayConfigPath, railwayConfigContent);
-    console.log(`✅ Railway config file created at .railway.${mode}.toml`);
-  } catch (error) {
-    console.error('Error creating Railway config file:', error.message);
-  }
+  // We're now using railway.json instead of the older TOML format
   
   console.log('✅ Deployment preparation complete!');
   process.exit(0);
