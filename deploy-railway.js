@@ -92,6 +92,16 @@ if (isGitHubActions) {
     try {
       execSync('yarn medusa build', { stdio: 'inherit' });
       console.log('✅ Medusa built successfully with production config');
+      
+      // Copy production config to .medusa/server directory
+      const medusaServerConfigPath = path.join(process.cwd(), '.medusa', 'server', 'medusa-config.js');
+      if (fs.existsSync(path.dirname(medusaServerConfigPath))) {
+        console.log('Copying production config to .medusa/server directory...');
+        fs.copyFileSync(prodConfigPath, medusaServerConfigPath);
+        console.log('✅ Production configuration copied to .medusa/server/medusa-config.js');
+      } else {
+        console.log('⚠️ .medusa/server directory not found, skipping server config update');
+      }
     } catch (buildError) {
       console.error('Error building Medusa:', buildError.message);
       // Continue even if build fails since Railway will build it again
