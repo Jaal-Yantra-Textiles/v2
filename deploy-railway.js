@@ -93,12 +93,35 @@ if (isGitHubActions) {
       execSync('yarn medusa build', { stdio: 'inherit' });
       console.log('✅ Medusa built successfully with production config');
       
-      // Copy production config to .medusa/server directory
-      const medusaServerConfigPath = path.join(process.cwd(), '.medusa', 'server', 'medusa-config.js');
-      if (fs.existsSync(path.dirname(medusaServerConfigPath))) {
-        console.log('Copying production config to .medusa/server directory...');
-        fs.copyFileSync(prodConfigPath, medusaServerConfigPath);
-        console.log('✅ Production configuration copied to .medusa/server/medusa-config.js');
+      // Handle the compiled config in .medusa/server directory
+      const medusaServerDir = path.join(process.cwd(), '.medusa', 'server');
+      const medusaServerConfigPath = path.join(medusaServerDir, 'medusa-config.js');
+      if (fs.existsSync(medusaServerDir)) {
+        // Find any existing production config that might have been compiled
+        const compiledProdConfigPath = path.join(medusaServerDir, 'medusa-config.prod.js');
+        
+        if (fs.existsSync(compiledProdConfigPath)) {
+          // Use the compiled production config if it exists
+          console.log('Found compiled production config in .medusa/server directory...');
+          fs.copyFileSync(compiledProdConfigPath, medusaServerConfigPath);
+          console.log('✅ Compiled production configuration copied to .medusa/server/medusa-config.js');
+        } else {
+          // Create a temporary JavaScript version of the production config
+          console.log('Creating JavaScript version of production config for .medusa/server...');
+          try {
+            const tsContent = fs.readFileSync(prodConfigPath, 'utf8');
+            // Basic TypeScript to JavaScript conversion (replaces 'export default' with 'module.exports =')
+            const jsContent = tsContent
+              .replace(/export\s+default\s*{/, 'module.exports = {')
+              .replace(/import\s+{([^}]+)}\s+from\s+['"]([^'"]+)['"];?/g, 'const { $1 } = require("$2");');
+            
+            fs.writeFileSync(medusaServerConfigPath, jsContent);
+            console.log('✅ JavaScript version of production config created at .medusa/server/medusa-config.js');
+          } catch (error) {
+            console.error('Error creating JavaScript version of production config:', error.message);
+            console.log('⚠️ Using default config in .medusa/server');
+          }
+        }
       } else {
         console.log('⚠️ .medusa/server directory not found, skipping server config update');
       }
