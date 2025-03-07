@@ -184,8 +184,8 @@ try {
 // Step 5: Generate custom start commands
 console.log('Generating deployment commands...');
 
-const serverStartCommand = 'cd .medusa/server && npm install && npm run predeploy && npm run start';
-const workerStartCommand = 'cd .medusa/server && npm install && npm run start';
+const serverStartCommand = 'cd .medusa/server && yarn install && yarn predeploy && yarn run start';
+const workerStartCommand = 'cd .medusa/server && yarn install && yarn predeploy && yarn run start';
 const startCommand = mode === 'server' ? serverStartCommand : workerStartCommand;
 
 console.log('\n✅ Deployment preparation complete!');

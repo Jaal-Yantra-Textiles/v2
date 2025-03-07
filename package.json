@@ -16,11 +16,13 @@
     "build": "medusa build",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "start": "medusa start",
+    "start:railway": "cp medusa-config.prod.ts medusa-config.ts && medusa build && medusa start",
     "dev": "medusa develop",
     "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
-    "predeploy": "medusa db:migrate"
+    "predeploy": "medusa db:migrate && node -e \"const fs=require('fs');const path=require('path');const src=path.join(process.cwd(), 'medusa-config.prod.ts');const dest=path.join(process.cwd(), '.medusa', 'server', 'medusa-config.js');if(fs.existsSync(src)) { console.log('Copying production config to .medusa/server');const prodConfig=fs.readFileSync(src);fs.writeFileSync(dest, prodConfig); console.log('✅ Production config copied successfully');} else {console.log('⚠️ Production config not found, using default');}\""
+    
   },
   "dependencies": {
     "@blocknote/core": "^0.22.0",
