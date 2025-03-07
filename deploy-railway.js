@@ -86,6 +86,16 @@ if (isGitHubActions) {
     
     fs.copyFileSync(prodConfigPath, configPath);
     console.log('✅ Production configuration copied to medusa-config.ts');
+    
+    // Build Medusa with production config to ensure .medusa/server uses the correct config
+    console.log('Building Medusa with production config...');
+    try {
+      execSync('yarn medusa build', { stdio: 'inherit' });
+      console.log('✅ Medusa built successfully with production config');
+    } catch (buildError) {
+      console.error('Error building Medusa:', buildError.message);
+      // Continue even if build fails since Railway will build it again
+    }
   } catch (error) {
     console.error('Error copying production configuration:', error.message);
     // Restore backup

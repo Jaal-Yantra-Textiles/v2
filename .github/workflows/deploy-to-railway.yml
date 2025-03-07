@@ -30,6 +30,11 @@ jobs:
           cp medusa-config.prod.ts medusa-config.ts
           echo "✅ Production configuration copied to medusa-config.ts"
       
+      - name: Build Medusa with production config
+        run: |
+          yarn medusa build
+          echo "✅ Medusa built with production configuration"
+      
       - name: Prepare server deployment
         run: |
           # Run the deployment script in non-interactive mode
@@ -67,6 +72,11 @@ jobs:
           # Copy production config to medusa-config.ts
           cp medusa-config.prod.ts medusa-config.ts
           echo "✅ Production configuration copied to medusa-config.ts"
+      
+      - name: Build Medusa with production config
+        run: |
+          yarn medusa build
+          echo "✅ Medusa built with production configuration"
       
       - name: Prepare worker deployment
         run: |
