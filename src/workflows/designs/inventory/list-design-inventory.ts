@@ -1,6 +1,5 @@
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk";
-import { DESIGN_MODULE } from "../../../modules/designs";
 
 
 export const listDesignInventoryStep = createStep(
@@ -17,7 +16,10 @@ export const listDesignInventoryStep = createStep(
         
         // Handle the case when no design is found
         if (!data || data.length === 0) {
-            return new StepResponse({ inventory_items: [] })
+            throw new MedusaError(
+                MedusaError.Types.NOT_FOUND,
+                `Design with id: ${input.design_id} was not found`
+            );
         }
 
         // Get the first design (since we're querying by ID, there should only be one)

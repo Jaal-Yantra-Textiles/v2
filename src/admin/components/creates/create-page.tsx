@@ -170,6 +170,7 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
 
   return (
     <RouteFocusModal.Form form={form}>
+      <RouteFocusModal.Description>This is where we do some magic</RouteFocusModal.Description>
       <KeyboundForm
         onSubmit={handleSubmit}
         className="flex flex-1 flex-col overflow-hidden"

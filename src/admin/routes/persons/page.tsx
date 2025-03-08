@@ -1,118 +1,185 @@
-import { Container, Heading, Text } from "@medusajs/ui";
-import { keepPreviousData } from "@tanstack/react-query";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, DropdownMenu, Button } from "@medusajs/ui";
+import { useNavigate } from "react-router-dom";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { Users, PencilSquare } from "@medusajs/icons";
+import { Users, ChevronDownMini } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { usePersons } from "../../hooks/api/persons";
-import {  useMemo } from "react";
-import { DataTable } from "../../components/table/data-table";
-import { useDataTable } from "../../hooks/usedataTable";
-import { usePersonsTableQuery } from "../../hooks/usePersontableQuery";
-import { usePersonTableFilters } from "../../hooks/filters/usePersonsTablefilters";
+import { useMemo, useState } from "react";
 import { usePersonTableColumns } from "../../hooks/columns/usePersonTableColumns";
-import { EntityActions } from "../../components/persons/personsActions";
-import { createColumnHelper } from "@tanstack/react-table";
-import { AdminPerson } from "../../hooks/api/personandtype";
+import { AdminPerson, AdminPersonsListParams } from "../../hooks/api/personandtype";
 
 
 
-const columnHelper = createColumnHelper<AdminPerson>();
 export const useColumns = () => {
   const columns = usePersonTableColumns();
-
-  const personActionsConfig = {
-    actions: [
-      {
-        icon: <PencilSquare />,
-        label: "Edit",
-        to: (person: AdminPerson) => `/persons/${person.id}/edit`,
-      },
-      // Add more actions as needed
-    ],
-  };
 
   return useMemo(
     () => [
       ...columns,
-      columnHelper.display({
-        id: "actions",
-        cell: ({ row }) => (
-          <EntityActions
-            entity={row.original}
-            actionsConfig={personActionsConfig}
-          />
-        ),
-      }),
     ],
     [columns],
   );
 };
 
 const PersonsPage = () => {
+  const navigate = useNavigate();
   
-  const { searchParams, raw } = usePersonsTableQuery({ pageSize: 10 });
-
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageSize: 10,
+    pageIndex: 0,
+  });
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({});
+  const [search, setSearch] = useState<string>("");
+  
+  // Calculate the offset based on pagination
+  const offset = pagination.pageIndex * pagination.pageSize;
+  
   const {
-    persons, // Access the persons array directly
-    count, // Access the count directly
+    persons, 
+    count,
     isLoading,
     isError,
     error,
   } = usePersons(
     {
-      ...searchParams,
+      limit: pagination.pageSize,
+      offset: offset,
+      q: search || undefined, 
+      // Apply filtering only for known fields
+      ...(Object.keys(filtering).length > 0 ? 
+        Object.entries(filtering).reduce((acc: AdminPersonsListParams, [key, value]) => {
+          if (!value) return acc;
+          
+          // Handle different filter types appropriately
+          if (key === 'email') {
+            acc.email = value as string;
+          } else if (key === 'state') {
+            acc.state = value as string;
+          }
+          return acc;
+        }, {} as AdminPersonsListParams) : {}),
     },
     {
-      placeholderData: keepPreviousData,
+      // Use the staleTime option instead of keepPreviousData
+      staleTime: 30000,
     },
   );
 
-  const filters = usePersonTableFilters();
   const columns = useColumns();
+  
+  const filterHelper = createDataTableFilterHelper<AdminPerson>();
+  
+  // Create filters using the filterHelper
+  const filters = [
+    filterHelper.accessor("email", {
+      type: "select",
+      label: "Email",
+      options: useMemo(() => {
+        if (!persons?.length) return [];
+        
+        // Extract unique emails
+        const uniqueEmails = [...new Set(persons.map(p => p.email))];
+        
+        // Convert to options format
+        return uniqueEmails.map(email => ({
+          label: email || "",
+          value: email || ""
+        }));
+      }, [persons]),
+    }),
+    filterHelper.accessor("state", {
+      type: "select",
+      label: "State",
+      options: [
+        { label: "Active", value: "active" },
+        { label: "Inactive", value: "inactive" },
+        { label: "Pending", value: "pending" },
+      ],
+    }),
+  ];
 
-  const { table } = useDataTable({
-    data: persons ?? [],
+  const table = useDataTable({
     columns,
-    count,
-    enablePagination: true,
-    getRowId: (row) => row.id,
-    pageSize: 10,
+    data: persons ?? [],
+    getRowId: (row) => row.id as string,
+    onRowClick: (_, row) => {
+      navigate(`/persons/${row.id}`);
+    },
+    rowCount: count ?? 0,
+    isLoading: isLoading ?? false,
+    filters,
+    pagination: {
+      state: pagination,
+      onPaginationChange: setPagination,
+    },
+    search: {
+      state: search,
+      onSearchChange: setSearch,
+    },
+    filtering: {
+      state: filtering,
+      onFilteringChange: setFiltering,
+    },
   });
 
   if (isError) {
     throw error;
   }
 
- 
   return (
-    
-    <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div>
-          <Heading>Persons</Heading>
-          <Text className="text-ui-fg-subtle" size="small">
-            Manage all your relationships from here
-          </Text>
-        </div>
-        <CreateButton />
-      </div>
-      <DataTable
-        table={table}
-        columns={columns}
-        pageSize={10}
-        count={count}
-        filters={filters}
-        orderBy={[{ key: "email", label: "Email" }]}
-        isLoading={isLoading}
-        navigateTo={(row) => row.original.id}
-        search
-        queryObject={raw}
-        noRecords={{
-          message: "Oh no records found",
-        }}
-      />
-    </Container>
-   
+    <div>
+      <Container className="divide-y p-0">
+        <DataTable instance={table}>
+          {/* Header section with title and create button */}
+          <DataTable.Toolbar className="flex justify-between items-center px-6 py-4">
+            <div>
+              <Heading>Persons</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Manage all your relationships from here
+              </Text>
+            </div>
+            <div className="flex items-center">
+              <div className="inline-flex rounded-lg overflow-hidden">
+                <CreateButton />
+                <DropdownMenu>
+                  <DropdownMenu.Trigger asChild>
+                    <Button 
+                      variant="secondary" 
+                      size="small" 
+                      className="rounded-l-none border-l border-ui-border-base pl-2 pr-2"
+                    >
+                      <ChevronDownMini />
+                    </Button>
+                  </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                  <DropdownMenu.Item className="gap-x-2">
+                    Import
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item className="gap-x-2">
+                    Export
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Separator />
+                </DropdownMenu.Content>
+              </DropdownMenu>
+              </div>
+            </div>
+          </DataTable.Toolbar>
+          
+          {/* Search and filter section in its own container with divider */}
+          <div className="flex items-start justify-between gap-x-4 px-6 py-4 border-t border-ui-border-base">
+            <div className="w-full max-w-[60%]">
+              <DataTable.FilterMenu tooltip="Filter persons" />
+            </div>
+            <div className="flex shrink-0 items-center gap-x-2">
+              <DataTable.Search placeholder="Search persons..." />
+            </div>
+          </div>
+          
+          <DataTable.Table />
+          <DataTable.Pagination />
+        </DataTable>
+      </Container>
+    </div>
   );
 };
 
@@ -126,4 +193,7 @@ export const config = defineRouteConfig({
 });
 
 
+export const handle = {
+  breadcrumb: () => "People",
+};
 

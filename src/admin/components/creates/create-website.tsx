@@ -16,7 +16,7 @@ const websiteSchema = z.object({
   description: z.string().optional(),
   status: z.enum(["Active", "Inactive", "Maintenance", "Development"]).default("Development"),
   primary_language: z.string().min(1, "Primary language is required").default("en"),
-  supported_languages: z.array(z.string()).default(["en"]),
+  supported_languages: z.record(z.string(), z.string()).default({ en: "English" }),
   analytics_id: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
@@ -53,7 +53,7 @@ export function CreateWebsiteComponent() {
       description: "",
       status: "Development",
       primary_language: "en",
-      supported_languages: [],
+      supported_languages: {},
       analytics_id: "",
     },
   });
@@ -79,14 +79,15 @@ export function CreateWebsiteComponent() {
 
   return (
     <RouteFocusModal.Form form={form}>
+      <RouteFocusModal.Description></RouteFocusModal.Description>
       <KeyboundForm
         onSubmit={handleSubmit}
         className="flex flex-1 flex-col overflow-hidden"
       >
         <RouteFocusModal.Header />
         <RouteFocusModal.Title></RouteFocusModal.Title>
-        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
-          <div className="flex w-full max-w-[720px] flex-col gap-y-8">
+        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-8 px-4 md:py-16">
+          <div className="flex w-full max-w-[720px] flex-col gap-y-8 mx-auto">
             <div>
               <Heading>Create Website</Heading>
               <Text size="small" className="text-ui-fg-subtle">
@@ -94,7 +95,7 @@ export function CreateWebsiteComponent() {
               </Text>
             </div>
 
-            <div className="flex flex-col gap-y-4">
+            <div className="flex flex-col gap-y-4 w-full">
             <Form.Field
               control={form.control}
               name="domain"
@@ -204,11 +205,13 @@ export function CreateWebsiteComponent() {
                   <Form.Control>
                     <div className="flex flex-col gap-y-2">
                       <Select
-                        value={field.value?.[0] || ""}
+                        value=""
                         onValueChange={(value: string) => {
-                          const newValues = field.value || [];
-                          if (!newValues.includes(value)) {
-                            field.onChange([...newValues, value]);
+                          const langOption = languageOptions.find(opt => opt.value === value);
+                          const newValues = { ...field.value };
+                          if (!newValues[value]) {
+                            newValues[value] = langOption?.label || value;
+                            field.onChange(newValues);
                           }
                         }}
                         size="small"
@@ -224,25 +227,24 @@ export function CreateWebsiteComponent() {
                           ))}
                         </Select.Content>
                       </Select>
-                      {field.value && field.value.length > 0 && (
+                      {field.value && Object.keys(field.value).length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                          {field.value.map((lang) => {
-                            const langOption = languageOptions.find(opt => opt.value === lang);
-                            return (
-                              <Badge key={lang} color="green" className="flex items-center gap-x-1">
-                                <span>{langOption?.label || lang}</span>
+                          {Object.entries(field.value).map(([key, label]) => (
+                              <Badge key={key} color="green" className="flex items-center gap-x-1">
+                                <span>{label}</span>
                                 <button
                                   type="button"
                                   className="text-ui-fg-subtle hover:text-ui-fg-base ml-1"
                                   onClick={() => {
-                                    field.onChange(field.value.filter((l: string) => l !== lang));
+                                    const newValues = { ...field.value };
+                                    delete newValues[key];
+                                    field.onChange(newValues);
                                   }}
                                 >
                                   ×
                                 </button>
                               </Badge>
-                            );
-                          })}
+                          ))}
                         </div>
                       )}
                     </div>
@@ -265,10 +267,10 @@ export function CreateWebsiteComponent() {
                 </Form.Item>
               )}
             />
-          </div>
+            </div>
           </div>
         </RouteFocusModal.Body>
-        <RouteFocusModal.Footer className="flex gap-x-2 justify-end">
+        <RouteFocusModal.Footer className="flex gap-x-2 justify-end px-4 md:px-6">
           <Button
             type="button"
             variant="secondary"

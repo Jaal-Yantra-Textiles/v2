@@ -8,6 +8,7 @@ import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 
 
+
 const DesignDetailPage = () => {
   const { id } = useParams();
   const { design, isLoading, isError, error } = useDesign(id!, {
@@ -28,7 +29,7 @@ const DesignDetailPage = () => {
   if (!design) {
     throw new Error("Design not found");
   }
-
+  
   return (
       <TwoColumnPage 
         data={design}
@@ -38,7 +39,6 @@ const DesignDetailPage = () => {
       >
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
-         
           <DesignMediaSection design={design} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>

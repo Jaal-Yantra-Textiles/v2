@@ -1,9 +1,9 @@
-import {   Outlet, UIMatch, useParams } from "react-router-dom";
+import {  UIMatch, useParams } from "react-router-dom";
 import { usePerson } from "../../../hooks/api/persons";
-import { SingleColumnPageSkeleton } from "../../../components/table/skeleton";
-import { SingleColumnPage } from "../../../components/pages/single-column-pages";
+import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { PersonGeneralSection } from "../../../components/persons/person-general-section";
 import { PersonsAddressSection } from "../../../components/persons/persons-address-section";
+import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 
 
 
@@ -16,7 +16,7 @@ const PersonDetailPage = () => {
 
   // Show loading skeleton while data is being fetched
   if (isLoading) {
-    return <SingleColumnPageSkeleton sections={2} showJSON showMetadata />;
+    return <TwoColumnPageSkeleton mainSections={2} sidebarSections={2} showJSON showMetadata />;
   }
 
   // Handle error state
@@ -34,10 +34,15 @@ const PersonDetailPage = () => {
   // Render main content when data is available
   return (
     
-    <SingleColumnPage data={person} hasOutlet={true} showJSON showMetadata={true} >
+    <TwoColumnPage data={person} hasOutlet={true} showJSON showMetadata={true} >
+      <TwoColumnPage.Main>
       <PersonGeneralSection person={person} />
       <PersonsAddressSection person={person} />
-    </SingleColumnPage>
+      </TwoColumnPage.Main>
+      <TwoColumnPage.Sidebar>
+        
+      </TwoColumnPage.Sidebar>
+    </TwoColumnPage>
   );
 };
 

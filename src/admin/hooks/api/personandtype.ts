@@ -34,7 +34,7 @@ export interface Address {
 
 export interface PersonWithAddress extends AdminPerson, Address {}
 
-export interface AdminUpdatePerson {
+export interface AdminUpdatePerson extends AdminCreatePerson {
   addresses?: AddressDetails[];
   metadata?: Record<string, any> | null | undefined;
 }
