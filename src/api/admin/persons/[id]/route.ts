@@ -9,12 +9,12 @@ import { MedusaError } from "@medusajs/framework/utils";
 import { AdminUpdatePerson } from "../../../../admin/hooks/api/personandtype";
 import listSinglePersonWorkflow from "../../../../workflows/persons/list-single-person";
 
-export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+export const GET = async (req: MedusaRequest , res: MedusaResponse) => {
   const { id } = req.params;
   const { result: person } = await listSinglePersonWorkflow(req.scope).run({
     input: {
       id,
-      fields: req.queryConfig?.fields || ["*"],
+      ...req.queryConfig
     },
   });
 

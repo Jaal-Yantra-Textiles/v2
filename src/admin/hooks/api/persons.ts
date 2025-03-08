@@ -11,12 +11,21 @@ import {
 import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 import {
+  AddressDetails,
   AdminCreatePerson,
   AdminPerson,
   AdminPersonDeleteResponse,
   AdminPersonResponse,
   AdminUpdatePerson,
 } from "../api/personandtype";
+
+export interface AddressInput {
+  street: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+}
 
 const PERSONS_QUERY_KEY = "persons" as const;
 export const personsQueryKeys = queryKeysFactory(PERSONS_QUERY_KEY);
@@ -133,6 +142,32 @@ export const useDeletePerson = (
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.detail(id),
+      });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};
+
+export const useAddAddressToPerson = (
+  personId: string,
+  options?: UseMutationOptions<
+    { address: AddressDetails },
+    FetchError,
+    AddressInput
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (addressData: AddressInput) =>
+      sdk.client.fetch<{ address: AddressDetails }>(`/admin/persons/${personId}/addresses`, {
+        method: "POST",
+        body: addressData,
+      }),
+    onSuccess: (data, variables, context) => {
+      // Invalidate person details to refresh the addresses
+      queryClient.invalidateQueries({
+        queryKey: personsQueryKeys.detail(personId),
       });
       options?.onSuccess?.(data, variables, context);
     },

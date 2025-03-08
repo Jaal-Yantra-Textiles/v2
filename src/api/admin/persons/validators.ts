@@ -15,6 +15,9 @@ export const personSchema = z.object({
   state: z.enum(["Onboarding", "Onboarding Finished", "Stalled", "Conflicted"]).optional(),
 });
 
+export const ReadPersonQuerySchema = z.object({
+  fields: z.string().optional(),
+})
 export const UpdatePersonSchema = personSchema.partial();
 
 export type Person = z.infer<typeof personSchema>;

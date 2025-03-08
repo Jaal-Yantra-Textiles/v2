@@ -9,7 +9,7 @@ const PersonDetailPage = () => {
   
   const { id } = useParams();
   const { person, isLoading, isError, error } = usePerson(id!, {
-    fields: ["addresses", "person_type.*", "partner.*"]
+    fields: "addresses.*, person_type.*, partner.*"
   });
 
   // Show loading skeleton while data is being fetched

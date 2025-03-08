@@ -11,7 +11,7 @@ import {
 import { ConfigModule } from "@medusajs/framework/types";
 import { parseCorsOrigins } from "@medusajs/framework/utils";
 import cors from "cors";
-import { personSchema, UpdatePersonSchema } from "./admin/persons/validators";
+import { personSchema, ReadPersonQuerySchema, UpdatePersonSchema } from "./admin/persons/validators";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody
 const wrapSchema = <T extends z.ZodType>(schema: T) => {
@@ -120,6 +120,11 @@ export default defineMiddlewares({
       matcher: "/admin/persons",
       method: "GET",
       middlewares: [],
+    },
+    {
+      matcher: "/admin/persons/:id",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ReadPersonQuerySchema), {})],
     },
     {
       matcher: "/admin/persons/:id",

@@ -1,5 +1,5 @@
 import { Button, Heading, Input, Text, toast } from "@medusajs/ui";
-import { useUpdatePerson } from "../../hooks/api/persons";
+import { useAddAddressToPerson } from "../../hooks/api/persons";
 
 import { useForm } from "react-hook-form";
 import { RouteFocusModal } from "../modal/route-focus-modal";
@@ -11,7 +11,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
 const addressSchema = z.object({
-  id: z.string(),
   street: z.string().min(1, "Street is required"),
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State is required"),
@@ -24,7 +23,6 @@ type AddressFormData = z.infer<typeof addressSchema>;
 const AddAddressForPerson = () => {
   const form = useForm<AddressFormData>({
     defaultValues: {
-      id: '',
       street: "",
       city: "",
       state: "",
@@ -36,27 +34,21 @@ const AddAddressForPerson = () => {
 
   const { id } = useParams();
   const { handleSuccess } = useRouteModal();
-  const { mutateAsync, isPending } = useUpdatePerson(id!);
+  const { mutateAsync, isPending } = useAddAddressToPerson(id!);
 
   const handleSubmit = form.handleSubmit(async (data) => {
     console.log('Form submitted with data:', data);
     try {
-     
-      const response = await mutateAsync({
-        addresses: [data],
-      });
+      const response = await mutateAsync(data);
       console.log('API response:', response);
       
-      if (response?.person) {
-        
+      if (response?.address) {
         toast.success('Address added successfully');
         handleSuccess(`/persons/${id}`);
       } else {
-        
         toast.error('Failed to add address: No response from server');
       }
     } catch (error: any) {
-      
       toast.error(error?.message || 'Failed to add address');
       // Don't close the modal on error
       return;
