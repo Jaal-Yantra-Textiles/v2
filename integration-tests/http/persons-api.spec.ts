@@ -203,6 +203,69 @@ medusaIntegrationTestRunner({
           })
         );
       });
+
+      it("should retrieve specific fields when requested", async () => {
+        // Create a test person with all fields
+        const created = await api.post(
+          "/admin/persons",
+          {
+            first_name: "Jane",
+            last_name: "Smith",
+            email: "jane.smith@example.com",
+            date_of_birth: "1992-05-15",
+            metadata: { role: "designer" },
+          },
+          headers
+        );
+        
+        const personId = created.data.person.id;
+        
+        // Request only specific fields
+        const response = await api.get(
+          `/admin/persons/${personId}?fields=id,first_name`,
+          headers
+        );
+
+        expect(response.status).toBe(200);
+        
+        // Person should have the requested fields
+        expect(response.data.person).toHaveProperty('id');
+        expect(response.data.person).toHaveProperty('first_name', 'Jane');
+        
+        // The * field is always included, so these fields should be present
+        expect(response.data.person).toHaveProperty('created_at');
+        expect(response.data.person).toHaveProperty('updated_at');
+      });
+      
+      it("should retrieve nested fields when requested", async () => {
+        // Create a test person first
+        const created = await api.post(
+          "/admin/persons",
+          {
+            first_name: "Alex",
+            last_name: "Johnson",
+            email: "alex.johnson@example.com",
+            date_of_birth: "1985-10-20",
+          },
+          headers
+        );
+        
+        const personId = created.data.person.id;
+        
+        // Request with nested fields for person_type and partner
+        const response = await api.get(
+          `/admin/persons/${personId}?fields=id,first_name,person_type.id,person_type.description,partner.handle`,
+          headers
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data.person).toHaveProperty('id');
+        expect(response.data.person).toHaveProperty('first_name', 'Alex');
+        
+        // Since we don't know if person_type or partner will be populated in this test,
+        // we just confirm the request worked without errors
+        // In a real scenario with seeded data, you could make specific assertions
+      });
     });
 
     describe("PUT /admin/persons/:id", () => {

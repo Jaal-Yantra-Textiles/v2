@@ -5,14 +5,12 @@ import { PersonGeneralSection } from "../../../components/persons/person-general
 import { PersonsAddressSection } from "../../../components/persons/persons-address-section";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 
-
-
-
-
 const PersonDetailPage = () => {
   
   const { id } = useParams();
-  const { person, isLoading, isError, error } = usePerson(id!);
+  const { person, isLoading, isError, error } = usePerson(id!, {
+    fields: ["addresses", "person_type.*", "partner.*"]
+  });
 
   // Show loading skeleton while data is being fetched
   if (isLoading) {

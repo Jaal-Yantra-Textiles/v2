@@ -5,43 +5,20 @@ import { PERSON_MODULE } from "../../../../modules/person";
 import updatePersonWorkflow from "../../../../workflows/update-person";
 import { PersonAllowedFields, refetchPerson } from "../helpers";
 
-import { MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { MedusaError } from "@medusajs/framework/utils";
 import { AdminUpdatePerson } from "../../../../admin/hooks/api/personandtype";
+import listSinglePersonWorkflow from "../../../../workflows/persons/list-single-person";
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params;
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+  const { result: person } = await listSinglePersonWorkflow(req.scope).run({
+    input: {
+      id,
+      fields: req.queryConfig?.fields || ["*"],
+    },
+  });
 
-  try {
-    // Fetch person details
-    const { data: person } = await query.graph({
-      entity: "person",
-      filters: { id },
-      fields: [
-        "*",
-        "person_type.*",
-        "partner.*",
-        "partner.handle"
-      ],
-    });
-
-    if (!person?.length) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_FOUND,
-        `Person with id "${id}" not found`
-      );
-    }
-
-    res.status(200).json({ person: person[0] });
-  } catch (error) {
-    if (error instanceof MedusaError) {
-      throw error;
-    }
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      error.message
-    );
-  }
+  res.status(200).json({ person });
 };
 
 export const POST = async (
