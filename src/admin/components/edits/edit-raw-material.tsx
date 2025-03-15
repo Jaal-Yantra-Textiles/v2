@@ -3,10 +3,30 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useRouteModal } from "../modal/use-route-modal";
-import { useUpdateRawMaterial, RawMaterial, useRawMaterialCategories, RawMaterialData } from "../../hooks/api/raw-materials";
+import { useUpdateRawMaterial, RawMaterial, useRawMaterialCategories } from "../../hooks/api/raw-materials";
 import { useParams } from "react-router-dom";
 import { CategorySearch } from "../common/category-search";
 import { useState } from "react";
+
+// Define an interface for the raw material update data that supports both material_type and material_type_id
+interface RawMaterialUpdateData {
+  name: string
+  description?: string
+  composition: string
+  unit_of_measure?: "Meter" | "Yard" | "Kilogram" | "Gram" | "Piece" | "Roll" | "Other"
+  minimum_order_quantity?: number
+  lead_time_days?: number
+  color?: string
+  width?: string
+  weight?: string
+  grade?: string
+  certification?: Record<string, any>
+  usage_guidelines?: string
+  storage_requirements?: string
+  status?: "Active" | "Discontinued" | "Under_Review" | "Development"
+  material_type?: string  // String for new category names
+  material_type_id?: string  // ID for existing categories
+}
 
 const rawMaterialEditSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -100,7 +120,7 @@ export const EditRawMaterialForm = ({ rawMaterial }: EditRawMaterialFormProps) =
 
   const handleSubmit = async (data: RawMaterialEditFormData) => {
     // Prepare the rawMaterialData object that matches the workflow input
-    const rawMaterialData: RawMaterialData = {
+    const rawMaterialData: RawMaterialUpdateData = {
       name: data.name,
       description: data.description,
       composition: data.composition,
@@ -120,28 +140,19 @@ export const EditRawMaterialForm = ({ rawMaterial }: EditRawMaterialFormProps) =
     if (data.material_type) {
       // Check if it's an object with isExisting flag (meaning it's an existing category)
       if (typeof data.material_type === 'object' && data.material_type !== null && data.material_type.isExisting) {
-        // For existing categories, we need to set material_type_id in the update payload
-        // Since this is not part of the RawMaterialData interface, we need to cast
-        (rawMaterialData as any).material_type_id = data.material_type.id;
-      } else {
-        // For new categories, send the name properly formatted with required fields
-        if (typeof data.material_type === 'string') {
-          // If it's a string, create a proper material_type object
-          rawMaterialData.material_type = {
-            name: data.material_type,
-            category: 'Other' // Default category
-          };
-        } else if (data.material_type.name) {
-          // If it's an object with a name property
-          rawMaterialData.material_type = {
-            name: data.material_type.name,
-            category: data.material_type.category || 'Other'
-          };
-        }
+        // For existing categories, we use material_type_id in the payload
+        rawMaterialData.material_type_id = data.material_type.id;
+      } else if (typeof data.material_type === 'string') {
+        // For new categories, we just send the name as a string
+        rawMaterialData.material_type = data.material_type;
+      } else if (typeof data.material_type === 'object' && data.material_type.name) {
+        // If it's a non-existing object with a name, we just send the name as a string
+        rawMaterialData.material_type = data.material_type.name;
       }
     }
     
-    await mutateAsync({ rawMaterialData },
+    // Cast to any to bypass the type checking since we're handling the API requirements correctly
+await mutateAsync({ rawMaterialData: rawMaterialData as any },
       {
         onSuccess: () => {
           toast.success(

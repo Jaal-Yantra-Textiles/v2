@@ -1,5 +1,6 @@
 import { openai } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
+import { anthropic } from "@ai-sdk/anthropic";
 
 export const seoAgent = new Agent({
   name: "seo-agent",
@@ -14,6 +15,14 @@ export const seoAgent = new Agent({
     "\nPrioritize brevity while maintaining impact. Always stay well within character limits " +
     "to ensure validation passes. Quality over quantity - each word must serve a purpose.",
   model: openai("gpt-4o-mini"),
+});
+
+export const modelAgent = new Agent({
+  name: "model-agent",
+  instructions:
+    "You are an expert in understanding the structure of a given data model. " +
+    "Your role is to create properties and metadata that are relevant to the given domain or data model.",
+  model: anthropic("claude-3-5-sonnet-20240620")
 });
 
 

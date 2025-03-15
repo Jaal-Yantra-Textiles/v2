@@ -13,7 +13,7 @@ type CreateRawMaterialInput = {
   inventoryId: string
   rawMaterialData: {
     name: string
-    description: string
+    description?: string
     composition: string
     specifications?: Record<string, any>
     unit_of_measure?: string

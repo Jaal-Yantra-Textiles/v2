@@ -21,9 +21,9 @@
     "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
     "predeploy": "medusa db:migrate"
-    
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^1.1.17",
     "@blocknote/core": "^0.22.0",
     "@blocknote/mantine": "^0.22.0",
     "@blocknote/react": "^0.22.0",
