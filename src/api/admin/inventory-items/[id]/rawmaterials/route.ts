@@ -14,7 +14,7 @@ export const POST = async (
   },
   res: MedusaResponse,
 ) => {
-  const { result, errors } = await createRawMaterialWorkflow.run({
+  const { errors } = await createRawMaterialWorkflow(req.scope).run({
     input: {
       inventoryId: req.params.id,
       rawMaterialData: req.validatedBody.rawMaterialData

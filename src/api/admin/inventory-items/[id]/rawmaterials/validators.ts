@@ -19,7 +19,7 @@ const materialTypeSchema = z.object({
 
 const rawMaterialDataSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  description: z.string().min(1, "Description is required"),
+  description: z.string().min(1, "Description is required").optional(),
   composition: z.string().min(1, "Composition is required"),
   specifications: z.record(z.any()).optional(),
   unit_of_measure: z.enum([
@@ -47,7 +47,8 @@ const rawMaterialDataSchema = z.object({
     "Development"
   ]).optional().default("Active"),
   metadata: z.record(z.any()).optional(),
-  material_type: materialTypeSchema.optional()
+  material_type: z.string().optional(),
+  material_type_id: z.string().optional()
 });
 
 export const rawMaterialSchema = z.object({
@@ -56,3 +57,6 @@ export const rawMaterialSchema = z.object({
 
 export type RawMaterial = z.infer<typeof rawMaterialSchema>;
 export type UpdateRawMaterial = Partial<RawMaterial>;
+
+export const UpdateRawMaterialSchema = rawMaterialSchema.partial();
+

@@ -6,6 +6,8 @@ import { z } from "zod";
 import { Form } from "./form";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { RouteDrawer } from "../modal/route-drawer/route-drawer";
+import { useEffect, useState } from "react";
+import isEqual from "lodash/isEqual";
 
 export type BaseFormType = Record<string, any>;
 
@@ -43,6 +45,8 @@ export const DynamicForm = <T extends FieldValues>({
   layout = { showDrawer: true, gridCols: 1 },
   isPending = false,
 }: FormConfig<T>) => {
+  // Track if form has been modified from initial values
+  const [formDirty, setFormDirty] = useState(false);
   const { t } = useTranslation();
 
   // Build schema from fields
@@ -60,7 +64,10 @@ export const DynamicForm = <T extends FieldValues>({
             fieldSchema = field.required ? z.string().min(1) : z.string().optional();
             break;
           case "number":
-            fieldSchema = field.required ? z.number().min(0) : z.number().optional();
+            // Handle string inputs for number fields and convert them properly
+            fieldSchema = field.required 
+              ? z.preprocess((val) => val === "" ? 0 : Number(val), z.number().min(0))
+              : z.preprocess((val) => val === "" || val === null ? undefined : Number(val), z.number().optional());
             break;
           case "select":
             fieldSchema = field.required 
@@ -99,6 +106,19 @@ export const DynamicForm = <T extends FieldValues>({
     resolver: zodResolver(generateSchema()) as Resolver<T>,
     defaultValues: computeDefaultValues(fields, defaultValues),
   });
+  
+  // Store original values for comparison
+  const originalValues = computeDefaultValues(fields, defaultValues);
+  
+  // Watch all form values to detect changes
+  const currentValues = form.watch();
+  
+  // Check if form values have changed from defaults
+  useEffect(() => {
+    // Deep compare current values with original values
+    const hasChanged = !isEqual(currentValues, originalValues);
+    setFormDirty(hasChanged);
+  }, [currentValues, originalValues]);
 
   const renderField = (field: FieldConfig<T>) => {
     const baseProps = {
@@ -252,14 +272,26 @@ export const DynamicForm = <T extends FieldValues>({
                 {t("actions.cancel")}
               </Button>
             </RouteDrawer.Close>
-            <Button size="small" type="submit" isLoading={isPending}>
+            <Button 
+              size="small" 
+              type="submit" 
+              isLoading={isPending}
+              disabled={!formDirty} // Disable when form is unchanged
+              title={!formDirty ? t("form.no_changes", "No changes to save") : ""}
+            >
               {t("actions.save")}
             </Button>
           </div>
         </RouteDrawer.Footer>
       ) : (
         <div className="mt-4 flex justify-end gap-x-2">
-          <Button size="small" type="submit" isLoading={isPending}>
+          <Button 
+            size="small" 
+            type="submit" 
+            isLoading={isPending}
+            disabled={!formDirty} // Disable when form is unchanged
+            title={!formDirty ? t("form.no_changes", "No changes to save") : ""}
+          >
             {t("actions.save")}
           </Button>
         </div>

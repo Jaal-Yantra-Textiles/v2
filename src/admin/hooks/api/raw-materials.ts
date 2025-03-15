@@ -187,9 +187,21 @@ export const useCreateRawMaterial = (
       return response
     },
     onSuccess: async (data, variables, context) => {
+      // Invalidate the specific inventory item query
+      queryClient.invalidateQueries({
+        queryKey: inventoryItemsRawMaterialQueryKeys.detail(inventoryId),
+      })
+      
+      // Invalidate the inventory items list query
+      queryClient.invalidateQueries({
+        queryKey: inventoryItemsRawMaterialQueryKeys.list(),
+      })
+      
+      // Also keep the raw-materials invalidation for backward compatibility
       queryClient.invalidateQueries({
         queryKey: ["raw-materials"],
       })
+      
       options?.onSuccess?.(data, variables, context)
     },
   })
@@ -219,6 +231,16 @@ export const useUpdateRawMaterial = (
     },
     onSuccess: async (data, variables, context) => {
       queryClient.invalidateQueries({
+        queryKey: inventoryItemsRawMaterialQueryKeys.detail(inventoryId),
+      })
+      
+      // Invalidate the inventory items list query
+      queryClient.invalidateQueries({
+        queryKey: inventoryItemsRawMaterialQueryKeys.list(),
+      })
+      
+      // Also keep the raw-materials invalidation for backward compatibility
+      queryClient.invalidateQueries({
         queryKey: ["raw-materials"],
       })
       queryClient.invalidateQueries({
@@ -227,6 +249,61 @@ export const useUpdateRawMaterial = (
       options?.onSuccess?.(data, variables, context)
     },
   })
+}
+
+type RawMaterialCategoriesParams = {
+  limit?: number;
+  offset?: number;
+  name?: string;
+  created_at?: Record<string, Date>;
+  updated_at?: Record<string, Date>;
+};
+
+
+
+export interface RawMaterialCategory {
+  id: string;
+  name: string;
+  description?: string;
+  category: "Fiber" | "Yarn" | "Fabric" | "Trim" | "Dye" | "Chemical" | "Accessory" | "Other";
+  metadata?: Record<string, any>;
+  properties?: Record<string, any>;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface RawMaterialCategoriesResponse {
+  categories: RawMaterialCategory[];
+  count: number;
+  offset: number;
+  limit: number;
+}
+
+export const useRawMaterialCategories = (
+  params: RawMaterialCategoriesParams,
+  options?: Omit<
+    UseQueryOptions<
+     RawMaterialCategoriesResponse,
+      FetchError,
+      RawMaterialCategoriesResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: inventoryItemsRawMaterialQueryKeys.lists(),
+    queryFn: async () =>
+      sdk.client.fetch<RawMaterialCategoriesResponse>(
+        `/admin/categories/rawmaterials`,
+        {
+          method: "GET",
+          query: params,
+        },
+      ),
+    ...options,
+  });
+  return { ...data, ...rest };
 }
 
 export const useRawMaterial = (

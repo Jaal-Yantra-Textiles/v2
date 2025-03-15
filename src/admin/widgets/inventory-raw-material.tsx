@@ -1,6 +1,6 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { DetailWidgetProps } from "@medusajs/framework/types"
-import { Badge, Container, Heading, usePrompt, Text, StatusBadge, toast } from "@medusajs/ui"
+import { Badge, Container, Heading, usePrompt, Text, StatusBadge, toast, Skeleton } from "@medusajs/ui"
 import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../components/common/action-menu"
 import { Button } from "@medusajs/ui"
@@ -81,6 +81,7 @@ const InventoryRawMaterialWidget = ({
   )
 
   const handleDelete = async (rawMaterialId: string) => {
+    if (!rawMaterialId) return 
     const confirmed = await prompt({
       title: "Delete Raw Material",
       description: "Are you sure you want to delete this raw material? This action cannot be undone.",
@@ -123,11 +124,7 @@ const InventoryRawMaterialWidget = ({
 
   if (isLoading) {
     return (
-      <Container className="divide-y p-0">
-        <div className="flex items-center justify-center h-40">
-          <Text>Loading...</Text>
-        </div>
-      </Container>
+      <Skeleton></Skeleton>
     )
   }
 
@@ -174,7 +171,7 @@ const InventoryRawMaterialWidget = ({
 
       <div className="p-0">
         {!inventory_item?.raw_materials ? (
-          <div className="flex flex-col items-center justify-center h-32 border rounded-lg">
+          <div className="flex flex-col items-center justify-center h-32">
             <p className="text-ui-fg-subtle mb-4">No raw materials added yet</p>
             <Button
               variant="secondary"

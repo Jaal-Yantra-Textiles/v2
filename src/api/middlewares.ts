@@ -25,7 +25,8 @@ import { addressSchema } from "./admin/persons/[id]/addresses/validators";
 import { contactSchema } from "./admin/persons/[id]/contacts/validators";
 import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
 import * as z from "zod";
-import { rawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
+import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
+import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
 import { designSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
@@ -192,6 +193,11 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(rawMaterialSchema))],
     },
     {
+      matcher: "/admin/inventory-items/:id/rawmaterials/:rawMaterialId",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateRawMaterialSchema))],
+    },
+    {
       matcher: "/admin/designs",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(designSchema))],
@@ -327,6 +333,19 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [],
     },
+
+    // Raw Materials Categories API
+    {
+      matcher: "/admin/categories/rawmaterials",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ReadRawMaterialCategoriesSchema), {})],
+    },
+    {
+      matcher: "/admin/categories/rawmaterials",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateMaterialTypeSchema))],
+    },
+
   ],
   errorHandler: ((
     error: any, // or whatever type you prefer

@@ -1,4 +1,3 @@
-import { container } from "@medusajs/framework"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   createStep,
@@ -29,19 +28,67 @@ type CreateRawMaterialInput = {
     storage_requirements?: string
     status?: string
     metadata?: Record<string, any>
-    material_type?: {
-      name: string
-      description?: string
-      category?: "Fiber" | "Yarn" | "Fabric" | "Trim" | "Dye" | "Chemical" | "Accessory" | "Other"
-      properties?: Record<string, any>
-      metadata?: Record<string, any>
-    }
+    material_type?: string | object  // Can be string (name) or object
+    material_type_id?: string        // Or existing ID
   }
 }
 
+export const checkMaterialType = createStep(
+  "check-material-type",
+  async (input: { rawMaterialData: any }, { container }) => {
+    const rawMaterialService: RawMaterialService = container.resolve(RAW_MATERIAL_MODULE);
+    let materialType;
+    let rawMaterialData = { ...input.rawMaterialData };
+    
+    // Check for existing material type using ID
+    if (rawMaterialData.material_type_id) {
+      try {
+        materialType = await rawMaterialService.retrieveMaterialType(rawMaterialData.material_type_id);
+      } catch (error) {
+        // Material type not found by ID
+        throw new Error(`Material type with ID ${rawMaterialData.material_type_id} not found`);
+      }
+    } 
+    // Handle string-based material type (create new)
+    else if (typeof rawMaterialData.material_type === 'string') {
+      try {
+        // Try to find existing material type with the same name
+        const types = await rawMaterialService.listMaterialTypes({
+          name: rawMaterialData.material_type
+        });
+        
+        if (types && types.length > 0) {
+          materialType = types[0];
+          // Set the material_type_id to the found category's ID
+          rawMaterialData.material_type_id = materialType.id;
+        } else {
+          // Create new material type
+          materialType = await rawMaterialService.createMaterialTypes({
+            name: rawMaterialData.material_type as string,
+            category: "Other" // Default category if not specified
+          });
+          rawMaterialData.material_type_id = materialType.id;
+        }
+      } catch (error) {
+        // Error handling for material type creation/lookup
+        console.error("Error processing material type:", error);
+        throw error;
+      }
+    }
+    
+    // Clean up the data structure
+    if (rawMaterialData.material_type_id) {
+      // Remove the material_type field as we're using material_type_id
+      delete rawMaterialData.material_type;
+    }
+    
+    return new StepResponse({ rawMaterialData });
+  }
+);
+
 const createRawMaterialData = createStep(
   "create-raw-material-data",
-  async (input: { rawMaterialData: any }) => {
+  async (input: { rawMaterialData: any }, { container }) => {
     const rawMaterialService: RawMaterialService = container.resolve(RAW_MATERIAL_MODULE)
     const rawMaterial = await rawMaterialService.createRawMaterials({
       ...input.rawMaterialData
@@ -59,7 +106,7 @@ const createRawMaterialData = createStep(
 
 const createRawMaterialLink = createStep(
   "create-raw-material-link",
-  async (input: { inventoryId: string, rawMaterialId: string }) => {
+  async (input: { inventoryId: string, rawMaterialId: string }, { container }) => {
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = []
 
@@ -87,9 +134,13 @@ const createRawMaterialLink = createStep(
 export const createRawMaterialWorkflow = createWorkflow(
   "create-raw-material",
   (input: CreateRawMaterialInput) => {
-    const rawMaterialResult = createRawMaterialData({ 
-      rawMaterialData: input.rawMaterialData 
-    })
+    // First process the material type
+    const processedInput = checkMaterialType({
+      rawMaterialData: input.rawMaterialData
+    });
+    
+    // Then create the raw material with processed input
+    const rawMaterialResult = createRawMaterialData(processedInput)
 
     const rawMaterialLinkResult = createRawMaterialLink({
       inventoryId: input.inventoryId,
