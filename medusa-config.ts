@@ -27,7 +27,11 @@ module.exports = defineConfig({
         },
         
         // Keep Medusa's existing resolve options
-      }
+      },
+      optimizeDeps: {
+        include: ["@excalidraw/excalidraw"]
+      },
+      
     })
   },
 
