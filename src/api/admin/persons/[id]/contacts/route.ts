@@ -1,7 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { contactSchema } from "./validators";
 import { ContactAllowedFields, refetchPersonContact } from "./helpers";
-import { MedusaError } from "@medusajs/utils";
 import createContactWorkflow from "../../../../../workflows/persons/create-contact";
 import retrieveContactsWorkflow from "../../../../../workflows/persons/retrieve-contacts";
 

@@ -9,6 +9,17 @@ export interface AddressDetails {
   country: string;
 }
 
+interface ContactDetail {
+  id: string;
+  phone_number: string;
+  type: "mobile" | "home" | "work";
+}
+
+export interface Tag {
+  id: string;
+  name: any; // JSON type from the model
+}
+
 export interface AdminPerson {
   id: string;
   first_name: string;
@@ -19,6 +30,8 @@ export interface AdminPerson {
   state: string;
   metadata: Record<string, unknown> | null;
   avatar: string;
+  contact_details: ContactDetail[];
+  tags: Tag[];
 }
 
 export interface AdminCreatePerson {

@@ -4,12 +4,14 @@ import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { PersonGeneralSection } from "../../../components/persons/person-general-section";
 import { PersonsAddressSection } from "../../../components/persons/persons-address-section";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
+import { PersonContactSection } from "../../../components/persons/person-contact-sections";
+import { PersonTagsComponent } from "../../../components/persons/person-tags-component";
 
 const PersonDetailPage = () => {
   
   const { id } = useParams();
   const { person, isLoading, isError, error } = usePerson(id!, {
-    fields: "addresses.*, person_type.*, partner.*"
+    fields: "addresses.*, person_type.*, partner.*, contact_details.*, tags.*"
   });
 
   // Show loading skeleton while data is being fetched
@@ -38,14 +40,18 @@ const PersonDetailPage = () => {
       <PersonsAddressSection person={person} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
-        
+        <PersonContactSection person={person} />
+        <PersonTagsComponent person={person} />
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
   );
 };
 
-PersonDetailPage.handle = {
-  breadcrumb: (match: UIMatch) => console.log('Working  ', match)
-}
+export const handle = {
+  breadcrumb: (match: UIMatch<{ id: string }>) => {
+    const { id } = match.params;
+    return `${id}`;
+  },
+};
 
 export default PersonDetailPage;
