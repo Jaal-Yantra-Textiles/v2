@@ -56,9 +56,7 @@ medusaIntegrationTestRunner({
             { personTypeIds },
             headers
           );
-
-         
-
+          
           expect(associateResponse.status).toBe(200);
           expect(associateResponse.data.message).toContain(`Person ${personId} successfully associated with ${personTypeIds.length} types`);
           
@@ -69,6 +67,7 @@ medusaIntegrationTestRunner({
           );
 
           expect(getResponse.status).toBe(200);
+        
           expect(getResponse.data.person.person_type).toBeDefined();
           expect(getResponse.data.person.person_type).toHaveLength(2);
           

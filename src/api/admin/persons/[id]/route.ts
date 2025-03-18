@@ -17,7 +17,6 @@ export const GET = async (req: MedusaRequest , res: MedusaResponse) => {
       ...req.queryConfig
     },
   });
-
   res.status(200).json({ person });
 };
 
