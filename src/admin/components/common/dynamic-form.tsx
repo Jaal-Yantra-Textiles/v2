@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Input, Select, Switch } from "@medusajs/ui";
+import { FileUpload } from "./file-upload";
 import { FieldValues, Path, useForm, type Control, type DefaultValues, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
@@ -13,7 +14,7 @@ export type BaseFormType = Record<string, any>;
 
 export type FieldConfig<T extends FieldValues> = {
   name: Path<T>;
-  type: "text" | "number" | "select" | "switch" | "custom";
+  type: "text" | "number" | "select" | "switch" | "custom" | "file";
   label: string;
   hint?: string;
   required?: boolean;
@@ -23,6 +24,9 @@ export type FieldConfig<T extends FieldValues> = {
   customProps?: Record<string, any>;
   gridCols?: number;
   defaultValue?: any;
+  accept?: string;
+  formats?: string[];
+  preview?: string;
 };
 
 export type FormConfig<T extends FieldValues> = {
@@ -226,6 +230,45 @@ export const DynamicForm = <T extends FieldValues>({
                 </div>
                 <Switch checked={value} onCheckedChange={onChange} />
               </div>
+            )}
+          />
+        );
+        
+      case "file":
+        return (
+          <Form.Field
+            {...baseProps}
+            render={({ field: { value, onChange } }) => (
+              <Form.Item>
+                <Form.Label>{field.label}</Form.Label>
+                <Form.Control>
+                  <FileUpload
+                    label={`Upload ${field.label}`}
+                    hint={field.hint}
+                    accept={field.customProps?.accept}
+                    formats={field.customProps?.formats}
+                    multiple={false}
+                    preview={value || field.customProps?.preview}
+                    onUploaded={async (files) => {
+                      // If there's a custom upload handler, call it first
+                      if (field.customProps?.onUploaded) {
+                        const result = await field.customProps.onUploaded(files);
+                        // If the handler returns a value, use it as the form value
+                        if (result) {
+                          onChange(result);
+                          return;
+                        }
+                      }
+                      
+                      // Default behavior - just store the URL
+                      if (files?.[0]) {
+                        onChange(files[0].url);
+                      }
+                    }}
+                  />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
             )}
           />
         );

@@ -10,6 +10,7 @@ import {
 import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 import { Tag } from "./personandtype";
+import { personsQueryKeys } from "./persons";
 
 // Define types for tag operations
 export interface TagsResponse {
@@ -83,9 +84,15 @@ export const useAddTagsToPerson = (
         body: data,
       }),
     onSuccess: () => {
+      // Invalidate both the tags list and the person details
       queryClient.invalidateQueries({
         queryKey: personTagsQueryKeys.list(personId),
       });
+      
+      // Also invalidate the person query to ensure person details are up-to-date
+      queryClient.invalidateQueries({
+        queryKey: personsQueryKeys.detail(personId),
+      })
     },
     ...options,
   });
@@ -114,8 +121,14 @@ export const useUpdatePersonTags = (
         body: data,
       }),
     onSuccess: () => {
+      // Invalidate both the tags list and the person details
       queryClient.invalidateQueries({
         queryKey: personTagsQueryKeys.list(personId),
+      });
+      
+      // Also invalidate the person query to ensure person details are up-to-date
+      queryClient.invalidateQueries({
+        queryKey: personsQueryKeys.detail(personId),
       });
     },
     ...options,
@@ -127,12 +140,11 @@ export const useUpdatePersonTags = (
  */
 export const useDeletePersonTag = (
   personId: string,
-  tagId: string,
   options?: Omit<
     UseMutationOptions<
       void,
       FetchError,
-      void
+      string
     >,
     "mutationFn"
   >
@@ -140,14 +152,23 @@ export const useDeletePersonTag = (
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (): Promise<void> => {
+    mutationFn: async (tagId: string): Promise<void> => {
       await sdk.client.fetch(`/admin/persons/${personId}/tags/${tagId}`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json"
+        }
       });
     },
     onSuccess: () => {
+      // Invalidate both the tags list and the person details
       queryClient.invalidateQueries({
         queryKey: personTagsQueryKeys.list(personId),
+      });
+      
+      // Also invalidate the person query to ensure person details are up-to-date
+      queryClient.invalidateQueries({
+        queryKey: personsQueryKeys.detail(personId),
       });
     },
     ...options,

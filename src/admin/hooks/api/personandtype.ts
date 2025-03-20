@@ -29,6 +29,7 @@ export interface AdminPerson {
   created_at: string;
   state: string;
   metadata: Record<string, unknown> | null;
+  person_type?: AdminPersonType[];
   avatar: string;
   contact_details: ContactDetail[];
   tags: Tag[];
@@ -50,6 +51,7 @@ export interface PersonWithAddress extends AdminPerson, Address {}
 export interface AdminUpdatePerson extends AdminCreatePerson {
   addresses?: AddressDetails[];
   metadata?: Record<string, any> | null | undefined;
+  avatar?: string;
 }
 
 export interface AdminPersonResponse {

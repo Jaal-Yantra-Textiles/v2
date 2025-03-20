@@ -18,22 +18,47 @@ type UpdatePersonStepInput = {
     last_name?: string;
     email?: string;
     date_of_birth?: Date;
-    metadata?: Record<string, any>;
+    avatar?: string;
+    metadata?: Record<string, unknown>;
   };
 };
 
 export const updatePersonStep = createStep(
   "update-person-step",
   async (input: UpdatePersonStepInput, { container }) => {
+    console.log('Update input:', input);
     const personService: PersonService = container.resolve(PERSON_MODULE);
     const originalPerson = await personService.retrievePerson(input.id);
+    
+    // Create an update object without metadata
+    const { metadata, ...updateWithoutMetadata } = input.update;
+    
+    // Step 1: If we have metadata in the update, first clear existing metadata
+    if (metadata !== undefined) {
+      console.log('Clearing existing metadata before update');
+      await personService.updatePeople({
+        selector: {
+          id: input.id,
+        },
+        data: {
+          metadata: null,
+        }
+      });
+    }
+    
+    // Step 2: Perform the actual update with new metadata if provided
+    const updateData = {
+      ...updateWithoutMetadata,
+      ...(metadata !== undefined ? { metadata } : {})
+    };
+    
+    console.log('Final update data:', updateData);
+    
     const updatedPerson = await personService.updatePeople({
       selector: {
         id: input.id,
       },
-      data: {
-        ...input.update
-      }
+      data: updateData
     }) as unknown as Person;
     return new StepResponse(updatedPerson, originalPerson);
   },
@@ -56,7 +81,11 @@ export const updatePersonStep = createStep(
 );
 
 const updatePersonWorkflow = createWorkflow(
-  "update-person",
+  {name: "update-person", 
+    store: true, 
+    storeExecution: true
+  },
+
   (input: UpdatePersonStepInput) => {
     const updatedPerson = updatePersonStep(input);
     return new WorkflowResponse(updatedPerson);

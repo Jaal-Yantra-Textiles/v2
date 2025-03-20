@@ -6,12 +6,15 @@ import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useRouteModal } from "../modal/use-route-modal";
 import { useUpdatePerson} from "../../hooks/api/persons";
 import { AdminPerson } from "../../hooks/api/personandtype";
+import { useFileUpload } from "../../hooks/api/upload";
+import { useState } from "react";
 
 const personSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email format"),
   date_of_birth: z.date().nullable(),
+  avatar: z.string().optional(),
 });
 
 type PersonFormData = z.infer<typeof personSchema>;
@@ -33,6 +36,8 @@ export const EditPersonGeneralSection = ({ person }: EditPersonGeneralSectionPro
   const { t } = useTranslation();
   const { handleSuccess } = useRouteModal();
   const { mutateAsync, isPending } = useUpdatePerson(person.id);
+  const { mutateAsync: uploadFile } = useFileUpload();
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(person.avatar);
 
   const handleSubmit = async (data: PersonFormData) => {
     await mutateAsync(
@@ -41,6 +46,7 @@ export const EditPersonGeneralSection = ({ person }: EditPersonGeneralSectionPro
         last_name: data.last_name,
         email: data.email,
         date_of_birth: data.date_of_birth,
+        avatar: data.avatar,
       },
       {
         onSuccess: ({ person }) => {
@@ -58,7 +64,48 @@ export const EditPersonGeneralSection = ({ person }: EditPersonGeneralSectionPro
     );
   };
 
+
+
   const fields: FieldConfig<PersonFormData>[] = [
+    {
+      name: "avatar",
+      type: "file",
+      label: t("fields.avatar", "Avatar"),
+      gridCols: 1,
+      customProps: {
+        accept: "image/*",
+        formats: [".jpg", ".jpeg", ".png", ".gif"],
+        preview: previewUrl,
+        onUploaded: async (files: { file: File; url: string }[]) => {
+          if (!files?.length) return;
+          
+          try {
+            const { file, url: tempPreviewUrl } = files[0];
+            
+            // Set temporary preview URL from the dropped/selected file
+            setPreviewUrl(tempPreviewUrl);
+            
+            const uploadResponse = await uploadFile({
+              files: [file],
+            });
+            
+            if (uploadResponse.files?.[0]) {
+              const avatarUrl = uploadResponse.files[0].url;
+              // The URL will be stored in the form value when the user saves
+              setPreviewUrl(avatarUrl);
+              toast.success(t("persons.edit.avatarUploaded", { 
+                defaultValue: "Avatar uploaded successfully" 
+              }));
+              return avatarUrl;
+            }
+          } catch (error) {
+            toast.error(t("persons.edit.avatarUploadError", { 
+              defaultValue: "Failed to upload avatar" 
+            }));
+          }
+        }
+      }
+    },
     {
       name: "first_name",
       type: "text",
@@ -97,6 +144,7 @@ export const EditPersonGeneralSection = ({ person }: EditPersonGeneralSectionPro
         last_name: person.last_name,
         email: person.email,
         date_of_birth: person.date_of_birth ? new Date(person.date_of_birth) : null,
+        avatar: person.avatar || "",
       }}
       onSubmit={handleSubmit}
       isPending={isPending}

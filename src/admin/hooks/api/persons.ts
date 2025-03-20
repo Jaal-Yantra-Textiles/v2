@@ -175,6 +175,52 @@ export const useAddAddressToPerson = (
   });
 };
 
+export interface AddPersonTypesPayload {
+  personTypeIds: string[];
+}
+
+export const useAddPersonTypes = (
+  personId: string,
+  options?: UseMutationOptions<
+    any, // Use proper typing if available for the response
+    FetchError,
+    AddPersonTypesPayload
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: AddPersonTypesPayload) =>
+      sdk.client.fetch(
+        `/admin/persons/${personId}/types`,
+        {
+          method: "POST",
+          body: payload,
+        },
+      ),
+    onSuccess: (data, variables, context) => {
+      // Invalidate person queries to refresh the person types
+      queryClient.invalidateQueries({
+        queryKey: personsQueryKeys.detail(personId),
+        refetchType: "all",
+      });
+      
+      // Also invalidate the entire persons list to ensure all views are updated
+      queryClient.invalidateQueries({
+        queryKey: personsQueryKeys.lists(),
+      });
+
+      // Forcing a specific refetch of the person details for immediate UI update
+      queryClient.refetchQueries({
+        queryKey: personsQueryKeys.detail(personId),
+        exact: true,
+      });
+      
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};
+
 export const useBatchPersonGroups = (
   id: string,
   options?: UseMutationOptions<

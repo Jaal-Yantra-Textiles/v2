@@ -3,9 +3,8 @@ import { useTranslation } from "react-i18next";
 import { PencilSquare, XMarkMini } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
 import { Tag } from "../../hooks/api/personandtype";
-import { useAddTagsToPerson } from "../../hooks/api/person-tags";
-import { useState, KeyboardEvent, useEffect } from "react";
-import { sdk } from "../../lib/config";
+import { useAddTagsToPerson, useDeletePersonTag } from "../../hooks/api/person-tags";
+import { useState, KeyboardEvent } from "react";
 
 interface PersonTagsComponentProps {
   person: {
@@ -19,18 +18,13 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
   const { t } = useTranslation();
   const [tagInput, setTagInput] = useState("");
   const [pendingTags, setPendingTags] = useState<string[]>([]);
-  const [showTooltip, setShowTooltip] = useState(false);
   const [tagsSelected, setTagsSelected] = useState(false);
   
   // Use person.tags directly instead of fetching
   const { mutateAsync: addTags } = useAddTagsToPerson(person.id);
+  const { mutateAsync: deleteTag } = useDeletePersonTag(person.id);
   
-  // Show tooltip briefly when component mounts
-  useEffect(() => {
-    setShowTooltip(true);
-    const timer = setTimeout(() => setShowTooltip(false), 5000);
-    return () => clearTimeout(timer);
-  }, []);
+
 
   // Function to get tag display value from the JSON structure
   const getTagDisplayValue = (tag: Tag) => {
@@ -87,60 +81,10 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
     setTagInput(e.target.value);
   };
   
-  // Add a keyboard shortcut for Command+T that works globally
-  useEffect(() => {
-    const handleGlobalKeyPress = (e: globalThis.KeyboardEvent) => {
-      // Check for Command/Ctrl + T outside of the input field
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 't') {
-        console.log('Global Command+T detected');
-        // Focus the tag input
-        const inputElement = document.getElementById('tag-input') as HTMLInputElement;
-        if (inputElement) {
-          e.preventDefault(); // Prevent browser's default behavior
-          inputElement.focus();
-        }
-      }
-    };
-    
-    // Add global event listener
-    window.addEventListener('keydown', handleGlobalKeyPress);
-    
-    // Cleanup
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyPress);
-    };
-  }, []);
+
   
   // Handle key press in tag input
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    console.log('Input key pressed:', e.key, 'Meta key:', e.metaKey, 'Ctrl key:', e.ctrlKey);
-    
-    // Check for Command/Ctrl + T to add multiple tags
-    if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 't')) {
-      e.preventDefault();
-      console.log('Command+T detected, processing tags from:', tagInput);
-      
-      // If there's no input, just focus and return
-      if (!tagInput.trim()) {
-        return;
-      }
-      
-      // Split by spaces and filter empty strings
-      const newTags = tagInput
-        .split(/\s+/)
-        .map(tag => tag.trim())
-        .filter(tag => tag.length > 0);
-      
-      console.log('Parsed tags:', newTags);
-      
-      if (newTags.length > 0) {
-        setPendingTags([...pendingTags, ...newTags]);
-        setTagInput('');
-        setTagsSelected(true);
-        console.log('Tags added to pending list');
-      }
-      return;
-    }
     
     // If Enter is pressed, add the tag
     if (e.key === 'Enter' && tagInput.trim()) {
@@ -181,8 +125,9 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
   const handleAddPendingTag = () => {
     if (tagInput.trim()) {
       // Add current input to pending tags
-      const tagValue = tagInput.trim();
-      setPendingTags([...pendingTags, tagValue]);
+      // Split by commas if present to handle multiple tags
+      const tagValues = tagInput.trim().split(/[,\s]+/).filter(t => t.trim().length > 0);
+      setPendingTags([...pendingTags, ...tagValues]);
       setTagInput('');
       setTagsSelected(true);
     } else if (pendingTags.length > 0) {
@@ -195,12 +140,15 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
   const submitTags = async () => {
     if (pendingTags.length > 0) {
       try {
-        await addTags({ name: pendingTags });
+        // Ensure we're sending a valid payload with unique tags
+        const uniqueTags = [...new Set(pendingTags)];
+        await addTags({ name: uniqueTags });
         toast.success('Tags added successfully');
         setPendingTags([]);
         setTagsSelected(false);
         // No need to refresh the page - React Query will handle cache invalidation
       } catch (error: any) {
+        console.error("Error adding tags:", error);
         toast.error(error?.message || 'Failed to add tags');
       }
     }
@@ -222,17 +170,18 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
   // Handle deleting a tag
   const handleDeleteTag = async (tagId: string) => {
     try {
-      // We need to modify the API call to include the tagId
-      await sdk.client.fetch(`/admin/persons/${person.id}/tags/${tagId}`, {
-        method: "DELETE",
-      });
+      await deleteTag(tagId);
       toast.success('Tag deleted successfully');
-      // Update the person object without refreshing the page
-      // We'll filter out the deleted tag from the current person.tags array
-      const updatedTags = person.tags.filter(tag => tag.id !== tagId);
-      person.tags = updatedTags;
+      
+      // Update the person object by filtering out the deleted tag
+      // This provides immediate UI feedback without waiting for a refetch
+      if (person.tags) {
+        const updatedTags = person.tags.filter(tag => tag.id !== tagId);
+        person.tags = updatedTags;
+      }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to add tags');
+      console.error("Error deleting tag:", error);
+      toast.error(error?.message || 'Failed to delete tag');
     }
   };
 
@@ -287,18 +236,14 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
           <div className="w-full mb-4 relative">
             <Input
               id="tag-input"
-              placeholder="Type tag and press Enter or comma to add multiple"
+              placeholder="Type tag and press Enter or comma to add, then press 'S' to save"
               value={tagInput}
               onChange={handleTagInputChange}
               onKeyDown={handleKeyPress}
               className="w-full mb-2"
               autoComplete="off"
             />
-            {showTooltip && (
-              <div className="absolute right-0 -top-8 bg-ui-bg-base shadow-md rounded-md p-2 text-xs z-20">
-                <Text size="small">Press ⌘+T to add multiple tags at once</Text>
-              </div>
-            )}
+
           </div>
 
         </div>

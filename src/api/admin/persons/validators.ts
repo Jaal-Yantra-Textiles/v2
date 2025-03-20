@@ -13,6 +13,7 @@ export const personSchema = z.object({
   metadata: z.record(z.any()).optional(), // Optional field for additional data
   addresses: z.array(z.any()).optional(),
   state: z.enum(["Onboarding", "Onboarding Finished", "Stalled", "Conflicted"]).optional(),
+  avatar: z.string().optional(),
 });
 
 export const ReadPersonQuerySchema = z.object({

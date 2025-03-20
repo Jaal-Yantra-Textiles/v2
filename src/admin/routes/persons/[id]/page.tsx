@@ -6,6 +6,8 @@ import { PersonsAddressSection } from "../../../components/persons/persons-addre
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 import { PersonContactSection } from "../../../components/persons/person-contact-sections";
 import { PersonTagsComponent } from "../../../components/persons/person-tags-component";
+import { PersonTypesComponent } from "../../../components/persons/person-types-component";
+import { PersonPartnerComponent } from "../../../components/persons/person-partner-component";
 
 const PersonDetailPage = () => {
   
@@ -16,7 +18,7 @@ const PersonDetailPage = () => {
 
   // Show loading skeleton while data is being fetched
   if (isLoading) {
-    return <TwoColumnPageSkeleton mainSections={2} sidebarSections={2} showJSON showMetadata />;
+    return <TwoColumnPageSkeleton mainSections={2} sidebarSections={3} showJSON showMetadata />;
   }
 
   // Handle error state
@@ -38,10 +40,12 @@ const PersonDetailPage = () => {
       <TwoColumnPage.Main>
       <PersonGeneralSection person={person} />
       <PersonsAddressSection person={person} />
+      <PersonPartnerComponent person={person} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <PersonContactSection person={person} />
         <PersonTagsComponent person={person} />
+        <PersonTypesComponent personTypes={person.person_type} />
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
   );

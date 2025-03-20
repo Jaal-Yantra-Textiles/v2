@@ -27,7 +27,7 @@ export const DELETE = async (
         throw errors;
       }
   
-      res.status(204).json({ tags: result, deleted: true });
+      res.status(200).json({ tags: result, deleted: true });
     } catch (error) {
       throw error;
     }
