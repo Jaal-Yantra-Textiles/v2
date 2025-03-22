@@ -8,6 +8,7 @@ import {
   MedusaResponse,
   MedusaNextFunction,
 } from "@medusajs/framework/http";
+import multer from "multer";
 import { ConfigModule } from "@medusajs/framework/types";
 import { parseCorsOrigins } from "@medusajs/framework/utils";
 import cors from "cors";
@@ -46,6 +47,8 @@ import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { MedusaError } from "@medusajs/framework/utils";
 
+
+
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
   return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
@@ -62,6 +65,33 @@ const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
 
     const options = { ...defaultOptions, ...corsOptions };
     return cors(options)(req, res, next);
+  };
+};
+
+// Configure multer for CSV file uploads
+const upload = multer({ storage: multer.memoryStorage() })
+
+// Adapter function to make multer middleware compatible with Medusa's middleware signature
+const adaptMulter = (multerMiddleware) => {
+  return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
+    console.log("BEFORE multer:", {
+      hasFile: !!req.file,
+      contentType: req.headers['content-type'],
+      bodyKeys: Object.keys(req.body || {}),
+    });
+    
+    // Call multer middleware and capture the next function
+    return multerMiddleware(req as any, res as any, (err: any) => {
+      // Log after multer has processed the request
+      console.log("AFTER multer:", {
+        hasFile: !!req.file,
+        hasFiles: !!req.files,
+        error: err ? err.message : undefined,
+        contentType: req.headers['content-type'],
+      });
+      // Continue the middleware chain
+      next(err);
+    });
   };
 };
 
@@ -168,6 +198,17 @@ export default defineMiddlewares({
       matcher: "/admin/persons/:id/tags",
       method: "DELETE",
       middlewares: [validateAndTransformQuery(wrapSchema(deleteTagSchema), {})],
+    },
+    // Person Import routes
+    {
+      matcher: "/admin/persons/import",
+      method: "POST",
+      middlewares: [adaptMulter(upload.single("file"))],
+    },
+    {
+      matcher: "/admin/persons/import/:transaction_id/confirm",
+      method: "POST",
+      middlewares: [],
     },
     // PersonType routes
     {

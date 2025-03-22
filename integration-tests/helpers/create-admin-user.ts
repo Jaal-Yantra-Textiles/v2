@@ -46,7 +46,7 @@ export const createAdminUser = async (container?) => {
   const userModule = appContainer.resolve(Modules.USER);
   const authModule = appContainer.resolve(Modules.AUTH);
   const apiModule = appContainer.resolve(Modules.API_KEY);
-  
+
   // Generate a random email for this test run
   const randomString = generateRandomString(8);
   const email = `admin-${randomString}@jyt.test`;

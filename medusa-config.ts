@@ -79,7 +79,7 @@ module.exports = defineConfig({
           resolve: "@medusajs/medusa/notification-local",
           id: "local",
           options: {
-            channels: ["email"],
+            channels: ["feed", "email"],
           },
         }]
       }
