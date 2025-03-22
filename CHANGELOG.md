@@ -1,3 +1,32 @@
+# [5.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v4.0.0...v5.0.0) (2025-03-18)
+
+
+### Bug Fixes
+
+* **Raw Material Category:** Adding raw material category API other things ([d51c22d](https://github.com/Jaal-Yantra-Textiles/v2/commit/d51c22dfe77b871de179893245362b9f1b574e8a))
+* Fixed PersonTable, Fixed failing test, introduced new edit methods ([3dd6d7a](https://github.com/Jaal-Yantra-Textiles/v2/commit/3dd6d7a41666547aa7ce4413cec78396f1d3b619))
+* Fixed the Type Not Matching Issue on Build ([81a4fbb](https://github.com/Jaal-Yantra-Textiles/v2/commit/81a4fbbe9db707c1da3af7f1d4a8eb222df8953d))
+* There was localhost set for the SDK now setting to use for the staging server ([f5d51c8](https://github.com/Jaal-Yantra-Textiles/v2/commit/f5d51c8b2b5b260e4308913408097e0b59b80b0d))
+
+
+### Continuous Integration
+
+* Fixed Deployment Issue by adding medusa build ([77a5771](https://github.com/Jaal-Yantra-Textiles/v2/commit/77a5771e2226c8a42ee8ae251a46bf1d0c45f6a6))
+* Fixed the entire method for deploying the service ([f9984bd](https://github.com/Jaal-Yantra-Textiles/v2/commit/f9984bd58c89ece3bb401c0883367d938bd3e18f))
+
+
+### Features
+
+* **Design Tool:** Added the Mood Board UI and Notes Taking Section ([c04accd](https://github.com/Jaal-Yantra-Textiles/v2/commit/c04accd1d57eabf2a4236a9541ab57ab469beccc))
+* **AI Domain Enhancer:** Additional AI domain Enhancer ([4d0544c](https://github.com/Jaal-Yantra-Textiles/v2/commit/4d0544c280844755e971d66a8f2adf7897bd6254))
+* New Person Layout ([1d3a075](https://github.com/Jaal-Yantra-Textiles/v2/commit/1d3a075187cbec7da9a767d294026e0ba6590b7b))
+
+
+### BREAKING CHANGES
+
+* 
+*
+
 # [4.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v3.0.0...v4.0.0) (2025-03-06)
 
 
