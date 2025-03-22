@@ -4,6 +4,9 @@ import { DesignGeneralSection } from "../../../components/designs/design-general
 import { DesignTasksSection } from "../../../components/designs/design-tasks-section";
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
+import { DesignSizesSection } from "../../../components/designs/design-sizes-section";
+import { DesignTagsSection } from "../../../components/designs/design-tags-section";
+import { DesignColorPaletteSection } from "../../../components/designs/design-color-palette-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 
@@ -17,7 +20,7 @@ const DesignDetailPage = () => {
 
   // Show loading skeleton while data is being fetched
   if (isLoading) {
-    return <TwoColumnPageSkeleton mainSections={2} showJSON showMetadata />;
+    return <TwoColumnPageSkeleton mainSections={2} sidebarSections={2} showJSON showMetadata />;
   }
 
   // Handle error state
@@ -40,10 +43,13 @@ const DesignDetailPage = () => {
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
           <DesignMediaSection design={design} />
+          <DesignSizesSection design={design} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
-          <DesignInventorySection design={design} />
           <DesignTasksSection design={design} />
+          <DesignTagsSection design={design} />
+          <DesignColorPaletteSection design={design} />
+          <DesignInventorySection design={design} />
         </TwoColumnPage.Sidebar>  
         </TwoColumnPage>
   );

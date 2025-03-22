@@ -153,13 +153,7 @@ export const EditDesignForm = ({ design }: EditDesignFormProps) => {
       name: "estimated_cost",
       type: "number",
       label: t("Estimated Cost"),
-    },
-    {
-      name: "tags",
-      type: "text",
-      label: t("Tags"),
-      hint: t("Comma separated values"),
-    },
+    }
   ];
 
   const formatArrayToString = (arr?: string[]) => arr?.join(", ") || "";
@@ -177,7 +171,6 @@ export const EditDesignForm = ({ design }: EditDesignFormProps) => {
         priority: design.priority,
         designer_notes: design.designer_notes,
         estimated_cost: design.estimated_cost,
-        tags: formatArrayToString(design.tags),
       }}
       onSubmit={handleSubmit}
       isPending={isPending}

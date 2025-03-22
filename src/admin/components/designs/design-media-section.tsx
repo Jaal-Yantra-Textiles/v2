@@ -1,6 +1,8 @@
 import { Button, Container, Heading } from "@medusajs/ui";
 import { AdminDesign } from "../../hooks/api/designs";
 import { useNavigate, useParams } from "react-router-dom";
+import { ActionMenu } from "../common/action-menu";
+import { MediaPlay } from "@medusajs/icons";
 
 interface DesignMediaSectionProps {
   design: AdminDesign;
@@ -19,12 +21,19 @@ export const DesignMediaSection = ({ design }: DesignMediaSectionProps) => {
     <Container>
       <div className="flex items-center justify-between">
         <Heading level="h2">Media</Heading>
-        <Button
-          variant="secondary"
-          onClick={handleManageMedia}
-        >
-          Manage Media
-        </Button>
+        <ActionMenu
+          groups={[
+            {
+              actions: [
+                {
+                  label: 'Manage Media',
+                  icon: <MediaPlay />,
+                  to: "media",
+                },
+              ],
+            },
+          ]}
+        />
       </div>
       <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         {design.media_files && design.media_files.length > 0 ? (

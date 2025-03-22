@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 # Function to display commit type options
 select_type() {
     echo -e "${BLUE}Select the type of change you're committing:${NC}"
-    types=("feat: New feature" "fix: Bug fix" "docs: Documentation" "style: Code style" "refactor: Code refactor" "perf: Performance" "test: Tests" "chore: Chores" "build: Build" "ci: CI" "revert: Revert" "Quit")
+    types=("feat: New feature" "fix: Bug fix" "docs: Documentation" "style: Code style" "ui: UI changes" "refactor: Code refactor" "perf: Performance" "test: Tests" "chore: Chores" "build: Build" "ci: CI" "revert: Revert" "Quit")
     
     select type in "${types[@]}"; do
         case $type in

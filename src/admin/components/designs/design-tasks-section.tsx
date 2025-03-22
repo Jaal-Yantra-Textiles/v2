@@ -63,6 +63,13 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
     return new Date(dateStr).toLocaleDateString();
   };
 
+  // Calculate completed tasks ratio
+  const completedTasks = taskItems.filter(task => task.status === "completed").length;
+  const totalTasks = taskItems.length;
+  
+  // Calculate percentage for the circle fill
+  const completionPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  
   return (
     <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -70,6 +77,40 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
           <Heading level="h2">{t("Tasks")}</Heading>
         </div>
         <div className="flex items-center gap-x-4">
+          {/* Task Completion Indicator */}
+          <div className="flex items-center mr-2">
+            <div className="relative w-10 h-10 flex items-center justify-center">
+              {/* Background circle */}
+              <svg className="absolute w-full h-full" viewBox="0 0 36 36">
+                <circle 
+                  cx="18" 
+                  cy="18" 
+                  r="16" 
+                  fill="none" 
+                  stroke="#e5e7eb" 
+                  strokeWidth="3" 
+                />
+                {/* Completion circle */}
+                {totalTasks > 0 && (
+                  <circle 
+                    cx="18" 
+                    cy="18" 
+                    r="16" 
+                    fill="none" 
+                    stroke="#4f46e5" 
+                    strokeWidth="3" 
+                    strokeDasharray={`${completionPercentage} 100`}
+                    strokeLinecap="round"
+                    transform="rotate(-90 18 18)"
+                  />
+                )}
+              </svg>
+              {/* Text inside circle */}
+              <Text className="text-xs font-medium z-10">
+                {completedTasks}/{totalTasks}
+              </Text>
+            </div>
+          </div>
           <ActionMenu
             groups={[
               {
