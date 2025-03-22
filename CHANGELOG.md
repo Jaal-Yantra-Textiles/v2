@@ -1,3 +1,11 @@
+# [5.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.0.0...v5.1.0) (2025-03-22)
+
+
+### Features
+
+* Import Person Module, we can import using the csv ([e41f085](https://github.com/Jaal-Yantra-Textiles/v2/commit/e41f08593fe3578942f954231886d80d0e5061a0))
+* New organised person layout with all the details ([4898e74](https://github.com/Jaal-Yantra-Textiles/v2/commit/4898e74f4fb051fe6a4928a746acb159cff7681c))
+
 # [5.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v4.0.0...v5.0.0) (2025-03-18)
 
 
