@@ -88,9 +88,9 @@ createTaskWorkflow.hooks.taskCreated(
         try {
             // Handle parent-child relationships as dependencies
             if (task.withParent) {
-                const parentTask = task.withParent.parent[0]
+                const parentTask = task.withParent.parent[0] || task.withParent.parent
                 const childTasks = task.withParent.children || []
-
+                console.log(childTasks, task, task.withParent.parent)
                 // Create dependencies for each child task
                 for (const childTask of childTasks) {
                     await createValidatedDependency(taskService, {

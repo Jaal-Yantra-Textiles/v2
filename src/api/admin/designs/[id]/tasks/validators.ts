@@ -22,7 +22,13 @@ const BaseTaskSchema = z.object({
   priority: z.nativeEnum(PriorityLevel).optional(),
   status: z.nativeEnum(Status).optional(),
   due_date: z.preprocess(dateTransformer, z.date()).optional(),
-  start_date: z.preprocess(dateTransformer, z.date()).default(new Date()).optional(),
+  start_date: z.preprocess(dateTransformer, z.date()).optional().default((val) => {
+    console.log(val)
+    if (val === undefined) {
+      return new Date()
+    }
+    return val
+  }),
   metadata: z.record(z.any()).optional(),
 })
 

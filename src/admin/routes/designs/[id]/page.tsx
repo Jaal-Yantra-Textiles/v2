@@ -15,12 +15,12 @@ import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 const DesignDetailPage = () => {
   const { id } = useParams();
   const { design, isLoading, isError, error } = useDesign(id!, {
-    fields: ["+inventory_items.*", 'tasks.*']
+    fields: ["+inventory_items.*", '+tasks.*', 'tasks.subtasks.*']
   });
 
   // Show loading skeleton while data is being fetched
   if (isLoading) {
-    return <TwoColumnPageSkeleton mainSections={2} sidebarSections={2} showJSON showMetadata />;
+    return <TwoColumnPageSkeleton mainSections={3} sidebarSections={4} showJSON showMetadata />;
   }
 
   // Handle error state

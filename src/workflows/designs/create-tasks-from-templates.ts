@@ -20,16 +20,28 @@ type CreateTasksInput = AdminPostDesignTasksReqType & {
 export const determineTaskDataStep = createStep(
   "determine-task-data",
   async (input: any) => {
+    console.log("determineTaskDataStep", input)
     if (input.withTemplates) {
       return new StepResponse(input.withTemplates);
     } 
     
     if (input.withParent) {
       const parentResponse = input.withParent;
+      
       if ('parent' in parentResponse && 'children' in parentResponse) {
-        // For parent-child relationships, only return the parent task
-        return new StepResponse([parentResponse.parent[0]]);
+        // For parent-child relationships where parent is an object with task data (not an array)
+        if (!Array.isArray(parentResponse.parent) && typeof parentResponse.parent === 'object' && 'id' in parentResponse.parent) {
+          // Return the parent task object directly
+          return new StepResponse([parentResponse.parent]);
+        }
+        
+        // For parent-child relationships where parent is an array
+        if (Array.isArray(parentResponse.parent) && parentResponse.parent.length > 0) {
+          return new StepResponse([parentResponse.parent[0]]);
+        }
       }
+      
+      // Handle other cases where parentResponse doesn't have expected structure
       return new StepResponse([parentResponse]);
     } 
     
@@ -46,6 +58,7 @@ export const createDesignTaskLinksStep = createStep(
   async (input: { tasks: any[], designId: string }, { container }) => {
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = []
+    console.log(input)
     for (const task of input.tasks) {
       links.push({
         [DESIGN_MODULE]: {

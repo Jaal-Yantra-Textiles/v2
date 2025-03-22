@@ -31,6 +31,7 @@ export interface AdminDesignTask {
   metadata?: Record<string, any>;
   created_at: Date;
   updated_at: Date;
+  subtasks?: AdminDesignTask[];
 }
 
 export interface ChildTask {

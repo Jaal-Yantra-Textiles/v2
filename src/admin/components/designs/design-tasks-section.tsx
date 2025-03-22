@@ -1,10 +1,10 @@
-import { Plus, TriangleRightMini } from "@medusajs/icons";
+import { Plus, TriangleRightMini, Eye } from "@medusajs/icons";
 import { Container, Heading, Skeleton, Text } from "@medusajs/ui";
 import { AdminDesign } from "../../hooks/api/designs";
 import { Link, useNavigate } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
 import { useTranslation } from "react-i18next";
-import { AdminDesignTask, useDesignTasks } from "../../hooks/api/design-tasks";
+import { AdminDesignTask } from "../../hooks/api/design-tasks";
 
 // Define the explicit task item interface
 interface TaskItem {
@@ -17,6 +17,9 @@ interface TaskItem {
   priority?: string;
   created_at: string;
   updated_at: string;
+  subtaskCount?: number;
+  parent_task_id?: string;
+  isSubtask?: boolean;
 }
 
 interface DesignTasksSectionProps {
@@ -26,22 +29,47 @@ interface DesignTasksSectionProps {
 export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { tasks, isLoading } = useDesignTasks(design.id);
+  const isLoading = !design?.tasks;
+  
+  // Function to collect tasks with subtask information
+  const collectTasks = (tasks: AdminDesignTask[] = [], isSubtask: boolean = false): TaskItem[] => {
+    const collected: TaskItem[] = [];
+    
+    tasks.forEach((task: AdminDesignTask) => {
+      // Add the main task with subtask count if it has subtasks
+      collected.push({
+        id: task.id,
+        title: task.title || `Task ${task.id}`,
+        description: task.description,
+        start_date: task.start_date ? new Date(task.start_date).toISOString() : undefined,
+        end_date: null, // API structure doesn't have end_date yet
+        status: task.status,
+        priority: task.priority,
+        created_at: new Date(task.created_at).toISOString(),
+        updated_at: new Date(task.updated_at).toISOString(),
+        subtaskCount: task.subtasks?.length || 0,
+        parent_task_id: task.parent_task_id,
+        isSubtask: isSubtask,
+      });
+    });
+    
+    return collected;
+  };
+  
+  // Function to get only top-level tasks
+  const getTopLevelTasks = (tasks: AdminDesignTask[] = []): TaskItem[] => {
+    return collectTasks(tasks.filter(task => !task.parent_task_id));
+  };
 
-  // Transform API response tasks into TaskItem objects
-  const taskItems: TaskItem[] = tasks?.map((task: AdminDesignTask) => {
-    return {
-      id: task.id,
-      title: task.title || `Task ${task.id}`,
-      description: task.description,
-      start_date: task.start_date ? new Date(task.start_date).toISOString() : undefined,
-      end_date: null, // API structure doesn't have end_date yet
-      status: task.status,
-      priority: task.priority,
-      created_at: new Date(task.created_at).toISOString(),
-      updated_at: new Date(task.updated_at).toISOString(),
-    };
-  }) || [];
+  // Transform design tasks into TaskItem objects, only showing top-level tasks
+  const taskItems: TaskItem[] = isLoading ? [] : getTopLevelTasks(design.tasks || []);
+  
+  // Get all tasks including subtasks for the completion counter
+  const allTasks: TaskItem[] = isLoading ? [] : collectTasks(design.tasks || [], false);
+  const allSubtasks: TaskItem[] = isLoading ? [] : collectTasks(
+    design.tasks?.flatMap(task => task.subtasks || []) || [], 
+    true
+  );
 
   const getStatusClass = (status: string) => {
     switch (status) {
@@ -63,9 +91,12 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
     return new Date(dateStr).toLocaleDateString();
   };
 
+  // Combine all tasks for the completion counter
+  const allTasksWithSubtasks = [...allTasks, ...allSubtasks];
+  
   // Calculate completed tasks ratio
-  const completedTasks = taskItems.filter(task => task.status === "completed").length;
-  const totalTasks = taskItems.length;
+  const completedTasks = allTasksWithSubtasks.filter(task => task.status === "completed").length;
+  const totalTasks = allTasksWithSubtasks.length;
   
   // Calculate percentage for the circle fill
   const completionPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
@@ -125,6 +156,11 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
                     icon: <Plus />,
                     onClick: () => navigate(`/designs/${design.id}/tasks/template/new`),
                   },
+                  {
+                    label: t("View Task Canvas"),
+                    icon: <Eye />,
+                    to: 'view-canvas'
+                  },
                 ],
               },
             ]}
@@ -148,9 +184,23 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
                   <div className="flex items-center gap-3">
                     <div className="flex flex-1 flex-col">
                       <div className="flex justify-between items-center">
-                        <span className="text-ui-fg-base font-medium">
-                          {task.title}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-ui-fg-base font-medium">
+                            {task.title}
+                          </span>
+                          {task.subtaskCount && task.subtaskCount > 0 && (
+                            <div className="relative group">
+                              <div className="bg-ui-tag-blue-bg text-ui-tag-blue text-xs font-medium rounded-full px-2 py-0.5 cursor-help">
+                                {task.subtaskCount}
+                              </div>
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-ui-bg-base text-ui-fg-base text-xs rounded shadow-elevation-flyout w-48 hidden group-hover:block z-10">
+                                <p className="font-medium mb-1">{t("Subtasks")}</p>
+                                <p>{t("This task has {{count}} subtasks", { count: task.subtaskCount })}</p>
+                                <p className="mt-1 text-ui-fg-subtle">{t("View in canvas to see relationships")}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusClass(task.status)}`}>
                           {task.status}
                         </span>

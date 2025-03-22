@@ -49,6 +49,7 @@ export interface AdminDesign {
   color_palette?: ColorPalette[];
   tags?: string[];
   estimated_cost?: number;
+  tasks?: any[]; // Array of design tasks
   designer_notes?: string;
   feedback_history?: FeedbackHistory[];
   media_files?: DesignMedia[];

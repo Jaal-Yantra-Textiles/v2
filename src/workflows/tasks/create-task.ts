@@ -242,7 +242,12 @@ export const figureOutInputForNextStep = createStep(
 
 // Export the workflow
 export const createTaskWorkflow = createWorkflow(
-  "create-task",
+  {
+    name: "create-task",
+    store: true,
+    storeExecution: true,
+    retentionTime: 900
+  },
   (input: CreateTaskInput | CreateTaskWithParentInput) => {
     // First, analyze the input
 

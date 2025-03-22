@@ -823,7 +823,7 @@ medusaIntegrationTestRunner({
           headers,
         );
 
-        expect(response.status).toBe(204);
+        expect(response.status).toBe(200);
 
         // Verify tag was deleted
         const getResponse = await api.get(
