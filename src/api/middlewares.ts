@@ -74,21 +74,9 @@ const upload = multer({ storage: multer.memoryStorage() })
 // Adapter function to make multer middleware compatible with Medusa's middleware signature
 const adaptMulter = (multerMiddleware) => {
   return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
-    console.log("BEFORE multer:", {
-      hasFile: !!req.file,
-      contentType: req.headers['content-type'],
-      bodyKeys: Object.keys(req.body || {}),
-    });
-    
     // Call multer middleware and capture the next function
     return multerMiddleware(req as any, res as any, (err: any) => {
       // Log after multer has processed the request
-      console.log("AFTER multer:", {
-        hasFile: !!req.file,
-        hasFiles: !!req.files,
-        error: err ? err.message : undefined,
-        contentType: req.headers['content-type'],
-      });
       // Continue the middleware chain
       next(err);
     });

@@ -1,5 +1,5 @@
 import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, DropdownMenu, Button } from "@medusajs/ui";
-import { useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { Users, ChevronDownMini } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
@@ -138,30 +138,11 @@ const PersonsPage = () => {
                 Manage all your relationships from here
               </Text>
             </div>
-            <div className="flex items-center">
-              <div className="inline-flex rounded-lg overflow-hidden">
+            <div className="flex items-center justify-center gap-x-2">
                 <CreateButton />
-                <DropdownMenu>
-                  <DropdownMenu.Trigger asChild>
-                    <Button 
-                      variant="secondary" 
-                      size="small" 
-                      className="rounded-l-none border-l border-ui-border-base pl-2 pr-2"
-                    >
-                      <ChevronDownMini />
-                    </Button>
-                  </DropdownMenu.Trigger>
-                <DropdownMenu.Content>
-                  <DropdownMenu.Item className="gap-x-2">
-                    Import
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item className="gap-x-2">
-                    Export
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Separator />
-                </DropdownMenu.Content>
-              </DropdownMenu>
-              </div>
+                <Button size="small" variant="secondary" asChild>
+                <Link to="import">Import</Link>
+          </Button>
             </div>
           </DataTable.Toolbar>
           
@@ -179,6 +160,7 @@ const PersonsPage = () => {
           <DataTable.Pagination />
         </DataTable>
       </Container>
+      <Outlet />
     </div>
   );
 };

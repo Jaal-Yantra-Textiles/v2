@@ -251,3 +251,62 @@ export const useBatchPersonGroups = (
     ...options,
   });
 };
+
+/**
+ * Hook for importing persons from a CSV file
+ */
+export const useImportPersons = (options?: UseMutationOptions<any, FetchError, { file: File }>) => {
+  return useMutation({
+    mutationFn: async ({ file }: { file: File }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      
+      const response = await sdk.client.fetch(
+        "/admin/persons/import",
+        {
+          method: "POST",
+          body: formData,
+          headers: {
+            "Content-Type": null,
+          },
+        }
+      );
+      
+      // Cast the response to get the data
+      const data = response as { data: any };
+      
+      return data;
+    },
+    ...options,
+  });
+};
+
+/**
+ * Hook for confirming a person import operation
+ */
+export const useConfirmImportPersons = (options?: UseMutationOptions<any, FetchError, string>) => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (transactionId: string) => {
+      const response = await sdk.client.fetch(
+        `/admin/persons/import/${transactionId}/confirm`,
+        {
+          method: "POST",
+        }
+      );
+      
+      // Cast the response to get the data
+      const data = response as { data: any };
+      
+      return data;
+    },
+    onSuccess: (data, variables, context) => {
+      // Invalidate the persons list query to refresh the data
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};

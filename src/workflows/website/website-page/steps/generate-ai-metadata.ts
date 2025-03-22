@@ -59,8 +59,8 @@ export const generateAIMetadataStep = createStep(
       if (workflowResult.results.generateMetadata?.status === 'success') {
         const metadata = workflowResult.results.generateMetadata.output;
         await notificationModuleService.createNotifications({
-          to: "saranshis@pm.me",
-          channel: "email",
+          to: "",
+          channel: "feed",
           template: "metadata-created",
           data: {
             page: input.pageContext,
@@ -74,8 +74,8 @@ export const generateAIMetadataStep = createStep(
     } catch (error) {
       console.error("Error generating AI metadata:", error);
       await notificationModuleService.createNotifications({
-        to: "saranshis@pm.me",
-        channel: "email",
+        to: "",
+        channel: "feed",
         template: "metadata-error",
         data: {
           page: input.pageContext,
