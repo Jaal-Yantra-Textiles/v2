@@ -1,5 +1,5 @@
 import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState } from "@medusajs/ui";
-import { useNavigate } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ToolsSolid, PencilSquare } from "@medusajs/icons";
@@ -204,6 +204,7 @@ const DesignsPage = () => {
         <DataTable.Pagination />
       </DataTable>
     </Container>
+    <Outlet></Outlet>
     </div>
   );
 };

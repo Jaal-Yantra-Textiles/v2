@@ -61,6 +61,12 @@ export const ReadDesignsQuerySchema = z.object({
   offset: z.number().default(0).optional(),
 })
 
+export const CreateDesignLLMSchema = z.object({
+  designPrompt: z.string(),
+  existingValues: z.record(z.any()).optional()
+});
+
 export type Design = z.infer<typeof designSchema>;
 export type UpdateDesign = z.infer<typeof UpdateDesignSchema>;
 export type ReadDesigns = z.infer<typeof ReadDesignsQuerySchema>;
+export type CreateDesignLLM = z.infer<typeof CreateDesignLLMSchema>;

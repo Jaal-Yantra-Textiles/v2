@@ -110,9 +110,9 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
         <div className="flex items-center gap-x-4">
           {/* Task Completion Indicator */}
           <div className="flex items-center mr-2">
-            <div className="relative w-10 h-10 flex items-center justify-center">
+            <div className="relative w-10 h-10 flex items-center justify-center z-0">
               {/* Background circle */}
-              <svg className="absolute w-full h-full" viewBox="0 0 36 36">
+              <svg className="absolute w-full h-full z-0" viewBox="0 0 36 36">
                 <circle 
                   cx="18" 
                   cy="18" 

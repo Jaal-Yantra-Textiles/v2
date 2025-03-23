@@ -1158,7 +1158,7 @@
   dependencies:
     tslib "^2.0.0"
 
-"@editorjs/editorjs@^2.29.1", "@editorjs/editorjs@^2.30.8":
+"@editorjs/editorjs@^2.29.1", "@editorjs/editorjs@^2.30.7", "@editorjs/editorjs@^2.30.8":
   version "2.30.8"
   resolved "https://registry.yarnpkg.com/@editorjs/editorjs/-/editorjs-2.30.8.tgz#e88773622b656f002d6aac31a4b09a04ddea554b"
   integrity sha512-ClFuxI1qZTfXPJTacQfsJtOUP6bKoIe6BQNdAvGsDTDVwMnZEzoaSOwvUpdZEE56xppVfQueNK/1MElV9SJKHg==
@@ -1191,6 +1191,14 @@
   integrity sha512-qD6bbWvRc4VvP0mXDOm+hOhzzhUYR9ZjcAvgCuKWcCbUMpCvhVF1s8NX40zdjekPi6JEnuHTamCncTrSzVsVhw==
   dependencies:
     "@codexteam/icons" "^0.0.4"
+
+"@editorjs/warning@^1.4.1":
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/@editorjs/warning/-/warning-1.4.1.tgz#5e05cc4cf26656b836114335f8d9af6e8e1cefae"
+  integrity sha512-7A+irJ6gIh6li4DC7qw/NiWCThlBgtoPUeeIVdldVjoATAu+a1GjS+w/5L24ReacgQJNPVQPPCoMaS1nB83agw==
+  dependencies:
+    "@codexteam/icons" "^0.3.2"
+    "@editorjs/editorjs" "^2.30.7"
 
 "@emoji-mart/data@^1.2.1":
   version "1.2.1"

@@ -115,7 +115,7 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
               {
                 actions: [
                   {
-                    label: 'Add Note',
+                    label: 'Edit Note',
                     icon: <Newspaper />,
                     to: "addnote",
                   },
@@ -124,7 +124,7 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
               {
                 actions: [
                   {
-                    label: 'Add Moodboard',
+                    label: 'Edit Moodboard',
                     icon: <BookOpen />,
                     to: "moodboard",
                   },
@@ -200,18 +200,7 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
               {design.estimated_cost ? `$${design.estimated_cost}` : "-"}
             </Text>
           </div>
-        
-
-          {/* Designer Notes , we will remove these to the note section */}
-          <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
-            <Text size="small" leading="compact" weight="plus">
-              Designer Notes
-            </Text>
-            <Text size="small" leading="compact">
-              {design.designer_notes || "-"}
-            </Text>
-          </div>
-
+      
 
           {/* Created At */}
           <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">

@@ -44,9 +44,9 @@ export const generateAIMetadataStep = createStep(
       if (workflowResult.results.validateMetadata?.status === 'failed') {
         const error = workflowResult.results.validateMetadata.error;
         await notificationModuleService.createNotifications({
-          to: "saranshis@pm.me",
-          channel: "email",
-          template: "metadata-validation-failed",
+          to: "",
+          channel: "feed",
+          template: "admin-ui",
           data: {
             page: input.pageContext,
             error,
@@ -61,7 +61,7 @@ export const generateAIMetadataStep = createStep(
         await notificationModuleService.createNotifications({
           to: "",
           channel: "feed",
-          template: "metadata-created",
+          template: "admin-ui",
           data: {
             page: input.pageContext,
             metadata

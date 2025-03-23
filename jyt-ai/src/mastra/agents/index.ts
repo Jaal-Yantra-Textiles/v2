@@ -26,3 +26,11 @@ export const modelAgent = new Agent({
 });
 
 
+export const designAgent = new Agent({
+  name: "design-agent",
+  instructions:'You are a design assitant for the designer',
+  model: openai("gpt-4o-mini")
+});
+
+
+

@@ -265,3 +265,30 @@ export const useLinkDesignInventory = (
     ...options,
   });
 };
+
+export interface CreateDesignLLMPayload {
+  designPrompt: string;
+  existingValues?: Record<string, any>;
+}
+
+export const useCreateDesignLLM = (
+  options?: UseMutationOptions<
+    AdminDesignResponse,
+    FetchError,
+    CreateDesignLLMPayload
+  >
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: CreateDesignLLMPayload) =>
+      sdk.client.fetch<AdminDesignResponse>(`/admin/designs/auto`, {
+        method: "POST",
+        body: data,
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};

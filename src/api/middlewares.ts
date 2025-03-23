@@ -28,7 +28,7 @@ import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators
 import * as z from "zod";
 import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
-import { designSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
+import { CreateDesignLLMSchema, designSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
@@ -283,6 +283,11 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostDesignTaskAssignReq))],
     },
 
+    {
+      matcher: "/admin/designs/auto",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateDesignLLMSchema))],
+    },
     // Task-Templates 
     {
       matcher: "/admin/task-templates",

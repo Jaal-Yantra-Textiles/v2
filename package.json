@@ -33,6 +33,7 @@
     "@editorjs/list": "^2.0.6",
     "@editorjs/marker": "^1.4.0",
     "@editorjs/paragraph": "^2.11.7",
+    "@editorjs/warning": "^1.4.1",
     "@excalidraw/excalidraw": "^0.18.0",
     "@medusajs/admin-sdk": "^2.6.0",
     "@medusajs/cli": "2.6.0",
