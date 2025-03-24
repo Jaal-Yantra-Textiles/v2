@@ -3,15 +3,13 @@ import {
   createStep,
   StepResponse,
   WorkflowResponse,
+  transform,
 } from "@medusajs/framework/workflows-sdk";
-import { Modules } from "@medusajs/framework/utils";
-import { INotificationModuleService } from "@medusajs/types";
 import { DESIGN_MODULE } from "../../modules/designs";
 import DesignService from "../../modules/designs/service";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { sendNotificationsStep } from "@medusajs/medusa/core-flows";
-import { template, transform } from "lodash";
-import { title } from "process";
+import { mastra } from "../../mastra";
 
 // Input type for the generate design step
 export type GenerateDesignFromLLMInput = {
@@ -37,74 +35,59 @@ export const generateDesignDataStep = createStep(
       return new StepResponse(mockDesign);
     }
 
-    const notificationModuleService: INotificationModuleService = 
-      container.resolve(Modules.NOTIFICATION);
 
     try {
       // Call the Mastra designValidator workflow
-      const response = await fetch('http://localhost:4111/api/workflows/designValidationWorkflow/execute', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          triggerData: {
-            designPrompt: input.designPrompt,
-            existingValues: input.existingValues || {}
-          }
-        })
+      const { runId , start } = mastra.getWorkflow('designValidationWorkflow').createRun();
+      const runResult = await start({
+        triggerData: {
+          designPrompt: input.designPrompt,
+          existingValues: input.existingValues || {}
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`Design generation request failed: ${response.statusText}`);
-      }
-
-      const workflowResult = await response.json();
-      
-      // Check if workflow execution was successful
-      if (workflowResult.results.validateDesignData?.status === 'failed') {
-        const error = workflowResult.results.validateDesignData.error;
-
-        
-        await notificationModuleService.createNotifications({
-          to: "",
-          channel: "feed",
-          template: "admin-ui",
-          data: {
-            prompt: input.designPrompt,
-            error,
-            designData: workflowResult.results.generateDesignData?.output
-          },
-        });
+      if (runResult.results.validateDesignData?.status !== 'success') {
+        const error = runResult.results.validateDesignData.status;
         throw new Error(`Design validation failed: ${error}`);
       }
 
-      if (workflowResult.results.validateDesignData?.status === 'success') {
-        const designData = workflowResult.results.validateDesignData.output;
-        await notificationModuleService.createNotifications({
-          to: "",
-          channel: "feed",
-          template: "admin-ui",
-          data: {
-            prompt: input.designPrompt,
-            designData
-          },
-        });
-        return new StepResponse(designData);
-      }
+      const designData = runResult.results.validateDesignData.output;
+      return new StepResponse(designData);
+        
+     
+      // const response = await fetch(process.env.MASTRA_URL! + `/api/workflows/designValidationWorkflow`, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify({
+      //     triggerData: {
+      //       designPrompt: input.designPrompt,
+      //       existingValues: input.existingValues || {}
+      //     }
+      //   })
+      // });
 
-      throw new Error('Design generation workflow execution failed');
+      // if (!response.ok) {
+      //   throw new Error(`Design generation request failed: ${response.statusText}`);
+      // }
+
+      // const workflowResult = await response.json();
+      
+      // // Check if workflow execution was successful
+      // if (workflowResult.results.validateDesignData?.status === 'failed') {
+      //   const error = workflowResult.results.validateDesignData.error;
+      //   throw new Error(`Design validation failed: ${error}`);
+      // }
+
+      // if (workflowResult.results.validateDesignData?.status === 'success') {
+      //   const designData = workflowResult.results.validateDesignData.output;
+      //   return new StepResponse(designData);
+      // }
+
+      // throw new Error('Design generation workflow execution failed');
     } catch (error) {
       console.error("Error generating design data:", error);
-      await notificationModuleService.createNotifications({
-        to: "",
-        channel: "feed",
-        template: "design-generation-error",
-        data: {
-          prompt: input.designPrompt,
-          error: error.message
-        },
-      });
       throw error;
     }
   }
@@ -152,19 +135,21 @@ export const createDesignFromLLMWorkflow = createWorkflow(
   (input: GenerateDesignFromLLMInput) => {
     const designData = generateDesignDataStep(input);
     const design = createDesignFromDataStep(designData);
-    const notifications = 
-     [
-        {
-          to: "",
-          channel: "feed",
-          template: "admin-ui",
-          data: {
-            title: "Design created",
-            description: `Design created successfully with the help of LLM!`
-          }
+    const designInfo = transform({design}, (data) => {
+      return [
+      {
+        to: "",
+        channel: "feed",
+        template: "admin-ui",
+        data: {
+          title: "Design created",
+          description: `Design created successfully with the help of LLM! Design ID: ${data.design.id}`
         }
+      }
       ]
-    sendNotificationsStep(notifications)
+    });
+    
+    sendNotificationsStep(designInfo)
     return new WorkflowResponse(design);
   }
 );
