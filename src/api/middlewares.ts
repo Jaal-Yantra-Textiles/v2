@@ -417,7 +417,7 @@ export default defineMiddlewares({
 
       // Create a single error message that includes code and path for each issue
       const errorMessage = formattedIssues.map(issue => 
-        `[${issue.code}] ${issue.message} (at path: ${issue.path})`
+        `${issue.code} ${issue.message} (at path: ${issue.path})`
       ).join('; ');
 
       return res.status(400).json({
