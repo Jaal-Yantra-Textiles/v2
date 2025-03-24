@@ -371,7 +371,7 @@ medusaIntegrationTestRunner({
           response: {
             status: 400,
             data: {
-              message: "[too_small] Street is required (at path: street)"
+              message: "too_small Street is required (at path: street)"
             }
           }
         });

@@ -65,19 +65,34 @@ export const CreateTaskTemplateComponent = () => {
     const categoryData = data.category;
     const existingCategory = categories.find(c => c.name.toLowerCase() === categoryData.name.toLowerCase());
 
-    const payload = {
-      ...data,
-      category: existingCategory 
-        ? { id: existingCategory.id }
-        : {
-            name: categoryData.name,
-            description: categoryData.description || ""
-          },
+    // Create a base payload without the category information
+    const basePayload = {
+      name: data.name,
+      description: data.description,
+      priority: data.priority,
+      estimated_duration: data.estimated_duration,
+      eventable: data.eventable,
+      notifiable: data.notifiable,
+      message_template: data.message_template,
       required_fields: {},
       metadata: {
         type: "default",
       },
     };
+    
+    // Add the appropriate category information based on whether it's new or existing
+    const payload = existingCategory
+      ? {
+          ...basePayload,
+          // For existing categories, we need to pass the category_id property
+          // This will be handled by the API even though it's not in the TypeScript type
+          category_id: existingCategory.id,
+        } as any // Use type assertion to bypass TypeScript checking
+      : {
+          ...basePayload,
+          // For new categories, use the name as a string
+          category: categoryData.name,
+        };
 
     await mutateAsync(payload, {
       onSuccess: ({ task_template }) => {

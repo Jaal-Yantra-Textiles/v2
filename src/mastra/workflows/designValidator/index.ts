@@ -1,4 +1,4 @@
-import { Workflow, Step } from "@mastra/core";
+import { Workflow, Step } from "@mastra/core/workflows";
 import { z } from "zod";
 import { designAgent } from "../../agents";
 import { Logger } from "@mastra/core";

@@ -211,7 +211,13 @@ medusaIntegrationTestRunner({
                 }))
 
                 // Verify dependencies between parent and children
-                const [marketAnalysis, trendResearch] = parentTask.subtasks
+                // Find subtasks by title instead of relying on array order
+                const marketAnalysis = parentTask.subtasks.find(task => task.title === 'Market Analysis')
+                const trendResearch = parentTask.subtasks.find(task => task.title === 'Trend Research')
+                
+                // Ensure both tasks were found
+                expect(marketAnalysis).toBeDefined()
+                expect(trendResearch).toBeDefined()
 
                 // Verify Market Analysis task
                 expect(marketAnalysis).toEqual(expect.objectContaining({
@@ -232,9 +238,21 @@ medusaIntegrationTestRunner({
                 }))
 
                 // Verify outgoing dependencies from parent to children
-                const [dep1, dep2] = parentTask.outgoing
+                // Find dependencies by task ID instead of relying on array order
+                const marketAnalysisDep = parentTask.outgoing.find(
+                    dep => dep.incoming_task_id === marketAnalysis.id
+                )
+                const trendResearchDep = parentTask.outgoing.find(
+                    dep => dep.incoming_task_id === trendResearch.id
+                )
+                
+                // Ensure both dependencies were found
+                expect(marketAnalysisDep).toBeDefined()
+                expect(trendResearchDep).toBeDefined()
             
-                expect(dep1).toEqual(expect.objectContaining({
+                // Use expect.objectContaining to match only the properties we care about
+                // This allows the object to have additional properties like created_at, updated_at, and id
+                expect(marketAnalysisDep).toEqual(expect.objectContaining({
                     dependency_type: 'subtask',
                     outgoing_task_id: parentTask.id,
                     incoming_task_id: marketAnalysis.id,
@@ -242,7 +260,9 @@ medusaIntegrationTestRunner({
                         parent_child: true
                     })
                 }))
-                expect(dep2).toEqual(expect.objectContaining({
+                
+                // Also use expect.objectContaining for the second dependency
+                expect(trendResearchDep).toEqual(expect.objectContaining({
                     dependency_type: 'subtask',
                     outgoing_task_id: parentTask.id,
                     incoming_task_id: trendResearch.id,
