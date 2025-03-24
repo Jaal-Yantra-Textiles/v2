@@ -91,11 +91,11 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
                       <div className="shadow-elevation-card-rest bg-ui-bg-base rounded-md flex items-center justify-center text-ui-fg-subtle">
                         <Thumbnail src={item.thumbnail} />
                       </div>
-                      <div className="flex flex-1 flex-col">
+                      <div className="flex flex-1 flex-col overflow-hidden">
                         <span className="text-ui-fg-base font-medium">
                           {item.title || `Inventory Item ${item.id}`}
                         </span>
-                        <span className="text-ui-fg-subtle">
+                        <span className="text-ui-fg-subtle truncate max-w-[150px] sm:max-w-[200px] md:max-w-full block">
                           {item.id || "-"}
                         </span>
                       </div>

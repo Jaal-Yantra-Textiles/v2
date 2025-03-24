@@ -5,7 +5,7 @@ const AddContactPage = () => {
 
   return (
     <RouteFocusModal>
-    <AddContactForPerson />;
+    <AddContactForPerson />
   </RouteFocusModal>
   )
 };

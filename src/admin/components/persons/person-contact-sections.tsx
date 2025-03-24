@@ -5,7 +5,7 @@ import { ActionMenu } from "../common/action-menu";
 import { useState, useEffect } from "react";
 import { toast, usePrompt } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
-import { usePersonContacts, useDeletePersonContact, ContactDetail } from "../../hooks/api/person-contacts";
+import { useDeletePersonContact, ContactDetail } from "../../hooks/api/person-contacts";
 
 // Define the person with contact details interface
 interface PersonWithContactDetails {
@@ -25,8 +25,9 @@ export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
   const prompt = usePrompt();
   const navigate = useNavigate();
   
-  // Fetch contacts using the API hook
-  const { contacts, isLoading, refetch } = usePersonContacts(person.id, {});
+  // Use contact_details directly from the person object
+  const contacts = person.contact_details || [];
+  
   
   // Get the selected contact ID (for edit/delete operations)
   const getSelectedContactId = () => {
@@ -73,7 +74,7 @@ export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
       await mutateAsync();
       toast.success('Contact deleted successfully');
       setSelectedRows({});
-      refetch(); // Refresh the contacts list
+      // No need to refetch as the parent component should handle refreshing the person data
     } catch (error: any) {
       toast.error(error?.message || 'Failed to delete contact');
     }
@@ -253,11 +254,7 @@ export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
         </DataTable.Toolbar>
         <DataTable.Table />
         {contacts.length > 10 && <DataTable.Pagination />}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-10">
-            <Text className="text-ui-fg-subtle">Loading contacts...</Text>
-          </div>
-        ) : contacts.length === 0 && (
+        {contacts.length === 0 && (
           <div className="flex items-center justify-center py-10">
             <Text className="text-ui-fg-subtle">No contact details found</Text>
           </div>

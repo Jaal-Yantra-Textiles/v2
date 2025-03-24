@@ -93,9 +93,6 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
           <Heading>{design.name}</Heading>
         </div>
         <div className="flex items-center gap-x-4">
-          <StatusBadge color={designStatusColor(design.status as string)}>
-            {design.status}
-          </StatusBadge>
           {design.priority && (
             <Badge color={priorityColor(design.priority)}>
               {design.priority}
@@ -154,6 +151,15 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
             <Text size="small" leading="compact">
               {design.description || "-"}
             </Text>
+          </div>
+
+          <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+            <Text size="small" leading="compact" weight="plus">
+              {t("fields.status")}
+            </Text>
+            <StatusBadge color={designStatusColor(design.status as string)}>
+            {design.status}
+          </StatusBadge>
           </div>
 
           {/* Design Type */}

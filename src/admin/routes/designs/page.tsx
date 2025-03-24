@@ -187,17 +187,21 @@ const DesignsPage = () => {
     <div>
     <Container className="divide-y p-0">
       <DataTable instance={table}>
-        <DataTable.Toolbar className="flex justify-between items-center px-6 py-4">
+        <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
           <div>
             <Heading>Designs</Heading>
             <Text className="text-ui-fg-subtle" size="small">
               Manage all your designs from here
             </Text>
           </div>
-          <div className="flex items-center gap-x-2">
-            <DataTable.Search placeholder="Search designs..." />
-            <DataTable.FilterMenu tooltip="Filter designs" />
-            <CreateButton />
+          <div className="flex flex-col sm:flex-row w-full md:w-auto gap-y-2 gap-x-2">
+            <div className="w-full sm:max-w-[260px] md:w-auto">
+              <DataTable.Search placeholder="Search designs..." />
+            </div>
+            <div className="flex items-center gap-x-2">
+              <DataTable.FilterMenu tooltip="Filter designs" />
+              <CreateButton />
+            </div>
           </div>
         </DataTable.Toolbar>
         <DataTable.Table />

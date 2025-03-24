@@ -40,11 +40,11 @@ export function CreateDesignAIComponent({ onSubmit }: CreateDesignAIProps) {
   return (
     <RouteFocusModal>
       <RouteFocusModal.Header />
-      <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
-        <div className="flex w-full max-w-[720px] flex-col gap-y-8">
+      <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-8 md:py-16 px-4 md:px-6">
+        <div className="flex w-full max-w-[720px] flex-col gap-y-6 md:gap-y-8">
           <div>
-            <Heading>Create Design with AI</Heading>
-            <Text size="small" className="text-ui-fg-subtle">
+            <Heading className="text-xl md:text-2xl">Create Design with AI</Heading>
+            <Text size="small" className="text-ui-fg-subtle mt-1">
               Describe your design idea and let AI help you create it.
             </Text>
           </div>
@@ -56,16 +56,16 @@ export function CreateDesignAIComponent({ onSubmit }: CreateDesignAIProps) {
               </Text>
               <Textarea
                 placeholder="E.g., Create a summer collection with floral patterns in pastel colors..."
-                rows={8}
+                rows={6}
                 className="w-full"
                 value={designPrompt}
                 onChange={(e) => setDesignPrompt(e.target.value)}
               />
             </div>
             
-            <div className="mt-4">
+            <div className="mt-2 md:mt-4">
               <Text size="base" weight="plus" className="mb-2">Example prompts:</Text>
-              <ul className="list-disc pl-5 text-ui-fg-subtle space-y-2">
+              <ul className="list-disc pl-5 text-ui-fg-subtle space-y-1 md:space-y-2 text-sm md:text-base">
                 <li>Create a winter collection with geometric patterns in dark blue and white</li>
                 <li>Design a sustainable activewear line with recycled materials</li>
                 <li>Create a formal wear collection inspired by 1920s fashion</li>
@@ -75,10 +75,10 @@ export function CreateDesignAIComponent({ onSubmit }: CreateDesignAIProps) {
         </div>
       </RouteFocusModal.Body>
       
-      <RouteFocusModal.Footer>
-        <div className="flex justify-end items-center gap-x-2">
+      <RouteFocusModal.Footer className="px-4 py-3 md:px-6 md:py-4">
+        <div className="flex flex-col-reverse sm:flex-row justify-end items-center gap-y-2 gap-x-2 w-full">
           <RouteFocusModal.Close asChild>
-            <Button variant="secondary">
+            <Button variant="secondary" className="w-full sm:w-auto">
               Cancel
             </Button>
           </RouteFocusModal.Close>
@@ -88,8 +88,9 @@ export function CreateDesignAIComponent({ onSubmit }: CreateDesignAIProps) {
             onClick={handleGenerate}
             isLoading={createDesignLLM.isPending}
             disabled={!designPrompt.trim() || createDesignLLM.isPending}
+            className="w-full sm:w-auto"
           >
-            <Sparkles className="mr-2" />
+            <Sparkles className="mr-2 hidden sm:inline" />
             {createDesignLLM.isPending ? 'Generating...' : 'Generate with AI'}
           </Button>
         </div>

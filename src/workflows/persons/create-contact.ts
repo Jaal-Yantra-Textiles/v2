@@ -1,6 +1,6 @@
 import PersonService from "../../modules/person/service";
 import { PERSON_MODULE } from "../../modules/person";
-import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk";
+import { createHook, createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk";
 
 export enum ContactType {
   MOBILE = "mobile",
@@ -40,7 +40,15 @@ export const createContactWorkflow = createWorkflow(
   "create-contact",
   (input: CreateContactWorkFlowInput) => {
     const result = createContactStep(input);
-    return new WorkflowResponse(result);
+    const personContactCreatedHook = createHook(
+      "personContactCreated",
+      { 
+        personId: input.person_id 
+      }
+    );
+    return new WorkflowResponse(result, {
+      hooks: [personContactCreatedHook],
+    });
   },
 );
 

@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button, DatePicker, Heading, Input, Text, toast } from "@medusajs/ui";
 
@@ -7,15 +8,24 @@ import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useCreatePerson } from "../../hooks/api/persons";
 import { Form } from "../common/form";
+// Import the validators directly to avoid duplication
 
-const personSchema = z.object({
-  first_name: z.string(),
-  last_name: z.string(),
-  email: z.string().email(),
-  date_of_birth: z.date().nullable(),
+// Define a form-specific schema with validation rules
+const personFormSchema = z.object({
+  first_name: z.string().min(1, "First name is required"),
+  last_name: z.string().min(1, "Last name is required"),
+  email: z.string().email("Invalid email address"),
+  // Allow null for date_of_birth but validate if provided
+  date_of_birth: z.union([
+    z.date().refine(
+      (val) => !isNaN(val.getTime()), 
+      { message: "Invalid date format" }
+    ),
+    z.null()
+  ]),
 });
 
-type PersonFormData = z.infer<typeof personSchema>;
+type PersonFormData = z.infer<typeof personFormSchema>;
 
 export const CreatePersonComponent = () => {
   const form = useForm<PersonFormData>({
@@ -25,33 +35,60 @@ export const CreatePersonComponent = () => {
       email: "",
       date_of_birth: null,
     },
+    resolver: zodResolver(personFormSchema),
   });
 
   const { handleSuccess } = useRouteModal();
 
   const { mutateAsync, isPending } = useCreatePerson();
 
-  const handleSubmit = form.handleSubmit(async (data) => {
-    await mutateAsync(
-      {
-        first_name: data.first_name,
-        last_name: data.last_name,
-        email: data.email,
-        date_of_birth: data.date_of_birth,
-      },
-      {
-        onSuccess: ({ person }) => {
-          toast.success(
-            `Person created succesfully, enjoy with ${person.first_name}`,
-          );
-          handleSuccess(`/persons/${person.id}`);
-        },
-        onError: (error) => {
-          toast.error(error.message);
-        },
-      },
-    );
-  });
+  const handleSubmit = form.handleSubmit(
+    async (data) => {
+      try {
+        // Validate data with the schema before submitting
+        const validatedData = personFormSchema.parse(data);
+        
+        await mutateAsync(
+          {
+            first_name: validatedData.first_name,
+            last_name: validatedData.last_name,
+            email: validatedData.email,
+            date_of_birth: validatedData.date_of_birth,
+          },
+          {
+            onSuccess: ({ person }) => {
+              toast.success(
+                `Person created successfully, enjoy with ${person.first_name}`,
+              );
+              handleSuccess(`/persons/${person.id}`);
+            },
+            onError: (error) => {
+              
+              toast.error(error.message);
+            },
+          },
+        );
+      } catch (error) {
+        // Handle Zod validation errors
+        if (error instanceof z.ZodError) {
+          error.errors.forEach((err) => {
+            const fieldName = err.path.join('.');
+            toast.error(`${fieldName}: ${err.message}`);
+          });
+        } else {
+          toast.error('An unexpected error occurred');
+          console.error(error);
+        }
+      }
+    },
+    (errors) => {
+      // This callback handles react-hook-form validation errors
+      const firstError = Object.values(errors).find(error => error);
+      if (firstError?.message) {
+        toast.error(firstError.message);
+      }
+    }
+  );
 
   return (
     <RouteFocusModal.Form form={form}>
@@ -60,11 +97,11 @@ export const CreatePersonComponent = () => {
         className="flex flex-1 flex-col overflow-hidden"
       >
         <RouteFocusModal.Header />
-        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
-          <div className="flex w-full max-w-[720px] flex-col gap-y-8">
+        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-8 md:py-16 px-4 md:px-6">
+          <div className="flex w-full max-w-[720px] flex-col gap-y-6 md:gap-y-8">
             <div>
-              <Heading>{"Lets get someone onboarded"}</Heading>
-              <Text size="small" className="text-ui-fg-subtle">
+              <Heading className="text-xl md:text-2xl">{"Let's get someone onboarded"}</Heading>
+              <Text size="small" className="text-ui-fg-subtle mt-1">
                 {"It will be fun"}
               </Text>
             </div>
@@ -75,7 +112,7 @@ export const CreatePersonComponent = () => {
                 render={({ field }) => {
                   return (
                     <Form.Item>
-                      <Form.Label optional>{"First Name"}</Form.Label>
+                      <Form.Label>{"First Name"}</Form.Label>
                       <Form.Control>
                         <Input autoComplete="off" {...field} />
                       </Form.Control>
@@ -90,7 +127,7 @@ export const CreatePersonComponent = () => {
                 render={({ field }) => {
                   return (
                     <Form.Item>
-                      <Form.Label optional>{"Last Name"}</Form.Label>
+                      <Form.Label>{"Last Name"}</Form.Label>
                       <Form.Control>
                         <Input autoComplete="off" {...field} />
                       </Form.Control>
@@ -137,10 +174,10 @@ export const CreatePersonComponent = () => {
             </div>
           </div>
         </RouteFocusModal.Body>
-        <RouteFocusModal.Footer>
-          <div className="flex items-center justify-end gap-x-2">
+        <RouteFocusModal.Footer className="px-4 py-3 md:px-6 md:py-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end items-center gap-y-2 gap-x-2 w-full">
             <RouteFocusModal.Close asChild>
-              <Button size="small" variant="secondary">
+              <Button size="small" variant="secondary" className="w-full sm:w-auto">
                 {"Cancel"}
               </Button>
             </RouteFocusModal.Close>
@@ -149,6 +186,7 @@ export const CreatePersonComponent = () => {
               variant="primary"
               type="submit"
               isLoading={isPending}
+              className="w-full sm:w-auto"
             >
               {"Create"}
             </Button>

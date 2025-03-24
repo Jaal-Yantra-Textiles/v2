@@ -62,11 +62,11 @@ const AddAddressForPerson = () => {
         className="flex flex-1 flex-col overflow-hidden"
       >
         <RouteFocusModal.Header />
-        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
-          <div className="flex w-full max-w-[720px] flex-col gap-y-8">
+        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-8 md:py-16 px-4 md:px-6">
+          <div className="flex w-full max-w-[720px] flex-col gap-y-6 md:gap-y-8">
             <div>
-              <Heading>Add New Address</Heading>
-              <Text size="small" className="text-ui-fg-subtle">
+              <Heading className="text-xl md:text-2xl">Add New Address</Heading>
+              <Text size="small" className="text-ui-fg-subtle mt-1">
                 Fill in the address details below
               </Text>
             </div>
@@ -139,10 +139,10 @@ const AddAddressForPerson = () => {
             </div>
           </div>
         </RouteFocusModal.Body>
-        <RouteFocusModal.Footer>
-          <div className="flex items-center justify-end gap-x-2">
+        <RouteFocusModal.Footer className="px-4 py-3 md:px-6 md:py-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end items-center gap-y-2 gap-x-2 w-full">
             <RouteFocusModal.Close asChild>
-              <Button size="small" variant="secondary">
+              <Button size="small" variant="secondary" className="w-full sm:w-auto">
                 Cancel
               </Button>
             </RouteFocusModal.Close>
@@ -151,6 +151,7 @@ const AddAddressForPerson = () => {
               variant="primary"
               type="submit"
               isLoading={isPending}
+              className="w-full sm:w-auto"
             >
               Save
             </Button>

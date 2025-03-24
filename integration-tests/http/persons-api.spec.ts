@@ -371,7 +371,7 @@ medusaIntegrationTestRunner({
           response: {
             status: 400,
             data: {
-              message: "Invalid request: Value for field 'street' too small, expected at least: '1'"
+              message: "[too_small] Street is required (at path: street)"
             }
           }
         });

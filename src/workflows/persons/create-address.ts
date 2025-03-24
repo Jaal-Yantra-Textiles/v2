@@ -7,6 +7,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import PersonService from "../../modules/person/service";
 import { PERSON_MODULE } from "../../modules/person";
+import { createHook } from "@medusajs/framework/workflows-sdk";
 
 type CreateAddressStepInput = {
   person_id: string;
@@ -46,7 +47,15 @@ export const createAddressWorkflow = createWorkflow(
   "create-address",
   (input: CreateAddressWorkFlowInput) => {
     const address = createAddressStep(input);
-    return new WorkflowResponse(address);
+    const personAddressCreatedHook = createHook(
+      "personAddressCreated",
+     { 
+      personId: address.person_id 
+     }
+    );
+    return new WorkflowResponse(address, {
+      hooks: [personAddressCreatedHook],
+    });
   },
 );
 

@@ -4,6 +4,7 @@ import {
   createStep,
   StepResponse,
   WorkflowResponse,
+  createHook,
 } from "@medusajs/framework/workflows-sdk";
 import { PERSON_MODULE } from "../../modules/person";
 import PersonService from "../../modules/person/service";
@@ -39,7 +40,16 @@ const createPersonWorkflow = createWorkflow(
   "create-person-tags",
   (input: CreatePersonTagsWorkFlowInput) => {
     const personTags = createPersonTagsStep(input);
-    return new WorkflowResponse(personTags);
+    const personTagsCreatedHook = createHook(
+      "personTagsCreated",
+      { 
+        personId: input.person_id 
+      }
+    )
+      
+    return new WorkflowResponse(personTags, {
+      hooks: [personTagsCreatedHook],
+    });
   }, 
 );
 

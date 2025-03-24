@@ -187,11 +187,11 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
 
   return (
     <Container className="divide-y p-0">
-      <div className="px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
+      <div className="px-4 md:px-6 py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-y-2">
           <div>
-            <Heading>{t("Tags")}</Heading>
-            <Text className="text-ui-fg-subtle" size="small">
+            <Heading className="text-xl md:text-2xl">{t("Tags")}</Heading>
+            <Text className="text-ui-fg-subtle mt-1" size="small">
               Tags associated with this person
             </Text>
           </div>
@@ -236,7 +236,7 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
           <div className="w-full mb-4 relative">
             <Input
               id="tag-input"
-              placeholder="Type tag and press Enter or comma to add, then press 'S' to save"
+              placeholder="Type tag and press Enter or comma to add"
               value={tagInput}
               onChange={handleTagInputChange}
               onKeyDown={handleKeyPress}
@@ -256,7 +256,7 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
               <Button
                 variant="transparent"
                 size="small"
-                className="absolute -top-2 -right-2 p-0 h-4 w-4 bg-ui-bg-base rounded-full z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -top-2 -right-2 p-0 h-4 w-4 bg-ui-bg-base rounded-full z-10 opacity-0 sm:group-hover:opacity-100 active:opacity-100 transition-opacity"
                 onClick={() => removePendingTag(index)}
               >
                 <XMarkMini className="w-3 h-3" />
@@ -277,7 +277,7 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
                 <Button
                   variant="transparent"
                   size="small"
-                  className="absolute -top-2 -right-2 p-0 h-4 w-4 bg-ui-bg-base rounded-full z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-2 -right-2 p-0 h-4 w-4 bg-ui-bg-base rounded-full z-10 opacity-0 sm:group-hover:opacity-100 active:opacity-100 transition-opacity"
                   onClick={() => handleDeleteTag(tag.id)}
                 >
                   <XMarkMini className="w-3 h-3" />
@@ -293,12 +293,12 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
           
           {/* Empty state */}
           {pendingTags.length === 0 && (!person.tags || person.tags.length === 0) && (
-            <div className="flex items-center justify-center py-4 w-full">
+            <div className="flex flex-col sm:flex-row items-center justify-center py-4 w-full gap-y-2">
               <Text className="text-ui-fg-subtle">No tags found</Text>
               <Button
                 variant="secondary"
                 size="small"
-                className="ml-2"
+                className="sm:ml-2 w-full sm:w-auto"
                 onClick={handleAddTag}
               >
                 Add Tag

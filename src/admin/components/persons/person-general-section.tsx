@@ -93,10 +93,6 @@ export const PersonGeneralSection = ({ person }: PersonGeneralSectionProps) => {
           <Heading>{person.email}</Heading>
         </div>
         <div className="flex items-center gap-x-4">
-          <StatusBadge color={personStatusColor(person.state)}>
-            {`${person.state}`}
-          </StatusBadge>
-
           <ActionMenu
             groups={[
               {
@@ -139,6 +135,16 @@ export const PersonGeneralSection = ({ person }: PersonGeneralSectionProps) => {
           {name || "-"}
         </Text>
       </div>
+      <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+        <Text size="small" leading="compact" weight="plus">
+          {t("fields.state")}
+        </Text>
+        <Text size="small" leading="compact">
+          <StatusBadge color={personStatusColor(person.state)}>
+            {`${person.state}`}
+          </StatusBadge>
+        </Text>
+      </div> 
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" leading="compact" weight="plus">
           {t("fields.dateOfBirth")}

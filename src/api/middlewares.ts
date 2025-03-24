@@ -390,7 +390,6 @@ export default defineMiddlewares({
     // Option 1: standard name check
     // if (error.name === "ZodError") {
     // Option 2: check if error is an instance of ZodError
-    console.log(error)
     if (error.__isMedusaError){
       if (error.type == 'not_found'){
         return res.status(404).json({
@@ -402,21 +401,7 @@ export default defineMiddlewares({
         });
       }
     }
-    if (error instanceof MedusaError) {
-      
-      if (error.type == 'not_found'){
-        return res.status(404).json({
-          error: "ValidatorError",
-          issues: error.message,
-        });
-      }
-      return res.status(400).json({
-        error: "ValidatorError",
-        issues: error.message,
-      });
-    }
     if (error instanceof z.ZodError) {
-      
       /*
        * ZodError has an `issues` array. But in some scenarios, it might be missing or
        * shaped unexpectedly. We’ll guard against that possibility.
@@ -430,9 +415,14 @@ export default defineMiddlewares({
         code: issue?.code ?? "unknown_code",
       }));
 
+      // Create a single error message that includes code and path for each issue
+      const errorMessage = formattedIssues.map(issue => 
+        `[${issue.code}] ${issue.message} (at path: ${issue.path})`
+      ).join('; ');
+
       return res.status(400).json({
-        error: "ZodError",
-        issues: formattedIssues,
+        message: errorMessage,
+        //details: formattedIssues // Keep the detailed issues for debugging
       });
     }
 

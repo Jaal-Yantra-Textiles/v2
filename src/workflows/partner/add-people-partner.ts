@@ -59,7 +59,9 @@ const prepareLinkDefinitionsStep = createStep(
 const addPeoplePartnerWorkflow = createWorkflow(
     {
         name: "add-people-partner",
-        store: true
+        store: true,
+        retentionTime: 900,
+        storeExecution: true
 
     },
     (input: AddPeoplePartnerWorkflowInput) => {
