@@ -30,7 +30,9 @@ medusaIntegrationTestRunner({
 
     beforeEach(async () => {
       const container = getContainer();
+      //await createAdminUser(container);
       await createAdminUser(container);
+     
       headers = await getAuthHeaders(api);
 
       // Create the design first

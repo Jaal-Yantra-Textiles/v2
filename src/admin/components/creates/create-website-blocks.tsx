@@ -1,12 +1,12 @@
 import { Button, Heading, IconButton, Input, Text, toast, Textarea, Tooltip } from "@medusajs/ui";
+import { Trash, InformationCircleSolid } from "@medusajs/icons";
 import { BlockTemplateSelector } from "../websites/block-template-selector";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate } from "react-router-dom";
-import { Minus, InformationCircleSolid } from "@medusajs/icons";
 import { Form } from "../common/form";
-import { Collapsible } from "../ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useCreateBlock } from "../../hooks/api/blocks";
 import { useRouteModal } from "../modal/use-route-modal";
@@ -82,7 +82,6 @@ export function CreateWebsiteBlocks({ websiteId, pageId }: CreateWebsiteBlocksPr
       handleSuccess(`/websites/${websiteId}/pages/${pageId}`);
     } catch (error) {
       toast.error("Error creating blocks");
-      console.error(error);
     }
   });
 
@@ -117,38 +116,39 @@ export function CreateWebsiteBlocks({ websiteId, pageId }: CreateWebsiteBlocksPr
 
             <div className="flex flex-col gap-y-4">
               {fields.map((field, index) => (
-                <Collapsible
-                  key={field.id}
-                  open={expandedSections[index]}
-                  onOpenChange={() => toggleSection(index)}
-                >
-                  <div className="border rounded-lg">
-                    <div className="flex items-center justify-between p-4 border-b">
-                      <Text size="base" weight="plus">
-                        Block {index + 1} - {form.watch(`blocks.${index}.type`)}
-                      </Text>
-                      <div className="flex items-center gap-x-2">
-                        <IconButton
-                          size="small"
-                          variant="transparent"
-                          onClick={() => remove(index)}
-                        >
-                          <Minus />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          variant="primary"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleSection(index);
-                          }}
-                        >
+                <div key={field.id} className="border rounded-lg overflow-hidden">
+                  <Collapsible
+                    open={expandedSections[index]}
+                    onOpenChange={() => toggleSection(index)}
+                  >
+                    <div className="flex items-center justify-between p-4 border-b cursor-pointer">
+                      <CollapsibleTrigger className="flex-1 flex items-center justify-between">
+                        <Text size="base" weight="plus">
+                          Block {index + 1} - {form.watch(`blocks.${index}.type`)}
+                        </Text>
+                        <div className="flex items-center">
                           {expandedSections[index] ? "-" : "+"}
-                        </IconButton>
+                        </div>
+                      </CollapsibleTrigger>
+                      <div className="flex items-center gap-x-2 ml-2">
+                        <Tooltip content="Remove block">
+                          <IconButton
+                            size="small"
+                            variant="transparent"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              remove(index);
+                            }}
+                          >
+                            <Trash className="w-4 h-4" />
+                          </IconButton>
+                        </Tooltip>
                       </div>
                     </div>
-                    <div className="p-4">
-                      <div className="flex flex-col gap-y-4">
+                    <CollapsibleContent>
+                      <div className="p-4">
+                        <div className="flex flex-col gap-y-4">
                         <Form.Field
                           control={form.control}
                           name={`blocks.${index}.name`}
@@ -232,10 +232,11 @@ export function CreateWebsiteBlocks({ websiteId, pageId }: CreateWebsiteBlocksPr
                             </Form.Item>
                           )}
                         />
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </Collapsible>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
               ))}
             </div>
           </div>

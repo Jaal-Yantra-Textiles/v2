@@ -1,9 +1,9 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState } from "@medusajs/ui";
-
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, CommandBar, toast } from "@medusajs/ui";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ActionMenu } from "../common/action-menu";
 import { Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AdminBlock, useBlocks } from "../../hooks/api/blocks";
 import { useBlocksColumns } from "./hooks/use-blocks-columns";
 
@@ -20,7 +20,18 @@ export function WebsiteBlocksSection({ websiteId, pageId }: WebsiteBlocksSection
   const { blocks, isLoading } = useBlocks(websiteId, pageId);
   
 
-  const columns = useBlocksColumns();
+  // Get the base columns from the hook
+  const baseColumns = useBlocksColumns();
+  
+  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
+  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
+  
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageSize: 10,
+    pageIndex: 0,
+  });
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({});
+  const [search, setSearch] = useState<string>("");
 
   const filterHelper = createDataTableFilterHelper<AdminBlock>();
 
@@ -40,13 +51,7 @@ export function WebsiteBlocksSection({ websiteId, pageId }: WebsiteBlocksSection
     }),
   ];
 
-  const [pagination, setPagination] = useState<DataTablePaginationState>({
-    pageSize: 10,
-    pageIndex: 0,
-  });
-  const [filtering, setFiltering] = useState<DataTableFilteringState>({});
-  const [search, setSearch] = useState<string>("");
-
+  // Define filtered blocks before using it in the columns definition
   const filteredBlocks = useMemo(() => {
     let result = blocks || [];
 
@@ -86,17 +91,162 @@ export function WebsiteBlocksSection({ websiteId, pageId }: WebsiteBlocksSection
 
     return result;
   }, [blocks, filtering, search]);
+  
+  // Add a selection column with checkbox
+  const columns = useMemo(() => {
+    const selectionColumn = {
+      id: 'select',
+      header: ({ table }: any) => (
+        <input
+          type="checkbox"
+          checked={table.getIsAllRowsSelected()}
+          onChange={(e) => {
+            table.toggleAllRowsSelected(e.target.checked);
+            // Select or deselect all rows
+            if (e.target.checked) {
+              const allSelected = filteredBlocks.reduce((acc, block) => {
+                acc[block.id] = true;
+                return acc;
+              }, {} as Record<string, boolean>);
+              setSelectedRows(allSelected);
+            } else {
+              setSelectedRows({});
+            }
+          }}
+        />
+      ),
+      cell: ({ row }: any) => (
+        <input
+          type="checkbox"
+          checked={selectedRows[row.id] || false}
+          onChange={(e) => {
+            row.toggleSelected(e.target.checked);
+            // Update selected rows
+            setSelectedRows(prev => {
+              const newState = { ...prev };
+              if (e.target.checked) {
+                newState[row.id] = true;
+              } else {
+                delete newState[row.id];
+              }
+              return newState;
+            });
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+      size: 40,
+    };
+    
+    return [selectionColumn, ...baseColumns];
+  }, [baseColumns, selectedRows, filteredBlocks]);
 
+  // Pagination calculation
   const paginatedBlocks = useMemo(() => {
     const start = pagination.pageIndex * pagination.pageSize;
     const end = start + pagination.pageSize;
     return filteredBlocks.slice(start, end);
   }, [filteredBlocks, pagination]);
 
+
+
+  // Handle row selection changes
+  const handleRowSelectionChange = (newSelection: Record<string, boolean>) => {
+    setSelectedRows(newSelection);
+  };
+  
+  // Update command bar visibility when selections change
+  useEffect(() => {
+    const hasSelections = Object.keys(selectedRows).length > 0;
+    setIsCommandBarOpen(hasSelections);
+  }, [selectedRows]);
+
+  // Handle escape key to clear selection
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isCommandBarOpen) {
+        // Clear all selections
+        setSelectedRows({});
+        setIsCommandBarOpen(false);
+        event.preventDefault();
+      }
+    };
+
+    if (isCommandBarOpen) {
+      window.addEventListener('keydown', handleEscapeKey);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [isCommandBarOpen]);
+
+  // Get the count of selected rows
+  const selectedCount = Object.keys(selectedRows).length;
+
+  // Create a single delete mutation that can be used for any block
+  const queryClient = useQueryClient();
+  const deleteMutation = useMutation({
+    mutationFn: async (blockId: string) => {
+      return await fetch(`/admin/websites/${websiteId}/pages/${pageId}/blocks/${blockId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["pages", pageId] });
+    },
+  });
+  
+  // Handle delete action
+  const handleDelete = async () => {
+    const selectedIds = Object.keys(selectedRows);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const blockId of selectedIds) {
+      try {
+        await deleteMutation.mutateAsync(blockId);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete block ${blockId}:`, error);
+        errorCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(`Successfully deleted ${successCount} block${successCount !== 1 ? 's' : ''}`);
+    }
+    
+    if (errorCount > 0) {
+      toast.error(`Failed to delete ${errorCount} block${errorCount !== 1 ? 's' : ''}`);
+    }
+
+    // Clear selection after delete
+    setSelectedRows({});
+    setIsCommandBarOpen(false);
+  };
+
+  // Handle edit action
+  const handleEdit = () => {
+    const selectedIds = Object.keys(selectedRows);
+    if (selectedIds.length === 1) {
+      navigate(`/websites/${websiteId}/pages/${pageId}/blocks/${selectedIds[0]}`);
+    }
+  };
+
   const table = useDataTable({
     columns,
     data: paginatedBlocks,
     getRowId: (row) => row.id,
+    rowSelection: {
+      state: selectedRows,
+      onRowSelectionChange: handleRowSelectionChange,
+      enableRowSelection: true
+    },
     onRowClick: (_, row) => {
       navigate(`/websites/${websiteId}/pages/${pageId}/blocks/${row.id}`);
     },
@@ -134,7 +284,7 @@ export function WebsiteBlocksSection({ websiteId, pageId }: WebsiteBlocksSection
               actions: [{
                 label: 'Add Block',
                 icon: <Plus />,
-                onClick: () => navigate(`/websites/${websiteId}/pages/${pageId}/blocks/new`),
+                to: `/websites/${websiteId}/pages/${pageId}/blocks/new`,
               }],
             }]} />
           </div>
@@ -142,6 +292,24 @@ export function WebsiteBlocksSection({ websiteId, pageId }: WebsiteBlocksSection
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
+
+      <CommandBar open={isCommandBarOpen}>
+        <CommandBar.Bar>
+          <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
+          <CommandBar.Command
+            action={handleEdit}
+            label="Edit"
+            shortcut="e"
+            disabled={selectedCount !== 1}
+          />
+          <CommandBar.Seperator />
+          <CommandBar.Command
+            action={handleDelete}
+            label="Delete"
+            shortcut="d"
+          />
+        </CommandBar.Bar>
+      </CommandBar>
     </Container>
   );
 }
