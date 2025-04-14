@@ -11,6 +11,7 @@ import { MedusaError } from "@medusajs/framework/utils";
 export type FindWebsitePagePerDomainStepInput = {
   domain: string;
   pageSlug: string;
+  exclude?: string;
 };
 
 export const findWebsitePagePerDomainStep = createStep(
@@ -36,13 +37,18 @@ export const findWebsitePagePerDomainStep = createStep(
 
     const website = websites[0][0];
 
-    // Find the specific page
-    const page = website.pages?.find(p => p.slug === input.pageSlug && p.status === "Published");
+    // Return the specific page
+    const page = website.pages?.find(
+      (p) =>
+        p.slug === input.pageSlug &&
+        p.status === "Published" &&
+        (input.exclude ? p.page_type !== input.exclude : p.page_type === "Blog")
+    );
 
     if (!page) {
       throw new MedusaError(
         MedusaError.Types.NOT_FOUND,
-        `Page with slug - ${input.pageSlug} not found`
+        `Page with slug - ${input.pageSlug} not found and if you are trying to access blog page then use the /blogs endpoint`
       );
     }
 
@@ -66,6 +72,7 @@ export const findWebsitePagePerDomainStep = createStep(
 export type FindWebsitePagePerDomainWorkflowInput = {
   domain: string;
   pageSlug: string;
+  exclude?: string;
 };
 
 export const findWebsitePagePerDomainWorkflow = createWorkflow(

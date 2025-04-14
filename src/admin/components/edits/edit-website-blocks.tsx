@@ -1,5 +1,6 @@
 import { useBlock } from "../../hooks/api/blocks";
-import { Spinner } from "../ui/ios-spinner";
+import { Skeleton } from "../table/skeleton";
+
 import { EditBlogBlock } from "./edit-blog-block";
 import { EditRegularBlock } from "./edit-regular-block";
 
@@ -13,7 +14,7 @@ export const EditWebsiteBlocks = ({ websiteId, pageId, blockId }: EditWebsiteBlo
   const { block, isLoading } = useBlock(websiteId, pageId, blockId);
 
   if (!websiteId || !pageId || !blockId) return null;
-  if (isLoading) return <div><Spinner /></div>;
+  if (isLoading) return <Skeleton />
   if (!block) return <div>Block not found</div>;
 
   const isBlogContent = block.type === "MainContent" && block.name === "Main Blog";

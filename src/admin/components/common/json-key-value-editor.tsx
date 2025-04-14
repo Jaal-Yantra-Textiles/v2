@@ -34,14 +34,37 @@ export const JsonKeyValueEditor = ({
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   
+  // Track expanded row IDs to preserve expanded state during re-initialization
+  const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
+  
   // Use refs to store the current state without triggering re-renders
   const rowsRef = useRef<EditorRow[]>([]);
   const initialValueRef = useRef<any>(null);
   const isInitialLoad = useRef<boolean>(true);
   
-  // Generate a unique ID for a row
-  const generateRowId = (): string => {
-    return Date.now().toString() + Math.random().toString(36).substring(2, 9);
+  // Generate a stable ID based on the path in the JSON structure
+  const generateStableId = (path: string[]): string => {
+    return path.join('.');
+  };
+  
+  // Helper function to restore expanded state for rows based on expandedRowIds
+  const restoreExpandedState = (rows: EditorRow[], expandedIds: Set<string>): EditorRow[] => {
+    return rows.map(row => {
+      // Create a new row object to avoid mutation
+      const updatedRow = { ...row };
+      
+      // Restore expanded state if this row ID is in the expandedIds set
+      if (expandedIds.has(row.id)) {
+        updatedRow.expanded = true;
+      }
+      
+      // Recursively restore expanded state for subrows
+      if (row.subrows && row.subrows.length > 0) {
+        updatedRow.subrows = restoreExpandedState(row.subrows, expandedIds);
+      }
+      
+      return updatedRow;
+    });
   };
   
   // Initialize the component with the initial value
@@ -89,19 +112,34 @@ export const JsonKeyValueEditor = ({
         });
       }
       
+      // Get a snapshot of the current expanded row IDs
+      const currentExpandedIds = expandedRowIds;
+      
       console.log('Setting initial rows:', newRows);
-      setRows(newRows);
+      console.log('Row IDs:', newRows.map(row => row.id));
+      console.log('Preserving expanded state for IDs:', Array.from(currentExpandedIds));
+      
+      // Restore expanded state for rows that were previously expanded
+      if (currentExpandedIds.size > 0) {
+        const rowsWithExpandedState = restoreExpandedState(newRows, currentExpandedIds);
+        setRows(rowsWithExpandedState);
+      } else {
+        setRows(newRows);
+      }
     } catch (error) {
       console.error("Failed to process initial value:", error);
       setJsonError("Invalid format");
       setRawJsonValue(typeof initialValue === 'string' ? initialValue : "{}");
     }
-  }, [initialValue]);  // Still depends on initialValue, but has additional checks
+  }, [initialValue, expandedRowIds]);  // Also depends on expandedRowIds to restore expanded state
   
-  // Helper function to create a row from a value
-  const createRowFromValue = (key: string, value: any): EditorRow => {
+  // Helper function to create a row from a value with path tracking for stable IDs
+  const createRowFromValue = (key: string, value: any, path: string[] = []): EditorRow => {
     let type: JsonValueType = 'string';
     let subrows: EditorRow[] = []; // Initialize as empty array by default
+    
+    // Create a current path for this row
+    const currentPath = [...path, key];
     
     if (typeof value === 'number') {
       type = 'number';
@@ -110,22 +148,25 @@ export const JsonKeyValueEditor = ({
     } else if (Array.isArray(value)) {
       type = 'array';
       subrows = value.map((item, index) => {
-        return createRowFromValue(index.toString(), item);
+        return createRowFromValue(index.toString(), item, currentPath);
       });
     } else if (typeof value === 'object' && value !== null) {
       type = 'object';
       subrows = Object.entries(value).map(([subKey, subValue]) => {
-        return createRowFromValue(subKey, subValue);
+        return createRowFromValue(subKey, subValue, currentPath);
       });
     }
     
+    // Generate a stable ID based on the path
+    const stableId = generateStableId(currentPath);
+    
     return {
-      id: generateRowId(),
+      id: stableId,
       key,
       value: type === 'array' || type === 'object' ? {} : value,
       type,
-      // Set expanded to true by default for objects and arrays with children
-      expanded: (type === 'array' || type === 'object') && subrows.length > 0,
+      // Set expanded to false by default for all rows
+      expanded: false,
       subrows: subrows // Always an array, no need for || []
     };
   };
@@ -226,8 +267,12 @@ export const JsonKeyValueEditor = ({
   
   // Add a new row
   const addRow = () => {
+    // Generate a stable ID for the new top-level row
+    const topLevelIndex = rowsRef.current.length;
+    const stableId = generateStableId([`top_${topLevelIndex}`]);
+    
     const newRow: EditorRow = {
-      id: generateRowId(),
+      id: stableId,
       key: "",
       value: "",
       type: 'string',
@@ -245,10 +290,11 @@ export const JsonKeyValueEditor = ({
   // Add a subrow to a row
   const addSubrow = (rowId: string) => {
     setRows(prevRows => {
-      const updatedRows = [...prevRows];
+      // Create a deep copy of the rows to avoid reference issues
+      const updatedRows = JSON.parse(JSON.stringify(prevRows));
       
-      // Keep track of the path to the target row to ensure all parent rows stay expanded
-      const rowPath: EditorRow[] = [];
+      // Keep track of the newly expanded rows
+      const newlyExpandedRowIds = new Set<string>();
       
       // Find the row to add a subrow to and collect all parent rows in the path
       const findAndAddSubrow = (rows: EditorRow[], parentRows: EditorRow[] = []): boolean => {
@@ -263,8 +309,31 @@ export const JsonKeyValueEditor = ({
               newKey = subrowsLength.toString();
             }
             
+            // Build the path by traversing up from the current row
+            const buildPath = (targetRow: EditorRow, rows: EditorRow[], parentPath: string[] = []): string[] => {
+              for (const row of rows) {
+                if (row.id === targetRow.id) {
+                  return [...parentPath, row.key];
+                }
+                
+                if (row.subrows && row.subrows.length > 0) {
+                  const path = buildPath(targetRow, row.subrows, [...parentPath, row.key]);
+                  if (path.length > 0) {
+                    return path;
+                  }
+                }
+              }
+              return [];
+            };
+            
+            // Get the path for the parent row
+            const parentPath = buildPath(rows[i], updatedRows);
+            
+            // Generate a stable ID for the new subrow
+            const subrowId = generateStableId([...parentPath, newKey]);
+            
             const newSubrow: EditorRow = {
-              id: generateRowId(),
+              id: subrowId,
               key: newKey,
               value: "",
               type: 'string',
@@ -277,13 +346,12 @@ export const JsonKeyValueEditor = ({
             
             // Ensure the target row is expanded to show the new subrow
             rows[i].expanded = true;
-            
-            // Add this row to the path
-            rowPath.push(rows[i]);
+            newlyExpandedRowIds.add(rows[i].id);
             
             // Also expand all parent rows in the path
             for (const parentRow of parentRows) {
               parentRow.expanded = true;
+              newlyExpandedRowIds.add(parentRow.id);
             }
             
             // Set the selected row ID to the newly created subrow
@@ -307,7 +375,20 @@ export const JsonKeyValueEditor = ({
       };
       
       findAndAddSubrow(updatedRows);
+      
+      // Store the expanded state in rowsRef for persistence
       rowsRef.current = updatedRows;
+      
+      // Update the expandedRowIds state with the newly expanded rows
+      setExpandedRowIds(prevExpandedIds => {
+        const newExpandedIds = new Set(prevExpandedIds);
+        newlyExpandedRowIds.forEach(id => newExpandedIds.add(id));
+        return newExpandedIds;
+      });
+      
+      // Log the expanded rows for debugging
+      console.log('Newly expanded row IDs:', Array.from(newlyExpandedRowIds));
+      
       notifyParent(updatedRows);
       return updatedRows;
     });
@@ -446,13 +527,16 @@ export const JsonKeyValueEditor = ({
   const toggleRowExpanded = (rowId: string) => {
     setRows(prevRows => {
       const updatedRows = [...prevRows];
+      let isExpanded = false;
       
       // Find and toggle the row's expanded state
       // Use a type guard to ensure rows is always an array
       const findAndToggleRow = (rows: EditorRow[]): boolean => {
         for (let i = 0; i < rows.length; i++) {
           if (rows[i].id === rowId) {
+            // Toggle expanded state
             rows[i].expanded = !rows[i].expanded;
+            isExpanded = rows[i].expanded;
             return true;
           }
           
@@ -471,6 +555,18 @@ export const JsonKeyValueEditor = ({
       
       findAndToggleRow(updatedRows);
       rowsRef.current = updatedRows;
+      
+      // Update expandedRowIds to track which rows are expanded
+      setExpandedRowIds(prevExpandedIds => {
+        const newExpandedIds = new Set(prevExpandedIds);
+        if (isExpanded) {
+          newExpandedIds.add(rowId);
+        } else {
+          newExpandedIds.delete(rowId);
+        }
+        return newExpandedIds;
+      });
+      
       // No need to notify parent for UI-only changes like expanding/collapsing
       return updatedRows;
     });

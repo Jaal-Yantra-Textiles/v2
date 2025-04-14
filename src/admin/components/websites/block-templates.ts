@@ -1,4 +1,7 @@
-export type BlockType = 'Hero' | 'Header' | 'Footer' | 'Feature' | 'Gallery' | 'Testimonial' | 'MainContent';
+export type BlockType = 
+'Hero' | 'Header' | 'Footer' | 
+'Feature' | 'Gallery' | 'Testimonial' | 
+'MainContent';
 
 export interface BlockContent {
   [key: string]: any;

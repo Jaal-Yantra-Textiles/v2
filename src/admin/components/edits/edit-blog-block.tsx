@@ -1,7 +1,4 @@
-import { Button, Text, toast } from "@medusajs/ui";
-import { useCreateBlockNote } from "@blocknote/react";
-import { BlockNoteView } from "@blocknote/shadcn";
-import { Block as BlockNoteBlock } from "@blocknote/core";
+import { Button, Switch, Text, toast } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,11 +6,12 @@ import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { useUpdateBlock } from "../../hooks/api/blocks";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { TextEditor } from "../common/richtext-editor";
 
 const blockSchema = z.object({
   content: z.object({
-    text: z.string(),
+    text: z.any(), // Allow any type to accommodate both string and object
   })
 });
 
@@ -30,17 +28,17 @@ interface EditBlogBlockProps {
 }
 
 export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: EditBlogBlockProps) => {
-  const [editorContent, setEditorContent] = useState<BlockNoteBlock[]>([]);
+  const [editorContent, setEditorContent] = useState(block.content.text);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [firstImageUrl, setFirstImageUrl] = useState(block.content.image?.content || "");
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const lastSavedContentRef = useRef(block.content.text);
+  const initialRenderRef = useRef(true);
+  const editorInstanceRef = useRef<any>(null);
   const updateBlock = useUpdateBlock(websiteId, pageId, blockId);
   const { handleSuccess } = useRouteModal();
-
-  // Initialize BlockNote editor with default content if empty
-  const editor = useCreateBlockNote({
-    initialContent: block?.content?.text ? 
-      JSON.parse(block.content.text) : 
-      [{ type: "paragraph", content: [{ type: "text", text: "" }] }],
-  });
-
+  
+  // Initialize form
   const form = useForm<BlockFormValues>({
     mode: "onChange",
     resolver: zodResolver(blockSchema),
@@ -50,63 +48,153 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
       }
     }
   });
-
+  
+  // Prevent initial save
   useEffect(() => {
-    if (block?.content?.text) {
-      try {
-        const parsedContent = JSON.parse(block.content.text);
-        setEditorContent(parsedContent);
-        editor.replaceBlocks(editor.document, parsedContent);
-      } catch (error) {
-        console.error("Error parsing blog content:", error);
+    // Set to false after component mounts
+    initialRenderRef.current = false;
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
       }
-    }
-  }, [block, editor]);
+    };
+  }, []);
 
-  // Keep form values in sync with editor content
-  useEffect(() => {
-    if (editorContent.length > 0) {
-      form.setValue('content.text', JSON.stringify(editorContent), {
-        shouldDirty: true
-      });
-    }
-  }, [editorContent, form]);
-
-  const handleSubmit = form.handleSubmit(async (data: BlockFormValues) => {
-    console.log('Submitting data:', data);
+  // Function to extract the first image URL from editor content
+  const extractFirstImageUrl = useCallback((editor: any) => {
+    if (!editor || !editor.state) return "";
+    
     try {
-      // Use the form data's content
+      // Find the first image node in the editor
+      let imageUrl = "";
+      
+      // Access the document and traverse it safely
+      const doc = editor.state.doc;
+      if (doc && typeof doc.descendants === 'function') {
+        doc.descendants((node: any) => {
+          if (node.type && node.type.name === 'image' && !imageUrl && node.attrs && node.attrs.src) {
+            imageUrl = node.attrs.src;
+            return false; // Stop traversing once we find the first image
+          }
+          return true; // Continue traversing
+        });
+      }
+      
+      return imageUrl;
+    } catch (error) {
+      console.error('Error extracting image URL:', error);
+      return "";
+    }
+  }, []);
+
+  const autoSaveContent = useCallback(async (content: any) => {
+    // Store the raw content for comparison
+    const contentString = JSON.stringify(content);
+    
+    // Don't save if content hasn't changed
+    if (contentString === lastSavedContentRef.current) {
+      return;
+    }
+
+    // Extract first image URL if editor instance is available
+    const currentImageUrl = editorInstanceRef.current ? 
+      extractFirstImageUrl(editorInstanceRef.current) : firstImageUrl;
+    
+    try {
+      const payload = {
+        content: {
+          ...block.content,
+          text: content, // Use the raw content directly
+          image: {
+            type: "image",
+            content: currentImageUrl
+          }
+        },
+      };
+      await updateBlock.mutateAsync(payload);
+      lastSavedContentRef.current = contentString; // Store stringified for comparison
+      
+      // Update the first image URL state if it changed
+      if (currentImageUrl !== firstImageUrl) {
+        setFirstImageUrl(currentImageUrl);
+      }
+      
+      toast.success("Content saved", { id: "content-saved" });
+    } catch (error) {
+      toast.error("Error saving content", { id: "content-save-error" });
+      console.error(error);
+    }
+  }, [block.content, updateBlock, firstImageUrl, extractFirstImageUrl]);
+
+  // Simple handler that only updates when content changes
+  const handleEditorChange = useCallback((content: any) => {
+    setEditorContent(content);
+    
+    // Skip auto-save on initial render
+    if (initialRenderRef.current) {
+      return;
+    }
+    
+    // Set form as dirty to enable update button
+    form.setValue('content.text', 'changed', {
+      shouldDirty: true,
+      shouldTouch: true
+    });
+    
+    // Only save if autosave is enabled
+    if (autoSaveEnabled) {
+      autoSaveContent(content);
+    }
+  }, [form, autoSaveContent, autoSaveEnabled]);
+
+
+
+  const handleSubmit = form.handleSubmit(async () => {
+    try {
+      // Extract first image URL if editor instance is available
+      const currentImageUrl = editorInstanceRef.current ? 
+        extractFirstImageUrl(editorInstanceRef.current) : firstImageUrl;
+      
+      // Use the current editor content directly
       const payload = {
         name: block.name,
         type: "MainContent" as const,
         content: {
-          text: data.content.text, // Use form data instead of getting from editor directly
-          layout: "full" as const
+          ...block.content,
+          text: editorContent, // Use editor content directly
+          layout: "full" as const,
+          image: {
+            type: "image",
+            content: currentImageUrl
+          }
         },
         settings: {
           alignment: "left" as const
         },
         order: block.order || 0
       };
-      
-      console.log('Update payload:', payload);
-
+  
       await updateBlock.mutateAsync(payload);
+      
+      // Update the first image URL state if it changed
+      if (currentImageUrl !== firstImageUrl) {
+        setFirstImageUrl(currentImageUrl);
+      }
+      
+      // Store stringified content for comparison
+      lastSavedContentRef.current = JSON.stringify(editorContent);
+      
+      // Reset form dirty state
+      form.reset(undefined, { keepValues: true });
       
       toast.success("Content updated successfully");
       onSuccess?.() || handleSuccess(`/websites/${websiteId}/pages/${pageId}`);
     } catch (error) {
       toast.error("Error updating content");
-      console.error(error);
+          
     }
-  });
-
-  // Debug form state
-  console.log('Form state:', {
-    values: form.getValues(),
-    errors: form.formState.errors,
-    isDirty: form.formState.isDirty,
-    isSubmitting: form.formState.isSubmitting
   });
 
   return (
@@ -116,35 +204,59 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
         className="flex flex-1 flex-col overflow-hidden"
       >
         <RouteFocusModal.Header>
-          
+          <div className="flex items-center justify-between w-full px-8 py-2">
+            <Text size="large" weight="plus">Edit Blog Content</Text>
+            <div className="flex items-center gap-2">
+              <Text size="small">Autosave</Text>
+              <Switch
+                checked={autoSaveEnabled}
+                onCheckedChange={setAutoSaveEnabled}
+              />
+            </div>
+          </div>
         </RouteFocusModal.Header>
 
-        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
-          <div className="flex w-full max-w-[720px] flex-col gap-y-8">
-            <div>
+        <RouteFocusModal.Body className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex h-full w-full flex-col">
+            <div className="px-8 py-4 border-b">
               <Text size="base" weight="plus">
                 {block.name}
               </Text>
             </div>
-            <div className="">
-              <BlockNoteView
-                editor={editor}
-                onChange={() => {
-                  const blocks = editor.document;
-                  setEditorContent(blocks);
+            <div className="flex-1 h-full overflow-y-auto">
+              <TextEditor
+                editorContent={editorContent}
+                setEditorContent={handleEditorChange}
+                isLoading={false} /* Never show loading state in editor */
+                onEditorReady={(editor) => {
+                  editorInstanceRef.current = editor;
+                  // Extract first image on initial load
+                  const imageUrl = extractFirstImageUrl(editor);
+                  if (imageUrl && imageUrl !== firstImageUrl) {
+                    setFirstImageUrl(imageUrl);
+                  }
                 }}
               />
             </div>
           </div>
         </RouteFocusModal.Body>
         <RouteFocusModal.Footer>
-        <Button
-            variant="primary"
-            type="submit"
-            disabled={!form.formState.isDirty || form.formState.isSubmitting}
-          >
-            Update Block
-          </Button>
+          <div className="flex items-center justify-between w-full px-8">
+            <div>
+              {!autoSaveEnabled && (
+                <Text size="small" className="text-gray-500">
+                  Form state: {form.formState.isDirty ? 'Changed' : 'Unchanged'}
+                </Text>
+              )}
+            </div>
+            <Button
+              variant="primary"
+              type="submit"
+              disabled={autoSaveEnabled || !form.formState.isDirty || form.formState.isSubmitting}
+            >
+              {autoSaveEnabled ? "Autosave Enabled" : form.formState.isDirty ? "Update Block" : "No Changes"}
+            </Button>
+          </div>
         </RouteFocusModal.Footer>
       </KeyboundForm>
     </RouteFocusModal.Form>

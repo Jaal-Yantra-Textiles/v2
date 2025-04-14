@@ -30,7 +30,9 @@ export const GET = async (
         page_type: page.page_type,
         published_at: page.published_at,
         // Only include published pages
-      })).filter(page => page.status === "Published") || [],
+      })).filter(page => page.status === "Published" && 
+        page.page_type !== "Blog"
+      ) || [],
     };
 
     res.status(200).json(publicWebsiteData);

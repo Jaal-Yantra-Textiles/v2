@@ -1,18 +1,17 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { findWebsitePagePerDomainWorkflow } from "../../../../../workflows/website/find-website-page-per-domain";
+import { findWebsitePagePerDomainWorkflow } from "../../../../../../workflows/website/find-website-page-per-domain";
 
 export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse,
 ) => {
-  const { domain, page } = req.params;
+  const { domain, blogId } = req.params;
 
   try {
     const { result, errors } = await findWebsitePagePerDomainWorkflow(req.scope).run({
       input: {
         domain,
-        pageSlug: page,
-        exclude: "Blog"
+        pageSlug: blogId,
       },
     });
 
@@ -30,7 +29,6 @@ export const GET = async (
       published_at: result.page.published_at,
       blocks: result.page.blocks?.map(block => ({
         id: block.id,
-        name: block.name,
         type: block.type,
         content: block.content,
         order: block.order,

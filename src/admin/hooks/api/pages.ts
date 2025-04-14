@@ -19,6 +19,12 @@ export type BlockContent = {
   images?: string[];
   layout?: "full" | "split" | "grid";
   columns?: number;
+  authors?: string[];
+  image?: {
+    type: "image";
+    content: string;
+  };
+  type?: "blog";
 };
 
 export type BlockSettings = {

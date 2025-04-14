@@ -1,5 +1,5 @@
 import { Badge, Button, Heading, Input, toast, ProgressTabs, ProgressStatus, Textarea, Tooltip } from "@medusajs/ui";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,19 +10,38 @@ import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useCreatePagesWithBlocks } from "../../hooks/api/pages";
-import { useCreateBlockNote } from "@blocknote/react";
-import { BlockNoteView } from "@blocknote/shadcn";
-import { Block as BlockNoteBlock } from "@blocknote/core";
-import type { Block, BlockType } from "../../hooks/api/pages";
+import type { Block } from "../../hooks/api/pages";
 import { InformationCircleSolid } from "@medusajs/icons"
+
+
+import { useUsers } from "../../hooks/api/users";
+import { TextEditor } from "../common/richtext-editor";
+
 
 const blockSchema = z.object({
   name: z.string(),
   type: z.literal("MainContent"),
-  content: z.any(), // This will store the BlockNote JSON content
+  content: z.object({
+    authors: z.array(z.string()).default([]),
+    image: z.object({
+      type: z.literal("image"),
+      content: z.string(),
+    }),
+    type: z.literal("blog"),
+    text: z.string(),
+    layout: z.string(),
+  }).default({
+    authors: [],
+    image: { type: "image", content: "" },
+    type: "blog",
+    text: "",
+    layout: "full",
+  }),
   settings: z.object({
-    alignment: z.literal("left").optional(),
-  }).optional(),
+    alignment: z.literal("left"),
+  }).default({
+    alignment: "left",
+  }),
   order: z.number(),
 });
 
@@ -37,13 +56,19 @@ const blogSchema = z.object({
   meta_keywords: z.string().optional(),
   blocks: z.array(blockSchema).optional().default([{
     name: "Main Blog",
-    type: "MainContent",
+    type: "MainContent" as const,
     content: {
+      authors: [] as string[],
+      image: {
+        type: "image" as const,
+        content: "",
+      },
+      type: "blog" as const,
       text: "",
       layout: "full",
     },
     settings: {
-      alignment: "left",
+      alignment: "left" as const,
     },
     order: 0,
   }]),
@@ -79,29 +104,13 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
     [Tab.GENERAL]: "in-progress",
     [Tab.CONTENT]: "not-started",
   });
+  const DEFAULT = '';
+  const [editorContent, setEditorContent] = useState(DEFAULT);
+  const [firstImageUrl, setFirstImageUrl] = useState("");
+  const editorInstanceRef = useRef<any>(null);
 
-  const [editorContent, setEditorContent] = useState<BlockNoteBlock[]>([]);
-
-  // For the BlockNote Editor 
-  const editor = useCreateBlockNote({
-    initialContent: [
-      {
-        type: "paragraph",
-        content: "Welcome to this blog section!",
-      },
-      {
-        type: "paragraph",
-        content: "Share a new adventure with your readers",
-      },
-      {
-        type: "paragraph",
-        content: "Toggle light/dark mode in the page footer and see the theme change too",
-      },
-      {
-        type: "paragraph",
-      },
-    ],
-  });
+ 
+  const { users } = useUsers()
 
   const form = useForm<BlogFormValues>({
     resolver: zodResolver(blogSchema),
@@ -114,9 +123,53 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
       meta_title: "",
       meta_description: "",
       meta_keywords: "",
-      blocks: [], // Will be populated by the editor effect
+      blocks: [{
+        name: "Main Blog",
+        type: "MainContent" as const,
+        content: {
+          authors: [] as string[],
+          image: {
+            type: "image" as const,
+            content: "",
+          },
+          type: "blog" as const,
+          text: "",
+          layout: "full",
+        },
+        settings: {
+          alignment: "left" as const,
+        },
+        order: 0,
+      }], // Will be populated by the editor effect
     },
   });
+
+  // Function to extract the first image URL from editor content
+  const extractFirstImageUrl = useCallback((editor: any) => {
+    if (!editor || !editor.state) return "";
+    
+    try {
+      // Find the first image node in the editor
+      let imageUrl = "";
+      
+      // Access the document and traverse it safely
+      const doc = editor.state.doc;
+      if (doc && typeof doc.descendants === 'function') {
+        doc.descendants((node: any) => {
+          if (node.type && node.type.name === 'image' && !imageUrl && node.attrs && node.attrs.src) {
+            imageUrl = node.attrs.src;
+            return false; // Stop traversing once we find the first image
+          }
+          return true; // Continue traversing
+        });
+      }
+      
+      return imageUrl;
+    } catch (error) {
+      console.error('Error extracting image URL:', error);
+      return "";
+    }
+  }, []);
 
   const onNext = async (currentTab: Tab) => {
     const valid = await form.trigger();
@@ -155,15 +208,24 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
         ...values,
       };
 
+      // extract authors
+      const authors = pageData.blocks[0]?.content?.authors || [];
+
       // Then create the block
       const blockData = {
         blocks: [
           {
             name: "Main Blog",
-            type: "MainContent" as BlockType,
+            type: "MainContent" as const,
             content: {
               text: JSON.stringify(editorContent),
               layout: "full" as const,
+              authors: authors,
+              image: {
+                type: "image" as const,
+                content: firstImageUrl,
+              },
+              type: "blog" as const,
             },
             settings: {
               alignment: "left" as const,
@@ -366,6 +428,59 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
                 )}
               />
 
+            <Form.Field
+                control={form.control}
+                name="blocks.0.content.authors"
+                render={({ field: { value = [], onChange, ...rest } }) => (
+                  <Form.Item>
+                    <Form.Label>Authors</Form.Label>
+                    <div className="flex flex-col gap-y-2">
+                      <Form.Control>
+                        <Select
+                          value=""
+                          onValueChange={(selectedId) => {
+                            const user = users?.find(u => u.id === selectedId);
+                            if (user) {
+                              const authorName = `${user.first_name} ${user.last_name || ''}`;
+                              if (!value.includes(authorName)) {
+                                onChange([...value, authorName]);
+                              }
+                            }
+                          }}
+                          {...rest}
+                        >
+                          <Select.Trigger>
+                            <Select.Value placeholder="Select authors" />
+                          </Select.Trigger>
+                          <Select.Content>
+                            {users?.map((option) => (
+                              <Select.Item key={option.id} value={option.id}>
+                                {option.first_name + " " + (option.last_name || '')}
+                              </Select.Item>
+                            ))}
+                          </Select.Content>
+                        </Select>
+                      </Form.Control>
+                      <div className="flex flex-wrap gap-2">
+                        {value.map((author, index) => (
+                          <Badge
+                            key={index}
+                            className="cursor-pointer"
+                            onClick={() => {
+                              const newAuthors = value.filter((_, i) => i !== index);
+                              onChange(newAuthors);
+                            }}
+                          >
+                            {author}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <Form.ErrorMessage />
+                  </Form.Item>
+                )}
+              />
+
               <Form.Field
                 control={form.control}
                 name="meta_title"
@@ -414,12 +529,19 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
                 <div className="flex items-center gap-x-2 mb-4">
                   <Heading className="text-xl">Blog Content</Heading>
                 </div>
-                <div className="border rounded-lg p-4 bg-ui-bg-subtle">
-                  <BlockNoteView 
-                    editor={editor} 
-                    onChange={() => {
-                      setEditorContent(editor.document);
-                    }} 
+                <div className="p-4">
+                  <TextEditor
+                    editorContent={editorContent}
+                    setEditorContent={setEditorContent}
+                    onEditorReady={(editor) => {
+                      editorInstanceRef.current = editor;
+                      // Extract first image on initial load
+                      const imageUrl = extractFirstImageUrl(editor);
+                      if (imageUrl && imageUrl !== firstImageUrl) {
+                        setFirstImageUrl(imageUrl);
+                        form.setValue('blocks.0.content.image.content', imageUrl);
+                      }
+                    }}
                   />
                 </div>
               </div>

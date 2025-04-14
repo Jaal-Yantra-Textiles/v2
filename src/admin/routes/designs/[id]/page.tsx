@@ -19,7 +19,7 @@ const DesignDetailPage = () => {
   });
 
   // Show loading skeleton while data is being fetched
-  if (isLoading) {
+  if (isLoading || !design) {
     return <TwoColumnPageSkeleton mainSections={3} sidebarSections={4} showJSON showMetadata />;
   }
 

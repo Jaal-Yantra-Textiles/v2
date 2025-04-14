@@ -68,6 +68,7 @@
     "lucide-react": "^0.475.0",
     "pg": "^8.13.0",
     "react-color": "^2.19.3",
+    "reactjs-tiptap-editor": "^0.2.20",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

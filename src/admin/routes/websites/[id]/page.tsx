@@ -13,7 +13,9 @@ const WebsiteDetailPage = () => {
 
   // Show loading skeleton while data is being fetched
   if (isLoading) {
-    return <SingleColumnPageSkeleton sections={2} showJSON showMetadata />;
+    return (
+    <SingleColumnPageSkeleton sections={3} showJSON showMetadata />
+  );
   }
 
   // Handle error state
