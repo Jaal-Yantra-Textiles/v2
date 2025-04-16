@@ -218,11 +218,11 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
 
         <RouteFocusModal.Body className="flex flex-1 flex-col overflow-hidden">
           <div className="flex h-full w-full flex-col">
-            <div className="px-8 py-4 border-b">
+            {/* <div className="px-8 py-4 border-b">
               <Text size="base" weight="plus">
                 {block.name}
               </Text>
-            </div>
+            </div> */}
             <div className="flex-1 h-full overflow-y-auto">
               <TextEditor
                 editorContent={editorContent}

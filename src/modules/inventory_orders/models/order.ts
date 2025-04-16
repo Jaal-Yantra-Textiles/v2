@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils";
+import OrderLine from "./orderline";
 
-const Order = model.define("inventory_orders", {
+const InventoryOrder = model.define("inventory_orders", {
   id: model.id().primaryKey(),
   quantity: model.number(),
   total_price: model.bigNumber(),
@@ -13,7 +14,9 @@ const Order = model.define("inventory_orders", {
   ]).default("Pending"),
   expected_delivery_date: model.dateTime(),
   order_date: model.dateTime(),
+  orderlines: model.hasMany(() => OrderLine),
   metadata: model.json().nullable(),
+  shipping_address: model.json().nullable(),
 });
 
-export default Order;
+export default InventoryOrder;

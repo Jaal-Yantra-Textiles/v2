@@ -1,0 +1,39 @@
+
+
+.richtext-code-block-toolbar {
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+  z-index: 10;
+  min-height: 40px;
+  background: var(--editor__bg, #fff); /* Ensures a solid background */
+  box-shadow: 0 2px 4px 0 rgba(0,0,0,0.03);
+}
+
+@media (prefers-color-scheme: dark) {
+  .richtext-code-block-toolbar {
+    background: var(--editor__bg-dark, #18181b);
+    color: var(--widget__color-dark, #fff);
+  }
+}
+
+.richtext-relative {
+  //padding-top: 44px;
+  box-sizing: border-box;
+}
+
+
+
+
+.reactjs-tiptap-editor{
+  .richtext-outline {
+    outline-style: none
+  }
+  .richtext-overflow-hidden {
+    overflow: visible;
+  }
+}
+
+
+
+

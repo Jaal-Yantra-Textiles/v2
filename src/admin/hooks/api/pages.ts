@@ -70,7 +70,7 @@ export type CreateAdminPagePayload = {
   meta_description?: string;
   meta_keywords?: string;
   published_at?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown>| null;
   blocks?: Block[];
 };
 

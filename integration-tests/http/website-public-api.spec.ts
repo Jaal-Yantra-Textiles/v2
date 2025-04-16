@@ -24,8 +24,9 @@ medusaIntegrationTestRunner({
       const response = await api.post("/admin/websites", newWebsite, headers);
       websiteId = response.data.website.id;
   
-      // Create test pages with different statuses
+      // Create test pages and blog pages with different statuses
       const pages = [
+        // Website pages
         {
           title: "Published Home",
           slug: "home",
@@ -56,8 +57,39 @@ medusaIntegrationTestRunner({
           page_type: "Custom",
           status: "Archived",
         },
+        // Blog pages
+        {
+          title: "Published Blog 1",
+          slug: "blog-1",
+          content: "First blog post!",
+          page_type: "Blog",
+          status: "Published",
+          published_at: new Date().toISOString(),
+        },
+        {
+          title: "Published Blog 2",
+          slug: "blog-2",
+          content: "Second blog post!",
+          page_type: "Blog",
+          status: "Published",
+          published_at: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
+        },
+        {
+          title: "Draft Blog",
+          slug: "draft-blog",
+          content: "Not published yet",
+          page_type: "Blog",
+          status: "Draft",
+        },
+        {
+          title: "Archived Blog",
+          slug: "archived-blog",
+          content: "Old blog post",
+          page_type: "Blog",
+          status: "Archived",
+        },
       ];
-  
+
       await api.post(
         `/admin/websites/${websiteId}/pages`,
         { pages },
@@ -121,6 +153,67 @@ medusaIntegrationTestRunner({
       });
     });
 
+    describe("GET /web/website/:domain/blogs", () => {
+      it("should return all published blogs", async () => {
+        const response = await api.get("/web/website/test-public.example.com/blogs");
+        expect(response.status).toBe(200);
+        // Check blogs data
+        expect(response.data).toBeDefined();
+        expect(response.data).toHaveLength(2);
+
+        // Check that both expected blogs are present
+        const expectedBlogTitles = ["Published Blog 1", "Published Blog 2"];
+        const foundTitles = response.data.map(blog => blog.title);
+        expect(foundTitles).toEqual(expect.arrayContaining(expectedBlogTitles));
+
+        // Verify each blog has the required published properties
+        response.data.forEach(blog => {
+          expect(blog.published_at).toBeDefined();
+          expect(blog.status).toBe("Published");
+        });
+        
+        // Verify draft and archived blogs are not included
+        const actualBlogTitles = response.data.map(b => b.title);
+        expect(actualBlogTitles).not.toContain("Draft Blog");
+        expect(actualBlogTitles).not.toContain("Archived Blog");
+      });
+    });
+
+    describe("GET /web/website/:domain/blogs/:blogId", () => {
+      it("should return a published blog by slug", async () => {
+        const response = await api.get("/web/website/test-public.example.com/blogs/blog-1");
+        expect(response.status).toBe(200);
+        expect(response.data.title).toBe("Published Blog 1");
+        expect(response.data.slug).toBe("blog-1");
+        expect(response.data.status).toBe("Published");
+        expect(response.data.page_type).toBe("Blog");
+        expect(response.data.published_at).toBeDefined();
+        // Should not expose sensitive fields
+        expect(response.data).not.toHaveProperty("id");
+        expect(response.data).not.toHaveProperty("metadata");
+        expect(response.data).not.toHaveProperty("created_at");
+        expect(response.data).not.toHaveProperty("updated_at");
+      });
+
+      it("should return 404 for draft blog", async () => {
+        const response = await api.get("/web/website/test-public.example.com/blogs/draft-blog").catch(e => e.response);
+        expect(response.status).toBe(404);
+        expect(response.data.message).toMatch(/not found/i);
+      });
+
+      it("should return 404 for archived blog", async () => {
+        const response = await api.get("/web/website/test-public.example.com/blogs/archived-blog").catch(e => e.response);
+        expect(response.status).toBe(404);
+        expect(response.data.message).toMatch(/not found/i);
+      });
+
+      it("should return 404 for non-existent blog", async () => {
+        const response = await api.get("/web/website/test-public.example.com/blogs/does-not-exist").catch(e => e.response);
+        expect(response.status).toBe(404);
+        expect(response.data.message).toMatch(/not found/i);
+      });
+    });
+
     describe("GET /web/website/:domain/:page", () => {
       it("should return 404 for non-existent page", async () => {
         const response = await api
@@ -128,7 +221,7 @@ medusaIntegrationTestRunner({
           .catch((e) => e.response);
         
         expect(response.status).toBe(404);
-        expect(response.data.message).toBe("Page with slug - non-existent not found");
+        expect(response.data.message).toBe("Page with slug - non-existent not found and if you are trying to access blog page then use the /blogs endpoint");
       });
 
       it("should return page with blocks in correct order", async () => {
@@ -210,7 +303,7 @@ medusaIntegrationTestRunner({
           .catch((e) => e.response);
         
         expect(response.status).toBe(404);
-        expect(response.data.message).toBe("Page with slug - contact not found");
+        expect(response.data.message).toBe("Page with slug - contact not found and if you are trying to access blog page then use the /blogs endpoint");
       });
     });
   }  

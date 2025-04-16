@@ -16,4 +16,8 @@ export default CustomPage
 export const config = defineRouteConfig({
     label: "Orders",
     nested:'/inventory'
-  })
+})
+
+export const handle = {
+  breadcrumb: () => "Inventory Orders",
+};

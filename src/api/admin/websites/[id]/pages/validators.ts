@@ -28,6 +28,7 @@ const pageBaseSchema = z.object({
     return val instanceof Date ? val : new Date(val);
   }),
   metadata: z.record(z.unknown()).optional(),
+  genMetaDataLLM: z.boolean().optional().default(false),
 });
 
 export const pageSchema = pageBaseSchema;

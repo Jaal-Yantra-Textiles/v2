@@ -1,4 +1,4 @@
-import { Button, Heading, IconButton, Input, Text, toast } from "@medusajs/ui";
+import { Button, Heading, IconButton, Input, Text, toast, Label, Switch } from "@medusajs/ui";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,6 +36,7 @@ const pageSchema = z.object({
     meta_keywords: z.string().optional(),
     published_at: z.string().datetime().optional(),
     metadata: z.record(z.unknown()).optional(),
+    genMetaDataLLM: z.boolean().optional().default(false),
   }))
 });
 
@@ -91,6 +92,7 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
           meta_title: "",
           meta_description: "",
           meta_keywords: "",
+          genMetaDataLLM: false,
         },
       ],
     },
@@ -111,6 +113,7 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
       meta_title: "",
       meta_description: "",
       meta_keywords: "",
+      genMetaDataLLM: false,
     });
     setExpandedSections(prev => ({
       ...prev,
@@ -170,7 +173,7 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
 
   return (
     <RouteFocusModal.Form form={form}>
-      <RouteFocusModal.Description>This is where we do some magic</RouteFocusModal.Description>
+      <RouteFocusModal.Description></RouteFocusModal.Description>
       <KeyboundForm
         onSubmit={handleSubmit}
         className="flex flex-1 flex-col overflow-hidden"
@@ -334,6 +337,16 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
                           )}
                         />
                         
+                        {/* AI Metadata Switch */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <Label htmlFor={`pages.${index}.genMetaDataLLM`}>Generate Meta with AI</Label>
+                          <Switch
+                            id={`pages.${index}.genMetaDataLLM`}
+                            checked={form.watch(`pages.${index}.genMetaDataLLM`)}
+                            onCheckedChange={(val: boolean) => form.setValue(`pages.${index}.genMetaDataLLM`, val)}
+                          />
+                        </div>
+
                         <Form.Field
                           control={form.control}
                           name={`pages.${index}.meta_title`}
@@ -341,7 +354,7 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
                             <Form.Item>
                               <Form.Label>Meta Title</Form.Label>
                               <Form.Control>
-                                <Input autoComplete="off" {...field} />
+                                <Input autoComplete="off" {...field} disabled={form.watch(`pages.${index}.genMetaDataLLM`)} />
                               </Form.Control>
                               <Form.ErrorMessage />
                             </Form.Item>
@@ -355,7 +368,7 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
                             <Form.Item>
                               <Form.Label>Meta Description</Form.Label>
                               <Form.Control>
-                                <Input autoComplete="off" {...field} />
+                                <Input autoComplete="off" {...field} disabled={form.watch(`pages.${index}.genMetaDataLLM`)} />
                               </Form.Control>
                               <Form.ErrorMessage />
                             </Form.Item>
@@ -369,7 +382,7 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
                             <Form.Item>
                               <Form.Label>Meta Keywords</Form.Label>
                               <Form.Control>
-                                <Input autoComplete="off" {...field} />
+                                <Input autoComplete="off" {...field} disabled={form.watch(`pages.${index}.genMetaDataLLM`)} />
                               </Form.Control>
                               <Form.ErrorMessage />
                             </Form.Item>

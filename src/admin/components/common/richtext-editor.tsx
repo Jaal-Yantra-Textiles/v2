@@ -1,5 +1,7 @@
 // 
-import { useRef, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { Toaster, toast } from '@medusajs/ui';
+import './richtext-editor.css';
 import {
     Bold,
     BulletList,
@@ -55,6 +57,7 @@ import {
   import { TextDirection } from 'reactjs-tiptap-editor/extension-bundle';  
   import { Heading as TextHeading } from 'reactjs-tiptap-editor/extension-bundle';
 
+
   function convertBase64ToBlob(base64: string) {
     const arr = base64.split(',')
     const mime = arr[0].match(/:(.*?);/)![1]
@@ -108,26 +111,35 @@ import {
     }),
     Link,
     Image.configure({
-      upload: async (file: File) => {
-        if (!file) return '';
-        
-        try {
-          // Use the SDK directly to upload the file
-          const result = await sdk.admin.upload.create({
-            files: [file]
-          });
-          
-          // Return the URL of the uploaded file
-          if (result.files && result.files.length > 0) {
-            return result.files[0].url;
-          }
-          return '';
-        } catch (error) {
-          console.error('Error uploading image:', error);
-          return '';
-        }
-      },
-    }),
+  upload: async (file: File) => {
+    if (!file) return '';
+    // Show loading toast
+    const toastId = toast.loading('Uploading image...', {
+      description: 'Please wait while your image is being uploaded.',
+      duration: Infinity,
+    });
+    try {
+      // Use the SDK directly to upload the file
+      const result = await sdk.admin.upload.create({
+        files: [file]
+      });
+      // Dismiss loading toast
+      toast.dismiss(toastId);
+      // Return the URL of the uploaded file
+      if (result.files && result.files.length > 0) {
+        toast.success('Image uploaded!', { duration: 2000 });
+        return result.files[0].url;
+      }
+      toast.error('Upload failed', { duration: 3000 });
+      return '';
+    } catch (error) {
+      toast.dismiss(toastId);
+      toast.error('Error uploading image', { description: (error as Error)?.message || '', duration: 4000 });
+      console.error('Error uploading image:', error);
+      return '';
+    }
+  },
+}),
     Video.configure({
       upload: async (file: File) => {
         if (!file) return '';
@@ -150,7 +162,7 @@ import {
       },
     }),
     ImageGif.configure({
-      GIPHY_API_KEY: ''
+      GIPHY_API_KEY: import.meta.env.VITE_GIPHY_API_KEY
     }),
     Blockquote.configure({ spacer: true }),
     SlashCommand,
@@ -250,26 +262,36 @@ import {
           onEditorReady(editor);
         }
       }
-    }, [onEditorReady]);
+    }, [onEditorReady]);    
     
     return (
-      <div className={`relative h-full ${isLoading ? 'opacity-50 cursor-wait' : ''}`}>
-        <RichTextEditor 
-          output='json' 
-          content={editorContent} 
-          onChangeContent={setEditorContent} 
-          extensions={extensions} 
-          contentClass={{ height: '100%', minHeight: '500px' }} 
-          disabled={isLoading}
-          ref={editorCallbackRef}
-        />
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-sm text-gray-500">Saving changes...</div>
-          </div>
-        )}
-      </div>
-    );
+  <>
+    <Toaster />
+    <div className={`relative h-full ${isLoading ? 'opacity-50 cursor-wait' : ''}`}>
+      <RichTextEditor 
+        output='json' 
+        content={editorContent} 
+        onChangeContent={setEditorContent} 
+        extensions={extensions} 
+        //contentClass={{ height: '100%', minHeight: '500px'}} 
+        disabled={isLoading}
+        ref={editorCallbackRef}
+        toolbar={{
+          render: (_props, _toolbarItems, dom, containerDom) => (
+            <div className="richtext-code-block-toolbar">
+              {containerDom(dom)}
+            </div>
+          )
+        }}
+      />
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-sm text-gray-500">Saving changes...</div>
+        </div>
+      )}
+    </div>      
+  </>
+);
   }
   
   export { DEFAULT, extensions, TextEditor };

@@ -7,10 +7,13 @@ import { getAIMetadataForPageWorkflow } from "../workflows/website/website-page/
 export default async function pageCreatedHandler({
   event: { data },
   container,
-}: SubscriberArgs<{ id: string }>) {
-
+}: SubscriberArgs<{ id: string , genMetaDataLLM: boolean }>) {
+  console.log(data)
   await getAIMetadataForPageWorkflow(container).run({
-    input: data,
+    input: {
+      id: data.id,
+      genMetaDataLLM: data.genMetaDataLLM
+    },
   });
 }
 

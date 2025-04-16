@@ -21,6 +21,7 @@ export const POST = async (
         pages: req.validatedBody.pages.map(page => ({
           ...page,
           website_id: websiteId,
+          genMetaDataLLM: page.genMetaDataLLM
         })),
       },
     });
@@ -53,6 +54,7 @@ export const POST = async (
       input: {
         ...req.validatedBody,
         website_id: websiteId,
+        genMetaDataLLM: req.validatedBody.genMetaDataLLM
       },
     });
     res.status(201).json({ page: result });
