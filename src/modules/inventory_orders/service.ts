@@ -12,15 +12,15 @@ interface CreateInventoryOrder {
   status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
   expected_delivery_date: Date | undefined;
   order_date: Date | undefined;
-  metadata: Record<string, unknown> | null;
-  shipping_address: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+  shipping_address: Record<string, unknown>;
 }
 
 interface CreateOrderLine {
   inventory_id: string;
   quantity: number;
   price: number;
-  metadata: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
 }
 
 class InventoryOrderService extends MedusaService({
