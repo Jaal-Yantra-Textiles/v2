@@ -8,6 +8,10 @@ import {
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import { LinkDefinition } from "@medusajs/framework/types";
 import { transform } from "@medusajs/framework/workflows-sdk";
+import { InferTypeOf } from "@medusajs/framework/types"
+import InventoryOrder from "../../modules/inventory_orders/models/order";
+import InventoryOrderService from "../../modules/inventory_orders/service";
+export type InventoryOrder = InferTypeOf<typeof InventoryOrder>;
 
 // --- Interfaces for API Input ---
 export interface InventoryOrderLineInput {
@@ -57,7 +61,7 @@ export const validateInventoryStep = createStep(
 export const createInventoryOrderWithLinesStep = createStep(
   "create-inventory-order-with-lines-step",
   async (input: CreateInventoryOrderInput, { container }) => {
-    const inventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
+    const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
 
     // Prepare order and order lines for the service
     const { order_lines, ...orderData } = input;

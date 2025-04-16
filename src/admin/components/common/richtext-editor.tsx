@@ -38,7 +38,6 @@ import {
     Underline,
     Video,
     TableOfContents,
-    Excalidraw,
     Mention,
     ImageGif,
     Mermaid,
@@ -185,7 +184,7 @@ import {
       },
     }),
     ExportWord,
-    Excalidraw,
+    // Excalidraw,
     Mention,
     Attachment.configure({
       upload: (file: any) => {
