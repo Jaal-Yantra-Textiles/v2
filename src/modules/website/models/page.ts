@@ -34,9 +34,9 @@ const Page = model.define("page", {
   website: model.belongsTo(() => Website, { mappedBy: "pages" }),
   // Relationship with blocks
   blocks: model.hasMany(() => Block),
-}).cascades(
-  {delete: ['blocks']}
-).indexes([
+}).cascades({
+  delete: ['blocks'],
+}).indexes([
   {
     on: ["slug", "website_id"],
     unique: true,
