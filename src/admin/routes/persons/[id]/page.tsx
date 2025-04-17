@@ -18,7 +18,7 @@ const PersonDetailPage = () => {
 
   // Show loading skeleton while data is being fetched
   if (isLoading) {
-    return <TwoColumnPageSkeleton mainSections={2} sidebarSections={3} showJSON showMetadata />;
+    return <TwoColumnPageSkeleton mainSections={3} sidebarSections={3} showJSON showMetadata />;
   }
 
   // Handle error state
