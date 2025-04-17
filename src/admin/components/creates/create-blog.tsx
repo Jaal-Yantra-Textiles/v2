@@ -218,7 +218,7 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
             name: "Main Blog",
             type: "MainContent" as const,
             content: {
-              text: JSON.stringify(editorContent),
+              text: editorContent,
               layout: "full" as const,
               authors: authors,
               image: {
