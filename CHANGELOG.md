@@ -1,3 +1,17 @@
+# [5.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.1.0...v5.2.0) (2025-04-17)
+
+
+### Bug Fixes
+
+* Fixed API , UI changes, website related updates, blog ([dac76c7](https://github.com/Jaal-Yantra-Textiles/v2/commit/dac76c7e7d96e8888ad84674293a5852d2bce5ca))
+* Fixed the Inventory Service Issue ([727333f](https://github.com/Jaal-Yantra-Textiles/v2/commit/727333f390988d414740a298663571214248020d))
+
+
+### Features
+
+* **Inventory Orders API:** I have added an API that can record inventory orders using order lines and inventory per line tracking ([887a118](https://github.com/Jaal-Yantra-Textiles/v2/commit/887a11804d0ba971278627a7ace202a870e8256c))
+* **Rich Text Editor, Inventory Orders, Inventory Lines:** We have added a functionality for the Inventory Lines and Orders and Improved the Rich Text Editor ([db39d38](https://github.com/Jaal-Yantra-Textiles/v2/commit/db39d38130438e02f0a93e66efeae506ef43b1e4))
+
 # [5.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.0.0...v5.1.0) (2025-03-22)
 
 
