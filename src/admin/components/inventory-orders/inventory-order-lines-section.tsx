@@ -13,13 +13,21 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
       
       <div className="flex flex-col divide-y text-ui-fg-subtle">
         {inventoryOrder.orderlines.map((line: InventoryOrderLine, idx: number) => (
-          <div key={line.inventory_item.id || idx} className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
-            <div className="bg-ui-bg">
-              <Text size="small" className="font-semibold">{line.inventory_item.id}</Text>
+          <div
+            key={line.inventory_item.id || idx}
+            className="grid grid-cols-2 px-6 py-4 text-ui-fg-subtle"
+          >
+            {/* Left: ID, SKU, Price */}
+            <div>
               <Text size="small" className="text-ui-fg-subtle">{line.inventory_item.sku}</Text>
-              <Text size="small">Quantity: {line.quantity}</Text>
               <Text size="small">Price: {line.price}</Text>
-          </div>
+            </div>
+            {/* Right: Bold quantity with tooltip */}
+            <div className="flex justify-end">
+              <Text size="small" weight="plus">
+                <InlineTip label={`${line.quantity}`}>Ordered quantity</InlineTip>
+              </Text>
+            </div>
           </div>
         ))}
       </div>

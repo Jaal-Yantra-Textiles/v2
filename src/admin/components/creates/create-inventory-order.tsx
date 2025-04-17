@@ -10,6 +10,7 @@ import { KeyboundForm } from "../utilitites/key-bound-form";
 import { Form } from "../common/form";
 import { useState, useEffect } from "react";
 import { useInventoryItems } from "../../hooks/api/raw-materials";
+import { useStockLocations } from "../../hooks/api/stock_location";
 
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
 export const inventoryOrderFormSchema = z.object({
@@ -17,6 +18,7 @@ export const inventoryOrderFormSchema = z.object({
   total_price: z.number().min(0, "Total price must be positive"),
   order_date: z.date({ required_error: "Order date is required" }),
   expected_delivery_date: z.date({ required_error: "Expected delivery date is required" }),
+  stock_location_id: z.string().nonempty("Stock location is required"),
 });
 
 type InventoryOrderFormData = z.infer<typeof inventoryOrderFormSchema>;
@@ -35,6 +37,7 @@ export const CreateInventoryOrderComponent = () => {
       total_price: 0,
       order_date: undefined,
       expected_delivery_date: undefined,
+      stock_location_id: "",
     },
     resolver: zodResolver(inventoryOrderFormSchema),
   });
@@ -69,6 +72,7 @@ export const CreateInventoryOrderComponent = () => {
   }, [tab]);
 
   const { inventory_items = [] } = useInventoryItems();
+  const { stock_locations = [] } = useStockLocations();
   const [orderLines, setOrderLines] = useState<{ inventory_item_id: string; quantity: number; price: number }[]>([
     { inventory_item_id: "", quantity: 0, price: 0 },
   ]);
@@ -102,6 +106,7 @@ export const CreateInventoryOrderComponent = () => {
       total_price: data.total_price,
       order_date: data.order_date.toISOString(),
       expected_delivery_date: data.expected_delivery_date.toISOString(),
+      stock_location_id: data.stock_location_id,
       status: "Pending",
       shipping_address: {},
       order_lines: orderLines
@@ -214,6 +219,31 @@ export const CreateInventoryOrderComponent = () => {
                       </Form.Item>
                     )}
                   />
+                  {/* Stock Location */}
+                  <Form.Field
+                    control={form.control}
+                    name="stock_location_id"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>Stock Location</Form.Label>
+                        <Form.Control>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <Select.Trigger>
+                              <Select.Value placeholder="Select location" />
+                            </Select.Trigger>
+                            <Select.Content>
+                              {stock_locations.map((loc) => (
+                                <Select.Item key={loc.id} value={loc.id}>
+                                  {loc.name}
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select>
+                        </Form.Control>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
                 </div>
               </div>
             </ProgressTabs.Content>
@@ -234,7 +264,7 @@ export const CreateInventoryOrderComponent = () => {
                         key={idx}
                         id={`order-line-row-${idx}`}
                         tabIndex={0}
-                        className={`border-b border-dashed group ${selectedRow === idx ? 'bg-blue-50' : ''}`}
+                        className={`border-b border-dashed group ${selectedRow === idx ? '' : ''}`}
                         onFocus={() => setSelectedRow(idx)}
                         onKeyDown={(e) => {
                           if (e.key === 'ArrowDown') {

@@ -309,19 +309,16 @@ export const useRawMaterialCategories = (
 export const useRawMaterial = (
   inventoryId: string,
   materialId: string,
-  options?: UseQueryOptions<
-    InventoryItem,
-    FetchError
-  >
+  options?: UseQueryOptions<InventoryItem, FetchError>
 ) => {
-  return useQuery<InventoryItem, FetchError>(
-    ["raw-materials", inventoryId, materialId],
-    async () => {
+  return useQuery<InventoryItem, FetchError>({
+    queryKey: ["raw-materials", inventoryId, materialId],
+    queryFn: async () => {
       const response = await sdk.client.fetch<InventoryItem>(
         `/admin/inventory-items/${inventoryId}/rawmaterials/${materialId}`
-      )
-      return response
+      );
+      return response;
     },
-    options
-  )
-}
+    ...options,
+  });
+};
