@@ -37,7 +37,10 @@ export const listDesignsStep = createStep(
 export type ListDesignsWorkFlowInput = ListDesignsStepInput;
 
 export const listDesignsWorkflow = createWorkflow(
-  "list-designs",
+  {
+    name:'list-designs',
+    store: true,
+  },
   (input: ListDesignsWorkFlowInput) => {
     const result = listDesignsStep(input);
     return new WorkflowResponse(result);

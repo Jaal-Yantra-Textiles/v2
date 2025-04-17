@@ -32,12 +32,11 @@ export interface CreateInventoryOrderInput {
   order_lines: InventoryOrderLineInput[];
 }
 
-// --- Empty Steps ---
+// --- Inventory Orders Steps ---
 
 export const validateInventoryStep = createStep(
   "validate-inventory-step",
   async (input: CreateInventoryOrderInput, { container }) => {
-    console.log(input)
     const inventoryService = container.resolve(Modules.INVENTORY);
     const missingItems: string[] = [];
     for (const line of input.order_lines) {
@@ -87,7 +86,6 @@ export const linkInventoryItemsWithLinesStep = createStep(
     input: { order_id: string; orderline_ids: string[]; inventory_item_ids: string[] },
     { container }
   ) => {
-    console.log(input)
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
     const links: LinkDefinition[] = input.orderline_ids.map((orderlineId, idx) => ({
       [ORDER_INVENTORY_MODULE]: {
@@ -102,7 +100,6 @@ export const linkInventoryItemsWithLinesStep = createStep(
         inventory_item_id: input.inventory_item_ids[idx],
       },
     }));
-    console.log(links)
     await remoteLink.create(links);
     return new StepResponse(links);
   }
@@ -115,7 +112,6 @@ export const linkInventoryItemsWithLinesStep = createStep(
 export const createInventoryOrderWorkflow = createWorkflow(
   "create-inventory-order-workflow",
   (input: CreateInventoryOrderInput) => {
-    console.log(input)
     // Step 1: Validate inventory items
     const validated = validateInventoryStep(input);
 

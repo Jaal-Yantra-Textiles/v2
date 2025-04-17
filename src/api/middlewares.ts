@@ -46,7 +46,7 @@ import { partnerSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { MedusaError } from "@medusajs/framework/utils";
-import { createInventoryOrdersSchema } from "./admin/inventory-orders/validators";
+import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema } from "./admin/inventory-orders/validators";
 
 
 
@@ -232,6 +232,21 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(createInventoryOrdersSchema))],
+    },
+    {
+      matcher: "/admin/inventory-orders",
+      method: 'GET',
+      middlewares: [validateAndTransformQuery(wrapSchema(listInventoryOrdersQuerySchema), {})]
+    },
+    {
+      matcher: "/admin/inventory-orders/:id",
+      method: 'GET',
+      middlewares: [validateAndTransformQuery(wrapSchema(ReadSingleInventoryOrderQuerySchema), {})]
+    },
+    {
+      matcher: "/admin/inventory-orders/:id",
+      method: 'PUT',
+      middlewares: [validateAndTransformBody(wrapSchema(updateInventoryOrdersSchema))],
     },
     {
       matcher: "/admin/designs",

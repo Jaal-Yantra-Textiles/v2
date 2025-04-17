@@ -1,6 +1,6 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-
+import { FindConfigOrder } from "@medusajs/framework/types"
 
 
 
@@ -29,3 +29,15 @@ export const refetchInventoryOrder = async (
 
   return inventoryItem[0]
 }
+
+
+export const parseOrderParam = (order?: string): FindConfigOrder | undefined => {
+    if (!order) return undefined;
+    return order.split(',').reduce((acc, part) => {
+      const [field, dir] = part.split(':');
+      if (field && dir && ["asc", "desc"].includes(dir.toLowerCase())) {
+        acc[field.trim()] = dir.toUpperCase() as "ASC" | "DESC";
+      }
+      return acc;
+    }, {} as FindConfigOrder);
+  }
