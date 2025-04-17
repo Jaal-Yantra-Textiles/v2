@@ -1,6 +1,6 @@
 {
   "name": "jyt-commerce-api",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "description": "A starter for Medusa projects extended to be used as a core production modules for textiles.",
   "author": "Medusa (https://medusajs.com) and JYT (https://jaalyantra.in)",
   "license": "MIT",
@@ -101,7 +101,7 @@
     "semantic-release": "^23.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.2",
-    "vite": "^5.4.12"
+    "vite": "^5.4.18"
   },
   "engines": {
     "node": ">=20"
