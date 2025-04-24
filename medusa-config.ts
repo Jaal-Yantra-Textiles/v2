@@ -31,6 +31,14 @@ module.exports = defineConfig({
       optimizeDeps: {
         include: ["@excalidraw/excalidraw"]
       },
+      build: {
+        manifest: true,
+        rollupOptions: {
+          external: [
+            'src/mastra/**',
+          ],
+        },
+      },
       
     })
   },
