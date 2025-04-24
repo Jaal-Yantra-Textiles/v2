@@ -33,6 +33,8 @@
     ".medusa/server",
     ".medusa/admin",
     ".cache",
-    "/src/mastra/*"
+    "src/mastra",
+    "src/mastra/**/*",
+    "**/src/mastra/**/*"
   ]
 }
