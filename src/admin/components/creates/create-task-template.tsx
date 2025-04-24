@@ -1,14 +1,15 @@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button, Heading, Input, Text, toast, Select, Checkbox } from "@medusajs/ui";
+import { Button, Heading, Input, Text, toast, Select, Checkbox, Tooltip } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { Form } from "../common/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { KeyboundForm } from "../utilitites/key-bound-form";
-import { useCreateTaskTemplate } from "../../hooks/api/task-templates";
+import { useCreateTaskTemplate, CreateAdminTaskTemplatePayload } from "../../hooks/api/task-templates";
 import { useTaskTemplateCategories } from "../../hooks/api/task-template-categories";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { PlusMini, InformationCircleSolid } from "@medusajs/icons";
 
 const priorityOptions = [
   { value: "low", label: "Low" },
@@ -24,11 +25,8 @@ const taskTemplateSchema = z.object({
   eventable: z.boolean(),
   notifiable: z.boolean(),
   message_template: z.string(),
-  category: z.object({
-    id: z.string().optional(),
-    name: z.string().min(2, "Category name is required"),
-    description: z.string().default(""),  // Set default empty string
-  }),
+  // Updated to match API expectations - category can be a simple string
+  category_name: z.string().min(2, "Category name is required"),
 });
 
 type TaskTemplateFormData = z.infer<typeof taskTemplateSchema>;
@@ -36,6 +34,8 @@ type TaskTemplateFormData = z.infer<typeof taskTemplateSchema>;
 export const CreateTaskTemplateComponent = () => {
   const [categorySearch, setCategorySearch] = useState("");
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [isNewCategory, setIsNewCategory] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const form = useForm<TaskTemplateFormData>({
     defaultValues: {
@@ -46,30 +46,26 @@ export const CreateTaskTemplateComponent = () => {
       eventable: true,
       notifiable: true,
       message_template: "",
-      category: {
-        id: "",
-        name: "",
-        description: "",
-      },
+      category_name: "",
     },
     resolver: zodResolver(taskTemplateSchema),
   });
 
   const { handleSuccess } = useRouteModal();
   const { mutateAsync, isPending } = useCreateTaskTemplate();
-  const { categories = [] } = useTaskTemplateCategories(
+  const { categories = [], isLoading: isCategoriesLoading } = useTaskTemplateCategories(
     categorySearch ? { name: categorySearch } : undefined
   );
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    const categoryData = data.category;
-    const existingCategory = categories.find(c => c.name.toLowerCase() === categoryData.name.toLowerCase());
+    const categoryName = data.category_name;
+    const existingCategory = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
 
-    // Create a base payload without the category information
-    const basePayload = {
+    // Create the payload with all required fields
+    const payload: CreateAdminTaskTemplatePayload = {
       name: data.name,
       description: data.description,
-      priority: data.priority,
+      priority: data.priority, // This will now correctly pass the selected priority
       estimated_duration: data.estimated_duration,
       eventable: data.eventable,
       notifiable: data.notifiable,
@@ -81,18 +77,11 @@ export const CreateTaskTemplateComponent = () => {
     };
     
     // Add the appropriate category information based on whether it's new or existing
-    const payload = existingCategory
-      ? {
-          ...basePayload,
-          // For existing categories, we need to pass the category_id property
-          // This will be handled by the API even though it's not in the TypeScript type
-          category_id: existingCategory.id,
-        } as any // Use type assertion to bypass TypeScript checking
-      : {
-          ...basePayload,
-          // For new categories, use the name as a string
-          category: categoryData.name,
-        };
+    if (existingCategory) {
+      payload.category_id = existingCategory.id;
+    } else {
+      payload.category = categoryName;
+    }
 
     await mutateAsync(payload, {
       onSuccess: ({ task_template }) => {
@@ -106,21 +95,67 @@ export const CreateTaskTemplateComponent = () => {
   });
 
   const handleCategorySelect = (category: typeof categories[0]) => {
-    form.setValue("category", {
-      id: category.id,
-      name: category.name,
-      description: category.description || "",
-    });
+    form.setValue("category_name", category.name);
     setCategorySearch("");
     setShowCategoryDropdown(false);
   };
 
   const handleCategoryInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    form.setValue("category.name", value);
-    setCategorySearch(value);
+    form.setValue("category_name", value);
+    
+    // Clear any existing timeout to prevent multiple rapid searches
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Set a small timeout to debounce the search (150ms is usually good for typing)
+    searchTimeoutRef.current = setTimeout(() => {
+      setCategorySearch(value);
+    }, 150);
+    
+    // Always show dropdown when typing
     setShowCategoryDropdown(true);
   };
+  
+  // Handle keyboard events for the category input
+  const handleCategoryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, field: any) => {
+    // If Enter is pressed and there's an exact match, select it
+    if (e.key === 'Enter' && field.value) {
+      e.preventDefault();
+      const exactMatch = categories.find(
+        category => category.name.toLowerCase() === field.value.toLowerCase()
+      );
+      
+      if (exactMatch) {
+        handleCategorySelect(exactMatch);
+      }
+    }
+  };
+  
+  // Check if the current category name exists in the categories list
+  useEffect(() => {
+    const categoryName = form.watch("category_name");
+    if (categoryName && categoryName.trim() !== "") {
+      const exists = categories.some(
+        (category) => category.name.toLowerCase() === categoryName.toLowerCase()
+      );
+      setIsNewCategory(!exists);
+      
+      // Keep dropdown open for new categories
+      if (!exists) {
+        setShowCategoryDropdown(true);
+      }
+      
+      // Hide dropdown if there's no search term
+      if (!categorySearch) {
+        setShowCategoryDropdown(false);
+      }
+    } else {
+      setIsNewCategory(false);
+      setShowCategoryDropdown(false);
+    }
+  }, [form.watch("category_name"), categories, categorySearch]);
 
   return (
     <RouteFocusModal.Form form={form}>
@@ -190,11 +225,14 @@ export const CreateTaskTemplateComponent = () => {
                   <Form.Item>
                     <Form.Label>Priority</Form.Label>
                     <Form.Control>
-                      <Select>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
                         <Select.Trigger>
                           <Select.Value placeholder="Select priority" />
                         </Select.Trigger>
-                        <Select.Content {...field}>
+                        <Select.Content>
                           {priorityOptions.map((option) => (
                             <Select.Item key={option.value} value={option.value}>
                               {option.label}
@@ -210,37 +248,129 @@ export const CreateTaskTemplateComponent = () => {
 
               <Form.Field
                 control={form.control}
-                name="category.name"
+                name="category_name"
                 render={({ field }) => (
-                  <Form.Item>
-                    <Form.Label>Category</Form.Label>
-                    <div className="relative">
-                      <Form.Control>
-                        <Input 
-                          autoComplete="off" 
-                          {...field}
-                          onChange={handleCategoryInputChange}
-                          placeholder="Type to search or create new category"
-                        />
-                      </Form.Control>
-                      {showCategoryDropdown && categories.length > 0 && (
-                        <div 
-                          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-ui-border-base bg-ui-bg-base shadow-lg"
-                        >
-                          {categories.map((category) => (
-                            <button
-                              key={category.id}
-                              type="button"
-                              className="w-full px-4 py-2 text-left text-sm hover:bg-ui-bg-base-hover focus:bg-ui-bg-base-hover focus:outline-none"
-                              onClick={() => handleCategorySelect(category)}
-                            >
-                              {category.name}
-                            </button>
-                          ))}
-                        </div>
+                  <Form.Item className="relative">
+                    <div className="flex items-center justify-between">
+                      <Form.Label>Category</Form.Label>
+                      {isNewCategory && field.value && (
+                        <Tooltip content="This is a new category that will be created automatically">
+                          <div className="flex items-center text-xs text-ui-fg-interactive gap-1 cursor-help">
+                            <InformationCircleSolid className="w-3 h-3" />
+                            <span>New category</span>
+                          </div>
+                        </Tooltip>
                       )}
                     </div>
+                    <Form.Control>
+                      <Input 
+                        autoComplete="off" 
+                        value={field.value}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          handleCategoryInputChange(e);
+                        }}
+                        onKeyDown={(e) => handleCategoryKeyDown(e, field)}
+                        onFocus={() => setShowCategoryDropdown(true)}
+                        className={isNewCategory ? "border-ui-border-interactive" : ""}
+                      />
+                    </Form.Control>
                     <Form.ErrorMessage />
+                    
+                    {/* Category dropdown - positioned below the input field */}
+                    {showCategoryDropdown && (
+                      <div className="absolute z-10 mt-1 w-full rounded-md bg-ui-bg-base shadow-lg top-full left-0">
+                        <div className="max-h-60 overflow-auto rounded-md py-1 text-base">
+                          {isCategoriesLoading ? (
+                            <div className="px-4 py-2 text-ui-fg-subtle">
+                              Loading categories...
+                            </div>
+                          ) : categories.length > 0 ? (
+                            (() => {
+                              // Check for exact match first
+                              const exactMatch = categories.find(
+                                category => category.name.toLowerCase() === categorySearch.toLowerCase()
+                              );
+                              
+                              // If there's an exact match, only show that one
+                              if (exactMatch && categorySearch) {
+                                return (
+                                  <div
+                                    key={exactMatch.id}
+                                    className="cursor-pointer px-4 py-2 hover:bg-ui-bg-base-hover bg-ui-bg-base-hover"
+                                    onClick={() => handleCategorySelect(exactMatch)}
+                                  >
+                                    <span className="font-medium text-ui-fg-interactive">{exactMatch.name}</span>
+                                    <div className="text-xs text-ui-fg-subtle mt-1">Press Enter to select</div>
+                                  </div>
+                                );
+                              }
+                              
+                              // Otherwise show all matches with highlighting
+                              return categories.map((category) => {
+                                // Create highlighted text by splitting the category name based on the search term
+                                const searchTerm = categorySearch.toLowerCase();
+                                const categoryName = category.name;
+                                const lowerCaseName = categoryName.toLowerCase();
+                                const matchIndex = lowerCaseName.indexOf(searchTerm);
+                                
+                                // Skip items that don't match the search term
+                                if (matchIndex === -1 && searchTerm) {
+                                  return null;
+                                }
+                                
+                                let beforeMatch = "";
+                                let match = "";
+                                let afterMatch = "";
+                                
+                                if (matchIndex >= 0 && searchTerm) {
+                                  beforeMatch = categoryName.substring(0, matchIndex);
+                                  match = categoryName.substring(matchIndex, matchIndex + searchTerm.length);
+                                  afterMatch = categoryName.substring(matchIndex + searchTerm.length);
+                                } else {
+                                  // If no match or empty search, just show the full name
+                                  beforeMatch = categoryName;
+                                }
+                                
+                                return (
+                                  <div
+                                    key={category.id}
+                                    className="cursor-pointer px-4 py-2 hover:bg-ui-bg-base-hover"
+                                    onClick={() => handleCategorySelect(category)}
+                                  >
+                                    {matchIndex >= 0 && searchTerm ? (
+                                      <>
+                                        {beforeMatch}
+                                        <span className="font-medium text-ui-fg-interactive">{match}</span>
+                                        {afterMatch}
+                                      </>
+                                    ) : (
+                                      categoryName
+                                    )}
+                                  </div>
+                                );
+                              }).filter(Boolean);
+                            })()
+                          ) : categorySearch ? (
+                            <div className="px-4 py-2 text-ui-fg-subtle flex items-center gap-1">
+                              <PlusMini className="w-3 h-3" />
+                              <span>No matches - will create new category</span>
+                            </div>
+                          ) : (
+                            <div className="px-4 py-2 text-ui-fg-subtle">
+                              Type to search or create new category
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {isNewCategory && field.value && !showCategoryDropdown && (
+                      <div className="flex items-center text-xs text-ui-fg-subtle mt-1 gap-1">
+                        <PlusMini className="w-3 h-3" />
+                        <span>This category will be created automatically when you submit the form.</span>
+                      </div>
+                    )}
                   </Form.Item>
                 )}
               />
