@@ -154,7 +154,7 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
                   {
                     label: t("Add From Template"),
                     icon: <Plus />,
-                    onClick: () => navigate(`/designs/${design.id}/tasks/template/new`),
+                    onClick: () => navigate(`/designs/${design.id}/tasks/templates`),
                   },
                   {
                     label: t("View Task Canvas"),
