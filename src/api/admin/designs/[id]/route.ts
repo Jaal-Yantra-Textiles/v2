@@ -78,7 +78,7 @@ export const DELETE = async (
     throw errors;
   }
 
-  res.status(204).send({
+  res.status(201).send({
     id: req.params.id,
     object: "design",
     deleted: true,
