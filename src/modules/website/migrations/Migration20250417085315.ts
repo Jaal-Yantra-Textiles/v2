@@ -19,9 +19,26 @@ export class Migration20250417085315 extends Migration {
     this.addSql(`CREATE INDEX IF NOT EXISTS "IDX_block_deleted_at" ON "block" (deleted_at) WHERE deleted_at IS NULL;`);
     this.addSql(`CREATE UNIQUE INDEX IF NOT EXISTS "unique_block_type_per_page" ON "block" (page_id, type) WHERE type IN ('Hero', 'Header', 'Footer', 'MainContent', 'ContactForm') AND deleted_at IS NULL;`);
 
-    this.addSql(`alter table if exists "page" add constraint "page_website_id_foreign" foreign key ("website_id") references "website" ("id") on update cascade on delete cascade;`);
+    this.addSql(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'page_website_id_foreign'
+            AND table_name        = 'page'
+        ) THEN
+          ALTER TABLE "page"
+            ADD CONSTRAINT "page_website_id_foreign"
+            FOREIGN KEY ("website_id")
+            REFERENCES "website" ("id")
+            ON UPDATE CASCADE
+            ON DELETE CASCADE;
+        END IF;
+      END$$;
+    `);
 
     this.addSql(`alter table if exists "block" drop constraint if exists "block_page_id_foreign";`);
+    this.addSql(`DELETE FROM "block" WHERE "page_id" NOT IN (SELECT "id" FROM "page");`);
     this.addSql(`alter table if exists "block" add constraint "block_page_id_foreign" foreign key ("page_id") references "page" ("id") on update cascade on delete cascade;`);
   }
 
