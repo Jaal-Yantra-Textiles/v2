@@ -26,12 +26,25 @@ export interface AdminTaskTemplate {
   notifiable: boolean;
   message_template: string;
   metadata?: Record<string, any> | null | undefined;
-  category: TaskCategory & string;
+  category?: string;
+  category_id?: string;
   created_at?: Date;
   updated_at?: Date;
 }
 
-export type CreateAdminTaskTemplatePayload = Omit<AdminTaskTemplate, "id" | "created_at" | "updated_at">;
+export interface CreateAdminTaskTemplatePayload {
+  name: string;
+  description?: string;
+  priority?: "low" | "medium" | "high";
+  estimated_duration?: number;
+  required_fields?: Record<string, RequiredField>;
+  eventable?: boolean;
+  notifiable?: boolean;
+  message_template?: string;
+  metadata?: Record<string, any> | null | undefined;
+  category?: string;
+  category_id?: string;
+}
 export type UpdateAdminTaskTemplatePayload = Partial<CreateAdminTaskTemplatePayload>;
 
 export interface AdminTaskTemplateResponse {
