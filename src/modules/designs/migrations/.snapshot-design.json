@@ -194,6 +194,15 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "moodboard": {
+          "name": "moodboard",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
         "raw_estimated_cost": {
           "name": "raw_estimated_cost",
           "type": "jsonb",

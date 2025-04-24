@@ -54,6 +54,7 @@ export interface AdminDesign {
   feedback_history?: FeedbackHistory[];
   media_files?: DesignMedia[];
   metadata?: Record<string, any> | null | undefined;
+  moodboard?: Record<string, any> | null;
   created_at?: Date;
   updated_at?: Date;
 }

@@ -39,7 +39,7 @@ const Design = model.define("design", {
   feedback_history: model.json().nullable(), // Track feedback and changes
   metadata: model.json().nullable(),
   media_files: model.json().nullable(),
-  
+  moodboard: model.json().nullable(),
   // Relationships
   specifications: model.hasMany(() => DesignSpecification, { mappedBy: "design" }),
 }).cascades({

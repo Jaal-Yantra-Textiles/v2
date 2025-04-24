@@ -48,7 +48,8 @@ export const designSchema = z.object({
     id: z.string().optional(),
     url: z.string().url(),
     isThumbnail: z.boolean().optional().default(false)
-  })).optional()
+  })).optional(),
+  moodboard: z.record(z.any()).optional()
 });
 
 export const UpdateDesignSchema = designSchema.partial();

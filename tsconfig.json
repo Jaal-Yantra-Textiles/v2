@@ -27,15 +27,12 @@
   "include": [
     "**/*", 
     ".medusa/types/*",
-    "src/mastra/*"
-
   ],
   "exclude": [
     "node_modules",
     ".medusa/server",
     ".medusa/admin",
     ".cache",
-    "jyt-ai/"
-
+    "/src/mastra/*"
   ]
 }

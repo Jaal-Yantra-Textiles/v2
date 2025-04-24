@@ -73,11 +73,7 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
 
     await mutateAsync(undefined, {
       onSuccess: () => {
-        toast.success(
-          t("designs.delete.successToast", {
-            name: design.name,
-          }),
-        );
+        toast.success('Design deleted successfully'),
         navigate("/designs", { replace: true });
       },
       onError: (error) => {

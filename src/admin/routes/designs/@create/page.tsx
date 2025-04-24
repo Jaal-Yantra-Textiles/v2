@@ -3,6 +3,7 @@ import { CreateDesignAIComponent } from "../../../components/designs/create-desi
 import { CreateManualDesign } from "../../../components/designs/create-manual-design";
 import { useNavigate } from "react-router-dom";
 import { usePrompt } from "@medusajs/ui";
+import { RouteFocusModal } from "../../../components/modal/route-focus-modal";
 
 const CreateDesignPage = () => {
   const [designMode, setDesignMode] = useState<'ai' | 'manual' | null>(null);
@@ -44,7 +45,6 @@ const CreateDesignPage = () => {
       {designMode === 'ai' && (
         <CreateDesignAIComponent />
       )}
-      
       {designMode === 'manual' && (
         <CreateManualDesign onSave={handleManualSave} />
       )}

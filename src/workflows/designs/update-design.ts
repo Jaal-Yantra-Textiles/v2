@@ -30,6 +30,7 @@ type UpdateDesignStepInput = {
   designer_notes?: string;
   feedback_history?: Record<string, any>;
   metadata?: Record<string, any>;
+  moodboard?: Record<string, any>;
 };
 
 export const updateDesignStep = createStep(

@@ -6,6 +6,7 @@
       ".medusa/admin",
       ".cache",
       "jyt-ai/",
-      "src/admin"
+      "src/admin",
+      "src/mastra"
     ]
   }
