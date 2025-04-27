@@ -23,7 +23,7 @@ import {
     await notificationModuleService.createNotifications({
       to: email,
       channel: "email",
-      template: "reset-password-template",
+      template: process.env.SENDGRID_PASSWORD_RESET_TEMPLATE!,
       data: {
         // a URL to a frontend application
         url: `${urlPrefix}/reset-password?token=${token}&email=${email}`,
