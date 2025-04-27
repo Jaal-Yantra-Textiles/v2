@@ -1,6 +1,7 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
 import path from "path";
 
+
 loadEnv(process.env.NODE_ENV || "development", process.cwd());
 
 module.exports = defineConfig({
@@ -15,7 +16,6 @@ module.exports = defineConfig({
     },
     
   },
-
   admin: {
     vite: () => ({
        // Keep Medusa's default config
@@ -31,14 +31,7 @@ module.exports = defineConfig({
       optimizeDeps: {
         include: ["@excalidraw/excalidraw"]
       },
-      build: {
-        manifest: true,
-        rollupOptions: {
-          external: [
-            'src/mastra/**',
-          ],
-        },
-      },
+      
       
     })
   },
