@@ -15,7 +15,7 @@ import {
     const notificationModuleService = container.resolve(
       Modules.NOTIFICATION
     )
-  
+    
     const urlPrefix = actor_type === "customer" ? 
       "https://cicilabel.com" : 
       "https://v3.jaalyantra.com/app"

@@ -15,7 +15,7 @@ import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 const DesignDetailPage = () => {
   const { id } = useParams();
   const { design, isLoading, isError, error } = useDesign(id!, {
-    fields: ["+inventory_items.*", '+tasks.*', 'tasks.subtasks.*']
+    fields: ["+inventory_items.*", '+tasks.*', 'tasks.subtasks.*', 'tasks.outgoing.*', 'tasks.incoming.*']
   });
 
   // Show loading skeleton while data is being fetched

@@ -77,7 +77,6 @@ export const EditDesignForm = ({ design }: EditDesignFormProps) => {
         target_completion_date: data.target_completion_date as  Date,
         status: data.status,
         priority: data.priority,
-        designer_notes: data.designer_notes,
         estimated_cost: data.estimated_cost,
         tags: stringToArray(data.tags as string),
       },
@@ -145,11 +144,6 @@ export const EditDesignForm = ({ design }: EditDesignFormProps) => {
       gridCols: 1
     },
     {
-      name: "designer_notes",
-      type: "text",
-      label: t("Designer Notes"),
-    },
-    {
       name: "estimated_cost",
       type: "number",
       label: t("Estimated Cost"),
@@ -169,7 +163,6 @@ export const EditDesignForm = ({ design }: EditDesignFormProps) => {
         target_completion_date: new Date(design.target_completion_date),
         status: design.status,
         priority: design.priority,
-        designer_notes: design.designer_notes,
         estimated_cost: design.estimated_cost,
       }}
       onSubmit={handleSubmit}

@@ -1,19 +1,18 @@
-import { RouteFocusModal } from "../modal/route-focus-modal";
-import { useMemo } from "react";
+import { useMemo, useState, useRef } from "react";
 import { AdminDesign } from "../../hooks/api/designs";
-import { Container, Heading, Tooltip } from "@medusajs/ui";
-import { ActionMenu } from "../common/action-menu";
-import { Eye, InformationCircle } from "@medusajs/icons";
+import { Tooltip, Button, Text, Select, DropdownMenu } from "@medusajs/ui";
+import { InformationCircle, Plus, ArrowPathMini, MinusMini, PlusMini } from "@medusajs/icons";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AdminDesignTask } from "../../hooks/api/design-tasks";
+import { useTaskTemplates } from "../../hooks/api/task-templates";
+import { TaskTemplateCanvas } from "../tasks/task-template-canvas";
 
 // React Flow imports
 import { 
   ReactFlowProvider,
   ReactFlow, 
   Background, 
-  Controls, 
   Node, 
   Edge, 
   MarkerType,
@@ -24,9 +23,25 @@ import '@xyflow/react/dist/style.css';
 
 // Extend the AdminDesignTask interface with any additional properties needed for visualization
 interface Task extends AdminDesignTask {
-  // Additional properties for visualization if needed
-  subtasks?: Task[];
-  [key: string]: any;
+  subtasks?: Task[]
+  incoming?: TaskDependency[]
+  outgoing?: TaskDependency[]
+  start_date?:  Date | undefined
+  end_date?: string | Date | undefined
+  // Override the description property to allow null values
+  description?: string | undefined
+}
+
+// Interface for task dependencies
+interface TaskDependency {
+  id: string
+  dependency_type: 'blocking' | 'non_blocking' | 'related'
+  outgoing_task_id: string
+  incoming_task_id: string
+  metadata?: Record<string, any>
+  created_at?: Date
+  updated_at?: Date
+  deleted_at?: Date | null
 }
 
 // Custom node data interface
@@ -46,6 +61,64 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
   const navigate = useNavigate();
   const { t } = useTranslation();
   const tasks = design.tasks || [];
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [showTemplates, setShowTemplates] = useState<boolean>(false);
+  
+  // Fetch task templates
+  const { task_templates } = useTaskTemplates({
+    fields: ["id", "name", "description", "category", "priority", "estimated_duration", "metadata"]
+  });
+  
+  // Get unique categories from templates
+  const categories = useMemo(() => {
+    if (!task_templates) return [];
+    
+    const uniqueCategories = new Set<string>();
+    task_templates.forEach(template => {
+      if (template.category) {
+        // Handle both string and object categories
+        if (typeof template.category === 'string') {
+          uniqueCategories.add(template.category);
+        } else if (typeof template.category === 'object' && template.category !== null) {
+          // If it's an object, try to get the name property
+          const categoryObj = template.category as any;
+          if (categoryObj.name) {
+            uniqueCategories.add(categoryObj.name);
+          }
+        }
+      }
+    });
+    
+    // Log categories for debugging
+    console.log('Unique categories:', Array.from(uniqueCategories));
+    
+    return Array.from(uniqueCategories).sort();
+  }, [task_templates]);
+  
+  // Filter templates by selected category
+  const filteredTemplates = useMemo(() => {
+    if (!selectedCategory || !task_templates) return [];
+    
+    // Log selected category for debugging
+    console.log('Selected category:', selectedCategory);
+    
+    // Ensure each template has a valid ID to use as a key
+    return task_templates
+      .filter(template => {
+        // Handle both string and object categories
+        if (typeof template.category === 'string') {
+          return template.category === selectedCategory;
+        } else if (typeof template.category === 'object' && template.category !== null) {
+          const categoryObj = template.category as any;
+          return categoryObj.name === selectedCategory;
+        }
+        return false;
+      })
+      .map(template => ({
+        ...template,
+        id: template.id || `template-${Math.random().toString(36).substr(2, 9)}`
+      }));
+  }, [selectedCategory, task_templates]);
   
   console.log('Design tasks:', tasks)
   
@@ -71,66 +144,57 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
     }
   };
 
-  // Function to get dependency type color and style
-  const getDependencyStyle = (dependencyType?: string) => {
-    switch (dependencyType) {
-      case "blocking":
+  // Helper function to get styling for different dependency types
+  const getDependencyStyle = (type: string) => {
+    switch (type) {
+      case 'blocking':
         return {
-          color: "#fa5252", // Red for blocking dependencies
-          strokeWidth: 3,
+          style: { stroke: "#fa5252", strokeWidth: 3 },
           type: "straight",
           markerEnd: MarkerType.ArrowClosed,
           label: "Blocking",
-          labelStyle: { fill: "#fa5252", fontWeight: 700 }
+          labelStyle: { fill: "#fa5252", fontWeight: 700 },
+          labelBgStyle: { fill: '#ffffff', opacity: 0.9 },
+          labelBgPadding: [6, 3] as [number, number],
+          labelShowBg: true,
+          animated: true
         };
-      case "non_blocking":
+      case 'non_blocking':
         return {
-          color: "#4dabf7", // Blue for non-blocking dependencies
-          strokeWidth: 2,
-          type: "straight",
+          style: { stroke: "#4c6ef5", strokeWidth: 2 },
+          type: "smoothstep",
           markerEnd: MarkerType.ArrowClosed,
           label: "Non-blocking",
-          labelStyle: { fill: "#4dabf7" }
+          labelStyle: { fill: "#4c6ef5", fontWeight: 700 },
+          labelBgStyle: { fill: '#ffffff', opacity: 0.9 },
+          labelBgPadding: [6, 3] as [number, number],
+          labelShowBg: true
         };
-      case "related":
+      case 'related':
         return {
-          color: "#8ce99a", // Green for related tasks
-          strokeWidth: 2,
-          type: "straight",
-          style: { strokeDasharray: '5,5' },
+          style: { stroke: "#40c057", strokeWidth: 2, strokeDasharray: '5,5' },
+          type: "bezier",
           markerEnd: MarkerType.ArrowClosed,
           label: "Related",
-          labelStyle: { fill: "#8ce99a" }
+          labelStyle: { fill: "#40c057", fontWeight: 700 },
+          labelBgStyle: { fill: '#ffffff', opacity: 0.9 },
+          labelBgPadding: [6, 3] as [number, number],
+          labelShowBg: true
         };
-      case "subtask":
       default:
         return {
-          color: "#1864ab", // Default blue for subtasks
-          strokeWidth: 2,
+          style: { stroke: "#fa5252", strokeWidth: 3 },
           type: "straight",
           markerEnd: MarkerType.ArrowClosed,
-          label: "Subtask",
-          labelStyle: { fill: "#1864ab" }
+          label: "Blocking",
+          labelStyle: { fill: "#fa5252", fontWeight: 700 },
+          labelBgStyle: { fill: '#ffffff', opacity: 0.9 },
+          labelBgPadding: [6, 3] as [number, number],
+          labelShowBg: true,
+          animated: true
         };
     }
   };
-
-  // We're not using priority colors for the simplified design
-  // but keeping the function commented in case we need it later
-  /*
-  const getPriorityColor = (priority?: string) => {
-    switch (priority) {
-      case "high":
-        return "#e03131"; // Red
-      case "medium":
-        return "#1971c2"; // Blue
-      case "low":
-        return "#2f9e44"; // Green
-      default:
-        return "#495057"; // Gray
-    }
-  };
-  */
 
   // Custom node component for tasks
   const CustomTaskNode = ({ data }: { data: TaskNodeData }) => {
@@ -163,12 +227,16 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
     // Generate task details for tooltip
     const getTaskDetails = () => {
       const details = [
+        `Title: ${data.label}`,
         `Status: ${formatStatus(data.status)}`,
-        data.task.priority ? `Priority: ${data.task.priority}` : null,
-        data.task.due_date ? `Due: ${new Date(data.task.due_date).toLocaleDateString()}` : null,
-        data.task.assigned_to ? `Assigned to: ${data.task.assigned_to}` : null,
-        data.isParentTask ? 'Has subtasks' : null,
-      ].filter(Boolean);
+        data.priority ? `Priority: ${data.priority}` : null,
+        data.task.description ? `Description: ${data.task.description}` : null,
+        data.task.start_date ? `Start: ${new Date(data.task.start_date).toLocaleDateString()}` : null,
+        data.task.end_date ? `End: ${new Date(data.task.end_date).toLocaleDateString()}` : null,
+        data.isParentTask ? `Has Subtasks: ${data.task.subtasks?.length || 0}` : null,
+        data.task.outgoing?.length ? `Outgoing Dependencies: ${data.task.outgoing.length}` : null,
+        data.task.incoming?.length ? `Incoming Dependencies: ${data.task.incoming.length}` : null,
+      ].filter(Boolean) as string[];
       
       return details.join('\n');
     };
@@ -274,9 +342,20 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
     const flattenTasks = (tasks: Task[]): Task[] => {
       let result: Task[] = [];
       tasks.forEach(task => {
-        result.push(task);
+        // Ensure each task has a valid string ID
+        const taskWithId = {
+          ...task,
+          id: task.id || `task-${Math.random().toString(36).substr(2, 9)}`
+        };
+        result.push(taskWithId);
         if (task.subtasks && task.subtasks.length > 0) {
-          result = result.concat(flattenTasks(task.subtasks));
+          // Ensure subtasks have valid IDs too
+          const subtasksWithIds = task.subtasks.map(subtask => ({
+            ...subtask,
+            id: subtask.id || `subtask-${Math.random().toString(36).substr(2, 9)}`
+          }));
+          taskWithId.subtasks = subtasksWithIds;
+          result = result.concat(flattenTasks(subtasksWithIds));
         }
       });
       return result;
@@ -461,10 +540,11 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
     allTasks.forEach((task: Task) => {
       // 1. Connect parent tasks to their subtasks
       if (task.subtasks && task.subtasks.length > 0) {
-        task.subtasks.forEach((subtask: Task) => {
-          // Basic edge structure: { id: '1-2', source: '1', target: '2' }
+        task.subtasks.forEach((subtask: Task, index: number) => {
+          // Basic edge structure with unique ID including index to avoid duplicates
+          const edgeId = `${task.id}-${subtask.id}-subtask-${index}`;
           flowEdges.push({
-            id: `${task.id}-${subtask.id}`,
+            id: edgeId,
             source: task.id,
             target: subtask.id,
             // Visual enhancements
@@ -488,8 +568,10 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
         const alreadyConnected = parentTask?.subtasks?.some(st => st.id === task.id);
         
         if (parentTask && !alreadyConnected) {
+          // Create a unique edge ID with a timestamp to avoid duplicates
+          const edgeId = `${task.parent_task_id}-${task.id}-parent-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
           flowEdges.push({
-            id: `${task.parent_task_id}-${task.id}`,
+            id: edgeId,
             source: task.parent_task_id,
             target: task.id,
             // Visual enhancements
@@ -505,24 +587,58 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
         }
       }
       
-      // 3. Add edges for specific dependency types if not already connected
-      if (task.dependency_type && task.parent_task_id) {
-        // Skip if already connected through one of the methods above
-        const alreadyConnected = flowEdges.some(edge => 
-          edge.source === task.parent_task_id && edge.target === task.id
-        );
-        
-        if (!alreadyConnected) {
-          // Get styling based on dependency type
-          const dependencyStyle = getDependencyStyle(task.dependency_type);
+      // 3. Process outgoing dependencies
+      if (task.outgoing && task.outgoing.length > 0) {
+        task.outgoing.forEach((dependency, i) => {
+          // Skip if already connected through one of the methods above
+          const alreadyConnected = flowEdges.some(edge => 
+            edge.source === dependency.outgoing_task_id && edge.target === dependency.incoming_task_id
+          );
           
-          flowEdges.push({
-            id: `${task.parent_task_id}-${task.id}-dep`,
-            source: task.parent_task_id,
-            target: task.id,
-            ...dependencyStyle,
-          });
-        }
+          if (!alreadyConnected) {
+            // Get styling based on dependency type
+            const dependencyStyle = getDependencyStyle(dependency.dependency_type);
+            
+            // Create a unique edge ID
+            const edgeId = `outgoing-${dependency.id}-${i}`;
+            
+            // Add edge from this task to the target task
+            flowEdges.push({
+              id: edgeId,
+              source: dependency.outgoing_task_id,
+              target: dependency.incoming_task_id,
+              ...dependencyStyle,
+              data: { dependency }
+            });
+          }
+        });
+      }
+      
+      // 4. Process incoming dependencies (only if not already added via outgoing)
+      if (task.incoming && task.incoming.length > 0) {
+        task.incoming.forEach((dependency, i) => {
+          // Skip if already connected through outgoing dependencies or other methods
+          const alreadyConnected = flowEdges.some(edge => 
+            edge.source === dependency.outgoing_task_id && edge.target === dependency.incoming_task_id
+          );
+          
+          if (!alreadyConnected) {
+            // Get styling based on dependency type
+            const dependencyStyle = getDependencyStyle(dependency.dependency_type);
+            
+            // Create a unique edge ID
+            const edgeId = `incoming-${dependency.id}-${i}`;
+            
+            // Add edge from source task to this task
+            flowEdges.push({
+              id: edgeId,
+              source: dependency.outgoing_task_id,
+              target: dependency.incoming_task_id,
+              ...dependencyStyle,
+              data: { dependency }
+            });
+          }
+        });
       }
     });
     
@@ -530,64 +646,244 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
   }, [tasks]);
 
   return (
-    <Container className="divide-y p-0">
-      <div className="px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-x-4">
-            <Heading level="h2">{t("Task Canvas")}</Heading>
-          </div>
-          <ActionMenu
-            groups={[
-              {
-                actions: [
-                  {
-                    label: t("View Tasks"),
-                    icon: <Eye />,
-                    onClick: () => navigate(`/designs/${design.id}/tasks`),
-                  },
-                ],
-              },
-            ]}
-          />
+    <div className="flex flex-col h-full w-full overflow-hidden">
+      {/* Top bar with category selector and action button */}
+      <div className="p-4 border-b flex justify-between items-center">
+        <div className="flex items-center gap-x-4 w-64">
+          <Select 
+            value={selectedCategory || "none"}
+            onValueChange={(value: string) => {
+              const category = value === "none" ? "" : value;
+              setSelectedCategory(category);
+              setShowTemplates(!!category);
+            }}
+          >
+            <Select.Trigger>
+              <Select.Value placeholder="Select a template category" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="none">Default</Select.Item>
+              {categories.map((category, index) => (
+                <Select.Item key={`category-${index}-${category}`} value={category}>
+                  {category}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
         </div>
+        
+        {selectedCategory && (
+          <Button 
+            variant="secondary" 
+            size="small"
+            onClick={() => navigate(`/designs/${design.id}/tasks/new?category=${selectedCategory}`)}
+          >
+            <Plus className="mr-2" />
+            Create Tasks from Templates
+          </Button>
+        )}
       </div>
-      <div className="px-6 py-4">
-        <RouteFocusModal>
-          <RouteFocusModal.Header></RouteFocusModal.Header>
-          <RouteFocusModal.Title></RouteFocusModal.Title>
-          <RouteFocusModal.Body>
-            <div className="relative h-[700px]" style={{ width: '100%' }}>
-              <ReactFlowProvider>
-                {nodes.length > 0 ? (
-                  <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    nodeTypes={nodeTypes}
-                    fitView
-                    fitViewOptions={{ padding: 0.2 }}
-                    defaultEdgeOptions={{
-                      type: 'smoothstep',
-                      style: { strokeWidth: 3 },
-                      animated: true,
-                    }}
-                    attributionPosition="bottom-right"
-                    minZoom={0.2}
-                    maxZoom={1.5}
-                    defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-                  >
-                    <Background gap={16} size={1} />
-                    <Controls />
-                  </ReactFlow>
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <p className="text-gray-500">{t("No tasks available")}</p>
-                  </div>
-                )}
-              </ReactFlowProvider>
+      
+      {/* Main content area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main task canvas - takes full height */}
+        <div className="flex-1 relative">
+          <ReactFlowProvider>
+            <EnhancedCanvas 
+              nodes={nodes} 
+              edges={edges} 
+              nodeTypes={nodeTypes} 
+              t={t}
+            />
+          </ReactFlowProvider>
+        </div>
+        
+        {/* Template preview sidebar - only shown when category selected */}
+        {selectedCategory && showTemplates && (
+          <div className="w-80 border-l p-4 overflow-auto bg-gray-50">
+            <div className="mb-3 flex items-center justify-between">
+              <Text className="text-sm font-medium">Template Preview</Text>
+              <Text className="text-xs text-gray-500">{filteredTemplates.length} templates</Text>
             </div>
-          </RouteFocusModal.Body>
-        </RouteFocusModal>
+            
+            {/* Vertical list of templates */}
+            <div className="space-y-3 mb-4">
+              {filteredTemplates.map((template, index) => (
+                <div 
+                  key={template.id || index}
+                  className="p-3 bg-white border border-gray-200 rounded-md shadow-sm"
+                >
+                  <div className="font-medium text-sm mb-1">{template.name}</div>
+                  {template.category && (
+                    <div className="text-xs text-gray-500 mb-1">
+                      Category: {typeof template.category === 'string' ? template.category : 
+                        (template.category as any)?.name || 'Unknown'}
+                    </div>
+                  )}
+                  {template.priority && (
+                    <div className="text-xs inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 mr-1">
+                      {template.priority}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            {/* Dependency visualization */}
+            <div className="border border-gray-200 rounded-md p-3 bg-white mb-3">
+              <Text className="text-xs font-medium mb-2">Dependency Visualization</Text>
+              <TaskTemplateCanvas 
+                templates={filteredTemplates}
+                readOnly={true}
+                className="h-[200px] border-0"
+              />
+            </div>
+            
+            <Text className="text-xs text-gray-500 italic">
+              This preview shows how tasks will be created and linked when using templates from the selected category.
+            </Text>
+          </div>
+        )}
       </div>
-    </Container>
+    </div>
   );
 }
+
+// Interface for EnhancedCanvas props
+interface EnhancedCanvasProps {
+  nodes: Node[];
+  edges: Edge[];
+  nodeTypes: any;
+  t: (key: string, fallback: string) => string;
+}
+
+// Enhanced canvas component with zoom controls
+const EnhancedCanvas = ({ nodes, edges, nodeTypes, t }: EnhancedCanvasProps) => {
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const reactFlowInstance = useRef<any>(null);
+  
+  // For debugging
+  console.log('EnhancedCanvas rendering with nodes:', nodes.length, 'edges:', edges.length);
+  
+  // Zoom functions
+  const zoomIn = () => {
+    if (reactFlowInstance.current && zoomLevel < 1.5) {
+      const newZoom = Math.min(zoomLevel + 0.25, 1.5);
+      reactFlowInstance.current.zoomTo(newZoom);
+      setZoomLevel(newZoom);
+    }
+  };
+
+  const zoomOut = () => {
+    if (reactFlowInstance.current && zoomLevel > 0.5) {
+      const newZoom = Math.max(zoomLevel - 0.25, 0.5);
+      reactFlowInstance.current.zoomTo(newZoom);
+      setZoomLevel(newZoom);
+    }
+  };
+
+  const resetZoom = () => {
+    if (reactFlowInstance.current) {
+      reactFlowInstance.current.fitView({ padding: 0.2 });
+      setZoomLevel(1);
+    }
+  };
+  
+  const handleZoomChange = (value: number) => {
+    if (reactFlowInstance.current) {
+      reactFlowInstance.current.zoomTo(value / 100);
+      setZoomLevel(value / 100);
+    }
+  };
+
+  return (
+    <div className="h-[400px] w-full">
+      <div className="relative h-full w-full">
+        {/* The actual ReactFlow component directly renders the flow */}
+        {nodes.length > 0 ? (
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            defaultEdgeOptions={{
+              type: 'smoothstep',
+              style: { strokeWidth: 3 },
+              animated: true,
+            }}
+            attributionPosition="bottom-right"
+            minZoom={0.2}
+            maxZoom={1.5}
+            defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+            className="h-full w-full"
+            style={{ borderRadius: 0 }} /* Remove rounded corners */
+            onInit={(instance) => {
+              reactFlowInstance.current = instance;
+            }}
+          >
+            <Background gap={16} size={1} />
+          </ReactFlow>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <p className="text-gray-500">{t("No tasks available", "No tasks available")}</p>
+          </div>
+        )}
+        <div className="bg-ui-bg-base shadow-borders-base text-ui-fg-subtle absolute bottom-4 left-6 flex h-7 items-center overflow-hidden rounded-md">
+          <div className="flex items-center">
+            <button
+              onClick={zoomIn}
+              type="button"
+              disabled={zoomLevel >= 1.5}
+              aria-label="Zoom in"
+              className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed border-r p-1 outline-none"
+            >
+              <PlusMini />
+            </button>
+            <div>
+              <DropdownMenu>
+                <DropdownMenu.Trigger className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed flex w-[50px] items-center justify-center border-r p-1 outline-none">
+                  <Text
+                    as="span"
+                    size="xsmall"
+                    leading="compact"
+                    className="select-none tabular-nums"
+                  >
+                    {Math.round(zoomLevel * 100)}%
+                  </Text>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                  {[50, 75, 100, 125, 150].map((value) => (
+                    <DropdownMenu.Item
+                      key={value}
+                      onClick={() => handleZoomChange(value)}
+                    >
+                      {value}%
+                    </DropdownMenu.Item>
+                  ))}
+                </DropdownMenu.Content>
+              </DropdownMenu>
+            </div>
+            <button
+              onClick={zoomOut}
+              type="button"
+              disabled={zoomLevel <= 0.5}
+              aria-label="Zoom out"
+              className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed border-r p-1 outline-none"
+            >
+              <MinusMini />
+            </button>
+          </div>
+          <button
+            onClick={resetZoom}
+            type="button"
+            aria-label="Reset canvas"
+            className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed p-1 outline-none"
+          >
+            <ArrowPathMini />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
