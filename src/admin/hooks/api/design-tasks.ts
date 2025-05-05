@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-query";
 import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
+import { designQueryKeys } from "./designs";
 
 // Types from validators
 export type TaskPriority = "low" | "medium" | "high";
@@ -53,6 +54,7 @@ export interface CreateDesignTaskPayload {
   parent_task_id?: string;
   child_tasks?: ChildTask[];
   metadata?: Record<string, any>;
+  dependency_type?: DependencyType;
 }
 
 export interface UpdateDesignTaskPayload {
@@ -186,13 +188,20 @@ export const useUpdateDesignTask = (
       sdk.client.fetch<AdminDesignTaskResponse>(
         `/admin/designs/${designId}/tasks/${taskId}`,
         {
-          method: "PUT",
+          method: "POST",
           body: payload,
         }
       ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.detail(taskId) });
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.lists() });
+      
+      // Also invalidate the design query to ensure design data is refreshed
+      // when tasks are modified
+      queryClient.invalidateQueries({ 
+        queryKey: designQueryKeys.detail(designId)
+      });
+      
       options?.onSuccess?.(data, variables, context);
     },
     ...options,

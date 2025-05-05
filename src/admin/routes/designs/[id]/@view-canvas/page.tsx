@@ -29,8 +29,10 @@ const ViewCanvasBasedTasks = () => {
   }
 
   return (
-    
+    <RouteFocusModal>
+       <RouteFocusModal.Header></RouteFocusModal.Header>
         <DesignTaskCanvasSection design={design} />
+    </RouteFocusModal>
         
   );
 };
