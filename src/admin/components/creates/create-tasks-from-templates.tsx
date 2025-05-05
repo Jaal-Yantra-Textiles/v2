@@ -6,7 +6,6 @@ import {
   Heading,
   Text,
   toast,
-  usePrompt,
   Select,
   Badge,
   Container,
@@ -35,7 +34,6 @@ export const CreateTasksFromTemplates = () => {
   const { t } = useTranslation()
   const { id: designId } = useParams()
   const { handleSuccess } = useRouteModal()
-  const prompt = usePrompt()
   const { task_templates: templates = [] } = useTaskTemplates()
   const { mutateAsync: createTasks, isPending } = useCreateDesignTask(designId!)
 
@@ -130,17 +128,6 @@ export const CreateTasksFromTemplates = () => {
   const onSubmit = handleSubmit(async (data) => {
     if (!selectedTemplates.length) return;
     
-    // Confirm with user before creating tasks
-    const confirmed = await prompt({
-      title: t("tasks.templates.create.confirmTitle", "Confirm Task Creation"),
-      description: t("tasks.templates.create.confirmDescription", 
-        `This will create ${selectedTemplates.length} tasks from the "${selectedCategory?.name}" category with ${data.dependency_type} dependencies.`),
-      confirmText: t("actions.create", "Create"),
-      cancelText: t("actions.cancel", "Cancel"),
-    })
-
-    if (!confirmed) return
-
     try {
       // Create tasks from templates
       await createTasks(
