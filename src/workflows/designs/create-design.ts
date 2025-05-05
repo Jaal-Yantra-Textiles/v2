@@ -3,6 +3,7 @@ import {
   createStep,
   StepResponse,
   WorkflowResponse,
+  createHook,
 } from "@medusajs/framework/workflows-sdk";
 import DesignService from "../../modules/designs/service";
 import { DESIGN_MODULE } from "../../modules/designs";

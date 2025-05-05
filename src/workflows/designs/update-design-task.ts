@@ -3,12 +3,14 @@ import {
   createStep,
   StepResponse,
   WorkflowResponse,
+  createHook
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { TASKS_MODULE } from "../../modules/tasks"
 import designTasksLink from "../../links/design-tasks-link"
 import TaskService from "../../modules/tasks/service"
 import { refetchEntity } from "@medusajs/framework"
+
 
 enum Status {
   pending = "pending",
@@ -91,6 +93,16 @@ export const updateDesignTaskWorkflow = createWorkflow(
   (input: UpdateDesignTaskInput) => {
     const validateStep = validateTaskStep(input)
     const updateStep = updateTaskStep(input)
-    return new WorkflowResponse(updateStep)
+    const designTaskUpdated = createHook(
+      "designTaskUpdated", 
+      { 
+        taskID: input.taskId, 
+        designId: input.designId,
+        update: updateStep
+      }
+    )
+    return new WorkflowResponse(updateStep, {
+      hooks: [designTaskUpdated]
+    })
   }
 )

@@ -3,7 +3,8 @@ import {
   createStep,
   transform,
   StepResponse,
-  WorkflowResponse
+  WorkflowResponse,
+  createHook
 } from "@medusajs/framework/workflows-sdk"
 import { LinkDefinition } from "@medusajs/framework/types"
 import { DESIGN_MODULE } from "../../modules/designs"
@@ -101,7 +102,16 @@ export const createTasksFromTemplatesWorkflow = createWorkflow(
       designId: input.designId
     });
 
+    const designTaskCreated = createHook(
+      "designTaskCreated", 
+      { 
+       designId: input.designId,
+       tasks: taskDataStep
+      }
+    )
         
-    return new WorkflowResponse([createTasksStep, taskDataStep, createLinksStep]);
+    return new WorkflowResponse([createTasksStep, taskDataStep, createLinksStep], {
+      hooks: [designTaskCreated]
+    });
   }
 )

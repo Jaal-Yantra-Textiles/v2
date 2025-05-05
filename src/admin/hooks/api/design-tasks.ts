@@ -166,6 +166,13 @@ export const useCreateDesignTask = (
       ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.lists() });
+      
+      // Also invalidate the design query to ensure design data is refreshed
+      // when tasks are created
+      queryClient.invalidateQueries({ 
+        queryKey: designQueryKeys.detail(designId)
+      });
+      
       options?.onSuccess?.(data, variables, context);
     },
     ...options,
