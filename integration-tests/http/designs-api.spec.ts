@@ -236,7 +236,7 @@ medusaIntegrationTestRunner({
             headers
           );
 
-          expect(response.status).toBe(204);
+          expect(response.status).toBe(201);
 
           // Verify deletion
           const getResponse = await api

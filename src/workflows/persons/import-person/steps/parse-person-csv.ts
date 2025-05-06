@@ -21,8 +21,11 @@ export const parsePersonCsvStepId = "parse-person-csv"
 export const parsePersonCsvStep = createStep(
   parsePersonCsvStepId,
   async (fileContent: ParsePersonCsvStepInput, { container }) => {
+    console.log('Starting CSV parsing with content length:', fileContent.length);
+    
     // 1. Convert CSV to JSON
     const csvPersons = convertCsvToJson(fileContent)
+    console.log(`Parsed ${csvPersons.length} records from CSV:`, JSON.stringify(csvPersons.slice(0, 2), null, 2));
 
     // Normalize field names and validate required fields
     const requiredFields = ["email", "first_name", "last_name"]
@@ -73,6 +76,8 @@ export const parsePersonCsvStep = createStep(
       personTypes,
       tags,
     })
+    
+    console.log(`Normalized ${normalizedData.length} records:`, JSON.stringify(normalizedData.slice(0, 2), null, 2));
 
     return new StepResponse(normalizedData)
   }

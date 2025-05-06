@@ -11,7 +11,7 @@ import { PERSON_MODULE } from "../../modules/person";
 type RetrieveAddressesStepInput = {
   person_id: string;
   filters?: Record<string, any>;
-  pagination: {
+  pagination?: {
     offset: number;
     limit: number;
   };
@@ -23,15 +23,20 @@ export const retrieveAddressesStep = createStep(
   "retrieve-addresses-step",
   async (input: RetrieveAddressesStepInput, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
-    const addresses = await personService.listAndCountAddresses(input.filters);
+    // Apply person_id filter to only get addresses for the specific person
+    const filters = {
+      ...input.filters,
+      person_id: input.person_id
+    };
+    const addresses = await personService.listAndCountAddresses(filters);
     return new StepResponse(addresses);
   }
 );
 
 type RetrieveAddressesWorkFlowInput = {
-  person_id: string;
+  person_id: string;  
   filters?: Record<string, any>;
-  pagination: {
+  pagination?: {
     offset: number;
     limit: number;
   };

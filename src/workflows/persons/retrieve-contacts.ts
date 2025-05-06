@@ -5,7 +5,7 @@ import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@med
 export type RetrieveContactsStepInput = {
   person_id: string;
   filters?: Record<string, any>;
-  pagination: {
+  pagination?: {
     offset: number;
     limit: number;
   };
@@ -14,7 +14,7 @@ export type RetrieveContactsStepInput = {
 export type RetrieveContactsWorkFlowInput = {
   person_id: string;
   filters?: Record<string, any>;
-  pagination: {
+  pagination?: {
     offset: number;
     limit: number;
   };
@@ -29,7 +29,11 @@ export const retrieveContactsStep = createStep(
   "retrieve-contacts-step",
   async (input: RetrieveContactsStepInput, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
-    const contacts = await personService.listAndCountContactDetails(input.filters);
+    const filters = {
+      ...input.filters,
+      person_id: input.person_id
+    };
+    const contacts = await personService.listAndCountContactDetails(filters);
     return new StepResponse(contacts);
   },
 );
