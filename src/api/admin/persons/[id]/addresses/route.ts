@@ -46,7 +46,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const personId = req.params.id;
 
   try {
-    const { result, errors } = await retrieveAddressesWorkflow.run({
+    const { result, errors } = await retrieveAddressesWorkflow(req.scope).run({
       input: {
         person_id: personId,
       },

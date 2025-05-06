@@ -51,7 +51,7 @@ export const GET = async (
   const personId = req.params.id;
 
   try {
-    const { result, errors } = await retrieveContactsWorkflow.run({
+    const { result, errors } = await retrieveContactsWorkflow(req.scope).run({
       input: {
         person_id: personId,
       },
