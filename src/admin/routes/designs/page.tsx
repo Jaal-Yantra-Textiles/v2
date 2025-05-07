@@ -4,12 +4,13 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ToolsSolid, PencilSquare } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
 import { createColumnHelper } from "@tanstack/react-table";
 import { AdminDesign, useDesigns } from "../../hooks/api/designs";
 import { useDesignsTableColumns } from "../../hooks/columns/useDesignsTableColumns";
 import { AdminDesignsQuery } from "../../hooks/api/designs";
+import debounce from "lodash/debounce";
 
 const columnHelper = createColumnHelper<AdminDesign>();
 export const useColumns = () => {
@@ -52,6 +53,22 @@ const DesignsPage = () => {
   });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
+  
+  // Debounced filter change handler to prevent rapid re-renders and API calls
+  const handleFilterChange = useCallback(
+    debounce((newFilters: DataTableFilteringState) => {
+      setFiltering(newFilters);
+    }, 300),
+    []
+  );
+
+  // Debounced search change handler
+  const handleSearchChange = useCallback(
+    debounce((newSearch: string) => {
+      setSearch(newSearch);
+    }, 300),
+    []
+  );
   
   // Calculate the offset based on pagination
   const offset = pagination.pageIndex * pagination.pageSize;
@@ -171,11 +188,11 @@ const DesignsPage = () => {
     },
     search: {
       state: search,
-      onSearchChange: setSearch,
+      onSearchChange: handleSearchChange,
     },
     filtering: {
       state: filtering,
-      onFilteringChange: setFiltering,
+      onFilteringChange: handleFilterChange,
     },
   });
 

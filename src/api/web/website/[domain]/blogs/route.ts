@@ -26,7 +26,7 @@ export const GET = async (
       status: page.status,
       page_type: page.page_type,
       published_at: page.published_at,
-      metadata: page.metadata,
+      public_metadata: page.public_metadata,
       blocks: page.blocks?.map(block => ({
         id: block.id,
         type: block.type,

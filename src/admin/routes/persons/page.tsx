@@ -1,12 +1,13 @@
 import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, DropdownMenu, Button } from "@medusajs/ui";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { Users, ChevronDownMini } from "@medusajs/icons";
+import { Users } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { usePersons } from "../../hooks/api/persons";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { usePersonTableColumns } from "../../hooks/columns/usePersonTableColumns";
 import { AdminPerson, AdminPersonsListParams } from "../../hooks/api/personandtype";
+import debounce from "lodash/debounce";
 
 
 
@@ -30,6 +31,22 @@ const PersonsPage = () => {
   });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
+  
+  // Debounced filter change handler to prevent rapid re-renders and API calls
+  const handleFilterChange = useCallback(
+    debounce((newFilters: DataTableFilteringState) => {
+      setFiltering(newFilters);
+    }, 300),
+    []
+  );
+
+  // Debounced search change handler
+  const handleSearchChange = useCallback(
+    debounce((newSearch: string) => {
+      setSearch(newSearch);
+    }, 300),
+    []
+  );
   
   // Calculate the offset based on pagination
   const offset = pagination.pageIndex * pagination.pageSize;
@@ -114,11 +131,11 @@ const PersonsPage = () => {
     },
     search: {
       state: search,
-      onSearchChange: setSearch,
+      onSearchChange: handleSearchChange,
     },
     filtering: {
       state: filtering,
-      onFilteringChange: setFiltering,
+      onFilteringChange: handleFilterChange,
     },
   });
 
@@ -127,7 +144,7 @@ const PersonsPage = () => {
   }
 
   return (
-    <div>
+    <>
       <Container className="divide-y p-0">
         <DataTable instance={table}>
           {/* Header section with title and create button */}
@@ -161,7 +178,7 @@ const PersonsPage = () => {
         </DataTable>
       </Container>
       <Outlet />
-    </div>
+      </>
   );
 };
 

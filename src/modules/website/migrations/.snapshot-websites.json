@@ -303,6 +303,15 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "public_metadata": {
+          "name": "public_metadata",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
         "website_id": {
           "name": "website_id",
           "type": "text",

@@ -147,10 +147,7 @@ medusaIntegrationTestRunner({
         // Verify page sensitive fields are not exposed
         const page = response.data.pages[0];
         expect(page).not.toHaveProperty("id");
-        // @todo: fix this as metadata is exposed in the response as we 
-        // are using it for something that we need maybe adding one more model
-        // field later.
-        // expect(page).not.toHaveProperty("metadata");
+        expect(page).not.toHaveProperty("metadata");
         expect(page).not.toHaveProperty("created_at");
         expect(page).not.toHaveProperty("updated_at");
       });
