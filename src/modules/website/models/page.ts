@@ -29,6 +29,10 @@ const Page = model.define("page", {
   published_at: model.dateTime().nullable(),
   last_modified: model.dateTime(),
   metadata: model.json().nullable(),
+
+  // Add public_metadata related stuff
+
+  public_metadata: model.json().nullable(),
   
   // Relationship with Website
   website: model.belongsTo(() => Website, { mappedBy: "pages" }),
