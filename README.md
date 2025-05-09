@@ -20,38 +20,13 @@ Medo solves these challenges by bringing everyone in the textile production chai
 
 ---
 
-## Key Modules
+## Key Solutions
 
-### 1. Task Templates & Categories
-Design reusable task blueprints with structured metadata and categorization.
-- Create templates with consistent **requirements**, **priorities**, and **durations**
-- Organize tasks into logical categories for better workflow management
-- Add custom metadata for industry-specific requirements
-
-### 2. Task Management & Dependencies
-Track the full lifecycle of tasks from creation to completion.
-- Build complex workflows with **parent-child relationships** and dependencies
-- Monitor task progress with status tracking and notifications
-- Assign tasks to team members and partners
-
-### 3. Person & Partner Management
-Store and manage data for team members, partners, vendors, and more in one place.
-- Centralize **contact information**, **roles**, and **metadata** about each stakeholder
-- Maintain complete address and contact history
-- Assign tasks and track performance metrics
-
-### 4. Textile Design & Production Tracking
-Manage the complete lifecycle of textile and garment designs with industry-specific tools.
-- Create detailed records of design specs, color palettes, materials, and technical drawings
-- Monitor production stages including pattern making, cutting, dyeing, stitching, and finishing
-- Track material consumption, wastage, and efficiency metrics
-- Generate comprehensive technical packets and bill of materials (BOM)
-
-### 5. Website & Content Management
-Manage your online presence with integrated content tools.
-- Create and publish blogs and pages
-- Customize content with flexible block structure
-- Integrated with your workflow systems
+- Develop full fledged inventory lines with orders management 
+- Integrated partner workflow where each individual partner can respond to individual tasks or orders
+- Design creatives , store pre-production related images and mood boards
+- Manage your personal/organizational relationship from single place.
+- Track individual or complete steps of the designs with partner workflows.
 
 ---
 

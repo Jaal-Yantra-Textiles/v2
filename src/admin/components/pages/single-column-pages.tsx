@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import { PageProps } from "../layout/types";
 import { MetadataSection } from "../common/metadata-section";
 import { JsonViewSection } from "../common/json-view-section";
+import { PublicMetadataSection } from "../common/public-metadata-section";
 
 export const SingleColumnPage = <TData,>({
   children,
@@ -23,6 +24,10 @@ export const SingleColumnPage = <TData,>({
    * Whether to show metadata view of the data. Defaults to false.
    */
   showMetadata,
+  /**
+   * Whether to show public metadata view of the data. Defaults to false.
+   */
+  showPublicMetadata,
 }: PageProps<TData>) => {
   const { before = [], after = [] } = widgets || {};
 
@@ -48,6 +53,16 @@ export const SingleColumnPage = <TData,>({
     showMetadata = false;
   }
 
+  if (showPublicMetadata && !data) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        "`showPublicMetadata` is true but no data is provided. To display public metadata, provide data prop.",
+      );
+    }
+
+    showPublicMetadata = false;
+  }
+
   return (
     <div className="flex flex-col gap-y-3">
       {before.map((Component, i) => {
@@ -59,7 +74,7 @@ export const SingleColumnPage = <TData,>({
       })}
       {showMetadata && <MetadataSection data={data!} />}
       {showJSON && <JsonViewSection data={data!} />}
-
+      {showPublicMetadata && <PublicMetadataSection data={data!} />}
       {hasOutlet && <Outlet />}
     </div>
   );

@@ -31,6 +31,7 @@ const PageDetailPage = () => {
         data={page}
         showJSON
         showMetadata
+        showPublicMetadata
       >
         <TwoColumnPage.Main>
           <PageGeneralSection page={page} websiteId={id!}/>

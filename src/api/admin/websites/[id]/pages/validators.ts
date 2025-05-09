@@ -29,6 +29,7 @@ const pageBaseSchema = z.object({
   }),
   metadata: z.record(z.unknown()).optional(),
   genMetaDataLLM: z.boolean().optional().default(false),
+  public_metadata: z.record(z.unknown()).optional(),
 });
 
 export const pageSchema = pageBaseSchema;

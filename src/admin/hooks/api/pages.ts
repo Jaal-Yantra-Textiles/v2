@@ -58,6 +58,7 @@ export type AdminPage = {
   blocks?: Block[];
   created_at: Date;
   updated_at: Date;
+  public_metadata?: Record<string, unknown>;
 };
 
 export type CreateAdminPagePayload = {
@@ -72,6 +73,7 @@ export type CreateAdminPagePayload = {
   published_at?: string;
   metadata?: Record<string, unknown>| null;
   blocks?: Block[];
+  public_metadata?: Record<string, unknown>| null;
 };
 
 export type CreateAdminPagesPayload = {

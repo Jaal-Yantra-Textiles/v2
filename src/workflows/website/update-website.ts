@@ -20,7 +20,7 @@ export type UpdateWebsiteStepInput = {
   supported_languages?: Record<string, unknown>;
   favicon_url?: string;
   analytics_id?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
 };
 
 export const updateWebsiteStep = createStep(
