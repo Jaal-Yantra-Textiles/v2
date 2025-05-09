@@ -231,7 +231,7 @@ export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
       <DataTable instance={table}>
         <DataTable.Toolbar className="flex justify-between items-center">
           <div>
-            <Heading>{t("Contact Details")}</Heading>
+            <Heading level="h2">{t("Contact Details")}</Heading>
             <Text className="text-ui-fg-subtle" size="small">
               Phone numbers and contact information for this person
             </Text>

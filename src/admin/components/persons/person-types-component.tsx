@@ -1,4 +1,4 @@
-import { Container, Text } from "@medusajs/ui";
+import { Container, Heading, Text } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { AdminPersonType } from "../../hooks/api/personandtype";
 import { Plus } from "@medusajs/icons";
@@ -19,9 +19,9 @@ export const PersonTypesComponent = ({
   return (
     <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
-        <Text size="base" weight="plus">
+        <Heading level="h2">
           {t("sections.personTypes", "Person Types")}
-        </Text>
+        </Heading>
         <ActionMenu
           groups={[
             {

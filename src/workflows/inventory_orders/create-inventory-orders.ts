@@ -28,6 +28,7 @@ export interface CreateInventoryOrderInput {
   expected_delivery_date: Date | undefined;
   order_date: Date | undefined;
   shipping_address: Record<string, unknown>;
+  stock_location_id: string;
   metadata?: Record<string, unknown>;
   order_lines: InventoryOrderLineInput[];
 }
@@ -105,12 +106,37 @@ export const linkInventoryItemsWithLinesStep = createStep(
   }
 );
 
+export const linkInventoryOrderWithStockLocation = createStep(
+  "link-inventory-order-with-stock-location",
+  async (input: { order_id: string; stock_location_id: string }, { container }) => {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const links: LinkDefinition[] = [];
+    links.push({
+      [ORDER_INVENTORY_MODULE]: {
+        inventory_orders_id: input.order_id,
+      },
+      [Modules.STOCK_LOCATION]: {
+        stock_location_id: input.stock_location_id,
+      },
+      data: {
+        order_id: input.order_id,
+        stock_location_id: input.stock_location_id,
+      },
+    });
+    await remoteLink.create(links);
+    return new StepResponse(links);
+  }
+)
+
 
 
 
 
 export const createInventoryOrderWorkflow = createWorkflow(
-  "create-inventory-order-workflow",
+  {
+    name: "create-inventory-order-workflow",
+    store: true,
+  },
   (input: CreateInventoryOrderInput) => {
     // Step 1: Validate inventory items
     const validated = validateInventoryStep(input);
@@ -130,7 +156,10 @@ export const createInventoryOrderWorkflow = createWorkflow(
       })
     );
     const links = linkInventoryItemsWithLinesStep(linkInput);
-
+    linkInventoryOrderWithStockLocation({
+      order_id: created.order.id,
+      stock_location_id: input.stock_location_id,
+    });
     // Step 4: Use transform to shape the final response
     const response = transform(
       { links, created },

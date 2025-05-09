@@ -17,6 +17,22 @@ export interface OrderLine {
   price: number;
 }
 
+export interface StockLocations {
+  id: string,
+  name: string, 
+  address: {
+    id: string
+    address_1: string,
+    address_2: string,
+    company: string,
+    phone: string,
+    province: string,
+    postal_code: string,
+    city: string, 
+    country_code: string
+  },
+}
+
 export interface AdminInventoryOrder {
   id: string;
   status: string;
@@ -25,6 +41,7 @@ export interface AdminInventoryOrder {
   expected_delivery_date: string;
   order_date: string;
   shipping_address?: Record<string, any>;
+  stock_locations: StockLocations[]
   order_lines: OrderLine[];
   created_at?: string;
   updated_at?: string;

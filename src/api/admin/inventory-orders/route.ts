@@ -28,7 +28,7 @@ export const POST = async (
     req.scope,
   );
 
-  res.status(201).json( inventoryOrder );
+  res.status(201).json( {inventoryOrder} );
 };
 
 export const GET = async (
@@ -37,7 +37,6 @@ export const GET = async (
 ) => {
   // Validate and parse query params
   const query = req.validatedQuery;
-
   // Prepare workflow input
   const filters = {
     status: query.status as InventoryOrderStatus,
@@ -45,6 +44,7 @@ export const GET = async (
     total_price: query.total_price as number,
     expected_delivery_date: query.expected_delivery_date as Date,
     order_date: query.order_date as Date,
+    id: query.q as string
     // Add more fields as needed
   };
   const pagination = {

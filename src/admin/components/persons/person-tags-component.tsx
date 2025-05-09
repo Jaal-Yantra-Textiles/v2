@@ -190,7 +190,7 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
       <div className="px-4 md:px-6 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-y-2">
           <div>
-            <Heading className="text-xl md:text-2xl">{t("Tags")}</Heading>
+            <Heading level="h2">{t("Tags")}</Heading>
             <Text className="text-ui-fg-subtle mt-1" size="small">
               Tags associated with this person
             </Text>

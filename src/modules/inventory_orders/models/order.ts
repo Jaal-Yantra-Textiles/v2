@@ -2,7 +2,7 @@ import { model } from "@medusajs/framework/utils";
 import OrderLine from "./orderline";
 
 const InventoryOrder = model.define("inventory_orders", {
-  id: model.id().primaryKey(),
+  id: model.id({prefix: 'inv_order'}).primaryKey(),
   quantity: model.number(),
   total_price: model.bigNumber(),
   status: model.enum([
@@ -17,6 +17,8 @@ const InventoryOrder = model.define("inventory_orders", {
   orderlines: model.hasMany(() => OrderLine),
   metadata: model.json().nullable(),
   shipping_address: model.json().nullable(),
+}).cascades({
+  delete: ['orderlines']
 });
 
 export default InventoryOrder;

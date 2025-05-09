@@ -1,4 +1,4 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, DropdownMenu, Button } from "@medusajs/ui";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Button } from "@medusajs/ui";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { Users } from "@medusajs/icons";

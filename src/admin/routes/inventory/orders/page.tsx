@@ -4,10 +4,11 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ToolsSolid, PencilSquare } from "@medusajs/icons";
 import CreateButton from "../../../components/creates/create-button";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { EntityActions } from "../../../components/persons/personsActions";
 import { createColumnHelper } from "@tanstack/react-table";
-import { AdminInventoryOrder, useInventoryOrders } from "../../../hooks/api/inventory-orders";
+import { AdminInventoryOrder, AdminInventoryOrdersQuery, useInventoryOrders } from "../../../hooks/api/inventory-orders";
+import { debounce } from "lodash";
 
 const columnHelper = createColumnHelper<AdminInventoryOrder>();
 export const useColumns = () => {
@@ -70,12 +71,22 @@ const InventoryOrdersPage = () => {
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
 
-  const offset = pagination.pageIndex * pagination.pageSize;
+  const handleFilterChange = useCallback(
+      debounce((newFilters: DataTableFilteringState) => {
+        setFiltering(newFilters);
+      }, 300),
+      []
+    );
+  
+    // Debounced search change handler
+    const handleSearchChange = useCallback(
+      debounce((newSearch: string) => {
+        setSearch(newSearch);
+      }, 300),
+      []
+    );
 
-  // Defensive: safely extract filter values for API
-  const status = typeof filtering.status === "string" ? filtering.status : undefined;
-  const quantity = typeof filtering.quantity === "number" ? filtering.quantity : undefined;
-  const order_date = typeof filtering.order_date === "string" ? filtering.order_date : undefined;
+  const offset = pagination.pageIndex * pagination.pageSize;
 
   const {
     inventory_orders,
@@ -87,9 +98,38 @@ const InventoryOrdersPage = () => {
     {
       limit: pagination.pageSize,
       offset: offset,
-      status,
-      quantity,
-      order_date,
+      q: search || undefined,
+      // Process filters dynamically like in PersonsPage
+      ...(Object.keys(filtering).length > 0 ? 
+        Object.entries(filtering).reduce((acc: AdminInventoryOrdersQuery, [key, value]) => {
+          if (!value) return acc;
+          
+          // Handle different filter types appropriately
+          if (key === 'status') {
+            // Handle status which might be an array from multi-select
+            if (Array.isArray(value)) {
+              // Take the first value if it's an array
+              if (value.length > 0) {
+                acc.status = value[0] as string;
+              }
+            } else {
+              acc.status = value as string;
+            }
+          } else if (key === 'quantity') {
+            // Convert string to number for quantity filter
+            if (Array.isArray(value)) {
+              // Take the first value if it's an array
+              if (value.length > 0) {
+                acc.quantity = Number(value[0]);
+              }
+            } else {
+              acc.quantity = Number(value);
+            }
+          } else if (key === 'order_date') {
+            acc.order_date = value as string;
+          }
+          return acc;
+        }, {} as AdminInventoryOrdersQuery) : {}),
     },
     {
       placeholderData: keepPreviousData,
@@ -144,11 +184,11 @@ const InventoryOrdersPage = () => {
     },
     search: {
       state: search,
-      onSearchChange: setSearch,
+      onSearchChange: handleSearchChange,
     },
     filtering: {
       state: filtering,
-      onFilteringChange: setFiltering,
+      onFilteringChange: handleFilterChange,
     },
   });
 
