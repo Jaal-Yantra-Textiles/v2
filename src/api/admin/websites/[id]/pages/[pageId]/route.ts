@@ -63,10 +63,6 @@ export const PUT = async (
     console.warn("Error reported at", errors);
     throw errors;
   }
-
-  console.log(result)
-
-  
   const page = await refetchPage(result.id, websiteId, req.scope, ["*"]);
 
   res.status(200).json({ page });

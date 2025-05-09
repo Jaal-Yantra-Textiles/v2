@@ -12,4 +12,5 @@ export interface PageProps<TData> {
   showJSON?: boolean;
   showMetadata?: boolean;
   hasOutlet?: boolean;
+  showPublicMetadata?: boolean;
 }

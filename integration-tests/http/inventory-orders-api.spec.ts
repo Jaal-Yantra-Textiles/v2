@@ -6,6 +6,7 @@ medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let headers: any;
     let inventoryItemId: string;
+    let stockLocationId: string;
 
     beforeEach(async () => {
       const container = getContainer();
@@ -20,7 +21,15 @@ medusaIntegrationTestRunner({
       const response = await api.post("/admin/inventory-items", newInventory, headers);
       expect(response.status).toBe(200);
       inventoryItemId = response.data.inventory_item.id;
+      const stockLocations = {
+        name: 'Main Warehouse'
+      }
+      const stockLocation = await api.post("/admin/stock-locations", stockLocations, headers);
+      expect(stockLocation.status).toBe(200);
+      stockLocationId = stockLocation.data.stock_location.id;
+
     });
+
 
     describe("POST /admin/inventory-orders", () => {
       it("should create an inventory order with valid data", async () => {
@@ -34,15 +43,17 @@ medusaIntegrationTestRunner({
           expected_delivery_date: new Date().toISOString(),
           order_date: new Date().toISOString(),
           shipping_address: {},
+          stock_location_id: stockLocationId,
         };
         
         const res = await api.post("/admin/inventory-orders", orderPayload, headers);
         expect(res.status).toBe(201);
+
         expect(res.data).toBeDefined();
-        expect(Array.isArray(res.data.orderlines)).toBe(true);
-        expect(res.data.orderlines.length).toBe(1);
+        expect(Array.isArray(res.data.inventoryOrder.orderlines)).toBe(true);
+        expect(res.data.inventoryOrder.orderlines.length).toBe(1);
         
-        expect(res.data.orderlines[0].inventory_item.id).toBe(inventoryItemId);
+        expect(res.data.inventoryOrder.orderlines[0].inventory_items[0].id).toBe(inventoryItemId);
       });
 
       it("should fail with missing required fields", async () => {
@@ -62,6 +73,7 @@ medusaIntegrationTestRunner({
           expected_delivery_date: new Date().toISOString(),
           order_date: new Date().toISOString(),
           shipping_address: {},
+          stock_location_id: stockLocationId,
         };
 
         const res = await api.post("/admin/inventory-orders", orderPayload, headers).catch((err) => err.response);
@@ -80,6 +92,7 @@ medusaIntegrationTestRunner({
           expected_delivery_date: new Date().toISOString(),
           order_date: new Date().toISOString(),
           shipping_address: {},
+          stock_location_id: stockLocationId,
         };
 
         const res = await api.post("/admin/inventory-orders", orderPayload, headers).catch((err) => err.response);
@@ -102,6 +115,7 @@ medusaIntegrationTestRunner({
             expected_delivery_date: new Date("2025-01-01").toISOString(),
             order_date: new Date("2025-01-01").toISOString(),
             shipping_address: {},
+            stock_location_id: stockLocationId,
           },
           {
             order_lines: [],
@@ -111,6 +125,7 @@ medusaIntegrationTestRunner({
             expected_delivery_date: new Date("2025-02-01").toISOString(),
             order_date: new Date("2025-02-01").toISOString(),
             shipping_address: {},
+            stock_location_id: stockLocationId,
           },
           {
             order_lines: [],
@@ -120,6 +135,7 @@ medusaIntegrationTestRunner({
             expected_delivery_date: new Date("2025-03-01").toISOString(),
             order_date: new Date("2025-03-01").toISOString(),
             shipping_address: {},
+            stock_location_id: stockLocationId,
           },
         ];
         createdOrders = [];
@@ -228,6 +244,12 @@ medusaIntegrationTestRunner({
         }, headers);
         expect(inventoryRes.status).toBe(200);
         const inventoryItemId = inventoryRes.data.inventory_item.id;
+        const stockLocations = {
+          name: 'Main Warehouse'
+        }
+        const stockLocation = await api.post("/admin/stock-locations", stockLocations, headers);
+        expect(stockLocation.status).toBe(200);
+        const stockLocationId = stockLocation.data.stock_location.id;
         const orderPayload = {
           order_lines: [
             { inventory_item_id: inventoryItemId, quantity: 2, price: 100 },
@@ -238,11 +260,12 @@ medusaIntegrationTestRunner({
           expected_delivery_date: new Date().toISOString(),
           order_date: new Date().toISOString(),
           shipping_address: {},
+          stock_location_id: stockLocationId,
         };
         const res = await api.post("/admin/inventory-orders", orderPayload, headers);
         expect(res.status).toBe(201);
         createdOrder = res.data;
-        createdOrderId = res.data.id;
+        createdOrderId = res.data.inventoryOrder.id;
       });
 
       it("should fetch a single inventory order by id", async () => {
@@ -275,6 +298,12 @@ medusaIntegrationTestRunner({
         }, headers);
         expect(inventoryRes.status).toBe(200);
         const inventoryItemId = inventoryRes.data.inventory_item.id;
+        const stockLocations = {
+          name: 'Main Warehouse'
+        }
+        const stockLocation = await api.post("/admin/stock-locations", stockLocations, headers);
+        expect(stockLocation.status).toBe(200);
+        const stockLocationId = stockLocation.data.stock_location.id;
         const orderPayload = {
           order_lines: [
             { inventory_item_id: inventoryItemId, quantity: 2, price: 100 },
@@ -285,11 +314,12 @@ medusaIntegrationTestRunner({
           expected_delivery_date: new Date().toISOString(),
           order_date: new Date().toISOString(),
           shipping_address: {},
+          stock_location_id: stockLocationId,
         };
         const res = await api.post("/admin/inventory-orders", orderPayload, headers);
         expect(res.status).toBe(201);
         createdOrder = res.data;
-        createdOrderId = res.data.id;
+        createdOrderId = res.data.inventoryOrder.id;
       });
 
       it("should update an inventory order when status is Pending", async () => {
@@ -324,6 +354,8 @@ medusaIntegrationTestRunner({
         expect(res.status).toBe(400);
         expect(res.data.message).toBe('too_small Order quantity must be a positive integer (at path: quantity)');
       });
+
+
     });
   },
 });

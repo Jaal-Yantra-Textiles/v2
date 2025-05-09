@@ -9,17 +9,8 @@ import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useCreateWebsite } from "../../hooks/api/websites";
+import { websiteSchema } from "../../../api/admin/websites/validators";
 
-const websiteSchema = z.object({
-  domain: z.string().min(1, "Domain is required"),
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
-  status: z.enum(["Active", "Inactive", "Maintenance", "Development"]).default("Development"),
-  primary_language: z.string().min(1, "Primary language is required").default("en"),
-  supported_languages: z.record(z.string(), z.string()).default({ en: "English" }),
-  analytics_id: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
-});
 
 const statusOptions = [
   { value: "Development", label: "Development" },
@@ -50,10 +41,10 @@ export function CreateWebsiteComponent() {
     defaultValues: {
       domain: "",
       name: "",
-      description: "",
-      status: "Development",
+      status: "Development" as const,
       primary_language: "en",
       supported_languages: {},
+      description: "",
       analytics_id: "",
     },
   });

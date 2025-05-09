@@ -4,6 +4,7 @@ import { Outlet } from "react-router-dom"
 import { PageProps, WidgetProps } from "../layout/types"
 import { MetadataSection } from "../common/metadata-section"
 import { JsonViewSection } from "../common/json-view-section"
+import { PublicMetadataSection } from "../common/public-metadata-section"
 
 interface TwoColumnWidgetProps extends WidgetProps {
   sideBefore: ComponentType<any>[]
@@ -36,6 +37,10 @@ const Root = <TData,>({
    * Whether to render an outlet for children routes. Defaults to true.
    */
   hasOutlet = true,
+  /**
+   * Whether to show public metadata view of the data. Defaults to false.
+   */
+  showPublicMetadata = false,
 }: TwoColumnPageProps<TData>) => {
   const widgetProps = { data }
   const { before, after, sideBefore, sideAfter } = widgets || {}
@@ -60,6 +65,16 @@ const Root = <TData,>({
     showMetadata = false
   }
 
+  if (showPublicMetadata && !data) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        "`showPublicMetadata` is true but no data is provided. To display public metadata, provide data prop."
+      )
+    }
+
+    showPublicMetadata = false
+  }
+
   const childrenArray = Children.toArray(children)
 
   if (childrenArray.length !== 2) {
@@ -67,7 +82,7 @@ const Root = <TData,>({
   }
 
   const [main, sidebar] = childrenArray
-  const showExtraData = showJSON || showMetadata
+  const showExtraData = showJSON || showMetadata || showPublicMetadata
 
   return (
     <div className="flex w-full flex-col gap-y-3">
@@ -84,6 +99,7 @@ const Root = <TData,>({
             <div className="hidden flex-col gap-y-3 xl:flex">
               {showMetadata && <MetadataSection data={data!} />}
               {showJSON && <JsonViewSection data={data!} />}
+              {showPublicMetadata && <PublicMetadataSection data={data!}/>}
             </div>
           )}
         </div>
@@ -99,6 +115,7 @@ const Root = <TData,>({
             <div className="flex flex-col gap-y-3 xl:hidden">
               {showMetadata && <MetadataSection data={data!} />}
               {showJSON && <JsonViewSection data={data!} />}
+              {showPublicMetadata && <PublicMetadataSection data={data!}/>}
             </div>
           )}
         </div>
