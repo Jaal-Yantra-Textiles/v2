@@ -290,6 +290,7 @@
             "id"
           ],
           "referencedTableName": "public.inventory_orders",
+          "deleteRule": "cascade",
           "updateRule": "cascade"
         }
       },

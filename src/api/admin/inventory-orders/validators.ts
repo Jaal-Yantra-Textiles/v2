@@ -19,6 +19,7 @@ export const createInventoryOrdersSchema = z.object({
   order_date: z.coerce.date(),
   metadata: z.record(z.unknown()).optional(),
   shipping_address: z.record(z.unknown()),
+  stock_location_id: z.string(),
 });
 
 export const ReadSingleInventoryOrderQuerySchema = z.object({
@@ -34,6 +35,7 @@ export type CreateInventoryOrder = z.infer<typeof createInventoryOrdersSchema>;
 
 export const listInventoryOrdersQuerySchema = z.object({
   status: z.enum(INVENTORY_ORDER_STATUS).optional(),
+  q: z.string().optional(),
   quantity: z.preprocess(
     (val) => (val !== undefined && val !== null ? Number(val) : undefined),
     z.number().int().positive().optional()

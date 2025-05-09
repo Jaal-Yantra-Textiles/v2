@@ -14,8 +14,8 @@ import { useStockLocations } from "../../hooks/api/stock_location";
 
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
 export const inventoryOrderFormSchema = z.object({
-  quantity: z.number().min(1, "Quantity must be at least 1"),
-  total_price: z.number().min(0, "Total price must be positive"),
+  quantity: z.number().optional(), // Will be calculated from order lines
+  total_price: z.number().optional(), // Will be calculated from order lines
   order_date: z.date({ required_error: "Order date is required" }),
   expected_delivery_date: z.date({ required_error: "Expected delivery date is required" }),
   stock_location_id: z.string().nonempty("Stock location is required"),
@@ -33,8 +33,8 @@ type TabState = Record<Tab, ProgressStatus>;
 export const CreateInventoryOrderComponent = () => {
   const form = useForm<InventoryOrderFormData>({
     defaultValues: {
-      quantity: 1,
-      total_price: 0,
+      quantity: undefined,
+      total_price: undefined,
       order_date: undefined,
       expected_delivery_date: undefined,
       stock_location_id: "",
@@ -92,18 +92,31 @@ export const CreateInventoryOrderComponent = () => {
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
 
   const { mutateAsync, isPending } = useCreateInventoryOrder({
-    onSuccess: () => {
+    onSuccess: (response) => {
+      console.log(response);
       toast.success("Inventory order created successfully");
+      // Navigate to the created inventory order detail page
+      handleSuccess(`/inventory/orders/${response.inventoryOrder.id}`);
     },
     onError: (error) => {
       toast.error(error.message || "Failed to create inventory order");
     },
   });
 
+  // Calculate totals from order lines
+  const calculateTotals = () => {
+    const validLines = orderLines.filter(line => line.inventory_item_id);
+    const totalQuantity = validLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalPrice = validLines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+    return { totalQuantity, totalPrice };
+  };
+
   const handleSubmit = form.handleSubmit(async (data) => {
+    const { totalQuantity, totalPrice } = calculateTotals();
+    
     const payload = {
-      quantity: data.quantity,
-      total_price: data.total_price,
+      quantity: totalQuantity,
+      total_price: totalPrice,
       order_date: data.order_date.toISOString(),
       expected_delivery_date: data.expected_delivery_date.toISOString(),
       stock_location_id: data.stock_location_id,
@@ -113,8 +126,8 @@ export const CreateInventoryOrderComponent = () => {
         .filter((l) => l.inventory_item_id)
         .map(({ inventory_item_id, quantity, price }) => ({ inventory_item_id, quantity, price })),
     };
-    const res = await mutateAsync(payload);
-    handleSuccess(`/inventory/orders/${res.inventoryOrder.id}`);
+    await mutateAsync(payload);
+    // Navigation is now handled in the onSuccess callback
   });
 
   return (
@@ -146,45 +159,6 @@ export const CreateInventoryOrderComponent = () => {
                   {"Fill in the details to create a new inventory order."}
                 </Text>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {/* Quantity */}
-                  <Form.Field
-                    control={form.control}
-                    name="quantity"
-                    render={({ field }) => (
-                      <Form.Item>
-                        <Form.Label>Quantity</Form.Label>
-                        <Form.Control>
-                          <Input
-                            type="number"
-                            {...field}
-                            onChange={(e) => field.onChange(Number(e.target.value))}
-                            placeholder="Quantity"
-                          />
-                        </Form.Control>
-                        <Form.ErrorMessage />
-                      </Form.Item>
-                    )}
-                  />
-                  {/* Total Price */}
-                  <Form.Field
-                    control={form.control}
-                    name="total_price"
-                    render={({ field }) => (
-                      <Form.Item>
-                        <Form.Label>Total Price</Form.Label>
-                        <Form.Control>
-                          <CurrencyInput
-                            symbol="$"
-                            code="usd"
-                            value={field.value}
-                            onValueChange={(val) => field.onChange(Number(val))}
-                            placeholder="Total Price"
-                          />
-                        </Form.Control>
-                        <Form.ErrorMessage />
-                      </Form.Item>
-                    )}
-                  />
                   {/* Order Date */}
                   <Form.Field
                     control={form.control}
@@ -249,6 +223,12 @@ export const CreateInventoryOrderComponent = () => {
             </ProgressTabs.Content>
             <ProgressTabs.Content value={Tab.ORDER_LINES} className="overflow-y-auto">
               <div className="overflow-x-auto p-8">
+                <div className="mb-6">
+                  <Heading className="text-xl mb-4">Order Lines</Heading>
+                  <Text size="small" className="text-ui-fg-subtle mb-4">
+                    Add items to your inventory order. The total quantity and price will be calculated automatically.
+                  </Text>
+                </div>
                 <table className="w-full border-collapse border border-dashed">
                   <thead className="border-b border-dashed">
                     <tr className="border-b border-dashed">
@@ -360,6 +340,20 @@ export const CreateInventoryOrderComponent = () => {
                 <Text size="small" className="text-ui-fg-subtle mt-2">
                   Press Enter in the last row to add a new line.
                 </Text>
+                
+                {/* Display calculated totals */}
+                {orderLines.some(line => line.inventory_item_id) && (
+                  <div className="mt-6 border-t border-dashed pt-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <Text weight="plus">Total Order Quantity:</Text>
+                      <Text weight="plus">{calculateTotals().totalQuantity}</Text>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <Text weight="plus">Total Order Price:</Text>
+                      <Text weight="plus">${calculateTotals().totalPrice.toFixed(2)}</Text>
+                    </div>
+                  </div>
+                )}
               </div>
             </ProgressTabs.Content>
           </RouteFocusModal.Body>

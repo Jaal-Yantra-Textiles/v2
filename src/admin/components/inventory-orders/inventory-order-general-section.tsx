@@ -66,11 +66,11 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
       </div>
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" weight="plus">Status</Text>
-        <Text size="small">
+        <div className="flex items-center">
           <StatusBadge color={orderStatusColor(inventoryOrder.status)}>
             {inventoryOrder.status}
           </StatusBadge>
-        </Text>
+        </div>
       </div>
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" weight="plus">Quantity</Text>
