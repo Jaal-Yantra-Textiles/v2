@@ -8,6 +8,7 @@ import { RouteFocusModal } from "../modal/route-focus-modal";
 import { useUpdateBlock } from "../../hooks/api/blocks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TextEditor } from "../common/richtext-editor";
+import { RouteNonFocusModal } from "../modal/route-non-focus";
 
 const blockSchema = z.object({
   content: z.object({
@@ -198,12 +199,12 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
   });
 
   return (
-    <RouteFocusModal.Form form={form}>
+    <RouteNonFocusModal.Form form={form}>
       <KeyboundForm
         onSubmit={handleSubmit}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <RouteFocusModal.Header>
+        <RouteNonFocusModal.Header>
           <div className="flex items-center justify-between w-full px-8 py-2">
             <Text size="large" weight="plus">Edit Blog Content</Text>
             <div className="flex items-center gap-2">
@@ -214,9 +215,9 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
               />
             </div>
           </div>
-        </RouteFocusModal.Header>
+        </RouteNonFocusModal.Header>
 
-        <RouteFocusModal.Body className="flex flex-1 flex-col overflow-hidden">
+        <RouteNonFocusModal.Body className="flex flex-1 flex-col overflow-hidden">
           <div className="flex h-full w-full flex-col">
             {/* <div className="px-8 py-4 border-b">
               <Text size="base" weight="plus">
@@ -239,8 +240,8 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
               />
             </div>
           </div>
-        </RouteFocusModal.Body>
-        <RouteFocusModal.Footer>
+        </RouteNonFocusModal.Body>
+        <RouteNonFocusModal.Footer>
           <div className="flex items-center justify-between w-full px-8">
             <div>
               {!autoSaveEnabled && (
@@ -257,8 +258,8 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
               {autoSaveEnabled ? "Autosave Enabled" : form.formState.isDirty ? "Update Block" : "No Changes"}
             </Button>
           </div>
-        </RouteFocusModal.Footer>
+        </RouteNonFocusModal.Footer>
       </KeyboundForm>
-    </RouteFocusModal.Form>
+    </RouteNonFocusModal.Form>
   );
 };
