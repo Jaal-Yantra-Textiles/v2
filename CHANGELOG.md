@@ -1,3 +1,10 @@
+## [5.3.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.3.0...v5.3.1) (2025-05-10)
+
+
+### Performance Improvements
+
+* **Build:** performance on build ([fbc2efe](https://github.com/Jaal-Yantra-Textiles/v2/commit/fbc2efec3578b90398a0a05dc8a539ae70ed8384))
+
 # [5.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.2.0...v5.3.0) (2025-05-09)
 
 
