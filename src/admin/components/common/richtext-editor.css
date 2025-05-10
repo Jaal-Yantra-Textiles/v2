@@ -6,8 +6,14 @@
   overflow: hidden;
   z-index: 10;
   min-height: 40px;
+  height: auto;
   background: var(--editor__bg, #fff); /* Ensures a solid background */
   box-shadow: 0 2px 4px 0 rgba(0,0,0,0.03);
+  /* Prevent layout shifts that cause shaking */
+  width: 100%;
+  transform: translateZ(0); /* Force GPU acceleration */
+  will-change: transform; /* Hint to browser about animation */
+  transition: none; /* Disable any transitions that might cause shaking */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,6 +37,30 @@
   }
   .richtext-overflow-hidden {
     overflow: visible;
+  }
+  
+  /* Fix for link input field */
+  input[type="url"] {
+    pointer-events: auto !important;
+    opacity: 1 !important;
+    cursor: text !important;
+    z-index: 100 !important;
+    position: relative !important;
+  }
+  
+  /* Ensure popovers are interactive */
+  [data-tippy-root],
+  [data-radix-popper-content-wrapper] {
+    pointer-events: auto !important;
+    z-index: 1000 !important;
+  }
+  
+  /* Fix for Radix UI popover inputs */
+  [data-radix-popper-content-wrapper] input,
+  [data-radix-popper-content-wrapper] button {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    opacity: 1 !important;
   }
 }
 

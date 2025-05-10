@@ -1,5 +1,5 @@
 // 
-import { useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { Toaster, toast } from '@medusajs/ui';
 import './richtext-editor.css';
 
@@ -107,7 +107,11 @@ import './richtext-editor.css';
         nested: true,
       },
     }),
-    Link,
+    Link.configure({
+      // Use simple configuration that won't interfere with input fields
+      // openOnClick: true,
+      // linkOnPaste: true
+    }),
     Image.configure({
   upload: async (file: File) => {
     if (!file) return '';
@@ -243,13 +247,18 @@ import './richtext-editor.css';
     editorContent, 
     setEditorContent,
     isLoading = false,
-    onEditorReady = undefined
+    onEditorReady = undefined,
+    debounceTime = 300 // Default debounce time in milliseconds
   }: { 
     editorContent: string; 
     setEditorContent: (content: string) => void;
     isLoading?: boolean;
     onEditorReady?: (editor: any) => void;
+    debounceTime?: number;
   }) {
+    // Create a ref to store the timeout ID for debouncing
+    const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+    
     // Create a callback ref to get access to the editor instance
     const editorCallbackRef = useCallback((editorInstance: any) => {
       if (editorInstance && onEditorReady) {
@@ -260,16 +269,39 @@ import './richtext-editor.css';
           onEditorReady(editor);
         }
       }
-    }, [onEditorReady]);    
+    }, [onEditorReady]);
+    
+    // Handle content changes with debouncing
+    const handleContentChange = useCallback((content: string) => {
+      // Clear any existing timeout
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      
+      // Set a new timeout
+      debounceTimeoutRef.current = setTimeout(() => {
+        setEditorContent(content);
+      }, debounceTime);
+    }, [setEditorContent, debounceTime]);
+    
+    // Clean up the timeout when component unmounts
+    useEffect(() => {
+      return () => {
+        if (debounceTimeoutRef.current) {
+          clearTimeout(debounceTimeoutRef.current);
+        }
+      };
+    }, []);
     
     return (
   <>
     <Toaster />
-    <div className={`relative h-full ${isLoading ? 'opacity-50 cursor-wait' : ''}`}>
+    <div className="relative h-full w-full overflow-y-auto" style={{ contain: 'paint' }}>
+      <div className={`${isLoading ? 'opacity-50 cursor-wait' : ''}`}>
       <RichTextEditor 
         output='json' 
         content={editorContent} 
-        onChangeContent={setEditorContent} 
+        onChangeContent={handleContentChange} 
         extensions={extensions} 
         //contentClass={{ height: '100%', minHeight: '500px'}} 
         disabled={isLoading}
@@ -287,6 +319,7 @@ import './richtext-editor.css';
           <div className="text-sm text-gray-500">Saving changes...</div>
         </div>
       )}
+      </div>
     </div>      
   </>
 );
