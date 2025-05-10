@@ -3,11 +3,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { KeyboundForm } from "../utilitites/key-bound-form";
-import { useRouteModal } from "../modal/use-route-modal";
-import { RouteFocusModal } from "../modal/route-focus-modal";
+import { useNavigate } from "react-router-dom";
 import { useUpdateBlock } from "../../hooks/api/blocks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TextEditor } from "../common/richtext-editor";
+import { StandaloneModal } from "../modal/standalone-modal";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
 
 const blockSchema = z.object({
@@ -37,7 +37,7 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
   const initialRenderRef = useRef(true);
   const editorInstanceRef = useRef<any>(null);
   const updateBlock = useUpdateBlock(websiteId, pageId, blockId);
-  const { handleSuccess } = useRouteModal();
+  const navigate = useNavigate();
   
   // Initialize form
   const form = useForm<BlockFormValues>({
@@ -191,20 +191,30 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
       form.reset(undefined, { keepValues: true });
       
       toast.success("Content updated successfully");
-      onSuccess?.() || handleSuccess(`/websites/${websiteId}/pages/${pageId}`);
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        navigate(`/websites/${websiteId}/pages/${pageId}`, { replace: true });
+      }
     } catch (error) {
       toast.error("Error updating content");
           
     }
   });
 
+
+
+  const handleClose = () => {
+    
+    navigate(`/websites/${websiteId}/pages/${pageId}`, { replace: true });
+  };
+
   return (
-    <RouteNonFocusModal.Form form={form}>
-      <KeyboundForm
-        onSubmit={handleSubmit}
-        className="flex flex-1 flex-col overflow-hidden"
-      >
+    <RouteNonFocusModal>
+    
+      
         <RouteNonFocusModal.Header>
+        <RouteNonFocusModal.Close onClick={handleClose} />
           <div className="flex items-center justify-between w-full px-8 py-2">
             <Text size="large" weight="plus">Edit Blog Content</Text>
             <div className="flex items-center gap-2">
@@ -259,7 +269,8 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
             </Button>
           </div>
         </RouteNonFocusModal.Footer>
-      </KeyboundForm>
-    </RouteNonFocusModal.Form>
+     
+    
+    </RouteNonFocusModal>
   );
 };

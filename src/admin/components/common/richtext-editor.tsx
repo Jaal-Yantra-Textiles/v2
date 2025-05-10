@@ -3,6 +3,9 @@ import { useCallback, useRef, useEffect } from 'react';
 import { Toaster, toast } from '@medusajs/ui';
 import './richtext-editor.css';
 
+import 'prism-code-editor-lightweight/layout.css'; 
+import 'prism-code-editor-lightweight/themes/github-dark.css'; 
+
   import { Bold } from 'reactjs-tiptap-editor/bold'
   import { History } from 'reactjs-tiptap-editor/history';
   import { SearchAndReplace } from 'reactjs-tiptap-editor/searchandreplace'
@@ -308,7 +311,7 @@ import './richtext-editor.css';
         ref={editorCallbackRef}
         toolbar={{
           render: (_props, _toolbarItems, dom, containerDom) => (
-            <div className="richtext-code-block-toolbar">
+            <div className="richtext-code-block-toolbar bg-white dark:bg-[#18181b] text-[#18181b] dark:text-white ">
               {containerDom(dom)}
             </div>
           )

@@ -16,12 +16,6 @@
   transition: none; /* Disable any transitions that might cause shaking */
 }
 
-@media (prefers-color-scheme: dark) {
-  .richtext-code-block-toolbar {
-    background: var(--editor__bg-dark, #18181b);
-    color: var(--widget__color-dark, #fff);
-  }
-}
 
 .richtext-relative {
   //padding-top: 44px;
@@ -40,28 +34,12 @@
   }
   
   /* Fix for link input field */
-  input[type="url"] {
-    pointer-events: auto !important;
-    opacity: 1 !important;
-    cursor: text !important;
-    z-index: 100 !important;
-    position: relative !important;
-  }
+  
   
   /* Ensure popovers are interactive */
-  [data-tippy-root],
-  [data-radix-popper-content-wrapper] {
-    pointer-events: auto !important;
-    z-index: 1000 !important;
-  }
+ 
   
   /* Fix for Radix UI popover inputs */
-  [data-radix-popper-content-wrapper] input,
-  [data-radix-popper-content-wrapper] button {
-    pointer-events: auto !important;
-    cursor: pointer !important;
-    opacity: 1 !important;
-  }
 }
 
 
