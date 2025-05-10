@@ -9705,6 +9705,13 @@
   resolved "https://registry.yarnpkg.com/@tiptap/extension-underline/-/extension-underline-2.12.0.tgz#1f1c023cc01d6eeaee39b504224459e1dfdfac57"
   integrity sha512-u95lrUCesw1SN3BXY4xrgfSuxtoCYmJ9uaU7IVVOu0zVsDFtLlOa82kd63KVF+URL0kMdO+FBmvdS6d8Era70Q==
 
+"@tiptap/html@^2.12.0":
+  version "2.12.0"
+  resolved "https://registry.yarnpkg.com/@tiptap/html/-/html-2.12.0.tgz#73511a1a2436f71a41d155e83a8dde314457f30e"
+  integrity sha512-fivltW3bSQfdx2ebZ8f/dFGXGWH9zCszZLIH9yhR1u+i8kY02vHX8fZ5ri0ALj3Ljn/DxHTCBHZ08Fcalaa1fw==
+  dependencies:
+    zeed-dom "^0.15.1"
+
 "@tiptap/pm@^2.11.5", "@tiptap/pm@^2.11.7", "@tiptap/pm@^2.7.1":
   version "2.12.0"
   resolved "https://registry.yarnpkg.com/@tiptap/pm/-/pm-2.12.0.tgz#72c2b574c10a0442af03c8754869f0b7ad6e2a4c"
@@ -23990,7 +23997,7 @@ yoctocolors@^2.0.0:
   resolved "https://registry.yarnpkg.com/yoctocolors/-/yoctocolors-2.1.1.tgz#e0167474e9fbb9e8b3ecca738deaa61dd12e56fc"
   integrity sha512-GQHQqAopRhwU8Kt1DDM8NjibDXHC8eoh1erhGAJPEyveY9qqVeXvVikNKrDz69sHowPMorbPUrH/mx8c50eiBQ==
 
-zeed-dom@0.15.1:
+zeed-dom@0.15.1, zeed-dom@^0.15.1:
   version "0.15.1"
   resolved "https://registry.yarnpkg.com/zeed-dom/-/zeed-dom-0.15.1.tgz#dceb759d8a6e7aec042701ebe6684850baaf6193"
   integrity sha512-dtZ0aQSFyZmoJS0m06/xBN1SazUBPL5HpzlAcs/KcRW0rzadYw12deQBjeMhGKMMeGEp7bA9vmikMLaO4exBcg==

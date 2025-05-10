@@ -33,6 +33,10 @@ const Page = model.define("page", {
   // Add public_metadata related stuff
 
   public_metadata: model.json().nullable(),
+
+  sent_to_subscribers: model.boolean().default(false),
+  sent_to_subscribers_at: model.dateTime().nullable(),
+  subscriber_count: model.number().nullable(),
   
   // Relationship with Website
   website: model.belongsTo(() => Website, { mappedBy: "pages" }),
