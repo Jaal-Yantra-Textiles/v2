@@ -2,59 +2,58 @@
 import { useCallback } from 'react';
 import { Toaster, toast } from '@medusajs/ui';
 import './richtext-editor.css';
-import {
-    Bold,
-    BulletList,
-    Clear,
-    Code,
-    CodeBlock,
-    Color,
-    ColumnActionButton,
-    Emoji,
-    ExportPdf,
-    ExportWord,
-    FontFamily,
-    FontSize,
-    FormatPainter,
-    Highlight,
-    History,
-    HorizontalRule,
-    Iframe,
-    Image,
-    ImportWord,
-    Indent,
-    Italic,
-    Katex,
-    LineHeight,
-    Link,
-    MoreMark,
-    OrderedList,
-    SearchAndReplace,
-    SlashCommand,
-    Strike,
-    Table,
-    TaskList,
-    TextAlign,
-    Underline,
-    Video,
-    TableOfContents,
-    Mention,
-    ImageGif,
-    Mermaid,
-    Twitter,
-  } from 'reactjs-tiptap-editor/extension-bundle';
+
+  import { Bold } from 'reactjs-tiptap-editor/bold'
+  import { History } from 'reactjs-tiptap-editor/history';
+  import { SearchAndReplace } from 'reactjs-tiptap-editor/searchandreplace'
+  import { TableOfContents } from 'reactjs-tiptap-editor/tableofcontent'
+  import { FormatPainter } from 'reactjs-tiptap-editor/formatpainter'
+  import { Clear } from  'reactjs-tiptap-editor/clear'
+  import { FontFamily } from 'reactjs-tiptap-editor/fontfamily'
+  import { FontSize } from 'reactjs-tiptap-editor/fontsize'
+  import { Italic } from 'reactjs-tiptap-editor/italic'
+  import { TextUnderline } from 'reactjs-tiptap-editor/textunderline';
+  import { Strike } from 'reactjs-tiptap-editor/strike'
+  import { MoreMark } from 'reactjs-tiptap-editor/moremark'
+  import { Katex } from 'reactjs-tiptap-editor/katex'
+  import { Emoji } from 'reactjs-tiptap-editor/emoji'
+  import { Color } from 'reactjs-tiptap-editor/color'
+  import { Highlight } from 'reactjs-tiptap-editor/highlight'
+  import { BulletList } from 'reactjs-tiptap-editor/bulletlist'
+  import { OrderedList } from 'reactjs-tiptap-editor/orderedlist'
+  import { TextAlign } from 'reactjs-tiptap-editor/textalign'
+  import { Indent } from 'reactjs-tiptap-editor/indent'
+  import { LineHeight } from 'reactjs-tiptap-editor/lineheight'
+  import { TaskList } from 'reactjs-tiptap-editor/tasklist'
+  import { Link } from 'reactjs-tiptap-editor/link'
+  import { Image } from 'reactjs-tiptap-editor/image'
+  import { Video } from 'reactjs-tiptap-editor/video'
+  import { ImageGif } from 'reactjs-tiptap-editor/imagegif'
+  import { SlashCommand } from 'reactjs-tiptap-editor/slashcommand'
+  import { HorizontalRule } from 'reactjs-tiptap-editor/horizontalrule'
+  import { Code } from 'reactjs-tiptap-editor/code'
+  import { CodeBlock } from 'reactjs-tiptap-editor/codeblock'
+  import { ColumnActionButton } from 'reactjs-tiptap-editor/multicolumn'
+  import { ImportWord } from 'reactjs-tiptap-editor/importword'
+  import { ExportWord } from 'reactjs-tiptap-editor/exportword'
+  import { Mention } from 'reactjs-tiptap-editor/mention'
+  import { Mermaid } from 'reactjs-tiptap-editor/mermaid'
+  import { Twitter } from 'reactjs-tiptap-editor/twitter'
+  import { Table } from 'reactjs-tiptap-editor/table'
+  import { Iframe } from 'reactjs-tiptap-editor/iframe'
+  import { ExportPdf } from 'reactjs-tiptap-editor/exportpdf'
   import RichTextEditor from 'reactjs-tiptap-editor';
-  import { BaseKit } from 'reactjs-tiptap-editor/extension-bundle';
+  import { BaseKit } from 'reactjs-tiptap-editor';
   import 'reactjs-tiptap-editor/style.css';
-  import { Blockquote } from 'reactjs-tiptap-editor/extension-bundle';
-  import { Drawer } from 'reactjs-tiptap-editor/extension-bundle'; 
+  import { Blockquote } from 'reactjs-tiptap-editor/blockquote';
+  import { Drawer } from 'reactjs-tiptap-editor/drawer'; 
   import 'easydrawer/styles.css'; 
   import 'katex/dist/katex.min.css';
   import 'react-image-crop/dist/ReactCrop.css';
   import { sdk } from '../../lib/config';
-  import { Attachment } from 'reactjs-tiptap-editor/extension-bundle';
-  import { TextDirection } from 'reactjs-tiptap-editor/extension-bundle';  
-  import { Heading as TextHeading } from 'reactjs-tiptap-editor/extension-bundle';
+  import { Attachment } from 'reactjs-tiptap-editor/attachment';
+  import { TextDirection } from 'reactjs-tiptap-editor/textdirection';  
+  import { Heading as TextHeading } from 'reactjs-tiptap-editor/heading';
 
 
   function convertBase64ToBlob(base64: string) {
@@ -90,7 +89,7 @@ import {
     FontSize,
     Bold,
     Italic,
-    Underline,
+    TextUnderline,
     Strike,
     MoreMark,
     Katex,

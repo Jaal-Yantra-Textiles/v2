@@ -138,7 +138,7 @@ export const updateOrderLinesStep = createStep(
   },
   // Compensation: restore all original orderlines (delete new, restore old and relink)
   async (compensationData: { originalOrderlines: any[]; order_id: string }, { container }) => {
-    const inventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
+    const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
     // Remove all current orderlines
     const currentOrder = await inventoryOrderService.retrieveInventoryOrder(compensationData.order_id, { relations: ["orderlines"] });
