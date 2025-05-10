@@ -1,3 +1,24 @@
+# [5.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.2.0...v5.3.0) (2025-05-09)
+
+
+### Bug Fixes
+
+* **Migration:** Migration script failing on production fixed a patch for Migration20250417085315 ([08d6d07](https://github.com/Jaal-Yantra-Textiles/v2/commit/08d6d0740e31c8fcab36fafe79cba40906210923))
+* **UI,API:** Moodboard save, create manual design ([7bd33e4](https://github.com/Jaal-Yantra-Textiles/v2/commit/7bd33e4dc59d032d1d1f5b47d3e6fb0d0fec745a))
+* **Persons Import:** PI , feature with other data model types ([9eef1bf](https://github.com/Jaal-Yantra-Textiles/v2/commit/9eef1bf1bdb1cd504f3f55e802cb0fdc540961b5))
+
+
+### Features
+
+* Design Canvas and Task from Templates Feature ([30dd72e](https://github.com/Jaal-Yantra-Textiles/v2/commit/30dd72e0e6704dce0b2b5f85378613eea4839a5e))
+* Inventory Order Scope for Warehouse ([df4523b](https://github.com/Jaal-Yantra-Textiles/v2/commit/df4523b3efb2717aeb4e778a1f6c1dc6b358b4ec))
+* **Task templates:** Task templates in design section ([b79c9b5](https://github.com/Jaal-Yantra-Textiles/v2/commit/b79c9b55c389e0c9b1ec3e4815eb18a06e14d8e9))
+
+
+### Performance Improvements
+
+* Performance upgrade on UI and API ([993d387](https://github.com/Jaal-Yantra-Textiles/v2/commit/993d387206cc50e625ec7176dc23e3bec3f85c3c))
+
 # [5.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.1.0...v5.2.0) (2025-04-17)
 
 
