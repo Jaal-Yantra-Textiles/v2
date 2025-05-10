@@ -98,6 +98,15 @@ export const PageGeneralSection = ({ page, websiteId }: PageGeneralSectionProps)
                   },
                 ],
               },
+              {
+                actions: [
+                  {
+                    label: t("actions.send", "Send to Subscribers"),
+                    icon: <Trash />,
+                    to: ``
+                  },
+                ],
+              },
             ]}
           />
         </div>

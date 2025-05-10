@@ -312,6 +312,35 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "sent_to_subscribers": {
+          "name": "sent_to_subscribers",
+          "type": "boolean",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "false",
+          "mappedType": "boolean"
+        },
+        "sent_to_subscribers_at": {
+          "name": "sent_to_subscribers_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "subscriber_count": {
+          "name": "subscriber_count",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "integer"
+        },
         "website_id": {
           "name": "website_id",
           "type": "text",

@@ -2,12 +2,10 @@ import { Button, Switch, Text, toast } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useNavigate } from "react-router-dom";
 import { useUpdateBlock } from "../../hooks/api/blocks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TextEditor } from "../common/richtext-editor";
-import { StandaloneModal } from "../modal/standalone-modal";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
 
 const blockSchema = z.object({
@@ -132,7 +130,6 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
   // Simple handler that only updates when content changes
   const handleEditorChange = useCallback((content: any) => {
     setEditorContent(content);
-    
     // Skip auto-save on initial render
     if (initialRenderRef.current) {
       return;
@@ -205,14 +202,11 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
 
 
   const handleClose = () => {
-    
     navigate(`/websites/${websiteId}/pages/${pageId}`, { replace: true });
   };
 
   return (
     <RouteNonFocusModal>
-    
-      
         <RouteNonFocusModal.Header>
         <RouteNonFocusModal.Close onClick={handleClose} />
           <div className="flex items-center justify-between w-full px-8 py-2">
@@ -263,14 +257,13 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
             <Button
               variant="primary"
               type="submit"
+              onClick={handleSubmit}
               disabled={autoSaveEnabled || !form.formState.isDirty || form.formState.isSubmitting}
             >
               {autoSaveEnabled ? "Autosave Enabled" : form.formState.isDirty ? "Update Block" : "No Changes"}
             </Button>
           </div>
         </RouteNonFocusModal.Footer>
-     
-    
     </RouteNonFocusModal>
   );
 };
