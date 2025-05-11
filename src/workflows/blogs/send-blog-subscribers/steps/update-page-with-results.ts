@@ -34,22 +34,24 @@ export const updatePageWithResultsStep = createStep(
             sent_to_subscribers: true,
             sent_to_subscribers_at: new Date(),
             subscriber_count: summary.sentCount,
+            // Flatten metadata structure to avoid nested objects
             metadata: {
-              // Store detailed information in metadata
-              subscription_summary: {
-                total_subscribers: summary.totalSubscribers,
-                sent_count: summary.sentCount,
-                failed_count: summary.failedCount,
-                sent_at: new Date().toISOString(),
-              },
+              // Store summary information as individual fields
+              subscription_total_subscribers: summary.totalSubscribers,
+              subscription_sent_count: summary.sentCount,
+              subscription_failed_count: summary.failedCount,
+              subscription_sent_at: new Date().toISOString(),
+              
               // Store a list of subscribers who received the email (limit to IDs to save space)
-              sent_to_subscribers_list: summary.sentList.map(s => s.subscriber_id),
+              subscription_sent_to_ids: JSON.stringify(summary.sentList.map(s => s.subscriber_id)),
+              
               // Store information about failed sends for troubleshooting
-              failed_sends: summary.failedList.map(f => ({
-                subscriber_id: f.subscriber_id,
+              // Convert to JSON string to avoid nested objects
+              subscription_failed_sends: JSON.stringify(summary.failedList.map(f => ({
+                id: f.subscriber_id,
                 email: f.email,
                 error: f.error
-              }))
+              })))
             }
           }
       })

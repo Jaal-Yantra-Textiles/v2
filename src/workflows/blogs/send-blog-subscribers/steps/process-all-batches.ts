@@ -33,18 +33,44 @@ export const processAllBatchesStep = createStep(
         try {
           console.log(`Sending email to ${subscriber.email} (${subscriber.id})`)
           
-          // Convert TipTap content to HTML if it's in JSON format
-          let htmlContent = blogData.content
+          // Convert TipTap content to HTML
+          let htmlContent = ''
           try {
-            // Check if content is TipTap JSON
-            if (typeof blogData.content === 'string' && 
-                (blogData.content.startsWith('{') || blogData.content.includes('"type":"doc"'))) {
-              htmlContent = convertTipTapToHtml(blogData.content)
+            // blogData.content now contains the extracted TipTap content from the blog block
+            const content = blogData.content
+            
+            // Handle different content formats
+            if (typeof content === 'object') {
+              // If content is already a parsed object
+              htmlContent = convertTipTapToHtml(content)
+              console.log('Converted TipTap object to HTML')
+            } else if (typeof content === 'string') {
+              // If content is a JSON string
+              if (content.includes('"type":"doc"') || content.startsWith('{')) {
+                try {
+                  // Try to parse the JSON string
+                  const parsedContent = JSON.parse(content)
+                  htmlContent = convertTipTapToHtml(parsedContent)
+                  console.log('Converted TipTap JSON string to HTML')
+                } catch (parseError) {
+                  // If parsing fails, try to convert the string directly
+                  htmlContent = convertTipTapToHtml(content)
+                  console.log('Converted TipTap string to HTML (fallback)')
+                }
+              } else {
+                // If it's plain text, use it as is
+                htmlContent = content
+                console.log('Using plain text content')
+              }
+            } else {
+              // Fallback for any other content type
+              htmlContent = String(content || '')
+              console.log('Using fallback string conversion for content')
             }
           } catch (contentError) {
-            console.warn(`Failed to convert TipTap content to HTML: ${contentError.message}`)
-            // Fall back to original content
-            htmlContent = blogData.content
+            console.warn(`Failed to convert content to HTML: ${contentError.message}`)
+            // Fall back to a safe default
+            htmlContent = String(blogData.content || 'No content available')
           }
           
           // Prepare email data - flattened structure for SendGrid compatibility

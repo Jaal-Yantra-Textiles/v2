@@ -60,6 +60,9 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
     // Step 2: Get subscribers
     const subscribers = getSubscribersStep()
     
+    // Calculate total subscribers count early for the initial response
+    const subscriberCount = subscribers.length
+    
     // Step 3: Prepare subscriber batches
     const batches = prepareSubscriberBatchesStep({
       subscribers,
@@ -134,10 +137,10 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
     sendNotificationsStep(successNotification)
     
     // Return the final result
-    const result = transform({ input, sendingSummary }, (data) => {
+    const result = transform({ input, sendingSummary, subscriberCount }, (data) => {
       return {
         page_id: data.input.page_id,
-        totalSubscribers: data.sendingSummary.totalSubscribers,
+        totalSubscribers: data.subscriberCount, // Use early calculated subscriber count
         sentCount: data.sendingSummary.sentCount,
         failedCount: data.sendingSummary.failedCount
       }

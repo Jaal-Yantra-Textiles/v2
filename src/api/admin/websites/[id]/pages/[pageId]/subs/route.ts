@@ -5,12 +5,12 @@ import { WEBSITE_MODULE } from "../../../../../../../modules/website";
 import WebsiteService from "../../../../../../../modules/website/service";
 
 // Define the validation schema for the request body
-const SendBlogSubscriptionSchema = z.object({
+export const SendBlogSubscriptionSchema = z.object({
   subject: z.string().optional(),
   customMessage: z.string().optional(),
 });
 
-type SendBlogSubscriptionRequest = z.infer<typeof SendBlogSubscriptionSchema>;
+export type SendBlogSubscriptionRequest = z.infer<typeof SendBlogSubscriptionSchema>;
 
 /**
  * POST /admin/websites/:id/pages/:pageId/subs
@@ -75,7 +75,8 @@ export const POST = async (
       page_id: pageId,
       website_id: websiteId,
       requires_confirmation: true,
-      confirmation_url: `/admin/websites/${websiteId}/pages/${pageId}/subs/${transaction.transactionId}/confirm`
+      confirmation_url: `/admin/websites/${websiteId}/pages/${pageId}/subs/${transaction.transactionId}/confirm`,
+      subscribers: result.totalSubscribers
     });
   } catch (error) {
     console.error("Error sending blog to subscribers:", error);

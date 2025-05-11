@@ -45,8 +45,8 @@ import { AdminPostDesignInventoryReq } from "./admin/designs/[id]/inventory/vali
 import { partnerSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
-import { MedusaError } from "@medusajs/framework/utils";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema } from "./admin/inventory-orders/validators";
+import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 
 
 
@@ -379,6 +379,17 @@ export default defineMiddlewares({
       method: "DELETE",
       middlewares: [], 
     },
+
+    {
+      matcher: "/admin/websites/:id/pages/:pageId/subs/:workflowId/confirm",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/websites/:id/pages/:pageId/subs",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SendBlogSubscriptionSchema))],
+    },
     {
       matcher: "/web/health",
       method: "GET",
@@ -412,7 +423,6 @@ export default defineMiddlewares({
     // Option 1: standard name check
     // if (error.name === "ZodError") {
     // Option 2: check if error is an instance of ZodError
-    console.log(error)
     if (error.__isMedusaError){
       if (error.type == 'not_found'){
         return res.status(404).json({
