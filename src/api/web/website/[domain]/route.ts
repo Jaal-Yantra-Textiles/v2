@@ -7,8 +7,6 @@ export const GET = async (
   res: MedusaResponse,
 ) => {
   const { domain } = req.params;
-
-  try {
     const { result, errors } = await findWebsiteByDomainWorkflow(req.scope).run({
       input: {
         domain,
@@ -37,16 +35,4 @@ export const GET = async (
     };
 
     res.status(200).json(publicWebsiteData);
-  } catch (error) {
-    if (error.message === "Website not found") {
-      res.status(404).json({
-        message: "Website not found",
-      });
-      return;
-    }
-    res.status(500).json({
-      message: "An error occurred while fetching the website",
-      error: error.message,
-    });
-  }
 };

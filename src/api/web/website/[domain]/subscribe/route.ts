@@ -59,15 +59,6 @@ export const POST = async (
         person_id: person.id
       },
     });
-   
-    // Check for duplicate email
-    if (typeof errors === 'object' && errors !== null && 'message' in errors && 
-        typeof errors.message === 'string' && 
-        (errors.message.includes("duplicate key") || errors.message.includes("already exists"))) {
-      return res.status(409).json({
-        message: "This email is already subscribed",
-      });
-    }
     
     return res.status(200).json({
       message: "Subscription successful",

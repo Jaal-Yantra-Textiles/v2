@@ -103,7 +103,7 @@ medusaIntegrationTestRunner({
           e => e.response
         );
         expect(response.status).toBe(404)
-        expect(response.data.message).toBe("Website not found");
+        expect(response.data.message).toBe("The website non-existent.com was not found");
       });
   
       it("should return website with only published pages", async () => {
@@ -304,6 +304,78 @@ medusaIntegrationTestRunner({
         
         expect(response.status).toBe(404);
         expect(response.data.message).toBe("Page with slug - contact not found and if you are trying to access blog page then use the /blogs endpoint");
+      });
+    });
+
+    describe("POST /web/website/:domain/subscribe", () => {
+      it("should successfully subscribe a person to a website", async () => {
+        const subscriptionData = {
+          first_name: "Test",
+          last_name: "Subscriber",
+          email: "test.subscriber@example.com"
+        };
+
+        const response = await api.post(
+          "/web/website/test-public.example.com/subscribe",
+          subscriptionData
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data.message).toBe("Subscription successful");
+
+        // Verify the person was created with the subscriber tag
+        // First, get admin headers
+        const adminHeaders = await getAuthHeaders(api);
+        
+        // Search for the person by email
+        const personsResponse = await api.get(
+          `/admin/persons?email=${subscriptionData.email}`,
+          adminHeaders
+        );
+
+        expect(personsResponse.status).toBe(200);
+        expect(personsResponse.data.persons.length).toBeGreaterThan(0);
+        
+        const person = personsResponse.data.persons[0];
+        expect(person.first_name).toBe(subscriptionData.first_name);
+        expect(person.last_name).toBe(subscriptionData.last_name);
+        expect(person.email).toBe(subscriptionData.email);
+        
+        // Verify the person has metadata about the subscription
+        expect(person.metadata).toHaveProperty("is_subscriber", true);
+        expect(person.metadata).toHaveProperty("subscribed_to_website", "Test Public Website");
+        expect(person.metadata).toHaveProperty("subscribed_to_domain", "test-public.example.com");
+      });
+
+      it("should return 400 for invalid subscription data", async () => {
+        const invalidData = {
+          // Missing required fields
+          email: "invalid@example.com"
+        };
+
+        const response = await api.post(
+          "/web/website/test-public.example.com/subscribe",
+          invalidData
+        ).catch(e => e.response);
+
+        expect(response.status).toBe(400);
+        expect(response.data).toHaveProperty("message");
+      });
+
+      it("should return 404 for non-existent website domain", async () => {
+        const subscriptionData = {
+          first_name: "Test",
+          last_name: "Subscriber",
+          email: "test.subscriber2@example.com"
+        };
+
+        const response = await api.post(
+          "/web/website/non-existent-domain.com/subscribe",
+          subscriptionData
+        ).catch(e => e.response);
+
+        expect(response.status).toBe(404);
+        expect(response.data.message).toBe("The website non-existent-domain.com was not found");
       });
     });
   }  
