@@ -24,7 +24,7 @@ const EditWebsiteSchema = zod.object({
   description: zod.string().optional(),
   status: zod.enum(["Active", "Inactive", "Maintenance", "Development"]),
   primary_language: zod.string().min(1),
-  supported_languages:  zod.record(zod.string(), zod.string()).default({ en: "English" }),
+  supported_languages:  zod.record(zod.string(), zod.string()).default({ en: "English" }).optional(),
   favicon_url: zod.string().optional(),
   analytics_id: zod.string().optional(),
 })
@@ -111,15 +111,6 @@ export const EditWebsiteForm = ({ website }: EditWebsiteFormProps) => {
     const { domain, name, status, primary_language, ...optional } = formData
 
     try {
-      // Explicitly log what we're sending to the API
-      console.log('Sending to API:', {
-        domain,
-        name,
-        status,
-        primary_language,
-        ...optional,
-      })
-
       const result = await updateWebsite(
         {
           domain,
@@ -153,12 +144,6 @@ export const EditWebsiteForm = ({ website }: EditWebsiteFormProps) => {
 
   // This is the handler connected to the form
   const handleSubmit = form.handleSubmit(async (data) => {
-    // Debug what's being submitted
-    console.log('Form data being submitted:', data)
-    console.log('Form isDirty:', form.formState.isDirty)
-    console.log('isFormModified:', isFormModified)
-    console.log('Form dirtyFields:', form.formState.dirtyFields)
-    
     // Call our submission function
     await submitForm(data)
   })

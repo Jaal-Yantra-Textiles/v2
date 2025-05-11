@@ -1,4 +1,4 @@
-import { PencilSquare, Trash } from "@medusajs/icons";
+import { PencilSquare, Trash, Envelope } from "@medusajs/icons";
 import {
   Container,
   Heading,
@@ -98,15 +98,18 @@ export const PageGeneralSection = ({ page, websiteId }: PageGeneralSectionProps)
                   },
                 ],
               },
-              {
-                actions: [
-                  {
-                    label: t("actions.send", "Send to Subscribers"),
-                    icon: <Trash />,
-                    to: ``
-                  },
-                ],
-              },
+              /* Only show Send to Subscribers action for Blog pages */
+              ...(page.page_type === "Blog" ? [
+                {
+                  actions: [
+                    {
+                      label: t("actions.send", "Send to Subscribers"),
+                      icon: <Envelope />,
+                      to: `/websites/${websiteId}/pages/${page.id}/send`
+                    },
+                  ],
+                }
+              ] : []),
             ]}
           />
         </div>
