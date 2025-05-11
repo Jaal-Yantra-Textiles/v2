@@ -50,7 +50,7 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
   }) || [];
   
   return (
-    <Container className="p-0">
+    <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-x-4">
           <Heading level="h2">Inventory Used</Heading>
@@ -78,8 +78,8 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
         ) : (
           <div className="txt-small flex flex-col gap-2 px-2 pb-2">
             {!inventoryItems.length ? (
-              <div className="px-6 py-4 text-ui-fg-subtle">
-                <Text>No inventory items found</Text>
+              <div className="flex items-center justify-center py-4 w-full">
+                <Text className="text-ui-fg-subtle">No inventory items found</Text>
               </div>
             ) : (
               inventoryItems.map((item) => {

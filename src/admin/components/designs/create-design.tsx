@@ -1,10 +1,9 @@
-import { Button, Heading, Text, Input, Textarea, toast, Prompt } from "@medusajs/ui";
+import { Button, Heading, Text, Input, Textarea, toast } from "@medusajs/ui";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useNavigate, useBlocker } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useCreateDesign } from "../../hooks/api/designs";
@@ -23,7 +22,6 @@ type DesignFormValues = z.infer<typeof designSchema>;
 export function CreateDesign() {
   const [mode, setMode] = useState<'ai' | 'manual'>('manual');
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const { handleSuccess } = useRouteModal();
   const { mutateAsync, isPending } = useCreateDesign();
 
@@ -39,22 +37,8 @@ export function CreateDesign() {
 
   const { 
     handleSubmit, 
-    formState: { errors, isDirty }
+    formState: { errors }
   } = form;
-
-  // Set up navigation blocker for unsaved changes
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
-    const isPathChanged = currentLocation.pathname !== nextLocation.pathname;
-    return isDirty && isPathChanged;
-  });
-
-  const handleCancel = () => {
-    blocker?.reset?.();
-  };
-
-  const handleContinue = () => {
-    blocker?.proceed?.();
-  };
 
   // Form submission handler
   const onSubmit = handleSubmit(async (data) => {
@@ -267,25 +251,7 @@ export function CreateDesign() {
         </RouteFocusModal.Footer>
       </KeyboundForm>
       
-      {/* Router blocker prompt for navigation events */}
-      <Prompt open={blocker.state === "blocked"} variant="confirmation">
-        <Prompt.Content>
-          <Prompt.Header>
-            <Prompt.Title>{t("general.unsavedChangesTitle", "Unsaved Changes")}</Prompt.Title>
-            <Prompt.Description>
-              {t("general.unsavedChangesDescription", "You have unsaved changes. Are you sure you want to leave?")}  
-            </Prompt.Description>
-          </Prompt.Header>
-          <Prompt.Footer>
-            <Prompt.Cancel onClick={handleCancel} type="button">
-              {t("actions.cancel", "Cancel")}
-            </Prompt.Cancel>
-            <Prompt.Action onClick={handleContinue} type="button">
-              {t("actions.continue", "Continue")}
-            </Prompt.Action>
-          </Prompt.Footer>
-        </Prompt.Content>
-      </Prompt>
+      {/* Navigation blocking is handled by RouteFocusModal and KeyboundForm */}
     </RouteFocusModal.Form>
   );
 }

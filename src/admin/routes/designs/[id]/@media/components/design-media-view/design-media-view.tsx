@@ -15,11 +15,11 @@ enum View {
 
 const getView = (searchParams: URLSearchParams) => {
   const view = searchParams.get("view")
-  if (view === View.EDIT) {
-    return View.EDIT
+  if (view === View.GALLERY) {
+    return View.GALLERY
   }
 
-  return View.GALLERY
+  return View.EDIT
 }
 
 // Context to handle navigation between views
