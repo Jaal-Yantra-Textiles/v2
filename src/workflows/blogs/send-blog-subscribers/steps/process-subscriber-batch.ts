@@ -73,7 +73,9 @@ export const processSubscriberBatchStep = createStep(
           to: subscriber.email,
           channel: "email",
           template: process.env.SENDGRID_BLOG_SUBSCRIPTION_TEMPLATE || "d-blog-subscription-template",
-          data: emailData
+          data: {
+            ...emailData,
+          }
         })
         
         // Record successful send
