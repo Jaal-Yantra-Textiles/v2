@@ -143,7 +143,15 @@ export const useDesigns = (
     queryKey: designQueryKeys.list(query),
     ...options,
   });
-  return { ...data, ...rest };
+  
+  // Properly extract the paginated data
+  return { 
+    designs: data?.designs || [], 
+    count: data?.count || 0,
+    offset: query?.offset || 0,
+    limit: query?.limit || 0,
+    ...rest 
+  };
 };
 
 export const useCreateDesign = (

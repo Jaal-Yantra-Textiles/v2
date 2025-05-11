@@ -5,7 +5,6 @@ import { TagAllowedFields, refetchPersonTags } from "./helpers";
 import createPersonTagsWorkflow from "../../../../../workflows/persons/create-person-tags";
 import retrievePersonTagsWorkflow from "../../../../../workflows/persons/retrieve-person-tags";
 import updatePersonTagsWorkflow from "../../../../../workflows/persons/update-person-tags";
-import deletePersonTagsWorkflow from "../../../../../workflows/persons/delete-person-tags";
 
 export const POST = async (
   req: MedusaRequest & {

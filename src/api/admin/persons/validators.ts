@@ -24,5 +24,28 @@ export const ReadPersonQuerySchema = z.object({
 })
 export const UpdatePersonSchema = personSchema.partial();
 
+// Query schema for listing persons
+export const listPersonsQuerySchema = z.object({
+  q: z.string().optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  email: z.string().optional(),
+  state: z.enum(["Onboarding", "Onboarding Finished", "Stalled", "Conflicted"]).optional(),
+  withDeleted: z.preprocess(
+    (val) => val === "true",
+    z.boolean().optional().default(false)
+  ),
+  offset: z.preprocess(
+    (val) => (val !== undefined && val !== null ? Number(val) : undefined),
+    z.number().int().min(0).default(0)
+  ),
+  limit: z.preprocess(
+    (val) => (val !== undefined && val !== null ? Number(val) : undefined),
+    z.number().int().min(1).max(100).default(20)
+  ),
+  order: z.string().optional(),
+});
+
 export type Person = z.infer<typeof personSchema>;
 export type UpdatePerson = z.infer<typeof UpdatePersonSchema>;
+export type ListPersonsQuery = z.infer<typeof listPersonsQuerySchema>;

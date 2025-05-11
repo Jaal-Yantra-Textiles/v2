@@ -139,10 +139,8 @@ export const useDeletePerson = (
         method: "DELETE",
       }),
     onSuccess: (data, variables, context) => {
+      // Only invalidate the lists query since the detail no longer exists
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
-      queryClient.invalidateQueries({
-        queryKey: personsQueryKeys.detail(id),
-      });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,

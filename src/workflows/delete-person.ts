@@ -9,6 +9,7 @@ import PersonService from "../modules/person/service";
 import { PERSON_MODULE } from "../modules/person";
 import { InferTypeOf } from "@medusajs/framework/types";
 import Person from "../modules/person/models/person";
+import { console } from "inspector";
 export type Person = InferTypeOf<typeof Person>;
 
 type DeletePersonStepInput = {
@@ -20,8 +21,11 @@ export const deletePersonStep = createStep(
   async (input: DeletePersonStepInput, { container }) => {
     const personService: PersonService = container.resolve(PERSON_MODULE);
     const person = await personService.retrievePerson(input.id);
-    await personService.deletePeople(input.id);
-    return new StepResponse(undefined, person);
+    const deleted = await personService.softDeletePeople({
+      id: input.id
+    })
+    console.log(deleted)
+    return new StepResponse(deleted, person);
   },
   async (person, { container }) => {
     // Only create the person if it's defined
@@ -59,7 +63,8 @@ export const deletePersonStep = createStep(
 const deletePersonWorkflow = createWorkflow(
   "delete-person",
   (input: DeletePersonStepInput) => {
-    deletePersonStep(input);
+    const deleted = deletePersonStep(input);
+    return new WorkflowResponse(deleted);
   },
 );
 

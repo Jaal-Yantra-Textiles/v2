@@ -31,6 +31,7 @@ const PersonsPage = () => {
   });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
+  const [includeDeleted, setIncludeDeleted] = useState<boolean>(false);
   
   // Debounced filter change handler to prevent rapid re-renders and API calls
   const handleFilterChange = useCallback(
@@ -61,7 +62,8 @@ const PersonsPage = () => {
     {
       limit: pagination.pageSize,
       offset: offset,
-      q: search || undefined, 
+      q: search || undefined,
+      withDeleted: includeDeleted, 
       // Apply filtering only for known fields
       ...(Object.keys(filtering).length > 0 ? 
         Object.entries(filtering).reduce((acc: AdminPersonsListParams, [key, value]) => {
@@ -69,9 +71,14 @@ const PersonsPage = () => {
           
           // Handle different filter types appropriately
           if (key === 'email') {
-            acc.email = value as string;
+            // Ensure email is a string, not an array
+            acc.email = Array.isArray(value) && value.length > 0 ? value[0] : value as string;
           } else if (key === 'state') {
-            acc.state = value as string;
+            acc.state = Array.isArray(value) && value.length > 0 ? value[0] : value as string;
+          } else if (key === 'first_name') {
+            acc.first_name = Array.isArray(value) && value.length > 0 ? value[0] : value as string;
+          } else if (key === 'last_name') {
+            acc.last_name = Array.isArray(value) && value.length > 0 ? value[0] : value as string;
           }
           return acc;
         }, {} as AdminPersonsListParams) : {}),
@@ -104,15 +111,41 @@ const PersonsPage = () => {
         }));
       }, [persons]),
     }),
+    filterHelper.accessor("first_name", {
+      type: "select",
+      label: "First Name",
+      options: useMemo(() => {
+        if (!persons?.length) return [];
+        const uniqueFirstNames = [...new Set(persons.map(p => p.first_name))];
+        return uniqueFirstNames.map(name => ({
+          label: name || "",
+          value: name || ""
+        }));
+      }, [persons]),
+    }),
+    filterHelper.accessor("last_name", {
+      type: "select",
+      label: "Last Name",
+      options: useMemo(() => {
+        if (!persons?.length) return [];
+        const uniqueLastNames = [...new Set(persons.map(p => p.last_name))];
+        return uniqueLastNames.map(name => ({
+          label: name || "",
+          value: name || ""
+        }));
+      }, [persons]),
+    }),
     filterHelper.accessor("state", {
       type: "select",
       label: "State",
       options: [
-        { label: "Active", value: "active" },
-        { label: "Inactive", value: "inactive" },
-        { label: "Pending", value: "pending" },
+        { label: "Onboarding", value: "Onboarding" },
+        { label: "Onboarding Finished", value: "Onboarding Finished" },
+        { label: "Stalled", value: "Stalled" },
+        { label: "Conflicted", value: "Conflicted" },
       ],
     }),
+
   ];
 
   const table = useDataTable({
@@ -165,8 +198,20 @@ const PersonsPage = () => {
           
           {/* Search and filter section in its own container with divider */}
           <div className="flex items-start justify-between gap-x-4 px-6 py-4 border-t border-ui-border-base">
-            <div className="w-full max-w-[60%]">
+            <div className="w-full max-w-[60%] flex items-center gap-x-4">
               <DataTable.FilterMenu tooltip="Filter persons" />
+              <div className="flex items-center gap-x-2">
+                <input 
+                  type="checkbox" 
+                  id="include-deleted" 
+                  checked={includeDeleted}
+                  onChange={(e) => setIncludeDeleted(e.target.checked)}
+                  className="h-4 w-4 rounded border-ui-border-base text-ui-fg-interactive"
+                />
+                <label htmlFor="include-deleted" className="text-ui-fg-subtle text-sm">
+                  Include deleted persons
+                </label>
+              </div>
             </div>
             <div className="flex shrink-0 items-center gap-x-2">
               <DataTable.Search placeholder="Search persons..." />
