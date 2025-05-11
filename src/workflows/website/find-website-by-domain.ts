@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { WEBSITE_MODULE } from "../../modules/website";
 import WebsiteService from "../../modules/website/service";
+import { MedusaError, MedusaErrorTypes } from "@medusajs/framework/utils";
 
 export type FindWebsiteByDomainStepInput = {
   domain: string;
@@ -26,7 +27,10 @@ export const findWebsiteByDomainStep = createStep(
     );
 
     if (!websites[0]?.length) {
-      throw new Error("Website not found");
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND, 
+        `The website ${input.domain} was not found`
+      );
     }
 
     const website = websites[0][0];
