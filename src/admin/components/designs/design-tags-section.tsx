@@ -24,21 +24,7 @@ export const DesignTagsSection = ({ design }: DesignTagsSectionProps) => {
     // Simple hash function to consistently assign colors based on tag string
     const hash = tag.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
-  };
-
-  // Focus the tag input and add current tag if any
-  const handleAddTag = () => {
-    const inputElement = document.getElementById('tag-input') as HTMLInputElement;
-    if (inputElement) {
-      if (tagInput.trim()) {
-        // If there's text in the input, add it as a tag
-        handleAddPendingTag();
-      }
-      inputElement.focus();
-    }
-  };
-
- 
+  }; 
   
   // Handle tag input change
   const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,7 +139,7 @@ export const DesignTagsSection = ({ design }: DesignTagsSectionProps) => {
       <div className="px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <Heading>{t("Tags")}</Heading>
+            <Heading level="h2">{t("Tags")}</Heading>
             <Text className="text-ui-fg-subtle" size="small">
               Tags associated with this design
             </Text>
@@ -239,14 +225,6 @@ export const DesignTagsSection = ({ design }: DesignTagsSectionProps) => {
           {pendingTags.length === 0 && (!design.tags || design.tags.length === 0) && (
             <div className="flex items-center justify-center py-4 w-full">
               <Text className="text-ui-fg-subtle">No tags found</Text>
-              <Button
-                variant="secondary"
-                size="small"
-                className="ml-2"
-                onClick={handleAddTag}
-              >
-                Add Tag
-              </Button>
             </div>
           )}
         </div>

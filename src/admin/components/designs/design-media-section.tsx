@@ -1,8 +1,8 @@
-import { Button, Container, Heading } from "@medusajs/ui";
+import { Button, Container, Heading, Text, Tooltip } from "@medusajs/ui";
 import { AdminDesign } from "../../hooks/api/designs";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
-import { MediaPlay } from "@medusajs/icons";
+import { MediaPlay, ThumbnailBadge } from "@medusajs/icons";
 
 interface DesignMediaSectionProps {
   design: AdminDesign;
@@ -18,8 +18,8 @@ export const DesignMediaSection = ({ design }: DesignMediaSectionProps) => {
   };
 
   return (
-    <Container>
-      <div className="flex items-center justify-between">
+    <Container className="divide-y p-0">
+      <div className="flex items-center justify-between px-6 py-4">
         <Heading level="h2">Media</Heading>
         <ActionMenu
           groups={[
@@ -35,38 +35,51 @@ export const DesignMediaSection = ({ design }: DesignMediaSectionProps) => {
           ]}
         />
       </div>
-      <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-        {design.media_files && design.media_files.length > 0 ? (
-          design.media_files.map((media, index) => (
+      {design.media_files && design.media_files.length > 0 ? (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-4 px-6 py-4">
+          {design.media_files.map((media, index) => (
             <div 
               key={media.id || index} 
-              className="relative group aspect-square overflow-hidden rounded-md border border-ui-border-base">
-              <img
-                src={media.url}
-                alt={`Design media ${index + 1}`}
-                className="w-full h-full object-cover"
-              />
+              className="shadow-elevation-card-rest hover:shadow-elevation-card-hover transition-fg group relative aspect-square size-full cursor-pointer overflow-hidden rounded-[8px]">
               {media.isThumbnail && (
-                <div className="absolute top-2 right-2 bg-ui-bg-highlight text-ui-fg-base text-xs px-2 py-1 rounded-sm">
-                  Thumbnail
+                <div className="absolute left-2 top-2">
+                  <Tooltip content={"Thumbnail"}>
+                    <ThumbnailBadge />
+                  </Tooltip>
                 </div>
               )}
+              <Link to={`media`} state={{ curr: index }}>
+                <img
+                  src={media.url}
+                  alt={`${design.name} image`}
+                  className="size-full object-cover"
+                />
+              </Link>
             </div>
-          ))
-        ) : (
-          <div className="col-span-full flex flex-col items-center justify-center py-8 text-ui-fg-subtle">
-            <p>No media files yet</p>
-            <Button
-              variant="secondary"
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-y-4 pb-8 pt-6">
+          <div className="flex flex-col items-center">
+            <Text
               size="small"
-              onClick={handleManageMedia}
-              className="mt-2"
+              leading="compact"
+              weight="plus"
+              className="text-ui-fg-subtle"
             >
-              Add Media
-            </Button>
+              No media files yet
+            </Text>
+            <Text size="small" className="text-ui-fg-muted">
+              Add images to showcase your design
+            </Text>
           </div>
-        )}
-      </div>
+          <Button size="small" variant="secondary" asChild>
+            <Link to="media?view=edit">
+              Add Media
+            </Link>
+          </Button>
+        </div>
+      )}
     </Container>
   );
 };

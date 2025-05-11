@@ -68,7 +68,6 @@ export const CreateDesignTaskComponent = () => {
   const { t } = useTranslation();
   const { id } = useParams();
   const { handleSuccess } = useRouteModal();
-  const prompt = usePrompt();
   const [isMainTaskExpanded, setIsMainTaskExpanded] = useState(true);
   const { mutateAsync: createTask, isPending } = useCreateDesignTask(id!);
 
@@ -101,15 +100,6 @@ export const CreateDesignTaskComponent = () => {
   };
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    const res = await prompt({
-      title: t("tasks.create.confirmTitle"),
-      description: t("tasks.create.confirmDescription"),
-      confirmText: t("actions.create"),
-      cancelText: t("actions.cancel"),
-    });
-
-    if (!res) return;
-
     try {
       // Create a single task with child tasks
       const taskPayload = {

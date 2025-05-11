@@ -20,8 +20,10 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Button, Checkbox, clx, toast, Tooltip } from "@medusajs/ui"
-import {  useCallback, useState } from "react"
+import { ArrowLeft, ThumbnailBadge } from "@medusajs/icons"
+import { Button, Checkbox, CommandBar, Heading, IconButton, Tooltip, clx, toast } from "@medusajs/ui"
+import { Fragment } from "react"
+import { useCallback, useState } from "react"
 import { useFieldArray, useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
@@ -31,9 +33,7 @@ import { sdk } from "../../../../../../lib/config"
 import { UploadMediaFormItem } from "./upload-media-form-item"
 import { useDesignMediaViewContext } from "../design-media-view"
 import { RouteFocusModal } from "../../../../../../components/modal/route-focus-modal"
-
-
-
+import { Link } from "react-router-dom"
 type DesignMediaViewProps = {
   design: AdminDesign
 }
@@ -157,12 +157,17 @@ export const EditDesignMediaForm = ({ design }: DesignMediaViewProps) => {
         }
         
         return mediaFile;
-      })
+      }),
+      // Add metadata with thumbnail information
+      metadata: {}
     }
     
-    // Only add thumbnail_url if a thumbnail is selected
+    // Only add thumbnail to metadata if a thumbnail is selected
     if (thumbnail) {
-      Object.assign(payload, { thumbnail_url: thumbnail })
+      payload.metadata = { 
+        ...payload.metadata,
+        thumbnail: thumbnail 
+      }
     }
 
     await mutateAsync(
@@ -202,14 +207,12 @@ export const EditDesignMediaForm = ({ design }: DesignMediaViewProps) => {
   }
 
   const handlePromoteToThumbnail = () => {
-    const ids = Object.keys(selection)
+    // Get the ID of the selected media item
+    const selectedId = Object.keys(selection)[0]
+    if (!selectedId) return
 
-    if (!ids.length) {
-      return
-    }
-
+    // Find the current thumbnail and unset it
     const currentThumbnailIndex = fields.findIndex((m) => m.isThumbnail)
-
     if (currentThumbnailIndex > -1) {
       update(currentThumbnailIndex, {
         ...fields[currentThumbnailIndex],
@@ -217,161 +220,163 @@ export const EditDesignMediaForm = ({ design }: DesignMediaViewProps) => {
       })
     }
 
-    const index = fields.findIndex((m) => m.id === ids[0])
-
-    update(index, {
-      ...fields[index],
-      isThumbnail: true,
-    })
-
+    // Find the selected item and set it as thumbnail
+    const targetIndex = fields.findIndex((m) => m.id === selectedId)
+    if (targetIndex > -1) {
+      update(targetIndex, {
+        ...fields[targetIndex],
+        isThumbnail: true,
+      })
+    }
     setSelection({})
   }
 
-  const selectionCount = Object.keys(selection).length
-
   return (
     <RouteFocusModal.Form blockSearchParams form={form}>
-      <DndContext
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
+      <KeyboundForm
+        className="flex size-full flex-col overflow-hidden"
+        onSubmit={handleSubmit}
       >
-        <KeyboundForm onSubmit={handleSubmit}>
-          <div className="flex flex-col px-8 py-6 gap-y-8">
-            <div>
-              <UploadMediaFormItem
-                form={form}
-                append={append}
-              />
+        <RouteFocusModal.Header>
+          <div className="flex items-center justify-end w-full">
+            <div className="flex justify-end gap-x-2">
+              
+              <Button variant="secondary" size="small" asChild>
+              <Link to={{ pathname: `.`, search: 'view=gallery' }}>
+                {t("products.media.galleryLabel")}
+              </Link>
+              </Button>
             </div>
-            <div className="flex flex-col gap-y-2">
-              <div className="flex items-center justify-between">
-                <div className="inter-small-semibold">
-                  Uploaded Images
+            <div className="flex items-center gap-x-2">
+              {Object.keys(selection).length > 0 && (
+                <div className="flex items-center gap-x-2 text-ui-fg-subtle text-sm">
+                  <span>
+                    {t("general.itemsSelected", {
+                      count: Object.keys(selection).length,
+                      defaultValue: "{{count}} selected"
+                    })}
+                  </span>
                 </div>
-                {selectionCount > 0 && (
-                  <div className="flex items-center gap-x-2">
-                    <Button
-                      size="small"
-                      variant="secondary"
-                      onClick={handlePromoteToThumbnail}
-                      disabled={selectionCount !== 1}
-                    >
-                      Set as thumbnail
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="secondary"
-                      onClick={handleDelete}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              <SortableContext
-                items={fields.map((f) => f.field_id)}
-                strategy={rectSortingStrategy}
-              >
-                <div className="grid grid-cols-3 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                  {fields.map((media) => {
-                    return (
-                      <MediaGridItem
-                        key={media.field_id}
-                        media={media}
-                        checked={!!selection[media.id || ""]}
-                        onCheckedChange={handleCheckedChange(
-                          media.id || ""
-                        )}
-                      />
-                    )
-                  })}
+              )}
+            </div>
+          </div>
+        </RouteFocusModal.Header>
+        <RouteFocusModal.Body className="flex flex-col overflow-auto p-0">
+          <div className="flex size-full flex-col-reverse lg:grid lg:grid-cols-[1fr_400px]">
+            <DndContext
+              sensors={sensors}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
+            >
+              <div className="bg-ui-bg-subtle size-full overflow-auto">
+                <div className="grid h-fit auto-rows-auto grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-6">
+                  <SortableContext
+                    items={fields.map((f) => f.field_id)}
+                    strategy={rectSortingStrategy}
+                  >
+                    {fields.map((field) => {
+                      const checked = !!selection[field.id || ""];
+                      return (
+                        <MediaGridItem
+                          key={field.field_id}
+                          media={field}
+                          checked={checked}
+                          onCheckedChange={handleCheckedChange(field.id || "")}
+                        />
+                      );
+                    })}
+                  </SortableContext>
                   <DragOverlay dropAnimation={dropAnimationConfig}>
-                    {activeId ? (
-                      <MediaGridItemOverlay
-                        media={fields.find((m) => m.field_id === activeId)!}
-                        checked={!!selection[fields.find((m) => m.field_id === activeId)?.id || ""]}
-                      />
-                    ) : null}
+                    {activeId && (() => {
+                      const field = fields.find((f) => f.field_id === activeId);
+                      if (!field) return null;
+                      
+                      const checked = !!selection[field.id || ""];
+                      return (
+                        <MediaGridItemOverlay
+                          media={field}
+                          checked={checked}
+                        />
+                      );
+                    })()}
                   </DragOverlay>
                 </div>
-              </SortableContext>
+              </div>
+            </DndContext>
+            <div className="bg-ui-bg-base overflow-auto border-b px-6 py-4 lg:border-b-0 lg:border-l">
+              <UploadMediaFormItem form={form} append={append} />
             </div>
           </div>
-          <div className="flex px-8 py-6 gap-x-2 border-t border-ui-border-base justify-end">
+        </RouteFocusModal.Body>
+        <CommandBar open={!!Object.keys(selection).length}>
+          <CommandBar.Bar>
+            <CommandBar.Value>
+              {t("general.countSelected", {
+                count: Object.keys(selection).length,
+              })}
+            </CommandBar.Value>
+            <CommandBar.Seperator />
+            {Object.keys(selection).length === 1 && (
+              <Fragment>
+                <CommandBar.Command
+                  action={handlePromoteToThumbnail}
+                  label={t("designs.media.makeThumbnail", "Set as thumbnail")}
+                  shortcut="t"
+                />
+                <CommandBar.Seperator />
+              </Fragment>
+            )}
+            <CommandBar.Command
+              action={handleDelete}
+              label={t("actions.delete", "Delete")}
+              shortcut="d"
+            />
+          </CommandBar.Bar>
+        </CommandBar>
+        <RouteFocusModal.Footer>
+          <div className="flex items-center justify-end gap-x-2">
             <Button
               variant="secondary"
+              size="small"
               onClick={goToGallery}
+              disabled={isPending}
             >
-              Cancel
+              {t("actions.cancel", "Cancel")}
             </Button>
-            <Button
-              type="submit"
+            <Button 
+              size="small" 
+              type="submit" 
               isLoading={isPending}
-              disabled={!form.formState.isDirty || !fields.length}
             >
-              Save and close
+              {t("actions.save", "Save")}
             </Button>
           </div>
-        </KeyboundForm>
-        <DragOverlay>
-          {activeId ? (
-            <MediaGridItemOverlay
-              media={
-                fields.find((item) => item.field_id === activeId) as Media
-              }
-              checked={false}
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+        </RouteFocusModal.Footer>
+      </KeyboundForm>
     </RouteFocusModal.Form>
   )
 }
 
-// Helper function to convert the design media files to the format expected by the form
-const getDefaultValues = (
-  mediaFiles: DesignMedia[]
-): Media[] => {
-  return mediaFiles.map((media) => ({
-    id: media.id,
-    field_id: media.id || Math.random().toString(36).substring(2, 9),
-    url: media.url,
-    isThumbnail: media.isThumbnail || false,
-  }))
-}
-
-// Drop animation configuration
-const dropAnimationConfig: DropAnimation = {
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: {
-      active: {
-        opacity: "0.5",
-      },
-    },
-  }),
-}
-
-type MediaGridItemProps = {
-  media: Media
+interface MediaGridItemProps {
+  media: MediaView
   checked: boolean
   onCheckedChange: (value: boolean) => void
 }
-
-// Component for each media item in the grid
 const MediaGridItem = ({
   media,
   checked,
   onCheckedChange,
 }: MediaGridItemProps) => {
+  const { t } = useTranslation()
+
   const handleToggle = useCallback(
     (value: boolean) => {
       onCheckedChange(value)
     },
     [onCheckedChange]
   )
+
   const {
     attributes,
     listeners,
@@ -398,10 +403,8 @@ const MediaGridItem = ({
     >
       {media.isThumbnail && (
         <div className="absolute left-2 top-2">
-          <Tooltip content="Thumbnail image">
-            <div className="rounded-full bg-ui-tag-green-bg text-ui-tag-green-text p-1.5 flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-ui-tag-green-icon" />
-            </div>
+          <Tooltip content={t("products.media.thumbnailTooltip")}>
+            <ThumbnailBadge />
           </Tooltip>
         </div>
       )}
@@ -412,60 +415,87 @@ const MediaGridItem = ({
         ref={setActivatorNodeRef}
         {...attributes}
         {...listeners}
+      />
+      <div
+        className={clx("transition-fg absolute right-2 top-2 opacity-0", {
+          "group-focus-within:opacity-100 group-hover:opacity-100 group-focus:opacity-100":
+            !isDragging && !checked,
+          "opacity-100": checked,
+        })}
       >
-        <img
-          src={media.url}
-          alt="Design media"
-          className="object-cover absolute inset-0 z-0 w-full h-full"
+        <Checkbox
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+          checked={checked}
+          onCheckedChange={handleToggle}
         />
       </div>
-      <div className="absolute bottom-0 flex w-full justify-between p-2 z-10 bg-ui-bg-base bg-opacity-70">
-        <Checkbox
-          id={`select-${media.field_id}`}
-          onCheckedChange={handleToggle}
-          checked={checked}
-          />
-      </div>
+      <img
+        src={media.url}
+        alt=""
+        className="size-full object-cover object-center"
+      />
     </div>
   )
 }
 
-// Overlay for drag operations
-const MediaGridItemOverlay = ({
+interface MediaView {
+  id?: string
+  field_id: string
+  url: string
+  isThumbnail: boolean
+}
+
+export const MediaGridItemOverlay = ({
   media,
   checked,
 }: {
-  media: Media
+  media: MediaView
   checked: boolean
 }) => {
   return (
-    <div
-      className="shadow-elevation-card-rest bg-ui-bg-subtle-hover group relative aspect-square h-auto max-w-full overflow-hidden rounded-lg outline-none"
-    >
+    <div className="shadow-elevation-card-rest hover:shadow-elevation-card-hover focus-visible:shadow-borders-focus bg-ui-bg-subtle-hover group relative aspect-square h-auto max-w-full cursor-grabbing overflow-hidden rounded-lg outline-none">
       {media.isThumbnail && (
         <div className="absolute left-2 top-2">
-          <Tooltip content="Thumbnail image">
-            <div className="rounded-full bg-ui-tag-green-bg text-ui-tag-green-text p-1.5 flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-ui-tag-green-icon" />
-            </div>
-          </Tooltip>
+          <ThumbnailBadge />
         </div>
       )}
-      <div className="absolute inset-0 cursor-grabbing touch-none outline-none">
-        <img
-          src={media.url}
-          alt="Design media"
-          className="object-cover absolute inset-0 z-0 w-full h-full"
-        />
+      <div
+        className={clx("transition-fg absolute right-2 top-2 opacity-0", {
+          "opacity-100": checked,
+        })}
+      >
+        <Checkbox checked={checked} />
       </div>
-      <div className="absolute bottom-0 flex w-full justify-between p-2 z-10 bg-ui-bg-base bg-opacity-70">
-        <Checkbox
-          id={`select-${media.field_id}`}
-          checked={checked}
-        />
-      </div>
+      <img
+        src={media.url}
+        alt=""
+        className="size-full object-cover object-center"
+      />
     </div>
   )
 }
 
 export default EditDesignMediaForm
+
+// Helper function to convert the design media files to the format expected by the form
+function getDefaultValues(mediaFiles: DesignMedia[]): Media[] {
+  return mediaFiles.map((m) => ({
+    id: m.id,
+    field_id: m.id || crypto.randomUUID(),
+    url: m.url,
+    isThumbnail: m.isThumbnail || false,
+  }))
+}
+
+// Drop animation configuration
+const dropAnimationConfig: DropAnimation = {
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: {
+        opacity: "0.5",
+      },
+    },
+  }),
+}

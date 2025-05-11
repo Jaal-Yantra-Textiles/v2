@@ -14,7 +14,7 @@ export const DesignSizesSection = ({ design }: DesignSizesSectionProps) => {
 
   // Navigate to sizes management modal
   const handleManageSizes = () => {
-    navigate(`/designs/${id}/sizes`);
+    navigate(`/designs/${id}/edit-size`);
   };
 
   // Check if custom sizes exist and has entries

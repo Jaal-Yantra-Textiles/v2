@@ -19,7 +19,7 @@ export const DesignColorPaletteSection = ({ design }: DesignColorPaletteSectionP
       <div className="px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <Heading>{t("Color Palette")}</Heading>
+            <Heading level="h2">{t("Color Palette")}</Heading>
             <Text className="text-ui-fg-subtle" size="small">
               Colors used in this design
             </Text>
