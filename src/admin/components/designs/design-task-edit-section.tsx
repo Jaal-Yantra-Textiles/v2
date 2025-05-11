@@ -12,7 +12,7 @@ const taskSchema = z.object({
   status: z.enum(["pending", "in_progress", "completed", "blocked"]).optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
   start_date: z.date().nullable().optional(),
-  due_date: z.date().nullable().optional(),
+  end_date: z.date().nullable().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
 });
 
@@ -57,7 +57,7 @@ export const EditTaskForm = ({ task, designId }: EditTaskFormProps) => {
         description: data.description,
         status: data.status as TaskStatus,
         priority: data.priority as TaskPriority,
-        due_date: data.due_date as Date,
+        due_date: data.end_date as Date,
         metadata: data.metadata,
       },
       {
@@ -111,7 +111,7 @@ export const EditTaskForm = ({ task, designId }: EditTaskFormProps) => {
       gridCols: 1
     },
     {
-      name: "due_date",
+      name: "end_date",
       type: "custom",
       label: t("fields.dueDate", "Due Date"),
       customComponent: DatePickerField,
@@ -125,7 +125,7 @@ export const EditTaskForm = ({ task, designId }: EditTaskFormProps) => {
     status: task.status,
     priority: task.priority,
     start_date: task.start_date ? new Date(task.start_date) : null,
-    due_date: task.due_date ? new Date(task.due_date) : null,
+    end_date: task.end_date ? new Date(task.end_date) : null,
     metadata: task.metadata,
   };
 

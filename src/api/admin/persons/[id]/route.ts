@@ -8,6 +8,7 @@ import { PersonAllowedFields, refetchPerson } from "../helpers";
 import { MedusaError } from "@medusajs/framework/utils";
 import { AdminUpdatePerson } from "../../../../admin/hooks/api/personandtype";
 import listSinglePersonWorkflow from "../../../../workflows/persons/list-single-person";
+import deletePersonWorkflow from "../../../../workflows/delete-person";
 
 export const GET = async (req: MedusaRequest , res: MedusaResponse) => {
   const { id } = req.params;
@@ -66,13 +67,19 @@ export const POST = async (
 };
 
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
-  const personService: PersonService = req.scope.resolve(PERSON_MODULE);
   const { id } = req.params;
-
-  try {
-    await personService.deletePeople(id);
-    res.status(204).send();
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
+    const {result, errors} = await  deletePersonWorkflow(req.scope).run({
+      input: {
+        id,
+      },
+    });
+    if (errors.length > 1) {
+      console.warn("Error reported at", errors);
+      throw errors;
+    }
+    res.status(201).json({
+      id,
+      object: "person",
+      deleted: true,
+    });
 };

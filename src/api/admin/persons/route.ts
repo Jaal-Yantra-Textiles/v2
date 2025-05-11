@@ -5,7 +5,7 @@ import {
 } from "@medusajs/framework/http";
 import PersonService from "../../../modules/person/service";
 import { PERSON_MODULE } from "../../../modules/person";
-import { Person } from "./validators";
+import { Person, ListPersonsQuery } from "./validators";
 import createPersonWorkflow from "../../../workflows/create-person";
 import { PersonAllowedFields, refetchPerson } from "./helpers";
 import { listAndCountPersonsWithFilterWorkflow } from "../../../workflows/persons/list-and-count-with-filter.ts/list-and-count-with-filter";
@@ -33,54 +33,35 @@ export const POST = async (
   res.status(201).json({ person });
 };
 
-// Valid fields that can be used for filtering
-const VALID_FILTER_FIELDS = [
-  'id',
-  'first_name',
-  'last_name',
-  'email',
-  'date_of_birth',
-  'state',
-  'q'
-] as const;
-
-type ValidFilterField = typeof VALID_FILTER_FIELDS[number];
-
-interface PersonFilters {
-  q?: string; 
-  [key: string]: any;
-}
-
-export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+export const GET = async (req: MedusaRequest<ListPersonsQuery>, res: MedusaResponse) => {
   const personService: PersonService = req.scope.resolve(PERSON_MODULE);
 
   try {
-    // Extract only valid filter fields from query
-    const filters: PersonFilters = {};
+    // Use the validated query parameters
+    const query = req.validatedQuery;
     
-    // Always include search query if present
-    if (req.query.q) {
-      filters.q = req.query.q as string;
-    }
-
-    // Add other valid filters
-    Object.keys(req.query).forEach(key => {
-      if (VALID_FILTER_FIELDS.includes(key as ValidFilterField)) {
-        filters[key] = req.query[key];
-      }
-    });
-
-    const limit = Math.min(Number(req.query.limit) || 10, 10) // Cap at 10 items
+    // Extract filters directly from the validated query
+    // This works because our validator schema matches the filter fields
+    const filters = {
+      q: query.q,
+      first_name: query.first_name,
+      last_name: query.last_name,
+      email: query.email,
+      state: query.state
+    };
+    
+    // Get the validated limit and offset
     const { result:persons, errors } = await listAndCountPersonsWithFilterWorkflow(req.scope).run({
       input: {
         filters,
         pagination: {
-          take: limit,
-          skip: Number(req.query.offset) || 0,
+          take: query.limit,
+          skip: query.offset,
           order: {
             created_at: 'ASC'
           }
-        }
+        },
+        withDeleted: Boolean(query.withDeleted)
       }
     })
 

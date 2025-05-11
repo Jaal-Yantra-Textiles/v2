@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { findWebsiteByDomainWorkflow } from "../../../../workflows/website/find-website-by-domain";
 
+
 export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse,
@@ -43,6 +44,9 @@ export const GET = async (
       });
       return;
     }
-    throw error;
+    res.status(500).json({
+      message: "An error occurred while fetching the website",
+      error: error.message,
+    });
   }
 };

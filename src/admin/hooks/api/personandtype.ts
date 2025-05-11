@@ -33,6 +33,7 @@ export interface AdminPerson {
   avatar: string;
   contact_details: ContactDetail[];
   tags: Tag[];
+  deleted_at: string | null;
 }
 
 export interface AdminCreatePerson {
@@ -73,11 +74,14 @@ export interface AdminPersonsListParams {
   offset: number;
   order?: string | undefined;
   email?: string;
+  first_name?: string;
+  last_name?: string;
   date_of_birth?: Date;
   state?: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
   q?: string;
+  withDeleted?: boolean;
 }
 
 export interface AdminPersonType {

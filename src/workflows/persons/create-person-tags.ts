@@ -36,7 +36,7 @@ type CreatePersonTagsWorkFlowInput = {
   name: Record<string, unknown>;
 };
 
-const createPersonWorkflow = createWorkflow(
+const createPersonTagsWorkflow = createWorkflow(
   "create-person-tags",
   (input: CreatePersonTagsWorkFlowInput) => {
     const personTags = createPersonTagsStep(input);
@@ -53,4 +53,4 @@ const createPersonWorkflow = createWorkflow(
   }, 
 );
 
-export default createPersonWorkflow;
+export default createPersonTagsWorkflow;

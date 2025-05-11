@@ -12,16 +12,14 @@ import multer from "multer";
 import { ConfigModule } from "@medusajs/framework/types";
 import { parseCorsOrigins } from "@medusajs/framework/utils";
 import cors from "cors";
-import { personSchema, ReadPersonQuerySchema, UpdatePersonSchema } from "./admin/persons/validators";
+import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody
 const wrapSchema = <T extends z.ZodType>(schema: T) => {
   return z.preprocess((obj) => obj, schema) as any;
 };
 
-import {
-  personTypeSchema,
-} from "./admin/persontypes/validators";
+import { personTypeSchema } from "./admin/persontypes/validators";
 import { addressSchema } from "./admin/persons/[id]/addresses/validators";
 import { contactSchema } from "./admin/persons/[id]/contacts/validators";
 import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
@@ -46,7 +44,9 @@ import { partnerSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema } from "./admin/inventory-orders/validators";
+// Import already defined above
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
+import { subscriptionSchema } from "./web/website/[domain]/validators";
 
 
 
@@ -137,9 +137,14 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(personSchema))],
     },
     {
+      matcher: "/admin/persons/:id",
+      method: "DELETE",
+      middlewares: [],
+    },
+    {
       matcher: "/admin/persons",
       method: "GET",
-      middlewares: [],
+      middlewares: [validateAndTransformQuery(wrapSchema(listPersonsQuerySchema), {})],
     },
     {
       matcher: "/admin/persons/:id",
@@ -399,6 +404,11 @@ export default defineMiddlewares({
       matcher: "/web/website/:domain",
       method: "GET",
       middlewares: [],
+    },
+    {
+      matcher: "/web/website/:domain/subscribe",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(subscriptionSchema))],
     },
 
     // Raw Materials Categories API

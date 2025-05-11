@@ -10,6 +10,7 @@ export type ListAndCountPersonsWithFilterWorkFlowInput = {
             [key: string]: "ASC" | "DESC"
         }
     }
+    withDeleted?: boolean
 }
 
 const listAndCountPersonsWithFilterStep = createStep(
@@ -31,7 +32,8 @@ const listAndCountPersonsWithFilterStep = createStep(
             pagination: {
                 ...pagination,
                 take
-            }
+            },
+            withDeleted: input.withDeleted
         })
         return new StepResponse({ data, metadata })
     }

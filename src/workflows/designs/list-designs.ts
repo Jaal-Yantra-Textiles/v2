@@ -27,10 +27,19 @@ export const listDesignsStep = createStep(
     const designService: DesignService = container.resolve(DESIGN_MODULE);
 
     const [designs, count] = await designService.listAndCountDesigns(
-      input.filters
+      input.filters,
+      {
+        skip: input.pagination.offset,
+        take: input.pagination.limit
+      }
     );
 
-    return new StepResponse({ designs, count }, null);
+    return new StepResponse({ 
+      designs, 
+      count, 
+      offset: input.pagination.offset,
+      limit: input.pagination.limit
+    }, null);
   },
 );
 
