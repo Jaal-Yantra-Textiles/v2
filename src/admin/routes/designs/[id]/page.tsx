@@ -14,8 +14,15 @@ import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 
 const DesignDetailPage = () => {
   const { id } = useParams();
+  
+  // Use staleTime: 0 to ensure data is always refetched when navigating back to this page
   const { design, isLoading, isError, error } = useDesign(id!, {
     fields: ["+inventory_items.*", '+tasks.*', 'tasks.subtasks.*', 'tasks.outgoing.*', 'tasks.incoming.*']
+  }, {
+    // This ensures fresh data is fetched when returning from other pages
+    staleTime: 0,
+    // This ensures the query is refetched when the component remounts
+    refetchOnMount: true
   });
 
   // Show loading skeleton while data is being fetched
