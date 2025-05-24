@@ -47,6 +47,7 @@ import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingle
 // Import already defined above
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
+import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
 
 
 
@@ -252,6 +253,11 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders/:id",
       method: 'PUT',
       middlewares: [validateAndTransformBody(wrapSchema(updateInventoryOrdersSchema))],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/tasks",
+      method: 'POST',
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostInventoryOrderTasksReq))],
     },
     {
       matcher: "/admin/designs",

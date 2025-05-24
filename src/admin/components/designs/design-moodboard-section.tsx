@@ -15,7 +15,7 @@ export function DesignMoodboardSection() {
   
   // Function to close the modal
   const onClose = () => {
-    // Use window.history.back() to navigate back
+    console.log('Closing')
     navigate(-1);
   };
   
@@ -34,11 +34,11 @@ export function DesignMoodboardSection() {
 
   return (
     <RouteNonFocusModal>
-      <RouteNonFocusModal.Header>
+      <RouteNonFocusModal.Header onClick={handleCloseSave}>
         <div className="flex items-center justify-end w-full">
           <div className="flex items-end justify-end gap-x-2">
             <Button
-              variant="secondary"
+              variant="primary"
               size="base"
               onClick={handleSave}
               disabled={isSaving || !hasChanges}
@@ -46,7 +46,6 @@ export function DesignMoodboardSection() {
               {isSaving ? "Saving..." : hasChanges ? "Save Changes" : "No Changes"}
             </Button>
           </div>
-          <RouteNonFocusModal.Close onClick={handleCloseSave} />
         </div>
       </RouteNonFocusModal.Header>
       <RouteNonFocusModal.Body>

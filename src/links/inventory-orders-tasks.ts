@@ -8,10 +8,6 @@ import TasksModule from "../modules/tasks";
  * This enables loose coupling between order lines and inventory items and tasks across modules.
  */
 export default defineLink(
-  InventoryOrdersModule.linkable.inventoryOrders,
-  {
-    linkable: TasksModule.linkable.task,
-    isList: true, // Each order line links to many tasks
-    field: 'tasks'
-  }
-);
+  { linkable: InventoryOrdersModule.linkable.inventoryOrders, isList: true },
+  { linkable: TasksModule.linkable.task, isList: true , field: 'tasks' }
+)
