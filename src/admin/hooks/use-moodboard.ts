@@ -4,14 +4,9 @@ import { useUpdateDesign, useDesign } from "./api/designs";
 import { useMoodboardFiles } from "./use-moodboard-files";
 import { isEqual } from "lodash";
 
-type MoodboardData = {
-  type: string;
-  version: number;
-  source: string;
-  elements: any[];
-  appState: any;
-  files: Record<string, any>;
-};
+
+// In this code some how the on close by escape does not get triggered so for now
+// we are leaving like this
 
 export const useMoodboard = ({ 
   designId, 
@@ -24,16 +19,14 @@ export const useMoodboard = ({
   const [hasChanges, setHasChanges] = useState(false);
   const { mutate: updateDesign } = useUpdateDesign(designId);
   const { design } = useDesign(designId, { fields: ["moodboard"] });
-  const autoSaveRef = useRef<NodeJS.Timeout | null>(null);
+
   const originalStateRef = useRef<any>(null);
   
   const saveExcalidrawStateRef = useRef<() => Promise<void>>(() => Promise.resolve());
   
   const {
-    processedFiles,
     fileUrlMappingRef,
     excalidrawAPIRef,
-    prevElementsCountRef,
     processImageElements,
     handleExcalidrawChange
   } = useMoodboardFiles(() => saveExcalidrawStateRef.current());
