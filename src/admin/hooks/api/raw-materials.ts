@@ -75,6 +75,7 @@ export interface RawMaterial {
 
 export interface InventoryItem {
   id: string
+  inventory_item_id?: string // Added for link-based queries
   sku: string
   origin_country: string | null
   hs_code: string | null
@@ -93,6 +94,7 @@ export interface InventoryItem {
   updated_at: string
   deleted_at: string | null
   raw_materials?: RawMaterial
+  inventory_item?: InventoryItem // Added for link-based queries
   location_levels: Array<{
     id: string
     inventory_item_id: string
@@ -321,4 +323,41 @@ export const useRawMaterial = (
     },
     ...options,
   });
+};
+
+export interface InventoryWithRawMaterialsResponse {
+  inventory_items: InventoryItem[]
+  count?: number
+  offset?: number
+  limit?: number
+}
+
+export const useInventoryWithRawMaterials = (
+  query?: Record<string, any>,
+  options?: Omit<
+    UseQueryOptions<
+      InventoryWithRawMaterialsResponse,
+      FetchError,
+      InventoryWithRawMaterialsResponse,
+      QueryKey
+    >,
+    "queryKey" | "queryFn"
+  >
+) => {
+  const { data, ...rest } = useQuery<InventoryWithRawMaterialsResponse, FetchError, InventoryWithRawMaterialsResponse, QueryKey>({
+    queryKey: inventoryItemsRawMaterialQueryKeys.list(query),
+    queryFn: async () => {
+      const response = await sdk.client.fetch<InventoryWithRawMaterialsResponse>(
+        `/admin/inventory-items/raw-materials`,
+        {
+          method: "GET",
+          query
+        }
+      );
+      return response;
+    },
+    ...options,
+  });
+  
+  return { ...data, ...rest };
 };
