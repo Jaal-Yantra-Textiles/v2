@@ -1,11 +1,8 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, CommandBar } from "@medusajs/ui";
-import { useInventoryItems, InventoryItem } from "../../hooks/api/raw-materials";
-import { ActionMenu } from "../common/action-menu";
-import { Plus } from "@medusajs/icons";
+import { Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, CommandBar, toast } from "@medusajs/ui";
+import { InventoryItem, useInventoryWithRawMaterials } from "../../hooks/api/raw-materials";
 import { useInventoryColumns } from "./hooks/use-inventory-columns";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { useLinkDesignInventory, useDesignInventory } from "../../hooks/api/designs";
-import { toast } from "@medusajs/ui";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 
 
@@ -70,20 +67,29 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     }
     
     // Define a type for the inventory item that can be either a string or an object with an id
-    type InventoryItemOrId = string | { id: string; [key: string]: any };
+    type InventoryItemOrId = string | { id: string; inventory_item_id?: string; [key: string]: any };
     
     // Extract just the IDs from the inventory items
-    return new Set(
-      linkedInventory.inventory_items.map((item: InventoryItemOrId) => 
-        typeof item === 'string' ? item : item.id
-      )
-    );
+    const linkedIds = linkedInventory.inventory_items.map((item: InventoryItemOrId) => {
+      if (typeof item === 'string') {
+        return item;
+      } else {
+        // Check if inventory_item_id exists, otherwise use id
+        return item.inventory_item_id || item.id;
+      }
+    });
+    
+    return new Set(linkedIds);
   }, [linkedInventory]);
 
   
 
-  const { inventory_items = [], isLoading: isLoadingItems } = useInventoryItems({
-    fields: "+raw_materials.*, +raw_materials.material_type.*"
+  // Fetch inventory items with expanded raw_materials data
+  // We'll use the fields parameter to include raw_materials data
+  // and then filter in the frontend for better performance
+  const { inventory_items = [], isLoading: isLoadingItems } = useInventoryWithRawMaterials({
+    fields: "+raw_materials.*, +raw_materials.material_type.*",
+    limit: 100, // Increase limit to ensure we get enough items with raw_materials
   });
   
   const filterHelper = createDataTableFilterHelper<InventoryItem>();
@@ -96,9 +102,13 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
   const [search, setSearch] = useState<string>("");
 
   const filteredItems = useMemo(() => {
-    // First filter out items without raw_materials
-    let result = inventory_items.filter(item => item.raw_materials);
-
+    // Filter for items that have raw_materials and are not already linked
+    let result = inventory_items.filter(item => {
+      const itemId = item.inventory_item_id || item.id;
+      const isLinked = linkedItemIds.has(itemId);
+      return item.raw_materials && !isLinked;
+    });
+    
     // Apply search
     if (search) {
       result = result.filter((item) => 
@@ -130,7 +140,7 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     })
 
     return result;
-  }, [inventory_items, filtering, search]);
+  }, [inventory_items, filtering, search, linkedItemIds]);
 
   const handleRowSelect = useCallback((rowId: string) => {
     // Don't allow selecting linked items
@@ -151,8 +161,9 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     if (checked) {
       const allSelected = filteredItems.reduce((acc, item) => {
         // Don't select linked items
-        if (!linkedItemIds.has(item.id)) {
-          acc[item.id] = true;
+        const itemId = item.inventory_item_id || item.id;
+        if (!linkedItemIds.has(itemId)) {
+          acc[itemId] = true;
         }
         return acc;
       }, {} as Record<string, boolean>);
@@ -208,11 +219,11 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
   const table = useDataTable({
     columns: columns,
     data: paginatedItems,
-    getRowId: (row) => row.id,
+    getRowId: (row) => row.inventory_item_id || row.id,
     rowCount: filteredItems.length,
     onRowClick: (_, row) => {
       // Only handle selection for non-linked items
-      const rowId = row.id as string;
+      const rowId = (row.inventory_item_id || row.id) as string;
       
       // Check if the item is in the linkedItemIds Set
       if (!linkedItemIds.has(rowId)) {
@@ -286,7 +297,6 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
   return (
     <RouteFocusModal>
       <RouteFocusModal.Header></RouteFocusModal.Header>
-    <Container className="divide-y p-0">
       <CommandBar open={isCommandBarOpen}>
         <CommandBar.Bar>
           <CommandBar.Value>{Object.keys(selectedRows).length} selected</CommandBar.Value>
@@ -331,25 +341,11 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
           <div className="flex items-center gap-x-2">
             <DataTable.Search />
             <DataTable.FilterMenu tooltip="Filter inventory items" />
-            <ActionMenu
-              groups={[
-                {
-                  actions: [
-                    {
-                      label: "Add Inventory",
-                      icon: <Plus />,
-                      to: `/designs/${designId}/addinv`,
-                    },
-                  ],
-                },
-              ]}
-            />
           </div>
         </DataTable.Toolbar>
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
-    </Container>
     </RouteFocusModal>
   );
 }

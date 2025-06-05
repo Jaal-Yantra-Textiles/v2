@@ -54,9 +54,9 @@ const DesignDetailPage = () => {
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
           <DesignTasksSection design={design} />
+          <DesignInventorySection design={design} />
           <DesignTagsSection design={design} />
           <DesignColorPaletteSection design={design} />
-          <DesignInventorySection design={design} />
         </TwoColumnPage.Sidebar>  
         </TwoColumnPage>
   );

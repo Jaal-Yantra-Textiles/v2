@@ -4,13 +4,14 @@ import { ActionMenu } from "../common/action-menu";
 import { AdminDesign, useDesignInventory } from "../../hooks/api/designs";  
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
-import { Thumbnail } from "../common/thumbnail";
+
 
 // Define the explicit inventory item interface
 interface InventoryItem {
   id: string;
   title?: string;
   thumbnail?: string | null;
+  sku?: string;
 }
 
 // Define the interface for API response inventory item object 
@@ -38,6 +39,7 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
         id: String(typedItem.id),
         title: typedItem.title ? String(typedItem.title) : `Inventory Item ${String(typedItem.id)}`,
         thumbnail: typedItem.thumbnail || null,
+        sku: typedItem.sku || `SKU ${String(typedItem.id)}`,
       };
     }
     
@@ -50,11 +52,19 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
   }) || [];
   
   return (
-    <Container className="divide-y p-0">
+    <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-x-4">
-          <Heading level="h2">Inventory Used</Heading>
+      <div className="flex items-center justify-between mb-4">
+          <div>
+            <Heading level="h2">{("Inventory")}</Heading>
+            <Text className="text-ui-fg-subtle" size="small">
+            Inventory items used in this design
+            </Text>
           </div>
+          <div className="flex items-center gap-x-2">
+            
+          </div>
+        </div>
         <div className="flex items-center gap-x-4">
         <ActionMenu
           groups={[
@@ -88,12 +98,12 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
                 const Inner = (
                   <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2 transition-colors">
                     <div className="flex items-center gap-3">
-                      <div className="shadow-elevation-card-rest bg-ui-bg-base rounded-md flex items-center justify-center text-ui-fg-subtle">
-                        <Thumbnail src={item.thumbnail} />
-                      </div>
                       <div className="flex flex-1 flex-col overflow-hidden">
                         <span className="text-ui-fg-base font-medium">
                           {item.title || `Inventory Item ${item.id}`}
+                        </span>
+                        <span className="text-ui-fg-base font-medium">
+                          {item.sku || `SKU ${item.sku}`}
                         </span>
                         <span className="text-ui-fg-subtle truncate max-w-[150px] sm:max-w-[200px] md:max-w-full block">
                           {item.id || "-"}

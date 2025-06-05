@@ -2,6 +2,7 @@ import { MedusaContainer } from "@medusajs/framework/types"
 import { RAW_MATERIAL_MODULE } from "../../../../../modules/raw_material"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { RawMaterial } from "./validators"
+import RawMaterialInventoryLink from "../../../../../links/raw-material-data-inventory"
 
 export type RawMaterialAllowedFields = "*" | keyof RawMaterial
 
@@ -29,4 +30,19 @@ export const refetchRawMaterial = async (
   }
 
   return inventoryItem[0]
+}
+
+export const getAllInventoryWithRawMaterial = async (
+  container: MedusaContainer,
+  filters: Record<string, unknown> = {},
+  fields: RawMaterialAllowedFields[] = ["*"]
+) => {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+
+  const { data } = await query.graph({
+    entity: RawMaterialInventoryLink.entryPoint,
+    fields: ["*", "raw_materials.*", "inventory_item.*"],
+    filters,
+  })
+  return data
 }
