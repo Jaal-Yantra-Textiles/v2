@@ -86,7 +86,7 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
         {isLoading ? (
           <Skeleton className="h-7 w-full" />
         ) : (
-          <div className="txt-small flex flex-col gap-2 px-2 pb-2">
+          <div className="txt-small flex flex-col gap-2 px-1 pb-2">
             {!inventoryItems.length ? (
               <div className="flex items-center justify-center py-4 w-full">
                 <Text className="text-ui-fg-subtle">No inventory items found</Text>
