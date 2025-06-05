@@ -1,4 +1,4 @@
-import { Text, createDataTableColumnHelper, Checkbox, Tooltip } from "@medusajs/ui";
+import { Text, createDataTableColumnHelper, Checkbox } from "@medusajs/ui";
 import { InventoryItem } from "../../../hooks/api/raw-materials";
 import { Thumbnail } from "../../../components/common/thumbnail";
 
@@ -67,24 +67,13 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
       id: "sku",
       header: "SKU",
       cell: ({ row }) => {
-        const isLinked = selectionProps?.linkedItemIds?.has(row.original.inventory_item_id || row.original.id);
         const sku = row.original.inventory_item?.sku || row.original.sku || "-";
         
-        const content = (
-          <Text size="small" leading="compact" className={isLinked ? "text-ui-fg-subtle" : ""}>
+        return (
+          <Text size="small" leading="compact">
             {sku}
           </Text>
         );
-        
-        if (isLinked) {
-          return (
-            <Tooltip content="This inventory item is already linked to this design">
-              {content}
-            </Tooltip>
-          );
-        }
-        
-        return content;
       },
       enableSorting: true,
       sortLabel: "SKU",
@@ -93,24 +82,13 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
       id: "composition",
       header: "Composition",
       cell: ({ row }) => {
-        const isLinked = selectionProps?.linkedItemIds?.has(row.original.inventory_item_id || row.original.id);
         const composition = row.original.raw_materials?.composition || "-";
         
-        const content = (
-          <Text size="small" leading="compact" className={isLinked ? "text-ui-fg-subtle" : ""}>
+        return (
+          <Text size="small" leading="compact">
             {composition}
           </Text>
         );
-        
-        if (isLinked) {
-          return (
-            <Tooltip content="This inventory item is already linked to this design">
-              {content}
-            </Tooltip>
-          );
-        }
-        
-        return content;
       },
       enableSorting: true,
       sortLabel: "Composition",
@@ -119,24 +97,13 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
       id: "name",
       header: "Material Name",
       cell: ({ row }) => {
-        const isLinked = selectionProps?.linkedItemIds?.has(row.original.inventory_item_id || row.original.id);
         const name = row.original.raw_materials?.name || "-";
         
-        const content = (
-          <Text size="small" leading="compact" className={isLinked ? "text-ui-fg-subtle" : ""}>
+        return (
+          <Text size="small" leading="compact">
             {name}
           </Text>
         );
-        
-        if (isLinked) {
-          return (
-            <Tooltip content="This inventory item is already linked to this design">
-              {content}
-            </Tooltip>
-          );
-        }
-        
-        return content;
       },
       enableSorting: true,
       sortLabel: "Material Name",
@@ -145,24 +112,13 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
       id: "category",
       header: "Category",
       cell: ({ row }) => {
-        const isLinked = selectionProps?.linkedItemIds?.has(row.original.inventory_item_id || row.original.id);
         const category = row.original.raw_materials?.material_type?.category || "-";
         
-        const content = (
-          <Text size="small" leading="compact" className={isLinked ? "text-ui-fg-subtle" : ""}>
+        return (
+          <Text size="small" leading="compact">
             {category}
           </Text>
         );
-        
-        if (isLinked) {
-          return (
-            <Tooltip content="This inventory item is already linked to this design">
-              {content}
-            </Tooltip>
-          );
-        }
-        
-        return content;
       },
       enableSorting: true,
       sortLabel: "Category",

@@ -1,4 +1,4 @@
-import { PencilSquare, Trash, Newspaper, BookOpen } from "@medusajs/icons";
+import { PencilSquare, Trash, Newspaper, BookOpen, Link } from "@medusajs/icons";
 import {
   Container,
   Heading,
@@ -7,6 +7,7 @@ import {
   toast,
   usePrompt,
   Badge,
+  Tooltip,
 } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -174,11 +175,59 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
               {t("Inspiration Sources")}
             </Text>
             <Text size="small" leading="compact">
-              {design.inspiration_sources?.map((source, index) => (
-                <Badge key={index} className="mr-2 mb-1">
-                  {source}
-                </Badge>
-              )) || "-"}
+              {design.inspiration_sources?.map((source, index) => {
+                // Check if the source is a URL
+                const isUrl = source.match(/^(https?:\/\/|www\.)/i);
+                
+                if (isUrl) {
+                  // Extract domain name for display
+                  let displayUrl = source;
+                  try {
+                    // Remove protocol and get just domain
+                    displayUrl = source.replace(/^(https?:\/\/|www\.)/i, '');
+                    // Get domain part only
+                    const domainParts = displayUrl.split('/');
+                    displayUrl = domainParts[0];
+                    // If still too long, truncate
+                    if (displayUrl.length > 20) {
+                      displayUrl = displayUrl.substring(0, 17) + '...';
+                    }
+                  } catch (e) {
+                    // Fallback if parsing fails
+                    displayUrl = source.length > 20 ? source.substring(0, 17) + '...' : source;
+                  }
+                  
+                  // Ensure URL has proper protocol
+                  const fullUrl = source.startsWith('http') ? source : `https://${source}`;
+                  
+                  // Create a shortened version for the tooltip if needed
+                  const tooltipContent = source.length > 60 
+                    ? source.substring(0, 57) + '...' 
+                    : source;
+                    
+                  return (
+                    <Tooltip key={index} content={<div className="max-w-[300px] break-all">{tooltipContent}</div>}>
+                      <div className="inline-block">
+                        <Badge 
+                          key={index} 
+                          className="mr-2 mb-1 cursor-pointer inline-flex items-center gap-1"
+                          onClick={() => window.open(fullUrl, '_blank')}
+                        >
+                          <Link className="w-3 h-3 inline-flex" />
+                          <span className="truncate max-w-[120px]">{displayUrl}</span>
+                        </Badge>
+                      </div>
+                    </Tooltip>
+                  );
+                }
+                
+                // Regular tag
+                return (
+                  <Badge key={index} className="mr-2 mb-1">
+                    {source}
+                  </Badge>
+                );
+              }) || "-"}
             </Text>
           </div>
 

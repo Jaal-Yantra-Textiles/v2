@@ -23,11 +23,30 @@ export interface SendBlogSubscribersInput {
 }
 
 /**
+ * Input for the test-blog-email workflow
+ */
+export interface TestBlogEmailInput {
+  page_id: string
+  test_email: string
+  subject: string
+  customMessage?: string
+}
+
+/**
  * Result of the email sending process
  */
 export interface EmailSendingResult {
   success: boolean
   subscriber_id: string
+  email: string
+  error?: string
+}
+
+/**
+ * Result of the test email sending process
+ */
+export interface TestEmailResult {
+  success: boolean
   email: string
   error?: string
 }
