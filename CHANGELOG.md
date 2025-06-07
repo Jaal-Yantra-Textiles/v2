@@ -1,3 +1,10 @@
+## [5.5.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.5.0...v5.5.1) (2025-06-07)
+
+
+### Bug Fixes
+
+* **Tiptap to HTML:** Convering Tiptap to HTML ([e62fdd9](https://github.com/Jaal-Yantra-Textiles/v2/commit/e62fdd9a371ebc1048ea2fd96fe7329c2191a89f))
+
 # [5.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.4.0...v5.5.0) (2025-06-07)
 
 
