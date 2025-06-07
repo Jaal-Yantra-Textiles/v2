@@ -43,39 +43,89 @@ export const sendTestEmailStep = createStep(
     const notificationModuleService = container.resolve(Modules.NOTIFICATION)
     
     try {
-      // Convert TipTap content to HTML if it's in JSON format
-      let htmlContent = input.blogData.content
+      // Convert TipTap content to HTML
+      let htmlContent = ''
       try {
-        // Check if content is TipTap JSON
-        if (typeof input.blogData.content === 'string' && 
-            (input.blogData.content.startsWith('{') || input.blogData.content.includes('"type":"doc"'))) {
-          htmlContent = convertTipTapToHtml(input.blogData.content)
+        // blogData.content now contains the extracted TipTap content from the blog block
+        const content = input.blogData.content
+        
+        // Handle different content formats
+        if (typeof content === 'object') {
+          // If content is already a parsed object
+          htmlContent = convertTipTapToHtml(content)
+          console.log('Converted TipTap object to HTML')
+        } else if (typeof content === 'string') {
+          // If content is a JSON string
+          if (content.includes('"type":"doc"') || content.startsWith('{')) {
+            try {
+              // Try to parse the JSON string
+              const parsedContent = JSON.parse(content)
+              htmlContent = convertTipTapToHtml(parsedContent)
+              console.log('Converted TipTap JSON string to HTML')
+            } catch (parseError) {
+              // If parsing fails, try to convert the string directly
+              htmlContent = convertTipTapToHtml(content)
+              console.log('Converted TipTap string to HTML (fallback)')
+            }
+          } else {
+            // If it's plain text, use it as is
+            htmlContent = content
+            console.log('Using plain text content')
+          }
+        } else {
+          // Fallback for any other content type
+          htmlContent = String(content || '')
+          console.log('Using fallback string conversion for content')
         }
-      } catch (error) {
-        console.warn(`Failed to convert TipTap content to HTML: ${error.message}`)
-        // Fall back to original content
-        htmlContent = input.blogData.content
+      } catch (contentError) {
+        console.warn(`Failed to convert content to HTML: ${contentError.message}`)
+        // Fall back to a safe default
+        htmlContent = String(input.blogData.content || 'No content available')
       }
       
-      // Prepare email data
+      // Prepare email data - flattened structure for SendGrid compatibility
+      // This matches the format used in process-all-batches.ts
       const emailData = {
+        // Blog data at root level
+        blog_title: input.blogData.title,
+        blog_content: htmlContent,
+        blog_url: `${process.env.FRONTEND_URL || ''}${input.blogData.url}`,
+        blog_created_at: input.blogData.created_at,
+        blog_updated_at: input.blogData.updated_at,
+        blog_tags: input.blogData.tags || [],
+        
+        // Person data at root level
+        first_name: "Test",
+        last_name: "User",
+        email: input.email,
+        subscriber_id: "test-user",
+        
+        // Additional template data
+        unsubscribe_url: `${process.env.FRONTEND_URL || ''}/unsubscribe?id=test-user`,
+        website_url: process.env.FRONTEND_URL || '',
+        current_year: new Date().getFullYear().toString(),
+        is_test: true, // Flag to indicate this is a test email
+        
+        // Include nested objects for template compatibility
         blog: {
           title: input.blogData.title,
           content: htmlContent,
           url: `${process.env.FRONTEND_URL || ''}${input.blogData.url}`,
           created_at: input.blogData.created_at,
           updated_at: input.blogData.updated_at,
-          tags: input.blogData.tags || []
+          tags: input.blogData.tags || [],
         },
         person: {
           first_name: "Test",
           last_name: "User",
           email: input.email,
-          id: "test-user"
+          subscriber_id: "test-user",
         },
-        subject: input.subject,
-        custom_message: input.customMessage || "",
-        is_test: true // Flag to indicate this is a test email
+        // Add email_data to avoid property name collision with the 'email' field
+        email_data: {
+          subject: input.subject,
+          custom_message: input.customMessage || "",
+        }
       }
       
       // Send email using notification module

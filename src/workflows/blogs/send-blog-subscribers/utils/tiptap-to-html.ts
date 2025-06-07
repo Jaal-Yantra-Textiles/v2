@@ -275,51 +275,135 @@ function escapeHtml(unsafe: string) {
 
 /**
  * Converts TipTap JSON content to HTML
- * @param content - TipTap JSON content or string representation of JSON
+ * @param content - TipTap JSON content, string representation of JSON, or JavaScript object
  * @returns HTML string
  */
 export function convertTipTapToHtml(content: any): string {
   try {
-    // Parse content if it's a string
-    const jsonContent = typeof content === 'string' 
-      ? JSON.parse(content) 
-      : content;
+    // Handle different input types
+    let jsonContent;
     
-    console.log('TipTap JSON content:', JSON.stringify(jsonContent, null, 2));
+    // If content is a string, try to parse it as JSON
+    if (typeof content === 'string') {
+      try {
+        jsonContent = JSON.parse(content);
+        console.log('Parsed JSON content from string');
+      } catch (e) {
+        console.log('Content is a string but not valid JSON, treating as plain text');
+        return `<p>${escapeHtml(content)}</p>`;
+      }
+    } else {
+      // Content is already an object
+      jsonContent = content;
+      console.log('Content is already an object');
+    }
+    
+    // Log the structure for debugging
+    console.log('Content structure:', typeof jsonContent, Array.isArray(jsonContent));
+    
+    // Handle Map objects (which might come from JavaScript Map to JSON conversion)
+    if (Array.isArray(jsonContent) && jsonContent.length > 0 && 
+        jsonContent.some(item => Array.isArray(item) && item.length === 2)) {
+      console.log('Detected possible Map structure, converting to object');
+      const objFromMap = {};
+      jsonContent.forEach(([key, value]) => {
+        if (key && typeof key === 'string') {
+          objFromMap[key] = value;
+        }
+      });
+      jsonContent = objFromMap;
+    }
     
     // Handle different content structures
     let docContent;
-    
-    // Check if content is nested inside a 'text' property
-    if (jsonContent.text && jsonContent.text.type === 'doc') {
-      docContent = jsonContent.text;
-      console.log('Found content in text property');
-    } 
-    // Check if it's a direct doc object
-    else if (jsonContent.type === 'doc') {
+    if (jsonContent.type === 'doc') {
       docContent = jsonContent;
       console.log('Found direct doc content');
+    }
+    // Check if it's in a text property
+    else if (jsonContent.text && jsonContent.text.type === 'doc') {
+      docContent = jsonContent.text;
+      console.log('Found doc content in text property');
+    }
+    // Check if it's in a content property
+    else if (jsonContent.content && Array.isArray(jsonContent.content)) {
+      docContent = { type: 'doc', content: jsonContent.content };
+      console.log('Found content array, wrapping in doc');
     }
     // If neither structure is found, try to find any property that has a doc structure
     else {
       for (const key in jsonContent) {
-        if (jsonContent[key] && typeof jsonContent[key] === 'object' && jsonContent[key].type === 'doc') {
-          docContent = jsonContent[key];
-          console.log(`Found content in ${key} property`);
-          break;
+        if (jsonContent[key] && typeof jsonContent[key] === 'object') {
+          if (jsonContent[key].type === 'doc') {
+            docContent = jsonContent[key];
+            console.log(`Found content in ${key} property`);
+            break;
+          } else if (key === 'content' && Array.isArray(jsonContent[key])) {
+            docContent = { type: 'doc', content: jsonContent[key] };
+            console.log('Found content array in content property');
+            break;
+          }
         }
       }
     }
     
-    // If we couldn't find a doc structure, log an error and return empty content
+    // If we couldn't find a doc structure, try to process it as a flat array of nodes
+    if (!docContent && Array.isArray(jsonContent)) {
+      console.log('Trying to process as flat array of nodes');
+      docContent = {
+        type: 'doc',
+        content: jsonContent
+      };
+    }
+    
+    // If we still couldn't find a doc structure, check for Go-style map string
     if (!docContent) {
       console.error('Could not find TipTap doc structure in content');
       console.log('Content structure:', Object.keys(jsonContent));
-      return `
-        <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; color: #333; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
-          <p style="margin-bottom: 1.5em; font-size: 16px;">Unable to process blog content. Please view the full article on our website.</p>
-        </div>
-      `;
+      
+      // Check if the original content was a Go-style map string
+      if (typeof content === 'string' && content.startsWith('map[')) {
+        console.log('Detected Go-style map string');
+        
+        // Try to extract content from the map string
+        // Example format: map[content:[{...}] title:Blog Title]
+        try {
+          // Extract content between 'content:[' and the next closing bracket
+          const contentMatch = content.match(/content:\[([\s\S]*?)\](?:\s|$)/);
+          if (contentMatch && contentMatch[1]) {
+            // Try to parse the extracted content as JSON
+            try {
+              const extractedContent = JSON.parse(`[${contentMatch[1]}]`);
+              docContent = {
+                type: 'doc',
+                content: extractedContent
+              };
+              console.log('Successfully extracted content from Go-style map');
+            } catch (parseError) {
+              console.error('Failed to parse extracted content:', parseError);
+            }
+          }
+          
+          // If we still don't have docContent, try to extract text content
+          if (!docContent) {
+            const textMatch = content.match(/text:([^\[\]\s]+)/);
+            if (textMatch && textMatch[1]) {
+              return `<p>${escapeHtml(textMatch[1])}</p>`;
+            }
+          }
+        } catch (error) {
+          console.error('Error processing Go-style map:', error);
+        }
+      }
+      
+      // If we still couldn't find or extract content, return a fallback message
+      if (!docContent) {
+        return `
+          <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; color: #333; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
+            <p style="margin-bottom: 1.5em; font-size: 16px;">Unable to process blog content. Please view the full article on our website.</p>
+          </div>
+        `;
+      }
     }
     
     // Create a new instance of the converter with email styling enabled
