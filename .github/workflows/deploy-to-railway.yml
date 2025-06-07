@@ -47,6 +47,11 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
           args: "railway up --service=medusa-server --detach"
+      
+      - name: Wait for migrations to complete
+        run: |
+          echo "Waiting for migrations to complete before health checks start..."
+          sleep 120 # Wait 2 minutes for migrations to complete
         
   deploy-worker:
     name: Deploy Worker to Railway
@@ -90,3 +95,8 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
           args: "railway up --service=medusa-worker --detach"
+      
+      - name: Wait for worker initialization
+        run: |
+          echo "Waiting for worker initialization to complete..."
+          sleep 60 # Wait 1 minute for worker to initialize
