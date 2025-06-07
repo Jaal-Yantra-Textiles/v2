@@ -7,7 +7,7 @@
   "deploy": {
     "startCommand": "cd .medusa/server && yarn predeploy && yarn run start",
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 100,
+    "healthcheckTimeout": 200,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
