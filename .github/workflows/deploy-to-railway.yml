@@ -83,16 +83,14 @@ jobs:
       - name: Deploy to Railway
         uses: docker://ghcr.io/railwayapp/cli:latest
         env:
-          SVC_ID: patient-spirit
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
-          args: "railway up --service=medusa-server --detach --no-build"
+          args: "railway up --service=medusa-server --detach"
       
       - name: Wait for migrations to complete
         run: |
           echo "Waiting for migrations to complete before health checks start..."
-          # Use a shorter wait time since we're using --no-build
-          sleep 90 # Wait 1.5 minutes for migrations to complete
+          sleep 120 # Wait 2 minutes for migrations to complete
   
   deploy-worker:
     name: Deploy Worker to Railway
@@ -115,13 +113,11 @@ jobs:
       - name: Deploy to Railway
         uses: docker://ghcr.io/railwayapp/cli:latest
         env:
-          SVC_ID: patient-spirit
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
-          args: "railway up --service=medusa-worker --detach --no-build"
+          args: "railway up --service=medusa-worker --detach"
       
       - name: Wait for worker initialization
         run: |
           echo "Waiting for worker initialization to complete..."
-          # Use a shorter wait time since we're using --no-build
-          sleep 45 # Wait 45 seconds for worker to initialize
+          sleep 60 # Wait 60 seconds for worker to initialize
