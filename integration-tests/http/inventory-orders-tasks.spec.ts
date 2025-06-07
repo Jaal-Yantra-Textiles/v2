@@ -264,10 +264,10 @@ medusaIntegrationTestRunner({
         const inventoryOrderData = response.data
         expect(inventoryOrderData).toBeDefined()
         expect(inventoryOrderData.tasks).toBeDefined()
-        expect(inventoryOrderData.tasks[0].tasks.length).toBeGreaterThanOrEqual(2)
+        expect(inventoryOrderData.tasks.length).toBeGreaterThanOrEqual(2)
         
         // Verify task properties
-        const tasks = inventoryOrderData.tasks[0].tasks
+        const tasks = inventoryOrderData.tasks
         const taskNames = tasks.map(task => task.title)
         expect(taskNames).toContain(inventoryCheckTemplate.title)
         expect(taskNames).toContain(supplierFollowUpTemplate.title)
@@ -290,7 +290,7 @@ medusaIntegrationTestRunner({
         
         // Then retrieve with specific fields
         const response = await api.get(
-          `/admin/inventory-orders/${inventoryOrderId}/tasks?fields=id,name,status`,
+          `/admin/inventory-orders/${inventoryOrderId}/tasks?fields=id,title,status`,
           headers
         )
         
@@ -301,13 +301,13 @@ medusaIntegrationTestRunner({
         const inventoryOrderData = response.data
         expect(inventoryOrderData).toBeDefined()
         expect(inventoryOrderData.tasks).toBeDefined()
-        
+        console.log(inventoryOrderData.tasks)
         // Check that we only have the requested fields
-        const task = inventoryOrderData.tasks.find(t => t.name === "Field Test Task")
+        const task = inventoryOrderData.tasks.find(t => t.title === "Field Test Task")
         expect(task).toBeDefined()
         expect(task.id).toBeDefined()
-        expect(task.name).toBe("Field Test Task")
-        expect(task.status).toBe("not_started")
+        expect(task.title).toBe("Field Test Task")
+        expect(task.status).toBe("pending")
         expect(task.description).toBeUndefined()
         expect(task.priority).toBeUndefined()
       })
