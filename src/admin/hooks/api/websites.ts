@@ -46,11 +46,24 @@ export type SendBlogToSubscribersPayload = {
   customMessage?: string;
 };
 
+export type SendTestBlogEmailPayload = {
+  email: string;
+  subject?: string;
+  customMessage?: string;
+};
+
 export interface SendBlogToSubscribersResponse {
   workflow_id: string;
   requires_confirmation: boolean;
   confirmation_url: string;
   subscribers: number;
+}
+
+export interface SendTestBlogEmailResponse {
+  message: string;
+  success: boolean;
+  email: string;
+  error?: string;
 }
 
 export interface ConfirmBlogSubscriptionResponse {

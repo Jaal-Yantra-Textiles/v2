@@ -27,50 +27,60 @@ interface SendTestEmailInput {
 export const sendTestEmailStep = createStep(
   sendTestEmailStepId,
   async (input: SendTestEmailInput, { container }) => {
-    console.log(`Sending test email to ${email}`)
+    // Validate that email is defined and not empty
+    if (!input.email) {
+      console.error('Email address is undefined or empty')
+      return new StepResponse({
+        success: false,
+        email: 'undefined',
+        error: 'Email address is required but was not provided'
+      } as TestEmailResult)
+    }
+    
+    console.log(`Sending test email to ${input.email}`)
     
     // Use the notification module
     const notificationModuleService = container.resolve(Modules.NOTIFICATION)
     
     try {
       // Convert TipTap content to HTML if it's in JSON format
-      let htmlContent = blogData.content
+      let htmlContent = input.blogData.content
       try {
         // Check if content is TipTap JSON
-        if (typeof blogData.content === 'string' && 
-            (blogData.content.startsWith('{') || blogData.content.includes('"type":"doc"'))) {
-          htmlContent = convertTipTapToHtml(blogData.content)
+        if (typeof input.blogData.content === 'string' && 
+            (input.blogData.content.startsWith('{') || input.blogData.content.includes('"type":"doc"'))) {
+          htmlContent = convertTipTapToHtml(input.blogData.content)
         }
       } catch (error) {
         console.warn(`Failed to convert TipTap content to HTML: ${error.message}`)
         // Fall back to original content
-        htmlContent = blogData.content
+        htmlContent = input.blogData.content
       }
       
       // Prepare email data
       const emailData = {
         blog: {
-          title: blogData.title,
+          title: input.blogData.title,
           content: htmlContent,
-          url: `${process.env.FRONTEND_URL || ''}${blogData.url}`,
-          created_at: blogData.created_at,
-          updated_at: blogData.updated_at,
-          tags: blogData.tags || []
+          url: `${process.env.FRONTEND_URL || ''}${input.blogData.url}`,
+          created_at: input.blogData.created_at,
+          updated_at: input.blogData.updated_at,
+          tags: input.blogData.tags || []
         },
         person: {
           first_name: "Test",
           last_name: "User",
-          email: email,
+          email: input.email,
           id: "test-user"
         },
-        subject: subject,
-        custom_message: customMessage || "",
+        subject: input.subject,
+        custom_message: input.customMessage || "",
         is_test: true // Flag to indicate this is a test email
       }
       
       // Send email using notification module
       await notificationModuleService.createNotifications({
-        to: email,
+        to: input.email,
         channel: "email",
         template: process.env.SENDGRID_BLOG_SUBSCRIPTION_TEMPLATE || "d-blog-subscription-template",
         data: {
@@ -78,20 +88,20 @@ export const sendTestEmailStep = createStep(
         }
       })
       
-      console.log(`Successfully sent test email to ${email}`)
+      console.log(`Successfully sent test email to ${input.email}`)
       
       // Return success result
       return new StepResponse({
         success: true,
-        email: email
+        email: input.email
       } as TestEmailResult)
     } catch (error) {
-      console.error(`Failed to send test email to ${email}: ${error.message}`)
+      console.error(`Failed to send test email to ${input.email}: ${error.message}`)
       
       // Return error result
       return new StepResponse({
         success: false,
-        email: email,
+        email: input.email,
         error: error.message || "Unknown error"
       } as TestEmailResult)
     }

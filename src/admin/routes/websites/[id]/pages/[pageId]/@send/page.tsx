@@ -22,11 +22,11 @@ const SendBlogSubscription = () => {
         <RouteDrawer.Title asChild>
           <Heading>{t("blogs.send.header", { defaultValue: "Send Blog to Subscribers" })}</Heading>
         </RouteDrawer.Title>
-        <RouteDrawer.Description>
-          {t("blogs.send.description", { defaultValue: "Send this blog post to all subscribers" })}
-        </RouteDrawer.Description>
       </RouteDrawer.Header>
-      {!isLoading && page && <SendBlogSubscriptionForm page={page} websiteId={websiteId!} pageId={pageId!} />}
+      
+      {!isLoading && page && (
+        <SendBlogSubscriptionForm page={page} websiteId={websiteId!} pageId={pageId!} />
+      )}
     </RouteDrawer>
   )
 }
