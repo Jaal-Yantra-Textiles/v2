@@ -48,6 +48,7 @@ import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingle
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
+import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 
 
 
@@ -400,6 +401,11 @@ export default defineMiddlewares({
       matcher: "/admin/websites/:id/pages/:pageId/subs",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(SendBlogSubscriptionSchema))],
+    },
+    {
+      matcher: "/admin/websites/:id/pages/:pageId/subs/test",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(TestBlogEmailSchema))],
     },
     {
       matcher: "/web/health",

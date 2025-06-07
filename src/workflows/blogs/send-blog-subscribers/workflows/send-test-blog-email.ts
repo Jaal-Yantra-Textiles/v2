@@ -48,10 +48,15 @@ export const sendTestBlogEmailWorkflow = createWorkflow(
     
     // Prepare data for test email step
     const testEmailData = transform({ input, blogData }, (data) => {
+      // Validate that test_email exists
+      if (!data.input.test_email) {
+        console.error('test_email is missing in workflow input')
+      }
+      
       return {
         email: data.input.test_email,
         blogData: data.blogData,
-        subject: data.input.subject,
+        subject: data.input.subject || `New Blog: ${data.blogData?.title || 'Blog Post'}`,
         customMessage: data.input.customMessage
       }
     })
