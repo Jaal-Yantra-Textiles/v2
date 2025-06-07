@@ -6,27 +6,37 @@ on:
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  deploy-server:
-    name: Deploy Server to Railway
+  build:
+    name: Build Application
     runs-on: ubuntu-latest
-    env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        
+      
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '>=20'
+          node-version: '20'
+          cache: 'yarn'
+      
+      - name: Cache node modules
+        uses: actions/cache@v3
+        id: yarn-cache
+        with:
+          path: |
+            **/node_modules
+            **/.medusa
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
       
       - name: Install dependencies
+        if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install --frozen-lockfile
       
       - name: Replace medusa-config.ts with production version
         run: |
-          # Copy production config to medusa-config.ts
           cp medusa-config.prod.ts medusa-config.ts
           echo "✅ Production configuration copied to medusa-config.ts"
       
@@ -35,10 +45,40 @@ jobs:
           yarn medusa build
           echo "✅ Medusa built with production configuration"
       
-      - name: Prepare server deployment
+      - name: Prepare deployment files
         run: |
-          # Run the deployment script in non-interactive mode
+          # Run the deployment script for both server and worker
           node deploy-railway.js --mode=server --ci
+          node deploy-railway.js --mode=worker --ci
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: medusa-build
+          path: |
+            .medusa/
+            package.json
+            yarn.lock
+            .env.railway.*
+            medusa-config.ts
+  
+  deploy-server:
+    name: Deploy Server to Railway
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: medusa-build
       
       - name: Deploy to Railway
         uses: docker://ghcr.io/railwayapp/cli:latest
@@ -46,47 +86,31 @@ jobs:
           SVC_ID: patient-spirit
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
-          args: "railway up --service=medusa-server --detach"
+          args: "railway up --service=medusa-server --detach --no-build"
       
       - name: Wait for migrations to complete
         run: |
           echo "Waiting for migrations to complete before health checks start..."
-          sleep 120 # Wait 2 minutes for migrations to complete
-        
+          # Use a shorter wait time since we're using --no-build
+          sleep 90 # Wait 1.5 minutes for migrations to complete
+  
   deploy-worker:
     name: Deploy Worker to Railway
     runs-on: ubuntu-latest
+    needs: build # Run in parallel with deploy-server
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-    needs: deploy-server
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
         with:
-          node-version: '>=20'
+          fetch-depth: 1
       
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-      
-      - name: Replace medusa-config.ts with production version
-        run: |
-          # Copy production config to medusa-config.ts
-          cp medusa-config.prod.ts medusa-config.ts
-          echo "✅ Production configuration copied to medusa-config.ts"
-      
-      - name: Build Medusa with production config
-        run: |
-          yarn medusa build
-          echo "✅ Medusa built with production configuration"
-      
-      - name: Prepare worker deployment
-        run: |
-          # Run the deployment script in non-interactive mode
-          node deploy-railway.js --mode=worker --ci
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: medusa-build
       
       - name: Deploy to Railway
         uses: docker://ghcr.io/railwayapp/cli:latest
@@ -94,9 +118,10 @@ jobs:
           SVC_ID: patient-spirit
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
-          args: "railway up --service=medusa-worker --detach"
+          args: "railway up --service=medusa-worker --detach --no-build"
       
       - name: Wait for worker initialization
         run: |
           echo "Waiting for worker initialization to complete..."
-          sleep 60 # Wait 1 minute for worker to initialize
+          # Use a shorter wait time since we're using --no-build
+          sleep 45 # Wait 45 seconds for worker to initialize
