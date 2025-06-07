@@ -1,3 +1,10 @@
+# [5.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.3.1...v5.4.0) (2025-05-11)
+
+
+### Features
+
+* **Send to Subscriber:** Now,we can send emails to subscriber ([d615a16](https://github.com/Jaal-Yantra-Textiles/v2/commit/d615a1680adf69705c5a49aeef1f22b7b9d772ee))
+
 ## [5.3.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.3.0...v5.3.1) (2025-05-10)
 
 
