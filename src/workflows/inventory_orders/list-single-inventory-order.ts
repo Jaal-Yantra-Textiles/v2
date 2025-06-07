@@ -4,8 +4,6 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
-import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
-import InventoryOrderService from "../../modules/inventory_orders/service";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 
 export type ListSingleInventoryOrderStepInput = {
@@ -16,7 +14,6 @@ export type ListSingleInventoryOrderStepInput = {
 export const listSingleInventoryOrderStep = createStep(
   "list-single-inventory-order-step",
   async (input: ListSingleInventoryOrderStepInput, { container }) => {
-    const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
     // Always include '*' for full fetch if not specified
     if (!input.fields.includes("*")) {
       input.fields.push("*");

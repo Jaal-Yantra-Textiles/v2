@@ -9,7 +9,7 @@ import { refetchTask } from "./helpers"
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
   const fields = req.query.fields ? (req.query.fields as string).split(',') : undefined
-
+  console.log(req.queryConfig)
   // Use the workflow which handles validation and retrieval
   const { result } = await getInventoryOrderTasksWorkflow(req.scope).run({
     input: {

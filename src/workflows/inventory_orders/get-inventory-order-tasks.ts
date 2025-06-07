@@ -9,6 +9,7 @@ import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { TASKS_MODULE } from "../../modules/tasks"
 import { MedusaError } from "@medusajs/utils"
 import InventoryOrderService from "../../modules/inventory_orders/service"
+import inventoryOrdersTasks from "../../links/inventory-orders-tasks"
 
 type GetInventoryOrderTasksInput = {
   inventoryOrderId: string
@@ -38,17 +39,34 @@ export const getInventoryOrderTasksStep = createStep(
   "get-inventory-order-tasks-step",
   async (input: GetInventoryOrderTasksInput, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
-    // Prepare fields configuration
-    // If no fields specified, include tasks.* to get all task data
-    const fieldsConfig = input.fields?.length ? input.fields : ["tasks.*", "tasks.subtasks.*"]
-
+    
+    // Prepare fields configuration with proper prefixing
+    // If no fields specified, include task.* to get all task data
+    let fieldsConfig: string[]
+    
+    if (input.fields?.length) {
+      // Prefix each field with 'task.' if it's not already prefixed
+      fieldsConfig = input.fields.map(field => 
+        field.startsWith('task.') ? field : `task.${field}`
+      )
+    } else {
+      // Default fields if none specified
+      fieldsConfig = ["task.*"]
+    }
+    
     // Get all tasks by IDs using query.graph
     const result = await query.graph({
-      entity: ORDER_INVENTORY_MODULE,
-      filters: { id: input.inventoryOrderId },
+      entity: inventoryOrdersTasks.entryPoint,
+      filters: { 
+        inventory_orders_id: input.inventoryOrderId
+      },
       fields: fieldsConfig
     })
-    return new StepResponse({ tasks: result.data })
+
+    // Extract just the task objects from the result
+    const tasks = result.data?.map(item => item.task) || []
+    
+    return new StepResponse({ tasks })
   }
 )
 
