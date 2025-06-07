@@ -8,6 +8,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { TASKS_MODULE } from "../../modules/tasks"
 import { MedusaError } from "@medusajs/utils"
+import InventoryOrderService from "../../modules/inventory_orders/service"
 
 type GetInventoryOrderTasksInput = {
   inventoryOrderId: string
@@ -17,7 +18,7 @@ type GetInventoryOrderTasksInput = {
 export const validateInventoryOrderStep = createStep(
   "validate-inventory-order-step",
   async (input: GetInventoryOrderTasksInput, { container }) => {
-    const inventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE)
+    const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE)
     
     try {
       await inventoryOrderService.retrieveInventoryOrder(input.inventoryOrderId, {

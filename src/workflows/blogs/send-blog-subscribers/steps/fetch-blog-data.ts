@@ -2,6 +2,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { SendBlogSubscribersInput } from "../types"
 import { WEBSITE_MODULE } from "../../../../modules/website"
+import WebsiteService from "../../../../modules/website/service"
 
 export const fetchBlogDataStepId = "fetch-blog-data"
 
@@ -15,7 +16,7 @@ export const fetchBlogDataStepId = "fetch-blog-data"
 export const fetchBlogDataStep = createStep(
   fetchBlogDataStepId,
   async (input: SendBlogSubscribersInput, { container }) => {
-      const pageService = container.resolve(WEBSITE_MODULE)
+      const pageService: WebsiteService = container.resolve(WEBSITE_MODULE)
       
       // Retrieve the page with necessary relations
       const page = await pageService.retrievePage(input.page_id, {
