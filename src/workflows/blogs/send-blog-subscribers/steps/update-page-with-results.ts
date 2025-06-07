@@ -1,6 +1,7 @@
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { SendingSummary } from "../types"
 import { WEBSITE_MODULE } from "../../../../modules/website"
+import WebsiteService from "../../../../modules/website/service"
 
 export const updatePageWithResultsStepId = "update-page-with-results"
 
@@ -23,7 +24,7 @@ export const updatePageWithResultsStep = createStep(
     console.log(`Updating page ${page_id} with sending results`)
     
     try {
-      const pageService = container.resolve(WEBSITE_MODULE)
+      const pageService: WebsiteService = container.resolve(WEBSITE_MODULE)
       
       // Update the page with subscription information
       await pageService.updatePages({

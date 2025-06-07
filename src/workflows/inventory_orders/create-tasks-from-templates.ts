@@ -13,6 +13,7 @@ import { AdminPostInventoryOrderTasksReqType } from "../../api/admin/inventory-o
 import { TASKS_MODULE } from "../../modules/tasks"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MedusaError } from "@medusajs/utils"
+import InventoryOrderService from "../../modules/inventory_orders/service"
 
 // Extend the validator type with inventoryOrderId
 type CreateTasksInput = AdminPostInventoryOrderTasksReqType & {
@@ -22,7 +23,7 @@ type CreateTasksInput = AdminPostInventoryOrderTasksReqType & {
 export const validateInventoryOrderStep = createStep(
   "validate-inventory-order-step",
   async (input: CreateTasksInput, { container }) => {
-    const inventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE)
+    const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE)
     
     try {
       await inventoryOrderService.retrieveInventoryOrder(input.inventoryOrderId, {
