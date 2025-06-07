@@ -1,3 +1,17 @@
+# [5.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.4.0...v5.5.0) (2025-06-07)
+
+
+### Bug Fixes
+
+* **Services:** Fixed the Build Error where the service types were not defined ([5818523](https://github.com/Jaal-Yantra-Textiles/v2/commit/58185238e3dd6ae53e9c050e5bb0c8a66d23b149))
+* **Design Moodboard:** Moodboard on save ([e1093da](https://github.com/Jaal-Yantra-Textiles/v2/commit/e1093daebc2b97671fc9e2e4c7b8762cba619b15))
+
+
+### Features
+
+* **Email Test:** Now, you can test email a single person to check if the email will go right or not ([dbfa118](https://github.com/Jaal-Yantra-Textiles/v2/commit/dbfa1181015250ecbbd0cd2d8098cc44648fda05))
+* **Email:** Send Email to Single Subscriber before sending to all ([9a8077d](https://github.com/Jaal-Yantra-Textiles/v2/commit/9a8077df694246697f1660e3f55fc8ca63e77933))
+
 # [5.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.3.1...v5.4.0) (2025-05-11)
 
 
