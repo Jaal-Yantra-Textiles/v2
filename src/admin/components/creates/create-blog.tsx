@@ -62,8 +62,6 @@ enum Tab {
 
 type TabState = Record<Tab, ProgressStatus>
 
-type BlogFormValues = z.infer<typeof blogSchema>;
-
 interface CreateBlogComponentProps {
   websiteId: string;
 }
@@ -82,6 +80,7 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
 
   const form = useForm({
     resolver: zodResolver(blogSchema),
+    mode: "onChange",
     defaultValues: {
       title: "",
       slug: "",
@@ -91,10 +90,28 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
       meta_title: "",
       meta_description: "",
       meta_keywords: "",
+      // Add default blocks array with proper structure
+      blocks: [
+        {
+          name: "MainContent",
+          type: "MainContent",
+          content: {
+            authors: [],
+            image: { type: "image", content: "" },
+            type: "blog",
+            text: "",
+            layout: "full",
+          },
+          settings: {
+            alignment: "left",
+          },
+          order: 0,
+        },
+      ],
     },
   });
-
-  // No need for navigation functions since we only have one tab
+  
+  // Form validation is now working with proper default values
 
   useEffect(() => {
     const currentState = { ...tabState };
@@ -424,6 +441,7 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
             <Button
               variant="primary"
               type="submit"
+              size="small"
               isLoading={createPagesWithBlocks.isPending}
               disabled={!form.formState.isValid}
             >
