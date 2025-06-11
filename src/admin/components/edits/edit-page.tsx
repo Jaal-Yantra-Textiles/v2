@@ -6,6 +6,7 @@ import { useRouteModal } from "../modal/use-route-modal";
 import { useUpdatePage, type AdminPage } from "../../hooks/api/pages";
 
 const pageSchema = z.object({
+  title: z.string().min(1, "Title is required"),
   slug: z.string().min(1, "Slug is required"),
   status: z.enum(["Draft", "Published", "Archived"]).optional(),
   meta_title: z.string().optional(),
@@ -35,6 +36,7 @@ export const EditPageForm = ({ page, websiteId }: EditPageFormProps) => {
   const handleSubmit = async (data: PageFormData) => {
     await mutateAsync(
       {
+        title: data.title,
         slug: data.slug,
         status: data.status,
         meta_title: data.meta_title,
@@ -65,6 +67,13 @@ export const EditPageForm = ({ page, websiteId }: EditPageFormProps) => {
       type: "text",
       required: true,
       hint: t("pages.hints.slug"),
+    },
+    {
+      name: "title",
+      label: t("pages.fields.title"),
+      type: "text",
+      required: true,
+      hint: t("pages.hints.title"),
     },
     {
       name: "status",
@@ -100,6 +109,7 @@ export const EditPageForm = ({ page, websiteId }: EditPageFormProps) => {
     <DynamicForm
       fields={fields}
       defaultValues={{
+        title: page.title,
         slug: page.slug,
         status: page.status,
         meta_title: page.meta_title,

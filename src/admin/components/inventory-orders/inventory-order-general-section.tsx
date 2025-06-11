@@ -88,6 +88,14 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
         <Text size="small" weight="plus">Expected Delivery</Text>
         <Text size="small">{new Date(inventoryOrder.expected_delivery_date).toLocaleDateString()}</Text>
       </div>
+      <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+        <Text size="small" weight="plus">Sample Order</Text>
+        {inventoryOrder.is_sample ? (
+          <Text size="small">{'Yes'}</Text>
+        ) : (
+          <Text size="small">{'No'}</Text>
+        )}
+      </div>
     </Container>
   );
 };
