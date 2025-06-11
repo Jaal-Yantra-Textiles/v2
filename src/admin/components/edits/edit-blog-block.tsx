@@ -198,17 +198,14 @@ export const EditBlogBlock = ({ websiteId, pageId, blockId, block, onSuccess }: 
           
     }
   });
-
-
-
   const handleClose = () => {
     navigate(`/websites/${websiteId}/pages/${pageId}`, { replace: true });
   };
 
   return (
     <RouteNonFocusModal>
-        <RouteNonFocusModal.Header>
-        <RouteNonFocusModal.Close onClick={handleClose} />
+        <RouteNonFocusModal.Header onClick={handleClose}>
+        <RouteNonFocusModal.Close  />
           <div className="flex items-center justify-between w-full px-8 py-2">
             <Text size="large" weight="plus">Edit Blog Content</Text>
             <div className="flex items-center gap-2">
