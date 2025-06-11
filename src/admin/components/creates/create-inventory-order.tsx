@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button, DatePicker, Heading, Input, Text, ProgressTabs, ProgressStatus, Select, toast, Tooltip, CurrencyInput, DropdownMenu, IconButton } from "@medusajs/ui";
+import { Button, DatePicker, Heading, Input, Text, ProgressTabs, ProgressStatus, Select, toast, Tooltip, CurrencyInput, DropdownMenu, IconButton, Switch, Label } from "@medusajs/ui";
 import { InformationCircleSolid, EllipsisHorizontal, Trash } from "@medusajs/icons";
 import { useRouteModal } from "../modal/use-route-modal";
 import { useCreateInventoryOrder } from "../../hooks/api/inventory-orders";
@@ -14,11 +14,10 @@ import { useStockLocations } from "../../hooks/api/stock_location";
 
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
 export const inventoryOrderFormSchema = z.object({
-  quantity: z.number().optional(), // Will be calculated from order lines
-  total_price: z.number().optional(), // Will be calculated from order lines
   order_date: z.date({ required_error: "Order date is required" }),
   expected_delivery_date: z.date({ required_error: "Expected delivery date is required" }),
   stock_location_id: z.string().nonempty("Stock location is required"),
+  is_sample: z.boolean().optional(),
 });
 
 type InventoryOrderFormData = z.infer<typeof inventoryOrderFormSchema>;
@@ -33,11 +32,10 @@ type TabState = Record<Tab, ProgressStatus>;
 export const CreateInventoryOrderComponent = () => {
   const form = useForm<InventoryOrderFormData>({
     defaultValues: {
-      quantity: undefined,
-      total_price: undefined,
       order_date: undefined,
       expected_delivery_date: undefined,
       stock_location_id: "",
+      is_sample: false,
     },
     resolver: zodResolver(inventoryOrderFormSchema),
   });
@@ -122,6 +120,7 @@ export const CreateInventoryOrderComponent = () => {
       stock_location_id: data.stock_location_id,
       status: "Pending",
       shipping_address: {},
+      is_sample: data.is_sample,
       order_lines: orderLines
         .filter((l) => l.inventory_item_id)
         .map(({ inventory_item_id, quantity, price }) => ({ inventory_item_id, quantity, price })),
@@ -167,10 +166,7 @@ export const CreateInventoryOrderComponent = () => {
                       <Form.Item>
                         <Form.Label>Order Date</Form.Label>
                         <Form.Control>
-                          <DatePicker
-                            value={field.value}
-                            onChange={field.onChange}
-                          />
+                          <DatePicker {...field} />
                         </Form.Control>
                         <Form.ErrorMessage />
                       </Form.Item>
@@ -184,10 +180,7 @@ export const CreateInventoryOrderComponent = () => {
                       <Form.Item>
                         <Form.Label>Expected Delivery Date</Form.Label>
                         <Form.Control>
-                          <DatePicker
-                            value={field.value}
-                            onChange={field.onChange}
-                          />
+                          <DatePicker {...field} />
                         </Form.Control>
                         <Form.ErrorMessage />
                       </Form.Item>
@@ -214,6 +207,26 @@ export const CreateInventoryOrderComponent = () => {
                             </Select.Content>
                           </Select>
                         </Form.Control>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
+                </div>
+                <div className="mt-4">
+                  <Form.Field
+                    control={form.control}
+                    name="is_sample"
+                    render={({ field: { value, onChange, ref } }) => (
+                      <Form.Item>
+                        <div className="flex items-center gap-x-2">
+                          <Switch
+                            id="is-sample-switch"
+                            checked={value}
+                            onCheckedChange={onChange}
+                            ref={ref}
+                          />
+                          <Label htmlFor="is-sample-switch">Is this Inventory a sample?</Label>
+                        </div>
                         <Form.ErrorMessage />
                       </Form.Item>
                     )}

@@ -88,6 +88,16 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "is_sample": {
+          "name": "is_sample",
+          "type": "boolean",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "false",
+          "mappedType": "boolean"
+        },
         "raw_total_price": {
           "name": "raw_total_price",
           "type": "jsonb",

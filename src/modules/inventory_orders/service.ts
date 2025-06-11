@@ -14,6 +14,7 @@ interface CreateInventoryOrder {
   order_date: Date | undefined;
   metadata?: Record<string, unknown>;
   shipping_address: Record<string, unknown>;
+  is_sample: boolean;
 }
 
 interface CreateOrderLine {
@@ -38,11 +39,22 @@ class InventoryOrderService extends MedusaService({
       throw new Error("At least one order line is required.");
     }
     for (const [i, line] of order_lines.entries()) {
-      if (typeof line.quantity !== 'number' || line.quantity <= 0) {
-        throw new Error(`Order line at index ${i} has invalid quantity: must be positive.`);
-      }
-      if (typeof line.price !== 'number' || line.price < 0) {
-        throw new Error(`Order line at index ${i} has invalid price: cannot be negative.`);
+      if (inventory_order.is_sample) {
+        // For samples, quantity and price can be zero, but not negative.
+        if (typeof line.quantity !== 'number' || line.quantity < 0) {
+          throw new Error(`Order line at index ${i} has invalid quantity: cannot be negative for a sample.`);
+        }
+        if (typeof line.price !== 'number' || line.price < 0) {
+          throw new Error(`Order line at index ${i} has invalid price: cannot be negative for a sample.`);
+        }
+      } else {
+        // For non-samples, quantity must be positive, price must be non-negative.
+        if (typeof line.quantity !== 'number' || line.quantity <= 0) {
+          throw new Error(`Order line at index ${i} has invalid quantity: must be positive.`);
+        }
+        if (typeof line.price !== 'number' || line.price < 0) {
+          throw new Error(`Order line at index ${i} has invalid price: cannot be negative.`);
+        }
       }
     }
 

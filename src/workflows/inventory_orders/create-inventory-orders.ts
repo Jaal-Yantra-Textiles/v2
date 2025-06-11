@@ -31,6 +31,7 @@ export interface CreateInventoryOrderInput {
   stock_location_id: string;
   metadata?: Record<string, unknown>;
   order_lines: InventoryOrderLineInput[];
+  is_sample: boolean;
 }
 
 // --- Inventory Orders Steps ---
