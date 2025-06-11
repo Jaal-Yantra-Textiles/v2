@@ -140,9 +140,6 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
         ...values,
       };
       
-      // Create a default authors array
-      const authors: string[] = [];
-
       // Then create the block
       const blockData = {
         blocks: [
@@ -152,7 +149,7 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
             content: {
               text: '', // Use the content field directly
               layout: "full" as const,
-              authors: authors,
+              authors: data.blocks?.[0]?.content?.authors || [],
               image: {
                 type: "image" as const,
                 content: firstImageUrl,

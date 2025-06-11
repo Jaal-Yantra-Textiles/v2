@@ -4,6 +4,8 @@ import { TwoColumnPageSkeleton } from "../../../../../components/table/skeleton"
 import { TwoColumnPage } from "../../../../../components/pages/two-column-pages";
 import { PageGeneralSection } from "../../../../../components/websites/page-general-section";
 import { WebsiteBlocksSection } from "../../../../../components/websites/website-blocks-section";
+import { PageAuthorSection } from "../../../../../components/websites/page-author-section";
+import { BlogSubscriptionInfo } from "../../../../../components/blogs/blog-subscription-info";
 
 
 
@@ -12,8 +14,8 @@ const PageDetailPage = () => {
   const { page, isLoading, isError, error } = usePage(id!, pageId!);
 
   // Show loading skeleton while data is being fetched
-  if (isLoading) {
-    return <TwoColumnPageSkeleton mainSections={2} showJSON showMetadata />;
+  if (isLoading && !page) {
+    return <TwoColumnPageSkeleton mainSections={2} sidebarSections={2} showJSON showMetadata />;
   }
 
   // Handle error state
@@ -38,7 +40,12 @@ const PageDetailPage = () => {
           <WebsiteBlocksSection websiteId={id!} pageId={page.id}/>
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
-          
+          {page.page_type === "Blog" && (
+            <div className="flex flex-col gap-y-2">
+              <PageAuthorSection page={page} websiteId={id!} />
+              <BlogSubscriptionInfo page={page} websiteId={id!} />
+            </div>
+          )}
         </TwoColumnPage.Sidebar>
         </TwoColumnPage>
   );
