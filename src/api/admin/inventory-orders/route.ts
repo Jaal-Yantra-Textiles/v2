@@ -12,7 +12,7 @@ export const POST = async (
   req: MedusaRequest<CreateInventoryOrder>,
   res: MedusaResponse,
 ) => {
-  const { errors } = await createInventoryOrderWorkflow(req.scope).run({
+  const { result, errors } = await createInventoryOrderWorkflow(req.scope).run({
     input: {
      ...req.validatedBody
     },
@@ -24,11 +24,11 @@ export const POST = async (
   }
 
   const inventoryOrder = await refetchInventoryOrder(
-    req.params.id,
+    result.order.id,
     req.scope,
   );
 
-  res.status(201).json( {inventoryOrder} );
+  res.status(201).json( { inventoryOrder } );
 };
 
 export const GET = async (

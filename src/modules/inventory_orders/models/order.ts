@@ -17,6 +17,7 @@ const InventoryOrder = model.define("inventory_orders", {
   orderlines: model.hasMany(() => OrderLine),
   metadata: model.json().nullable(),
   shipping_address: model.json().nullable(),
+  is_sample: model.boolean().default(false),
 }).cascades({
   delete: ['orderlines']
 });
