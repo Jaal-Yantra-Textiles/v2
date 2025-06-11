@@ -23,7 +23,7 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
         ) : (
           inventoryOrder.orderlines.map((line: InventoryOrderLine, idx: number) => {
             const inventoryItem = line.inventory_items[0];
-            const link = `/inventory/items/${inventoryItem.id}`;
+            const link = `/inventory/${inventoryItem.id}`;
             
             const Inner = (
               <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2 transition-colors">
