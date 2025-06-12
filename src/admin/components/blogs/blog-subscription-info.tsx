@@ -7,14 +7,18 @@ interface BlogSubscriptionInfoProps {
 }
 
 export const BlogSubscriptionInfo = ({ page }: BlogSubscriptionInfoProps) => {
+  // Prioritize top-level properties for sent status and date
+  const hasBeenSent = page.sent_to_subscribers;
+  const sentAt = page.sent_to_subscribers_at;
+
   const metadata = page.metadata || {};
-  const sentAt = metadata.subscription_sent_at as string | undefined;
+  // Use metadata for counts as they might still reside there
   const sentCount = metadata.subscription_sent_count as number | undefined;
   const failedCount = metadata.subscription_failed_count as number | undefined;
   const totalSubscribers = metadata.subscription_total_subscribers as number | undefined;
 
-  const sentStatus = sentAt ? "Sent" : "Not Sent";
-  const statusColor = sentAt ? "green" : "grey";
+  const sentStatus = hasBeenSent ? "Sent" : "Not Sent";
+  const statusColor = hasBeenSent ? "green" : "grey";
   const formattedSentAt = sentAt ? new Date(sentAt).toLocaleString() : "N/A";
 
   return (
