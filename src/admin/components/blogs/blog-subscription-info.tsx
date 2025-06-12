@@ -7,7 +7,7 @@ interface BlogSubscriptionInfoProps {
 }
 
 export const BlogSubscriptionInfo = ({ page }: BlogSubscriptionInfoProps) => {
-  const metadata = page.public_metadata || {};
+  const metadata = page.metadata || {};
   const sentAt = metadata.subscription_sent_at as string | undefined;
   const sentCount = metadata.subscription_sent_count as number | undefined;
   const failedCount = metadata.subscription_failed_count as number | undefined;
