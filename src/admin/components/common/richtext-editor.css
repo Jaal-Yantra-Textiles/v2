@@ -4,16 +4,19 @@
   position: sticky;
   top: 0;
   overflow: hidden;
-  z-index: 10;
+  z-index: 10; /* Ensure it's above content but below modals if necessary */
   min-height: 40px;
   height: auto;
-  background: var(--editor__bg, #fff); /* Ensures a solid background */
-  box-shadow: 0 2px 4px 0 rgba(0,0,0,0.03);
-  /* Prevent layout shifts that cause shaking */
+  
+  /* Use Medusa UI semantic color variables */
+  background-color: var(--bg-component); 
+  color: var(--fg-base);
+  border-bottom: 1px solid var(--border-base);
+
   width: 100%;
-  transform: translateZ(0); /* Force GPU acceleration */
-  will-change: transform; /* Hint to browser about animation */
-  transition: none; /* Disable any transitions that might cause shaking */
+  transform: translateZ(0); 
+  will-change: transform; 
+  transition: none; 
 }
 
 

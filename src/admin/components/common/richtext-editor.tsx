@@ -311,7 +311,7 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
         ref={editorCallbackRef}
         toolbar={{
           render: (_props, _toolbarItems, dom, containerDom) => (
-            <div className="richtext-code-block-toolbar bg-white dark:bg-[#18181b] text-[#18181b] dark:text-white ">
+            <div className="richtext-code-block-toolbar">
               {containerDom(dom)}
             </div>
           )
