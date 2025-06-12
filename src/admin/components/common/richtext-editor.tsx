@@ -2,6 +2,8 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { Toaster, toast } from '@medusajs/ui';
 import './richtext-editor.css';
+// import { CustomLink } from './custom-link-extension'; // Removed
+import { Editor } from '@tiptap/react';
 
 import 'prism-code-editor-lightweight/layout.css'; 
 import 'prism-code-editor-lightweight/themes/github-dark.css'; 
@@ -28,7 +30,8 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
   import { Indent } from 'reactjs-tiptap-editor/indent'
   import { LineHeight } from 'reactjs-tiptap-editor/lineheight'
   import { TaskList } from 'reactjs-tiptap-editor/tasklist'
-  import { Link } from 'reactjs-tiptap-editor/link'
+  import { Link } from 'reactjs-tiptap-editor/link';
+
   import { Image } from 'reactjs-tiptap-editor/image'
   import { Video } from 'reactjs-tiptap-editor/video'
   import { ImageGif } from 'reactjs-tiptap-editor/imagegif'
@@ -111,9 +114,11 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
       },
     }),
     Link.configure({
-      // Use simple configuration that won't interfere with input fields
-      // openOnClick: true,
-      // linkOnPaste: true
+      openOnClick: true,
+      HTMLAttributes: {
+        target: '_blank',
+        rel: 'noopener noreferrer nofollow',
+      },
     }),
     Image.configure({
   upload: async (file: File) => {
@@ -243,36 +248,42 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
       },
     }),
   ];
-  
+
   const DEFAULT = '';
 
-  function TextEditor({ 
-    editorContent, 
-    setEditorContent,
-    isLoading = false,
-    onEditorReady = undefined,
-    debounceTime = 300 // Default debounce time in milliseconds
-  }: { 
-    editorContent: string; 
+  function TextEditor({
+    editorContent: initialEditorContent,
+    setEditorContent: onSetEditorContent,
+    isLoading: editorIsLoading = false,
+    onEditorReady: onEditorReadyProp,
+    debounceTime = 300,
+  }: {
+    editorContent: string;
     setEditorContent: (content: string) => void;
     isLoading?: boolean;
-    onEditorReady?: (editor: any) => void;
+    onEditorReady?: (editor: Editor | null) => void;
     debounceTime?: number;
   }) {
-    // Create a ref to store the timeout ID for debouncing
     const debounceTimeoutRef = useRef<NodeJS.Timeout>();
-    
-    // Create a callback ref to get access to the editor instance
+    // const [activeEditor, setActiveEditor] = useState<Editor | null>(null); // No longer needed
+
+    // const _onEditorReady = useCallback((editor: Editor | null) => { // No longer needed
+    //   // setActiveEditor(editor); // No longer needed
+    //   if (onEditorReadyProp) {
+    //     onEditorReadyProp(editor);
+    //   }
+    // }, [onEditorReadyProp]);
+
     const editorCallbackRef = useCallback((editorInstance: any) => {
-      if (editorInstance && onEditorReady) {
-        // The editor instance has a getEditor() method that returns the actual editor
-        // with access to the state, view, etc.
-        const editor = editorInstance?.editor;
-        if (editor) {
-          onEditorReady(editor);
-        }
+      const editor = editorInstance?.editor as Editor | null;
+      if (onEditorReadyProp && editor) { // Directly call onEditorReadyProp if available
+        onEditorReadyProp(editor);
+      } else if (onEditorReadyProp) {
+        onEditorReadyProp(null); // Or pass null if editor is null
       }
-    }, [onEditorReady]);
+    }, [onEditorReadyProp]);
+    // Note: If _onEditorReady was doing more than just calling onEditorReadyProp and setting activeEditor,
+    // that logic might need to be preserved or moved. For now, simplifying based on current use.
     
     // Handle content changes with debouncing
     const handleContentChange = useCallback((content: string) => {
@@ -283,9 +294,9 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
       
       // Set a new timeout
       debounceTimeoutRef.current = setTimeout(() => {
-        setEditorContent(content);
+        onSetEditorContent(content);
       }, debounceTime);
-    }, [setEditorContent, debounceTime]);
+    }, [onSetEditorContent, debounceTime]);
     
     // Clean up the timeout when component unmounts
     useEffect(() => {
@@ -299,15 +310,15 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
     return (
   <>
     <Toaster />
-    <div className="relative h-full w-full overflow-y-auto" style={{ contain: 'paint' }}>
-      <div className={`${isLoading ? 'opacity-50 cursor-wait' : ''}`}>
+    <div className="relative h-full w-full overflow-y-auto">
+      <div className={`${editorIsLoading ? 'opacity-50 cursor-wait' : ''} relative`}> {/* Added relative for BubbleMenu positioning context if not appending to body */}
       <RichTextEditor 
         output='json' 
-        content={editorContent} 
+        content={initialEditorContent} 
         onChangeContent={handleContentChange} 
         extensions={extensions} 
         //contentClass={{ height: '100%', minHeight: '500px'}} 
-        disabled={isLoading}
+        disabled={editorIsLoading}
         ref={editorCallbackRef}
         toolbar={{
           render: (_props, _toolbarItems, dom, containerDom) => (
@@ -317,15 +328,15 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
           )
         }}
       />
-      {isLoading && (
+      {editorIsLoading && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-sm text-gray-500">Saving changes...</div>
         </div>
       )}
       </div>
-    </div>      
+    </div>
   </>
 );
   }
-  
-  export { DEFAULT, extensions, TextEditor };
+
+export { DEFAULT, extensions, TextEditor };
