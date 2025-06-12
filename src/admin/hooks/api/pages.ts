@@ -59,7 +59,9 @@ export type AdminPage = {
   created_at: Date;
   updated_at: Date;
   public_metadata?: Record<string, unknown>;
-  subscriber_count?: number
+  subscriber_count?: number;
+  sent_to_subscribers?: boolean;
+  sent_to_subscribers_at?: string | null;
 };
 
 export type CreateAdminPagePayload = {
