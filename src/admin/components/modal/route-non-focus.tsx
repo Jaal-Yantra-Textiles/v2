@@ -9,7 +9,7 @@ import { StackedModalProvider } from "./stacked-modal/stacked-modal-provider";
 type RouteNonFocusModalContextValue = {
   close: () => void;
   registerBeforeClose: (callback: () => boolean | Promise<boolean>) => void;
-  setIsChildPromptOpen: (isOpen: boolean) => void; // Added for child prompt state
+ // Added for child prompt state
 };
 
 const RouteNonFocusModalContext = createContext<RouteNonFocusModalContextValue | null>(null);
@@ -35,7 +35,7 @@ const Root = ({ prev = "..", children }: RouteNonFocusModalProps) => {
   const [open, setOpen] = useState(false);
   const [stackedModalOpen, onStackedModalOpen] = useState(false);
   const beforeCloseRef = useRef<(() => boolean | Promise<boolean>) | null>(null);
-  const [childPromptOpen, setChildPromptOpen] = useState(false); // Added state for child prompt
+
 
   useEffect(() => {
     setOpen(true);
@@ -73,7 +73,7 @@ const Root = ({ prev = "..", children }: RouteNonFocusModalProps) => {
         registerBeforeClose: (callback: () => boolean | Promise<boolean>) => {
           beforeCloseRef.current = callback;
         },
-        setIsChildPromptOpen: setChildPromptOpen, // Provide setter to context
+
       }}
     >
       {open && (
@@ -88,7 +88,7 @@ const Root = ({ prev = "..", children }: RouteNonFocusModalProps) => {
       >
         <RouteModalProvider prev={prev}>
           <StackedModalProvider onOpenChange={onStackedModalOpen}>
-            <Content stackedModalOpen={stackedModalOpen} childPromptOpen={childPromptOpen}>
+            <Content stackedModalOpen={stackedModalOpen} >
               {children}
             </Content>
           </StackedModalProvider>
@@ -100,10 +100,9 @@ const Root = ({ prev = "..", children }: RouteNonFocusModalProps) => {
 
 type ContentProps = PropsWithChildren<{
   stackedModalOpen: boolean;
-  childPromptOpen?: boolean; // Added prop for child prompt state
 }>;
 
-const Content = ({ stackedModalOpen, childPromptOpen, children }: ContentProps) => {
+const Content = ({ stackedModalOpen, children }: ContentProps) => {
   const { __internal } = useRouteModal();
 
   const shouldPreventClose = !__internal.closeOnEscape;
@@ -115,11 +114,11 @@ const Content = ({ stackedModalOpen, childPromptOpen, children }: ContentProps) 
       onInteractOutside={(e) => e.preventDefault()}
       className={clx(
         "bg-ui-bg-base flex flex-col focus:outline-none",
-        "overflow-hidden",
-        "rounded-lg border",
+        
+        "border-ui-border-base border shadow-xl",
         {
           "pointer-events-none": stackedModalOpen
-          // "filter blur-sm transition-all duration-150": childPromptOpen, // Temporarily removed for diagnosing size issue
+          
         }
       )}
     >

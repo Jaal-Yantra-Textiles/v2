@@ -36,23 +36,12 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
   const initialRenderRef = useRef(true);
   const editorInstanceRef = useRef<any>(null);
   const { t } = useTranslation();
-  const { close, registerBeforeClose, setIsChildPromptOpen } = useRouteNonFocusModal();
+  const { close, registerBeforeClose } = useRouteNonFocusModal();
   const [showConfirmationPrompt, setShowConfirmationPrompt] = useState(false);
   const promptPromiseResolveRef = useRef<((value: boolean | PromiseLike<boolean>) => void) | null>(null);
   const updateBlock = useUpdateBlock(websiteId, pageId, blockId);
 
-  // Effect to inform the modal about the prompt's visibility
-  useEffect(() => {
-    if (setIsChildPromptOpen) {
-      setIsChildPromptOpen(showConfirmationPrompt);
-    }
-    // Cleanup function to reset when component unmounts or prompt is hidden
-    return () => {
-      if (setIsChildPromptOpen) {
-        setIsChildPromptOpen(false);
-      }
-    };
-  }, [showConfirmationPrompt, setIsChildPromptOpen]);
+
 
   const form = useForm<BlockFormValues>({
     mode: "onChange",
