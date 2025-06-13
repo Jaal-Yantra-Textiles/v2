@@ -1,5 +1,6 @@
+import { AdminPersonTypeListParams } from "../../api/personandtype";
 import { useQueryParams } from "../../useQueryParams";
-import { AdminPersonTypeListParams } from "@medusajs/framework/types";
+
 
 type UsePersonTableQueryProps = {
   prefix?: string;

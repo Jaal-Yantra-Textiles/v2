@@ -1,0 +1,25 @@
+import { createColumnHelper } from "@tanstack/react-table";
+import { useMemo } from "react";
+import { AdminPersonType } from "../../../../hooks/api/personandtype";
+import { useTranslation } from "react-i18next";
+
+const columnHelper = createColumnHelper<AdminPersonType>();
+
+export const usePersonTypeTableColumns = () => {
+  const { t } = useTranslation();
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("name", {
+        header: t("personTypes.table.name"),
+        cell: (info) => info.getValue(),
+      }),
+      columnHelper.accessor("description", {
+        header: t("personTypes.table.description"),
+        cell: (info) => info.getValue(),
+      }),
+    ],
+    [t]
+  );
+
+  return columns;
+};
