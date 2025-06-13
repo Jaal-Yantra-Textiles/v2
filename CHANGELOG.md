@@ -1,3 +1,11 @@
+# [5.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.5.1...v5.6.0) (2025-06-13)
+
+
+### Features
+
+* **API:** Category API route for content ([4d2311e](https://github.com/Jaal-Yantra-Textiles/v2/commit/4d2311e646fb64499892ae0e77a872b9839298be))
+* **INO:** Inventory orders can now handle the sample orders ([a0401bf](https://github.com/Jaal-Yantra-Textiles/v2/commit/a0401bf8c93ca633854d80e6c9ae800f55945e76))
+
 ## [5.5.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.5.0...v5.5.1) (2025-06-07)
 
 
