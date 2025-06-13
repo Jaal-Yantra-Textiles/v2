@@ -1,3 +1,10 @@
+## [5.6.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.6.0...v5.6.1) (2025-06-13)
+
+
+### Bug Fixes
+
+* **WEB:** The blog had some issue when rendering on the condtion ([4491fda](https://github.com/Jaal-Yantra-Textiles/v2/commit/4491fdac1ca6d80a023bef4395dd9c5f0d3f6e4b))
+
 # [5.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.5.1...v5.6.0) (2025-06-13)
 
 
