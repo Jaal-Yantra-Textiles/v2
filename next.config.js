@@ -34,6 +34,10 @@ const nextConfig = {
       },
       {
         protocol: "https",
+        hostname: "automatic.jaalyantra.com",
+      },
+      {
+        protocol: "https",
         hostname: "medusa-server-testing.s3.amazonaws.com",
       },
       {
