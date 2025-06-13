@@ -3,12 +3,8 @@ import { useParams } from "react-router-dom";
 
 const EditPageBlockModal = () => {
     const {id, pageId,blockId} = useParams();
-  return (
-    
-        
+  return (    
         <EditWebsiteBlocks websiteId={id!} pageId={pageId!} blockId={blockId!} /> 
-       
-   
   );
 };
 
