@@ -3,7 +3,7 @@ import { useCallback, useRef, useEffect } from 'react';
 import { Toaster, toast } from '@medusajs/ui';
 import './richtext-editor.css';
 // import { CustomLink } from './custom-link-extension'; // Removed
-import { Editor } from '@tiptap/react';
+import { Editor, Range } from '@tiptap/core';
 
 import 'prism-code-editor-lightweight/layout.css'; 
 import 'prism-code-editor-lightweight/themes/github-dark.css'; 
@@ -60,6 +60,8 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
   import { Attachment } from 'reactjs-tiptap-editor/attachment';
   import { TextDirection } from 'reactjs-tiptap-editor/textdirection';  
   import { Heading as TextHeading } from 'reactjs-tiptap-editor/heading';
+  import { ProductsWidgetExtension } from './tiptap-extensions/ProductsWidgetExtension';
+  import { PersonsWidgetExtension } from './tiptap-extensions/PersonsWidgetExtension';
 
 
   function convertBase64ToBlob(base64: string) {
@@ -150,6 +152,7 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
     }
   },
 }),
+    PersonsWidgetExtension, // Added PersonsWidgetExtension
     Video.configure({
       upload: async (file: File) => {
         if (!file) return '';
@@ -175,7 +178,46 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
       GIPHY_API_KEY: import.meta.env.VITE_GIPHY_API_KEY
     }),
     Blockquote.configure({ spacer: true }),
-    SlashCommand,
+    SlashCommand.configure({
+      renderGroupItem: (extension: any, groups: any[]) => {
+        if (extension && extension.name === 'productsWidget') {
+          const productsWidgetCommand = {
+            label: 'Products Info',
+            icon: '🛍️',
+            aliases: ['products', 'prodwidget'],
+            action: ({ editor, range }: { editor: Editor; range: Range }) => {
+              editor.chain().focus().deleteRange(range).setProductsWidget().run();
+            },
+          };
+          let customGroup = groups.find(g => g.title === 'Custom Commands');
+          if (!customGroup) {
+            customGroup = { title: 'Custom Commands', commands: [] };
+            groups.push(customGroup);
+          }
+          if (!customGroup.commands.some((cmd: any) => cmd.label === productsWidgetCommand.label)) {
+            customGroup.commands.push(productsWidgetCommand);
+          }
+        } else if (extension && extension.name === 'personsWidget') {
+          const personsWidgetCommand = {
+            label: 'Persons Info',
+            icon: '👥',
+            aliases: ['persons', 'peoplewidget'],
+            action: ({ editor, range }: { editor: Editor; range: Range }) => {
+              editor.chain().focus().deleteRange(range).setPersonsWidget().run();
+            },
+          };
+          let customGroup = groups.find(g => g.title === 'Custom Commands');
+          if (!customGroup) {
+            customGroup = { title: 'Custom Commands', commands: [] };
+            groups.push(customGroup);
+          }
+          if (!customGroup.commands.some((cmd: any) => cmd.label === personsWidgetCommand.label)) {
+            customGroup.commands.push(personsWidgetCommand);
+          }
+        }
+        // Note: No 'else' block that re-adds productsWidgetCommand, as the duplicated code is now removed.
+      },
+    }),
     HorizontalRule,
     Code.configure({
       toolbar: false,
@@ -226,6 +268,7 @@ import 'prism-code-editor-lightweight/themes/github-dark.css';
       },
     }),
     Twitter,
+    ProductsWidgetExtension,
     Drawer.configure({
       upload: async (file: any) => {
         if (!file) return '';
