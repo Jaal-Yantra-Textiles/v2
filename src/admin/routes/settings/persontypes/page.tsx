@@ -1,84 +1,81 @@
-import { Container, Heading, Text } from "@medusajs/ui";
-import { keepPreviousData } from "@tanstack/react-query";
-import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { DocumentSeries, PencilSquare, Trash } from "@medusajs/icons";
-import { useMemo } from "react";
-import { createColumnHelper } from "@tanstack/react-table";
-
-import { usePersonTypeTableColumns } from "../../../hooks/columns/usePersonTypeTableColumns";
-import { EntityActions } from "../../../components/persons/personsActions";
-import { usePersonTypeTableQuery } from "../../../hooks/queries/persontype/usePersonTypeTableQuery";
+import { Container, Heading, Text, DataTable, useDataTable, DataTablePaginationState, DataTableFilteringState } from "@medusajs/ui";
+import { useTranslation } from "react-i18next";
 import { usePersonTypes } from "../../../hooks/api/persontype";
-import { useDataTable } from "../../../hooks/usedataTable";
-import CreateButton from "../../../components/creates/create-button";
-import { DataTable } from "../../../components/table/data-table";
-import { useDeletePersonTypeAction } from "../../../hooks/delete/useDeletePersonTypes";
+import { usePersonTypeTableColumns } from "./components/use-person-type-table-columns";
+import { useState, useCallback } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
+import { ActionCell } from "./components/action-cell";
+import { createColumnHelper } from "@tanstack/react-table";
 import { AdminPersonType } from "../../../hooks/api/personandtype";
+import { defineRouteConfig } from "@medusajs/admin-sdk";
+import { DocumentSeries } from "@medusajs/icons";
+import CreateButton from "../../../components/creates/create-button";
+import { usePersonTypeTableFilters } from "./components/use-person-type-table-filters";
+import debounce from "lodash/debounce";
+import { useNavigate } from "react-router-dom";
 
+const PAGE_SIZE = 20;
 const columnHelper = createColumnHelper<AdminPersonType>();
 
-const ActionCell = ({ row }: { row: { original: AdminPersonType } }) => {
-  const handleDelete = useDeletePersonTypeAction(row.original.id);
+const PersonTypesPage = () => {
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+  const [pagination, setPagination] = useState<DataTablePaginationState>({ pageIndex: 0, pageSize: PAGE_SIZE });
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({});
+  const [search, setSearch] = useState("");
 
-  const personActionsConfig = useMemo(
-    () => ({
-      actions: [
-        {
-          icon: <PencilSquare />,
-          label: "Edit",
-          to: (personType: AdminPersonType) =>
-            `/settings/persontypes/${personType.id}/edit`,
-        },
-        {
-          icon: <Trash />,
-          label: "Delete",
-          onClick: () => handleDelete(),
-        },
-      ],
-    }),
-    [handleDelete],
+  const handleSearchChange = useCallback(
+    debounce((newSearch: string) => {
+      setSearch(newSearch);
+    }, 300),
+    []
   );
 
-  return (
-    <EntityActions entity={row.original} actionsConfig={personActionsConfig} />
-  );
-};
-
-export const useColumns = () => {
-  const columns = usePersonTypeTableColumns();
-
-  return useMemo(
-    () => [
-      ...columns,
-      columnHelper.display({
-        id: "actions",
-        cell: ActionCell,
-      }),
-    ],
-    [columns],
-  );
-};
-
-const PersonTypePage = () => {
-  const { searchParams, raw } = usePersonTypeTableQuery({ pageSize: 20 });
   const { personTypes, count, isLoading, isError, error } = usePersonTypes(
     {
-      ...searchParams,
+      limit: pagination.pageSize,
+      offset: pagination.pageIndex * pagination.pageSize,
+      q: search,
+      ...filtering,
     },
     {
       placeholderData: keepPreviousData,
-    },
+    }
   );
 
-  const columns = useColumns();
+  const filters = usePersonTypeTableFilters(personTypes);
+  const baseColumns = usePersonTypeTableColumns();
 
-  const { table } = useDataTable({
-    data: personTypes,
+  const columns = [
+    ...baseColumns,
+    columnHelper.display({
+      id: "actions",
+      cell: ({ row }) => <ActionCell personType={row.original} />,
+    }),
+  ];
+
+  const table = useDataTable({
+    data: personTypes || [],
     columns,
-    count,
-    enablePagination: true,
-    getRowId: (row) => row.id,
-    pageSize: 10,
+    rowCount: count || 0,
+    getRowId: (row) => row.id as string,
+    onRowClick: (_, row) => {
+      navigate(`/settings/persontypes/${row.id}`);
+    },
+    pagination: {
+      state: pagination,
+      onPaginationChange: setPagination,
+    },
+    search: {
+      state: search,
+      onSearchChange: handleSearchChange,
+    },
+    filtering: {
+      state: filtering,
+      onFilteringChange: setFiltering,
+    },
+    filters,
+    isLoading,
   });
 
   if (isError) {
@@ -87,41 +84,34 @@ const PersonTypePage = () => {
 
   return (
     <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div>
-          <Heading>Person Types</Heading>
-          <Text className="text-ui-fg-subtle" size="small">
-            Define your categories and types here for persons
-          </Text>
-        </div>
-        <CreateButton />
-      </div>
-      <DataTable
-        table={table}
-        columns={columns}
-        pageSize={10}
-        count={count}
-        orderBy={[{ key: "name", label: "Name" }]}
-        isLoading={isLoading}
-        navigateTo={(row) => row.original.id}
-        search
-        queryObject={raw}
-        noRecords={{
-          message: "Oh no records found",
-        }}
-      />
+      <DataTable instance={table}>
+        <DataTable.Toolbar className="flex items-center justify-between px-6 py-4">
+          <div>
+            <Heading>{t("Person Type")}</Heading>
+            <Text className="text-ui-fg-subtle" size="small">
+              {t("You create the type of the people and its description")}
+            </Text>
+          </div>
+          <div className="flex items-center gap-x-2">
+            <DataTable.Search placeholder={t("Search person types")} />
+            <DataTable.FilterMenu />
+            <CreateButton />
+          </div>
+        </DataTable.Toolbar>
+        <DataTable.Table />
+        <DataTable.Pagination />
+      </DataTable>
     </Container>
   );
 };
-
-export default PersonTypePage;
 
 export const config = defineRouteConfig({
   label: "Person Types",
   icon: DocumentSeries,
 });
 
-
 export const handle = {
   breadcrumb: () => "Person Types",
 };
+
+export default PersonTypesPage;

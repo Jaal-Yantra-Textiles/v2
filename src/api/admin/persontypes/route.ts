@@ -19,21 +19,21 @@ export const POST = async (
 };
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { q } = req.query;
-  const name = q;
-  const offset = parseInt(req.query.offset as string) || 0;
-  const limit = parseInt(req.query.limit as string) || 10;
+  const { q, offset: offsetStr, limit: limitStr, ...filters } = req.query;
+
+  const offset = parseInt(offsetStr as string) || 0;
+  const limit = parseInt(limitStr as string) || 10;
+
+  if (q) {
+    filters.name = q;
+  }
 
   const workflowInput: ListPersonTypesWorkFlowInput = {
-    filters: {
-      name,
-      // Add other filters based on parsed query parameters
-    },
+    filters: filters,
     pagination: {
       offset,
       limit,
     },
-    // Include other properties like offset, limit, order if necessary
   };
   const { result } = await listPersonTypeWorkflow(req.scope).run({
     input: workflowInput,
