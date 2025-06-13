@@ -34,8 +34,7 @@ interface WebsiteGeneralSectionProps {
 export function WebsiteGeneralSection({ website }: WebsiteGeneralSectionProps) {
   const { t } = useTranslation();
   const prompt = usePrompt();
-  const navigate = useNavigate();
-
+  
   const handleDelete = async () => {
     const res = await prompt({
       title: t("websites.delete.title"),

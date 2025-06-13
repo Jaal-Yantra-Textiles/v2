@@ -1,7 +1,7 @@
 import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, CommandBar, toast } from "@medusajs/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ActionMenu } from "../common/action-menu";
-import { Plus } from "lucide-react";
+import { Plus } from "@medusajs/icons";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { AdminBlock, useBlocks } from "../../hooks/api/blocks";

@@ -162,7 +162,7 @@ export const usePages = (
 export const useCreatePages = (
   websiteId: string,
   options?: UseMutationOptions<
-    AdminPagesResponse,
+    AdminPageResponse,
     FetchError,
     CreatePagesPayload
   >
@@ -170,7 +170,7 @@ export const useCreatePages = (
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: CreatePagesPayload) =>
-      sdk.client.fetch<AdminPagesResponse>(
+      sdk.client.fetch<AdminPageResponse>(
         `/admin/websites/${websiteId}/pages`,
         {
           method: "POST",
@@ -192,7 +192,7 @@ export const useCreatePages = (
 export const useCreatePagesWithBlocks = (
   websiteId: string,
   options?: UseMutationOptions<
-    AdminPagesResponse,
+    AdminPageResponse | AdminPagesResponse, // Allow either response type
     FetchError,
     CreatePagesPayload
   >
@@ -208,7 +208,9 @@ export const useCreatePagesWithBlocks = (
       const { blocks, ...pageData } = pagePayload;
       
       // Create the page first
-      const response = await sdk.client.fetch<AdminPagesResponse>(
+      const response = await sdk.client.fetch<
+        AdminPageResponse | AdminPagesResponse // Expect either type from SDK fetch
+      >(
         `/admin/websites/${websiteId}/pages`,
         {
           method: "POST",
@@ -216,14 +218,23 @@ export const useCreatePagesWithBlocks = (
         }
       );
 
-      // Extract the created page
-      const page = ('page' in response ? response.page : response.pages[0]) as AdminPage;
+      // Extract the created page for block creation (if needed)
+      // This logic correctly handles both response types to find a page object.
+      const pageForBlocks: AdminPage = ('page' in response && response.page) 
+        ? response.page 
+        : (('pages' in response && response.pages && response.pages.length > 0) 
+            ? response.pages[0] 
+            : undefined) as AdminPage; 
+      // Add a null check for pageForBlocks if blocks logic depends on it critically
+      if (!pageForBlocks && blocks?.length) {
+        throw new Error("Page creation succeeded but page data was not found for block creation.");
+      }
       
       // Create blocks in a separate request if they exist
       if (blocks?.length) {
         // Create blocks for the page
         await sdk.client.fetch(
-          `/admin/websites/${websiteId}/pages/${page.id}/blocks`,
+          `/admin/websites/${websiteId}/pages/${pageForBlocks.id}/blocks`,
           {
             method: "POST",
             body: {
