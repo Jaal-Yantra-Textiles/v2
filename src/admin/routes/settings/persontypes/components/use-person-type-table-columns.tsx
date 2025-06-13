@@ -10,11 +10,11 @@ export const usePersonTypeTableColumns = () => {
   const columns = useMemo(
     () => [
       columnHelper.accessor("name", {
-        header: t("personTypes.table.name"),
+        header: t("Name"),
         cell: (info) => info.getValue(),
       }),
       columnHelper.accessor("description", {
-        header: t("personTypes.table.description"),
+        header: t("Description"),
         cell: (info) => info.getValue(),
       }),
     ],

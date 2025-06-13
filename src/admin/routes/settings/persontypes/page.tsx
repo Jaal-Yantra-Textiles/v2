@@ -87,7 +87,7 @@ const PersonTypesPage = () => {
       <DataTable instance={table}>
         <DataTable.Toolbar className="flex items-center justify-between px-6 py-4">
           <div>
-            <Heading>{t("Person Type")}</Heading>
+            <Heading>{t("Person Types")}</Heading>
             <Text className="text-ui-fg-subtle" size="small">
               {t("You create the type of the people and its description")}
             </Text>
