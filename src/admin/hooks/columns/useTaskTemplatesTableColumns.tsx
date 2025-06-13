@@ -40,33 +40,6 @@ export const useTaskTemplatesTableColumns = () => {
           );
         },
       }),
-      columnHelper.accessor("category.name", {
-        header: "Category",
-        cell: ({ getValue }) => getValue() || "N/A",
-      }),
-      columnHelper.accessor("estimated_duration", {
-        header: "Est. Duration (min)",
-        cell: ({ getValue }) => getValue() || "N/A",
-      }),
-      columnHelper.display({
-        id: "notifications",
-        header: "Notifications",
-        cell: ({ row }) => {
-          const template = row.original;
-          const notifications = [];
-          if (template.eventable) notifications.push("Events");
-          if (template.notifiable) notifications.push("Notifications");
-          return notifications.join(", ") || "None";
-        },
-      }),
-      columnHelper.accessor("created_at", {
-        header: "Created At",
-        cell: ({ getValue }) => {
-          const date = getValue();
-          if (!date) return "N/A";
-          return new Date(date).toLocaleDateString();
-        },
-      }),
     ],
     [],
   );

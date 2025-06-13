@@ -352,7 +352,7 @@ medusaIntegrationTestRunner({
         };
         const res = await api.put(`/admin/inventory-orders/${createdOrderId}`, updatePayload, headers).catch((err) => err.response);
         expect(res.status).toBe(400);
-        expect(res.data.message).toBe('too_small Order quantity must be a positive integer (at path: quantity)');
+        expect(res.data.message).toBe('too_small Order quantity must be a non-negative integer (at path: quantity)');
       });
 
 
