@@ -102,7 +102,7 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
       meta_keywords: "",
       blocks: [
         {
-          name: "MainContent",
+          name: "Main Blog",
           type: "MainContent",
           content: {
             authors: [],
@@ -159,6 +159,7 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
   };
 
   const handleSubmit = form.handleSubmit(async (data) => {
+    const authors = data.blocks?.[0]?.content?.authors || [];
     const pageData: CreatePagesPayload = {
       title: data.title,
       slug: data.slug,
@@ -169,16 +170,16 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
       meta_description: data.meta_description || "",
       meta_keywords: data.meta_keywords || "",
       public_metadata: {
-        // Prioritize new_category_name if provided, otherwise use selected category
         category: data.new_category_name ? data.new_category_name.trim() : (data.category || undefined),
-        ...(data.authors && { authors: data.authors.join(", ") }),
+        ...(authors.length > 0 && { authors: authors.join(", ") }),
         is_featured: data.is_featured || false,
       },
       blocks: [
         {
-          name: "Main Content",
+          name: "Main Blog",
           type: "MainContent",
           content: {
+            authors: authors,
             image: { type: "image", content: "" },
             type: "blog",
             text: "",
@@ -195,13 +196,10 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
     mutate(pageData, {
       onSuccess: (responseData: AdminPageResponse | AdminPagesResponse) => {
         toast.success("Blog page with blocks created successfully");
-        // The actual created page ID should be in responseData.page.id
         let pageIdToRedirect: string | undefined = undefined;
 
-        // Check if responseData is of type AdminPageResponse (has a 'page' property)
         if ('page' in responseData && responseData.page?.id) {
           pageIdToRedirect = responseData.page.id;
-        // Check if responseData is of type AdminPagesResponse (has a 'pages' property)
         } else if ('pages' in responseData && responseData.pages?.length > 0 && responseData.pages[0]?.id) {
           pageIdToRedirect = responseData.pages[0].id;
         }
@@ -210,7 +208,7 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
           handleSuccess(`/websites/${websiteId}/pages/${pageIdToRedirect}`);
         } else {
           console.warn("Created page ID not found in response. Response:", responseData);
-          handleSuccess(`/websites/${websiteId}/pages/`); // Fallback to the list of pages
+          handleSuccess(`/websites/${websiteId}/pages/`);
         }
       },
       onError: (error: FetchError) => {
