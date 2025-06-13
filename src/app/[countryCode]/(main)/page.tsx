@@ -6,9 +6,9 @@ import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
 
 export const metadata: Metadata = {
-  title: "Medusa Next.js Starter Template",
+  title: "Cici Label - Handmade, Locally Sourced Fashion",
   description:
-    "A performant frontend ecommerce starter template with Next.js 15 and Medusa.",
+    "Cici Label fashion brand focused on clothing for good , slow and ethical fashion",
 }
 
 export default async function Home(props: {
