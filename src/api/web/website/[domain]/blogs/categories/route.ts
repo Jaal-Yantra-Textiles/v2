@@ -8,9 +8,7 @@ export async function GET(
   const { domain } = req.params
   const workflow = fetchAllCategoriesPerSiteWorkflow(req.scope)
   const { result } = await workflow.run({
-    input: {
-      domain,
-    },
+    input: { domainName: domain },
   })
 
   return res.json({ categories: result })

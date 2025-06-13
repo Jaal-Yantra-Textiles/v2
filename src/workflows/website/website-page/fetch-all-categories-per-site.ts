@@ -9,36 +9,44 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { WEBSITE_MODULE } from "../../../modules/website"
 import WebsiteService from "../../../modules/website/service"
 
-type GetWebsiteByDomainStepInput = {
-  domain: string
+type GetWebsiteStepInput = {
+  domainName?: string
+  websiteId?: string
 }
 
-const getWebsiteByDomainStep = createStep(
-  "get-website-by-domain-step",
-  async (input: GetWebsiteByDomainStepInput, { container }) => {
-    const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE)
-    const websites = await websiteService.listWebsites(
-      {
-        domain: input.domain,
-      },
-      {
-        select: ["id"],
-        take: 1,
-      }
-    )
-
-    const website = websites[0]
-
-    if (!website) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_FOUND,
-        `Website with domain ${input.domain} not found`
-      )
+const getWebsiteStep = createStep(
+  "get-website-step",
+  async (input: GetWebsiteStepInput, { container }) => {
+    const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
+    let filter = {};
+    if (input.websiteId) {
+      filter = { id: input.websiteId };
+    } else if (input.domainName) {
+      filter = { domain: input.domainName }; // Assuming 'domain' is the correct filter key for domain name
+    } else {
+      throw new Error("Either websiteId or domainName must be provided to fetch website.");
     }
 
-    return new StepResponse(website)
+    const websites = await websiteService.listWebsites(
+      filter,
+      {
+        take: 1,
+      }
+    );
+
+    const website = websites[0];
+
+    if (!website) {
+      let identifier = input.websiteId ? `ID ${input.websiteId}` : `domain ${input.domainName}`;
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Website with ${identifier} not found`
+      );
+    }
+    // The step should return the website object itself, which includes categories if relations worked
+    return new StepResponse(website, website.id);
   }
-)
+);
 
 type GetWebsitePagesStepInput = {
   website: {
@@ -64,8 +72,9 @@ const getWebsitePagesStep = createStep(
   }
 )
 
-type WorkflowInput = {
-  domain: string
+interface WorkflowInput {
+  domainName?: string
+  websiteId?: string
 }
 
 export const fetchAllCategoriesPerSiteWorkflowId =
@@ -73,7 +82,11 @@ export const fetchAllCategoriesPerSiteWorkflowId =
 export const fetchAllCategoriesPerSiteWorkflow = createWorkflow(
   fetchAllCategoriesPerSiteWorkflowId,
   (input: WorkflowInput): WorkflowResponse<string[]> => {
-    const website = getWebsiteByDomainStep(input)
+    // Ensure either domainName or websiteId is provided
+    if (!input.domainName && !input.websiteId) {
+      throw new Error("Workflow input must include either domainName or websiteId.")
+    }
+    const website = getWebsiteStep(input)
     const pages = getWebsitePagesStep({ website })
 
     const categories = transform({ pages }, (data): string[] => {

@@ -2,11 +2,10 @@ import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilte
 import { AdminWebsite } from "../../hooks/api/websites";
 import { AdminPage } from "../../hooks/api/pages";
 import { ActionMenu } from "../common/action-menu";
-import { Plus } from "lucide-react";
 import { useBlogColumns } from "./hooks/use-blog-columns";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
+import { Plus } from "@medusajs/icons"
 interface WebsiteBlogSectionProps {
   website: AdminWebsite;
 }
@@ -134,7 +133,7 @@ export function WebsiteBlogSection({ website }: WebsiteBlogSectionProps) {
                   actions: [
                     {
                       label: "Add Blog Post",
-                      icon: <Plus />,
+                      icon: <Plus/>,
                       to: `/websites/${website.id}/blog`,
                     },
                   ],
