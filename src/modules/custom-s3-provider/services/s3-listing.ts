@@ -1,6 +1,7 @@
 import { S3Client, ListObjectsV2Command, ListObjectsV2CommandOutput, _Object as S3ObjectType } from "@aws-sdk/client-s3";
 import { MedusaError } from "@medusajs/framework/utils";
 import { Logger } from "@medusajs/framework/types";
+import S3FileService from "@medusajs/medusa/file-s3"
 
 interface EditorFile {
   id: string;
@@ -27,7 +28,7 @@ export class S3ListingService {
 
   constructor({ logger }: S3ListingServiceDependencies) {
     this.logger_ = logger;
-
+    
     this.config_ = {
       bucket: process.env.S3_BUCKET!,
       region: process.env.S3_REGION!,
@@ -41,7 +42,7 @@ export class S3ListingService {
     if (!this.config_.bucket || !this.config_.region || !this.config_.accessKeyId || !this.config_.secretAccessKey) {
       throw new MedusaError(MedusaError.Types.INVALID_ARGUMENT, "S3ListingService: S3 credentials (bucket, region, keys) are required.");
     }
-
+    
     this.client_ = new S3Client({
       region: this.config_.region,
       credentials: {
