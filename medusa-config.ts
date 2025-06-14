@@ -72,7 +72,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/partner",
     },
-
+    {
+      resolve: "./src/modules/custom-s3-provider",
+    },
     {
       resolve: "@medusajs/medusa/notification",
       options: {
@@ -84,7 +86,7 @@ module.exports = defineConfig({
           },
         }]
       }
-    }
+    },
 
     // {
     //   resolve: "@medusajs/medusa/workflow-engine-redis",
