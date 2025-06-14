@@ -68,6 +68,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/partner",
     },
+    {
+      resolve: "./src/modules/custom-s3-provider",
+    },
 
     // Production-ready modules
     {
@@ -107,8 +110,7 @@ module.exports = defineConfig({
           },
         ],
       },
-    },
-
+    }, 
     {
       resolve: "@medusajs/medusa/file",
       options: {
