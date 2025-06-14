@@ -4,7 +4,7 @@ import S3ListingService from "./services/s3-listing"
 import { logger } from "@medusajs/framework"
 
 
-interface FileListingServiceInterface {
+export interface FileListingServiceInterface {
   listAllFiles(pagination: { limit: number; offset: number }): Promise<any>;
   // Add other common methods if any, e.g., upload, delete, etc.
 }

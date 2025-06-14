@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 
 const IS_INTERACTIVE = require.main === module;
 
@@ -140,7 +141,22 @@ const generateModel = (moduleName: string, modelName: string, fields: string[]) 
   updateModuleService(moduleName, modelName);
   
   console.log('\nModel generated successfully!');
-  console.log('Next step: Run migrations with `npx medusa migrations run`');
+
+  try {
+    const projectRoot = path.join(__dirname, '..', '..'); // Assumes script is in src/scripts
+    console.log(`\nGenerating migrations for module '${moduleName}'...`);
+    execSync(`npx medusa db:generate ${moduleName}`, { stdio: 'inherit', cwd: projectRoot });
+    
+    console.log('\nApplying migrations...');
+    execSync('npx medusa db:migrate', { stdio: 'inherit', cwd: projectRoot });
+    
+    console.log('\nMigrations completed successfully!');
+  } catch (error) {
+    console.error(`\nError during migration process: ${error.message}`);
+    console.error('Please try running the migration commands manually:');
+    console.error(`  npx medusa db:generate ${moduleName}`);
+    console.error('  npx medusa db:migrate');
+  }
 };
 
 // --- Entry Points ---

@@ -5,8 +5,7 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
 import { MedusaError, Modules } from "@medusajs/utils";
-import { S3ListingService } from "../../modules/custom-s3-provider/services/s3-listing";
-import { S3_LISTING_MODULE } from "../../modules/custom-s3-provider";
+import { S3_LISTING_MODULE, S3ListingServiceModule } from "../../modules/custom-s3-provider";
 
 interface EditorFile {
   id: string;
@@ -78,7 +77,7 @@ export const listFilesStep = createStep(
     // Assuming 'File' is the entity name and 'fileRepository' is its registered name in the container.
     // The exact type for fileRepository might be EntityRepository<File> (MikroORM) or Repository<File> (TypeORM)
     // Resolve the custom listing service using its static identifier
-    const listingService: S3ListingService = container.resolve(S3_LISTING_MODULE);
+    const listingService: S3ListingServiceModule = container.resolve(S3_LISTING_MODULE);
     // Use findAndCount for pagination and total count
     // The specific options (like orderBy) might vary slightly based on the ORM (TypeORM/MikroORM)
     if (!listingService || typeof listingService.listAllFiles !== 'function') {

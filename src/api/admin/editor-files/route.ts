@@ -1,9 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { listEditorFilesWorkflow } from "../../../workflows/files/list-editor-files"
-import { MedusaError } from "@medusajs/utils"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
-  const { limit, offset, q, mime_type_group } = req.query
+  const { limit, offset } = req.query
 
   const parsedLimit = limit ? parseInt(limit as string, 10) : 20
   const parsedOffset = offset ? parseInt(offset as string, 10) : 0
