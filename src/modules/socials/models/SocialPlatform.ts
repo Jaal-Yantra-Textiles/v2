@@ -3,10 +3,10 @@ import SocialPost from "./SocialPost"; // Import the related model
 
 const SocialPlatform = model.define("SocialPlatform", {
   id: model.id().primaryKey(),
-  name: model.text().searchable(), // Made name searchable
-  icon_url: model.text(),
-  base_url: model.text(),
-  api_config: model.json(),
+  name: model.text().searchable(),
+  icon_url: model.text().nullable(),
+  base_url: model.text().nullable(),
+  api_config: model.json().nullable(),
   posts: model.hasMany(() => SocialPost, { mappedBy: "platform" }), // Added relationship
 });
 
