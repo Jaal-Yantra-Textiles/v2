@@ -1,3 +1,13 @@
+# [5.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.6.1...v5.7.0) (2025-06-14)
+
+
+### Features
+
+* **FILE:** List all files directly through S3 alongside the file through an API ([17e6217](https://github.com/Jaal-Yantra-Textiles/v2/commit/17e6217bc1d6de0a920cd61d85b62d9c6fe5e4ce))
+* **SCRIPT:** Script that can generate models, workflow, API and modules are in place. ([96f0826](https://github.com/Jaal-Yantra-Textiles/v2/commit/96f082608f24b4022caba4915bb4bede75ddd2c8))
+* **TE:** Texteditor can now make calls and provide input from the API such as how many number of persons do we have and etc. ([19ce675](https://github.com/Jaal-Yantra-Textiles/v2/commit/19ce6756a25e51a8089625534b3ff17925fa0436))
+* **SCRIPT:** The script lets us generate modules and models on the fly you can now issue an command such as npx medusa exec ./src/scripts/create-module.ts socials, or npx ts-node src/scripts/generate-model.ts socials sma platform:string access_token:string ([a492ef0](https://github.com/Jaal-Yantra-Textiles/v2/commit/a492ef0967dc462cb03f82daf924b896576751ef))
+
 ## [5.6.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.6.0...v5.6.1) (2025-06-13)
 
 
