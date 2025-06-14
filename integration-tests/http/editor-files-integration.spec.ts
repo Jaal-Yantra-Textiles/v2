@@ -45,10 +45,11 @@ medusaIntegrationTestRunner({
             }
           });
           
-          if (uploadResponse.data && uploadResponse.data.uploads && uploadResponse.data.uploads.length > 0) {
-            createdFileIds.push(uploadResponse.data.uploads[0].id);
+          if (uploadResponse.data && Array.isArray(uploadResponse.data.files) && uploadResponse.data.files.length > 0 && uploadResponse.data.files[0].id) {
+            createdFileIds.push(uploadResponse.data.files[0].id);
           } else {
-            console.warn(`Upload failed or returned unexpected data for file ${fileName}:`, uploadResponse.data);
+            // This else block now correctly signifies a failed upload or genuinely unexpected response data
+            console.error(`Upload for file ${fileName} failed or returned an unexpected data structure (expected { files: [{id: string, ...}] }):`, uploadResponse.data);
           }
         } catch (error) {
           console.error(`Error uploading file ${fileName}:`, error.response?.data || error.message);

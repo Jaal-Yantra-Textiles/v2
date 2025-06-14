@@ -76,6 +76,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/custom-s3-provider",
     },
     {
+      resolve: "./src/modules/socials",
+    },
+    {
       resolve: "@medusajs/medusa/notification",
       options: {
         providers: [{

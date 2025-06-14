@@ -1,10 +1,13 @@
+import SocialPost from "./models/SocialPost";
+import SocialPlatform from "./models/SocialPlatform";
 import Sma from "./models/sma";
 import { MedusaService } from "@medusajs/framework/utils";
-import Socials from "./models/socials";
+
 
 class SocialsService extends MedusaService({
+  SocialPost,
+  SocialPlatform,
   Sma,
-  Socials,
 }) {
   constructor() {
     super(...arguments)

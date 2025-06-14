@@ -45,10 +45,12 @@ export default ${pascalCaseName}Module;
 const getServiceTemplate = (moduleName: string) => {
   const pascalCaseName = toPascalCase(moduleName);
   return `import { MedusaService } from "@medusajs/framework/utils";
-import ${pascalCaseName} from "./models/${moduleName}";
+// Import your models here, e.g.:
+// import MyModel from "./models/MyModel";
 
 class ${pascalCaseName}Service extends MedusaService({
-  ${pascalCaseName},
+  // Register your models here, e.g.:
+  // MyModel,
 }) {
   constructor() {
     super(...arguments)
@@ -154,16 +156,14 @@ const createModule = (moduleName: string) => {
   console.log(`Created file: ${indexPath}`);
   fs.writeFileSync(servicePath, getServiceTemplate(moduleName));
   console.log(`Created file: ${servicePath}`);
-  fs.writeFileSync(modelPath, getModelTemplate(moduleName));
-  console.log(`Created file: ${modelPath}`);
 
   console.log(`\nModule '${moduleName}' created successfully!`);
 
   addModuleToConfig(moduleName);
 
   console.log('\nNext steps:');
-  console.log(`1. Define your data model in: src/modules/${moduleName}/models/${moduleName}.ts`);
-  console.log('2. Run migrations: npx medusa migrations run');
+  console.log(`1. Use the 'generate-model.ts' script to add models to 'src/modules/${moduleName}/models/'.`);
+  console.log('2. After adding models, migrations will be handled automatically by the script.');
 };
 
 const run = async (args: string[]) => {
