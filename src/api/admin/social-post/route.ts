@@ -16,7 +16,6 @@ export const POST = async (req: MedusaRequest<SocialPost>, res: MedusaResponse) 
   const { result } = await createSocialPostWorkflow(req.scope).run({
     input: req.validatedBody,
   });
-
   const socialpost = await refetchSocialPost(result.id, req.scope);
   res.status(201).json({ socialpost });
 };
