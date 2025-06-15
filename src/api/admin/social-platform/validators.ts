@@ -5,7 +5,7 @@ export const SocialPlatformSchema = z.object({
   icon_url: z.string().optional(),
   base_url: z.string().optional(),
   api_config: z.record(z.unknown()).optional(),
-  posts: z.string(),
+  posts: z.string().optional(),
 });
 
 export type SocialPlatform = z.infer<typeof SocialPlatformSchema>;

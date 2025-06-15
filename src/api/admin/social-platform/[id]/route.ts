@@ -9,7 +9,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { result } = await listSocialPlatformWorkflow(req.scope).run({
     input: { filters: { id: [req.params.id] } },
   });
-  res.status(200).json({ socialplatform: result[0][0] });
+  res.status(200).json({ socialPlatform: result[0][0] });
 };
 
 export const POST = async (req: MedusaRequest<UpdateSocialPlatform>, res: MedusaResponse) => {
@@ -19,9 +19,8 @@ export const POST = async (req: MedusaRequest<UpdateSocialPlatform>, res: Medusa
       ...req.validatedBody,
     },
   });
-
-  const socialplatform = await refetchSocialPlatform(result[0].id, req.scope);
-  res.status(200).json({ socialplatform });
+  const socialPlatform = await refetchSocialPlatform(result.id, req.scope);
+  res.status(200).json({ socialPlatform });
 };
 
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -30,7 +29,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   });
   res.status(200).json({
     id: req.params.id,
-    object: "socialplatform",
+    object: "social_platform",
     deleted: true,
   });
 };

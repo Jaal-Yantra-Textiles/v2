@@ -6,7 +6,11 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { SOCIALS_MODULE } from "../../modules/socials";
 import SocialPlatformService from "../../modules/socials/service";
+import { InferTypeOf } from "@medusajs/framework/types"
 
+import SocialPlatform  from "../../modules/socials/models/SocialPlatform";
+
+export type SocialPlatform = InferTypeOf<typeof SocialPlatform>
 export type UpdateSocialPlatformStepInput = {
   id: string;
   name?: string;
@@ -26,7 +30,7 @@ export const updateSocialPlatformStep = createStep(
     const updated = await service.updateSocialPlatforms({
       selector: { id },
       data: updateData,
-    });
+    }) as unknown as SocialPlatform;
 
     return new StepResponse(updated, { id, originalData: original });
   },

@@ -49,6 +49,9 @@ import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
+import SocialPlatform from "../modules/socials/models/SocialPlatform";
+import { SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platform/validators";
+import { SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-post/validators";
 
 
 
@@ -433,6 +436,30 @@ export default defineMiddlewares({
       matcher: "/admin/categories/rawmaterials",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(CreateMaterialTypeSchema))],
+    },
+
+    {
+      matcher: "/admin/social-platform",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SocialPlatformSchema))],
+    },
+
+    {
+      matcher: "/admin/social-post",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SocialPostSchema))],
+    },
+
+    {
+      matcher: "/admin/social-post/:socialPostId",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateSocialPostSchema))],
+    },
+
+    {
+      matcher: "/admin/social-platform/:socialPlatformId",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateSocialPlatformSchema))],
     },
 
   ],
