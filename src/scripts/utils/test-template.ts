@@ -23,16 +23,47 @@ export const generateTestFileContent = (
   
     const createPayloadFields = [
       ...dependencies.map(dep => `${dep.name}_id: ${dep.name}Id`),
-      ...requiredFields.map(field => `${field.name}: ${field.type === 'enum' ? '"draft"' : `"Test ${field.name}"`}`)
+      ...requiredFields.map(field => {
+        if (field.type === 'enum') {
+          let value = '"MISSING_ENUM_VALUE"'; // Fallback
+          if (field.defaultValue && field.enumValues && field.enumValues.includes(field.defaultValue)) {
+            value = JSON.stringify(field.defaultValue);
+          } else if (field.enumValues && field.enumValues.length > 0) {
+            value = JSON.stringify(field.enumValues[0]);
+          }
+          return `${field.name}: ${value}`;
+        } else {
+          return `${field.name}: "Test ${field.name}"`;
+        }
+      })
     ].join(',\n            ');
   
-    const updatePayloadField = requiredFields.length > 0
-      ? `${requiredFields[0].name}: "Updated ${requiredFields[0].name}"`
-      : `// Add a field to update here`;
-      
-    const updateAssertion = requiredFields.length > 0 
-      ? `expect(updateResponse.data.${modelNameCamel}.${requiredFields[0].name}).toEqual("Updated ${requiredFields[0].name}");` 
-      : '';
+    let updatePayloadField = '// Add a field to update here';
+    let updateAssertion = '';
+
+    if (requiredFields.length > 0) {
+      const firstField = requiredFields[0];
+      if (firstField.type === 'enum' && firstField.enumValues && firstField.enumValues.length > 0) {
+        // Try to pick a different enum value for update
+        // If create used defaultValue or enumValues[0], try enumValues[1] or fallback to enumValues[0]
+        let createValue = firstField.defaultValue && firstField.enumValues.includes(firstField.defaultValue) 
+                          ? firstField.defaultValue 
+                          : firstField.enumValues[0];
+        let updateValue = firstField.enumValues[0]; // Default to first if no other option
+        if (firstField.enumValues.length > 1) {
+          updateValue = (firstField.enumValues[0] === createValue) ? firstField.enumValues[1] : firstField.enumValues[0];
+        } else {
+          updateValue = firstField.enumValues[0]; // Only one value, use it
+        }
+        updatePayloadField = `${firstField.name}: ${JSON.stringify(updateValue)}`;
+        updateAssertion = `expect(updateResponse.data.${modelNameCamel}.${firstField.name}).toEqual(${JSON.stringify(updateValue)});`;
+      } else {
+        // Non-enum field update logic
+        const updatedValue = `Updated ${firstField.name}`;
+        updatePayloadField = `${firstField.name}: ${JSON.stringify(updatedValue)}`;
+        updateAssertion = `expect(updateResponse.data.${modelNameCamel}.${firstField.name}).toEqual(${JSON.stringify(updatedValue)});`;
+      }
+    }
   
     return `
   import { medusaIntegrationTestRunner } from "@medusajs/test-utils";

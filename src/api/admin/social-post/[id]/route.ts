@@ -9,7 +9,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { result } = await listSocialPostWorkflow(req.scope).run({
     input: { filters: { id: [req.params.id] } },
   });
-  res.status(200).json({ socialpost: result[0][0] });
+  res.status(200).json({ socialPost: result[0][0] });
 };
 
 export const POST = async (req: MedusaRequest<UpdateSocialPost>, res: MedusaResponse) => {
@@ -20,8 +20,8 @@ export const POST = async (req: MedusaRequest<UpdateSocialPost>, res: MedusaResp
     },
   });
 
-  const socialpost = await refetchSocialPost(result[0].id, req.scope);
-  res.status(200).json({ socialpost });
+  const socialPost = await refetchSocialPost(result[0].id, req.scope);
+  res.status(200).json({ socialPost });
 };
 
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -30,7 +30,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   });
   res.status(200).json({
     id: req.params.id,
-    object: "socialpost",
+    object: "social_post",
     deleted: true,
   });
 };

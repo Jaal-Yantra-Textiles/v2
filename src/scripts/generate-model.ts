@@ -7,9 +7,8 @@ const IS_INTERACTIVE = require.main === module;
 // --- Helper Functions ---
 const toPascalCase = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
 
-const showHelp = () => {
-  console.log(`
-Usage: npx ts-node src/scripts/generate-model.ts <module_name> <model_name> [field:type]...
+const getHelpMessage = () => `
+Usage: ${IS_INTERACTIVE ? 'npx ts-node src/scripts/generate-model.ts' : 'npx medusa exec ./src/scripts/generate-model.ts'} <module_name> <model_name> [field:type]...
 
 Generates a new data model within a specified module.
 
@@ -21,15 +20,23 @@ Arguments:
 Supported Types: id, text, string, integer, boolean, json, datetime, date, time, float, bignumber, amount, enum
 
 For 'enum' type, provide values like: status:enum(active,inactive,archived)
-`);
-  process.exit(0);
+`;
+
+const showHelpAndExit = () => {
+  console.log(getHelpMessage());
+  if (IS_INTERACTIVE) {
+    process.exit(0);
+  } else {
+    // For medusa exec, throwing an error is preferred for help/usage issues
+    throw new Error(getHelpMessage()); 
+  }
 };
 
 const typeToModelMap: Record<string, { type: string; options?: any }> = {
-  id: { type: 'id' }, // Typically handled by default, but good to have
-  string: { type: 'text' }, // 'string' is a common alias for 'text'
+  id: { type: 'id' },
+  string: { type: 'text' },
   text: { type: 'text' },
-  integer: { type: 'integer' },
+  integer: { type: 'number' },
   boolean: { type: 'boolean' },
   json: { type: 'json' },
   datetime: { type: 'dateTime' },
@@ -37,8 +44,8 @@ const typeToModelMap: Record<string, { type: string; options?: any }> = {
   time: { type: 'time' },
   float: { type: 'float' },
   bignumber: { type: 'bigNumber' },
-  amount: { type: 'bigNumber', options: { isAmount: true } }, // Special case
-  enum: { type: 'enum' }, // Requires values
+  amount: { type: 'bigNumber', options: { isAmount: true } },
+  enum: { type: 'enum' },
 };
 
 // --- Template Generation ---
@@ -102,12 +109,9 @@ const updateModuleService = (moduleName: string, modelName: string) => {
     if (!fs.existsSync(servicePath)) return;
 
     let content = fs.readFileSync(servicePath, 'utf-8');
-    
-    // Add import statement
     const importStatement = `import ${pascalCaseModel} from "./models/${modelName}";\n`;
     content = importStatement + content;
 
-    // Add to MedusaService constructor
     const serviceRegex = /extends MedusaService\({/;
     content = content.replace(serviceRegex, `extends MedusaService({\n  ${pascalCaseModel},`);
 
@@ -115,21 +119,26 @@ const updateModuleService = (moduleName: string, modelName: string) => {
     console.log(`Updated service: ${servicePath}`);
   } catch (e) {
     console.error(`Failed to update service file for module ${moduleName}:`, e);
+    // Do not exit, allow script to continue if service update fails
   }
 };
 
-const generateModel = (moduleName: string, modelName: string, fields: string[]) => {
+const generateModelLogic = (moduleName: string, modelName: string, fields: string[]) => {
   if (!moduleName || !modelName) {
     console.error('Error: Module and model names are required.');
-    showHelp();
+    showHelpAndExit(); // This will throw if not interactive
+    return; // Should not be reached if showHelpAndExit throws/exits
   }
 
   console.log(`Generating model '${modelName}' in module '${moduleName}'...`);
 
   const modelDir = path.join(__dirname, '..', 'modules', moduleName, 'models');
   if (!fs.existsSync(modelDir)) {
-    console.error(`Error: Module directory not found at ${modelDir}`);
-    process.exit(1);
+    const errMsg = `Error: Module directory not found at ${modelDir}`;
+    console.error(errMsg);
+    if (IS_INTERACTIVE) process.exit(1);
+    else throw new Error(errMsg);
+    return; // Should not be reached
   }
 
   const modelPath = path.join(modelDir, `${modelName}.ts`);
@@ -143,7 +152,7 @@ const generateModel = (moduleName: string, modelName: string, fields: string[]) 
   console.log('\nModel generated successfully!');
 
   try {
-    const projectRoot = path.join(__dirname, '..', '..'); // Assumes script is in src/scripts
+    const projectRoot = path.join(__dirname, '..', '..');
     console.log(`\nGenerating migrations for module '${moduleName}'...`);
     execSync(`npx medusa db:generate ${moduleName}`, { stdio: 'inherit', cwd: projectRoot });
     
@@ -151,11 +160,14 @@ const generateModel = (moduleName: string, modelName: string, fields: string[]) 
     execSync('npx medusa db:migrate', { stdio: 'inherit', cwd: projectRoot });
     
     console.log('\nMigrations completed successfully!');
-  } catch (error) {
-    console.error(`\nError during migration process: ${error.message}`);
+  } catch (error: any) {
+    const errMsg = `\nError during migration process: ${error.message}`;
+    console.error(errMsg);
     console.error('Please try running the migration commands manually:');
     console.error(`  npx medusa db:generate ${moduleName}`);
     console.error('  npx medusa db:migrate');
+    // Do not exit or throw here for migration errors, allow script to finish reporting
+    // but the user is notified of the failure.
   }
 };
 
@@ -163,18 +175,28 @@ const generateModel = (moduleName: string, modelName: string, fields: string[]) 
 
 const run = async (args: string[]) => {
   if (args.includes('--help') || args.includes('-h') || args.length < 2) {
-    showHelp();
-    return;
+    showHelpAndExit();
+    return; // Should not be reached if showHelpAndExit throws/exits
   }
 
   const [moduleName, modelName, ...fields] = args;
-  generateModel(moduleName, modelName, fields);
+  // No try-catch here, let errors propagate up to the caller (medusa exec or direct script run)
+  generateModelLogic(moduleName, modelName, fields);
 };
 
 export default async ({ args }: { args: string[] }) => {
-  await run(args);
+  try {
+    await run(args);
+  } catch (error) {
+    // Error should have been logged by generateModelLogic or showHelpAndExit
+    // Rethrow to ensure Medusa CLI handles it
+    throw error;
+  }
 };
 
 if (IS_INTERACTIVE) {
-  run(process.argv.slice(2));
+  run(process.argv.slice(2)).catch(() => {
+    // Errors are logged by generateModelLogic or showHelpAndExit
+    process.exit(1);
+  });
 }

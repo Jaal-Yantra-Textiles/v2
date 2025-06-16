@@ -9,7 +9,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { result } = await listSocialPostWorkflow(req.scope).run({
     input: {},
   });
-  res.status(200).json({ socialposts: result[0], count: result[1] });
+  res.status(200).json({ socialPosts: result[0], count: result[1] });
 };
 
 export const POST = async (req: MedusaRequest<SocialPost>, res: MedusaResponse) => {
@@ -17,5 +17,5 @@ export const POST = async (req: MedusaRequest<SocialPost>, res: MedusaResponse) 
     input: req.validatedBody,
   });
   const socialpost = await refetchSocialPost(result.id, req.scope);
-  res.status(201).json({ socialpost });
+  res.status(201).json({ socialPost: socialpost });
 };
