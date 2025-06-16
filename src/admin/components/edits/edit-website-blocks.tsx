@@ -1,4 +1,5 @@
 import { useBlock } from "../../hooks/api/blocks";
+import { RouteFocusModal } from "../modal/route-focus-modal";
 import { Skeleton } from "../table/skeleton";
 
 import { EditBlogBlock } from "./edit-blog-block";
@@ -27,12 +28,14 @@ export const EditWebsiteBlocks = ({ websiteId, pageId, blockId }: EditWebsiteBlo
       block={block}
     />
   ) : (
+    <RouteFocusModal>
     <EditRegularBlock
       websiteId={websiteId}
       pageId={pageId}
       blockId={blockId}
       block={block}
     />
+    </RouteFocusModal>
   );
 };
     
