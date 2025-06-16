@@ -90,6 +90,7 @@ module.exports = defineConfig({
         }]
       }
     },
+  ]
 
     // {
     //   resolve: "@medusajs/medusa/workflow-engine-redis",
@@ -99,5 +100,4 @@ module.exports = defineConfig({
     //     },
     //   },
     // },
-  ],
 });

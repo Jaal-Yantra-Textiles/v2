@@ -140,14 +140,8 @@ export const POST = async (req: MedusaRequest<${pascalModel}>, res: MedusaRespon
 };
 
 // --- Main script logic ---
-const main = () => {
-  const args = process.argv.slice(2);
-  if (args.length < 3) {
-    console.error("Usage: npx ts-node src/scripts/generate-api.ts <scope> <moduleName> <modelName>");
-    process.exit(1);
-  }
+const runGeneratorLogic = async (scope: string, moduleName: string, modelName: string) => {
 
-  const [scope, moduleName, modelName] = args;
   const pascalModel = toPascalCase(modelName);
 
   console.log("Generating API for model '" + pascalModel + "'...");
@@ -173,4 +167,63 @@ const main = () => {
   console.log("Successfully created API files in " + apiDir);
 };
 
-main();
+const IS_INTERACTIVE = require.main === module;
+
+const showHelp = (exitCode = 0) => {
+  console.log(`
+Usage: npx medusa exec ./src/scripts/generate-api.ts <scope> <moduleName> <modelName> [--help | -h]
+
+This script generates API route handlers, validators, and helpers for a given model.
+
+Arguments:
+  scope         The API scope (e.g., 'admin', 'store').
+  moduleName    The name of the module containing the model and potentially workflows (e.g., 'test_sample').
+  modelName     The name of the model (e.g., 'TestItem').
+
+Options:
+  --help, -h    Show this help message.
+  `);
+  process.exit(exitCode);
+};
+
+const run = async ({ args }: { args: string[] }) => {
+  if (args.includes('--help') || args.includes('-h')) {
+    showHelp();
+    return;
+  }
+
+  const positionalArgs = args.filter(arg => !arg.startsWith('--'));
+
+  if (positionalArgs.length < 3) {
+    console.error("Error: Missing required arguments: scope, moduleName, modelName.");
+    showHelp(1);
+    return; // Ensure exit or return
+  }
+
+  const [scope, moduleName, modelName] = positionalArgs;
+
+  if (!scope || !moduleName || !modelName) {
+    console.error("Error: Scope, moduleName, and modelName must be provided.");
+    showHelp(1);
+    return; // Ensure exit or return
+  }
+
+  try {
+    await runGeneratorLogic(scope, moduleName, modelName);
+  } catch (error) {
+    console.error(`Error during API generation: ${error.message}`);
+    // process.exit(1); // Avoid process.exit in medusa exec context if possible, let error propagate
+    throw error; // Re-throw for medusa exec to handle
+  }
+};
+
+export default run;
+
+if (IS_INTERACTIVE) {
+  // Simplified for direct execution, assumes args are passed directly
+  const directArgs = process.argv.slice(2);
+  run({ args: directArgs }).catch(err => {
+    console.error("Failed to generate API:", err);
+    process.exit(1);
+  });
+}

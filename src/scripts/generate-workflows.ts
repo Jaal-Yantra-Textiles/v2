@@ -6,7 +6,7 @@ const toPascalCase = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
 const toKebabCase = (str: string) => str.replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/([A-Z])([A-Z][a-z])/g, '$1-$2').toLowerCase();
 const toSnakeUpperCase = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter}`).toUpperCase();
 
-const showHelp = () => {
+const showHelp = (exitCode = 0, calledFromRun = false) => {
   console.log(`
 Usage: npx ts-node src/scripts/generate-workflows.ts <module_name> <model_name>
 
@@ -16,7 +16,7 @@ Arguments:
   module_name   The name of the module (e.g., 'socials').
   model_name    The name of the model in PascalCase (e.g., 'SocialPlatform').
   `);
-  process.exit(0);
+  if (!calledFromRun) process.exit(exitCode);
 };
 
 // --- Template Generation ---
@@ -221,7 +221,7 @@ export const delete${pascal}Workflow = createWorkflow(
 
 // --- Main Logic ---
 
-const generateWorkflows = (moduleName: string, modelName: string) => {
+const runGeneratorLogic = async (moduleName: string, modelName: string): Promise<void> => {
   console.log(`Generating workflows for model '${modelName}' in module '${moduleName}'...`);
 
   const workflowDir = path.join(__dirname, '..', 'workflows', moduleName);
@@ -250,14 +250,46 @@ const generateWorkflows = (moduleName: string, modelName: string) => {
 
 // --- Entry Point ---
 
-const run = (args: string[]) => {
-  if (args.includes('--help') || args.includes('-h') || args.length < 2) {
-    showHelp();
+const IS_INTERACTIVE = require.main === module;
+
+const run = async ({ args }: { args: string[] }) => {
+  if (args.includes('--help') || args.includes('-h')) {
+    showHelp(0, true);
     return;
   }
 
-  const [moduleName, modelName] = args;
-  generateWorkflows(moduleName, modelName);
+  const positionalArgs = args.filter(arg => !arg.startsWith('--'));
+
+  if (positionalArgs.length < 2) {
+    console.error("Error: Missing required arguments: module_name, model_name.");
+    showHelp(1, true);
+    return; // Ensure exit or return
+  }
+
+  const [moduleName, modelName] = positionalArgs;
+
+  if (!moduleName || !modelName) {
+    console.error("Error: module_name and model_name must be provided.");
+    showHelp(1, true);
+    return; // Ensure exit or return
+  }
+
+  try {
+    await runGeneratorLogic(moduleName, modelName);
+  } catch (error) {
+    console.error(`Error during workflow generation: ${error.message}`);
+    // process.exit(1); // Avoid process.exit in medusa exec context if possible
+    throw error; // Re-throw for medusa exec to handle
+  }
 };
 
-run(process.argv.slice(2));
+export default run;
+
+if (IS_INTERACTIVE) {
+  // Simplified for direct execution, assumes args are passed directly
+  const directArgs = process.argv.slice(2);
+  run({ args: directArgs }).catch(err => {
+    console.error("Failed to generate workflows:", err);
+    process.exit(1);
+  });
+}
