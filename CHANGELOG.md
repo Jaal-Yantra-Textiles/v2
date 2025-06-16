@@ -1,3 +1,15 @@
+# [5.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.7.0...v5.8.0) (2025-06-16)
+
+
+### Bug Fixes
+
+* **WEB:** RouteFocusModal top level missing on top of the editwebsite modal ([1d11ada](https://github.com/Jaal-Yantra-Textiles/v2/commit/1d11adad4f2b674bb469af9d8d76a47e2942885c))
+
+
+### Features
+
+* **SCRIPT:** Fixed the script to generate Modules, Models, Workflows, API, and tests also. ([08e1099](https://github.com/Jaal-Yantra-Textiles/v2/commit/08e1099e6a0e3d5853a662c0981b58b944ec1f30))
+
 # [5.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.6.1...v5.7.0) (2025-06-14)
 
 
