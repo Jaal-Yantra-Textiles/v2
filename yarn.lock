@@ -3449,23 +3449,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@stripe/react-stripe-js@npm:^1.7.2":
-  version: 1.16.5
-  resolution: "@stripe/react-stripe-js@npm:1.16.5"
+"@stripe/react-stripe-js@npm:^3.7.0":
+  version: 3.7.0
+  resolution: "@stripe/react-stripe-js@npm:3.7.0"
   dependencies:
-    prop-types: "npm:^15.7.2"
+    prop-types: ^15.7.2
   peerDependencies:
-    "@stripe/stripe-js": ^1.44.1
-    react: ^16.8.0 || ^17.0.0 || ^18.0.0
-    react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
-  checksum: fc43248af6fd1f9825463eeb23183b586635048e544c7fa076ee59e85439e7864afaca4adee2a62a9d1cf9a72ce7eaf405dbeffec9ff34e6e0464be0cc92c6a8
+    "@stripe/stripe-js": ">=1.44.1 <8.0.0"
+    react: ">=16.8.0 <20.0.0"
+    react-dom: ">=16.8.0 <20.0.0"
+  checksum: 6546460a4dee52a941ee6db8c2cdeed32609ecfd8f6520399427d020fec1c0653a10196230649c580f56c05cf1f4564470e9124e9f2cf5f9835de009e81bbcc6
   languageName: node
   linkType: hard
 
-"@stripe/stripe-js@npm:^1.29.0":
-  version: 1.54.2
-  resolution: "@stripe/stripe-js@npm:1.54.2"
-  checksum: d5c4a71383c33da3f3badd2ac03073a90250fc0e04b2ecd571f73f34db2266c9fdfc64947410845d58dce074547424bd133f8f24bf86de69dfeb73d140c0bdc8
+"@stripe/stripe-js@npm:^7.3.1":
+  version: 7.3.1
+  resolution: "@stripe/stripe-js@npm:7.3.1"
+  checksum: f182cbb9d2a430b12126435482252628eb1932732dfce88420cacbfdc10f4e19f873abc21ce1e9d88febd409644f09abda5db561d7f0d263239b900a6dec7cb9
   languageName: node
   linkType: hard
 
@@ -6423,8 +6423,8 @@ __metadata:
     "@medusajs/ui": latest
     "@medusajs/ui-preset": latest
     "@radix-ui/react-accordion": ^1.2.1
-    "@stripe/react-stripe-js": ^1.7.2
-    "@stripe/stripe-js": ^1.29.0
+    "@stripe/react-stripe-js": ^3.7.0
+    "@stripe/stripe-js": ^7.3.1
     "@types/lodash": ^4.14.195
     "@types/node": 17.0.21
     "@types/pg": ^8.11.0
