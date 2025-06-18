@@ -1,4 +1,5 @@
-import { Button, Heading, IconButton, Input, Text, toast, Textarea, Tooltip } from "@medusajs/ui";
+import { Button, Heading, IconButton, Input, Text, toast, Tooltip } from "@medusajs/ui";
+import { JsonEditor , monoLightTheme} from 'json-edit-react';
 import { Trash, InformationCircleSolid } from "@medusajs/icons";
 import { BlockTemplateSelector } from "../websites/block-template-selector";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -175,23 +176,20 @@ export function CreateWebsiteBlocks({ websiteId, pageId }: CreateWebsiteBlocksPr
                                 </Tooltip>
                               </div>
                               <Form.Control>
-                                <Textarea 
-                                  {...field} 
-                                  value={typeof field.value === 'string' 
-                                    ? field.value 
-                                    : JSON.stringify(field.value, null, 2)}
-                                  onChange={(e) => {
-                                    try {
-                                      const parsed = JSON.parse(e.target.value);
-                                      field.onChange(parsed);
-                                    } catch (error) {
-                                      // Allow invalid JSON while typing
-                                      field.onChange(e.target.value);
-                                    }
-                                  }}
-                                  placeholder="Block content in JSON format"
-                                  rows={10}
-                                />
+                                <div className="w-full  border border-ui-border-base rounded-md overflow-hidden">
+                                  <JsonEditor
+                                    data={field.value || {}}
+                                    setData={(newData) => {
+                                      if (typeof newData === 'object' && newData !== null && Object.keys(newData).length === 0 && (!field.value || Object.keys(field.value).length === 0) ) {
+                                        field.onChange(undefined);
+                                      } else {
+                                        field.onChange(newData);
+                                      }
+                                    }}
+                                    theme={monoLightTheme}
+                                    //className="w-full h-full"
+                                  />
+                                </div>
                               </Form.Control>
                               <Form.ErrorMessage />
                             </Form.Item>
@@ -210,23 +208,20 @@ export function CreateWebsiteBlocks({ websiteId, pageId }: CreateWebsiteBlocksPr
                                 </Tooltip>
                               </div>
                               <Form.Control>
-                                <Textarea 
-                                  {...field}
-                                  value={typeof field.value === 'string' 
-                                    ? field.value 
-                                    : JSON.stringify(field.value, null, 2)}
-                                  onChange={(e) => {
-                                    try {
-                                      const parsed = JSON.parse(e.target.value);
-                                      field.onChange(parsed);
-                                    } catch (error) {
-                                      // Allow invalid JSON while typing
-                                      field.onChange(e.target.value);
-                                    }
-                                  }}
-                                  placeholder="Block settings in JSON format"
-                                  rows={5}
-                                />
+                                <div className="w-full h-[150px] border border-ui-border-base rounded-md overflow-hidden">
+                                  <JsonEditor
+                                    data={field.value || {}}
+                                    setData={(newData) => {
+                                      if (typeof newData === 'object' && newData !== null && Object.keys(newData).length === 0 && (!field.value || Object.keys(field.value).length === 0) ) {
+                                        field.onChange(undefined);
+                                      } else {
+                                        field.onChange(newData);
+                                      }
+                                    }}
+                                    theme={monoLightTheme}
+                                    className="w-full h-full"
+                                  />
+                                </div>
                               </Form.Control>
                               <Form.ErrorMessage />
                             </Form.Item>
