@@ -1,6 +1,5 @@
-import { FetchError } from "@medusajs/js-sdk";
 import { PaginatedResponse } from "@medusajs/types";
-import {
+import { 
   QueryKey,
   UseMutationOptions,
   UseQueryOptions,
@@ -8,10 +7,13 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+
+
+import { FetchError } from "@medusajs/js-sdk";
 import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 import { WebsiteSchema, UpdateWebsiteSchema } from "../../../api/admin/websites/validators";
-import { Block } from "./pages";
+import { Block, pageQueryKeys } from "./pages";
 
 
 type Pages= [ {
@@ -31,7 +33,7 @@ type Pages= [ {
   updated_at: Date;
 }]
 
-export type AdminWebsite = WebsiteSchema & {
+export type AdminWebsite = WebsiteSchema & { 
   id: string;
   pages: Pages
   created_at: Date;
@@ -68,6 +70,7 @@ export interface SendTestBlogEmailResponse {
 
 export interface ConfirmBlogSubscriptionResponse {
   success: boolean;
+  message?: string;
 }
 
 export interface AdminWebsiteResponse {
@@ -271,33 +274,24 @@ export const useConfirmBlogSubscription = (
   >
 ) => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async () => {
-      const response = await fetch(
+    mutationFn: () =>
+      sdk.client.fetch<ConfirmBlogSubscriptionResponse>(
         `/admin/websites/${websiteId}/pages/${pageId}/subs/${transactionId}/confirm`,
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
+          method: "POST",
+          body: {},
         }
-      );
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to confirm blog subscription');
-      }
-      
-      return await response.json();
-    },
-    onSuccess: () => {
-      // Invalidate the page query to refresh the subscription status
-      queryClient.invalidateQueries({
-        queryKey: ['website', websiteId, 'page', pageId],
-      });
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
+      queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
+      options?.onSuccess?.(data, variables, context);
     },
     ...options,
   });
 };
+
+
+

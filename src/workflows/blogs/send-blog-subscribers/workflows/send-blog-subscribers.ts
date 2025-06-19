@@ -98,6 +98,7 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
     // Step 4: Process each batch of subscribers
     // This will run for each batch and collect all results
     const batchResults = processAllBatchesStep(batches)
+      .config({ async: true, backgroundExecution: true })
     
     // Step 5: Use the summary from the batch processing step
     // The processAllBatchesStep now returns a single SendingSummary object
