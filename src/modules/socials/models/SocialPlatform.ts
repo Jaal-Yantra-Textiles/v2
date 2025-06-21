@@ -7,6 +7,7 @@ const SocialPlatform = model.define("SocialPlatform", {
   icon_url: model.text().nullable(),
   base_url: model.text().nullable(),
   api_config: model.json().nullable(),
+  metadata: model.json().nullable(),
   posts: model.hasMany(() => SocialPost, { mappedBy: "platform" }), // Added relationship
 });
 

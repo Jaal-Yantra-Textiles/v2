@@ -3,9 +3,10 @@ import SocialPlatform from "./SocialPlatform"; // Import the related model
 
 const SocialPost = model.define("SocialPost", {
   id: model.id().primaryKey(),
+  name: model.text().searchable(),
   post_url: model.text().nullable(),
   caption: model.text().nullable(),
-  status: model.enum(["draft","scheduled","posted","failed","archived"]),
+  status: model.enum(["draft","scheduled","posted","failed","archived"]).default("draft"),
   scheduled_at: model.dateTime().nullable(),
   posted_at: model.dateTime().nullable(),
   insights: model.json().nullable(),
@@ -14,6 +15,7 @@ const SocialPost = model.define("SocialPost", {
   error_message: model.text().nullable(),
   related_item_type: model.text().nullable(),
   related_item_id: model.text().nullable(),
+  metadata: model.json().nullable(),
   platform: model.belongsTo(() => SocialPlatform, { foreignKey: "platform_id" }), // Added relationship
 });
 

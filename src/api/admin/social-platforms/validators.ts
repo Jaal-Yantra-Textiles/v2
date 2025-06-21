@@ -18,4 +18,19 @@ export const UpdateSocialPlatformSchema = z.object({
   posts: z.string().optional(),
 });
 
+export const listSocialPlatformsQuerySchema = z.object({
+  q: z.string().optional(),
+  offset: z.preprocess(
+    (val) => (val !== undefined && val !== null ? Number(val) : undefined),
+    z.number().int().min(0).default(0)
+  ),
+  limit: z.preprocess(
+    (val) => (val !== undefined && val !== null ? Number(val) : undefined),
+    z.number().int().min(1).max(100).default(20)
+  ),
+  order: z.string().optional(),
+});
+
+export type ListSocialPlatformsQuery = z.infer<typeof listSocialPlatformsQuerySchema>;
+
 export type UpdateSocialPlatform = z.infer<typeof UpdateSocialPlatformSchema>;

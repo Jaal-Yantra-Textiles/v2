@@ -8,7 +8,7 @@ import { FolderIllustration } from "@medusajs/icons"
 import { useCallback, useState } from "react"
 import debounce from "lodash/debounce"
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 
 const SocialPlatformPage = () => {
   const navigate = useNavigate()

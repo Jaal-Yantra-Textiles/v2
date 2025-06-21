@@ -144,5 +144,5 @@ module.exports = defineConfig({
         ],
       },
     },
-  ],
+],
 });

@@ -11,7 +11,7 @@ export type CreateSocialPostStepInput = {
   platform_id: string;
   post_url?: string;
   caption?: string;
-  status: "draft" | "scheduled" | "posted" | "failed" | "archived";
+  status?: "draft" | "scheduled" | "posted" | "failed" | "archived";
   scheduled_at?: Date;
   posted_at?: Date;
   insights?: Record<string, unknown>;

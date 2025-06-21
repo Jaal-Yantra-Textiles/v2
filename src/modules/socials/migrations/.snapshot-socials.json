@@ -140,6 +140,15 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamptz",
@@ -211,6 +220,15 @@
           "nullable": false,
           "mappedType": "text"
         },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
         "post_url": {
           "name": "post_url",
           "type": "text",
@@ -236,6 +254,7 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "default": "'draft'",
           "enumItems": [
             "draft",
             "scheduled",
@@ -318,6 +337,15 @@
           "primary": false,
           "nullable": true,
           "mappedType": "text"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
         },
         "platform_id": {
           "name": "platform_id",

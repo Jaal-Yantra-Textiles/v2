@@ -49,8 +49,8 @@ import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
-import { SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
-import { SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-post/validators";
+import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
+import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
 
 
 
@@ -444,7 +444,7 @@ export default defineMiddlewares({
     },
 
     {
-      matcher: "/admin/social-post",
+      matcher: "/admin/social-posts",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(SocialPostSchema))],
     },
@@ -461,6 +461,16 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(UpdateSocialPlatformSchema))],
     },
 
+    {
+      matcher: "/admin/social-platforms",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(listSocialPlatformsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/social-posts",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(listSocialPostsQuerySchema), {})],
+    },
   ],
   errorHandler: ((
     error: any, // or whatever type you prefer

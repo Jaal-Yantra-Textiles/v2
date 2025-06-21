@@ -7,7 +7,15 @@ import { listSocialPlatformWorkflow } from "../../../workflows/socials/list-soci
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // TODO: Add query param parsing for filters, pagination, etc.
   const { result } = await listSocialPlatformWorkflow(req.scope).run({
-    input: {},
+    input: {
+      filters: {
+        name: req.validatedQuery.q,
+      },
+      config: {
+        take: req.validatedQuery.limit,
+        skip: req.validatedQuery.offset,
+      },
+    },
   });
   res.status(200).json({ socialPlatforms: result[0], count: result[1] });
 };
