@@ -49,8 +49,7 @@ import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
-import SocialPlatform from "../modules/socials/models/SocialPlatform";
-import { SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platform/validators";
+import { SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
 import { SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-post/validators";
 
 
@@ -439,7 +438,7 @@ export default defineMiddlewares({
     },
 
     {
-      matcher: "/admin/social-platform",
+      matcher: "/admin/social-platforms",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(SocialPlatformSchema))],
     },
