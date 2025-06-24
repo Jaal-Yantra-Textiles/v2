@@ -34,7 +34,7 @@ updateDesignTaskWorkflow.hooks.designTaskUpdated(
         },
         fields: ['tasks.*', 'tasks.incoming.*', 'tasks.outgoing.*']
       })
-
+      // No tasks are found thrown error instead
       if (!data || !data.length || !data[0].tasks) {
         return new StepResponse({ success: false, error: "No tasks found" });
       }

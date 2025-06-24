@@ -32,7 +32,7 @@ const RawMaterial = model.define("raw_materials", {
     "Development"
   ]).default("Active"),
   metadata: model.json().nullable(),
-  
+  media: model.json().nullable(),
   // Relationship with MaterialType
   material_type: model.belongsTo(() => MaterialType, { mappedBy: "raw_materials" }).nullable(),
 });

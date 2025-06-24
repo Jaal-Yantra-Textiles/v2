@@ -107,7 +107,7 @@ export const DynamicForm = <T extends FieldValues>({
   };
 
   const form = useForm<T>({
-    resolver: zodResolver(generateSchema()) as Resolver<T>,
+    resolver: zodResolver(generateSchema()) as unknown as Resolver<T>,
     defaultValues: computeDefaultValues(fields, defaultValues),
   });
   

@@ -48,7 +48,8 @@ const rawMaterialDataSchema = z.object({
   ]).optional().default("Active"),
   metadata: z.record(z.any()).optional(),
   material_type: z.string().optional(),
-  material_type_id: z.string().optional()
+  material_type_id: z.string().optional(),
+  media: z.record(z.any()).optional()
 });
 
 export const rawMaterialSchema = z.object({

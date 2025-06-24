@@ -1,16 +1,17 @@
-import { useForm } from "react-hook-form"
+import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { RawMaterialFormType, rawMaterialFormSchema } from "./schema"
 import { Form } from "../../common/form"
-import { Input, Select, Textarea, toast, ProgressTabs, ProgressStatus, Button, Heading } from "@medusajs/ui"
+import { Input, Select, Textarea, toast, ProgressTabs, ProgressStatus, Button, Heading, Text as UIText } from "@medusajs/ui"
 import { useParams, useNavigate } from "react-router-dom"
 import { RouteFocusModal } from "../../modal/route-focus-modal"
 import { KeyboundForm } from "../../utilitites/key-bound-form"
 import { useCreateRawMaterial, useRawMaterialCategories } from "../../../hooks/api/raw-materials"
-import { Text } from "@medusajs/ui"
 import { useRouteModal } from "../../modal/use-route-modal"
 import { useState, useEffect } from "react"
 import { CategorySearch } from "../../common/category-search"
+import { XMark } from "@medusajs/icons"
+import RawMaterialMediaModal from "../../../routes/inventory/[id]/raw-materials/create/media/page"
 
 // No need for explicit type definitions as we're using type assertions
 
@@ -46,6 +47,7 @@ export const RawMaterialForm = () => {
   }, [tab]);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   
   // Fetch material type categories when search query is at least 3 characters
   const { categories: materialCategories = [] } = useRawMaterialCategories(
@@ -55,13 +57,26 @@ export const RawMaterialForm = () => {
   const form = useForm<RawMaterialFormType>({
     resolver: zodResolver(rawMaterialFormSchema),
     defaultValues: {
+      material_type_properties: {
+        weave_type: "",
+        gi_status: "",
+        technique: "",
+        extra: [],
+      },
+      additional_properties_json: "",
       status: "Active",
       unit_of_measure: "Other",
       material_type: "",  // Start with an empty string for material type
     },
   });
 
-    // We don't need this variable anymore as we're using the CategorySearch component
+    
+
+  // Dynamic custom property key/value pairs
+  const { fields: extraProps, append, remove } = useFieldArray({
+    control: form.control,
+    name: "material_type_properties.extra",
+  });
 
   const createMutation = useCreateRawMaterial(inventoryId!);
 
@@ -119,6 +134,41 @@ export const RawMaterialForm = () => {
       // If no material_type is provided, create a default one based on the raw material name
       submissionData.material_type = submissionData.name + " Material";
     }
+
+    // Merge material_type_properties and additional_properties_json into a single object
+    const predefinedProps = submissionData.material_type_properties || {};
+
+    // Parse JSON string if provided
+    let additionalProps: Record<string, any> = {};
+    if (submissionData.additional_properties_json) {
+      try {
+        additionalProps = JSON.parse(submissionData.additional_properties_json);
+      } catch {
+        // ignore JSON parse errors (already validated by schema)
+      }
+    }
+
+    // Convert extra array to object, then remove it from predefined properties
+    let extraObj: Record<string, any> = {};
+    if (Array.isArray(predefinedProps.extra)) {
+      extraObj = Object.fromEntries(
+        predefinedProps.extra
+          .filter((kv: any) => kv.key?.trim())
+          .map((kv: any) => [kv.key.trim(), kv.value])
+      );
+      delete (predefinedProps as any).extra;
+    }
+
+    // Merge together
+    const mergedProperties = { ...predefinedProps, ...extraObj, ...additionalProps };
+
+    // Store merged custom/predefined properties in specifications field
+    (submissionData as any).specifications = mergedProperties;
+    (submissionData as any).media = { files: mediaUrls };
+
+    // Cleanup helper fields
+    delete (submissionData as any).material_type_properties;
+    delete (submissionData as any).additional_properties_json;
     
     await createMutation.mutateAsync(
       {
@@ -199,7 +249,7 @@ export const RawMaterialForm = () => {
                 
                 {/* Basic Information */}
                 <div>
-                  <Text className="mb-4 font-semibold">Basic Information</Text>
+                  <UIText className="mb-4 font-semibold">Basic Information</UIText>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Form.Field
                       control={form.control}
@@ -214,7 +264,6 @@ export const RawMaterialForm = () => {
                         </Form.Item>
                       )}
                     />
-
                     <Form.Field
                       control={form.control}
                       name="composition"
@@ -259,7 +308,7 @@ export const RawMaterialForm = () => {
                           <Form.Label>{"Unit of Measure"}</Form.Label>
                           <Form.Control>
                             <Select
-                              value={field.value}
+                              value={(field.value ?? "Active")}
                               onValueChange={field.onChange}
                             >
                               <Select.Trigger>
@@ -294,12 +343,31 @@ export const RawMaterialForm = () => {
                         </Form.Item>
                       )}
                     />
+                    
+                  </div>
+                  
+                </div>
+                <div className="mt-4">
+                  <h2 className="text-base-semi">Media</h2>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    {mediaUrls.map((url, index) => (
+                      <div key={index} className="relative h-20 w-20 overflow-hidden rounded-md border">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={`Selected media ${index + 1}`} className="h-full w-full object-cover" />
+                        <div className="absolute top-1 right-1 flex items-center justify-center rounded-full bg-white/50 p-0.5">
+                          <XMark
+                            className="text-ui-fg-muted hover:text-ui-fg-subtle cursor-pointer"
+                            onClick={() => setMediaUrls(mediaUrls.filter((u) => u !== url))}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <RawMaterialMediaModal onSave={setMediaUrls} initialUrls={mediaUrls} />
                   </div>
                 </div>
-
                 {/* Additional Information */}
                 <div>
-                  <Text className="mb-4 font-semibold">Additional Information</Text>
+                  <UIText className="mb-4 font-semibold">Additional Information</UIText>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Form.Field
                       control={form.control}
@@ -383,9 +451,98 @@ export const RawMaterialForm = () => {
                   </div>
                 </div>
 
+                {/* Predefined Properties */}
+                <div>
+                  <UIText className="mb-4 font-semibold">Predefined Properties</UIText>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <Form.Field
+                      control={form.control}
+                      name="material_type_properties.weave_type"
+                      render={({ field }) => (
+                        <Form.Item>
+                          <Form.Label>Weave Type</Form.Label>
+                          <Form.Control>
+                            <Input autoComplete="off" {...field} />
+                          </Form.Control>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )}
+                    />
+                    <Form.Field
+                      control={form.control}
+                      name="material_type_properties.gi_status"
+                      render={({ field }) => (
+                        <Form.Item>
+                          <Form.Label>GI Status</Form.Label>
+                          <Form.Control>
+                            <Input autoComplete="off" {...field} />
+                          </Form.Control>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )}
+                    />
+                    <Form.Field
+                      control={form.control}
+                      name="material_type_properties.technique"
+                      render={({ field }) => (
+                        <Form.Item>
+                          <Form.Label>Technique</Form.Label>
+                          <Form.Control>
+                            <Input autoComplete="off" {...field} />
+                          </Form.Control>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Custom Properties */}
+                <div>
+                  <UIText className="mb-4 font-semibold">Technical Specifications</UIText>
+                  <div className="flex flex-col gap-4">
+                    {extraProps.map((field, idx) => (
+                      <div key={field.id} className="grid grid-cols-6 gap-2 items-start">
+                        <Form.Field
+                          control={form.control}
+                          name={`material_type_properties.extra.${idx}.key` as const}
+                          render={({ field }) => (
+                            <Form.Item className="col-span-2 w-full">
+                              <Form.Label>Key</Form.Label>
+                              <Form.Control>
+                                <Input autoComplete="off" {...field} />
+                              </Form.Control>
+                              <Form.ErrorMessage />
+                            </Form.Item>
+                          )}
+                        />
+                        <Form.Field
+                          control={form.control}
+                          name={`material_type_properties.extra.${idx}.value` as const}
+                          render={({ field }) => (
+                            <Form.Item className="col-span-2 w-full">
+                              <Form.Label>Value</Form.Label>
+                              <Form.Control>
+                                <Input autoComplete="off" {...field} />
+                              </Form.Control>
+                              <Form.ErrorMessage />
+                            </Form.Item>
+                          )}
+                        />
+                        <button type="button" onClick={() => remove(idx)} className="justify-self-start self-center text-ui-fg-subtle hover:text-ui-fg-base focus:outline-none">
+                          <XMark className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <Button size="small" variant="secondary" onClick={() => append({ key: "", value: "" })}>
+                      Add Custom Property
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Status */}
                 <div>
-                  <Text className="mb-4 font-semibold">Status</Text>
+                  <UIText className="mb-4 font-semibold">Status</UIText>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Form.Field
                       control={form.control}
@@ -395,7 +552,7 @@ export const RawMaterialForm = () => {
                           <Form.Label>{"Status"}</Form.Label>
                           <Form.Control>
                             <Select
-                              value={field.value}
+                              value={(field.value ?? "Active") as RawMaterialFormType["status"]}
                               onValueChange={field.onChange}
                             >
                               <Select.Trigger>
@@ -426,7 +583,7 @@ export const RawMaterialForm = () => {
 
                 {/* Material Type Configuration */}
                 <div>
-                  <Text className="mb-4 font-semibold">Material Type Configuration</Text>
+                  <UIText className="mb-4 font-semibold">Material Type Configuration</UIText>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Form.Field
                       control={form.control}

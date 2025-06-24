@@ -30,6 +30,7 @@ type CreateRawMaterialInput = {
     metadata?: Record<string, any>
     material_type?: string | object  // Can be string (name) or object
     material_type_id?: string        // Or existing ID
+    media?: Record<string, any>
   }
 }
 
@@ -90,8 +91,10 @@ const createRawMaterialData = createStep(
   "create-raw-material-data",
   async (input: { rawMaterialData: any }, { container }) => {
     const rawMaterialService: RawMaterialService = container.resolve(RAW_MATERIAL_MODULE)
+    const { media, ...rest } = input.rawMaterialData
     const rawMaterial = await rawMaterialService.createRawMaterials({
-      ...input.rawMaterialData
+      ...rest,
+      media,
     })
     return new StepResponse(rawMaterial, rawMaterial.id)
   },

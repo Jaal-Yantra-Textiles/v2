@@ -26,6 +26,7 @@ export interface RawMaterialData {
     category?: "Fiber" | "Yarn" | "Fabric" | "Trim" | "Dye" | "Chemical" | "Accessory" | "Other"
     properties?: Record<string, any>
   }
+  media?: Record<string, any>
 }
 
 export interface CreateRawMaterialInput {
@@ -71,6 +72,7 @@ export interface RawMaterial {
   updated_at: string
   deleted_at: string | null
   material_type: MaterialType
+  media: Record<string, any>
 }
 
 export interface InventoryItem {

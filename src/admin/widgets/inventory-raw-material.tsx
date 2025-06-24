@@ -1,10 +1,10 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { DetailWidgetProps } from "@medusajs/framework/types"
-import { Badge, Container, Heading, usePrompt, Text, StatusBadge, toast, Skeleton } from "@medusajs/ui"
+import { Badge, Container, Heading, usePrompt, Text, StatusBadge, toast, Skeleton, Tooltip } from "@medusajs/ui"
 import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../components/common/action-menu"
 import { Button } from "@medusajs/ui"
-import { PencilSquare, Plus, Trash } from "@medusajs/icons"
+import { PencilSquare, Plus, Trash, InformationCircleSolid } from "@medusajs/icons"
 import { useInventoryItem } from "../hooks/api/raw-materials"
 
 const materialStatusColor = (status: string) => {
@@ -54,7 +54,8 @@ type RawMaterial = {
     created_at: string
     updated_at: string
     deleted_at: string | null
-  }
+  },
+  media: { files: string[] } | null
 }
 
 type AdminInventory = {
@@ -198,16 +199,55 @@ const InventoryRawMaterialWidget = ({
                 Material Type
               </Text>
               <div className="flex items-center gap-x-2">
-                <Badge color="blue" size="small">
-                  {inventory_item.raw_materials.material_type?.name || "-"}
-                </Badge>
-                <Badge color="grey" size="small">
-                  {inventory_item.raw_materials.material_type?.category || "-"}
+                <Badge size="2xsmall" color="grey">
+                  {inventory_item.raw_materials.material_type.name}
                 </Badge>
               </div>
             </div>
 
             {/* Specifications */}
+            {inventory_item.raw_materials.specifications && Object.keys(inventory_item.raw_materials.specifications).length > 0 && (
+              <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4 border-b">
+                <Text size="small" leading="compact" weight="plus">
+                  Specifications
+                </Text>
+                <div className="flex items-center">
+                  <Tooltip
+                    content={
+                      <div className="flex flex-col gap-y-1">
+                                                {Object.entries(inventory_item.raw_materials.specifications).map(([key, value]: [string, any]) => (
+                          <Text key={key} size="small" leading="compact">
+                            <span className="font-semibold">{`${key}:`}</span> {String(value)}
+                          </Text>
+                        ))}
+                      </div>
+                    }
+                  >
+                    <InformationCircleSolid className="text-ui-fg-muted" />
+                  </Tooltip>
+                </div>
+              </div>
+            )}
+
+            {/* Media */}
+            {inventory_item.raw_materials.media?.files?.length > 0 && (
+              <div className="text-ui-fg-subtle grid grid-cols-2 items-start px-6 py-4 border-b">
+                <Text size="small" leading="compact" weight="plus">
+                  Media
+                </Text>
+                <div className="flex flex-wrap gap-2">
+                                    {inventory_item.raw_materials.media.files.map((url: string, index: number) => (
+                    <img
+                      key={index}
+                      src={url}
+                      alt={`Media ${index + 1}`}
+                      className="h-10 w-10 rounded-md object-cover"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4 border-b">
               <Text size="small" leading="compact" weight="plus">
                 Composition

@@ -79,7 +79,7 @@ export class LocalFileService implements FileListingServiceInterface {
   protected getUploadFileUrl(fileKey: string): string {
     const cleanBackendUrl = this.backendUrl_.replace(/\/+$/, '');
     const cleanFileKey = fileKey.replace(/^\/+/, '');
-    return `${cleanBackendUrl}/${cleanFileKey}`;
+    return `${cleanBackendUrl}/static/${cleanFileKey}`;
   }
 }
 

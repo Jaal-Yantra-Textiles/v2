@@ -111,6 +111,7 @@
           "keyName": "IDX_material_types_deleted_at",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_material_types_deleted_at\" ON \"material_types\" (deleted_at) WHERE deleted_at IS NULL"
@@ -121,12 +122,14 @@
             "id"
           ],
           "composite": false,
+          "constraint": true,
           "primary": true,
           "unique": true
         }
       ],
       "checks": [],
-      "foreignKeys": {}
+      "foreignKeys": {},
+      "nativeEnums": {}
     },
     {
       "columns": {
@@ -300,6 +303,15 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "media": {
+          "name": "media",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
         "material_type_id": {
           "name": "material_type_id",
           "type": "text",
@@ -349,6 +361,7 @@
           "keyName": "IDX_raw_materials_material_type_id",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_raw_materials_material_type_id\" ON \"raw_materials\" (material_type_id) WHERE deleted_at IS NULL"
@@ -357,6 +370,7 @@
           "keyName": "IDX_raw_materials_deleted_at",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_raw_materials_deleted_at\" ON \"raw_materials\" (deleted_at) WHERE deleted_at IS NULL"
@@ -367,6 +381,7 @@
             "id"
           ],
           "composite": false,
+          "constraint": true,
           "primary": true,
           "unique": true
         }
@@ -386,7 +401,9 @@
           "deleteRule": "set null",
           "updateRule": "cascade"
         }
-      }
+      },
+      "nativeEnums": {}
     }
-  ]
+  ],
+  "nativeEnums": {}
 }

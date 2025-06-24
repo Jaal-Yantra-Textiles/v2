@@ -31,7 +31,7 @@ export const newMaterialTypeSchema = z.object({
     "Chemical",
     "Accessory",
     "Other"
-  ]).default("Other"),
+  ]).default("Other").optional(),
   properties: z.record(z.any()).optional(),
 });
 
@@ -41,6 +41,24 @@ const materialTypeUnionSchema = z.union([
   existingMaterialTypeSchema,
   newMaterialTypeSchema
 ]);
+
+// Schema for material type properties with some predefined keys but extensible
+const materialTypePropertiesSchema = z
+  .object({
+    weave_type: z.string().optional(),
+    gi_status: z.string().optional(),
+    technique: z.string().optional(),
+    extra: z
+      .array(
+        z.object({
+          key: z.string().min(1, "Key is required"),
+          value: z.string().optional(),
+        })
+      )
+      .optional(),
+  })
+  .catchall(z.any())
+  .optional();
 
 export const rawMaterialFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -54,7 +72,7 @@ export const rawMaterialFormSchema = z.object({
     "Piece",
     "Roll",
     "Other"
-  ]).default("Other"),
+  ]).default("Other").optional(),
   minimum_order_quantity: z.number().positive().optional(),
   lead_time_days: z.number().positive().optional(),
   color: z.string().optional(),
@@ -64,12 +82,28 @@ export const rawMaterialFormSchema = z.object({
   certification: z.record(z.any()).optional(),
   usage_guidelines: z.string().optional(),
   storage_requirements: z.string().optional(),
+  material_type_properties: materialTypePropertiesSchema,
+  additional_properties_json: z
+    .string()
+    .optional()
+    .refine(
+      (val) => {
+        if (!val) return true;
+        try {
+          JSON.parse(val);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: "Invalid JSON format" }
+    ),
   status: z.enum([
     "Active",
     "Discontinued",
     "Under_Review",
     "Development"
-  ]).default("Active"),
+  ]).default("Active").optional(),
   material_type: materialTypeUnionSchema.optional()
 })
 
