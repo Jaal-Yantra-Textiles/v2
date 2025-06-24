@@ -162,6 +162,26 @@ export const useUpdateInventoryOrder = (
   });
 };
 
+export const useCreateInventoryOrderTasks = (
+  id: string,
+  options?: UseMutationOptions<any, FetchError, { type: string; template_names: string[]; dependency_type?: string }>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { type: string; template_names: string[]; dependency_type?: string }) =>
+      sdk.client.fetch(`/admin/inventory-orders/${id}/tasks`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (...args) => {
+      // invalidate inventory order detail and tasks queries
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
+      options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};
+
 export const useDeleteInventoryOrder = (
   id: string,
   options?: UseMutationOptions<AdminInventoryOrder, FetchError, void>,

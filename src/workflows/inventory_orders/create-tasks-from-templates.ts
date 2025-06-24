@@ -42,7 +42,6 @@ export const validateInventoryOrderStep = createStep(
 export const determineTaskDataStep = createStep(
   "determine-task-data",
   async (input: any) => {
-    console.log("determineTaskDataStep", input)
     if (input.withTemplates) {
       return new StepResponse(input.withTemplates);
     } 
@@ -115,7 +114,7 @@ export const createTasksFromTemplatesWorkflow = createWorkflow(
     const createTasksStep = createTaskWorkflow.runAsStep({
       input: transformedInput
     });
-
+    
     // Determine task data from the response
     const taskDataStep = determineTaskDataStep(createTasksStep);
 

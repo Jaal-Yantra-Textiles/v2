@@ -5,19 +5,20 @@ import { TwoColumnPage } from "../../../../components/pages/two-column-pages";
 import InventoryOrderGeneralSection from "../../../../components/inventory-orders/inventory-order-general-section";
 import InventoryOrderLinesSection from "../../../../components/inventory-orders/inventory-order-lines-section";
 import InventoryOrderStockLocation from "../../../../components/inventory-orders/inventory-order-stock-location";
+import { InventoryOrderTasksSection } from "../../../../components/inventory-orders/inventory-order-tasks-section";
 import { inventoryOrderLoader } from "./loader";
 
 const InventoryOrderDetailPage = () => {
   const intialData = useLoaderData() as Awaited<ReturnType<typeof inventoryOrderLoader>>
   const { id } = useParams();
   const { inventoryOrder, isLoading, isError, error } = useInventoryOrder(id!, {
-    fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*']
+    fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*', '+tasks.*']
   }, {
     initialData: intialData
   });
   // Show loading skeleton while data is being fetched
   if (isLoading || !inventoryOrder) {
-    return <TwoColumnPageSkeleton mainSections={1} sidebarSections={2} showJSON showMetadata />;
+    return <TwoColumnPageSkeleton mainSections={1} sidebarSections={3} showJSON showMetadata />;
   }
 
   // Handle error state
@@ -34,6 +35,7 @@ const InventoryOrderDetailPage = () => {
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
        <InventoryOrderLinesSection inventoryOrder={inventoryOrder} />
+       <InventoryOrderTasksSection inventoryOrder={inventoryOrder}/>
        <InventoryOrderStockLocation inventoryOrder={inventoryOrder}/>
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
