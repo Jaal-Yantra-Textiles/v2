@@ -39,3 +39,6 @@ test_logs.txt
 
 .windsurfrules
 
+src/partner/.next
+src/partner/.env
+src/partner/node_modules/*
