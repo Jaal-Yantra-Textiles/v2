@@ -35,6 +35,7 @@
     ".cache",
     "src/mastra",
     "src/mastra/**/*",
-    "**/src/mastra/**/*"
+    "**/src/mastra/**/*",
+    "src/partner"
   ]
 }

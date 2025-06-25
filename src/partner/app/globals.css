@@ -1,0 +1,6 @@
+
+@config "@medusajs/ui-preset";
+
+@import "tailwindcss" source(none);
+@source "../app/**/*.{js,jsx,ts,tsx}";
+@source "../node_modules/@medusajs/ui/dist/**/*.{js,jsx,ts,tsx}";
