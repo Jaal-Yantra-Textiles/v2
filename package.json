@@ -1,10 +1,6 @@
 {
   "name": "jyt-commerce-api",
-<<<<<<< HEAD
   "version": "5.8.0",
-=======
-  "version": "5.9.0",
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
   "description": "A starter for Medusa projects extended to be used as a core production modules for textiles.",
   "author": "Medusa (https://medusajs.com) and JYT (https://jaalyantra.in)",
   "license": "MIT",
@@ -44,21 +40,12 @@
     "@faker-js/faker": "^9.7.0",
     "@hookform/resolvers": "^5.0.1",
     "@mastra/core": "^0.6.3",
-<<<<<<< HEAD
     "@medusajs/admin-sdk": "^2.8.4",
     "@medusajs/cli": "2.8.4",
     "@medusajs/framework": "2.8.4",
     "@medusajs/medusa": "2.8.4",
     "@medusajs/medusa-oas-cli": "^2.8.4",
     "@medusajs/workflows-sdk": "2.8.4",
-=======
-    "@medusajs/admin-sdk": "^2.7.1",
-    "@medusajs/cli": "2.7.1",
-    "@medusajs/framework": "2.7.1",
-    "@medusajs/medusa": "2.7.1",
-    "@medusajs/medusa-oas-cli": "^2.7.1",
-    "@medusajs/workflows-sdk": "2.7.1",
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
     "@mikro-orm/core": "6.4.3",
     "@mikro-orm/knex": "6.4.3",
     "@mikro-orm/migrations": "6.4.3",
@@ -151,21 +138,14 @@
     "sonner": "^2.0.3",
     "tailwind-scrollbar-hide": "^2.0.0",
     "tailwindcss-animate": "^1.0.7",
-<<<<<<< HEAD
     "twitter-api-sdk": "^1.2.1",
-=======
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
     "uploadthing": "7.2.0",
     "use-file-picker": "^2.1.2",
     "uuid": "^11.1.0",
     "zod": "^3.24.3"
   },
   "devDependencies": {
-<<<<<<< HEAD
     "@medusajs/test-utils": "2.8.4",
-=======
-    "@medusajs/test-utils": "2.7.1",
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
     "@mikro-orm/cli": "6.4.3",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^11.1.0",
