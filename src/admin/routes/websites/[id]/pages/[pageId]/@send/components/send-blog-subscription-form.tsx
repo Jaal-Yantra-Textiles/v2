@@ -18,10 +18,7 @@ import { AdminPage } from "../../../../../../../hooks/api/pages"
 import { Form } from "../../../../../../../components/common/form"
 import { KeyboundForm } from "../../../../../../../components/utilitites/key-bound-form"
 import { RouteDrawer } from "../../../../../../../components/modal/route-drawer/route-drawer"
-<<<<<<< HEAD
 import { useRouteModal } from "../../../../../../../components/modal/use-route-modal"
-=======
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
 import { 
   useSendBlogToSubscribers, 
   useConfirmBlogSubscription,
@@ -57,10 +54,7 @@ export const SendBlogSubscriptionForm = ({
   page,
 }: SendBlogSubscriptionFormProps) => {
   const navigate = useNavigate()
-<<<<<<< HEAD
   const { handleSuccess } = useRouteModal()
-=======
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
   const [activeTab, setActiveTab] = useState<"send" | "test">("send")
   const [confirmationData, setConfirmationData] = useState<SendBlogToSubscribersResponse | null>(null)
   const [subscriberCount, setSubscriberCount] = useState<number>(page.subscriber_count as number || 0)
@@ -134,11 +128,7 @@ export const SendBlogSubscriptionForm = ({
       toast.success("Email sent to subscribers successfully!", {
         duration: 5000,
       })
-<<<<<<< HEAD
       handleSuccess()
-=======
-      navigate(`/websites/${websiteId}/pages/${pageId}`)
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
     } catch (error) {
       toast.error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`, {
         duration: 5000,

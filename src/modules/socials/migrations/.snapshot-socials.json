@@ -140,7 +140,6 @@
           "nullable": true,
           "mappedType": "json"
         },
-<<<<<<< HEAD
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -150,8 +149,6 @@
           "nullable": true,
           "mappedType": "json"
         },
-=======
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
         "created_at": {
           "name": "created_at",
           "type": "timestamptz",
@@ -223,7 +220,6 @@
           "nullable": false,
           "mappedType": "text"
         },
-<<<<<<< HEAD
         "name": {
           "name": "name",
           "type": "text",
@@ -233,8 +229,6 @@
           "nullable": false,
           "mappedType": "text"
         },
-=======
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
         "post_url": {
           "name": "post_url",
           "type": "text",
@@ -260,10 +254,7 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-<<<<<<< HEAD
           "default": "'draft'",
-=======
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
           "enumItems": [
             "draft",
             "scheduled",
@@ -347,7 +338,6 @@
           "nullable": true,
           "mappedType": "text"
         },
-<<<<<<< HEAD
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -357,8 +347,6 @@
           "nullable": true,
           "mappedType": "json"
         },
-=======
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
         "platform_id": {
           "name": "platform_id",
           "type": "text",

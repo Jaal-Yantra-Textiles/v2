@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-=======
-# [5.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.8.0...v5.9.0) (2025-06-18)
-
-
-### Features
-
-* **Payment:** Stripe Payment Update ([2b5d084](https://github.com/Jaal-Yantra-Textiles/v2/commit/2b5d084115785ba63baf659b10a36e253c3087ea))
-
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
 # [5.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.7.0...v5.8.0) (2025-06-16)
 
 
