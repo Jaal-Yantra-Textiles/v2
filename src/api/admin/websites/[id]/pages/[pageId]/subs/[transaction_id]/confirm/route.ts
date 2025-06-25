@@ -44,11 +44,6 @@ export const POST = async (
     Modules.WORKFLOW_ENGINE
   )
   const { id: websiteId, pageId, transaction_id: transactionId } = req.params
-<<<<<<< HEAD
-=======
-
-  try {
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
     // Confirm the workflow by setting the wait confirmation step as successful
     await workflowEngineService.setStepSuccess({
       idempotencyKey: {
@@ -68,16 +63,4 @@ export const POST = async (
       page_id: pageId,
       transaction_id: transactionId
     })
-<<<<<<< HEAD
-=======
-  } catch (error) {
-    console.error("Error confirming blog subscription:", error)
-    
-    return res.status(500).json({
-      success: false,
-      message: "Failed to confirm blog subscription",
-      error: error.message || "An unexpected error occurred"
-    })
-  }
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
 }
