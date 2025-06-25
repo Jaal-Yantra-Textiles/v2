@@ -70,7 +70,10 @@ export interface SendTestBlogEmailResponse {
 
 export interface ConfirmBlogSubscriptionResponse {
   success: boolean;
+<<<<<<< HEAD
   message?: string;
+=======
+>>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
 }
 
 export interface AdminWebsiteResponse {
@@ -205,6 +208,7 @@ export const useDeleteWebsite = (
     mutationFn: async () => {
       const response = await fetch(`/admin/websites/${id}`, {
         method: 'DELETE',
+<<<<<<< HEAD
       });
       
       if (!response.ok) {
@@ -288,6 +292,103 @@ export const useConfirmBlogSubscription = (
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
       options?.onSuccess?.(data, variables, context);
+=======
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete website');
+      }
+      
+      const { website } = await response.json();
+      return website;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: websiteQueryKeys.lists(),
+      });
+    },
+    ...options,
+  });
+};
+
+/**
+ * Hook for sending a blog post to subscribers
+ */
+export const useSendBlogToSubscribers = (
+  websiteId: string,
+  pageId: string,
+  options?: UseMutationOptions<
+    SendBlogToSubscribersResponse,
+    FetchError,
+    SendBlogToSubscribersPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (data: SendBlogToSubscribersPayload) => {
+      const response = await fetch(
+        `/admin/websites/${websiteId}/pages/${pageId}/subs`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send blog to subscribers');
+      }
+      
+      return await response.json();
+    },
+    ...options,
+  });
+};
+
+/**
+ * Hook for confirming a blog subscription workflow
+ */
+export const useConfirmBlogSubscription = (
+  websiteId: string,
+  pageId: string,
+  transactionId: string,
+  options?: UseMutationOptions<
+    ConfirmBlogSubscriptionResponse,
+    FetchError,
+    void
+  >
+) => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async () => {
+      const response = await fetch(
+        `/admin/websites/${websiteId}/pages/${pageId}/subs/${transactionId}/confirm`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to confirm blog subscription');
+      }
+      
+      return await response.json();
+    },
+    onSuccess: () => {
+      // Invalidate the page query to refresh the subscription status
+      queryClient.invalidateQueries({
+        queryKey: ['website', websiteId, 'page', pageId],
+      });
+>>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
     },
     ...options,
   });

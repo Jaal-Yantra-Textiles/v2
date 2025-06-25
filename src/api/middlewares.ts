@@ -49,8 +49,14 @@ import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
+<<<<<<< HEAD
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
+=======
+import SocialPlatform from "../modules/socials/models/SocialPlatform";
+import { SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platform/validators";
+import { SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-post/validators";
+>>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
 
 
 
@@ -438,13 +444,21 @@ export default defineMiddlewares({
     },
 
     {
+<<<<<<< HEAD
       matcher: "/admin/social-platforms",
+=======
+      matcher: "/admin/social-platform",
+>>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(SocialPlatformSchema))],
     },
 
     {
+<<<<<<< HEAD
       matcher: "/admin/social-posts",
+=======
+      matcher: "/admin/social-post",
+>>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(SocialPostSchema))],
     },
@@ -461,6 +475,7 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(UpdateSocialPlatformSchema))],
     },
 
+<<<<<<< HEAD
     {
       matcher: "/admin/social-platforms",
       method: "GET",
@@ -471,6 +486,8 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(listSocialPostsQuerySchema), {})],
     },
+=======
+>>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
   ],
   errorHandler: ((
     error: any, // or whatever type you prefer

@@ -4,7 +4,7 @@ import {
 } from "@medusajs/framework/http";
 import { RawMaterial } from "./validators";
 import { createRawMaterialWorkflow } from "../../../../../workflows/raw-materials/create-raw-material";
-import { RawMaterialAllowedFields, refetchRawMaterial } from "./helpers";
+import { RawMaterialAllowedFields, refetchRawMaterial, getAllInventoryWithRawMaterial } from "./helpers";
 
 export const POST = async (
   req: MedusaRequest<RawMaterial> & {
