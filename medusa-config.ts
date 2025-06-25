@@ -76,12 +76,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/socials",
     },
-<<<<<<< HEAD
     {
       resolve: "./src/modules/social-provider",
     },
-=======
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
     {
       resolve: "@medusajs/medusa/notification",
       options: {
@@ -94,11 +91,7 @@ module.exports = defineConfig({
         }]
       }
     },
-<<<<<<< HEAD
 ]
-=======
-  ]
->>>>>>> 2949d584e28d2f31b51d3f2daae13f6a58c082c1
 
     // {
     //   resolve: "@medusajs/medusa/workflow-engine-redis",
