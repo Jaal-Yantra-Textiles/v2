@@ -1,7 +1,7 @@
 import { S3Client, ListObjectsV2Command, ListObjectsV2CommandOutput, _Object as S3ObjectType } from "@aws-sdk/client-s3";
 import { MedusaError } from "@medusajs/framework/utils";
 import { Logger } from "@medusajs/framework/types";
-import S3FileService from "@medusajs/medusa/file-s3"
+
 
 interface EditorFile {
   id: string;
