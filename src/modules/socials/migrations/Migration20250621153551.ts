@@ -13,7 +13,18 @@ export class Migration20250621153551 extends Migration {
     this.addSql(`CREATE INDEX IF NOT EXISTS "IDX_social_post_platform_id" ON "social_post" (platform_id) WHERE deleted_at IS NULL;`);
     this.addSql(`CREATE INDEX IF NOT EXISTS "IDX_social_post_deleted_at" ON "social_post" (deleted_at) WHERE deleted_at IS NULL;`);
 
-    this.addSql(`alter table if exists "social_post" add constraint "social_post_platform_id_foreign" foreign key ("platform_id") references "social_platform" ("id") on update cascade;`);
+        this.addSql(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint 
+          WHERE conname = 'social_post_platform_id_foreign'
+        ) THEN
+          ALTER TABLE "social_post" ADD CONSTRAINT "social_post_platform_id_foreign" FOREIGN KEY ("platform_id") REFERENCES "social_platform" ("id") ON UPDATE CASCADE;
+        END IF;
+      END;
+      $$;
+    `);
   }
 
   override async down(): Promise<void> {
