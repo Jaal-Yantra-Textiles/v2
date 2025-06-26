@@ -8,7 +8,6 @@ import {
   clx,
 } from "@medusajs/ui"
 import {
-  BuildingStorefront,
   Buildings,
   CogSixTooth,
   CurrencyDollar,
@@ -19,7 +18,6 @@ import {
   Tag,
   Users,
 } from "@medusajs/icons"
-import Link from "next/link"
 
 import { NavItem, NavItemProps } from "./nav-item"
 import { logout } from "../../dashboard/actions"
@@ -81,22 +79,92 @@ const CoreRouteSection = () => {
   )
 }
 
-const Header = () => {
-  const name = "JYT Partner Space"
-  const fallback = "J"
+const Header = ({ partner }: { partner: PartnerDetails | null }) => {
+  const companyName = partner?.name || "JYT Partner Space"
+  const companyHandle = partner?.handle
+  const fallback = partner?.name?.[0] || "J"
+
+  return (
+    <div className="flex h-14 items-center justify-between px-3">
+      <div className="flex items-center gap-x-2">
+        <Avatar
+          variant="squared"
+          fallback={fallback}
+          className="bg-ui-bg-base text-ui-fg-subtle"
+        />
+        <div>
+          <Text
+            size="small"
+            leading="compact"
+            weight="plus"
+            className="text-ui-fg-base"
+          >
+            {companyName}
+          </Text>
+          {companyHandle && (
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              {`@${companyHandle}`}
+            </Text>
+          )}
+        </div>
+      </div>
+      <div className="text-ui-fg-muted">
+        <DropdownMenu>
+          <DropdownMenu.Trigger asChild>
+            <button>
+              <EllipsisHorizontal />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content>
+            <DropdownMenu.Item>Store details</DropdownMenu.Item>
+            <DropdownMenu.Item>Go to store</DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu>
+      </div>
+    </div>
+  )
+}
+
+interface Admin {
+  first_name: string | null
+  last_name: string | null
+  email: string
+}
+
+interface PartnerDetails {
+  name: string
+  handle: string | null
+  admins: Admin[]
+}
+
+const UserSection = ({ userDetails }: { userDetails: PartnerDetails | null }) => {
+
+  const admin = userDetails?.admins?.[0]
+
+  const name = [admin?.first_name, admin?.last_name].filter(Boolean).join(" ")
+
+  const user = {
+    name: name || "Admin User",
+    email: admin?.email || "admin@jyt.com",
+    avatar:
+      (name || "A")
+        .split(" ")
+        .map((n: string) => n[0])
+        .join(""),
+  }
 
   return (
     <div className="w-full p-3">
       <DropdownMenu>
         <DropdownMenu.Trigger
           className={clx(
-            "bg-ui-bg-subtle transition-fg grid w-full grid-cols-[24px_1fr_15px] items-center gap-x-3 rounded-md p-0.5 pr-2 outline-none",
-            "hover:bg-ui-bg-subtle-hover",
-            "data-[state=open]:bg-ui-bg-subtle-hover",
+            "transition-fg grid w-full grid-cols-[24px_1fr_15px] items-center gap-x-3 rounded-md p-0.5 pr-2 outline-none",
+            "hover:bg-ui-bg-base-hover",
+            "data-[state=open]:bg-ui-bg-base-hover",
             "focus-visible:shadow-borders-focus"
           )}
         >
-          <Avatar variant="squared" size="xsmall" fallback={fallback} />
+          <Avatar variant="squared" size="xsmall" fallback={user.avatar} />
           <div className="block overflow-hidden text-left">
             <Text
               size="small"
@@ -104,14 +172,14 @@ const Header = () => {
               leading="compact"
               className="truncate"
             >
-              {name}
+              {user.name}
             </Text>
           </div>
           <EllipsisHorizontal className="text-ui-fg-muted" />
         </DropdownMenu.Trigger>
         <DropdownMenu.Content className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-0">
           <div className="flex items-center gap-x-3 px-2 py-1">
-            <Avatar variant="squared" size="small" fallback={fallback} />
+            <Avatar variant="squared" size="small" fallback={user.avatar} />
             <div className="flex flex-col overflow-hidden">
               <Text
                 size="small"
@@ -119,24 +187,17 @@ const Header = () => {
                 leading="compact"
                 className="truncate"
               >
-                {name}
+                {user.name}
               </Text>
               <Text
                 size="xsmall"
                 leading="compact"
-                className="text-ui-fg-subtle"
+                className="text-ui-fg-subtle truncate"
               >
-                Store
+                {user.email}
               </Text>
             </div>
           </div>
-          <DropdownMenu.Separator />
-          <DropdownMenu.Item className="gap-x-2" asChild>
-            <Link href="/dashboard/settings/store">
-              <BuildingStorefront className="text-ui-fg-subtle" />
-              Store Settings
-            </Link>
-          </DropdownMenu.Item>
           <DropdownMenu.Separator />
           <form action={logout}>
             <button type="submit" className="w-full">
@@ -154,51 +215,25 @@ const Header = () => {
   )
 }
 
-const UserSection = () => {
+export default function Sidebar({ partner }: { partner: PartnerDetails | null }) {
   return (
-    <div className="w-full p-3">
-      <div className="w-full">
-        <Divider className="-ml-3 -mr-3 w-[calc(100%+1.5rem)]" />
-        <div className="flex flex-col gap-y-1 py-3">
+    <aside className="bg-ui-bg-subtle flex h-full w-full flex-col justify-between">
+      <div>
+        <Header partner={partner} />
+        <Divider variant="dashed"/>
+        <CoreRouteSection />
+      </div>
+      <div className="flex flex-col">
+        <div className="flex flex-col gap-y-1 px-3 py-3">
           <NavItem
             icon={<CogSixTooth />}
             to="/dashboard/settings"
             label="Settings"
           />
         </div>
-        <div className="flex items-center gap-x-3 p-3">
-          <Avatar variant="squared" size="xsmall" fallback="A" />
-          <div className="flex flex-col overflow-hidden">
-            <Text
-              size="small"
-              weight="plus"
-              leading="compact"
-              className="truncate"
-            >
-              Admin
-            </Text>
-            <Text
-              size="xsmall"
-              leading="compact"
-              className="text-ui-fg-subtle truncate"
-            >
-              admin@jyt.com
-            </Text>
-          </div>
-        </div>
+        <Divider variant="dashed" />
+        <UserSection userDetails={partner} />
       </div>
-    </div>
-  )
-}
-
-export const Sidebar = () => {
-  return (
-    <aside className="bg-ui-bg-subtle flex h-full w-full flex-col justify-between">
-      <div>
-        <Header />
-        <CoreRouteSection />
-      </div>
-      <UserSection />
     </aside>
   )
 }
