@@ -1,0 +1,11 @@
+# Netlify configuration for the main Medusa project (if you have one)
+# This file can be expanded to handle multiple sites in your monorepo.
+
+# Settings for the 'partner' Next.js site
+[build]
+  # This tells Netlify to run the build command from within the 'src/partner' directory
+  base = "src/partner"
+  # The command to build your Next.js site
+  command = "next build"
+  # The directory where Next.js outputs the built site
+  publish = "src/partner/.next"
