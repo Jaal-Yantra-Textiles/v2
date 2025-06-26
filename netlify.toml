@@ -8,4 +8,4 @@
   # The command to build your Next.js site
   command = "next build"
   # The directory where Next.js outputs the built site
-  publish = "src/partner/.next"
+  publish = ".next"
