@@ -71,6 +71,12 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/custom-s3-provider",
     },
+    {
+      resolve: "./src/modules/socials",
+    },
+    {
+      resolve: "./src/modules/social-provider",
+    },
 
     // Production-ready modules
     {
