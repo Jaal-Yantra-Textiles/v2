@@ -191,8 +191,11 @@ const PersonsPage = () => {
             <div className="flex items-center justify-center gap-x-2">
                 <CreateButton />
                 <Button size="small" variant="secondary" asChild>
-                <Link to="import">Import</Link>
-          </Button>
+                  <Link to="import">Import</Link>
+                </Button>
+                <Button size="small" variant="secondary" asChild>
+                  <Link to="map">Show Map View</Link>
+                </Button>
             </div>
           </DataTable.Toolbar>
           

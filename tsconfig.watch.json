@@ -7,6 +7,7 @@
       ".cache",
       "jyt-ai/",
       "src/admin",
-      "src/mastra"
+      "src/mastra",
+      "src/partner"
     ]
   }

@@ -204,6 +204,9 @@ async refreshAccessToken(refreshToken: string): Promise<OAuth2Token> {
     return this.twitterClient!.tweets.findTweetById(id)
   }
 
+  
+
+
   private async ensureClient() {
     if (!this.twitterClient) {
       await this.getAppBearerToken()

@@ -26,6 +26,7 @@ export const UpdatePersonSchema = personSchema.partial();
 
 // Query schema for listing persons
 export const listPersonsQuerySchema = z.object({
+  fields: z.string().optional(),
   q: z.string().optional(),
   first_name: z.string().optional(),
   last_name: z.string().optional(),

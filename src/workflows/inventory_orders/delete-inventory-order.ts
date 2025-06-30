@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils";
 import {
   createWorkflow,
   createStep,
@@ -9,8 +9,8 @@ import {
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { InferTypeOf } from "@medusajs/framework/types"
-import InventoryOrder from "../../modules/inventory_orders/models/order";
-export type InventoryOrder = InferTypeOf<typeof InventoryOrder>;
+import { default as InventoryOrderModel } from "../../modules/inventory_orders/models/order";
+export type InventoryOrder = InferTypeOf<typeof InventoryOrderModel>;
 
 // --- Interfaces for API Input ---
 export interface DeleteInventoryOrderInput {
@@ -35,10 +35,12 @@ export const fetchInventoryOrderStep = createStep(
     });
 
     if (!inventoryOrder) {
-      throw new Error(`Inventory order with id ${input.id} not found`);
+      throw new MedusaError(MedusaError.Types.NOT_FOUND, 
+        `Inventory order with id ${input.id} not found`
+      );
     }
 
-    return new StepResponse(inventoryOrder);
+    return new StepResponse(inventoryOrder as  unknown as InventoryOrder);
   }
 );
 
@@ -132,8 +134,7 @@ export const deleteInventoryOrderWorkflow = createWorkflow(
       const transformedData = transform(
         { inventoryOrder },
         ({ inventoryOrder }) => {
-          // Handle case where inventoryOrder is an array
-          const orderData = Array.isArray(inventoryOrder) ? inventoryOrder[0] : inventoryOrder;
+          const orderData = inventoryOrder[0]
           
           if (!orderData) {
             throw new Error("No inventory order data found");

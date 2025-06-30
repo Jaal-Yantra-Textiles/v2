@@ -3,8 +3,6 @@ import {
   MedusaResponse,
   
 } from "@medusajs/framework/http";
-import PersonService from "../../../modules/person/service";
-import { PERSON_MODULE } from "../../../modules/person";
 import { Person, ListPersonsQuery } from "./validators";
 import createPersonWorkflow from "../../../workflows/create-person";
 import { PersonAllowedFields, refetchPerson } from "./helpers";
@@ -34,12 +32,11 @@ export const POST = async (
 };
 
 export const GET = async (req: MedusaRequest<ListPersonsQuery>, res: MedusaResponse) => {
-  const personService: PersonService = req.scope.resolve(PERSON_MODULE);
-
+  
   try {
     // Use the validated query parameters
     const query = req.validatedQuery;
-    
+    const fields = req.validatedQuery.fields;
     // Extract filters directly from the validated query
     // This works because our validator schema matches the filter fields
     const filters = {
@@ -49,7 +46,6 @@ export const GET = async (req: MedusaRequest<ListPersonsQuery>, res: MedusaRespo
       email: query.email,
       state: query.state
     };
-    
     // Get the validated limit and offset
     const { result:persons, errors } = await listAndCountPersonsWithFilterWorkflow(req.scope).run({
       input: {
@@ -61,7 +57,8 @@ export const GET = async (req: MedusaRequest<ListPersonsQuery>, res: MedusaRespo
             created_at: 'ASC'
           }
         },
-        withDeleted: Boolean(query.withDeleted)
+        withDeleted: Boolean(query.withDeleted),
+        fields: fields || '*'
       }
     })
 

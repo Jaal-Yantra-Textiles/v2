@@ -5,8 +5,6 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { DESIGN_MODULE } from "../../modules/designs"
-import { TASKS_MODULE } from "../../modules/tasks"
 
 type GetDesignTasksInput = {
   designId: string

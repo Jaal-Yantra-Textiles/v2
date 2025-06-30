@@ -87,8 +87,15 @@ export class S3ListingService {
         continuationToken = result.NextContinuationToken;
         this.logger_.debug(`Fetched ${result.Contents?.length || 0} S3 objects. IsTruncated: ${isTruncated}`);
       } catch (error: any) {
-        this.logger_.error(`Error listing S3 objects: ${error.message}`, error);
-        throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Failed to list S3 objects: ${error.message}`);
+        if (error.name === 'NoSuchKey') {
+          this.logger_.warn(`S3 prefix '${prefix}' not found in bucket '${bucket}'. Returning empty list.`);
+          isTruncated = false; // Stop the loop
+          allS3Objects = []; // Ensure the list is empty
+          break;
+        } else {
+          this.logger_.error(`Error listing S3 objects: ${error.message}`, error);
+          throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Failed to list S3 objects: ${error.message}`);
+        }
       }
     }
 

@@ -11,30 +11,32 @@ export type ListAndCountPersonsWithFilterWorkFlowInput = {
         }
     }
     withDeleted?: boolean
+    fields?: string
 }
 
 const listAndCountPersonsWithFilterStep = createStep(
     "list-and-count-persons-with-filter-step",
     async (input: ListAndCountPersonsWithFilterWorkFlowInput, { container }) => {
         const query = container.resolve(ContainerRegistrationKeys.QUERY)
-
         // Let Medusa handle the search through searchable fields
         const { filters } = input
-        
         // Ensure pagination respects the limit
         const { pagination } = input
-        const take = Math.min(pagination.take || 10, 10) // Cap at 10 items
-
+        
+        const fields = ["id"]
+        fields.push(input.fields!)
+        //const take = Math.min(pagination.take || 10, 10) // Cap at 10 items
         const { data, metadata } = await query.graph({
             entity: "person",
-            fields: ["*"],
+            fields: fields || ["*"],
             filters,
             pagination: {
                 ...pagination,
-                take
+                take: pagination.take || 10
             },
             withDeleted: input.withDeleted
         })
+        console.log(data)
         return new StepResponse({ data, metadata })
     }
 )
