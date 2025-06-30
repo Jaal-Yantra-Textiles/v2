@@ -1,4 +1,5 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Button } from "@medusajs/ui";
+import { EllipsisHorizontal } from "@medusajs/icons"
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Button, DropdownMenu, IconButton } from "@medusajs/ui";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { Users } from "@medusajs/icons";
@@ -193,9 +194,18 @@ const PersonsPage = () => {
                 <Button size="small" variant="secondary" asChild>
                   <Link to="import">Import</Link>
                 </Button>
-                <Button size="small" variant="secondary" asChild>
-                  <Link to="map">Show Map View</Link>
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenu.Trigger asChild>
+                    <IconButton size="small" variant="transparent">
+                      <EllipsisHorizontal />
+                    </IconButton>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Content>
+                    <DropdownMenu.Item asChild>
+                      <Link to="map">Show Map View</Link>
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu>
             </div>
           </DataTable.Toolbar>
           

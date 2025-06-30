@@ -62,13 +62,17 @@ export class S3ListingService {
     const { limit, offset } = pagination;
     const s3Client = this.client_;
     const bucket = this.config_.bucket;
-    const prefix = this.config_.prefix || "";
+    const rawPrefix = this.config_.prefix || "";
+    // Sanitize the prefix: remove leading/trailing slashes, then add a single trailing slash if not empty.
+    // This makes the prefix format from config/env vars more flexible.
+    const sanitizedPrefix = rawPrefix.replace(/^\/+/, '').replace(/\/+$/, '');
+    const prefix = sanitizedPrefix ? `${sanitizedPrefix}/` : '';
 
     let allS3Objects: S3ObjectType[] = [];
     let continuationToken: string | undefined = undefined;
     let isTruncated = true;
 
-    this.logger_.info(`S3ListingService: Listing files from S3 bucket: ${bucket}, prefix: '${prefix}'`);
+    this.logger_.info(`S3ListingService: Listing files from S3 bucket: ${bucket}, raw_prefix: '${rawPrefix}', effective_prefix: '${prefix}'`);
 
     while (isTruncated) {
       const command = new ListObjectsV2Command({

@@ -1,8 +1,11 @@
 import { FetchError } from "@medusajs/js-sdk"
-import { HttpTypes } from "@medusajs/types"
+import { AdminUser, HttpTypes } from "@medusajs/types"
 import {
     QueryKey,
+    useMutation,
+    UseMutationOptions,
     useQuery,
+    useQueryClient,
     UseQueryOptions,
   } from "@tanstack/react-query"
 import { sdk } from "../../lib/config"
@@ -34,3 +37,26 @@ export const useUsers = (
   
     return { ...data, ...rest }
   }
+
+
+
+export const useAdminSuspendUser = (
+  id: string,
+  options?: UseMutationOptions<AdminUser, FetchError, void>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<AdminUser>(`/admin/users/${id}/suspend`, {
+        method: "POST",
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: usersQueryKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: usersQueryKeys.detail(id),
+      });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};

@@ -471,6 +471,11 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(listSocialPostsQuerySchema), {})],
     },
+    {
+      matcher: "/admin/users/:id/suspend",
+      method: "POST",
+      middlewares: [],
+    }
   ],
   errorHandler: ((
     error: any, // or whatever type you prefer
