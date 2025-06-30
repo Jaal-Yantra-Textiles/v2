@@ -36,11 +36,13 @@ const RawMaterialMediaModal = ({
           Add Media
         </Button>
       </StackedFocusModal.Trigger>
-      <StackedFocusModal.Content>
+      <StackedFocusModal.Content className="flex flex-col">
         <StackedFocusModal.Header>
           <StackedFocusModal.Title>Media</StackedFocusModal.Title>
         </StackedFocusModal.Header>
-        <MediaUpload selectedUrls={selectedUrls} handleSelect={handleSelect} />
+        <div className="overflow-y-auto">
+          <MediaUpload selectedUrls={selectedUrls} handleSelect={handleSelect} />
+        </div>
         <StackedFocusModal.Footer>
           <div className="flex w-full items-center justify-end gap-x-2">
             <StackedFocusModal.Close asChild>

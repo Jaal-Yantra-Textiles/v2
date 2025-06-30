@@ -1,5 +1,5 @@
 import { CheckCircleSolid } from "@medusajs/icons"
-import { Button, Text } from "@medusajs/ui"
+import { Button, Text, Tooltip } from "@medusajs/ui"
 import {
   AdminEditorFile,
   useEditorFiles,
@@ -42,24 +42,26 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
       <div className="grid grid-cols-4 gap-3 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
         {files.map((file: AdminEditorFile) => {
           const isSelected = selectedUrls.includes(file.url)
+          const displayName = decodeURIComponent(file.id.split("/").pop() || file.id);
           return (
-            <div
-              key={file.id}
-              onClick={() => handleSelect(file.url)}
-              className="relative h-20 w-20 cursor-pointer overflow-hidden rounded border bg-ui-bg-subtle shadow-sm"
-            >
-              {isSelected && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
-                  <CheckCircleSolid className="text-ui-fg-on-color" />
-                </div>
-              )}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={file.url}
-                alt={file.filename ?? "file"}
-                className="h-full w-full object-cover"
-              />
-            </div>
+            <Tooltip content={displayName} key={file.id}>
+              <div
+                onClick={() => handleSelect(file.url)}
+                className="relative h-20 w-20 cursor-pointer overflow-hidden rounded border bg-ui-bg-subtle shadow-sm"
+              >
+                {isSelected && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+                    <CheckCircleSolid className="text-ui-fg-on-color" />
+                  </div>
+                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={file.url}
+                  alt={displayName}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            </Tooltip>
           )
         })}
       </div>

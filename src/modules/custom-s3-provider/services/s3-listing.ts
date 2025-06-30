@@ -134,7 +134,9 @@ export class S3ListingService {
       }
       return {
         id: s3Object.Key,
-        url: `${this.config_.fileUrl}/${s3Object.Key}`,
+        // Properly encode each path segment of the key to handle spaces and other special characters,
+        // while preserving the path separators ('/').
+        url: `${this.config_.fileUrl}/${s3Object.Key!.split('/').map(encodeURIComponent).join('/')}`,
       };
     }).filter(file => file.id !== "error-s3-object-no-key");
 
