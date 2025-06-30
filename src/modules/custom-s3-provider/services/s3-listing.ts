@@ -29,13 +29,27 @@ export class S3ListingService {
   constructor({ logger }: S3ListingServiceDependencies) {
     this.logger_ = logger;
     
+    const bucket = process.env.S3_BUCKET!;
+    let endpoint = process.env.S3_ENDPOINT;
+    let fileUrl = process.env.S3_URL || process.env.S3_FILE_URL!;
+
+    // To make configuration more robust, automatically strip the bucket name from the end of the
+    // endpoint and fileUrl if it's present. This prevents a common misconfiguration.
+    const bucketSuffix = `/${bucket}`;
+    if (endpoint && endpoint.endsWith(bucketSuffix)) {
+      endpoint = endpoint.slice(0, -bucketSuffix.length);
+    }
+    if (fileUrl && fileUrl.endsWith(bucketSuffix)) {
+      fileUrl = fileUrl.slice(0, -bucketSuffix.length);
+    }
+
     this.config_ = {
-      bucket: process.env.S3_BUCKET!,
+      bucket: bucket,
       region: process.env.S3_REGION!,
       accessKeyId: process.env.S3_ACCESS_KEY_ID!,
       secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
-      fileUrl: process.env.S3_URL || process.env.S3_FILE_URL!,
-      endpoint: process.env.S3_ENDPOINT,
+      fileUrl: fileUrl,
+      endpoint: endpoint,
       prefix: process.env.S3_PREFIX,
     };
 
@@ -75,12 +89,17 @@ export class S3ListingService {
     this.logger_.info(`S3ListingService: Listing files from S3 bucket: ${bucket}, raw_prefix: '${rawPrefix}', effective_prefix: '${prefix}'`);
 
     while (isTruncated) {
-      const command = new ListObjectsV2Command({
+      const commandInput: any = {
         Bucket: bucket,
-        ...(prefix && { Prefix: prefix }),
         ContinuationToken: continuationToken,
         MaxKeys: 1000,
-      });
+      };
+
+      if (prefix) {
+        commandInput.Prefix = prefix;
+      }
+
+      const command = new ListObjectsV2Command(commandInput);
       try {
         const result: ListObjectsV2CommandOutput = await s3Client.send(command);
         if (result.Contents) {
