@@ -9,7 +9,10 @@ import ProductInfo from "@modules/products/templates/product-info"
 import SkeletonRelatedProducts from "@modules/skeletons/templates/skeleton-related-products"
 import { notFound } from "next/navigation"
 import ProductActionsWrapper from "./product-actions-wrapper"
+import SizeGuide from "@modules/products/components/size-guide"
 import { HttpTypes } from "@medusajs/types"
+import { IconBadge, Text, Tooltip, TooltipProvider } from "@medusajs/ui"
+import { ArrowsPointingOutMini, BuildingTax } from "@medusajs/icons"
 
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct
@@ -39,19 +42,23 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
         <div className="block w-full relative">
           <ImageGallery images={product?.images || []} />
         </div>
+        
         <div className="flex flex-col small:sticky small:top-48 small:py-0 small:max-w-[300px] w-full py-8 gap-y-12">
           <ProductOnboardingCta />
+
           <Suspense
             fallback={
-              <ProductActions
-                disabled={true}
-                product={product}
-                region={region}
-              />
+              <ProductActions product={product} region={region} />
             }
           >
-            <ProductActionsWrapper id={product.id} region={region} />
+            
+                        <ProductActionsWrapper id={product.id} region={region} />
+            <div className="mt-4 flex items-center gap-x-2">
+            <Text className="txt-medium">Size Guide</Text>
+              <SizeGuide />
+            </div>
           </Suspense>
+
         </div>
       </div>
       <div
