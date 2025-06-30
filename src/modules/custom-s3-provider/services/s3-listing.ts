@@ -73,7 +73,7 @@ export class S3ListingService {
     while (isTruncated) {
       const command = new ListObjectsV2Command({
         Bucket: bucket,
-        Prefix: prefix,
+        ...(prefix && { Prefix: prefix }),
         ContinuationToken: continuationToken,
         MaxKeys: 1000,
       });
