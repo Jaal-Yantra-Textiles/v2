@@ -15,8 +15,7 @@ export const listAuthIdentitiesStep = createStep(
             authIdentity.auth_identity_id!
         )
         const appMetadata = (await authIdentityMetadata).app_metadata
-        if (appMetadata) {
-            appMetadata.user_id == null
+        if (appMetadata?.user_id == null) {
             throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Already suspended")
         }
         return new StepResponse(authIdentity)
