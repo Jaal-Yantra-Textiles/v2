@@ -90,7 +90,7 @@ export const PersonGeneralSection = ({ person }: PersonGeneralSectionProps) => {
             src={person.avatar || "https://avatars.githubusercontent.com/u/10656202?v=4"}
             fallback={name.charAt(0) || "M"}
           />
-          <Heading>{person.email}</Heading>
+          <Heading>{person.email || name}</Heading>
         </div>
         <div className="flex items-center gap-x-4">
           <ActionMenu
