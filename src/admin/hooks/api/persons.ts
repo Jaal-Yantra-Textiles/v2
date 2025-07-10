@@ -279,10 +279,13 @@ export const useImportPersons = (options?: UseMutationOptions<any, FetchError, {
   });
 };
 
+
 /**
  * Hook for confirming a person import operation
  */
-export const useConfirmImportPersons = (options?: UseMutationOptions<any, FetchError, string>) => {
+export const useConfirmImportPersons = (
+  options?: UseMutationOptions<any, FetchError, string>,
+) => {
   const queryClient = useQueryClient();
   
   return useMutation({
@@ -308,3 +311,4 @@ export const useConfirmImportPersons = (options?: UseMutationOptions<any, FetchE
     ...options,
   });
 };
+

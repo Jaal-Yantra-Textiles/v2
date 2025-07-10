@@ -1,4 +1,4 @@
-import { PencilSquare, Trash, Newspaper } from "@medusajs/icons";
+import { PencilSquare, Trash, Newspaper, MapPin } from "@medusajs/icons";
 import {
   Avatar,
   Container,
@@ -110,6 +110,15 @@ export const PersonGeneralSection = ({ person }: PersonGeneralSectionProps) => {
                     label: 'Add Note',
                     icon: <Newspaper />,
                     to: "addnote",
+                  },
+                ],
+              },
+              {
+                actions: [
+                  {
+                    label: "Geocode Addresses",
+                    icon: <MapPin />,
+                    to: "geocode",
                   },
                 ],
               },

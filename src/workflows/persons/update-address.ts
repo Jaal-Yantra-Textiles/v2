@@ -8,6 +8,8 @@ import {
 import PersonService from "../../modules/person/service";
 import { PERSON_MODULE } from "../../modules/person";
 import { InferTypeOf } from "@medusajs/framework/types";
+import { createHook } from "@medusajs/framework/workflows-sdk";
+import { emitEventStep } from "@medusajs/medusa/core-flows";
 import Address from "../../modules/person/models/person_address";
 export type Address = InferTypeOf<typeof Address>;
 
@@ -62,8 +64,25 @@ export const updateAddressWorkflow = createWorkflow(
   "update-address",
   (input: UpdateAddressStepInput) => {
     const result = updateAddressStep(input);
-    return new WorkflowResponse(result);
-  },
+
+    emitEventStep({
+      eventName: "person_address.updated",
+      data: {
+        id: input.id,
+      },
+    });
+
+    const personAddressUpdatedHook = createHook(
+      "personAddressUpdated",
+      {
+        personId: input.person_id,
+      }
+    );
+
+    return new WorkflowResponse(result, {
+      hooks: [personAddressUpdatedHook],
+    });
+  }
 );
 
 export default updateAddressWorkflow;

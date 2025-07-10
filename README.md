@@ -1,5 +1,7 @@
 # Medo: Textile Production Workflow Platform
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/dv6ZSz?referralCode=qVdmfO)
+
 [![Test and Release](https://github.com/Jaal-Yantra-Textiles/v2/actions/workflows/test-and-release.yml/badge.svg)](https://github.com/Jaal-Yantra-Textiles/v2/actions/workflows/test-and-release.yml)
 
 <p align="center">

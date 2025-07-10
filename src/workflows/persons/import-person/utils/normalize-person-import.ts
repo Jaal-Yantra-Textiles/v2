@@ -59,7 +59,7 @@ export function normalizePersonDataForImport(
     const normalizedPerson: any = {
       first_name: getFieldValue("first_name"),
       last_name: getFieldValue("last_name"),
-      email: getFieldValue("email"),
+      email: getFieldValue("email") || null,
       date_of_birth: getFieldValue("date_of_birth", null),
       avatar: getFieldValue("avatar", null),
       // Ensure state is one of the valid values (based on the constraint error)

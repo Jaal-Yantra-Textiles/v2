@@ -1,4 +1,5 @@
 import { model } from "@medusajs/framework/utils";
+import { InferTypeOf } from "@medusajs/framework/types";
 import Person from "./person";
 
 const Address = model.define("person_address", {
@@ -8,7 +9,11 @@ const Address = model.define("person_address", {
   state: model.text(),
   postal_code: model.text(),
   country: model.text(),
+  latitude: model.bigNumber().nullable(),
+  longitude: model.bigNumber().nullable(),
   person: model.belongsTo(() => Person, { mappedBy: "addresses" }),
 });
 
 export default Address;
+
+export type PersonAddress = InferTypeOf<typeof Address>;

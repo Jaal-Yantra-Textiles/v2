@@ -17,6 +17,10 @@ class PersonService extends MedusaService({
     super(...arguments)
   }
 
+  async listPersonAddresses(...args) {
+    return this.listAddresses(...args)
+  }
+
 }
 
 export default PersonService;

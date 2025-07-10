@@ -53,18 +53,45 @@ export const updateUserMetaData = createStep(
 )
 
 
+export const deleteAuthIdentityStep = createStep(
+    "delete-auth-identity-step",
+    async ( input: { id: string } , { container }) => {
+        const authModule = container.resolve(Modules.AUTH)
+        // before we delete we copy the password 
+        const authIdentity = await authModule.retrieveProviderIdentity(input.id)
+        console.log(authIdentity)
+        await authModule.updateAuthIdentities([{
+            id: authIdentity.auth_identity?.id!,
+            app_metadata: {
+                suspended: true,
+                password: authIdentity.provider_metadata?.password,
+                email: authIdentity.entity_id
+            }
+        }])
+
+        const deletedAuthIdentity = await authModule.deleteProviderIdentities([
+            input.id,
+        ])
+        return new StepResponse(deletedAuthIdentity)
+    },
+)
+
+
 export const suspendUserWorkflow = createWorkflow(
     "suspend-user-workflow",
     (input: { userId: string }) => {
-        const user = listUserStep(input)
-        const authIdentities = listAuthIdentitiesStep(user)
-        const suspendUser = setAuthAppMetadataStep({
-            authIdentityId: authIdentities.auth_identity_id!,
-            actorType: "user",
-            value: null, 
-        })
-        const updateUser = updateUserMetaData(input.userId)
-        return new WorkflowResponse(suspendUser)
+        const user = listUserStep(input);
+        const authIdentities = listAuthIdentitiesStep(user);
+
+        // This step now handles the full suspension logic
+        deleteAuthIdentityStep({
+            id: authIdentities.id!
+        });
+        
+        // This step updates the user's record for internal tracking
+        const updatedUser = updateUserMetaData(input.userId);
+
+        // Return the final state of the user
+        return new WorkflowResponse(updatedUser);
     }
-    
-)
+);

@@ -24,11 +24,13 @@ const listAndCountPersonsWithFilterStep = createStep(
         const { pagination } = input
         
         const fields = ["id"]
-        fields.push(input.fields!)
+        if (input.fields) {
+          fields.push(...input.fields.split(',').map(f => f.trim()))
+        }
         //const take = Math.min(pagination.take || 10, 10) // Cap at 10 items
         const { data, metadata } = await query.graph({
             entity: "person",
-            fields: fields || ["*"],
+            fields: fields,
             filters,
             pagination: {
                 ...pagination,
@@ -36,7 +38,6 @@ const listAndCountPersonsWithFilterStep = createStep(
             },
             withDeleted: input.withDeleted
         })
-        console.log(data)
         return new StepResponse({ data, metadata })
     }
 )

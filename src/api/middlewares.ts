@@ -51,6 +51,7 @@ import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/t
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
+import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/confirm/validators";
 
 
 
@@ -475,6 +476,16 @@ export default defineMiddlewares({
       matcher: "/admin/users/:id/suspend",
       method: "POST",
       middlewares: [],
+    },
+    {
+      matcher: "/admin/persons/:id/geocode-addresses",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/persons/geocode-addresses/:transaction_id/confirm",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(ConfirmBody))],
     }
   ],
   errorHandler: ((

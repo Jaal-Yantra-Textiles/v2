@@ -1,13 +1,13 @@
-import { Button, Container, Heading } from "@medusajs/ui"
+import { Button, Container } from "@medusajs/ui"
 import { usePersons } from "../../hooks/api/persons"
 import { useEffect, useState } from "react"
-import { PersonWithAddress } from "../../hooks/api/personandtype";
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import { RouteFocusModal } from "../modal/route-focus-modal";
+import { PersonWithAddress } from "../../hooks/api/personandtype";
 
 // Fix for default marker icon
 let DefaultIcon = L.icon({
@@ -16,65 +16,62 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
+
 interface MarkerData {
   position: [number, number];
   popup: string;
 }
 
 export const MapViewComponent = () => {
-  const { persons, isLoading } = usePersons({
-    limit: 100, // Fetch a large number of persons
-    offset: 0,
-    fields: "addresses.*"
+    const [offset, setOffset] = useState(0);
+  const limit = 50;
+
+  const { persons, isLoading, count } = usePersons({
+    limit: limit,
+    offset: offset,
+    fields: "addresses.*,first_name,last_name,metadata.*",
   });
 
-  const [markers, setMarkers] = useState<MarkerData[]>([]);
+      const [markers, setMarkers] = useState<MarkerData[]>([]);
 
   useEffect(() => {
     if (!isLoading && persons) {
-      const allAddresses = persons.reduce((acc: any[], person: PersonWithAddress) => {
-        if (person.addresses && person.addresses.length > 0) {
-          return [...acc, ...person.addresses.map(a => ({...a, personName: `${person.first_name} ${person.last_name}`}))];
+      const newMarkers = persons.flatMap((person) => {
+        const p = person as unknown as PersonWithAddress;
+        if (p.addresses && p.addresses.length > 0) {
+          return p.addresses
+            .filter((address) => address.latitude && address.longitude)
+            .map((address) => ({
+              position: [address.latitude, address.longitude] as [number, number],
+                            popup: `<b>${p.first_name} ${p.last_name}</b><br>${address.street}, ${address.city}`,
+            }));
         }
-        return acc;
-      }, []);
+        return [];
+      });
 
-      const geocodeAddresses = async () => {
-        const newMarkers: MarkerData[] = [];
-        for (const address of allAddresses) {
-          const query = `$${address.postal_code}, ${address.country}`;
-          try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            const data = await response.json();
-            if (data && data.length > 0) {
-              const { lat, lon } = data[0];
-              newMarkers.push({
-                position: [parseFloat(lat), parseFloat(lon)],
-                popup: `<b>${address.personName}</b><br>${address.street}, ${address.city}`
-              });
-            }
-          } catch (error) {
-            console.error("Geocoding error:", error);
-          }
-        }
-        setMarkers(newMarkers);
-      };
-
-      geocodeAddresses();
+      setMarkers((prevMarkers) => {
+        const existingPositions = new Set(prevMarkers.map(m => m.position.toString()));
+        const uniqueNewMarkers = newMarkers.filter(m => !existingPositions.has(m.position.toString()));
+        return [...prevMarkers, ...uniqueNewMarkers];
+      });
     }
   }, [persons, isLoading]);
+
+    const handleLoadMore = () => {
+    setOffset(offset + limit);
+  };
 
   return (
     <>
       <RouteFocusModal.Header />
-      <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-8 md:py-16 px-4 md:px-6">
-        <div className="flex w-full max-w-[720px] flex-col gap-y-6 md:gap-y-8">
-            <Heading>Persons Map View</Heading>
+      <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-2 px-2">
+        <div className="flex w-full flex-1 flex-col gap-y-6 md:gap-y-8">
+            
             <Container>
             {isLoading ? (
                 <div>Loading map...</div>
             ) : (
-                <MapContainer center={[20.5937, 78.9629]} zoom={5} style={{ height: '500px', width: '100%' }}>
+                                <MapContainer center={[20.5937, 78.9629]} zoom={5} style={{ height: '800px', width: '100%' }}>
                 <TileLayer
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -92,12 +89,25 @@ export const MapViewComponent = () => {
         </div>
       </RouteFocusModal.Body>
       <RouteFocusModal.Footer>
-        <div className="flex items-center justify-end w-full">
+        <div className="flex items-center justify-between w-full">
+          <div>
+            <p>Showing {markers.length} of {count} persons</p>
+          </div>
+          <div className="flex items-center gap-x-2">
+            <Button
+              size="small"
+              variant="secondary"
+                            onClick={handleLoadMore}
+              disabled={isLoading || (persons && persons.length === 0) || markers.length === count}
+            >
+              Load More
+            </Button>
             <RouteFocusModal.Close asChild>
-                <Button size="small" variant="secondary">
-                    Close
-                </Button>
+              <Button size="small" variant="secondary">
+                Close
+              </Button>
             </RouteFocusModal.Close>
+          </div>
         </div>
       </RouteFocusModal.Footer>
     </>

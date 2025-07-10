@@ -8,17 +8,17 @@ import {
 import PersonService from "../../modules/person/service";
 import { PERSON_MODULE } from "../../modules/person";
 import { createHook } from "@medusajs/framework/workflows-sdk";
+import { emitEventStep } from "@medusajs/medusa/core-flows";
 
 type CreateAddressStepInput = {
   person_id: string;
-  
   street: string;
   city: string;
   state: string;
   postal_code: string;
   country: string;
-  
-  
+  latitude: number;
+  longitude: number;
 };
 
 export const createAddressStep = createStep(
@@ -41,22 +41,32 @@ type CreateAddressWorkFlowInput = {
   state: string;
   postal_code: string;
   country: string;
+  latitude: number;
+  longitude: number;
 };
 
 export const createAddressWorkflow = createWorkflow(
   "create-address",
   (input: CreateAddressWorkFlowInput) => {
     const address = createAddressStep(input);
+
+    emitEventStep({
+      eventName: "person_address.created",
+      data: {
+        id: address.id,
+      },
+    });
+
     const personAddressCreatedHook = createHook(
       "personAddressCreated",
-     { 
-      personId: address.person_id 
-     }
+      {
+        personId: address.person_id,
+      }
     );
     return new WorkflowResponse(address, {
       hooks: [personAddressCreatedHook],
     });
-  },
+  }
 );
 
 export default createAddressWorkflow;

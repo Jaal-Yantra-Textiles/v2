@@ -7,6 +7,8 @@ export interface AddressDetails {
   state: string;
   postal_code: string;
   country: string;
+  latitude: number;
+  longitude: number;
 }
 
 interface ContactDetail {

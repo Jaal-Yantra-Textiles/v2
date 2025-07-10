@@ -204,6 +204,9 @@ const PersonsPage = () => {
                     <DropdownMenu.Item asChild>
                       <Link to="map">Show Map View</Link>
                     </DropdownMenu.Item>
+                    <DropdownMenu.Item asChild>
+                      <Link to="backfill-geocodes">Geocodes Backfill</Link>
+                    </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu>
             </div>

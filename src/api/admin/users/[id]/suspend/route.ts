@@ -12,10 +12,10 @@ export const POST = async (
         }
     })
 
-    if (errors) {
-        return res.status(400).json({ errors })
+    if (errors.length > 0) {   
+        return res.status(400).json(errors)
     }
-   res.status(200).json({ 
-    result
- })
+   res.status(200).json({
+    suspended: true
+   })
 }

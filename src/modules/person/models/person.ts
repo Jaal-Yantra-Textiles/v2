@@ -7,7 +7,7 @@ const Person = model.define("person", {
   id: model.id().primaryKey(),
   first_name: model.text().searchable(),
   last_name: model.text().searchable(),
-  email: model.text().unique(),
+  email: model.text().unique().nullable(),
   date_of_birth: model.dateTime().nullable(),
   metadata: model.json().nullable(),
 
@@ -19,6 +19,8 @@ const Person = model.define("person", {
   state: model
     .enum(["Onboarding", "Stalled", "Conflicted", "Onboarding Finished"])
     .default("Onboarding"),
+  // This metadata will store imported stuff.
+  public_metadata: model.json().nullable(),
 });
 
 export default Person;

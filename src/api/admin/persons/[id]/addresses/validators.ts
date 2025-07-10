@@ -6,6 +6,8 @@ export const addressSchema = z.object({
   state: z.string().min(1, "State is required"),
   postal_code: z.string().min(1, "Postal code is required"),
   country: z.string().min(1, "Country is required"),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
 });
 
 export type Address = z.infer<typeof addressSchema>;

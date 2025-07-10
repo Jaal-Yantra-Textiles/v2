@@ -17,6 +17,7 @@ export const personSchema = z.object({
   addresses: z.array(z.any()).optional(),
   state: z.enum(["Onboarding", "Onboarding Finished", "Stalled", "Conflicted"]).optional(),
   avatar: z.string().optional(),
+  public_metadata: z.record(z.any()).optional(),
 });
 
 export const ReadPersonQuerySchema = z.object({

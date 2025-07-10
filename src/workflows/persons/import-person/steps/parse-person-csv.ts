@@ -28,7 +28,7 @@ export const parsePersonCsvStep = createStep(
     console.log(`Parsed ${csvPersons.length} records from CSV:`, JSON.stringify(csvPersons.slice(0, 2), null, 2));
 
     // Normalize field names and validate required fields
-    const requiredFields = ["email", "first_name", "last_name"]
+    const requiredFields = ["first_name", "last_name"]
     
     csvPersons.forEach((person: any, index: number) => {
       // Normalize keys to lowercase for case-insensitive validation

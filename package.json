@@ -41,11 +41,11 @@
     "@hookform/resolvers": "^5.0.1",
     "@mastra/core": "^0.6.3",
     "@medusajs/admin-sdk": "^2.8.4",
-    "@medusajs/cli": "2.8.5",
-    "@medusajs/framework": "2.8.5",
-    "@medusajs/medusa": "2.8.5",
-    "@medusajs/medusa-oas-cli": "^2.8.5",
-    "@medusajs/workflows-sdk": "2.8.5",
+    "@medusajs/cli": "2.8.7",
+    "@medusajs/framework": "2.8.7",
+    "@medusajs/medusa": "2.8.7",
+    "@medusajs/medusa-oas-cli": "^2.8.7",
+    "@medusajs/workflows-sdk": "2.8.7",
     "@mikro-orm/core": "6.4.3",
     "@mikro-orm/knex": "6.4.3",
     "@mikro-orm/migrations": "6.4.3",
@@ -94,7 +94,7 @@
     "zod": "^3.25.67"
   },
   "devDependencies": {
-    "@medusajs/test-utils": "2.8.5",
+    "@medusajs/test-utils": "2.8.7",
     "@mikro-orm/cli": "6.4.3",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^11.1.0",
@@ -117,7 +117,7 @@
     "semantic-release": "^23.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.2",
-    "vite": "^5.4.18"
+    "vite": "^7.0.3"
   },
   "engines": {
     "node": ">=20"

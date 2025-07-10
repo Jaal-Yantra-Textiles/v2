@@ -8,7 +8,6 @@ export default async function pageCreatedHandler({
   event: { data },
   container,
 }: SubscriberArgs<{ id: string , genMetaDataLLM: boolean }>) {
-  console.log(data)
   await getAIMetadataForPageWorkflow(container).run({
     input: {
       id: data.id,
