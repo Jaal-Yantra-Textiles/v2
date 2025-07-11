@@ -22,16 +22,16 @@ export const generateAIMetadataStep = createStep(
 
     // Run the Mastra SEO workflow directly (not via fetch) 
     const { runId, start } = mastra.getWorkflow('seoWorkflow').createRun();
-    const workflowResult = await start({ triggerData: input.pageContext });
+    const workflowResult = await start({ inputData: input.pageContext });
 
     // Check if workflow execution was successful
-    if (workflowResult.results.validateMetadata?.status === 'failed') {
-      const error = workflowResult.results.validateMetadata.error;
+    if (workflowResult.steps.validateMetadata?.status === 'failed') {
+      const error = workflowResult.steps.validateMetadata.error;
       throw new Error(`Metadata validation failed: ${error}`);
     }
 
-    if (workflowResult.results.generateMetadata?.status === 'success') {
-      const metadata = workflowResult.results.generateMetadata.output;
+    if (workflowResult.steps.generateMetadata?.status === 'success') {
+      const metadata = workflowResult.steps.generateMetadata.output;
       return new StepResponse(metadata);
     }
 

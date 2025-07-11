@@ -486,6 +486,11 @@ export default defineMiddlewares({
       matcher: "/admin/persons/geocode-addresses/:transaction_id/confirm",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(ConfirmBody))],
+    },
+    {
+      matcher: "/web/persons",
+      method: "GET",
+      middlewares: [],
     }
   ],
   errorHandler: ((

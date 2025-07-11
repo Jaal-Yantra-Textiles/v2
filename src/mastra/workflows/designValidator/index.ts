@@ -1,9 +1,8 @@
-// @ts-nocheck - Ignore all TypeScript errors in this file
-import { Workflow, Step } from "@mastra/core/workflows";
+import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import { designAgent } from "../../agents";
-import { Logger } from "@mastra/core";
-const logger = new Logger()
+import { PinoLogger } from "@mastra/loggers";
+const logger = new PinoLogger()
 
 // Schema definitions for design validation
 const triggerSchema = z.object({
@@ -51,18 +50,13 @@ const designSchema = z.object({
   metadata: z.record(z.any()).optional()
 });
 
-// Create the workflow
-export const designValidationWorkflow = new Workflow({
-  name: 'design-validation',
-  triggerSchema
-});
-
 // Design generation step
-const generateDesignData = new Step({
+const generateDesignData = createStep({
   id: 'generateDesignData',
+  inputSchema: triggerSchema,
   outputSchema: designSchema,
-  execute: async ({ context }) => {
-    const { designPrompt, existingValues } = context.triggerData;
+  execute: async ({ inputData }) => {
+    const { designPrompt, existingValues } = inputData;
     
     logger.info(`Generating design data from prompt: ${designPrompt}...`);
     
@@ -119,17 +113,14 @@ const generateDesignData = new Step({
 });
 
 // Validation step
-const validateDesignData = new Step({
+const validateDesignData = createStep({
   id: 'validateDesignData',
-  execute: async ({ context }) => {
-    const analysis = context.steps.generateDesignData;
-    
-    if (!analysis || analysis.status !== "success") {
-      throw new Error("Design data generation step failed");
-    }
+  inputSchema: designSchema,
+  outputSchema: designSchema,
+  execute: async ({ inputData }) => {
+    const designData = inputData;
 
     try {
-      const designData = designSchema.parse(analysis.output);
       
       // Perform additional validation and normalization
       
@@ -182,10 +173,14 @@ const validateDesignData = new Step({
   }
 });
 
-// Link workflow steps
-designValidationWorkflow
-  .step(generateDesignData)
-  .then(validateDesignData)
-  .commit();
+// Create and export the workflow
+export const designValidationWorkflow = createWorkflow({
+  id: 'design-validation',
+  inputSchema: triggerSchema,
+  outputSchema: designSchema
+})
+.then(generateDesignData)
+.then(validateDesignData)
+.commit();
 
 export default designValidationWorkflow;

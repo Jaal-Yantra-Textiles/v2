@@ -1,7 +1,7 @@
-// @ts-nocheck - Ignore all TypeScript errors in this file
 import { openai } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
 import { anthropic } from "@ai-sdk/anthropic";
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 
 export const seoAgent = new Agent({
   name: "seo-agent",
@@ -32,6 +32,16 @@ export const designAgent = new Agent({
   instructions:'You are a design assitant for the designer',
   model: openai("gpt-4o-mini")
 });
+// Initialize OpenRouter provider
+const openrouter = createOpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
 
-
+// Create an agent
+export const productDescriptionAgent = new Agent({
+  model: openrouter('mistralai/mistral-small-3.2-24b-instruct:free') as any,
+  name: 'ProductDescriptionAgent',
+  instructions:
+    'You are an expert product description writer. Given an image and product information, you will generate a compelling and accurate product description. Focus on highlighting key features and benefits that would appeal to the target audience.',
+});
 

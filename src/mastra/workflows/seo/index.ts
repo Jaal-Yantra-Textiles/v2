@@ -1,5 +1,4 @@
-// @ts-nocheck - Ignore all TypeScript errors in this file
-import { Workflow, Step } from "@mastra/core/workflows";
+import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import { seoAgent } from "../../agents";
 
@@ -24,17 +23,12 @@ const metadataSchema = z.object({
   schema_markup: z.string().max(500).optional()
 });
 
-// Create the workflow
-export const seoWorkflow = new Workflow({
-  name: 'seo-metadata',
-  triggerSchema
-});
-
 // Define the metadata generation step
-const generateMetadata = new Step({
+const generateMetadata = createStep({
   id: 'generateMetadata',
+  inputSchema: triggerSchema,
   outputSchema: metadataSchema,
-  execute: async ({ context }) => {
+  execute: async ({ inputData }) => {
     const response = await seoAgent.generate(
       [{
         role: "user",
@@ -46,42 +40,32 @@ Requirements:
 - Keywords: Max 100 chars, comma-separated
 - Optional: Short OpenGraph and Twitter metadata (same length limits)
 
-Page context: ${JSON.stringify(context.triggerData)}`
+Page context: ${JSON.stringify(inputData)}`
       }],
       { output: metadataSchema }
     );
     return response.object;
-    
   }
 });
 
 // Define validation step
-const validateMetadata = new Step({
+const validateMetadata = createStep({
   id: 'validateMetadata',
-  execute: async ({ context }) => {
-    const generationStep = context.steps.generateMetadata;
-      if (!generationStep || generationStep.status !== "success") {
-      throw new Error(`Metadata generation failed or not found. Steps: ${JSON.stringify(context)}`);
-    }
-
-    const metadata = generationStep.output;
-    
-    try {
-      // Use the same schema for validation
-      const validatedMetadata = metadataSchema.parse(metadata);
-      return validatedMetadata;
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const issues = error.issues.map(i => i.message).join(', ');
-        throw new Error(`Metadata validation failed: ${issues}`);
-      }
-      throw error;
-    }
+  inputSchema: metadataSchema,
+  outputSchema: metadataSchema,
+  execute: async ({ inputData }) => {
+    // The input is already validated against the schema by the workflow engine.
+    // This step can be used for additional, more complex validation logic if needed.
+    return inputData;
   }
 });
 
-// Link the steps and commit the workflow
-seoWorkflow
-  .step(generateMetadata)
-  .then(validateMetadata)
-  .commit();
+// Create and export the workflow
+export const seoWorkflow = createWorkflow({
+  id: 'seo-metadata',
+  inputSchema: triggerSchema,
+  outputSchema: metadataSchema
+})
+.then(generateMetadata)
+.then(validateMetadata)
+.commit();

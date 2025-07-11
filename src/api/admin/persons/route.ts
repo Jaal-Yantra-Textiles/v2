@@ -6,7 +6,7 @@ import {
 import { Person, ListPersonsQuery } from "./validators";
 import createPersonWorkflow from "../../../workflows/create-person";
 import { PersonAllowedFields, refetchPerson } from "./helpers";
-import { listAndCountPersonsWithFilterWorkflow } from "../../../workflows/persons/list-and-count-with-filter.ts/list-and-count-with-filter";
+import { listAndCountPersonsWithFilterWorkflow } from "../../../workflows/persons/list-and-count-with-filter/list-and-count-with-filter";
 
 export const POST = async (
   req: MedusaRequest<Person> & {

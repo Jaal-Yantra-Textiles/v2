@@ -40,18 +40,18 @@ export const generateDesignDataStep = createStep(
       // Call the Mastra designValidator workflow
       const { runId , start } = mastra.getWorkflow('designValidationWorkflow').createRun();
       const runResult = await start({
-        triggerData: {
+        inputData: {
           designPrompt: input.designPrompt,
           existingValues: input.existingValues || {}
         }
       });
 
-      if (runResult.results.validateDesignData?.status !== 'success') {
-        const error = runResult.results.validateDesignData.status;
+      if (runResult.steps.validateDesignData?.status !== 'success') {
+        const error = runResult.steps.validateDesignData.status;
         throw new Error(`Design validation failed: ${error}`);
       }
 
-      const designData = runResult.results.validateDesignData.output;
+      const designData = runResult.steps.validateDesignData.output;
       return new StepResponse(designData);
         
      
