@@ -9,7 +9,6 @@ type ListPartnerPeopleWorkFlowInput = {
 const listPeopleOfPartnerStep = createStep(
     "list-partner-people",
     async(input: ListPartnerPeopleWorkFlowInput, { container }) => {
-        console.log(input)
         const query = container.resolve(ContainerRegistrationKeys.QUERY)
         const { data: peopleOfPartner } = await query.graph({
             entity: 'partners',
@@ -18,8 +17,6 @@ const listPeopleOfPartnerStep = createStep(
                 id: input.partnerId
             }
         })
-
-        console.log(peopleOfPartner)
         return new StepResponse(peopleOfPartner)
     }
 )
