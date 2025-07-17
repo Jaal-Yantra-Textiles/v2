@@ -12,6 +12,6 @@ export const listPublicPersonsQuerySchema = z.object({
     z.number().int().min(1).max(100).default(20)
   ),
   order: z.string().optional(),
-});
+}).passthrough();
 
 export type ListPublicPersonsQuery = z.infer<typeof listPublicPersonsQuerySchema>;

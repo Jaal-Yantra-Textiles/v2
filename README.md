@@ -83,8 +83,20 @@ Medo provides a comprehensive set of RESTful APIs:
 - **/admin/tasks**: Handle task creation, assignment, and status updates
 - **/admin/persons**: Manage stakeholders and their information
 - **/admin/designs**: Track design and production processes
+- **/admin/designs/[ID]/inventory**: Link and unlink inventory item for the use of the design.
+- **/admin/designs/[ID]/tasks**: Link and unlink the tasks for the designs
+- - Asssociate template tasks or independent tasks
+- **/admin/editor-files**: List all files from the storage page wise.
+- **/admin/inventory-items/[ID]/raw-materials**: Link Raw Materials per inventory item
+- **/admin/inventory-orders**: Create inventory orders and track them through supply chain vertical with detailed tasks.
+- **/admin/notes**: Store entity based notes such as design notes
+- **/admin/oauth**: Internal oauth API to handle social media and other social logins for background purposes.
+- **/admin/social-platform**: Manage social platforms and API configuration 
+- **/admin/social-posts**: Manage, schedule social posts linked with Social Platforms.
+- **/admin/users/(suspend/unsuspend)**: Suspend/Unsuspend another user 
 - **/admin/websites**: Manage website content and blocks
 - **/partners**: Partner-specific endpoints for task management
+- **/categories**: Return system wide categories needed to display dropdown/select values.
 
 All APIs follow consistent patterns with proper validation and error handling.
 

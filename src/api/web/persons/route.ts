@@ -1,21 +1,21 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { listPublicPersonsWorkflow } from "../../../workflows/persons/list-public-persons";
-import { ListPublicPersonsQuery, listPublicPersonsQuerySchema } from "./validators";
+import { ListPublicPersonsQuery } from "./validators";
 
-export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+export const GET = async (req: MedusaRequest<ListPublicPersonsQuery>, res: MedusaResponse) => {
   // Validate query parameters
-  const validatedQuery: ListPublicPersonsQuery = listPublicPersonsQuerySchema.parse(req.query);
+  
+  // Exclude pagination fields to get only filter parameters
+  const { limit, offset, ...filters } = req.validatedQuery;
 
-  const filters = {
-    q: validatedQuery.q,
-  };
+  console.log(filters)
 
   const { result: persons, errors } = await listPublicPersonsWorkflow(req.scope).run({
     input: {
       filters,
       pagination: {
-        take: validatedQuery.limit,
-        skip: validatedQuery.offset,
+        take: req.validatedQuery.limit,
+        skip: req.validatedQuery.offset,
         order: {
           created_at: 'ASC'
         }
@@ -30,7 +30,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   res.status(200).json({
     persons: persons.data,
     count: persons.metadata?.count,
-    offset: validatedQuery.offset,
-    limit: validatedQuery.limit,
+    offset: req.validatedQuery.offset,
+    limit: req.validatedQuery.limit,
   });
 };

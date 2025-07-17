@@ -52,6 +52,7 @@ import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/t
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
 import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/confirm/validators";
+import { listPublicPersonsQuerySchema } from "./web/persons/validators";
 
 
 
@@ -490,7 +491,7 @@ export default defineMiddlewares({
     {
       matcher: "/web/persons",
       method: "GET",
-      middlewares: [],
+      middlewares: [validateAndTransformQuery(wrapSchema(listPublicPersonsQuerySchema), {})],
     }
   ],
   errorHandler: ((

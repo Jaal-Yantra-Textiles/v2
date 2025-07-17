@@ -19,17 +19,19 @@ const listPublicPersonsStep = createStep(
     async (input: ListPublicPersonsWorkflowInput, { container }) => {
         const query = container.resolve(ContainerRegistrationKeys.QUERY)
         const { filters, pagination } = input
-        
+        console.log(input)
         const fields = [
             "id",
             "first_name",
             "last_name",
+            "email",
             "addresses.latitude",
             "addresses.longitude",
             "addresses.address_1",
             "addresses.city",
             "addresses.postal_code",
-            "person_type.name"
+            "person_type.name",
+            "metadata.*"
         ]
 
         const { data, metadata } = await query.graph({
@@ -42,6 +44,7 @@ const listPublicPersonsStep = createStep(
             },
             withDeleted: input.withDeleted
         })
+        
         return new StepResponse({ data, metadata })
     }
 )
