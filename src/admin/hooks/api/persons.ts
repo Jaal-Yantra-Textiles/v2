@@ -1,6 +1,7 @@
 import { FetchError } from "@medusajs/js-sdk";
 import { HttpTypes, PaginatedResponse } from "@medusajs/types";
 import {
+  keepPreviousData,
   QueryKey,
   UseMutationOptions,
   UseQueryOptions,
@@ -12,19 +13,25 @@ import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 import {
   AddressDetails,
+  AddressInput,
   AdminCreatePerson,
   AdminPerson,
   AdminPersonDeleteResponse,
   AdminPersonResponse,
   AdminUpdatePerson,
-} from "../api/personandtype";
+} from "./personandtype";
 
-export interface AddressInput {
-  street: string;
-  city: string;
-  state: string;
-  postal_code: string;
-  country: string;
+export interface PersonDetails {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  title: string | null;
+  notes: string | null;
+  person_types: any[];
+  contacts?: any[];
+  addresses?: any[];
 }
 
 const PERSONS_QUERY_KEY = "persons" as const;
@@ -50,9 +57,10 @@ export const usePerson = (
         method: "GET",
         query,
       }),
+    placeholderData: keepPreviousData,
     ...options,
   });
-  return { ...data, ...rest };
+  return { person: data?.person, ...rest };
 };
 
 export const usePersons = (
@@ -79,7 +87,7 @@ export const usePersons = (
     queryKey: personsQueryKeys.list(query),
     ...options,
   });
-  return { ...data, ...rest };
+  return { persons: data?.persons, count: data?.count, ...rest };
 };
 
 export const useCreatePerson = (
@@ -98,6 +106,32 @@ export const useCreatePerson = (
       }),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};
+
+export const useUpdatePersonMetadata = (
+  id: string,
+  options?: UseMutationOptions<
+    { person: AdminPerson },
+    FetchError,
+    Record<string, unknown>
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (metadata: Record<string, unknown>) =>
+      sdk.client.fetch<{ person: AdminPerson }>(`/admin/persons/${id}`,
+        {
+          method: "POST",
+          body: { metadata },
+        },
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(id) });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,

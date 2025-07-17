@@ -28,12 +28,16 @@ export const updateSocialPostStep = createStep(
   async (input: UpdateSocialPostStepInput, { container }) => {
     const service: SocialPostService = container.resolve(SOCIALS_MODULE);
     const { id, ...updateData } = input;
-
+    
     const original = await service.retrieveSocialPost(id);
 
     const updated = await service.updateSocialPosts([{
-      id,
-      ...updateData,
+      selector: {
+        id: id
+      },
+      data : {
+        ...updateData
+      }
     }]);
 
     return new StepResponse(updated, { id, originalData: original });

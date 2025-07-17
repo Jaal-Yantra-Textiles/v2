@@ -24,14 +24,14 @@ export const updateSocialPlatformStep = createStep(
   async (input: UpdateSocialPlatformStepInput, { container }) => {
     const service: SocialPlatformService = container.resolve(SOCIALS_MODULE);
     const { id, ...updateData } = input;
-
+    
     const original = await service.retrieveSocialPlatform(id);
 
     const updated = await service.updateSocialPlatforms({
       selector: { id },
       data: updateData,
     }) as unknown as SocialPlatform;
-
+    
     return new StepResponse(updated, { id, originalData: original });
   },
   async (compensationData: { id: string; originalData: any }, { container }) => {

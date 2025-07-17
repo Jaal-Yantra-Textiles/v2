@@ -452,13 +452,13 @@ export default defineMiddlewares({
     },
 
     {
-      matcher: "/admin/social-post/:socialPostId",
+      matcher: "/admin/social-posts/:socialPostId",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdateSocialPostSchema))],
     },
 
     {
-      matcher: "/admin/social-platform/:socialPlatformId",
+      matcher: "/admin/social-platforms/:socialPlatformId",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdateSocialPlatformSchema))],
     },

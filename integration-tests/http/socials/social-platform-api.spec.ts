@@ -23,7 +23,7 @@
             name: "Test name"
           };
           const createResponse = await api.post(
-            "/admin/social-platform",
+            "/admin/social-platforms",
             createPayload,
             adminHeaders
           );
@@ -33,7 +33,7 @@
           expect(createdId).not.toBeNull();
   
           // 2. Get
-          const getResponse = await api.get(`/admin/social-platform/${createdId}`, adminHeaders);
+          const getResponse = await api.get(`/admin/social-platforms/${createdId}`, adminHeaders);
           expect(getResponse.status).toBe(200);
           
           expect(getResponse.data.socialPlatform.id).toEqual(createdId);
@@ -43,7 +43,7 @@
             name: "Updated name"
           };
           const updateResponse = await api.post(
-            `/admin/social-platform/${createdId}`,
+            `/admin/social-platforms/${createdId}`,
             updatePayload,
             adminHeaders
           );
@@ -51,13 +51,13 @@
           expect(updateResponse.data.socialPlatform.name).toEqual("Updated name");
   
           // 4. List
-          const listResponse = await api.get(`/admin/social-platform`, adminHeaders);
+          const listResponse = await api.get(`/admin/social-platforms`, adminHeaders);
           expect(listResponse.status).toBe(200);
           
           expect(listResponse.data.socialPlatforms).toBeInstanceOf(Array);
           
           // 5. Delete
-          const deleteResponse = await api.delete(`/admin/social-platform/${createdId}`, adminHeaders);
+          const deleteResponse = await api.delete(`/admin/social-platforms/${createdId}`, adminHeaders);
           expect(deleteResponse.status).toBe(200);
           expect(deleteResponse.data).toEqual({
             id: createdId,
@@ -66,7 +66,7 @@
           });
   
           // 6. Verify Deletion
-          await api.get(`/admin/social-platform/${createdId}`, adminHeaders).catch(err => {
+          await api.get(`/admin/social-platforms/${createdId}`, adminHeaders).catch(err => {
             expect(err.response.status).toBe(404);
           });
         });

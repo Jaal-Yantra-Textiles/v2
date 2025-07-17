@@ -45,6 +45,16 @@ export interface AdminCreatePerson {
   date_of_birth: Date | string | null;
 }
 
+export interface AddressInput {
+  street: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  latitude: number;
+  longitude: number
+}
+
 export interface Address {
   addresses?: AddressDetails[];
 }

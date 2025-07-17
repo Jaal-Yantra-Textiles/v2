@@ -1,4 +1,3 @@
-
 import { Container, Heading, Text, DataTable, useDataTable, CommandBar } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { PencilSquare } from "@medusajs/icons";
@@ -6,6 +5,7 @@ import { ActionMenu } from "../common/action-menu";
 import { useState, useEffect } from "react";
 import { PersonWithAddress } from "../../hooks/api/personandtype";
 import { toast } from "@medusajs/ui";
+import { useNavigate } from "react-router-dom";
 
 interface PersonsAddressSectionProps {
   person: PersonWithAddress;
@@ -27,16 +27,11 @@ export const PersonsAddressSection = ({ person }: PersonsAddressSectionProps) =>
     // Add actual delete API call when available
   };
 
+  const navigate = useNavigate();
+
   const handleEdit = () => {
-    // Implement edit functionality for selected address
-    const selectedAddressIds = Object.keys(selectedRows);
-    if (selectedAddressIds.length === 1) {
-      // Navigate to edit page or open edit modal for the selected address
-      toast.info(`Edit requested for address: ${selectedAddressIds[0]}`);
-      // Implement actual navigation/modal opening
-    } else {
-      toast.error('Please select only one address to edit');
-    }
+    const selectedId = Object.keys(selectedRows)[0];
+    navigate(`/persons/${person.id}/edit-address/${selectedId}`);
   };
 
   // Row selection handler
@@ -171,6 +166,7 @@ export const PersonsAddressSection = ({ person }: PersonsAddressSectionProps) =>
             action={handleEdit}
             label="Edit"
             shortcut="e"
+            disabled={Object.keys(selectedRows).length !== 1}
           />
           <CommandBar.Seperator />
           <CommandBar.Command

@@ -107,7 +107,7 @@ export const DynamicForm = <T extends FieldValues>({
   };
 
   const form = useForm<T>({
-    resolver: zodResolver(generateSchema()) as unknown as Resolver<T>,
+    resolver: zodResolver(generateSchema() as any) as unknown as Resolver<T>,
     defaultValues: computeDefaultValues(fields, defaultValues),
   });
   
@@ -126,7 +126,6 @@ export const DynamicForm = <T extends FieldValues>({
 
   const renderField = (field: FieldConfig<T>) => {
     const baseProps = {
-      key: field.name,
       control: form.control as Control<T>,
       name: field.name,
     };
@@ -279,42 +278,56 @@ export const DynamicForm = <T extends FieldValues>({
   };
 
   const formContent = (
-    <KeyboundForm
-      onSubmit={form.handleSubmit(onSubmit)}
-      className="flex flex-1 flex-col overflow-hidden"
-    >
-      {layout.showDrawer ? (
-        <RouteDrawer.Body className="flex flex-1 flex-col gap-y-8 overflow-y-auto">
-          {fields.map((field) => (
-            <div
-              key={field.name}
-              className={field.gridCols ? `col-span-${field.gridCols}` : ""}
-            >
-              {renderField(field)}
-            </div>
-          ))}
-        </RouteDrawer.Body>
-      ) : (
-        <div className="flex flex-1 flex-col gap-y-8">
-          {fields.map((field) => (
-            <div
-              key={field.name}
-              className={field.gridCols ? `col-span-${field.gridCols}` : ""}
-            >
-              {renderField(field)}
-            </div>
-          ))}
-        </div>
-      )}
-      
-      {layout.showDrawer ? (
-        <RouteDrawer.Footer>
-          <div className="flex items-center justify-end gap-x-2">
-            <RouteDrawer.Close asChild>
-              <Button size="small" variant="secondary">
-                {t("actions.cancel")}
+    <Form {...form}>
+      <KeyboundForm
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
+        {layout.showDrawer ? (
+          <RouteDrawer.Body className="flex flex-1 flex-col gap-y-8 overflow-y-auto">
+            {fields.map((field) => (
+              <div
+                key={field.name}
+                className={field.gridCols ? `col-span-${field.gridCols}` : ""}
+              >
+                {renderField(field)}
+              </div>
+            ))}
+          </RouteDrawer.Body>
+        ) : (
+          <div className="flex flex-1 flex-col gap-y-8">
+            {fields.map((field) => (
+              <div
+                key={field.name}
+                className={field.gridCols ? `col-span-${field.gridCols}` : ""}
+              >
+                {renderField(field)}
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {layout.showDrawer ? (
+          <RouteDrawer.Footer>
+            <div className="flex items-center justify-end gap-x-2">
+              <RouteDrawer.Close asChild>
+                <Button size="small" variant="secondary">
+                  {t("actions.cancel")}
+                </Button>
+              </RouteDrawer.Close>
+              <Button 
+                size="small" 
+                type="submit" 
+                isLoading={isPending}
+                disabled={!formDirty} // Disable when form is unchanged
+                title={!formDirty ? t("form.no_changes", "No changes to save") : ""}
+              >
+                {t("actions.save")}
               </Button>
-            </RouteDrawer.Close>
+            </div>
+          </RouteDrawer.Footer>
+        ) : (
+          <div className="mt-4 flex justify-end gap-x-2">
             <Button 
               size="small" 
               type="submit" 
@@ -325,21 +338,9 @@ export const DynamicForm = <T extends FieldValues>({
               {t("actions.save")}
             </Button>
           </div>
-        </RouteDrawer.Footer>
-      ) : (
-        <div className="mt-4 flex justify-end gap-x-2">
-          <Button 
-            size="small" 
-            type="submit" 
-            isLoading={isPending}
-            disabled={!formDirty} // Disable when form is unchanged
-            title={!formDirty ? t("form.no_changes", "No changes to save") : ""}
-          >
-            {t("actions.save")}
-          </Button>
-        </div>
-      )}
-    </KeyboundForm>
+        )}
+      </KeyboundForm>
+    </Form>
   );
 
   return layout.showDrawer ? (
