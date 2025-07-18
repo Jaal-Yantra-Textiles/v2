@@ -1,3 +1,5 @@
+## [6.0.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.0.0...v6.0.1) (2025-07-18)
+
 # [6.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.9.0...v6.0.0) (2025-07-18)
 
 
