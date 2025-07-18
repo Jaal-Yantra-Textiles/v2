@@ -1,3 +1,82 @@
+# [6.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.9.0...v6.0.0) (2025-07-18)
+
+
+### Bug Fixes
+
+* **Tiptap to HTML:** Convering Tiptap to HTML ([8f4280d](https://github.com/Jaal-Yantra-Textiles/v2/commit/8f4280db497a2cb60ac7fd14654b2da8d1fb39c1))
+* **Editor Files:** Files S3 List Complete Fix ([62a8e5d](https://github.com/Jaal-Yantra-Textiles/v2/commit/62a8e5d3f065d91fe359820ab874a28d1e3234ae))
+* Fixed all the stupid things that I did ([609e6c9](https://github.com/Jaal-Yantra-Textiles/v2/commit/609e6c9a36e856765c08c7345c74a86587ab8d9e))
+* **Mastra:** Fixed no type script check added ([4171e71](https://github.com/Jaal-Yantra-Textiles/v2/commit/4171e71d0a405cce3655d6eb36d00ff1e2722103))
+* **Package:** Fixed node js ([85a4195](https://github.com/Jaal-Yantra-Textiles/v2/commit/85a4195f9b6bb13e7b4024e08f993490be41ae45))
+* **Package:** fixed pacakage version ([c91e33b](https://github.com/Jaal-Yantra-Textiles/v2/commit/c91e33b8533c4afff7568fbc88a79888c47c130b))
+* **Package:** Fixed packages ([38262f7](https://github.com/Jaal-Yantra-Textiles/v2/commit/38262f7aaab7fb548a7219172be6fef78cf014dd))
+* **Services:** Fixed the Build Error where the service types were not defined ([aa50e46](https://github.com/Jaal-Yantra-Textiles/v2/commit/aa50e469c9ae1dd9b94ab071abe3f9fe09ffbd8e))
+* **Raw Material, Media Upload , Inventory Orders, Dynamic form bug:** Fixed the inventory orders, media upload on the raw material form, dynamic form bug fix ([c9ca6d5](https://github.com/Jaal-Yantra-Textiles/v2/commit/c9ca6d5ab574818761d4eb460aaa4472981cdec1))
+* **Partner:** Fixed the package files ([7497d1d](https://github.com/Jaal-Yantra-Textiles/v2/commit/7497d1dd0339cf44496267c77ac7f6f39a561c55))
+* **Package:** fixed the package version for the node ([d34bafa](https://github.com/Jaal-Yantra-Textiles/v2/commit/d34bafac77ee7f4f8e4e09812fa3eca656e3dc74))
+* Fixed the package.json ([f2aebb1](https://github.com/Jaal-Yantra-Textiles/v2/commit/f2aebb1b347321886990c7630456e1ff1ee08dcf))
+* **Editor Files:** Fixed the prefix on listing of all the files ([8cd7aec](https://github.com/Jaal-Yantra-Textiles/v2/commit/8cd7aec852bdc31fa02c7cd5e5951b3a4f252016))
+* **Editor files:** Fixed the prefix ([75fe722](https://github.com/Jaal-Yantra-Textiles/v2/commit/75fe722c48d68969fd111bf4e91a3019d85ed563))
+* **S3:** Fixed the S3 Listing feature ([9f2e750](https://github.com/Jaal-Yantra-Textiles/v2/commit/9f2e750dd31be9f1f1d69a20429335d2e7378f15))
+* general file cleanup ([8fbc007](https://github.com/Jaal-Yantra-Textiles/v2/commit/8fbc0072fbf2d72df952718a8ea32988339b3b70))
+* **Git:** Git messed up everything since we didnt pull before ([13a357c](https://github.com/Jaal-Yantra-Textiles/v2/commit/13a357cd8789120427a2e2ef1f587bf83afe8ddb))
+* **GIT:** git pull conflict fix ([b76daf1](https://github.com/Jaal-Yantra-Textiles/v2/commit/b76daf10c49ae6639f184a2f819516b18d3837ee))
+* **Editor Files:** List all files was throwing an error on the specified key does not exist ([6359053](https://github.com/Jaal-Yantra-Textiles/v2/commit/63590535ab8c066f9f3d599c494bbf40763b26cf))
+* **Migration:** Migration script failing on production fixed a patch for Migration20250417085315 ([eb81ed0](https://github.com/Jaal-Yantra-Textiles/v2/commit/eb81ed0dcc176b90f1da16d4adb31d27470bd89e))
+* **Migration:** Migration script fix inside the social post ([bfdcc76](https://github.com/Jaal-Yantra-Textiles/v2/commit/bfdcc76e6d202e425cd7917a0bee54ea66488906))
+* **Design Moodboard:** Moodboard on save ([b949df8](https://github.com/Jaal-Yantra-Textiles/v2/commit/b949df82418705fe0224e79d5f29032b99bfbfe4))
+* **UI,API:** Moodboard save, create manual design ([3b7c18f](https://github.com/Jaal-Yantra-Textiles/v2/commit/3b7c18f335db5be3d851fc1e70a28c9412cd7d2a))
+* **package:** Package fix for the vite ([01fce7f](https://github.com/Jaal-Yantra-Textiles/v2/commit/01fce7f32d6fa6b696f7d6a4001b91a38f4143e9))
+* **Persons Import:** PI , feature with other data model types ([b608cac](https://github.com/Jaal-Yantra-Textiles/v2/commit/b608cac19f882f4eeade3835caeabcae8f00a5e7))
+* Removing DS_store ([f8cea0a](https://github.com/Jaal-Yantra-Textiles/v2/commit/f8cea0aeabad38f760dfeda01f01413a961e4cd7))
+* **WEB:** RouteFocusModal top level missing on top of the editwebsite modal ([9098afa](https://github.com/Jaal-Yantra-Textiles/v2/commit/9098afa043cb4da82204cb601c48e8e9e51d7068))
+* **Modules:** Social and Social Providers Modules Resolution Fixed ([616c9e2](https://github.com/Jaal-Yantra-Textiles/v2/commit/616c9e246a69c7cbf51c2f16fbaf863a167a9f68))
+* **WEB:** The blog had some issue when rendering on the condtion ([00d44a9](https://github.com/Jaal-Yantra-Textiles/v2/commit/00d44a95bcb621d017f024b32699f71cd8a39621))
+* **AUTH:** user suspension logic check ([2a9728f](https://github.com/Jaal-Yantra-Textiles/v2/commit/2a9728f9f10279affa8383d881516102883bf636))
+* **WEB:** Workflow execution takes behind the scenes now ([de255d1](https://github.com/Jaal-Yantra-Textiles/v2/commit/de255d1fc450638002eb4a08b4dd9df47a913eff))
+
+
+### Features
+
+* **Social:** Capability to generate post and publish them on the social medias like x, facebook and etc ([fead8b1](https://github.com/Jaal-Yantra-Textiles/v2/commit/fead8b1b747bd936fa1722ed68cfc38b003b2533))
+* **API:** Category API route for content ([37a8c8a](https://github.com/Jaal-Yantra-Textiles/v2/commit/37a8c8a3985c12320034c6522e32496928f4beaa))
+* Design Canvas and Task from Templates Feature ([d601ba4](https://github.com/Jaal-Yantra-Textiles/v2/commit/d601ba4fc3e7e5b62019b33ecadbf8717457adcd))
+* **SCRIPT:** Fixed the script to generate Modules, Models, Workflows, API, and tests also. ([727e7ae](https://github.com/Jaal-Yantra-Textiles/v2/commit/727e7ae53ef74edb883e23bc5f5c48eb5f7cf12e))
+* Inventory Order Scope for Warehouse ([1dca91f](https://github.com/Jaal-Yantra-Textiles/v2/commit/1dca91f94a125a4ae985d3150e27ac7eadc424bd))
+* **INO:** Inventory orders can now handle the sample orders ([a95bda0](https://github.com/Jaal-Yantra-Textiles/v2/commit/a95bda0523fc3ad933db94a00c0118c62f88238f))
+* **INVO:** Inventory Orders has now tasks that outline the status on the inventory orders ([ff25d80](https://github.com/Jaal-Yantra-Textiles/v2/commit/ff25d80636bb2adf8b4c4c99cc6bcbdad90499f2))
+* **FILE:** List all files directly through S3 alongside the file through an API ([e741282](https://github.com/Jaal-Yantra-Textiles/v2/commit/e741282746b6cef88251489a8aac4a412070ca1c))
+* **Email Test:** Now, you can test email a single person to check if the email will go right or not ([0bc5223](https://github.com/Jaal-Yantra-Textiles/v2/commit/0bc5223ae28b13f40ff3053eeda9b079a5f9bca4))
+* **Send to Subscriber:** Now,we can send emails to subscriber ([296b78e](https://github.com/Jaal-Yantra-Textiles/v2/commit/296b78ee0ab0bea3d48d82a79024510832c141f6))
+* **Partner:** Partner UI added horray ([4573889](https://github.com/Jaal-Yantra-Textiles/v2/commit/4573889487de6c570570f1de3561bd47817b1bc3))
+* **PP:** Public Persons API ([b002a0d](https://github.com/Jaal-Yantra-Textiles/v2/commit/b002a0d6fe0c426c203cc29497f6db525c7f4bf6))
+* **SCRIPT:** Script that can generate models, workflow, API and modules are in place. ([b0fb1bb](https://github.com/Jaal-Yantra-Textiles/v2/commit/b0fb1bbc3c18d2259b8fb4237a73091118be2fcf))
+* **Email:** Send Email to Single Subscriber before sending to all ([20f7cb3](https://github.com/Jaal-Yantra-Textiles/v2/commit/20f7cb3d2ad8a06cfde172b29bcbfef98e9283f3))
+* **Map:** Showing people with geocoding on the map view ([e5355b7](https://github.com/Jaal-Yantra-Textiles/v2/commit/e5355b7e31cc0d0e7fb1d74d4d1c4badf620ef29))
+* **Payment:** Stripe Payment Update ([a2840ea](https://github.com/Jaal-Yantra-Textiles/v2/commit/a2840ea2f8679abd0295cf827074d7813ad8ece5))
+* **Task templates:** Task templates in design section ([541b800](https://github.com/Jaal-Yantra-Textiles/v2/commit/541b800f3fcf6904d26b4c1dfa93cb77a824c8b7))
+* **TE:** Texteditor can now make calls and provide input from the API such as how many number of persons do we have and etc. ([2645929](https://github.com/Jaal-Yantra-Textiles/v2/commit/26459299280685ab8554cd60d34e4e6127fe0888))
+* **SCRIPT:** The script lets us generate modules and models on the fly you can now issue an command such as npx medusa exec ./src/scripts/create-module.ts socials, or npx ts-node src/scripts/generate-model.ts socials sma platform:string access_token:string ([6591ab0](https://github.com/Jaal-Yantra-Textiles/v2/commit/6591ab085745cc89ed400bc71b12569c345427e6))
+* **Social:** We have fully integrated the twitter OAUTH using the social providers ([7393da9](https://github.com/Jaal-Yantra-Textiles/v2/commit/7393da99092e6300b5b95ca27a85733b315c7b08))
+* **Person:** Web api for publically loading the weavers and people ([340d018](https://github.com/Jaal-Yantra-Textiles/v2/commit/340d01823e947c5107b85642bd171c8fbd6ea812))
+
+
+### Performance Improvements
+
+* **Build:** performance on build ([346eb02](https://github.com/Jaal-Yantra-Textiles/v2/commit/346eb02462e6ea8ac3ff163abe58a23914e2e541))
+* Performance upgrade on UI and API ([15c7241](https://github.com/Jaal-Yantra-Textiles/v2/commit/15c724157ebcac5b3ee6a715928c0aa8c061d777))
+
+
+### Tests
+
+* **Test:** Fixed the testing issues finally ([8c48266](https://github.com/Jaal-Yantra-Textiles/v2/commit/8c48266a01e2a798b626b8d36f1eaff5efffa263))
+
+
+### BREAKING CHANGES
+
+* **Test:** None
+* **Social:**
+
 # [5.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.7.0...v5.8.0) (2025-06-16)
 
 
