@@ -9,6 +9,15 @@ NC='\033[0m' # No Color
 # Get current branch
 current_branch=$(git branch --show-current)
 
+# Rebase with remote branch to avoid merge conflicts
+echo -e "\n${BLUE}Updating local branch with remote changes (rebase)...${NC}"
+git pull --rebase
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Rebase failed. Please resolve conflicts and try again.${NC}"
+    exit 1
+fi
+
 # Check for unpushed commits
 unpushed_commits=$(git log @{u}..HEAD --oneline 2>/dev/null)
 commit_count=$(echo "$unpushed_commits" | grep -c "^")

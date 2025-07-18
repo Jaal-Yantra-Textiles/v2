@@ -112,7 +112,7 @@ We prioritize thorough testing to ensure reliability:
 
 Run tests with:  
 ```bash
-yarn test
+test:integration:http
 ```
 
 ---
