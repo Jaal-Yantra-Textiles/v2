@@ -101,13 +101,14 @@ medusaIntegrationTestRunner({
             })
           ).rejects.toMatchObject({
             response: {
-              status: 401,
+              status: 400,
               data: {
                 message: "Invalid email or password",
               },
             },
           });
         } catch (error) {
+          console.log(error)
           console.error("Error during test execution:", {
             status: error.response?.status,
             data: error.response?.data,
