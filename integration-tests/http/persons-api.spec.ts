@@ -715,11 +715,10 @@ medusaIntegrationTestRunner({
           updatedContact,
           headers
         );
-        
+        console.log(response.data)
         expect(response.status).toBe(200);
-        expect(response.data.person).toBeDefined();
-        const updatedContactFromServer = response.data.person.contacts.find(c => c.id === contactId);
-        expect(updatedContactFromServer).toMatchObject({
+        expect(response.data.contact).toBeDefined();
+        expect(response.data.contact).toMatchObject({
           ...updatedContact,
           id: contactId,
           person_id: personId,

@@ -55,6 +55,7 @@ export const POST = async (
       req.scope,
     );
 
+
     res.status(200).json({ contact: updatedContact });
   } catch (error) {
     res.status(400).json({ error: error.message });

@@ -65,6 +65,7 @@ const geocodeAddressStep = createStep(
       }
     } catch (error) {
       console.error("Geocoding error:", error);
+      return new StepResponse({ lat: null, lon: null });
     }
    
     return new StepResponse({ lat: null, lon: null });
