@@ -29,6 +29,7 @@ const listPublicPersonsStep = createStep(
             "addresses.longitude",
             "addresses.address_1",
             "addresses.city",
+            "public_metadata.*"
         ]
         const { data, metadata } = await query.graph({
             entity: "person",
