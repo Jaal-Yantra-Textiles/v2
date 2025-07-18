@@ -20,7 +20,8 @@ const Design = model.define("design", {
     "Revision",
     "Approved",
     "Rejected",
-    "On_Hold"
+    "On_Hold",
+    "Commerce_Ready"
   ]).default("Conceptual"),
   priority: model.enum([
     "Low",

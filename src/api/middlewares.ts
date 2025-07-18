@@ -53,6 +53,7 @@ import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatf
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
 import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/confirm/validators";
 import { listPublicPersonsQuerySchema } from "./web/persons/validators";
+import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id]/linkDesign/validators";
 
 
 
@@ -492,6 +493,16 @@ export default defineMiddlewares({
       matcher: "/web/persons",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(listPublicPersonsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/products/:id/linkDesign",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(LinkDesignValidator))],
+    },
+    {
+      matcher: "/admin/products/:id/unlinkDesign",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UnlinkDesignValidator))],
     }
   ],
   errorHandler: ((

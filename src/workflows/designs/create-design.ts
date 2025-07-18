@@ -10,7 +10,7 @@ import { DESIGN_MODULE } from "../../modules/designs";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
 type DesignType = "Original" | "Derivative" | "Custom" | "Collaboration";
-type DesignStatus = "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold";
+type DesignStatus = "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold" | "Commerce_Ready";
 type PriorityLevel = "Low" | "Medium" | "High" | "Urgent";
 
 type CreateDesignStepInput = {
@@ -35,7 +35,6 @@ type CreateDesignStepInput = {
 export const createDesignStep = createStep(
   "create-design-step",
   async (input: CreateDesignStepInput, { container }) => {
-    const link = container.resolve(ContainerRegistrationKeys.LINK);
     const designService: DesignService = container.resolve(DESIGN_MODULE);
     const design = await designService.createDesigns(input);
     return new StepResponse(design, design.id);

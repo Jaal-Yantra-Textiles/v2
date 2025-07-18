@@ -28,7 +28,8 @@ export const designSchema = z.object({
     "Revision",
     "Approved",
     "Rejected",
-    "On_Hold"
+    "On_Hold",
+    "Commerce_Ready"
   ]).optional(),
   priority: z.enum(["Low", "Medium", "High", "Urgent"]).optional(),
   target_completion_date: z.union([z.date(), z.string().datetime()]).optional().transform((val) => {

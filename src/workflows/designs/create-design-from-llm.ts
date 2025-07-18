@@ -97,7 +97,6 @@ export const generateDesignDataStep = createStep(
 export const createDesignFromDataStep = createStep(
   "create-design-from-data-step",
   async (input: Record<string, any>, { container }) => {
-    const link = container.resolve(ContainerRegistrationKeys.LINK);
     const designService: DesignService = container.resolve(DESIGN_MODULE);
     
     // Process the input data to match the design model

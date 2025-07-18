@@ -74,7 +74,8 @@
             "Revision",
             "Approved",
             "Rejected",
-            "On_Hold"
+            "On_Hold",
+            "Commerce_Ready"
           ],
           "mappedType": "enum"
         },
