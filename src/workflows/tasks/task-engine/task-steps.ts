@@ -21,6 +21,7 @@ import { runTaskAssignmentWorkflow } from "../run-task-assignment";
         Modules.WORKFLOW_ENGINE
       )
       console.log("updateTask", updatedTask, runTaskAssignmentWorkflow.getName())
+      console.log("updatedTask", updatedTask.transaction_id)
       await engineService.setStepSuccess({
         idempotencyKey: {
           action: TransactionHandlerType.INVOKE,

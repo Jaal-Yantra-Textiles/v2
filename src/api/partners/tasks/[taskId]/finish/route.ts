@@ -30,12 +30,12 @@ export async function POST(
     const setStepSuccess = await setStepSuccessWorkflow(req.scope).run({
         input: {
             stepId: 'await-task-finish',
-            updatedTask: result
+            updatedTask: result[0]
         }
     })
     
     res.status(200).json({ 
-        task: result,
+        task: result[0],
     })
 
 }

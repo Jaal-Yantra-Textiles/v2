@@ -73,19 +73,19 @@ medusaIntegrationTestRunner({
       expect(triggerResponse.data.summary.count).toBe(1)
 
       const transactionId = triggerResponse.data.transaction_id
-
+      console.log(transactionId)
       // Confirm the workflow is waiting
       const executionResponse = await api.get(
-        `/admin/workflows-executions/geocode-all-addresses/${transactionId}`,
+        `/admin/workflows-executions/backfill-all-geocodes/${transactionId}`,
         headers
       )
-
+      console.log(executionResponse.data)
       expect(executionResponse.data.workflow_execution.state).toBe("invoking")
 
       // Send the confirmation
       const confirmResponse = await api.post(
         `/admin/persons/geocode-addresses/${transactionId}/confirm`,
-        {},
+        {workflow_id: 'backfill-all-geocodes', step_id: "wait-confirmation-backfill-geocodes"},
         headers
       )
       expect(confirmResponse.status).toBe(200)

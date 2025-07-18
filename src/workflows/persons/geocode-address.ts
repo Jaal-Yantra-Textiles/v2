@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/utils"
 import { PERSON_MODULE } from "../../modules/person";
 import { InferTypeOf } from "@medusajs/framework/types";
 import PersonAddress  from "../../modules/person/models/person_address"
+import PersonService from "../../modules/person/service";
 export type PersonAddress = InferTypeOf<typeof PersonAddress>
 
 interface GeocodeAddressWorkflowInput {
@@ -76,7 +77,7 @@ const updateAddressStep = createStep(
     if (input.lat === null || input.lon === null) {
       return new StepResponse({ success: false });
     }
-    const personService = container.resolve(PERSON_MODULE)
+    const personService: PersonService = container.resolve(PERSON_MODULE)
     await personService.updateAddresses([{
       id: input.address_id,
       latitude: input.lat,

@@ -24,16 +24,12 @@ const listPublicPersonsStep = createStep(
             "id",
             "first_name",
             "last_name",
-            "email",
+            "bio",
             "addresses.latitude",
             "addresses.longitude",
             "addresses.address_1",
             "addresses.city",
-            "addresses.postal_code",
-            "person_type.name",
-            "metadata.*"
         ]
-
         const { data, metadata } = await query.graph({
             entity: "person",
             fields: fields,
@@ -44,7 +40,7 @@ const listPublicPersonsStep = createStep(
             },
             withDeleted: input.withDeleted
         })
-        
+
         return new StepResponse({ data, metadata })
     }
 )

@@ -469,9 +469,13 @@ medusaIntegrationTestRunner({
             updated_at: expect.any(String),
             person_id: personId,
             deleted_at: null,
+            latitude: null,
+            longitude: null,
+            raw_latitude: null,
+            raw_longitude: null,
             person: {
-              id: personId
-            }
+              id: personId,
+            },
           });
         });
       });
@@ -713,7 +717,9 @@ medusaIntegrationTestRunner({
         );
         
         expect(response.status).toBe(200);
-        expect(response.data.contact).toMatchObject({
+        expect(response.data.person).toBeDefined();
+        const updatedContactFromServer = response.data.person.contacts.find(c => c.id === contactId);
+        expect(updatedContactFromServer).toMatchObject({
           ...updatedContact,
           id: contactId,
           person_id: personId,
