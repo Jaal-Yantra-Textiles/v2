@@ -7,6 +7,7 @@ import InventoryOrderLinesSection from "../../../../components/inventory-orders/
 import InventoryOrderStockLocation from "../../../../components/inventory-orders/inventory-order-stock-location";
 import { InventoryOrderTasksSection } from "../../../../components/inventory-orders/inventory-order-tasks-section";
 import { inventoryOrderLoader } from "./loader";
+import InventoryOrderIDSection from "../../../../components/inventory-orders/inventory-order-general-orderId";
 
 const InventoryOrderDetailPage = () => {
   const intialData = useLoaderData() as Awaited<ReturnType<typeof inventoryOrderLoader>>
@@ -31,6 +32,7 @@ const InventoryOrderDetailPage = () => {
     
     <TwoColumnPage data={inventoryOrder} hasOutlet={true} showJSON showMetadata={true} >
       <TwoColumnPage.Main>
+      <InventoryOrderIDSection inventoryOrder={inventoryOrder} />
       <InventoryOrderGeneralSection inventoryOrder={inventoryOrder} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>

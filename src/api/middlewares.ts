@@ -48,13 +48,16 @@ import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingle
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
+import { createStoreSchema, updateStoreSchema, listStoresQuerySchema, getStoreQuerySchema } from "./admin/stores/validators";
+import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
+import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
 import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/confirm/validators";
 import { listPublicPersonsQuerySchema } from "./web/persons/validators";
 import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id]/linkDesign/validators";
-
+import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partner/validators";
 
 
 // Utility function to create CORS middleware with configurable options
@@ -133,6 +136,36 @@ export default defineMiddlewares({
     },
     {
       matcher: "/partners/tasks/:taskId/accept",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Inventory Orders APIs
+    {
+      matcher: "/partners/inventory-orders",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(wrapSchema(listInventoryOrdersQuerySchema), {}),
+      ],
+    },
+    {
+      matcher: "/partners/inventory-orders/:orderId",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/inventory-orders/:orderId/start",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/inventory-orders/:orderId/complete",
       method: "POST",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
@@ -264,6 +297,21 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders/:id/tasks",
       method: 'POST',
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostInventoryOrderTasksReq))],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/tasks/:taskId",
+      method: 'POST',
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateInventoryOrderTask))],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/send-to-partner",
+      method: 'POST',
+      middlewares: [validateAndTransformBody(wrapSchema(sendToPartnerSchema))],
+    },
+    {
+      matcher: "/admin/persons/partner",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminGetPartnersParamsSchema), {})],
     },
     {
       matcher: "/admin/designs",
@@ -503,7 +551,14 @@ export default defineMiddlewares({
       matcher: "/admin/products/:id/unlinkDesign",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UnlinkDesignValidator))],
-    }
+    },
+    // Store management APIs
+
+    {
+      matcher: "/admin/stores",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(createStoreSchema))],
+    },
   ],
   errorHandler: ((
     error: any, // or whatever type you prefer

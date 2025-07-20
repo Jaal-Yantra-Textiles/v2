@@ -20,8 +20,6 @@ import { runTaskAssignmentWorkflow } from "../run-task-assignment";
       const engineService = container.resolve(
         Modules.WORKFLOW_ENGINE
       )
-      console.log("updateTask", updatedTask, runTaskAssignmentWorkflow.getName())
-      console.log("updatedTask", updatedTask.transaction_id)
       await engineService.setStepSuccess({
         idempotencyKey: {
           action: TransactionHandlerType.INVOKE,
@@ -53,8 +51,6 @@ import { runTaskAssignmentWorkflow } from "../run-task-assignment";
         Modules.WORKFLOW_ENGINE
       )
 
-      console.log("updateTask", updateTask, runTaskAssignmentWorkflow.getName())
-  
       await engineService.setStepFailure({
         idempotencyKey: {
           action: TransactionHandlerType.INVOKE,

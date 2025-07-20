@@ -42,7 +42,7 @@ export const getAllInventoryWithRawMaterial = async (
   const { data } = await query.graph({
     entity: RawMaterialInventoryLink.entryPoint,
     fields: ["*", "raw_materials.*", "inventory_item.*"],
-    filters,
+    filters
   })
   return data
 }

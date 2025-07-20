@@ -1,9 +1,10 @@
 import { Plus, Eye } from "@medusajs/icons";
-import { Container, Heading, Skeleton, Text } from "@medusajs/ui";
-import { useNavigate } from "react-router-dom";
+import { Container, Heading, Text, Skeleton } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
-import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { AdminInventoryOrder } from "../../hooks/api/inventory-orders";
+import { formatDistanceToNow } from "date-fns";
 import { ActionMenu } from "../common/action-menu";
 
 interface InventoryOrderTask {
@@ -20,6 +21,53 @@ interface InventoryOrderTasksSectionProps {
   inventoryOrder: AdminInventoryOrder;
 }
 
+interface TaskTimelineProps {
+  tasks: InventoryOrderTask[];
+  inventoryOrderId: string;
+}
+
+const TaskTimeline = ({ tasks, inventoryOrderId }: TaskTimelineProps) => {
+  const navigate = useNavigate();
+
+  return (
+    <div className="flex flex-col gap-y-0.5">
+      {tasks.map((task, idx, arr) => {
+        const isLast = idx === arr.length - 1;
+        const link = `/inventory/orders/${inventoryOrderId}/tasks/${task.id}`;
+        return (
+          <div key={task.id} className="grid grid-cols-[20px_1fr] items-start gap-2">
+            <div className="flex size-full flex-col items-center gap-y-0.5">
+              <div className="flex size-5 items-center justify-center">
+                <div className="bg-ui-bg-base shadow-borders-base flex size-2.5 items-center justify-center rounded-full">
+                  <div className="bg-ui-tag-neutral-icon size-1.5 rounded-full" />
+                </div>
+              </div>
+              {!isLast && <div className="bg-ui-border-base w-px flex-1" />}
+            </div>
+            <div className={`${!isLast ? 'pb-4' : ''} cursor-pointer`} onClick={() => navigate(link)}>
+              <div className="flex items-center justify-between">
+                <Text size="small" leading="compact" weight="plus">
+                  {task.title || `Task ${task.id.substring(0, 6)}`}
+                </Text>
+                {task.created_at && (
+                  <Text size="small" leading="compact" className="text-ui-fg-subtle text-right">
+                    {formatDistanceToNow(new Date(task.created_at))}
+                  </Text>
+                )}
+              </div>
+              {task.status && (
+                <Text size="small" className="text-ui-fg-subtle capitalize mt-1">
+                  {task.status}
+                </Text>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export const InventoryOrderTasksSection = ({ inventoryOrder }: InventoryOrderTasksSectionProps) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -28,39 +76,13 @@ export const InventoryOrderTasksSection = ({ inventoryOrder }: InventoryOrderTas
   const tasks: InventoryOrderTask[] = (inventoryOrder.tasks || []) as any;
   const isLoading = !inventoryOrder.tasks;
 
-  const completedTasks = useMemo(() => tasks.filter((t) => t.status === "completed").length, [tasks]);
-  const totalTasks = tasks.length;
-  const percentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
   return (
-    <Container className="p-0">
+    <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-x-4">
           <Heading level="h2">{t("Activities")}</Heading>
         </div>
         <div className="flex items-center gap-x-4">
-          {/* progress circle */}
-          <div className="relative w-9 h-9 flex items-center justify-center">
-            <svg className="absolute w-full h-full" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="16" fill="none" stroke="#e5e7eb" strokeWidth="3" />
-              {totalTasks > 0 && (
-                <circle
-                  cx="18" cy="18"
-                  r="16"
-                  fill="none"
-                  stroke="#4f46e5"
-                  strokeWidth="3"
-                  strokeDasharray={`${percentage} 100`}
-                  strokeLinecap="round"
-                  transform="rotate(-90 18 18)"
-                />
-              )}
-            </svg>
-            <Text className="text-[10px] font-medium z-10">
-              {completedTasks}/{totalTasks}
-            </Text>
-          </div>
-
           <ActionMenu
             groups={[
               {
@@ -81,66 +103,29 @@ export const InventoryOrderTasksSection = ({ inventoryOrder }: InventoryOrderTas
           />
         </div>
       </div>
-      {isLoading ? (
-        <Skeleton className="h-6 w-full" />
-      ) : (
-        <div className="flow-root py-1 px-1 pb-2 ">
-          {tasks.length === 0 ? (
-            <div className="w-full py-6 flex justify-center">
-              <Text className="text-ui-fg-subtle">{t("No tasks found")}</Text>
-            </div>
-          ) : (
-            <ul role="list" className="-mb-8">
-              {tasks
-                .slice(0, isExpanded ? tasks.length : 5)
-                .map((task, idx, arr) => {
-                  const isLast = idx === arr.length - 1;
-                  const link = `/inventory/orders/${inventoryOrder.id}/tasks/${task.id}`;
-                  return (
-                    <li key={task.id}>
-                      <div className="relative pb-8">
-                        {!isLast && (
-                          <span className="absolute top-4 left-4 -ml-px h-full border-l border-dashed border-ui-border-muted" aria-hidden="true" />
-                        )}
-                        <div className="relative flex space-x-3 pl-2">
-                          <div>
-                            <span className="flex size-5 items-center justify-center rounded-full bg-ui-bg-component ring-8 ring-white shadow-elevation-card-rest">
-                              {/* dot */}
-                              <span className="size-2 rounded-full bg-ui-fg-muted" />
-                            </span>
-                          </div>
-                          <div className="flex min-w-0 flex-1 space-x-4 pt-1.5 cursor-pointer" onClick={() => navigate(link)}>
-                            <div>
-                              <p className="text-sm text-ui-fg-base font-medium truncate">
-                                {task.title || `Activity ${task.id.substring(0, 6)}`}
-                              </p>
-                              {task.status && (
-                                <p className="text-xs text-ui-fg-subtle capitalize mb-0.5">{task.status}</p>
-                              )}
-                              {task.created_at && (
-                                <time dateTime={task.created_at} className="text-xs text-ui-fg-subtle">
-                                  {new Date(task.created_at).toLocaleDateString()}
-                                </time>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-            </ul>
-          )}
-          {tasks.length > 5 && (
-            <button
-              className="mt-1 text-ui-fg-muted hover:text-ui-fg-base txt-small"
-              onClick={() => setIsExpanded((p) => !p)}
-            >
-              {isExpanded ? t("Show less") : t("Show more")}
-            </button>
-          )}
-        </div>
-      )}
+      <div className="px-6 py-4">
+        {isLoading ? (
+          <Skeleton className="h-6 w-full" />
+        ) : (
+          <div>
+            {tasks.length === 0 ? (
+              <div className="w-full py-6 flex justify-center">
+                <Text className="text-ui-fg-subtle">{t("No tasks found")}</Text>
+              </div>
+            ) : (
+              <TaskTimeline tasks={tasks} inventoryOrderId={inventoryOrder.id} />
+            )}
+            {tasks.length > 5 && (
+              <button
+                className="mt-4 text-ui-fg-muted hover:text-ui-fg-base txt-small"
+                onClick={() => setIsExpanded((p) => !p)}
+              >
+                {isExpanded ? t("Show less") : t("Show more")}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </Container>
   );
 };

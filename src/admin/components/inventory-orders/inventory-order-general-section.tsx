@@ -1,21 +1,10 @@
-import { Container, Heading, Text, StatusBadge, toast, usePrompt } from "@medusajs/ui";
-import { PencilSquare, Trash } from "@medusajs/icons";
+import { Container, Heading, Text, toast, usePrompt } from "@medusajs/ui";
+import { PencilSquare, Trash, ArrowUpRightOnBox } from "@medusajs/icons";
 import { useNavigate } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
 import { AdminInventoryOrder, useDeleteInventoryOrder } from "../../hooks/api/inventory-orders";
 
-const orderStatusColor = (status: string) => {
-  switch (status) {
-    case "pending":
-      return "orange";
-    case "completed":
-      return "green";
-    case "cancelled":
-      return "red";
-    default:
-      return "grey";
-  }
-};
+
 
 export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrder: AdminInventoryOrder }) => {
   const prompt = usePrompt();
@@ -48,12 +37,13 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
-        <Heading>{`Order #${inventoryOrder.id}`}</Heading>
+        <Heading level="h2">{`Summary`}</Heading>
         <ActionMenu
           groups={[
             {
               actions: [
                 { label: "Edit", icon: <PencilSquare />, to: "edit" },
+                { label: "Send to Partner", icon: <ArrowUpRightOnBox />, to: "send-to-partner" },
               ],
             },
             {
@@ -63,14 +53,6 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
             },
           ]}
         />
-      </div>
-      <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
-        <Text size="small" weight="plus">Status</Text>
-        <div className="flex items-center">
-          <StatusBadge color={orderStatusColor(inventoryOrder.status)}>
-            {inventoryOrder.status}
-          </StatusBadge>
-        </div>
       </div>
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" weight="plus">Quantity</Text>
