@@ -5,6 +5,8 @@ import { ORDER_INVENTORY_MODULE } from "../../../../../modules/inventory_orders"
 import InventoryOrderService from "../../../../../modules/inventory_orders/service";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { refetchPartnerForThisAdmin } from "../../../helpers";
+import { TASKS_MODULE } from "../../../../../modules/tasks";
+import TaskService from "../../../../../modules/tasks/service";
 
 export async function POST(
     req: AuthenticatedMedusaRequest,
@@ -40,8 +42,37 @@ export async function POST(
         });
     }
     
-    // Get the workflow transaction ID from metadata
-    const transactionId = order.metadata?.partner_workflow_transaction_id;
+    // Get the workflow transaction ID from associated tasks instead of metadata
+    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    
+    // Find tasks linked to this inventory order that have a transaction ID
+    const taskLinksResult = await query.graph({
+        entity: "inventory_orders",
+        fields: [
+            "id",
+            "tasks.*"
+        ],
+        filters: {
+            id: orderId
+        }
+    })
+    
+    const taskLinks = taskLinksResult.data || []
+    
+    // Find a task with a transaction ID (should be one of the partner workflow tasks)
+    let transactionId: string | null = null
+    for (const order of taskLinks) {
+        if (order.tasks && Array.isArray(order.tasks)) {
+            for (const task of order.tasks) {
+                if (task && task.transaction_id) {
+                    transactionId = task.transaction_id
+                    break
+                }
+            }
+            if (transactionId) break
+        }
+    }
+    
     if (!transactionId) {
         return res.status(400).json({
             error: "Order is not assigned to a partner workflow"
@@ -72,6 +103,47 @@ export async function POST(
         });
     }
     
+    // Mark the "received" task as completed to update partner status
+    const taskService: TaskService = req.scope.resolve(TASKS_MODULE);
+    
+    // Find and update the "partner-order-received" task from the tasks we already retrieved
+    const receivedTaskName = "partner-order-received";
+    let tasksToUpdate: any[] = [];
+    
+    console.log("Looking for tasks to update with name:", receivedTaskName);
+    console.log("TaskLinks data:", JSON.stringify(taskLinks, null, 2));
+    
+    // Extract tasks from the taskLinks result
+    for (const orderData of taskLinks) {
+        if (orderData.tasks && Array.isArray(orderData.tasks)) {
+            console.log("Found tasks in order:", orderData.tasks.map((t: any) => ({ id: t.id, title: t.title, status: t.status })));
+            const receivedTasks = orderData.tasks.filter((task: any) => 
+                task.title === receivedTaskName && task.status !== 'completed'  // ✅ Use task.title instead of task.name
+            );
+            console.log("Filtered received tasks:", receivedTasks.map((t: any) => ({ id: t.id, title: t.title, status: t.status })));
+            tasksToUpdate.push(...receivedTasks);
+        }
+    }
+    
+    console.log("Total tasks to update:", tasksToUpdate.length);
+    
+    if (tasksToUpdate.length > 0) {
+        for (const task of tasksToUpdate) {
+            console.log(`Updating task ${task.id} (${task.name}) from ${task.status} to completed`);
+            await taskService.updateTasks({
+                id: task.id,
+                status: 'completed',
+                metadata: {
+                    ...task.metadata,
+                    completed_at: new Date().toISOString(),
+                    completed_by: 'partner'
+                }
+            });
+            console.log(`Task ${task.id} updated successfully`);
+        }
+    } else {
+        console.log("No tasks found to update - this might be the issue!");
+    }
     
     // Signal the workflow that the order has been started
     // Use result[0] from updateWorkflow, matching task pattern exactly

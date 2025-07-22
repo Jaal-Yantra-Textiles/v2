@@ -1,9 +1,12 @@
 import {
+    ContainerRegistrationKeys,
     Modules,
     TransactionHandlerType,
 } from "@medusajs/framework/utils"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { sendInventoryOrderToPartnerWorkflow } from "./send-to-partner";
+
+const TASKS_MODULE = "tasksModuleService"
 
 type SetInventoryOrderStepSuccessInput = {
     stepId: string;
@@ -21,11 +24,40 @@ export const setInventoryOrderStepSuccessStep = createStep(
             Modules.WORKFLOW_ENGINE
         )
         
-        // Get the workflow transaction ID from the order metadata
-        const workflowTransactionId = updatedOrder.metadata?.partner_workflow_transaction_id;
+        // Get the workflow transaction ID from associated tasks instead of order metadata
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        
+        // Find tasks linked to this inventory order that have a transaction ID
+        const taskLinksResult = await query.graph({
+            entity: "inventory_orders",
+            fields: [
+                "id",
+                "inventory_order_id",
+                "tasks.*"
+            ],
+            filters: {
+                id: updatedOrder.id
+            }
+        })
+        console.log("taskLinksResult", taskLinksResult.data[0].tasks)
+        const taskLinks = taskLinksResult.data || []
+        
+        // Find a task with a transaction ID (should be one of the partner workflow tasks)
+        let workflowTransactionId: string | null = null
+        for (const order of taskLinks) {
+            if (order.tasks && Array.isArray(order.tasks)) {
+                for (const task of order.tasks) {
+                    if (task && task.transaction_id) {
+                        workflowTransactionId = task.transaction_id
+                        break
+                    }
+                }
+                if (workflowTransactionId) break
+            }
+        }
         
         if (!workflowTransactionId) {
-            throw new Error("No workflow transaction ID found in order metadata");
+            throw new Error(`No workflow transaction ID found in tasks for inventory order ${updatedOrder.id}`);
         }
         
         console.log("Setting inventory order step success:", {
@@ -64,12 +96,41 @@ export const setInventoryOrderStepFailedStep = createStep(
         const engineService = container.resolve(
             Modules.WORKFLOW_ENGINE
         )
+        const taskService = container.resolve(TASKS_MODULE)
         
-        // Get the workflow transaction ID from the order metadata
-        const workflowTransactionId = updatedOrder.metadata?.partner_workflow_transaction_id;
+        // Get the workflow transaction ID from associated tasks instead of order metadata
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        
+        // Find tasks linked to this inventory order that have a transaction ID
+        const taskLinksResult = await query.graph({
+            entity: "inventory_orders",
+            fields: [
+                "id",
+                "tasks.*"
+            ],
+            filters: {
+                id: updatedOrder.id
+            }
+        })
+        
+        const taskLinks = taskLinksResult.data || []
+        
+        // Find a task with a transaction ID (should be one of the partner workflow tasks)
+        let workflowTransactionId: string | null = null
+        for (const order of taskLinks) {
+            if (order.tasks && Array.isArray(order.tasks)) {
+                for (const task of order.tasks) {
+                    if (task && task.transaction_id) {
+                        workflowTransactionId = task.transaction_id
+                        break
+                    }
+                }
+                if (workflowTransactionId) break
+            }
+        }
         
         if (!workflowTransactionId) {
-            throw new Error("No workflow transaction ID found in order metadata");
+            throw new Error(`No workflow transaction ID found in tasks for inventory order ${updatedOrder.id}`);
         }
         
         console.log("Setting inventory order step failure:", {

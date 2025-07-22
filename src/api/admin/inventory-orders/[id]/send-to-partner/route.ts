@@ -25,6 +25,7 @@ export async function POST(
 
         // Create transaction object with the real transaction ID (matching task pattern)
         const postOrderTransactionId = {
+            id: inventoryOrderId, // ✅ Add the missing inventory order ID
             transaction_id: transaction.transactionId,
             metadata: {
                 partner_workflow_transaction_id: transaction.transactionId

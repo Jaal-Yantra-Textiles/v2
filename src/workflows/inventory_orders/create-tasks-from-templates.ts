@@ -23,6 +23,7 @@ type CreateTasksInput = AdminPostInventoryOrderTasksReqType & {
 export const validateInventoryOrderStep = createStep(
   "validate-inventory-order-step",
   async (input: CreateTasksInput, { container }) => {
+    console.log("validateInventoryOrderStep", input)
     const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE)
     
     try {
@@ -40,13 +41,18 @@ export const validateInventoryOrderStep = createStep(
 )
 
 export const determineTaskDataStep = createStep(
-  "determine-task-data",
-  async (input: any) => {
+  "determine-task-data-step",
+  async (input: any, { container }) => {
+    console.log("determineTaskDataStep input:", JSON.stringify(input, null, 2));
+    
+    // Handle template-based task creation response
     if (input.withTemplates) {
+      console.log("Found withTemplates:", input.withTemplates);
       return new StepResponse(input.withTemplates);
-    } 
+    }
     
     if (input.withParent) {
+      console.log("Found withParent:", input.withParent);
       const parentResponse = input.withParent;
       
       if ('parent' in parentResponse && 'children' in parentResponse) {
@@ -67,9 +73,11 @@ export const determineTaskDataStep = createStep(
     } 
     
     if (input.withoutTemplates) {
+      console.log("Found withoutTemplates:", input.withoutTemplates);
       return new StepResponse([input.withoutTemplates]);
     }
     
+    console.log("No valid task response found, input keys:", Object.keys(input));
     throw new Error("No valid task response found");
   }
 )
@@ -89,7 +97,7 @@ export const createInventoryOrderTaskLinksStep = createStep(
         },
       })
     }
-
+    console.log("links", links) 
     const createdLinks = await remoteLink.create(links)
     return new StepResponse(createdLinks)
   }
@@ -106,6 +114,15 @@ export const createTasksFromTemplatesWorkflow = createWorkflow(
       { input },
       (data) => {
         const { inventoryOrderId, ...taskInput } = data.input;
+        console.log("Original input:", data.input);
+        console.log("Transformed taskInput:", taskInput);
+        
+        // CRITICAL: Ensure that workflow input metadata (including assignment_notes) 
+        // is preserved and will be merged with template metadata
+        if ('metadata' in taskInput && taskInput.metadata) {
+          console.log("Input metadata to be merged with templates:", taskInput.metadata);
+        }
+        
         return taskInput;
       }
     );
@@ -114,6 +131,7 @@ export const createTasksFromTemplatesWorkflow = createWorkflow(
     const createTasksStep = createTaskWorkflow.runAsStep({
       input: transformedInput
     });
+    console.log("createTasksStep result:", createTasksStep);
     
     // Determine task data from the response
     const taskDataStep = determineTaskDataStep(createTasksStep);

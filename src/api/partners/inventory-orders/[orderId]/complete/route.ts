@@ -5,7 +5,9 @@ import InventoryOrderService from "../../../../../modules/inventory_orders/servi
 import { refetchPartnerForThisAdmin } from "../../../helpers";
 import { setInventoryOrderStepSuccessWorkflow } from "../../../../../workflows/inventory_orders/inventory-order-steps";
 import { updateInventoryOrderWorkflow } from "../../../../../workflows/inventory_orders/update-inventory-order";
-import { MedusaError } from "@medusajs/framework/utils";
+import { MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { TASKS_MODULE } from "../../../../../modules/tasks";
+import TaskService from "../../../../../modules/tasks/service";
 
 const requestBodySchema = z.object({
     notes: z.string().optional(),
@@ -58,8 +60,37 @@ export async function POST(
             throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Inventory order ${orderId} is not in started state`)
         }
         
-        // Get the workflow transaction ID from metadata
-        const transactionId = order.metadata?.partner_workflow_transaction_id;
+        // Get the workflow transaction ID from associated tasks instead of metadata
+        const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+        
+        // Find tasks linked to this inventory order that have a transaction ID
+        const taskLinksResult = await query.graph({
+            entity: "inventory_orders",
+            fields: [
+                "id",
+                "tasks.*"
+            ],
+            filters: {
+                id: orderId
+            }
+        })
+        
+        const taskLinks = taskLinksResult.data || []
+        
+        // Find a task with a transaction ID (should be one of the partner workflow tasks)
+        let transactionId: string | null = null
+        for (const orderData of taskLinks) {
+            if (orderData.tasks && Array.isArray(orderData.tasks)) {
+                for (const task of orderData.tasks) {
+                    if (task && task.transaction_id) {
+                        transactionId = task.transaction_id
+                        break
+                    }
+                }
+                if (transactionId) break
+            }
+        }
+        
         if (!transactionId) {
             throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Inventory order ${orderId} is not assigned to a partner workflow`)
         }
@@ -94,6 +125,62 @@ export async function POST(
         }
         
         console.log("updateInventoryOrderWorkflow result:", result);
+        
+        // Mark the "shipped" task as completed to update partner status
+        const taskService: TaskService = req.scope.resolve(TASKS_MODULE);
+        const queryService = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+        
+        // Get tasks linked to this inventory order
+        const shippedTaskLinksResult = await queryService.graph({
+            entity: "inventory_orders",
+            fields: [
+                "id",
+                "tasks.*"
+            ],
+            filters: {
+                id: orderId
+            }
+        });
+        
+        const shippedTaskLinks = shippedTaskLinksResult.data || [];
+        
+        // Find and update the "partner-order-shipped" task
+        const shippedTaskName = "partner-order-shipped";
+        let tasksToUpdate: any[] = [];
+        
+        console.log("Looking for shipped tasks to update with title:", shippedTaskName);
+        
+        // Extract tasks from the taskLinks result
+        for (const orderData of shippedTaskLinks) {
+            if (orderData.tasks && Array.isArray(orderData.tasks)) {
+                console.log("Found tasks in order:", orderData.tasks.map((t: any) => ({ id: t.id, title: t.title, status: t.status })));
+                const shippedTasks = orderData.tasks.filter((task: any) => 
+                    task.title === shippedTaskName && task.status !== 'completed'
+                );
+                console.log("Filtered shipped tasks:", shippedTasks.map((t: any) => ({ id: t.id, title: t.title, status: t.status })));
+                tasksToUpdate.push(...shippedTasks);
+            }
+        }
+        
+        console.log("Total shipped tasks to update:", tasksToUpdate.length);
+        
+        if (tasksToUpdate.length > 0) {
+            for (const task of tasksToUpdate) {
+                console.log(`Updating shipped task ${task.id} (${task.title}) from ${task.status} to completed`);
+                await taskService.updateTasks({
+                    id: task.id,
+                    status: 'completed',
+                    metadata: {
+                        ...task.metadata,
+                        completed_at: new Date().toISOString(),
+                        completed_by: 'partner'
+                    }
+                });
+                console.log(`Shipped task ${task.id} updated successfully`);
+            }
+        } else {
+            console.log("No shipped tasks found to update!");
+        }
         
         // Signal the workflow that the order has been completed
         // Use result[0] from updateWorkflow, matching task pattern exactly

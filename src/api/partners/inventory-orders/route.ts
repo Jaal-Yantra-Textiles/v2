@@ -33,13 +33,14 @@ export async function GET(
         
         // Status filtering will be done after query, not in filters
         
-        // Use query.graph to get orders linked to this partner
+        // Use query.graph to get orders linked to this partner with associated tasks
         const { data: orders, metadata } = await query.graph({
             entity: InventoryOrderPartnerLink.entryPoint,
             fields: [
                 "inventory_orders.*", 
                 "inventory_orders.orderlines.*", 
                 "inventory_orders.stock_locations.*",
+                "inventory_orders.tasks.*",
                 "partner.*", 
               ],
             filters,
@@ -59,9 +60,43 @@ export async function GET(
             );
         }
         
-        // Format the response for partner view - data structure changed with link entry point
+        // Format the response for partner view - now using task-based status
         const partnerOrders = filteredOrders.map((linkData: any) => {
             const order = linkData.inventory_orders;
+            
+            // Extract partner workflow status from tasks instead of metadata
+            const partnerTasks = order.tasks || [];
+            const workflowTasks = partnerTasks.filter((task: any) => 
+                task && task.metadata?.workflow_type === 'partner_assignment'
+            );
+            
+            // Determine partner status based on task completion
+            let partnerStatus = 'assigned';
+            let partnerStartedAt: string | null = null;
+            let partnerCompletedAt: string | null = null;
+            
+            if (workflowTasks.length > 0) {
+                const sentTask = workflowTasks.find((task: any) => 
+                    task.title?.includes('sent') && task.status === 'completed'
+                );
+                const receivedTask = workflowTasks.find((task: any) => 
+                    task.title?.includes('received') && task.status === 'completed'
+                );
+                const shippedTask = workflowTasks.find((task: any) => 
+                    task.title?.includes('shipped') && task.status === 'completed'
+                );
+                
+                if (shippedTask) {
+                    partnerStatus = 'completed';
+                    partnerCompletedAt = shippedTask.updated_at ? String(shippedTask.updated_at) : null;
+                } else if (receivedTask) {
+                    partnerStatus = 'in_progress';
+                    partnerStartedAt = receivedTask.updated_at ? String(receivedTask.updated_at) : null;
+                } else if (sentTask) {
+                    partnerStatus = 'assigned';
+                }
+            }
+            
             return {
                 id: order.id,
                 status: order.status,
@@ -74,9 +109,10 @@ export async function GET(
                 stock_location: order.stock_locations?.[0]?.name || 'Unknown',
                 partner_info: {
                     assigned_partner_id: linkData.partner?.id || partnerAdmin.id,
-                    partner_status: order.metadata?.partner_status || 'assigned',
-                    partner_started_at: order.metadata?.partner_started_at,
-                    partner_completed_at: order.metadata?.partner_completed_at
+                    partner_status: partnerStatus,
+                    partner_started_at: partnerStartedAt,
+                    partner_completed_at: partnerCompletedAt,
+                    workflow_tasks_count: workflowTasks.length
                 },
                 created_at: order.created_at,
                 updated_at: order.updated_at
