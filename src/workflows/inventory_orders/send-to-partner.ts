@@ -209,7 +209,6 @@ const setTaskTransactionIdsStep = createStep(
         // The actual tasks are in createTasksStep.withTemplates, and task IDs are in the links
         const workflowResult = input.partnerTasks
         let createdTasks: any[] = []
-        console.log("setTaskTransactionIdsStep", workflowResult)
         
         // Extract task IDs from the link objects (index 2 contains the links)
         const linkObjects = workflowResult[2] || []

@@ -104,14 +104,13 @@ module.exports = defineConfig({
       resolve: "@medusajs/medusa/notification",
       options: {
         providers: [
-          // ...
           {
-            resolve: "@medusajs/medusa/notification-sendgrid",
-            id: "sendgrid",
+            resolve: "./src/modules/resend",
+            id: "resend",
             options: {
-              channels: ["feed", "email"],
-              api_key: process.env.SENDGRID_API_KEY,
-              from: process.env.SENDGRID_FROM,
+              channels: ["email"],
+              api_key: process.env.RESEND_API_KEY,
+              from: process.env.RESEND_FROM_EMAIL,
             },
           },
         ],
@@ -150,5 +149,11 @@ module.exports = defineConfig({
         ],
       },
     },
+  {
+    resolve: "./src/modules/email_templates",
+  },
+  {
+    resolve: "./src/modules/agreements",
+  },
 ],
 });

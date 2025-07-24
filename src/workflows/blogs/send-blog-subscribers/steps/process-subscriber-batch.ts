@@ -1,7 +1,7 @@
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { SubscriberBatch, EmailSendingResult } from "../types"
-import { Modules } from "@medusajs/framework/utils"
 import { convertTipTapToHtml } from "../utils/tiptap-to-html"
+import { sendNotificationEmailWorkflow } from "../../../email/send-notification-email"
 
 export const processSubscriberBatchStepId = "process-subscriber-batch"
 
@@ -24,8 +24,7 @@ export const processSubscriberBatchStep = createStep(
     
     console.log(`Processing batch with ${subscribers.length} subscribers`)
     
-    // Use the notification module instead of notification service
-    const notificationModuleService = container.resolve(Modules.NOTIFICATION)
+    // Use the send-notification-email workflow with blog-subscriber template
     
     const results: EmailSendingResult[] = []
     
@@ -38,43 +37,78 @@ export const processSubscriberBatchStep = createStep(
         let htmlContent = blogData.content
         try {
           // Check if content is TipTap JSON
-          if (typeof blogData.content === 'string' && 
-              (blogData.content.startsWith('{') || blogData.content.includes('"type":"doc"'))) {
-            htmlContent = convertTipTapToHtml(blogData.content)
+          if (typeof blogData.content === 'string') {
+            if (blogData.content.includes('"type":"doc"') || blogData.content.startsWith('{')) {
+              try {
+                // Try to parse the JSON string
+                const parsedContent = JSON.parse(blogData.content)
+                htmlContent = convertTipTapToHtml(parsedContent)
+                console.log('Converted TipTap JSON string to HTML')
+              } catch (parseError) {
+                // If parsing fails, try to convert the string directly
+                htmlContent = convertTipTapToHtml(blogData.content)
+                console.log('Converted TipTap string to HTML (fallback)')
+              }
+            } else {
+              // If it's plain text, use it as is
+              htmlContent = blogData.content
+              console.log('Using plain text content')
+            }
+          } else {
+            // Fallback for any other content type
+            htmlContent = String(blogData.content || '')
+            console.log('Using fallback string conversion for content')
           }
-        } catch (error) {
-          console.warn(`Failed to convert TipTap content to HTML: ${error.message}`)
-          // Fall back to original content
-          htmlContent = blogData.content
+        } catch (contentError) {
+          console.warn(`Failed to convert content to HTML: ${contentError.message}`)
+          // Fall back to a safe default
+          htmlContent = String(blogData.content || 'No content available')
         }
         
-        // Prepare email data
+        // Prepare email data for the blog-subscriber template
         const emailData = {
+          // Blog data at root level for template variables
+          blog_title: blogData.title,
+          blog_content: htmlContent,
+          blog_url: `${process.env.FRONTEND_URL || ''}${blogData.url}`,
+          blog_created_at: blogData.created_at,
+          blog_updated_at: blogData.updated_at,
+          blog_tags: blogData.tags || [],
+          
+          // Person data at root level
+          first_name: subscriber.first_name || "",
+          last_name: subscriber.last_name || "",
+          email: subscriber.email,
+          subscriber_id: subscriber.id,
+          
+          // Additional template data
+          unsubscribe_url: `${process.env.FRONTEND_URL || ''}/unsubscribe?id=${subscriber.id}`,
+          website_url: process.env.FRONTEND_URL || '',
+          current_year: new Date().getFullYear().toString(),
+          
+          // Include nested objects for template compatibility
           blog: {
             title: blogData.title,
             content: htmlContent,
             url: `${process.env.FRONTEND_URL || ''}${blogData.url}`,
             created_at: blogData.created_at,
             updated_at: blogData.updated_at,
-            tags: blogData.tags || []
+            tags: blogData.tags || [],
           },
           person: {
             first_name: subscriber.first_name || "",
             last_name: subscriber.last_name || "",
             email: subscriber.email,
             id: subscriber.id
-          },
-          subject: emailConfig.subject,
-          custom_message: emailConfig.customMessage || ""
+          }
         }
         
-        // Send email using notification module (similar to password reset)
-        await notificationModuleService.createNotifications({
-          to: subscriber.email,
-          channel: "email",
-          template: process.env.SENDGRID_BLOG_SUBSCRIPTION_TEMPLATE || "d-blog-subscription-template",
-          data: {
-            ...emailData,
+        // Send email using the new email template workflow
+        await sendNotificationEmailWorkflow(container).run({
+          input: {
+            to: subscriber.email,
+            template: "blog-subscriber",
+            data: emailData
           }
         })
         

@@ -131,7 +131,6 @@ export const createTasksFromTemplatesWorkflow = createWorkflow(
     const createTasksStep = createTaskWorkflow.runAsStep({
       input: transformedInput
     });
-    console.log("createTasksStep result:", createTasksStep);
     
     // Determine task data from the response
     const taskDataStep = determineTaskDataStep(createTasksStep);

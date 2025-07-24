@@ -9,12 +9,10 @@ import {
   getSubscribersStep,
   prepareSubscriberBatchesStep,
   processAllBatchesStep,
-  processSubscriberBatchStep,
   updatePageWithResultsStep,
   waitConfirmationBlogSendStep,
-  waitConfirmationBlogSendStepId
 } from "../steps"
-import { SendBlogSubscribersInput, SendingSummary, EmailSendingResult } from "../types"
+import { SendBlogSubscribersInput } from "../types"
 import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 
 export const sendBlogSubscribersWorkflowId = "send-blog-subscribers"

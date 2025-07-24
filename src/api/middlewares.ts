@@ -58,6 +58,7 @@ import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/
 import { listPublicPersonsQuerySchema } from "./web/persons/validators";
 import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id]/linkDesign/validators";
 import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partner/validators";
+import { EmailTemplateSchema, listEmailTemplatesQuerySchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
 
 
 // Utility function to create CORS middleware with configurable options
@@ -559,6 +560,27 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(createStoreSchema))],
     },
+    // Email Templates 
+    {
+      matcher: "/admin/email-templates",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(EmailTemplateSchema))],
+    },
+    {
+      matcher: "/admin/email-templates",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(listEmailTemplatesQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/email-templates/:id",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(listEmailTemplatesQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/email-templates/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateEmailTemplateSchema))],
+    }
   ],
   errorHandler: ((
     error: any, // or whatever type you prefer

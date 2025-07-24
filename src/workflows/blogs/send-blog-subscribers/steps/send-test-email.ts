@@ -1,7 +1,7 @@
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { TestEmailResult } from "../types"
-import { Modules } from "@medusajs/framework/utils"
 import { convertTipTapToHtml } from "../utils/tiptap-to-html"
+import { sendNotificationEmailWorkflow } from "../../../email/send-notification-email"
 
 export const sendTestEmailStepId = "send-test-email"
 
@@ -39,8 +39,7 @@ export const sendTestEmailStep = createStep(
     
     console.log(`Sending test email to ${input.email}`)
     
-    // Use the notification module
-    const notificationModuleService = container.resolve(Modules.NOTIFICATION)
+    // Use the send-notification-email workflow with blog-subscriber template
     
     try {
       // Convert TipTap content to HTML
@@ -83,10 +82,9 @@ export const sendTestEmailStep = createStep(
         htmlContent = String(input.blogData.content || 'No content available')
       }
       
-      // Prepare email data - flattened structure for SendGrid compatibility
-      // This matches the format used in process-all-batches.ts
+      // Prepare email data for the blog-subscriber template
       const emailData = {
-        // Blog data at root level
+        // Blog data at root level for template variables
         blog_title: input.blogData.title,
         blog_content: htmlContent,
         blog_url: `${process.env.FRONTEND_URL || ''}${input.blogData.url}`,
@@ -119,22 +117,16 @@ export const sendTestEmailStep = createStep(
           first_name: "Test",
           last_name: "User",
           email: input.email,
-          subscriber_id: "test-user",
-        },
-        // Add email_data to avoid property name collision with the 'email' field
-        email_data: {
-          subject: input.subject,
-          custom_message: input.customMessage || "",
+          id: "test-user",
         }
       }
       
-      // Send email using notification module
-      await notificationModuleService.createNotifications({
-        to: input.email,
-        channel: "email",
-        template: process.env.SENDGRID_BLOG_SUBSCRIPTION_TEMPLATE || "d-blog-subscription-template",
-        data: {
-          ...emailData,
+      // Send email using the new email template workflow
+      await sendNotificationEmailWorkflow(container).run({
+        input: {
+          to: input.email,
+          template: "blog-subscriber",
+          data: emailData
         }
       })
       
