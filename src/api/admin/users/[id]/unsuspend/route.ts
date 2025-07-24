@@ -17,6 +17,6 @@ export const POST = async (
     }
 
     res.status(200).json({
-        user: result
+        suspended: false
     });
 };
