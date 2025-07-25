@@ -251,6 +251,81 @@ const emailTemplatesData = [
     },
     template_type: "blog_subscriber",
     is_active: true
+  },
+  {
+    name: "Agreement Invitation",
+    template_key: "agreement-invitation",
+    from: "agreements@jyt.com",
+    subject: "Agreement Review Required: {{agreement_title}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #333333; font-size: 24px; margin-bottom: 10px;">Agreement Review Required</h1>
+            <p style="color: #666666; font-size: 16px; margin: 0;">{{agreement_title}}</p>
+          </div>
+          
+          <!-- Greeting -->
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">
+            Hello {{recipient_name}},
+          </p>
+          
+          <!-- Main Content -->
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            You have been invited to review and respond to an important agreement. Please take a moment to review the details and provide your response.
+          </p>
+          
+          <!-- Agreement Details -->
+          <div style="margin: 25px 0; padding: 20px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">
+            <h3 style="color: #333333; font-size: 18px; margin: 0 0 10px 0;">{{agreement_title}}</h3>
+            <p style="color: #666666; font-size: 14px; margin: 0 0 8px 0;"><strong>Subject:</strong> {{agreement_subject}}</p>
+            {{#if agreement_description}}
+            <p style="color: #666666; font-size: 14px; margin: 0 0 8px 0;"><strong>Description:</strong> {{agreement_description}}</p>
+            {{/if}}
+            {{#if valid_until}}
+            <p style="color: #dc3545; font-size: 14px; margin: 0;"><strong>Valid Until:</strong> {{valid_until}}</p>
+            {{/if}}
+          </div>
+          
+          <!-- Call to Action -->
+          <div style="margin: 35px 0; text-align: center;">
+            <a href="{{agreement_url}}" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px; box-shadow: 0 2px 4px rgba(0,123,255,0.3); transition: all 0.3s ease;">
+              📄 View Agreement
+            </a>
+          </div>
+          
+          <!-- Additional Instructions -->
+          <div style="margin-top: 25px; padding: 15px; background-color: #fff3cd; border-radius: 4px; border: 1px solid #ffeaa7;">
+            <p style="color: #856404; font-size: 14px; margin: 0; line-height: 1.5;">
+              <strong>Important:</strong> Please review the agreement carefully and provide your response. If you have any questions or concerns, please contact us before the expiration date.
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+            <p style="color: #999999; font-size: 12px; margin: 0; line-height: 1.4;">
+              This agreement invitation was sent to {{recipient_email}}. If you received this email in error, please contact us immediately.
+            </p>
+            <p style="color: #999999; font-size: 12px; margin: 8px 0 0 0; line-height: 1.4;">
+              © {{current_year}} Jaal Yantra Textiles. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    `,
+    variables: {
+      recipient_name: "Recipient's name",
+      recipient_email: "Recipient's email address",
+      agreement_title: "Agreement title",
+      agreement_subject: "Agreement subject/description",
+      agreement_description: "Optional detailed description",
+      agreement_url: "URL to view and respond to the agreement",
+      valid_until: "Agreement expiration date",
+      current_year: "Current year for copyright"
+    },
+    template_type: "agreement_invitation",
+    is_active: true
   }
 ]
 

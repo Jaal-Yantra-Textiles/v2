@@ -3,15 +3,12 @@ loadEnv("test", process.cwd());
 
 module.exports = {
   setupFiles: ["./integration-tests/setup.ts"],
-  silent: true,
-  verbose: false,
   transform: {
     "^.+\\.[jt]s$": [
       "@swc/jest",
       {
         jsc: {
           parser: { syntax: "typescript", decorators: true },
-          target: "es2022",
         },
       },
     ],

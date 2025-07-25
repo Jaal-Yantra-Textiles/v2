@@ -1,12 +1,11 @@
-//@ts-ignore
 import { Heading, Text } from "@medusajs/ui";
 import { Control } from "react-hook-form";
 import { Form } from "../../common/form";
+import { useEffect } from "react";
 import "@blocknote/core/fonts/inter.css";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/shadcn/style.css";
-import { useEffect } from "react";
 
 type AgreementFormData = {
   title: string;
@@ -32,7 +31,7 @@ export const AgreementContentStep = ({ control }: ContentStepProps) => {
       },
       {
         type: "paragraph",
-        content: "You can use handlebars variables like " + "{{user_name}}, {{company_name}}, etc.",
+        content: "You can use handlebars variables like {{user_name}}, {{company_name}}, etc.",
       },
       {
         type: "paragraph",
@@ -74,7 +73,7 @@ export const AgreementContentStep = ({ control }: ContentStepProps) => {
             if (field.value && field.value !== "") {
               try {
                 // If we have existing content, try to parse it
-                editor.tryParseHTMLToBlocks(field.value).then((blocks) => {
+                editor.tryParseHTMLToBlocks(field.value).then((blocks: any) => {
                   editor.replaceBlocks(editor.document, blocks);
                 });
               } catch (error) {
