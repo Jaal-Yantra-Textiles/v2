@@ -138,6 +138,47 @@ export const useUpdatePersonMetadata = (
   });
 };
 
+export type SendAgreementToPersonPayload = {
+  agreement_id: string;
+  template_key: string;
+};
+
+export type SendAgreementToPersonResponse = {
+  message: string;
+  person_id: string;
+  agreement_id: string;
+  agreement_response: any;
+  person_agreement_link: any;
+  email_result: any;
+  stats_updated: any;
+};
+
+export const useSendAgreementToPerson = (
+  personId: string,
+  options?: UseMutationOptions<
+    SendAgreementToPersonResponse,
+    FetchError,
+    SendAgreementToPersonPayload
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: SendAgreementToPersonPayload) =>
+      sdk.client.fetch<SendAgreementToPersonResponse>(
+        `/admin/persons/${personId}/agreements/send`,
+        {
+          method: "POST",
+          body: payload,
+        }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(personId) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};
+
 export const useUpdatePerson = (
   id: string,
   options?: UseMutationOptions<

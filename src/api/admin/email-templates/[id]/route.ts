@@ -6,8 +6,10 @@ import { updateEmailTemplateWorkflow } from "../../../../workflows/email_templat
 import { deleteEmailTemplateWorkflow } from "../../../../workflows/email_templates/delete-email-template";
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const emailTemplate = await refetchEmailTemplate(req.params.id, req.scope);
-  res.status(200).json({ email_template: emailTemplate });
+  const { result } = await listEmailTemplateWorkflow(req.scope).run({
+    input: { filters: { id: [req.params.id] } },
+  });
+  res.status(200).json({ emailTemplate: result[0][0] });
 };
 
 export const POST = async (req: MedusaRequest<UpdateEmailTemplate>, res: MedusaResponse) => {
@@ -19,7 +21,7 @@ export const POST = async (req: MedusaRequest<UpdateEmailTemplate>, res: MedusaR
   });
 
   const emailTemplate = await refetchEmailTemplate(result[0].id, req.scope);
-  res.status(200).json({ email_template: emailTemplate });
+  res.status(200).json({ emailTemplate });
 };
 
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -28,7 +30,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   });
   res.status(200).json({
     id: req.params.id,
-    object: "email_template",
+    object: "emailtemplate",
     deleted: true,
   });
 };

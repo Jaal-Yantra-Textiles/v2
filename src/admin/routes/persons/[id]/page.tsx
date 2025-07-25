@@ -8,12 +8,13 @@ import { PersonContactSection } from "../../../components/persons/person-contact
 import { PersonTagsComponent } from "../../../components/persons/person-tags-component";
 import { PersonTypesComponent } from "../../../components/persons/person-types-component";
 import { PersonPartnerComponent } from "../../../components/persons/person-partner-component";
+import { PersonAgreementsSection } from "../../../components/persons/person-agreements-section";
 
 const PersonDetailPage = () => {
   
   const { id } = useParams();
   const { person, isLoading, isError, error } = usePerson(id!, {
-    fields: "addresses.*, person_type.*, partner.*, contact_details.*, tags.*"
+    fields: "addresses.*, person_type.*, partner.*, contact_details.*, tags.*, agreements.*, agreements.responses.*"
   });
 
   // Show loading skeleton while data is being fetched
@@ -41,6 +42,7 @@ const PersonDetailPage = () => {
       <PersonGeneralSection person={person} />
       <PersonsAddressSection person={person} />
       <PersonPartnerComponent person={person} />
+      <PersonAgreementsSection person={person} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <PersonContactSection person={person} />

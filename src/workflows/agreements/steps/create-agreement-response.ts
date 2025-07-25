@@ -1,5 +1,6 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
+import { randomBytes } from "crypto";
 
 export const createAgreementResponseStep = createStep(
   "create-agreement-response",
@@ -13,11 +14,15 @@ export const createAgreementResponseStep = createStep(
   ) => {
     const agreementsService = container.resolve(AGREEMENTS_MODULE);
 
+    // Generate a secure access token for web access
+    const accessToken = randomBytes(32).toString('hex');
+
     const agreementResponse = await agreementsService.createAgreementResponses({
       agreement_id: input.agreement_id,
       email_sent_to: input.email_sent_to,
       sent_at: new Date(),
       status: "sent",
+      access_token: accessToken,
     });
 
     return new StepResponse(agreementResponse, agreementResponse.id);

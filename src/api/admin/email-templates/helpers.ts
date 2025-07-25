@@ -1,24 +1,8 @@
 import { MedusaContainer } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 
-// EmailTemplate entity fields
-export type EmailTemplateAllowedFields = (
-  | "id"
-  | "name"
-  | "description"
-  | "to"
-  | "from"
-  | "template_key"
-  | "subject"
-  | "html_content"
-  | "variables"
-  | "is_active"
-  | "template_type"
-  | "created_at"
-  | "updated_at"
-  | "deleted_at"
-  | "*"
-)[];
+// TODO: Update with actual model fields from your email_template entity
+export type EmailTemplateAllowedFields = string[];
 
 export const refetchEmailTemplate = async (
   id: string,
@@ -28,7 +12,7 @@ export const refetchEmailTemplate = async (
   const query = scope.resolve(ContainerRegistrationKeys.QUERY);
 
   const { data: emailtemplates } = await query.graph({
-    entity: "email_templates",
+    entity: "email_template",
     filters: { id },
     fields,
   });

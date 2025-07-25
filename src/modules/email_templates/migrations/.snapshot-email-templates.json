@@ -42,6 +42,24 @@
           "nullable": true,
           "mappedType": "text"
         },
+        "cc": {
+          "name": "cc",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "bcc": {
+          "name": "bcc",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "from": {
           "name": "from",
           "type": "text",

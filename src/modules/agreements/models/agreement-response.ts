@@ -22,6 +22,9 @@ const AgreementResponse = model.define("agreement_response", {
   email_opened: model.boolean().default(false),
   email_opened_at: model.dateTime().nullable(),
   
+  // Secure access token for web access
+  access_token: model.text().unique(), // Unique token for secure web access
+  
   // IP and user agent for tracking (optional)
   response_ip: model.text().nullable(),
   response_user_agent: model.text().nullable(),

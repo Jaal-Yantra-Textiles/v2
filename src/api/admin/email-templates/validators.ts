@@ -1,58 +1,77 @@
 import { z } from "zod";
 
-// Schema for creating email templates
+// Base EmailTemplate schema
 export const EmailTemplateSchema = z.object({
+  id: z.string().optional(),
   name: z.string().min(1, "Name is required"),
   description: z.string().nullable().optional(),
-  to: z.string().nullable().optional(),
-  from: z.string().email("From must be a valid email address").optional(),
-  template_key: z.string().min(1, "Template key is required"),
+  to: z.union([z.string().email(), z.literal(""), z.null()]).optional().transform(val => val === "" ? null : val),
+  cc: z.union([z.string().email(), z.literal(""), z.null()]).optional().transform(val => val === "" ? null : val),
+  bcc: z.union([z.string().email(), z.literal(""), z.null()]).optional().transform(val => val === "" ? null : val),
+  from: z.string().email(),
+  template_key: z.string(),
   subject: z.string().min(1, "Subject is required"),
-  html_content: z.string().min(1, "HTML content is required"),
+  html_content: z.string(),
   variables: z.record(z.unknown()).nullable().optional(),
-  template_type: z.string().min(1, "Template type is required"),
-  is_active: z.boolean().optional().default(true),
+  is_active: z.boolean().default(true),
+  template_type: z.string(),
 });
 
 export type EmailTemplate = z.infer<typeof EmailTemplateSchema>;
 
-// Schema for updating email templates
-export const UpdateEmailTemplateSchema = z.object({
-  name: z.string().min(1).optional(),
-  description: z.string().nullable().optional(),
-  to: z.string().nullable().optional(),
-  from: z.string().email("From must be a valid email address").optional(),
-  template_key: z.string().min(1).optional(),
-  subject: z.string().min(1).optional(),
-  html_content: z.string().min(1).optional(),
-  variables: z.record(z.unknown()).nullable().optional(),
-  template_type: z.string().min(1).optional(),
-  is_active: z.boolean().optional(),
-});
+// Create EmailTemplate schema (excludes id, timestamps)
+export const CreateEmailTemplateSchema = EmailTemplateSchema.omit({
+  id: true,
+}).strict();
+
+export type CreateEmailTemplate = z.infer<typeof CreateEmailTemplateSchema>;
+
+// Update EmailTemplate schema (all fields optional except id)
+export const UpdateEmailTemplateSchema = EmailTemplateSchema.omit({
+}).partial().extend({
+  id: z.string().optional(),
+}).strict();
 
 export type UpdateEmailTemplate = z.infer<typeof UpdateEmailTemplateSchema>;
 
-// Query schema for listing email templates
-export const listEmailTemplatesQuerySchema = z.object({
+// Query parameters schema with preprocessing
+export const EmailTemplateQueryParams = z.object({
+  limit: z.preprocess(
+    (val) => (typeof val === "string" ? parseInt(val, 10) : val),
+    z.number().min(1).max(100).default(20)
+  ),
+  offset: z.preprocess(
+    (val) => (typeof val === "string" ? parseInt(val, 10) : val),
+    z.number().min(0).default(0)
+  ),
+  order: z.string().optional(),
+  fields: z.preprocess(
+    (val) => (typeof val === "string" ? val.split(",") : val),
+    z.array(z.string()).optional()
+  ),
   q: z.string().optional(),
-  template_type: z.string().optional(),
+  // Add specific filter fields based on model
+  template_key: z.string().optional(),
   is_active: z.preprocess(
     (val) => {
-      if (val === "true") return true;
-      if (val === "false") return false;
-      return undefined;
+      if (typeof val === "string") {
+        return val.toLowerCase() === "true";
+      }
+      return val;
     },
     z.boolean().optional()
   ),
-  offset: z.preprocess(
-    (val) => (val !== undefined && val !== null ? Number(val) : undefined),
-    z.number().int().min(0).default(0)
-  ),
-  limit: z.preprocess(
-    (val) => (val !== undefined && val !== null ? Number(val) : undefined),
-    z.number().int().min(1).max(100).default(20)
-  ),
-  order: z.string().optional(),
+  template_type: z.string().optional(),
 });
 
-export type ListEmailTemplatesQuery = z.infer<typeof listEmailTemplatesQuerySchema>;
+export type EmailTemplateQueryParams = z.infer<typeof EmailTemplateQueryParams>;
+
+// Schema for bulk operations
+export const BulkEmailTemplateSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "At least one ID is required"),
+});
+
+export type BulkEmailTemplate = z.infer<typeof BulkEmailTemplateSchema>;
+
+
+

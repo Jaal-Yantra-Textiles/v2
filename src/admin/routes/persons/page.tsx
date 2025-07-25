@@ -9,6 +9,7 @@ import { useMemo, useState, useCallback } from "react";
 import { usePersonTableColumns } from "../../hooks/columns/usePersonTableColumns";
 import { AdminPerson, AdminPersonsListParams } from "../../hooks/api/personandtype";
 import debounce from "lodash/debounce";
+import { TableFooterSkeleton, TableSectionSkeleton, TableSkeleton } from "../../components/table/skeleton";
 
 
 
@@ -57,8 +58,6 @@ const PersonsPage = () => {
     persons, 
     count,
     isLoading,
-    isError,
-    error,
   } = usePersons(
     {
       limit: pagination.pageSize,
@@ -173,8 +172,12 @@ const PersonsPage = () => {
     },
   });
 
-  if (isError) {
-    throw error;
+  if (isLoading) {
+    return <>
+        <TableSkeleton layout="fill" />
+        <TableSectionSkeleton layout="fill" />
+        <TableFooterSkeleton layout="fill" />
+    </>
   }
 
   return (

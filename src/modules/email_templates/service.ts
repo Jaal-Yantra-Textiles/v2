@@ -1,5 +1,6 @@
 import { MedusaService, MedusaError } from "@medusajs/framework/utils";
 import EmailTemplate from "./models/email-template";
+import { logger } from "@medusajs/framework";
 
 class EmailTemplatesService extends MedusaService({
   EmailTemplate,
@@ -10,7 +11,6 @@ class EmailTemplatesService extends MedusaService({
       template_key: templateKey,
       is_active: true,
     })
-    console.log('Templates found:', templates)
     
     if (!templates || templates.length === 0) {
       throw new MedusaError(

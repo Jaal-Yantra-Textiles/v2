@@ -29,10 +29,8 @@ export const fetchEmailTemplateStep = createStep(
   "fetch-email-template",
   async (input: { templateKey: string; data?: Record<string, any> }, { container }) => {
     const emailTemplatesService: EmailTemplatesService = container.resolve(EMAIL_TEMPLATES_MODULE)
-    console.log('Fetching template for key:', input.templateKey)
-
+    
     const template = await emailTemplatesService.getTemplateByKey(input.templateKey)
-    console.log('Template fetched:', template)
      
     // Process the template with Handlebars if data is provided
     let processedHtmlContent = template.html_content
@@ -58,7 +56,7 @@ export const fetchEmailTemplateStep = createStep(
         const subjectTemplate = Handlebars.compile(template.subject)
         processedSubject = subjectTemplate(filteredData)
         
-        console.log('Template processed successfully')
+        
       } catch (error) {
         console.error(`Failed to process template with Handlebars: ${error.message}`)
         // Keep original template content if processing fails

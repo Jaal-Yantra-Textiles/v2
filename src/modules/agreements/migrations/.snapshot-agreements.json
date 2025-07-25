@@ -301,6 +301,15 @@
           "length": 6,
           "mappedType": "datetime"
         },
+        "access_token": {
+          "name": "access_token",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
         "response_ip": {
           "name": "response_ip",
           "type": "text",
@@ -373,6 +382,15 @@
       "name": "agreement_response",
       "schema": "public",
       "indexes": [
+        {
+          "keyName": "IDX_agreement_response_access_token_unique",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_agreement_response_access_token_unique\" ON \"agreement_response\" (access_token) WHERE deleted_at IS NULL"
+        },
         {
           "keyName": "IDX_agreement_response_agreement_id",
           "columnNames": [],
