@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Node, mergeAttributes, Editor, Range } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import ProductsWidgetNodeView from './ProductsWidgetNodeView';

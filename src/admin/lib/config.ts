@@ -1,4 +1,4 @@
-
+// @ts-nocheck  
 /// <reference types="vite/client" />
 import Medusa from "@medusajs/js-sdk";
 

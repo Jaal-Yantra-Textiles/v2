@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from 'react';
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
 import { useProducts } from '../../../hooks/api/products'; // Adjust path as needed

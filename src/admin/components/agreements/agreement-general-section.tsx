@@ -1,4 +1,4 @@
-import { PencilSquare, Trash } from "@medusajs/icons";
+import { PencilSquare, Trash, ArrowUpRightOnBox } from "@medusajs/icons";
 import { Container, Heading, Text, usePrompt } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { ActionMenu } from "../common/action-menu";
@@ -76,9 +76,15 @@ export const AgreementGeneralSection = ({ agreement }: AgreementGeneralSectionPr
             <Text size="small" leading="compact" weight="plus">
               {t("agreements.fields.content.label")}
             </Text>
-            <Text size="small" leading="compact">
-              {agreement.content || "-"}
-            </Text>
+            <div className="flex items-center gap-2">
+              {agreement.content ? (
+                <ArrowUpRightOnBox className="h-4 w-4 text-ui-fg-muted" />
+              ) : (
+                <Text size="small" leading="compact">
+                  {agreement.content || "-"}
+                </Text>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2 items-center px-6 py-4">
             <Text size="small" leading="compact" weight="plus">

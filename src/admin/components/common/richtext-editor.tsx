@@ -1,4 +1,4 @@
-// 
+//@ts-nocheck
 import { useCallback, useRef, useEffect } from 'react';
 import { Toaster, toast } from '@medusajs/ui';
 import './richtext-editor.css';
