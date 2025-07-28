@@ -2,8 +2,7 @@ import { Heading, Text, Toaster } from "@medusajs/ui";
 import { Control } from "react-hook-form";
 import { Form } from "../../common/form";
 import { useCallback, useRef, useEffect } from 'react';
-import RichTextEditor from 'reactjs-tiptap-editor';
-import { extensions } from "../../common/richtext-editor";
+import { SimpleEditor } from "../../editor/editor";
 
 type AgreementFormData = {
   title: string;
@@ -71,7 +70,7 @@ function AgreementTextEditor({
       <Toaster />
       <div className="relative h-full w-full overflow-y-auto">
         <div className="relative">
-          <RichTextEditor 
+          {/* <RichTextEditor 
             output='html'  // Changed from 'json' to 'html'
             content={initialEditorContent} 
             onChangeContent={handleContentChange} 
@@ -84,6 +83,11 @@ function AgreementTextEditor({
                 </div>
               )
             }}
+          /> */}
+          <SimpleEditor 
+            editorContent={initialEditorContent} 
+            setEditorContent={handleContentChange}
+            outputFormat="html"
           />
         </div>
       </div>
@@ -105,22 +109,12 @@ export const AgreementContentStep = ({ control }: ContentStepProps) => {
         control={control}
         name="content"
         render={({ field }) => {
-          const handleEditorChange = (content: string | object) => {
-            // Convert content to HTML string if it's an object (JSON format)
-            let htmlContent: string;
+          const handleEditorChange = (content: string) => {
+            // Content is now guaranteed to be HTML string due to outputFormat="html"
+            console.log('Editor content (HTML):', content);
             
-            if (typeof content === 'object' && content !== null) {
-              // If content is JSON object, we need to extract HTML from the editor
-              console.log('Editor content (JSON):', content);
-              // For now, convert JSON to string - ideally we'd get HTML from editor instance
-              htmlContent = JSON.stringify(content);
-            } else {
-              // Content is already a string (HTML)
-              htmlContent = content as string;
-              console.log('Editor content (HTML):', htmlContent);
-            }
-            
-            field.onChange(htmlContent);
+            // Update the form field with HTML content
+            field.onChange(content);
           };
 
           const handleEditorReady = (editor: any) => {

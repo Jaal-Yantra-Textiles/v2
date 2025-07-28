@@ -9,7 +9,19 @@ import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useCreateWebsite } from "../../hooks/api/websites";
-import { websiteSchema } from "../../../api/admin/websites/validators";
+
+export const websiteSchema = z.object({
+  domain: z.string().min(1, "Domain is required"),
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+  status: z.enum(["Active", "Inactive", "Maintenance", "Development"]).optional(),
+  primary_language: z.string().optional(),
+  supported_languages: z.record(z.string(), z.string()).optional(),
+  favicon_url: z.string().url().optional(),
+  analytics_id: z.string().optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
 
 
 const statusOptions = [

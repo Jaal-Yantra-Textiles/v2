@@ -1,6 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { MedusaError } from "@medusajs/framework/utils";
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
+import AgreementsService from "../../../modules/agreements/service";
 
 export const updateAgreementResponseStep = createStep(
   "update-agreement-response",
@@ -17,7 +18,7 @@ export const updateAgreementResponseStep = createStep(
     },
     { container }
   ) => {
-    const agreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
 
     try {
       // Check if response already exists and validate current status
@@ -80,7 +81,7 @@ export const updateAgreementResponseStep = createStep(
     if(!compensationData){
         return
     }
-    const agreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
     
     try {
       await agreementsService.updateAgreementResponses({

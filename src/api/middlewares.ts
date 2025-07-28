@@ -48,7 +48,7 @@ import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingle
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
-import { createStoreSchema, updateStoreSchema, listStoresQuerySchema, getStoreQuerySchema } from "./admin/stores/validators";
+import { createStoreSchema } from "./admin/stores/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
@@ -59,7 +59,6 @@ import { listPublicPersonsQuerySchema } from "./web/persons/validators";
 import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id]/linkDesign/validators";
 import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partner/validators";
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
-import { CreateAgreement } from "../admin/components/creates/create-agreement";
 import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreement/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 

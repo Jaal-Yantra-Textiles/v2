@@ -1,6 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { MedusaError } from "@medusajs/framework/utils";
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
+import AgreementsService from "../../../modules/agreements/service";
 
 export const fetchAgreementResponseStep = createStep(
   "fetch-agreement-response",
@@ -11,7 +12,7 @@ export const fetchAgreementResponseStep = createStep(
     },
     { container }
   ) => {
-    const agreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
 
     try {
       // Fetch the agreement response with agreement relation

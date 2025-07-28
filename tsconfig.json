@@ -17,7 +17,10 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "checkJs": false,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "paths": {
+      "@/*": ["./src/admin/*"]
+    }
   },
   "ts-node": {
     "swc": true
@@ -34,6 +37,6 @@
     "src/mastra",
     "src/mastra/**/*",
     "**/src/mastra/**/*",
-    "src/partner/**/*"
+    "src/partner/**/*",
   ]
 }

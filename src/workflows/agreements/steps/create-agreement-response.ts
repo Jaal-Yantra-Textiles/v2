@@ -1,6 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
 import { randomBytes } from "crypto";
+import AgreementsService from "../../../modules/agreements/service";
 
 export const createAgreementResponseStep = createStep(
   "create-agreement-response",
@@ -12,7 +13,7 @@ export const createAgreementResponseStep = createStep(
     },
     { container }
   ) => {
-    const agreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
 
     // Generate a secure access token for web access
     const accessToken = randomBytes(32).toString('hex');
@@ -29,7 +30,7 @@ export const createAgreementResponseStep = createStep(
   },
   async (agreementResponseId: string, { container }) => {
     // Rollback: delete the created agreement response
-    const agreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
     await agreementsService.softDeleteAgreementResponses(agreementResponseId);
   }
 );

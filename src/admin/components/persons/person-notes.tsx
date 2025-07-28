@@ -1,47 +1,41 @@
+import { useState, useCallback } from "react";
 import { Button } from "@medusajs/ui";
-import "@blocknote/core/fonts/inter.css";
-import { useCreateBlockNote } from "@blocknote/react";
-import { BlockNoteView } from "@blocknote/shadcn";
 import { RouteFocusModal } from "../modal/route-focus-modal";
-import "@blocknote/shadcn/style.css";
+import { SimpleEditor } from "../editor/editor";
 
-export const PersonNotes = () => {
-  const editor = useCreateBlockNote({
-    initialContent: [
-      {
-        type: "paragraph",
-        content: "Welcome to this notes section!",
-      },
-      {
-        type: "paragraph",
-        content: "Start writing extra notes need for your work",
-      },
-      {
-        type: "paragraph",
-        content: "Toggle light/dark mode in the page footer and see the theme change too",
-      },
-      {
-        type: "paragraph",
-      },
-    ],
-  });
+interface PersonNotesProps {
+  initialNotes?: string;
+  onSave?: (notes: string) => void;
+}
+
+export const PersonNotes = ({ initialNotes = "", onSave }: PersonNotesProps) => {
+  const [notes, setNotes] = useState(initialNotes || `<p>Welcome to this notes section!</p><p>Start writing extra notes needed for your work.</p><p></p>`);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  const handleNotesChange = useCallback((content: string) => {
+    setNotes(content);
+    setHasChanges(content !== initialNotes);
+  }, [initialNotes]);
+
+  const handleSave = useCallback(() => {
+    if (onSave) {
+      onSave(notes);
+    }
+    setHasChanges(false);
+  }, [notes, onSave]);
 
   return (
     <RouteFocusModal>
-      <RouteFocusModal.Header />
+      <RouteFocusModal.Header>
+      </RouteFocusModal.Header>
       <RouteFocusModal.Body>
-        <div 
-          className="[&_.bn-container]:bg-white dark:[&_.bn-container]:bg-gray-900" 
-          style={{ 
-            "--bn-colors-menu-background": "#9b0000",
-            "--bn-colors-menu-text": "#ffffff",
-          } as React.CSSProperties}
-        >
-          <BlockNoteView
-            editor={editor}
-            className="py-6 px-4"
+        
+          <SimpleEditor 
+            editorContent={notes}
+            setEditorContent={handleNotesChange}
+            outputFormat="html"
           />
-        </div>
+        
       </RouteFocusModal.Body>
       <RouteFocusModal.Footer>
         <div className="flex items-center justify-end gap-x-2">
@@ -53,7 +47,8 @@ export const PersonNotes = () => {
           <Button
             size="small"
             variant="primary"
-            type="submit"
+            onClick={handleSave}
+            disabled={!hasChanges}
           >
             Save
           </Button>

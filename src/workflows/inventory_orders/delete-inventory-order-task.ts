@@ -38,7 +38,7 @@ export const deleteInventoryOrderTaskStep = createStep(
     }
 
     // Delete the task using the task service
-    const taskService = container.resolve(TASKS_MODULE)
+    const taskService: TaskService = container.resolve(TASKS_MODULE)
     await taskService.softDeleteTasks(input.taskId)
 
     return new StepResponse({ id: input.taskId, deleted: true })

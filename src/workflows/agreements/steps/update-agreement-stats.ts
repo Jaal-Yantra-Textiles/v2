@@ -1,11 +1,12 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
+import AgreementsService from "../../../modules/agreements/service";
 
 export const updateAgreementStatsStep = createStep(
   "update-agreement-stats",
   async (input: { agreement_id: string }, { container }) => {
-    const agreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
 
     // Get current agreement
@@ -36,7 +37,7 @@ export const updateAgreementStatsStep = createStep(
     if (!rollbackData.agreement_id) {
       return;
     }
-    const agreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
     
     await agreementsService.updateAgreements({
       id: rollbackData.agreement_id,

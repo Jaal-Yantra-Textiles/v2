@@ -1,7 +1,6 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
 import path from "path";
 
-
 loadEnv(process.env.NODE_ENV || "development", process.cwd());
 
 module.exports = defineConfig({
@@ -21,17 +20,20 @@ module.exports = defineConfig({
        // Keep Medusa's default config
       resolve: {
         alias: {
-          '@/components': path.resolve(__dirname, './src/admin/components'),
-          '@/lib/utils': path.resolve(__dirname, './src/admin/lib/utils'),
-        },
-        
+          "@": path.resolve(__dirname, "./src/admin"),
+        }
         // Keep Medusa's existing resolve options
       },
       optimizeDeps: {
         include: ["@excalidraw/excalidraw"]
       },
-      
-      
+      css: {
+        preprocessorOptions: {
+          scss: {
+            api: 'modern-compiler' // or "modern"
+          }
+        }
+      }
     })
   },
   modules: [

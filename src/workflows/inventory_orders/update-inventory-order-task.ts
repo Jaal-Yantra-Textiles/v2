@@ -8,6 +8,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MedusaError } from "@medusajs/utils"
 import InventoryOrderTaskLink from "../../links/inventory-orders-tasks"
 import { TASKS_MODULE } from "../../modules/tasks"
+import TaskService from "../../modules/tasks/service"
 
 type UpdateInventoryOrderTaskInput = {
   inventoryOrderId: string
@@ -52,7 +53,7 @@ export const updateInventoryOrderTaskStep = createStep(
     if (input.metadata !== undefined) updateData.metadata = input.metadata
 
     // Update the task using the task service
-    const taskService = container.resolve(TASKS_MODULE)
+    const taskService: TaskService = container.resolve(TASKS_MODULE)
     await taskService.updateTasks({
       selector: {
         id: input.taskId

@@ -5,9 +5,9 @@ import { z } from "zod";
 import { useUpdateBlock } from "../../hooks/api/blocks";
 import { useRouteNonFocusModal } from "../modal/route-non-focus";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { TextEditor } from "../common/richtext-editor";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
 import { useTranslation } from "react-i18next";
+import { SimpleEditor } from "../editor/editor";
 
 const blockSchema = z.object({
   content: z.object({
@@ -229,7 +229,7 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
       <RouteNonFocusModal.Body className="flex flex-1 flex-col overflow-hidden">
         <div className="flex h-full w-full flex-col">
           <div className="flex-1 h-full overflow-y-auto">
-            <TextEditor
+            {/* <TextEditor
               editorContent={editorContent}
               setEditorContent={handleEditorChange}
               isLoading={false}
@@ -240,6 +240,11 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
                   setFirstImageUrl(imageUrl);
                 }
               }}
+            /> */}
+            <SimpleEditor 
+              editorContent={editorContent} 
+              setEditorContent={handleEditorChange} 
+              outputFormat="json"
             />
           </div>
         </div>

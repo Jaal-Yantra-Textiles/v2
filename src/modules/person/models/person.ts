@@ -10,7 +10,7 @@ const Person = model.define("person", {
   email: model.text().unique().nullable(),
   date_of_birth: model.dateTime().nullable(),
   metadata: model.json().nullable(),
-
+  notes: model.text().nullable(),
   avatar: model.text().nullable(),
   addresses: model.hasMany(() => Address, { mappedBy: "person" }),
   contact_details: model.hasMany(() => ContactDetail, { mappedBy: "person" }),

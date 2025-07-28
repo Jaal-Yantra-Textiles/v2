@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { AGREEMENTS_MODULE } from "../../../../../modules/agreements";
 import { WebAgreementResponseSchema } from "../../validators";
+import AgreementsService from "../../../../../modules/agreements/service";
 
 // POST /web/agreement/:id/respond - Submit agreement response (agree/disagree)
 export const POST = async (
@@ -14,7 +15,7 @@ export const POST = async (
     const validatedData = WebAgreementResponseSchema.parse(req.body);
     const { token, agreed, response_notes, response_ip, response_user_agent } = validatedData;
 
-    const agreementsService = req.scope.resolve(AGREEMENTS_MODULE);
+    const agreementsService: AgreementsService = req.scope.resolve(AGREEMENTS_MODULE);
 
     // First, find the agreement response by ID and validate the token
     const agreementResponse = await agreementsService.retrieveAgreementResponse(id, {
