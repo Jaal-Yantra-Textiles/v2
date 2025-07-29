@@ -31,27 +31,52 @@ export const updateAgreementResponseStep = createStep(
         );
       }
 
-    //   // Check if already responded (for web submissions)
-    //   if (input.status === "agreed" || input.status === "disagreed") {
-    //     if (existingResponse.status === "agreed" || existingResponse.status === "disagreed") {
-    //       throw new MedusaError(
-    //         MedusaError.Types.NOT_ALLOWED,
-    //         "You have already responded to this agreement"
-    //       );
-    //     }
-    //   }
+      console.log('=== UPDATE STEP DEBUG ===');
+      console.log('Existing status:', existingResponse.status);
+      console.log('Requested status:', input.status);
 
-      // Update the agreement response
-      const updateData: any = {
-        status: input.status,
-      };
+      // Handle status transitions intelligently
+      let shouldUpdate = false;
+      const updateData: any = {};
       
-      if (input.agreed !== undefined) updateData.agreed = input.agreed;
-      if (input.responded_at) updateData.responded_at = input.responded_at;
-      if (input.viewed_at) updateData.viewed_at = input.viewed_at;
-      if (input.response_notes !== undefined) updateData.response_notes = input.response_notes;
-      if (input.response_ip !== undefined) updateData.response_ip = input.response_ip;
-      if (input.response_user_agent !== undefined) updateData.response_user_agent = input.response_user_agent;
+      // Only update status if it's a valid transition
+      if (existingResponse.status === "sent" && input.status === "viewed") {
+        // First view - update to viewed
+        shouldUpdate = true;
+        updateData.status = "viewed";
+        if (input.viewed_at) updateData.viewed_at = input.viewed_at;
+      } else if ((existingResponse.status === "sent" || existingResponse.status === "viewed") && 
+                 (input.status === "agreed" || input.status === "disagreed")) {
+        // Response submission - update to agreed/disagreed
+        shouldUpdate = true;
+        updateData.status = input.status;
+        if (input.agreed !== undefined) updateData.agreed = input.agreed;
+        if (input.responded_at) updateData.responded_at = input.responded_at;
+        if (input.response_notes !== undefined) updateData.response_notes = input.response_notes;
+        if (input.response_ip !== undefined) updateData.response_ip = input.response_ip;
+        if (input.response_user_agent !== undefined) updateData.response_user_agent = input.response_user_agent;
+      } else if (existingResponse.status === input.status) {
+        // Same status - no update needed, just return existing
+        console.log('Status already set, no update needed');
+        return new StepResponse(existingResponse, {
+          response_id: input.response_id,
+          previous_status: existingResponse.status,
+        });
+      } else {
+        console.log('Invalid status transition, returning existing response');
+        return new StepResponse(existingResponse, {
+          response_id: input.response_id,
+          previous_status: existingResponse.status,
+        });
+      }
+
+      if (!shouldUpdate) {
+        return new StepResponse(existingResponse, {
+          response_id: input.response_id,
+          previous_status: existingResponse.status,
+        });
+      }
+
       
       const updatedResponses = await agreementsService.updateAgreementResponses({
         selector: { id: input.response_id },

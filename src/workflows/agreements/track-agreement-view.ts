@@ -16,12 +16,11 @@ export const trackAgreementViewWorkflow = createWorkflow(
       access_token: input.access_token,
     });
 
-    // Step 2: Update view tracking if not already viewed
+    // Step 2: Update view tracking - always set to viewed when accessing
     const updatedResponse = updateAgreementResponseStep({
       response_id: input.response_id,
-      status: agreementResponse.status === "sent" ? "viewed" : 
-              (agreementResponse.status === "expired" ? "viewed" : agreementResponse.status as "viewed" | "agreed" | "disagreed"),
-      viewed_at: agreementResponse.status === "sent" ? new Date() : undefined,
+      status: "viewed" as const,
+      viewed_at: new Date(),
     });
 
     return new WorkflowResponse({

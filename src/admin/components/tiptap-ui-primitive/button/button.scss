@@ -25,7 +25,7 @@
 
   &[data-highlighted="true"],
   &[data-focus-visible="true"] {
-    background-color: var(--tt-button-hover-bg-color);
+    background-color: var(--bg-ui-button-inverted-hover);
     color: var(--tt-button-hover-text-color);
     // outline: 2px solid var(--tt-button-active-icon-color);
   }
@@ -242,7 +242,7 @@
     }
 
     &:hover {
-      background-color: var(--tt-button-active-hover-bg-color);
+      background-color: var(--bg-ui-button-inverted-hover);
     }
 
     /* Emphasized */

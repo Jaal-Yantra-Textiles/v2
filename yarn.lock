@@ -8403,6 +8403,11 @@
   resolved "https://registry.yarnpkg.com/@tiptap/extension-text-align/-/extension-text-align-3.0.7.tgz#cb1d6d501d1f7db38546e25f51bb0aac7af2b499"
   integrity sha512-3XywI2+dvb5IIO5NnZqyoXrRnikGyCIN7wWymTI7eqD213Ovs19/sfbW5kXLPsBYiNBb12nbG6pmPhr21mPvoA==
 
+"@tiptap/extension-text-style@^3.0.7":
+  version "3.0.7"
+  resolved "https://registry.yarnpkg.com/@tiptap/extension-text-style/-/extension-text-style-3.0.7.tgz#fad317b8ce52be808769de7f05a56af479117f7e"
+  integrity sha512-naJ1XxlbFJ1qlpA+i54lQYKuhWP1dnkUslM86OT0TZt0zJBeu7LIrqSOVGmMB++lF/btnQLMnYkYSSnkLgIw3A==
+
 "@tiptap/extension-text@^3.0.7":
   version "3.0.7"
   resolved "https://registry.yarnpkg.com/@tiptap/extension-text/-/extension-text-3.0.7.tgz#aa9a833bf8508bd859ac731d1daf47be296fcb9f"

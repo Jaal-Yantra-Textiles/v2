@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { MedusaError } from "@medusajs/framework/utils";
 import { trackAgreementViewWorkflow } from "../../../../workflows/agreements/track-agreement-view";
+import * as Handlebars from "handlebars";
+import { Logger } from "@medusajs/framework/types";
 
 // GET /web/agreement/:id - Fetch agreement for public access with token validation
 export const GET = async (
@@ -26,18 +28,76 @@ export const GET = async (
       },
     });
 
+    // Process Handlebars templates at runtime
+    const templateData = {
+      // Agreement data
+      agreement: {
+        id: result.agreement.id,
+        title: result.agreement.title,
+        subject: result.agreement.subject,
+        valid_from: result.agreement.valid_from || undefined,
+        valid_until: result.agreement.valid_until || undefined,
+        status: result.agreement.status,
+        template_key: result.agreement.template_key || undefined,
+        from_email: result.agreement.from_email || undefined,
+        sent_count: result.agreement.sent_count,
+        response_count: result.agreement.response_count,
+        agreed_count: result.agreement.agreed_count,
+        ...(result.agreement.metadata || {})
+      },
+      // Response data
+      response: {
+        id: result.response.id,
+        status: result.response.status,
+        email_sent_to: result.response.email_sent_to,
+        sent_at: result.response.sent_at,
+        viewed_at: result.response.viewed_at || undefined,
+        responded_at: result.response.responded_at || undefined,
+        agreed: result.response.agreed ?? undefined,
+        response_notes: result.response.response_notes || undefined,
+        email_opened: result.response.email_opened,
+        email_opened_at: result.response.email_opened_at || undefined,
+        access_token: result.response.access_token,
+        response_ip: result.response.response_ip || undefined,
+        response_user_agent: result.response.response_user_agent || undefined,
+        ...(result.response.metadata || {})
+      },
+      // Utility data
+      current_date: new Date(),
+      formatted_date: new Date().toLocaleDateString(),
+      formatted_datetime: new Date().toLocaleString()
+    };
+
+    // Process templates with Handlebars
+    let processedContent = result.agreement.content;
+    let processedSubject = result.agreement.subject;
+
+    try {
+      const contentTemplate = Handlebars.compile(result.agreement.content);
+      processedContent = contentTemplate(templateData);
+      
+      const subjectTemplate = Handlebars.compile(result.agreement.subject);
+      processedSubject = subjectTemplate(templateData);
+      
+      console.log('Template processing successful at runtime');
+    } catch (error) {
+      const logger: Logger = req.scope.resolve("logger");
+      logger.warn(`Handlebars template processing failed for agreement ${result.agreement.id}, falling back to original content: ${error.message}`);
+      // Keep original content if processing fails
+    }
+
     // Calculate can_respond logic in the API route
     const can_respond = result.response.status !== "agreed" && 
                        result.response.status !== "disagreed" &&
                        (!result.agreement.valid_until || new Date() <= new Date(result.agreement.valid_until));
 
-    // Return the agreement data for public viewing
+    // Return the agreement data for public viewing with processed templates
     res.status(200).json({
       agreement: {
         id: result.agreement.id,
         title: result.agreement.title,
-        content: result.agreement.content,
-        subject: result.agreement.subject,
+        content: processedContent,
+        subject: processedSubject,
         valid_from: result.agreement.valid_from,
         valid_until: result.agreement.valid_until,
         status: result.agreement.status,

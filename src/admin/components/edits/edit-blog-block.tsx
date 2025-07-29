@@ -84,8 +84,8 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
   }, []);
 
   const autoSaveContent = useCallback(async (content: any) => {
-    const contentString = JSON.stringify(content);
-    if (contentString === lastSavedContentRef.current) {
+    // Compare the actual content, not stringified versions
+    if (content === lastSavedContentRef.current) {
       return;
     }
 
@@ -103,7 +103,7 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
         },
       };
       await updateBlock.mutateAsync(payload);
-      lastSavedContentRef.current = contentString;
+      lastSavedContentRef.current = content;
 
       if (currentImageUrl !== firstImageUrl) {
         setFirstImageUrl(currentImageUrl);
@@ -160,7 +160,7 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
         setFirstImageUrl(currentImageUrl);
       }
 
-      lastSavedContentRef.current = JSON.stringify(data.content.text);
+      lastSavedContentRef.current = data.content.text;
 
       form.reset(data);
 

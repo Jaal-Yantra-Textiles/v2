@@ -56,6 +56,7 @@
     "@tiptap/extension-task-item": "^3.0.7",
     "@tiptap/extension-task-list": "^3.0.7",
     "@tiptap/extension-text-align": "^3.0.7",
+    "@tiptap/extension-text-style": "^3.0.7",
     "@tiptap/extension-typography": "^3.0.7",
     "@tiptap/extension-underline": "^3.0.7",
     "@tiptap/pm": "^3.0.7",

@@ -14,6 +14,7 @@ import { Highlight } from "@tiptap/extension-highlight"
 import { Subscript } from "@tiptap/extension-subscript"
 import { Superscript } from "@tiptap/extension-superscript"
 import { Underline } from "@tiptap/extension-underline"
+import { TextStyleKit } from "@tiptap/extension-text-style"
 
 // --- Custom Extensions ---
 import { Link } from "@/components/tiptap-extension/link-extension"
@@ -191,7 +192,7 @@ export function SimpleEditor({
   outputFormat = "html",
 }: {
   editorContent: string;
-  setEditorContent: (content: string) => void;
+  setEditorContent: (content: any | string) => void;
   outputFormat?: "html" | "json";
 }) {
   const isMobile = useMobile()
@@ -294,7 +295,7 @@ export function SimpleEditor({
       SelectionPopover.configure({
         onSelectionChange: (selection) => {
           // Handle selection changes if needed
-          console.log('Selection changed:', selection)
+          
         },
         onShowPopover: (selection, coords) => {
           setSelectionPopover({
@@ -313,6 +314,7 @@ export function SimpleEditor({
           })
         },
       }),
+      TextStyleKit,
     ],
     content: React.useMemo(() => {
       // Handle initial content based on output format
@@ -332,7 +334,7 @@ export function SimpleEditor({
     onUpdate: ({ editor }) => {
       // Get content in the requested format
       const content = outputFormat === "json" 
-        ? JSON.stringify(editor.getJSON())
+        ? editor.getJSON()
         : editor.getHTML()
       
       setEditorContent(content)

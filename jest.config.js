@@ -2,13 +2,14 @@ const { loadEnv } = require("@medusajs/utils");
 loadEnv("test", process.cwd());
 
 module.exports = {
-  setupFiles: ["./integration-tests/setup.ts"],
+  setupFiles: ["./integration-tests/setup.js"],
   transform: {
     "^.+\\.[jt]s$": [
       "@swc/jest",
       {
         jsc: {
           parser: { syntax: "typescript", decorators: true },
+          target: "es5",
         },
       },
     ],
