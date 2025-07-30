@@ -5,14 +5,26 @@ import FastDelivery from "@modules/common/icons/fast-delivery"
 import Refresh from "@modules/common/icons/refresh"
 
 import Accordion from "./accordion"
+import RawMaterialsTab from "../../templates/raw-material"
 import { HttpTypes } from "@medusajs/types"
+import { StoreDesign } from "../../../../types/product-design"
+
+interface ProductWithDesigns extends HttpTypes.StoreProduct {
+  designs?: StoreDesign[]
+}
 
 type ProductTabsProps = {
-  product: HttpTypes.StoreProduct
+  product: ProductWithDesigns
 }
 
 const ProductTabs = ({ product }: ProductTabsProps) => {
+  const inventory_items = product.designs?.[0]?.inventory_items || []
+
   const tabs = [
+    {
+      label: "Material Used",
+      component: <RawMaterialsTab inventory_items={inventory_items} />,
+    },
     {
       label: "Product Information",
       component: <ProductInfoTab product={product} />,
