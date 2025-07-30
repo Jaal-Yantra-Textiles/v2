@@ -1,6 +1,7 @@
 import { UIMatch, useParams } from "react-router-dom";
 import { useDesign } from "../../../hooks/api/designs";
 import { DesignGeneralSection } from "../../../components/designs/design-general-section";
+import { DesignPartnerSection } from "../../../components/designs/design-partner-section";
 import { DesignTasksSection } from "../../../components/designs/design-tasks-section";
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
@@ -17,7 +18,7 @@ const DesignDetailPage = () => {
   
   // Use staleTime: 0 to ensure data is always refetched when navigating back to this page
   const { design, isLoading, isError, error } = useDesign(id!, {
-    fields: ["+inventory_items.*", '+tasks.*', 'tasks.subtasks.*', 'tasks.outgoing.*', 'tasks.incoming.*']
+    fields: ["+inventory_items.*", '+tasks.*', 'tasks.subtasks.*', 'tasks.outgoing.*', 'tasks.incoming.*', '+partners.*']
   }, {
     // This ensures fresh data is fetched when returning from other pages
     staleTime: 0,
@@ -55,6 +56,7 @@ const DesignDetailPage = () => {
         <TwoColumnPage.Sidebar>
           <DesignTasksSection design={design} />
           <DesignInventorySection design={design} />
+          <DesignPartnerSection design={design} />
           <DesignTagsSection design={design} />
           <DesignColorPaletteSection design={design} />
         </TwoColumnPage.Sidebar>  

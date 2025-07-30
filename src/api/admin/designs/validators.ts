@@ -68,7 +68,12 @@ export const CreateDesignLLMSchema = z.object({
   existingValues: z.record(z.any()).optional()
 });
 
+export const LinkDesignPartnerSchema = z.object({
+  partnerIds: z.array(z.string()),
+})
+
 export type Design = z.infer<typeof designSchema>;
 export type UpdateDesign = z.infer<typeof UpdateDesignSchema>;
 export type ReadDesigns = z.infer<typeof ReadDesignsQuerySchema>;
 export type CreateDesignLLM = z.infer<typeof CreateDesignLLMSchema>;
+export type LinkDesignPartner = z.infer<typeof LinkDesignPartnerSchema>;

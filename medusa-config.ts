@@ -139,6 +139,9 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/agreements",
   },
+  {
+    resolve: "./src/modules/media",
+  },
 ]
 
     // {

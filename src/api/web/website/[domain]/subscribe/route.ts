@@ -4,6 +4,7 @@ import { z } from "zod";
 import createPersonWorkflow from "../../../../../workflows/create-person";
 import { SubscriptionSchema } from "../validators";
 import createPersonTagsWorkflow from "../../../../../workflows/persons/create-person-tags";
+import createPersonSubWorkflow, { SubscriptionStatus } from "../../../../../workflows/persons/create-person-subs";
 
 export const POST = async (
   req: MedusaRequest<SubscriptionSchema>,
@@ -11,7 +12,7 @@ export const POST = async (
 ) => {
   const { domain } = req.params;
   
-    const { email, first_name, last_name } = req.validatedBody;
+    const { email, first_name, last_name, subscription_type , network } = req.validatedBody;
     
     // First, find the website to ensure it exists and get its details
     const websiteResponse = await findWebsiteByDomainWorkflow(req.scope).run({
@@ -32,33 +33,27 @@ export const POST = async (
         first_name,
         last_name,
         email,
-        metadata: {
-          is_subscriber: true,
-          subscribed_to_website: website.name,
-          subscribed_to_domain: domain,
-          subscription_date: new Date().toISOString(),
-          subscription_source: "website",
-        },
       },
     });
+
+    // Then the subs relationship
+
+    await createPersonSubWorkflow(req.scope).run({
+      input: {
+        person_id: result.id,
+        subscription_type: subscription_type,
+        network: network,
+        subscription_status: SubscriptionStatus.ACTIVE,
+        email_subscribed: email,
+      },
+    });
+
+    
     
     if (errors.length > 0) {
       throw errors;
     }
-    
-    const person = result;
-    
-    // Add the "Subscriber" tag to the person
-
-    await createPersonTagsWorkflow(req.scope).run({
-      input: {
-        name: {
-            type: "Subscriber",
-            from: "website"
-        },
-        person_id: person.id
-      },
-    });
+  
     
     return res.status(200).json({
       message: "Subscription successful",

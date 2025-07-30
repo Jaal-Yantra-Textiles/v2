@@ -26,7 +26,7 @@ import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators
 import * as z from "zod";
 import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
-import { CreateDesignLLMSchema, designSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
+import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
@@ -602,7 +602,12 @@ export default defineMiddlewares({
       matcher: "/admin/persons/:id/agreements/send",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminSendPersonAgreementReq))],
-    }
+    },
+    {
+      matcher: "/admin/designs/:id/partner",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(LinkDesignPartnerSchema))],
+    },
   ],
   errorHandler: ((
     error: any, // or whatever type you prefer
@@ -613,7 +618,6 @@ export default defineMiddlewares({
     // Option 1: standard name check
     // if (error.name === "ZodError") {
     // Option 2: check if error is an instance of ZodError
-    console.log(error)
     if (error.__isMedusaError){
       if (error.type == 'not_found'){
         return res.status(404).json({

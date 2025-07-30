@@ -6,7 +6,7 @@ import { setStepSuccessWorkflow } from "../../../../../../../workflows/tasks/tas
 
 export const POST = async (req: MedusaRequest<AdminPostDesignTaskAssignReq>, res: MedusaResponse) => {
 
-    const {result: taskLinked } = await createTaskAssignmentWorkflow(req.scope).run({
+    await createTaskAssignmentWorkflow(req.scope).run({
         input: {
             taskId: req.validatedBody.taskId,
             partnerId: req.validatedBody.partnerId

@@ -84,6 +84,10 @@ export interface AdminDesignsQuery {
   q?: string;
 }
 
+export interface LinkDesignPartner {
+  partnerIds: string[];
+}
+
 const DESIGN_QUERY_KEY = "designs" as const;
 export const designQueryKeys = queryKeysFactory(DESIGN_QUERY_KEY);
 
@@ -303,3 +307,28 @@ export const useCreateDesignLLM = (
     ...options,
   });
 };
+
+
+export const useLinkDesignToPartner = (
+    id: string,
+    options?: UseMutationOptions<
+    AdminDesignResponse,
+    FetchError,
+    LinkDesignPartner
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: LinkDesignPartner) =>
+      sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}/partner`, {
+        method: "POST",
+        body: data,
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+}

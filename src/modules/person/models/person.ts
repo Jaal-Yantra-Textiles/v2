@@ -2,6 +2,7 @@ import { model } from "@medusajs/framework/utils";
 import Address from "./person_address";
 import ContactDetail from "./person_contact";
 import Tag from "./person_tags";
+import PersonSub from "./person_subs";
 
 const Person = model.define("person", {
   id: model.id().primaryKey(),
@@ -21,6 +22,7 @@ const Person = model.define("person", {
     .default("Onboarding"),
   // This metadata will store imported stuff.
   public_metadata: model.json().nullable(),
+  subscribed: model.hasOne(() => PersonSub, { mappedBy: "person" }),
 });
 
 export default Person;

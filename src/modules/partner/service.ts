@@ -8,7 +8,9 @@ class PartnerService extends MedusaService({
 }) {
     constructor() {
         super(...arguments)
-    }    
+    }
+
+   
     // Custom methods can be added here if needed
     // The basic CRUD operations are already provided by MedusaService
 

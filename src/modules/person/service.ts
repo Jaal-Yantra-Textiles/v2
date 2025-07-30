@@ -4,12 +4,14 @@ import Person from "../person/models/person";
 import Address from "./models/person_address";
 import ContactDetail from "./models/person_contact";
 import Tag from "./models/person_tags";
+import PersonSub from "./models/person_subs";
 
 class PersonService extends MedusaService({
   Person,
   Address,
   ContactDetail,
   Tag,
+  PersonSub,
 }) {
   // Custom methods can be added here
   //
@@ -24,6 +26,7 @@ class PersonService extends MedusaService({
   async listPersonContactDetails(...args) {
     return this.listContactDetails(...args)
   }
+
 
 }
 
