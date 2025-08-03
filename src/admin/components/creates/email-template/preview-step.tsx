@@ -7,7 +7,7 @@ interface PreviewStepProps {
 
 export const PreviewStep = ({ watch }: PreviewStepProps) => {
   return (
-    <div className="flex flex-col gap-y-6 p-6">
+    <div className="flex flex-col gap-y-6 p-6 h-full">
       <div>
         <Heading level="h2">Template Preview</Heading>
         <Text size="small" className="text-ui-fg-subtle">
@@ -15,7 +15,7 @@ export const PreviewStep = ({ watch }: PreviewStepProps) => {
         </Text>
       </div>
 
-      <div className="grid gap-y-6">
+      <div className="grid gap-y-6 flex-1 overflow-hidden">
         <div className="border rounded-lg p-4">
           <Text weight="plus" size="small" className="mb-2">Template Details</Text>
           <div className="grid grid-cols-2 gap-4 text-sm">
@@ -38,18 +38,22 @@ export const PreviewStep = ({ watch }: PreviewStepProps) => {
           </div>
         </div>
 
-        <div className="border rounded-lg p-4">
-          <Text weight="plus" size="small" className="mb-2">Email Preview</Text>
-          <div className="bg-ui-bg-subtle rounded p-4">
-            <div className="mb-3 pb-3 border-b">
-              <Text weight="plus">Subject: {watch("subject") || "No subject"}</Text>
+        <div className="border rounded-lg flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="p-4 border-b">
+            <Text weight="plus" size="small">Email Preview</Text>
+          </div>
+          <div className="bg-ui-bg-subtle flex-1 overflow-y-auto">
+            <div className="p-4">
+              <div className="mb-3 pb-3 border-b">
+                <Text weight="plus">Subject: {watch("subject") || "No subject"}</Text>
+              </div>
+              <div 
+                className="prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ 
+                  __html: watch("html_content") || "<p>No content</p>" 
+                }}
+              />
             </div>
-            <div 
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ 
-                __html: watch("html_content") || "<p>No content</p>" 
-              }}
-            />
           </div>
         </div>
       </div>

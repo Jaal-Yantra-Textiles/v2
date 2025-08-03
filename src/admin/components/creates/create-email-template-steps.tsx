@@ -25,7 +25,7 @@ const emailTemplateSchema = z.object({
   html_content: z.string().min(1, "HTML content is required"),
   variables: z.array(z.object({
     key: z.string(),
-    value: z.string()
+    value: z.string(),
   })).optional().default([]),
   is_active: z.boolean().default(true),
 });
@@ -89,17 +89,6 @@ export const CreateEmailTemplateSteps = () => {
     },
   });
 
-  // Debug form state
-  useEffect(() => {
-    console.log('Form State Debug:', {
-      isValid: form.formState.isValid,
-      isDirty: form.formState.isDirty,
-      errors: form.formState.errors,
-      dirtyFields: form.formState.dirtyFields,
-      touchedFields: form.formState.touchedFields
-    });
-  }, [form.formState]);
-
   useEffect(() => {
     setTabState((prev) => ({
       ...prev,
@@ -124,17 +113,19 @@ export const CreateEmailTemplateSteps = () => {
   };
 
   const handleSubmit = form.handleSubmit(async (data) => {
+    console.log('Form data before transformation:', data);
     // Transform variables array to object for API compatibility
     const transformedData = {
       ...data,
       variables: data.variables?.reduce((acc: Record<string, string>, variable: { key: string; value: string }) => {
-        if (variable.key && variable.value) {
-          acc[variable.key] = variable.value;
+        // Include variables even with empty values, but require a key
+        if (variable.key) {
+          acc[variable.key] = variable.value || "";
         }
         return acc;
       }, {}) || {}
     };
-
+    
     mutate(transformedData, {
       onSuccess: ({ emailTemplate }) => {
         toast.success("Email template created successfully!");
@@ -210,20 +201,20 @@ export const CreateEmailTemplateSteps = () => {
                 </ProgressTabs.List>
               </div>
             </RouteFocusModal.Header>
-            <RouteFocusModal.Body className="size-full overflow-hidden">
-
+            <RouteFocusModal.Body className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex h-full w-full flex-col">
                 {/* Basic Info Tab */}
-                <ProgressTabs.Content value={Tab.BASIC} className="flex-1 overflow-y-auto">
+                <ProgressTabs.Content value={Tab.BASIC} className="flex-1 h-full overflow-y-auto">
                   <BasicStep control={form.control} templateTypes={templateTypes} />
                 </ProgressTabs.Content>
 
                 {/* Recipients Tab */}
-                <ProgressTabs.Content value={Tab.RECIPIENTS} className="flex-1 overflow-y-auto">
+                <ProgressTabs.Content value={Tab.RECIPIENTS} className="flex-1 h-full overflow-y-auto">
                   <RecipientsStep control={form.control} />
                 </ProgressTabs.Content>
 
                 {/* Content Tab */}
-                <ProgressTabs.Content value={Tab.CONTENT} className="flex-1 overflow-y-auto">
+                <ProgressTabs.Content value={Tab.CONTENT} className="flex-1 h-full overflow-y-auto">
                   <ContentStep 
                     control={form.control} 
                     variables={commonVariables}
@@ -232,10 +223,11 @@ export const CreateEmailTemplateSteps = () => {
                 </ProgressTabs.Content>
 
                 {/* Preview Tab */}
-                <ProgressTabs.Content value={Tab.PREVIEW} className="flex-1 overflow-y-auto">
+                <ProgressTabs.Content value={Tab.PREVIEW} className="flex-1 h-full overflow-y-auto">
                   <PreviewStep watch={form.watch} />
                 </ProgressTabs.Content>
-                </RouteFocusModal.Body>
+              </div>
+            </RouteFocusModal.Body>
                 <RouteFocusModal.Footer>
                   <div className="flex items-center justify-end gap-x-2">
                     <div className="flex items-center gap-x-2">

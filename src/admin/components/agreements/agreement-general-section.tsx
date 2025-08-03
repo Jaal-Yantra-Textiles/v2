@@ -3,6 +3,7 @@ import { Container, Heading, Text, usePrompt } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { ActionMenu } from "../common/action-menu";
 import { AdminAgreement } from "../../hooks/api/agreement";
+import { Link } from "react-router-dom";
 
 type AgreementGeneralSectionProps = {
   agreement: AdminAgreement;
@@ -78,7 +79,9 @@ export const AgreementGeneralSection = ({ agreement }: AgreementGeneralSectionPr
             </Text>
             <div className="flex items-center gap-2">
               {agreement.content ? (
-                <ArrowUpRightOnBox className="h-4 w-4 text-ui-fg-muted" />
+                <Link to={`/settings/agreements/${agreement.id}/editAgreement`}>
+                  <ArrowUpRightOnBox className="h-4 w-4 text-ui-fg-muted" />
+                </Link>
               ) : (
                 <Text size="small" leading="compact">
                   {agreement.content || "-"}

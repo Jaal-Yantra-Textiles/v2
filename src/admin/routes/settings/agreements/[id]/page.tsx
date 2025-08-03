@@ -21,6 +21,7 @@ const AgreementDetailPage = () => {
       showMetadata
     >
       <AgreementGeneralSection agreement={agreement} />
+
     </SingleColumnPage>
   );
 };

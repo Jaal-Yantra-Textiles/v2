@@ -1,20 +1,27 @@
-import { Button, Badge, Input, Text, Switch } from "@medusajs/ui";
-import { Plus, Trash, X } from "@medusajs/icons";
-import { useState } from "react";
+import { Button, Input, Text, toast } from "@medusajs/ui";
+import { Plus, Trash } from "@medusajs/icons";
+import { useState, useCallback } from "react";
 import { Control, useFieldArray } from "react-hook-form";
 import { StackedFocusModal } from "../../modal/stacked-modal/stacked-focused-modal";
-import { Form } from "../../common/form";
+import { useStackedModal } from "../../modal/stacked-modal/use-stacked-modal";
+import { BulkImportSection } from "./bulk-import-section";
+import { PredefinedVariablesSection } from "./predefined-variables-section";
 
 interface Variable {
   name: string;
   description: string;
 }
 
+interface VariableObject {
+  name: string;
+  defaultValue: string;
+}
+
 interface VariablesModalProps {
   control: Control<any>;
   predefinedVariables: Variable[];
-  selectedVariables: string[];
-  onVariablesChange: (variables: string[]) => void;
+  selectedVariables: VariableObject[];
+  onVariablesChange: (variables: VariableObject[]) => void;
   onInsertVariable: (variableName: string) => void;
 }
 
@@ -25,53 +32,89 @@ export const VariablesModal = ({
   onVariablesChange,
   onInsertVariable
 }: VariablesModalProps) => {
-  const [useCustomVariables, setUseCustomVariables] = useState(false);
-  const [localSelectedVariables, setLocalSelectedVariables] = useState<string[]>(selectedVariables);
+  const [localSelectedVariables, setLocalSelectedVariables] = useState<VariableObject[]>(selectedVariables);
+  const [rawVariables, setRawVariables] = useState("");
+  const [parseError, setParseError] = useState<string | null>(null);
 
   const { fields, append, remove } = useFieldArray({
     control,
     name: "variables"
   });
 
-  const addCustomVariable = () => {
+
+
+  const handleCopyAllVariables = useCallback(() => {
+    const allVariables = [
+      ...predefinedVariables.map(v => v.name),
+      ...fields.map((_, index) => control._getWatch(`variables.${index}.key`)).filter(Boolean)
+    ];
+    
+    const variablesText = allVariables.map(name => `${name}=`).join('\n');
+    navigator.clipboard.writeText(variablesText);
+    toast.success("Variables copied to clipboard");
+  }, [predefinedVariables, fields, control]);
+
+  const handleAddCustomVariable = useCallback(() => {
     append({ key: "", value: "" });
-  };
+  }, [append]);
 
-  const handleVariableToggle = (variableName: string) => {
-    const newSelection = localSelectedVariables.includes(variableName)
-      ? localSelectedVariables.filter(v => v !== variableName)
-      : [...localSelectedVariables, variableName];
+  const handleToggleVariableName = useCallback((variableName: string) => {
+    const existingVar = localSelectedVariables.find(v => v.name === variableName);
+    const newSelection = existingVar
+      ? localSelectedVariables.filter(v => v.name !== variableName)
+      : [...localSelectedVariables, { name: variableName, defaultValue: '' }];
     setLocalSelectedVariables(newSelection);
-  };
+  }, [localSelectedVariables]);
 
-  const handleSave = () => {
+  const { setIsOpen } = useStackedModal();
+
+  const handleSave = useCallback(() => {
+    console.log('VariablesModal handleSave called');
+    console.log('localSelectedVariables:', localSelectedVariables);
+    console.log('fields:', fields);
+    console.log('predefinedVariables:', predefinedVariables);
+    
     // Get custom variables that have both key and value
     const customVars = fields
-      .map((field, index) => {
+      .map((_, index) => {
         const key = control._getWatch(`variables.${index}.key`);
         const value = control._getWatch(`variables.${index}.value`);
-        return key && value ? key : null;
+        console.log(`Field ${index} key:`, key, 'value:', value);
+        if (key) {
+          return { name: key, defaultValue: value || '' };
+        }
+        return null;
       })
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<{name: string, defaultValue: string}>;
+    
+    console.log('customVars:', customVars);
 
-    // Combine predefined and custom variables
-    const allAvailableVariables = [
-      ...predefinedVariables.map(v => v.name),
+    // Get predefined variables with their descriptions as default values
+    const predefinedVars = localSelectedVariables
+      .map(varName => {
+        const predefinedVar = predefinedVariables.find(v => v.name === varName);
+        return predefinedVar ? { 
+          name: predefinedVar.name, 
+          defaultValue: predefinedVar.description 
+        } : null;
+      })
+      .filter(Boolean) as Array<{name: string, defaultValue: string}>;
+
+    const validSelectedVariables = [
+      ...predefinedVars,
       ...customVars
     ];
-
-    // Filter selected variables to only include available ones
-    const validSelectedVariables = localSelectedVariables.filter(v => 
-      allAvailableVariables.includes(v)
-    );
+    
+    console.log('validSelectedVariables being sent:', validSelectedVariables);
 
     onVariablesChange(validSelectedVariables);
-  };
+    setIsOpen('variables-modal', false);
+  }, [control, fields, localSelectedVariables, predefinedVariables, onVariablesChange, setIsOpen]);
 
-  const handleInsertAndClose = (variableName: string) => {
+  const handleInsertAndClose = useCallback((variableName: string) => {
     onInsertVariable(variableName);
-    // Don't close modal, just insert the variable
-  };
+    setIsOpen('variables-modal', false);
+  }, [onInsertVariable, setIsOpen]);
 
   return (
     <StackedFocusModal id="variables-modal">
@@ -79,207 +122,112 @@ export const VariablesModal = ({
         <Button
           variant="secondary"
           size="small"
-          onClick={() => setLocalSelectedVariables(selectedVariables)}
+          className="w-full"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 mr-2" />
           Manage Variables
         </Button>
       </StackedFocusModal.Trigger>
-      
-      <StackedFocusModal.Content className="flex flex-col max-w-full">
+      <StackedFocusModal.Content>
         <StackedFocusModal.Header>
-          <StackedFocusModal.Title>Manage Email Variables</StackedFocusModal.Title>
-          <StackedFocusModal.Description>
-            Select predefined variables or create custom ones for your email template
-          </StackedFocusModal.Description>
+          <Text size="small" weight="plus">
+            Manage Variables
+          </Text>
         </StackedFocusModal.Header>
-        
-        <StackedFocusModal.Body className="flex-1 overflow-y-auto">
-          <div className="space-y-6 p-6">
-            {/* Variable Type Switch */}
-            <div className="flex items-center justify-between p-4 bg-ui-bg-subtle rounded-lg">
-              <div>
-                <Text weight="plus" size="small">Variable Type</Text>
-                <Text size="small" className="text-ui-fg-subtle">
-                  {useCustomVariables ? 'Create and manage custom variables' : 'Select from predefined system variables'}
-                </Text>
-              </div>
-              <div className="flex items-center gap-2">
-                <Text size="small" className={!useCustomVariables ? 'text-ui-fg-base' : 'text-ui-fg-subtle'}>
-                  Predefined
-                </Text>
-                <Switch
-                  checked={useCustomVariables}
-                  onCheckedChange={setUseCustomVariables}
-                />
-                <Text size="small" className={useCustomVariables ? 'text-ui-fg-base' : 'text-ui-fg-subtle'}>
-                  Custom
-                </Text>
-              </div>
-            </div>
 
-            {useCustomVariables ? (
-              /* Custom Variables Section */
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Text weight="plus">Custom Variables</Text>
+        <StackedFocusModal.Body className="flex flex-col gap-6 max-h-[600px] overflow-y-auto px-6 py-4">
+          <BulkImportSection
+            rawVariables={rawVariables}
+            onRawVariablesChange={setRawVariables}
+            onParse={(parsedVars) => {
+              parsedVars.forEach(({ key, value }) => {
+                append({ key, value });
+              });
+              setRawVariables("");
+              setParseError(null);
+            }}
+            onCopyAll={handleCopyAllVariables}
+            parseError={parseError}
+          />
+
+          <PredefinedVariablesSection
+            variables={predefinedVariables}
+            selectedVariables={localSelectedVariables}
+            onToggleVariable={handleToggleVariableName}
+            onInsertVariable={handleInsertAndClose}
+          />
+
+          {/* Custom Variables */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <Text size="small" weight="plus" className="text-ui-fg-base">
+                Custom Variables
+              </Text>
+              <Button
+                type="button"
+                variant="secondary"
+                size="small"
+                className="w-full sm:w-auto"
+                onClick={handleAddCustomVariable}
+              >
+                <Plus className="w-4 h-4" />
+                Add Variable
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {fields.map((field, index) => (
+                <div key={field.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 border border-ui-border-base rounded-lg bg-ui-bg-subtle">
+                  <Input
+                    placeholder="Variable name"
+                    {...control.register(`variables.${index}.key`)}
+                    className="text-sm flex-1"
+                  />
+                  <Input
+                    placeholder="Default value"
+                    {...control.register(`variables.${index}.value`)}
+                    className="text-sm flex-1"
+                  />
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="transparent"
                     size="small"
-                    onClick={addCustomVariable}
+                    className="w-full sm:w-auto text-ui-fg-error hover:text-ui-fg-error-hover"
+                    onClick={() => remove(index)}
                   >
-                    <Plus className="w-4 h-4" />
-                    Add Variable
+                    <Trash className="w-4 h-4" />
                   </Button>
                 </div>
-                
-                <div className="grid gap-4">
-                  {fields.map((field, index) => (
-                    <div key={field.id} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <Text size="small" weight="plus">Variable {index + 1}</Text>
-                        <Button
-                          type="button"
-                          variant="transparent"
-                          size="small"
-                          onClick={() => remove(index)}
-                        >
-                          <Trash className="w-4 h-4 text-ui-fg-error" />
-                        </Button>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <Form.Field
-                          control={control}
-                          name={`variables.${index}.key`}
-                          render={({ field }) => (
-                            <Form.Item>
-                              <Form.Label>Variable Key</Form.Label>
-                              <Form.Control>
-                                <Input 
-                                  {...field} 
-                                  placeholder="user_name" 
-                                  size="small"
-                                />
-                              </Form.Control>
-                              <Form.ErrorMessage />
-                            </Form.Item>
-                          )}
-                        />
-                        
-                        <Form.Field
-                          control={control}
-                          name={`variables.${index}.value`}
-                          render={({ field }) => (
-                            <Form.Item>
-                              <Form.Label>Default Value</Form.Label>
-                              <Form.Control>
-                                <Input 
-                                  {...field} 
-                                  placeholder="John Doe" 
-                                  size="small"
-                                />
-                              </Form.Control>
-                              <Form.ErrorMessage />
-                            </Form.Item>
-                          )}
-                        />
-                      </div>
-                      
-                      {control._getWatch(`variables.${index}.key`) && (
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="small"
-                            onClick={() => handleVariableToggle(control._getWatch(`variables.${index}.key`))}
-                          >
-                            {localSelectedVariables.includes(control._getWatch(`variables.${index}.key`)) ? 'Deselect' : 'Select'}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="transparent"
-                            size="small"
-                            onClick={() => handleInsertAndClose(control._getWatch(`variables.${index}.key`))}
-                          >
-                            Insert into Content
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  
-                  {fields.length === 0 && (
-                    <div className="text-center py-8 text-ui-fg-subtle">
-                      <Text size="small">No custom variables created yet</Text>
-                      <Text size="xsmall">Click "Add Variable" to create your first custom variable</Text>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              /* Predefined Variables Section */
-              <div className="space-y-4">
-                <Text weight="plus">Predefined Variables</Text>
-                <div className="grid gap-3">
-                  {predefinedVariables.map((variable) => (
-                    <div key={variable.name} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Text size="small" weight="plus">{variable.name}</Text>
-                          {localSelectedVariables.includes(variable.name) && (
-                            <Badge size="small" color="green">Selected</Badge>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="small"
-                            onClick={() => handleVariableToggle(variable.name)}
-                          >
-                            {localSelectedVariables.includes(variable.name) ? 'Deselect' : 'Select'}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="transparent"
-                            size="small"
-                            onClick={() => handleInsertAndClose(variable.name)}
-                          >
-                            Insert into Content
-                          </Button>
-                        </div>
-                      </div>
-                      <Text size="xsmall" className="text-ui-fg-subtle">
-                        {variable.description}
-                      </Text>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         </StackedFocusModal.Body>
-        
+
         <StackedFocusModal.Footer>
-          <div className="flex w-full items-center justify-between">
-            <Text size="small" className="text-ui-fg-subtle">
-              {localSelectedVariables.length} variable(s) selected
-            </Text>
-            <div className="flex items-center gap-x-2">
-              <StackedFocusModal.Close asChild>
-                <Button variant="secondary">Cancel</Button>
-              </StackedFocusModal.Close>
-              <StackedFocusModal.Close asChild>
-                <Button variant="primary" onClick={handleSave}>
-                  Save Selection
-                </Button>
-              </StackedFocusModal.Close>
-            </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setLocalSelectedVariables(selectedVariables);
+                setRawVariables("");
+                setParseError(null);
+                setIsOpen('variables-modal', false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleSave}
+            >
+              Save Variables
+            </Button>
           </div>
         </StackedFocusModal.Footer>
       </StackedFocusModal.Content>
     </StackedFocusModal>
   );
 };
+
+export default VariablesModal;

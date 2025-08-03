@@ -1,9 +1,13 @@
 import { Heading, Input, Text, Textarea, Badge } from "@medusajs/ui";
-import { Control } from "react-hook-form";
-import { useState } from "react";
+import { Control, useFieldArray } from "react-hook-form";
 import {  XMark } from "@medusajs/icons";
 import { VariablesModal } from "./variables-modal";
 import { Form } from "../../common/form";
+
+interface Variable {
+  name: string;
+  description: string;
+}
 
 interface Variable {
   name: string;
@@ -15,16 +19,36 @@ interface ContentStepProps {
   variables: Variable[];
   onInsertVariable: (variableName: string) => void;
 }
-
 export const ContentStep = ({ control, variables, onInsertVariable }: ContentStepProps) => {
-  const [selectedVariables, setSelectedVariables] = useState<string[]>([]);
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "variables",
+    keyName: "id"
+  });
 
   const handleRemoveVariable = (variableName: string) => {
-    setSelectedVariables(prev => prev.filter(v => v !== variableName));
+    const index = fields.findIndex(field => (field as any).key === variableName);
+    if (index !== -1) {
+      remove(index);
+    }
   };
 
   const handleInsertVariable = (variableName: string) => {
     onInsertVariable(variableName);
+  };
+
+  const handleVariablesChange = (newVariables: Array<{name: string, defaultValue: string}>) => {
+    console.log('ContentStep handleVariablesChange called with:', newVariables);
+    // Clear existing variables
+    remove();
+    
+    // Add new variables with their default values
+    newVariables.forEach(variable => {
+      console.log('Adding variable:', variable);
+      append({ key: variable.name, value: variable.defaultValue });
+    });
+    // Note: fields will not update immediately due to React async state updates
+    // The fields array will be updated on the next render
   };
 
   return (
@@ -76,24 +100,24 @@ export const ContentStep = ({ control, variables, onInsertVariable }: ContentSte
                 />
                 
                 {/* Selected Variables Badges */}
-                {selectedVariables.length > 0 && (
+                {fields.length > 0 && (
                   <div>
                     <Text size="small" weight="plus" className="mb-2 block">Selected Variables</Text>
                     <div className="flex flex-wrap gap-2">
-                      {selectedVariables.map((variable) => (
-                        <div key={variable} className="relative">
+                      {fields.map((field) => (
+                        <div key={field.id} className="relative">
                           <Badge
                             size="small"
                             className="cursor-pointer pr-6"
-                            onClick={() => handleInsertVariable(variable)}
+                            onClick={() => handleInsertVariable((field as any).key)}
                           >
-                            {variable}
+                            {(field as any).key}
                           </Badge>
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRemoveVariable(variable);
+                              handleRemoveVariable((field as any).key);
                             }}
                             className="absolute -top-2 -right-1 bg-white rounded-full p-1 shadow-sm border border-ui-border-base text-ui-fg-subtle hover:text-ui-fg-error hover:border-ui-fg-error transition-all"
                           >
@@ -109,12 +133,12 @@ export const ContentStep = ({ control, variables, onInsertVariable }: ContentSte
                 )}
               </div>
 
-              <div className="col-span-1">
+              <div className="col-span-1 space-y-4">
                 <VariablesModal
                   control={control}
                   predefinedVariables={variables}
-                  selectedVariables={selectedVariables}
-                  onVariablesChange={setSelectedVariables}
+                  selectedVariables={fields.map(field => (field as any).key)}
+                  onVariablesChange={handleVariablesChange}
                   onInsertVariable={handleInsertVariable}
                 />
               </div>

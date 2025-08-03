@@ -1,8 +1,9 @@
-import { PencilSquare, Trash } from "@medusajs/icons";
+import { ArrowUpRightOnBox, PencilSquare, Trash } from "@medusajs/icons";
 import { Container, Heading, Text, usePrompt, Badge } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { ActionMenu } from "../common/action-menu";
 import { AdminEmailTemplate } from "../../hooks/api/email-templates";
+import { Link } from "react-router-dom";
 
 type EmailTemplateGeneralSectionProps = {
   emailTemplate: AdminEmailTemplate;
@@ -80,6 +81,22 @@ export const EmailTemplateGeneralSection = ({ emailTemplate }: EmailTemplateGene
               {emailTemplate.description || "-"}
             </Text>
           </div>
+          <div className="grid grid-cols-2 items-center px-6 py-4">
+            <Text size="small" leading="compact" weight="plus">
+              {t("agreements.fields.content.label")}
+            </Text>
+          <div className="flex items-center gap-2">
+              {emailTemplate.html_content ? (
+                <Link to={`/settings/email-templates/${emailTemplate.id}/editEmailTemplate`}>
+                  <ArrowUpRightOnBox className="h-4 w-4 text-ui-fg-muted" />
+                </Link>
+              ) : (
+                <Text size="small" leading="compact">
+                  {emailTemplate.html_content || "-"}
+                </Text>
+              )}
+            </div>
+            </div>
           <div className="grid grid-cols-2 items-center px-6 py-4">
             <Text size="small" leading="compact" weight="plus">
               {t("email-templates.fields.to.label")}

@@ -23,7 +23,6 @@ type ContentStepProps = {
 function AgreementTextEditor({
   editorContent: initialEditorContent,
   setEditorContent: onSetEditorContent,
-  onEditorReady: onEditorReadyProp,
   debounceTime = 300,
 }: {
   editorContent: string;
@@ -33,14 +32,7 @@ function AgreementTextEditor({
 }) {
   const debounceTimeoutRef = useRef<NodeJS.Timeout>();
 
-  const editorCallbackRef = useCallback((editorInstance: any) => {
-    const editor = editorInstance?.editor;
-    if (onEditorReadyProp && editor) {
-      onEditorReadyProp(editor);
-    } else if (onEditorReadyProp) {
-      onEditorReadyProp(null);
-    }
-  }, [onEditorReadyProp]);
+  ;
   
   // Handle content changes with debouncing and convert to HTML
   const handleContentChange = useCallback((content: string) => {
