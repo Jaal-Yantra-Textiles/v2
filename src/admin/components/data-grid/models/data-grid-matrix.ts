@@ -27,11 +27,17 @@ export class DataGridMatrix<TData, TFieldValues extends FieldValues> {
   }
 
   private _computeRowAccessors(): (string | null)[] {
+    // Add defensive checks to prevent errors when cells array is empty or malformed
+    if (!this.cells || this.cells.length === 0) {
+      return []
+    }
+    
     return this.cells.map((_, rowIndex) => this.getRowAccessor(rowIndex))
   }
 
   private _computeColumnAccessors(): (string | null)[] {
-    if (this.cells.length === 0) {
+    // Add defensive checks to prevent errors when cells array is empty or malformed
+    if (!this.cells || this.cells.length === 0 || !this.cells[0]) {
       return []
     }
 
@@ -223,14 +229,24 @@ export class DataGridMatrix<TData, TFieldValues extends FieldValues> {
   }
 
   getRowAccessor(row: number): string | null {
+    // Add defensive checks to prevent errors when cells array is empty or malformed
+    if (!this.cells || this.cells.length === 0) {
+      return null
+    }
+    
     if (row < 0 || row >= this.cells.length) {
       return null
     }
 
     const cells = this.cells[row]
+    
+    // Add defensive check for cells row existence
+    if (!cells) {
+      return null
+    }
 
     const nonNullFields = cells
-      .filter((cell): cell is GridCell<TFieldValues> => cell !== null)
+      .filter((cell): cell is GridCell<TFieldValues> => cell !== null && cell.field !== undefined)
       .map((cell) => cell.field.split("."))
 
     if (nonNullFields.length === 0) {
@@ -259,13 +275,23 @@ export class DataGridMatrix<TData, TFieldValues extends FieldValues> {
   }
 
   public getColumnAccessor(column: number): string | null {
-    if (column < 0 || column >= this.cells[0].length) {
+    // Add defensive checks to prevent errors when cells array is empty or malformed
+    if (!this.cells || this.cells.length === 0) {
+      return null
+    }
+    
+    if (column < 0 || !this.cells[0] || column >= this.cells[0].length) {
       return null
     }
 
     // Extract the unique part of the field name for each row in the specified column
     const uniqueParts = this.cells
       .map((row, rowIndex) => {
+        // Add defensive check for row existence
+        if (!row) {
+          return null
+        }
+        
         const cell = row[column]
         if (!cell) {
           return null
@@ -275,7 +301,7 @@ export class DataGridMatrix<TData, TFieldValues extends FieldValues> {
         const rowAccessor = this.getRowAccessor(rowIndex)
 
         // Remove the row accessor part from the field name
-        if (rowAccessor && cell.field.startsWith(rowAccessor + ".")) {
+        if (rowAccessor && cell.field && cell.field.startsWith(rowAccessor + ".")) {
           return cell.field.slice(rowAccessor.length + 1) // Extract the part after the row accessor
         }
 
@@ -377,13 +403,33 @@ export class DataGridMatrix<TData, TFieldValues extends FieldValues> {
   }
 
   private _populateCells(rows: Row<TData>[], columns: ColumnDef<TData>[]) {
+    // Add defensive checks to prevent errors when rows or columns are empty
+    if (!rows || !columns) {
+      return [] as Grid<TFieldValues>
+    }
+    
     const cells = Array.from({ length: rows.length }, () =>
       Array(columns.length).fill(null)
     ) as Grid<TFieldValues>
 
     rows.forEach((row, rowIndex) => {
+      // Add defensive check for row existence
+      if (!row) {
+        return
+      }
+      
       columns.forEach((column, colIndex) => {
+        // Add defensive check for column existence
+        if (!column) {
+          return
+        }
+        
         if (!this._isValidPosition(rowIndex, colIndex, cells)) {
+          return
+        }
+
+        // Add defensive check for column.meta existence
+        if (!column.meta) {
           return
         }
 

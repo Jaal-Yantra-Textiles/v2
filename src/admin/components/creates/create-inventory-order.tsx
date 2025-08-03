@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button, DatePicker, Heading, Text, ProgressTabs, ProgressStatus, Select, toast, Switch, Label } from "@medusajs/ui";
@@ -19,9 +19,20 @@ export const inventoryOrderFormSchema = z.object({
   expected_delivery_date: z.date({ required_error: "Expected delivery date is required" }),
   stock_location_id: z.string().nonempty("Stock location is required"),
   is_sample: z.boolean().optional(),
+  order_lines: z.array(z.object({
+    inventory_item_id: z.string().min(1, "Item is required"),
+    quantity: z.number().min(1, "Quantity must be at least 1"),
+    price: z.number().min(0, "Price must be non-negative"),
+  })).min(1, "At least one order line is required"),
 });
 
 type InventoryOrderFormData = z.infer<typeof inventoryOrderFormSchema>;
+
+interface OrderLine {
+  inventory_item_id: string;
+  quantity: number;
+  price: number;
+}
 
 enum Tab {
   GENERAL = "general",
@@ -37,6 +48,9 @@ export const CreateInventoryOrderComponent = () => {
       expected_delivery_date: undefined,
       stock_location_id: "",
       is_sample: false,
+      order_lines: [
+        { inventory_item_id: "", quantity: 0, price: 0 },
+      ],
     },
     resolver: zodResolver(inventoryOrderFormSchema),
   });
@@ -73,23 +87,36 @@ export const CreateInventoryOrderComponent = () => {
 
   const { inventory_items = [] } = useInventoryItems();
   const { stock_locations = [] } = useStockLocations();
-  const [orderLines, setOrderLines] = useState<{ inventory_item_id: string; quantity: number; price: number }[]>([
-    { inventory_item_id: "", quantity: 0, price: 0 },
-  ]);
+  
+  // Use Field Array for order lines
+  const { fields, append, remove, update } = useFieldArray({
+    control: form.control,
+    name: "order_lines",
+  });
+  
+  // Initialize with one empty line if no lines exist
+  useEffect(() => {
+    if (fields.length === 0) {
+      append({ inventory_item_id: "", quantity: 0, price: 0 });
+    }
+  }, [fields.length, append]);
+  
   const handleLineChange = (index: number, field: "inventory_item_id" | "quantity" | "price", value: any) => {
-    setOrderLines((prev) =>
-      prev.map((line, i) => (i === index ? { ...line, [field]: value } : line))
-    );
+    const currentLine = fields[index];
+    update(index, { ...currentLine, [field]: value });
   };
+  
   const addEmptyLine = () => {
-    setOrderLines((prev) => [...prev, { inventory_item_id: "", quantity: 0, price: 0 }]);
+    append({ inventory_item_id: "", quantity: 0, price: 0 });
   };
+  
   const removeLine = (index: number) => {
-    setOrderLines((prev) => prev.filter((_, i) => i !== index));
+    if (fields.length > 1) {
+      remove(index);
+    }
   };
 
   const { handleSuccess } = useRouteModal();
-
 
   const { mutateAsync, isPending } = useCreateInventoryOrder({
     onSuccess: (response) => {
@@ -105,9 +132,9 @@ export const CreateInventoryOrderComponent = () => {
 
   // Calculate totals from order lines
   const calculateTotals = () => {
-    const validLines = orderLines.filter(line => line.inventory_item_id);
-    const totalQuantity = validLines.reduce((sum, line) => sum + line.quantity, 0);
-    const totalPrice = validLines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+    const validLines = fields.filter((line: OrderLine) => line.inventory_item_id);
+    const totalQuantity = validLines.reduce((sum: number, line: OrderLine) => sum + line.quantity, 0);
+    const totalPrice = validLines.reduce((sum: number, line: OrderLine) => sum + line.price * line.quantity, 0);
     return { totalQuantity, totalPrice };
   };
 
@@ -123,9 +150,9 @@ export const CreateInventoryOrderComponent = () => {
       status: "Pending",
       shipping_address: {},
       is_sample: data.is_sample,
-      order_lines: orderLines
-        .filter((l) => l.inventory_item_id)
-        .map(({ inventory_item_id, quantity, price }) => ({ inventory_item_id, quantity, price })),
+      order_lines: fields
+        .filter((l: OrderLine) => l.inventory_item_id)
+        .map(({ inventory_item_id, quantity, price }: OrderLine) => ({ inventory_item_id, quantity, price })),
     };
     await mutateAsync(payload);
     // Navigation is now handled in the onSuccess callback
@@ -246,7 +273,7 @@ export const CreateInventoryOrderComponent = () => {
                 </div>
                 <InventoryOrderLinesGrid
                   form={form}
-                  orderLines={orderLines}
+                  orderLines={fields}
                   inventoryItems={inventory_items}
                   onLineChange={handleLineChange}
                   onAddLine={addEmptyLine}
@@ -260,7 +287,7 @@ export const CreateInventoryOrderComponent = () => {
                 </Text>
                 
                 {/* Display calculated totals */}
-                {orderLines.some(line => line.inventory_item_id) && (
+                {fields.some((line: OrderLine) => line.inventory_item_id) && (
                   <div className="mt-6 border-t border-dashed pt-4">
                     <div className="flex justify-between items-center mb-2">
                       <Text weight="plus">Total Order Quantity:</Text>
