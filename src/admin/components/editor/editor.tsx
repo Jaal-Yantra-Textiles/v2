@@ -1,7 +1,7 @@
 import * as React from "react"
 import { EditorContent, EditorContext, useEditor } from "@tiptap/react"
 import { toast } from "@medusajs/ui"
-import { sdk } from "@/lib/config"
+import { useFileUpload } from "@/hooks/api/upload"
 
 // --- Tiptap Core Extensions ---
 import { StarterKit } from "@tiptap/starter-kit"
@@ -214,6 +214,7 @@ export function SimpleEditor({
     showLinkPopover: false,
   })
   const toolbarRef = React.useRef<HTMLDivElement>(null)
+  const { mutateAsync: uploadFile } = useFileUpload()
 
   // Enhanced file upload function with toast notifications
   const handleImageUploadWithToast = React.useCallback(async (
@@ -236,8 +237,8 @@ export function SimpleEditor({
     })
 
     try {
-      // Use the SDK directly to upload the file
-      const result = await sdk.admin.upload.create({
+      // Use the useFileUpload hook to upload the file
+      const result = await uploadFile({
         files: [file]
       })
 

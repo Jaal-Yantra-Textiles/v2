@@ -11,6 +11,7 @@ import { Form } from "../common/form";
 import { useState, useEffect } from "react";
 import { useInventoryItems } from "../../hooks/api/raw-materials";
 import { useStockLocations } from "../../hooks/api/stock_location";
+import { useDefaultStore } from "../../hooks/api/stores";
 
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
 export const inventoryOrderFormSchema = z.object({
@@ -40,6 +41,7 @@ export const CreateInventoryOrderComponent = () => {
     resolver: zodResolver(inventoryOrderFormSchema),
   });
 
+  const { store: defaultStore, isLoading: isStoreLoading } = useDefaultStore();
   const [tab, setTab] = useState<Tab>(Tab.GENERAL);
   const [tabState, setTabState] = useState<TabState>({
     [Tab.GENERAL]: "in-progress",
@@ -316,8 +318,8 @@ export const CreateInventoryOrderComponent = () => {
                         </td>
                         <td className="p-2 border-dashed border font-medium">
                           <CurrencyInput
-                            symbol="$"
-                            code="usd"
+                            symbol={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency.symbol || "$"}
+                            code={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency_code?.toLowerCase() || "usd"}
                             value={line.price}
                             onValueChange={(val) => handleLineChange(idx, "price", Number(val))}
                             onKeyDown={(e) => {
@@ -326,6 +328,7 @@ export const CreateInventoryOrderComponent = () => {
                                 addEmptyLine();
                               }
                             }}
+                            disabled={isStoreLoading}
                           />
                         </td>
                         <td className="p-2 border-dashed border text-center">
