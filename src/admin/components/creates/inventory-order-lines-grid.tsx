@@ -1,8 +1,8 @@
 import { UseFormReturn } from "react-hook-form";
 import { DataGrid } from "../data-grid/data-grid";
 import { ColumnDef } from "@tanstack/react-table";
-import { Select, Input, CurrencyInput, IconButton, DropdownMenu, Tooltip } from "@medusajs/ui";
-import { Trash, InformationCircleSolid } from "@medusajs/icons";
+import { Select, Input, CurrencyInput, Tooltip } from "@medusajs/ui";
+import { InformationCircleSolid } from "@medusajs/icons";
 import { HttpTypes } from "@medusajs/types";
 
 interface InventoryOrderLine {
@@ -17,7 +17,6 @@ interface InventoryOrderLinesGridProps<T> {
   inventoryItems: T[];
   onLineChange: (index: number, field: keyof InventoryOrderLine, value: any) => void;
   onAddLine: () => void;
-  onRemoveLine: (index: number) => void;
   defaultCurrencySymbol: string;
   defaultCurrencyCode: string;
   isStoreLoading: boolean;
@@ -28,7 +27,6 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
   inventoryItems,
   onLineChange,
   onAddLine,
-  onRemoveLine,
   defaultCurrencySymbol,
   defaultCurrencyCode,
   isStoreLoading,

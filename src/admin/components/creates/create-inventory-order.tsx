@@ -87,7 +87,7 @@ export const CreateInventoryOrderComponent = () => {
   const { stock_locations = [] } = useStockLocations();
   
   // Use Field Array for order lines
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, update } = useFieldArray({
     control: form.control,
     name: "order_lines",
   });
@@ -106,12 +106,6 @@ export const CreateInventoryOrderComponent = () => {
   
   const addEmptyLine = () => {
     append({ inventory_item_id: "", quantity: 0, price: 0 });
-  };
-  
-  const removeLine = (index: number) => {
-    if (fields.length > 1) {
-      remove(index);
-    }
   };
 
   const { handleSuccess } = useRouteModal();
@@ -286,7 +280,6 @@ export const CreateInventoryOrderComponent = () => {
                   inventoryItems={inventory_items}
                   onLineChange={handleLineChange}
                   onAddLine={addEmptyLine}
-                  onRemoveLine={removeLine}
                   defaultCurrencySymbol={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency.symbol || "$"}
                   defaultCurrencyCode={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency_code?.toLowerCase() || "usd"}
                   isStoreLoading={isStoreLoading}
