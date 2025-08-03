@@ -32,7 +32,7 @@ type TabState = Record<Tab, ProgressStatus>;
 export const CreateInventoryOrderComponent = () => {
   const form = useForm<InventoryOrderFormData>({
     defaultValues: {
-      order_date: undefined,
+      order_date: new Date(),
       expected_delivery_date: undefined,
       stock_location_id: "",
       is_sample: false,
