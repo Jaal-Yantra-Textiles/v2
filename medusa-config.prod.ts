@@ -20,16 +20,23 @@ module.exports = defineConfig({
   admin: {
     vite: () => ({
       // Keep Medusa's default config
-      resolve: {
-        alias: {
-          '@/components': path.resolve(__dirname, './src/admin/components'),
-          '@/lib/utils': path.resolve(__dirname, './src/admin/lib/utils'),
-        },
-        // Keep Medusa's existing resolve options
+       resolve: {
+              alias: {
+                "@": path.resolve(__dirname, "./src/admin"),
+              }
+              // Keep Medusa's existing resolve options
+            },
+            css: {
+        preprocessorOptions: {
+          scss: {
+            api: 'modern-compiler' // or "modern"
+          }
+        }
       }
     }),
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
     backendUrl: process.env.MEDUSA_BACKEND_URL,
+    
   },
 
   modules: [
