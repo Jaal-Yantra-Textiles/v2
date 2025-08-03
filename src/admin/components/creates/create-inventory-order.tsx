@@ -1,8 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button, DatePicker, Heading, Input, Text, ProgressTabs, ProgressStatus, Select, toast, Tooltip, CurrencyInput, DropdownMenu, IconButton, Switch, Label } from "@medusajs/ui";
-import { InformationCircleSolid, EllipsisHorizontal, Trash } from "@medusajs/icons";
+import { Button, DatePicker, Heading, Text, ProgressTabs, ProgressStatus, Select, toast, Switch, Label } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { useCreateInventoryOrder } from "../../hooks/api/inventory-orders";
 import { RouteFocusModal } from "../modal/route-focus-modal";
@@ -12,6 +11,7 @@ import { useState, useEffect } from "react";
 import { useInventoryItems } from "../../hooks/api/raw-materials";
 import { useStockLocations } from "../../hooks/api/stock_location";
 import { useDefaultStore } from "../../hooks/api/stores";
+import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
 
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
 export const inventoryOrderFormSchema = z.object({
@@ -89,7 +89,7 @@ export const CreateInventoryOrderComponent = () => {
   };
 
   const { handleSuccess } = useRouteModal();
-  const [selectedRow, setSelectedRow] = useState<number | null>(null);
+
 
   const { mutateAsync, isPending } = useCreateInventoryOrder({
     onSuccess: (response) => {
@@ -244,115 +244,17 @@ export const CreateInventoryOrderComponent = () => {
                     Add items to your inventory order. The total quantity and price will be calculated automatically.
                   </Text>
                 </div>
-                <table className="w-full border-collapse border border-dashed">
-                  <thead className="border-b border-dashed">
-                    <tr className="border-b border-dashed">
-                      <th className="text-left p-2 font-semibold">Item</th>
-                      <th className="text-left p-2 font-semibold">Quantity</th>
-                      <th className="text-left p-2 font-semibold">Price</th>
-                      <th className="p-2 border-dashed border" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orderLines.map((line, idx) => (
-                      <tr
-                        key={idx}
-                        id={`order-line-row-${idx}`}
-                        tabIndex={0}
-                        className={`border-b border-dashed group ${selectedRow === idx ? '' : ''}`}
-                        onFocus={() => setSelectedRow(idx)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'ArrowDown') {
-                            e.preventDefault();
-                            const nextIdx = idx + 1 < orderLines.length ? idx + 1 : idx;
-                            setSelectedRow(nextIdx);
-                            document.getElementById(`order-line-row-${nextIdx}`)?.focus();
-                          }
-                          if (e.key === 'ArrowUp') {
-                            e.preventDefault();
-                            const prevIdx = idx - 1 >= 0 ? idx - 1 : idx;
-                            setSelectedRow(prevIdx);
-                            document.getElementById(`order-line-row-${prevIdx}`)?.focus();
-                          }
-                        }}
-                      >
-                        <td className="p-2 border-dashed border font-medium">
-                          <Select
-                            value={line.inventory_item_id}
-                            onValueChange={(v) => handleLineChange(idx, "inventory_item_id", v)}
-                          >
-                            <Select.Trigger>
-                              <Select.Value placeholder="Select item" />
-                            </Select.Trigger>
-                            <Select.Content>
-                              {inventory_items.map((item) => {
-                                const disabled = orderLines.some((l, i2) => l.inventory_item_id === item.id && i2 !== idx);
-                                return (
-                                  <Select.Item key={item.id} value={item.id} disabled={disabled}>
-                                    <div className="flex justify-between items-center">
-                                      <span>{item.title || item.sku}</span>
-                                      {disabled && (
-                                        <Tooltip content="Already selected">
-                                          <InformationCircleSolid className="h-4 w-4 text-ui-fg-subtle" />
-                                        </Tooltip>
-                                      )}
-                                    </div>
-                                  </Select.Item>
-                                );
-                              })}
-                            </Select.Content>
-                          </Select>
-                        </td>
-                        <td className="p-2 border-dashed border font-medium">
-                          <Input
-                            type="number"
-                            value={line.quantity}
-                            onChange={(e) => handleLineChange(idx, "quantity", Number(e.target.value))}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && idx === orderLines.length - 1) {
-                                e.preventDefault();
-                                addEmptyLine();
-                              }
-                            }}
-                          />
-                        </td>
-                        <td className="p-2 border-dashed border font-medium">
-                          <CurrencyInput
-                            symbol={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency.symbol || "$"}
-                            code={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency_code?.toLowerCase() || "usd"}
-                            value={line.price}
-                            onValueChange={(val) => handleLineChange(idx, "price", Number(val))}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && idx === orderLines.length - 1) {
-                                e.preventDefault();
-                                addEmptyLine();
-                              }
-                            }}
-                            disabled={isStoreLoading}
-                          />
-                        </td>
-                        <td className="p-2 border-dashed border text-center">
-                          <DropdownMenu>
-                            <DropdownMenu.Trigger asChild>
-                              <IconButton
-                                size="small"
-                                className={`opacity-0 group-hover:opacity-100 ${selectedRow === idx ? 'opacity-100' : ''}`}
-                              >
-                                <EllipsisHorizontal />
-                              </IconButton>
-                            </DropdownMenu.Trigger>
-                            <DropdownMenu.Content>
-                              <DropdownMenu.Item className="gap-x-2" onClick={() => removeLine(idx)}>
-                                <Trash className="text-ui-fg-subtle" />
-                                Delete
-                              </DropdownMenu.Item>
-                            </DropdownMenu.Content>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <InventoryOrderLinesGrid
+                  form={form}
+                  orderLines={orderLines}
+                  inventoryItems={inventory_items}
+                  onLineChange={handleLineChange}
+                  onAddLine={addEmptyLine}
+                  onRemoveLine={removeLine}
+                  defaultCurrencySymbol={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency.symbol || "$"}
+                  defaultCurrencyCode={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency_code?.toLowerCase() || "usd"}
+                  isStoreLoading={isStoreLoading}
+                />
                 <Text size="small" className="text-ui-fg-subtle mt-2">
                   Press Enter in the last row to add a new line.
                 </Text>

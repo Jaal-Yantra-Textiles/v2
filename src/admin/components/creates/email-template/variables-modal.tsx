@@ -92,7 +92,7 @@ export const VariablesModal = ({
     // Get predefined variables with their descriptions as default values
     const predefinedVars = localSelectedVariables
       .map(varName => {
-        const predefinedVar = predefinedVariables.find(v => v.name === varName);
+        const predefinedVar = predefinedVariables.find(v => v.name === varName.name);
         return predefinedVar ? { 
           name: predefinedVar.name, 
           defaultValue: predefinedVar.description 
@@ -152,7 +152,7 @@ export const VariablesModal = ({
 
           <PredefinedVariablesSection
             variables={predefinedVariables}
-            selectedVariables={localSelectedVariables}
+            selectedVariables={localSelectedVariables.map(v => v.name)}
             onToggleVariable={handleToggleVariableName}
             onInsertVariable={handleInsertAndClose}
           />

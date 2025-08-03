@@ -1,7 +1,7 @@
 import * as React from "react"
 import { EditorContent, EditorContext, useEditor } from "@tiptap/react"
 import { toast } from "@medusajs/ui"
-import { useFileUpload } from "@/hooks/api/upload"
+
 
 // --- Tiptap Core Extensions ---
 import { StarterKit } from "@tiptap/starter-kit"
@@ -80,6 +80,7 @@ import { useCursorVisibility } from "../../hooks/use-cursor-visibility"
 import { MAX_FILE_SIZE } from "../../lib/tiptap-utils"
 import { useMobile } from "../../hooks/use-mobile"
 import { useWindowSize } from "../../hooks/use-window-size"
+import { useFileUpload } from "../../hooks/api/upload"
 
 const MainToolbarContent = ({
   onHighlighterClick,
