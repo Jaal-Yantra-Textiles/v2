@@ -111,33 +111,6 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
         );
       },
     },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row, table }) => {
-        const rowIndex = table.getRowModel().rows.findIndex(r => r.id === row.id);
-        return (
-          <div className="flex justify-center">
-            <DropdownMenu>
-              <DropdownMenu.Trigger asChild>
-                <IconButton size="small">
-                  <Trash className="text-ui-fg-subtle" />
-                </IconButton>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content>
-                <DropdownMenu.Item 
-                  className="gap-x-2" 
-                  onClick={() => onRemoveLine(rowIndex)}
-                >
-                  <Trash className="text-ui-fg-subtle" />
-                  Delete
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu>
-          </div>
-        );
-      },
-    },
   ];
 
   return (

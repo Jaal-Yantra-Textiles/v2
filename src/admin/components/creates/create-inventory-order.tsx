@@ -48,9 +48,7 @@ export const CreateInventoryOrderComponent = () => {
       expected_delivery_date: undefined,
       stock_location_id: "",
       is_sample: false,
-      order_lines: [
-        { inventory_item_id: "", quantity: 0, price: 0 },
-      ],
+      order_lines: [],
     },
     resolver: zodResolver(inventoryOrderFormSchema),
   });
@@ -63,7 +61,7 @@ export const CreateInventoryOrderComponent = () => {
   });
 
   const onNext = async (currentTab: Tab) => {
-    const valid = await form.trigger();
+    const valid = await form.trigger(["order_date", "expected_delivery_date", "stock_location_id"]);
     if (!valid) return;
     if (currentTab === Tab.GENERAL) setTab(Tab.ORDER_LINES);
   };
@@ -162,7 +160,18 @@ export const CreateInventoryOrderComponent = () => {
     <ProgressTabs
       value={tab}
       onValueChange={async (value) => {
-        const valid = await form.trigger();
+        // Only validate fields relevant to the current tab when navigating
+        let valid = true;
+        if (tab === Tab.GENERAL && value === Tab.ORDER_LINES) {
+          // When moving from General to Order Lines tab, only validate general fields
+          valid = await form.trigger(["order_date", "expected_delivery_date", "stock_location_id"]);
+        } else if (tab === Tab.ORDER_LINES) {
+          // When moving from Order Lines tab to any other tab, validate everything
+          // But allow navigation back to General tab without full validation
+          if (value !== Tab.GENERAL) {
+            valid = await form.trigger();
+          }
+        }
         if (!valid) return;
         setTab(value as Tab);
       }}
