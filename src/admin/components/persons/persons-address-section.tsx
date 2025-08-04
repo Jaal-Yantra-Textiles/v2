@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { PersonWithAddress } from "../../hooks/api/personandtype";
 import { toast } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
+import { TableSectionSkeleton } from "../table/skeleton";
 
 interface PersonsAddressSectionProps {
   person: PersonWithAddress;
@@ -156,6 +157,10 @@ export const PersonsAddressSection = ({ person }: PersonsAddressSectionProps) =>
       handleRowSelect(row.id as string);
     },
   });
+
+  if (!addresses) {
+    return <TableSectionSkeleton rowCount={3} />;
+  }
 
   return (
     <Container className="divide-y p-0">

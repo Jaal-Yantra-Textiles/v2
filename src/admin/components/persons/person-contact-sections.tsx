@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { toast, usePrompt } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
 import { useDeletePersonContact, ContactDetail } from "../../hooks/api/person-contacts";
+import { TableSectionSkeleton } from "../table/skeleton";
 
 // Define the person with contact details interface
 interface PersonWithContactDetails {
@@ -209,6 +210,10 @@ export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
       handleRowSelect(row.id as string);
     },
   });
+
+  if (!contacts) {
+    return <TableSectionSkeleton rowCount={3} />
+  }
 
   return (
     <Container className="divide-y p-0">

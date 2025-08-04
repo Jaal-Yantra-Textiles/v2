@@ -4,6 +4,7 @@ import { AdminPerson } from "../../hooks/api/personandtype";
 import { Eye, PencilSquare } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
 import { useNavigate } from "react-router-dom";
+import { GeneralSectionSkeleton } from "../table/skeleton";
 
 interface Partner {
   id: string;
@@ -34,6 +35,10 @@ export const PersonPartnerComponent = ({ person }: PersonPartnerComponentProps) 
   const partner = person.partner;
 
   const navigate = useNavigate();
+  
+  if(!partner){
+    return <GeneralSectionSkeleton rowCount={1} />
+  }
 
   return (
     <Container className="divide-y p-0">

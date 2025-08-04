@@ -15,32 +15,34 @@ import { logger } from "@medusajs/framework";
 export type SendAgreementEmailInput = {
   agreement_id: string;
   person_id: string;
+  person_ids?: string[]; // Optional: additional signers (co-signers)
   template_key?: string; // Optional: override agreement's template_key
 };
 
 export const sendAgreementEmailWorkflow = createWorkflow(
   "send-agreement-email",
   (input: SendAgreementEmailInput) => {
-    // Step 1: Fetch agreement and person data
+    // Handle primary signer (backward compatibility)
+    // Step 1: Fetch agreement and person data for primary signer
     const { agreement, person } = fetchAgreementDataStep({
       agreement_id: input.agreement_id,
       person_id: input.person_id,
     });
 
-    // Step 2: Create agreement response record
+    // Step 2: Create agreement response record for primary signer
     const agreementResponse = createAgreementResponseStep({
       agreement_id: transform({ input }, (data) => data.input.agreement_id),
       person_id: input.person_id,
       email_sent_to: transform({ person }, (data) => data.person.email as string), // We validated email exists in fetchAgreementDataStep
     });
 
-    // Step 3: Create person-agreement module link
+    // Step 3: Create person-agreement module link for primary signer
     const personAgreementLink = linkPersonWithAgreementStep({
       person_id: input.person_id,
       agreement_id: input.agreement_id,
     });
 
-    // Step 4: Send the email using our email template system
+    // Step 4: Send the email using our email template system to primary signer
     const emailResult = sendNotificationEmailWorkflow.runAsStep({
       input: transform({ agreement, person, agreementResponse, input }, (data) => {
         const templateKey = data.input.template_key || data.agreement.template_key || "agreement-email";

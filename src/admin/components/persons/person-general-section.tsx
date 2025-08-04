@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
 import { useDeletePerson } from "../../hooks/api/persons";
+import { GeneralSectionSkeleton } from "../table/skeleton";
 
 const personStatusColor = (status: string) => {
   switch (status) {
@@ -81,6 +82,10 @@ export const PersonGeneralSection = ({ person }: PersonGeneralSectionProps) => {
       },
     });
   };
+
+  if (!person) {
+    return <GeneralSectionSkeleton rowCount={3} />;
+  }
 
   return (
     <Container className="divide-y p-0">
