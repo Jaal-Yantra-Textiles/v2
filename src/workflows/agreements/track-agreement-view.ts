@@ -11,7 +11,7 @@ export const trackAgreementViewWorkflow = createWorkflow(
   "track-agreement-view",
   (input: TrackAgreementViewInput) => {
     // Step 1: Fetch and validate agreement response with token
-    const { agreementResponse, agreement } = fetchAgreementResponseStep({
+    const { agreementResponse, agreement, person } = fetchAgreementResponseStep({
       response_id: input.response_id,
       access_token: input.access_token,
     });
@@ -26,6 +26,7 @@ export const trackAgreementViewWorkflow = createWorkflow(
     return new WorkflowResponse({
       agreement,
       response: updatedResponse,
+      person,
     });
   }
 );

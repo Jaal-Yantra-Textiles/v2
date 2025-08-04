@@ -1,7 +1,8 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
-import { MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
 import AgreementsService from "../../../modules/agreements/service";
+import PersonAgreementLink  from "../../../links/person-agreements";
 
 export const fetchAgreementResponseStep = createStep(
   "fetch-agreement-response",
@@ -13,12 +14,27 @@ export const fetchAgreementResponseStep = createStep(
     { container }
   ) => {
     const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
+    const query = container.resolve(ContainerRegistrationKeys.QUERY);
 
     try {
       // Fetch the agreement response with agreement relation
       const agreementResponse = await agreementsService.retrieveAgreementResponse(input.response_id, {
         relations: ["agreement"]
       });
+
+      const { data: linkedData } = await query.graph({
+        entity: PersonAgreementLink.entryPoint,
+        fields: ["*"],
+        filters: { agreement_id: agreementResponse.agreement_id },
+      });
+      
+      const { data: persons  } = await query.graph({
+        entity: 'person',
+        fields: ["*"],
+        filters: { id: linkedData[0].person_id },
+      });
+      
+      const person = persons && persons.length > 0 ? persons[0] : null;
 
       if (!agreementResponse) {
         throw new MedusaError(
@@ -48,6 +64,7 @@ export const fetchAgreementResponseStep = createStep(
       return new StepResponse({
         agreementResponse,
         agreement,
+        person,
       });
 
     } catch (error) {

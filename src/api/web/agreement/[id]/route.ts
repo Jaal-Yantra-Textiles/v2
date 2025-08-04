@@ -62,6 +62,17 @@ export const GET = async (
         response_user_agent: result.response.response_user_agent || undefined,
         ...(result.response.metadata || {})
       },
+      // Person data (if available)
+      person: result.person ? {
+        id: result.person.id,
+        first_name: result.person.first_name || undefined,
+        last_name: result.person.last_name || undefined,
+        email: result.person.email || undefined,
+        date_of_birth: result.person.date_of_birth || undefined,
+        state: result.person.state || undefined,
+        avatar: result.person.avatar || undefined,
+        ...(result.person.metadata || {})
+      } : undefined,
       // Utility data
       current_date: new Date(),
       formatted_date: new Date().toLocaleDateString(),
@@ -111,6 +122,16 @@ export const GET = async (
         responded_at: result.response.responded_at,
         agreed: result.response.agreed,
       },
+      person: result.person ? {
+        id: result.person.id,
+        first_name: result.person.first_name || undefined,
+        last_name: result.person.last_name || undefined,
+        email: result.person.email || undefined,
+        date_of_birth: result.person.date_of_birth || undefined,
+        state: result.person.state || undefined,
+        avatar: result.person.avatar || undefined,
+        ...(result.person.metadata || {})
+      } : undefined,
       can_respond
     });
 

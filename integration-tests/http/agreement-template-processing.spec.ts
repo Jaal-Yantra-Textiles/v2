@@ -60,6 +60,7 @@ medusaIntegrationTestRunner({
               
               <div class="recipient-info">
                 <h2>Recipient Information</h2>
+                <p><strong>Name:</strong> {{person.first_name}} {{person.last_name}}</p>
                 <p><strong>Email:</strong> {{response.email_sent_to}}</p>
                 <p><strong>Sent Date:</strong> {{formatted_date}}</p>
                 <p><strong>Current Status:</strong> {{response.status}}</p>
@@ -167,6 +168,7 @@ medusaIntegrationTestRunner({
         expect(webResponse.status).toBe(200);
         expect(webResponse.data.agreement).toBeDefined();
         expect(webResponse.data.response).toBeDefined();
+        expect(webResponse.data.person).toBeDefined();
 
         // Step 6: Verify Handlebars placeholders have been processed
         const processedContent = webResponse.data.agreement.content;
@@ -175,6 +177,7 @@ medusaIntegrationTestRunner({
         // Check that placeholders have been replaced with actual values
         expect(processedContent).toContain("Software Development Agreement"); // {{agreement.title}}
         expect(processedContent).toContain(agreementId); // {{agreement.id}}
+        expect(processedContent).toContain("John Doe"); // {{person.first_name}} {{person.last_name}}
         expect(processedContent).toContain("john.doe@example.com"); // {{response.email_sent_to}}
         expect(processedContent).toContain("viewed"); // {{response.status}} - updated when accessed
         expect(processedContent).toContain("Total Sent: 1"); // {{agreement.sent_count}}
@@ -188,6 +191,8 @@ medusaIntegrationTestRunner({
         // Verify that Handlebars placeholders are no longer present
         expect(processedContent).not.toContain("{{agreement.title}}");
         expect(processedContent).not.toContain("{{agreement.id}}");
+        expect(processedContent).not.toContain("{{person.first_name}}");
+        expect(processedContent).not.toContain("{{person.last_name}}");
         expect(processedContent).not.toContain("{{response.email_sent_to}}");
         expect(processedContent).not.toContain("{{response.status}}");
         expect(processedSubject).not.toContain("{{agreement.title}}");
@@ -203,6 +208,7 @@ medusaIntegrationTestRunner({
 
         // The content should now reflect the viewed status
         const viewedContent = viewedResponse.data.agreement.content;
+        console.log(viewedContent);
         expect(viewedContent).toContain("viewed"); // {{response.status}} should be "viewed"
         
         console.log("✅ Agreement Handlebars template processing test completed successfully!");

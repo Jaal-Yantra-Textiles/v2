@@ -9,7 +9,6 @@ import { useMemo, useState, useCallback } from "react";
 import { usePersonTableColumns } from "../../hooks/columns/usePersonTableColumns";
 import { AdminPerson, AdminPersonsListParams } from "../../hooks/api/personandtype";
 import debounce from "lodash/debounce";
-import { TableFooterSkeleton, TableSectionSkeleton, TableSkeleton } from "../../components/table/skeleton";
 
 
 
@@ -171,14 +170,6 @@ const PersonsPage = () => {
       onFilteringChange: handleFilterChange,
     },
   });
-
-  if (isLoading) {
-    return <>
-        <TableSkeleton layout="fill" />
-        <TableSectionSkeleton layout="fill" />
-        <TableFooterSkeleton layout="fill" />
-    </>
-  }
 
   return (
     <>

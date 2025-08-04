@@ -5,6 +5,7 @@ import { Eye, PencilSquare } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
 import { useNavigate } from "react-router-dom";
 import { GeneralSectionSkeleton } from "../table/skeleton";
+import { useEffect, useState } from "react";
 
 interface Partner {
   id: string;
@@ -36,8 +37,35 @@ export const PersonPartnerComponent = ({ person }: PersonPartnerComponentProps) 
 
   const navigate = useNavigate();
   
-  if(!partner){
-    return <GeneralSectionSkeleton rowCount={1} />
+  // State to control when to show the message after skeleton
+  const [showMessage, setShowMessage] = useState(false);
+
+  useEffect(() => {
+    // Show message after 1.5 seconds if no partner exists
+    if (!partner) {
+      const timer = setTimeout(() => {
+        setShowMessage(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [partner]);
+
+  // Show skeleton initially when no partner exists
+  if (!partner && !showMessage) {
+    return <GeneralSectionSkeleton rowCount={1} />;
+  }
+
+  // Show message after timeout when no partner exists
+  if (!partner && showMessage) {
+    return (
+      <Container className="p-0">
+        <div className="text-ui-fg-subtle px-6 py-8 text-center">
+          <Text size="small" leading="compact">
+            {t("messages.noPartner", "No Partner added for this person")}
+          </Text>
+        </div>
+      </Container>
+    );
   }
 
   return (
