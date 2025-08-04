@@ -40,6 +40,7 @@ type UseDataGridKeydownEventOptions<TData, TFieldValues extends FieldValues> = {
   setSelectionValues: (fields: string[], values: string[]) => void
   restoreSnapshot: () => void
   createSnapshot: (coords: DataGridCoordinates) => void
+  onRemoveRow?: (index: number) => void
 }
 
 const ARROW_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
@@ -69,6 +70,7 @@ export const useDataGridKeydownEvent = <
   setSelectionValues,
   restoreSnapshot,
   createSnapshot,
+  onRemoveRow,
 }: UseDataGridKeydownEventOptions<TData, TFieldValues>) => {
   const handleKeyboardNavigation = useCallback(
     (e: KeyboardEvent) => {
@@ -548,6 +550,20 @@ export const useDataGridKeydownEvent = <
     ]
   )
 
+  const handleBackspaceKey = useCallback(
+    (e: KeyboardEvent) => {
+      if (!anchor || !rangeEnd || isEditing || !onRemoveRow) {
+        return
+      }
+
+      e.preventDefault()
+
+      // Remove the row at the anchor position
+      onRemoveRow(anchor.row)
+    },
+    [anchor, rangeEnd, isEditing, onRemoveRow]
+  )
+
   const handleEscapeKey = useCallback(
     (e: KeyboardEvent) => {
       if (!anchor || !isEditing) {
@@ -613,8 +629,13 @@ export const useDataGridKeydownEvent = <
         return
       }
 
-      if (e.key === "Delete" || e.key === "Backspace") {
+      if (e.key === "Delete") {
         handleDeleteKey(e)
+        return
+      }
+
+      if (e.key === "Backspace") {
+        handleBackspaceKey(e)
         return
       }
 
@@ -640,6 +661,7 @@ export const useDataGridKeydownEvent = <
       handleSpaceKey,
       handleEnterKey,
       handleDeleteKey,
+      handleBackspaceKey,
       handleTabKey,
     ]
   )

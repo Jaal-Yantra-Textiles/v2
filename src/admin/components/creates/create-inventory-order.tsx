@@ -10,7 +10,6 @@ import { Form } from "../common/form";
 import { useState, useEffect } from "react";
 import { useInventoryItems } from "../../hooks/api/raw-materials";
 import { useStockLocations } from "../../hooks/api/stock_location";
-import { useDefaultStore } from "../../hooks/api/stores";
 import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
 
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
@@ -53,7 +52,6 @@ export const CreateInventoryOrderComponent = () => {
     resolver: zodResolver(inventoryOrderFormSchema),
   });
 
-  const { store: defaultStore, isLoading: isStoreLoading } = useDefaultStore();
   const [tab, setTab] = useState<Tab>(Tab.GENERAL);
   const [tabState, setTabState] = useState<TabState>({
     [Tab.GENERAL]: "in-progress",
@@ -83,11 +81,11 @@ export const CreateInventoryOrderComponent = () => {
     setTabState(state);
   }, [tab]);
 
-  const { inventory_items = [] } = useInventoryItems();
   const { stock_locations = [] } = useStockLocations();
+  const { inventory_items = [] } = useInventoryItems();
   
   // Use Field Array for order lines
-  const { fields, append, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "order_lines",
   });
@@ -99,14 +97,7 @@ export const CreateInventoryOrderComponent = () => {
     }
   }, [fields.length, append]);
   
-  const handleLineChange = (index: number, field: "inventory_item_id" | "quantity" | "price", value: any) => {
-    const currentLine = fields[index];
-    update(index, { ...currentLine, [field]: value });
-  };
-  
-  const addEmptyLine = () => {
-    append({ inventory_item_id: "", quantity: 0, price: 0 });
-  };
+
 
   const { handleSuccess } = useRouteModal();
 
@@ -151,37 +142,37 @@ export const CreateInventoryOrderComponent = () => {
   });
 
   return (
-    <ProgressTabs
-      value={tab}
-      onValueChange={async (value) => {
-        // Only validate fields relevant to the current tab when navigating
-        let valid = true;
-        if (tab === Tab.GENERAL && value === Tab.ORDER_LINES) {
-          // When moving from General to Order Lines tab, only validate general fields
-          valid = await form.trigger(["order_date", "expected_delivery_date", "stock_location_id"]);
-        } else if (tab === Tab.ORDER_LINES) {
-          // When moving from Order Lines tab to any other tab, validate everything
-          // But allow navigation back to General tab without full validation
-          if (value !== Tab.GENERAL) {
-            valid = await form.trigger();
-          }
-        }
-        if (!valid) return;
-        setTab(value as Tab);
-      }}
-      className="flex h-full flex-col overflow-hidden"
-    >
-      <RouteFocusModal.Header>
-        <div className="-my-2 w-full border-l">
-          <ProgressTabs.List className="flex w-full items-center justify-start">
-            <ProgressTabs.Trigger status={tabState[Tab.GENERAL]} value={Tab.GENERAL} className="max-w-[200px] truncate">General</ProgressTabs.Trigger>
-            <ProgressTabs.Trigger status={tabState[Tab.ORDER_LINES]} value={Tab.ORDER_LINES} className="max-w-[200px] truncate">Order Lines</ProgressTabs.Trigger>
-          </ProgressTabs.List>
-        </div>
-      </RouteFocusModal.Header>
+    <RouteFocusModal.Form form={form}>
+      <KeyboundForm onSubmit={handleSubmit} className="flex h-full flex-col overflow-hidden">
+        <ProgressTabs
+          value={tab}
+          onValueChange={async (value) => {
+            // Only validate fields relevant to the current tab when navigating
+            let valid = true;
+            if (tab === Tab.GENERAL && value === Tab.ORDER_LINES) {
+              // When moving from General to Order Lines tab, only validate general fields
+              valid = await form.trigger(["order_date", "expected_delivery_date", "stock_location_id"]);
+            } else if (tab === Tab.ORDER_LINES) {
+              // When moving from Order Lines tab to any other tab, validate everything
+              // But allow navigation back to General tab without full validation
+              if (value !== Tab.GENERAL) {
+                valid = await form.trigger();
+              }
+            }
+            if (!valid) return;
+            setTab(value as Tab);
+          }}
+          className="flex h-full flex-col overflow-hidden"
+        >
+          <RouteFocusModal.Header>
+            <div className="-my-2 w-full border-l">
+              <ProgressTabs.List className="flex w-full items-center justify-start">
+                <ProgressTabs.Trigger status={tabState[Tab.GENERAL]} value={Tab.GENERAL} className="max-w-[200px] truncate">General</ProgressTabs.Trigger>
+                <ProgressTabs.Trigger status={tabState[Tab.ORDER_LINES]} value={Tab.ORDER_LINES} className="max-w-[200px] truncate">Order Lines</ProgressTabs.Trigger>
+              </ProgressTabs.List>
+            </div>
+          </RouteFocusModal.Header>
 
-      <RouteFocusModal.Form form={form}>
-        <KeyboundForm onSubmit={handleSubmit} className="flex h-full flex-col overflow-hidden">
           <RouteFocusModal.Body className="size-full overflow-hidden">
             <ProgressTabs.Content value={Tab.GENERAL} className="overflow-y-auto">
               <div className="flex flex-col gap-y-6 p-8">
@@ -266,41 +257,41 @@ export const CreateInventoryOrderComponent = () => {
                 </div>
               </div>
             </ProgressTabs.Content>
-            <ProgressTabs.Content value={Tab.ORDER_LINES} className="overflow-y-auto">
-              <div className="overflow-x-auto p-8">
-                <div className="mb-6">
-                  <Heading className="text-xl mb-4">Order Lines</Heading>
-                  <Text size="small" className="text-ui-fg-subtle mb-4">
-                    Add items to your inventory order. The total quantity and price will be calculated automatically.
+            <ProgressTabs.Content value={Tab.ORDER_LINES} className="flex flex-col h-full">
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-y-auto p-8">
+                  <div className="mb-6">
+                    <Heading className="text-xl mb-4">Order Lines</Heading>
+                    <Text size="small" className="text-ui-fg-subtle mb-4">
+                      Add items to your inventory order. The total quantity and price will be calculated automatically.
+                    </Text>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <InventoryOrderLinesGrid
+                      form={form}
+                      orderLines={fields}
+                      inventoryItems={inventory_items}
+                      defaultCurrencyCode="INR"
+                      onAddNewRow={() => append({ inventory_item_id: "", quantity: 0, price: 0 })}
+                      onRemoveRow={remove}
+                    />
+                  </div>
+                  <Text size="small" className="text-ui-fg-subtle mt-2">
+                    Press Enter in the last row to add a new line.
                   </Text>
                 </div>
-                <InventoryOrderLinesGrid
-                  form={form}
-                  orderLines={fields}
-                  inventoryItems={inventory_items}
-                  onLineChange={handleLineChange}
-                  onAddLine={addEmptyLine}
-                  defaultCurrencySymbol={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency.symbol || "$"}
-                  defaultCurrencyCode={defaultStore?.supported_currencies?.find(c => c.is_default)?.currency_code?.toLowerCase() || "usd"}
-                  isStoreLoading={isStoreLoading}
-                />
-                <Text size="small" className="text-ui-fg-subtle mt-2">
-                  Press Enter in the last row to add a new line.
-                </Text>
                 
-                {/* Display calculated totals */}
-                {fields.some((line: OrderLine) => line.inventory_item_id) && (
-                  <div className="mt-6 border-t border-dashed pt-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <Text weight="plus">Total Order Quantity:</Text>
-                      <Text weight="plus">{calculateTotals().totalQuantity}</Text>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <Text weight="plus">Total Order Price:</Text>
-                      <Text weight="plus">${calculateTotals().totalPrice.toFixed(2)}</Text>
-                    </div>
+                {/* Display calculated totals - sticky at the bottom */}
+                <div className="flex-shrink-0 border-t border-dashed p-8 bg-ui-bg-base">
+                  <div className="flex justify-between items-center mb-2">
+                    <Text weight="plus">Total Order Quantity:</Text>
+                    <Text weight="plus">{calculateTotals().totalQuantity}</Text>
                   </div>
-                )}
+                  <div className="flex justify-between items-center">
+                    <Text weight="plus">Total Order Price:</Text>
+                    <Text weight="plus">${calculateTotals().totalPrice.toFixed(2)}</Text>
+                  </div>
+                </div>
               </div>
             </ProgressTabs.Content>
           </RouteFocusModal.Body>
@@ -319,8 +310,8 @@ export const CreateInventoryOrderComponent = () => {
               )}
             </div>
           </RouteFocusModal.Footer>
-        </KeyboundForm>
-      </RouteFocusModal.Form>
-    </ProgressTabs>
+        </ProgressTabs>
+    </KeyboundForm>
+  </RouteFocusModal.Form>
   );
 };

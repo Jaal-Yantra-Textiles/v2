@@ -57,6 +57,7 @@ export interface DataGridRootProps<
   state: UseFormReturn<TFieldValues>
   getSubRows?: (row: TData) => TData[] | undefined
   onEditingChange?: (isEditing: boolean) => void
+  onRemoveRow?: (index: number) => void
   disableInteractions?: boolean
   multiColumnSelection?: boolean
 }
@@ -103,6 +104,7 @@ export const DataGridRoot = <
   state,
   getSubRows,
   onEditingChange,
+  onRemoveRow,
   disableInteractions,
   multiColumnSelection = false,
 }: DataGridRootProps<TData, TFieldValues>) => {
@@ -346,6 +348,7 @@ export const DataGridRoot = <
       undo,
       redo,
       setValue,
+      onRemoveRow,
     })
 
   const { handleMouseUpEvent } = useDataGridMouseUpEvent<TData, TFieldValues>({

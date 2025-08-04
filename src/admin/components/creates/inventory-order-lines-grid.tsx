@@ -1,9 +1,9 @@
 import { UseFormReturn } from "react-hook-form";
-import { DataGrid } from "../data-grid/data-grid";
 import { ColumnDef } from "@tanstack/react-table";
-import { Select, Input, CurrencyInput, Tooltip } from "@medusajs/ui";
-import { InformationCircleSolid } from "@medusajs/icons";
-import { HttpTypes } from "@medusajs/types";
+import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper";
+import { DataGrid } from "../data-grid/data-grid";
+import { DataGridCurrencyCell, DataGridNumberCell } from "../data-grid/components";
+import { DataGridSelectCell } from "../data-grid/components/data-grid-select-cell";
 
 interface InventoryOrderLine {
   inventory_item_id: string;
@@ -15,107 +15,123 @@ interface InventoryOrderLinesGridProps<T> {
   form: UseFormReturn<any>;
   orderLines: InventoryOrderLine[];
   inventoryItems: T[];
-  onLineChange: (index: number, field: keyof InventoryOrderLine, value: any) => void;
-  onAddLine: () => void;
-  defaultCurrencySymbol: string;
   defaultCurrencyCode: string;
-  isStoreLoading: boolean;
+  onAddNewRow: () => void;
+  onRemoveRow?: (index: number) => void;
 }
 
-export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; sku?: string; width?: string | null; length?: string | null; height?: string | null; weight?: string | number | null; }>({  form,
+export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; sku?: string; width?: string | null; length?: string | null; height?: string | null; weight?: string | number | null; }>({  
+  form,
   orderLines,
   inventoryItems,
-  onLineChange,
-  onAddLine,
-  defaultCurrencySymbol,
   defaultCurrencyCode,
-  isStoreLoading,
+  onAddNewRow,
+  onRemoveRow,
 }: InventoryOrderLinesGridProps<T>) => {
-  // Create columns for the data grid
+  // Create columns for the data grid using DataGrid helpers
+  const columnHelper = createDataGridHelper<InventoryOrderLine, any>();
+  
   const columns: ColumnDef<InventoryOrderLine>[] = [
-    {
+    columnHelper.column({
       id: "item",
+      name: "Item",
       header: "Item",
-      cell: ({ row, table }) => {
-        const rowIndex = table.getRowModel().rows.findIndex(r => r.id === row.id);
+      field: (context: any) => `order_lines.${context.row.index}.inventory_item_id`,
+      type: "text",
+      cell: (context: any) => {
+        const rowIndex = context.row.index;
+        
+        const options = inventoryItems.map((item: any) => ({
+          label: item.title || item.sku || "",
+          value: item.id
+        }));
+
+        // Check if item is already selected in other rows
+        const isOptionDisabled = (optionValue: string) => {
+          return orderLines.some((line, index) => 
+            line.inventory_item_id === optionValue && index !== rowIndex
+          );
+        };
+
         return (
-          <Select
-            value={row.original.inventory_item_id}
-            onValueChange={(v) => onLineChange(rowIndex, "inventory_item_id", v)}
-          >
-            <Select.Trigger>
-              <Select.Value placeholder="Select item" />
-            </Select.Trigger>
-            <Select.Content>
-              {inventoryItems.map((item) => {
-                const disabled = orderLines.some((l, i) => l.inventory_item_id === item.id && i !== rowIndex);
-                return (
-                  <Select.Item key={item.id} value={item.id} disabled={disabled}>
-                    <div className="flex justify-between items-center">
-                      <span>{item.title || item.sku}</span>
-                      {disabled && (
-                        <Tooltip content="Already selected">
-                          <InformationCircleSolid className="h-4 w-4 text-ui-fg-subtle" />
-                        </Tooltip>
-                      )}
-                    </div>
-                  </Select.Item>
-                );
-              })}
-            </Select.Content>
-          </Select>
+          <DataGridSelectCell
+            context={context}
+            options={options.map((option: any) => ({
+              ...option,
+              disabled: isOptionDisabled(option.value)
+            }))}
+          />
         );
       },
-    },
-    {
+      disableHiding: true,
+    }),
+    columnHelper.column({
       id: "quantity",
+      name: "Quantity",
       header: "Quantity",
-      cell: ({ row, table }) => {
-        const rowIndex = table.getRowModel().rows.findIndex(r => r.id === row.id);
+      field: (context: any) => `order_lines.${context.row.index}.quantity`,
+      type: "number",
+      cell: (context: any) => {
         return (
-          <Input
-            type="number"
-            value={row.original.quantity}
-            onChange={(e) => onLineChange(rowIndex, "quantity", Number(e.target.value))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && rowIndex === orderLines.length - 1) {
-                e.preventDefault();
-                onAddLine();
-              }
-            }}
+          <DataGridNumberCell
+            context={context}
+            min={1}
+            placeholder="0"
           />
         );
       },
-    },
-    {
+      disableHiding: true,
+    }),
+    columnHelper.column({
       id: "price",
+      name: "Price",
       header: "Price",
-      cell: ({ row, table }) => {
-        const rowIndex = table.getRowModel().rows.findIndex(r => r.id === row.id);
+      field: (context: any) => `order_lines.${context.row.index}.price`,
+      type: "number",
+      cell: (context: any) => {
         return (
-          <CurrencyInput
-            symbol={defaultCurrencySymbol}
+          <DataGridCurrencyCell
+            context={context}
             code={defaultCurrencyCode}
-            value={row.original.price}
-            onValueChange={(val) => onLineChange(rowIndex, "price", Number(val))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && rowIndex === orderLines.length - 1) {
-                e.preventDefault();
-                onAddLine();
-              }
-            }}
-            disabled={isStoreLoading}
           />
         );
       },
-    },
+      disableHiding: true,
+    }),
   ];
 
+  // Add a new empty row when Enter is pressed in the last row
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Check if Enter key is pressed
+    if (e.key === 'Enter') {
+      // Check if we're in the last row by checking if the active element is in the last row
+      const activeElement = document.activeElement;
+      const gridContainer = activeElement?.closest('[role="grid"]');
+      
+      if (gridContainer) {
+        // Get all rows in the grid
+        const rows = gridContainer.querySelectorAll('[role="row"]:not(:first-child)'); // Exclude header row
+        if (rows.length > 0) {
+          // Check if the active element is in the last row
+          const lastRow = rows[rows.length - 1];
+          if (lastRow && lastRow.contains(activeElement)) {
+            // Add a new empty row
+            onAddNewRow();
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  };
+
   return (
-    <DataGrid
-      data={orderLines}
-      columns={columns}
-      state={form}
-    />
+    <div onKeyDown={handleKeyDown}>
+      <DataGrid
+        data={orderLines}
+        columns={columns}
+        state={form}
+        onRemoveRow={onRemoveRow}
+      />
+    </div>
   );
 };
