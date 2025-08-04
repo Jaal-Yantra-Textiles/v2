@@ -116,8 +116,8 @@ export const CreateInventoryOrderComponent = () => {
   // Calculate totals from order lines
   const calculateTotals = () => {
     const validLines = fields.filter((line: OrderLine) => line.inventory_item_id);
-    const totalQuantity = validLines.reduce((sum: number, line: OrderLine) => sum + line.quantity, 0);
-    const totalPrice = validLines.reduce((sum: number, line: OrderLine) => sum + line.price * line.quantity, 0);
+    const totalQuantity = validLines.reduce((sum: number, line: OrderLine) => sum + (Number(line.quantity) || 0), 0);
+    const totalPrice = validLines.reduce((sum: number, line: OrderLine) => sum + (Number(line.price) || 0) * (Number(line.quantity) || 0), 0);
     return { totalQuantity, totalPrice };
   };
 
@@ -135,7 +135,11 @@ export const CreateInventoryOrderComponent = () => {
       is_sample: data.is_sample,
       order_lines: fields
         .filter((l: OrderLine) => l.inventory_item_id)
-        .map(({ inventory_item_id, quantity, price }: OrderLine) => ({ inventory_item_id, quantity, price })),
+        .map(({ inventory_item_id, quantity, price }: OrderLine) => ({ 
+          inventory_item_id, 
+          quantity: Number(quantity) || 0, 
+          price: Number(price) || 0 
+        })),
     };
     await mutateAsync(payload);
     // Navigation is now handled in the onSuccess callback

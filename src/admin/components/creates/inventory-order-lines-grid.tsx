@@ -76,7 +76,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
           <DataGridNumberCell
             context={context}
             min={1}
-            placeholder="0"
+            placeholder=""
           />
         );
       },

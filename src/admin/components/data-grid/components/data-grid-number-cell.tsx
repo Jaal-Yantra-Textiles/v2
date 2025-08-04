@@ -76,7 +76,9 @@ const Inner = ({
           onInputBlur()
 
           // We propagate the change to the field only when the input is blurred
-          onChange(localValue, value)
+          // Convert to number before propagating
+          const numericValue = localValue === "" ? "" : Number(localValue);
+          onChange(numericValue, value)
         }}
         onFocus={onFocus}
         type="number"

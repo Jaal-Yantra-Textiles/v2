@@ -128,7 +128,9 @@ const Inner = ({
           onBlur()
           onInputBlur()
 
-          onChange(localValue, value)
+          // Convert to number before propagating
+          const numericValue = localValue === "" ? "" : Number(localValue);
+          onChange(numericValue, value)
         }}
         onFocus={onFocus}
         decimalScale={currencyInfo.decimal_digits}
