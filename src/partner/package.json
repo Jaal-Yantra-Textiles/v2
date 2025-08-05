@@ -8,9 +8,21 @@
     "start": "next start",
     "lint": "next lint"
   },
+  "license": "MIT",
+  "author": "JYT (https://jaalyantra.in)",
+  "description": "JYT Partner Dashboard", 
+  "keywords": [
+    "medusa",
+    "partner",
+    "dashboard",
+    "textiles",
+    "fabric",
+    "garment"
+  ],
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
     "@medusajs/ui": "^4.0.15",
+    "motion": "^12.23.12",
     "next": "15.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
