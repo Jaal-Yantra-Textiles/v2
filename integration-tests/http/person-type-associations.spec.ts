@@ -68,15 +68,15 @@ medusaIntegrationTestRunner({
 
           expect(getResponse.status).toBe(200);
         
-          expect(getResponse.data.person.person_type).toBeDefined();
-          expect(getResponse.data.person.person_type).toHaveLength(2);
+          expect(getResponse.data.person.person_types).toBeDefined();
+          expect(getResponse.data.person.person_types).toHaveLength(2);
           
           // Verify the associated types match
-          const receivedTypeIds = getResponse.data.person.person_type.map(type => type.id);
+          const receivedTypeIds = getResponse.data.person.person_types.map(type => type.id);
           expect(receivedTypeIds).toEqual(expect.arrayContaining(personTypeIds));
          
           // Verify type details are included
-          getResponse.data.person.person_type.forEach(type => {
+          getResponse.data.person.person_types.forEach(type => {
             expect(type).toHaveProperty("name");
             expect(type).toHaveProperty("description");
             expect(type).toHaveProperty("created_at");
@@ -104,7 +104,7 @@ medusaIntegrationTestRunner({
             `/admin/persons/${personId}`,
             headers
           );
-          expect(getResponse.data.person.person_type).toBeDefined();
+          expect(getResponse.data.person.person_types).toBeDefined();
           expect(getResponse.data.person.person_type.id).toBe(personTypeIds[0]);
         });
       });

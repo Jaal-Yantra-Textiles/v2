@@ -164,7 +164,7 @@ medusaIntegrationTestRunner({
 
         expect(response.status).toBe(400)
         expect(response.data).toEqual({
-           message: "too_small At least one template name is required (at path: template_names)"
+           message: "Invalid request: Value for field 'template_names' too small, expected at least: '1'"
         })
       })
 
@@ -188,7 +188,7 @@ medusaIntegrationTestRunner({
 
         expect(response.status).toBe(400)
         const error = response.data
-        expect(error.message).toBe("invalid_enum_value Invalid enum value. Expected 'blocking' | 'non_blocking' | 'subtask' | 'related', received 'invalid_type' (at path: child_tasks.0.dependency_type)")
+        expect(error.message).toBe("Invalid request: Expected: 'blocking, non_blocking, subtask, related' for field 'child_tasks, 0, dependency_type', but got: 'invalid_type'")
       
       })
     })
