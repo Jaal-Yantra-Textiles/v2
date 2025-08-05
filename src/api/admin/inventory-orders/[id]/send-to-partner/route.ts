@@ -32,7 +32,7 @@ export async function POST(
             }
         }
 
-        console.log("Manually signaling notify-partner step with transaction:", transaction.transactionId);
+
 
         // Manually signal the notify-partner step (matching task assignment pattern)
         await setInventoryOrderStepSuccessWorkflow(req.scope).run({
@@ -41,7 +41,6 @@ export async function POST(
                 updatedOrder: postOrderTransactionId
             }
         }).catch((error) => {
-            console.error("Error signaling notify step:", error);
             throw error;
         });
 

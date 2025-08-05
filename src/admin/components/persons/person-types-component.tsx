@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AdminPersonType } from "../../hooks/api/personandtype";
 import { Plus } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
+import { GeneralSectionSkeleton } from "../table/skeleton";
 
 type PersonTypesComponentProps = {
   personTypes?: AdminPersonType[] | AdminPersonType;
@@ -14,7 +15,9 @@ export const PersonTypesComponent = ({
 }: PersonTypesComponentProps) => {
   const { t } = useTranslation();
   
- 
+  if (!personTypes) {
+    return <GeneralSectionSkeleton rowCount={1} />;
+  }
 
   return (
     <Container className="p-0">

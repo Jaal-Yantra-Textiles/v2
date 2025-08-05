@@ -21,7 +21,7 @@ export const listSingleInventoryOrderStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const { data: orders } = await query.graph({
       entity: "inventory_orders",
-      fields: input.fields || ["*"],
+      fields: input.fields || ["*", 'partner.*'],
       filters: {
         id: input.id,
       },

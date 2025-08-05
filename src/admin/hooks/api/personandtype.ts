@@ -31,7 +31,7 @@ export interface AdminPerson {
   created_at: string;
   state: string;
   metadata: Record<string, unknown> | null;
-  person_type?: AdminPersonType[];
+  person_types?: AdminPersonType[];
   avatar: string;
   contact_details: ContactDetail[];
   tags: Tag[];

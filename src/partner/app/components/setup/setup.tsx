@@ -1,5 +1,8 @@
-import { Heading, Text, clx } from "@medusajs/ui"
-import { CheckCircleSolid } from "@medusajs/icons"
+'use client';
+
+import { useState } from "react";
+import { Heading, Text, Button, Checkbox } from "@medusajs/ui";
+import { OnboardingModal } from "../onboarding/onboarding-modal";
 
 const ActivityList = [
   {
@@ -17,9 +20,11 @@ const ActivityList = [
     description: "Understand the workflow and how to receive and manage tasks.",
     isComplete: false,
   },
-]
+];
 
-const Setup = () => {
+const Setup = ({ partnerId }: { partnerId: string }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   return (
     <div className="flex w-full justify-center">
       <div className="w-full max-w-2xl rounded-lg border bg-ui-bg-base p-8">
@@ -33,17 +38,11 @@ const Setup = () => {
           <ul className="flex flex-col gap-y-4">
             {ActivityList.map((activity, index) => (
               <li key={index} className="flex items-start gap-x-4">
-                <div
-                  className={clx(
-                    "flex h-6 w-6 items-center justify-center rounded-full border text-sm",
-                    {
-                      "border-ui-border-strong bg-ui-bg-base": !activity.isComplete,
-                      "border-green-500 bg-green-400 text-white": activity.isComplete,
-                    }
-                  )}
-                >
-                  {activity.isComplete ? <CheckCircleSolid /> : index + 1}
-                </div>
+                <Checkbox 
+                  checked={activity.isComplete}
+                  onCheckedChange={() => {}}
+                  className="mt-1"
+                />
                 <div>
                   <Text weight="plus" size="large" className="text-ui-fg-base">
                     {activity.title}
@@ -54,9 +53,20 @@ const Setup = () => {
             ))}
           </ul>
         </div>
+        <div className="mt-8 flex justify-center">
+          <Button size="base" onClick={() => setIsModalOpen(true)}>
+            Start Onboarding
+          </Button>
+        </div>
       </div>
+      
+      <OnboardingModal 
+        partnerId={partnerId} 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
     </div>
-  )
-}
+  );
+};
 
-export default Setup
+export default Setup;

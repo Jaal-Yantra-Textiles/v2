@@ -75,7 +75,7 @@ export default function RegisterPage() {
             render={({ field }) => {
               return (
                 <Form.Item>
-                <Form.Label>Company Name</Form.Label>
+                <Form.Label className="text-ui-fg-base">Company Name</Form.Label>
                 <Form.Control>
                   <Input {...field} placeholder="Acme Inc." autoComplete="organization" />
                 </Form.Control>
@@ -89,7 +89,7 @@ export default function RegisterPage() {
             render={({ field }) => {
               return (
               <Form.Item>
-                <Form.Label>Company Handle</Form.Label>
+                <Form.Label className="text-ui-fg-base">Company Handle</Form.Label>
                 <Form.Control>
                   <Input {...field} placeholder="acme-inc" autoComplete="off" />
                 </Form.Control>
@@ -104,7 +104,7 @@ export default function RegisterPage() {
               render={({ field }) => {
                 return (
                 <Form.Item>
-                  <Form.Label>First Name</Form.Label>
+                  <Form.Label className="text-ui-fg-base">First Name</Form.Label>
                   <Form.Control>
                     <Input {...field} placeholder="John" autoComplete="given-name" />
                   </Form.Control>
@@ -118,7 +118,7 @@ export default function RegisterPage() {
               render={({ field }) => {
                 return(
                 <Form.Item>
-                  <Form.Label>Last Name</Form.Label>
+                  <Form.Label className="text-ui-fg-base">Last Name</Form.Label>
                   <Form.Control>
                     <Input {...field} placeholder="Doe" autoComplete="family-name"   />
                   </Form.Control>
@@ -133,7 +133,7 @@ export default function RegisterPage() {
             render={({ field }) => {
               return(
               <Form.Item>
-                <Form.Label>Email</Form.Label>
+                <Form.Label className="text-ui-fg-base">Email</Form.Label>
                 <Form.Control>
                   <Input {...field} placeholder="admin@acme.com" autoComplete="email" />
                 </Form.Control>
@@ -147,7 +147,7 @@ export default function RegisterPage() {
             render={({ field }) => {
               return (
               <Form.Item>
-                <Form.Label>Password</Form.Label>
+                <Form.Label className="text-ui-fg-base">Password</Form.Label>
                 <Form.Control>
                   <Input {...field} type="password" placeholder="********" autoComplete="new-password" />
                 </Form.Control>
@@ -167,7 +167,7 @@ export default function RegisterPage() {
           </Button>
 
           {isSuccess && (
-            <Alert variant="success" className="mt-4">
+            <Alert variant="success" className="mt-4 text-ui-fg-base">
               Registration successful! Redirecting to login...
             </Alert>
           )}

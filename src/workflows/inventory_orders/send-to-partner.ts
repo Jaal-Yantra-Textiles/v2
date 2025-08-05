@@ -201,7 +201,7 @@ const setTaskTransactionIdsStep = createStep(
         const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
         const taskService: TaskService = container.resolve(TASKS_MODULE)
         const workflowTransactionId = context.transactionId
-        console.log("setTaskTransactionIdsStep", input)
+
         logger.info("Setting workflow transaction ID on partner tasks...")
         
         // Get the created tasks from the workflow result
@@ -335,11 +335,7 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
         awaitOrderCompletion()
         
         return new WorkflowResponse({
-            success: true,
-            order: order,
-            partner: partner,
-            partnerId: input.partnerId,
-            partnerLink,
+            success: true
         })
     }
 )

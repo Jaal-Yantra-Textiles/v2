@@ -1,5 +1,5 @@
-import { UIMatch, useParams , useLoaderData } from "react-router-dom";
-import { useInventoryOrder } from "../../../../hooks/api/inventory-orders";
+import { UIMatch, useParams , useLoaderData, LoaderFunctionArgs } from "react-router-dom";
+import { AdminInventoryOrderResponse, useInventoryOrder } from "../../../../hooks/api/inventory-orders";
 import { TwoColumnPageSkeleton } from "../../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../../components/pages/two-column-pages";
 import InventoryOrderGeneralSection from "../../../../components/inventory-orders/inventory-order-general-section";
@@ -10,10 +10,10 @@ import { inventoryOrderLoader } from "./loader";
 import InventoryOrderIDSection from "../../../../components/inventory-orders/inventory-order-general-orderId";
 
 const InventoryOrderDetailPage = () => {
-  const intialData = useLoaderData() as Awaited<ReturnType<typeof inventoryOrderLoader>>
+  const intialData = useLoaderData() as Awaited<AdminInventoryOrderResponse>
   const { id } = useParams();
   const { inventoryOrder, isLoading, isError, error } = useInventoryOrder(id!, {
-    fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*', '+tasks.*']
+    fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*', '+tasks.*', '+partner.*']
   }, {
     initialData: intialData
   });
@@ -43,6 +43,10 @@ const InventoryOrderDetailPage = () => {
     </TwoColumnPage>
   );
 };
+
+export async function loader({ params }: LoaderFunctionArgs) {
+  return inventoryOrderLoader({ params });
+}
 
 export const handle = {
   breadcrumb: (match: UIMatch<{ id: string }>) => {

@@ -1,5 +1,5 @@
-import { UIMatch, useParams } from "react-router-dom";
-import { useDesign } from "../../../hooks/api/designs";
+import { LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom";
+import { AdminDesignResponse, useDesign } from "../../../hooks/api/designs";
 import { DesignGeneralSection } from "../../../components/designs/design-general-section";
 import { DesignPartnerSection } from "../../../components/designs/design-partner-section";
 import { DesignTasksSection } from "../../../components/designs/design-tasks-section";
@@ -10,11 +10,14 @@ import { DesignTagsSection } from "../../../components/designs/design-tags-secti
 import { DesignColorPaletteSection } from "../../../components/designs/design-color-palette-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
+import { designLoader } from "./loader";
 
 
 
 const DesignDetailPage = () => {
   const { id } = useParams();
+
+  const intialData = useLoaderData() as Awaited<AdminDesignResponse>
   
   // Use staleTime: 0 to ensure data is always refetched when navigating back to this page
   const { design, isLoading, isError, error } = useDesign(id!, {
@@ -23,7 +26,8 @@ const DesignDetailPage = () => {
     // This ensures fresh data is fetched when returning from other pages
     staleTime: 0,
     // This ensures the query is refetched when the component remounts
-    refetchOnMount: true
+    refetchOnMount: true,
+    initialData: intialData
   });
 
   // Show loading skeleton while data is being fetched
@@ -65,6 +69,10 @@ const DesignDetailPage = () => {
 };
 
 export default DesignDetailPage;
+
+export async function loader({ params }: LoaderFunctionArgs) {
+  return designLoader({ params });
+}
 
 
 export const handle = {

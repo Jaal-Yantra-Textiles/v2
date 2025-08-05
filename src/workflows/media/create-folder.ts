@@ -23,7 +23,20 @@ export const createFolderStep = createStep(
   "create-folder-step",
   async (input: CreateFolderStepInput, { container }) => {
     const service: FolderService = container.resolve(MEDIA_MODULE);
-    const created = await service.createFolders(input);
+    
+    // If parent folder is specified, calculate path and level
+    let folderData = { ...input };
+    if (input.parent_folder_id) {
+      const parentFolder = await service.retrieveFolder(input.parent_folder_id);
+      folderData.path = `${parentFolder.path}/${input.slug}`;
+      folderData.level = parentFolder.level + 1;
+    } else {
+      // Root folder
+      folderData.path = `/${input.slug}`;
+      folderData.level = 0;
+    }
+    
+    const created = await service.createFolders(folderData);
     return new StepResponse(created, created.id);
   },
   async (id: string, { container }) => {

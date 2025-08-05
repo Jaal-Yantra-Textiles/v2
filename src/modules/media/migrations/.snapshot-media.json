@@ -96,7 +96,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "mappedType": "text"
         },
         "created_at": {
@@ -185,6 +185,7 @@
             "id"
           ],
           "referencedTableName": "public.folder",
+          "deleteRule": "set null",
           "updateRule": "cascade"
         }
       },
@@ -388,7 +389,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "mappedType": "text"
         },
         "created_at": {
@@ -468,6 +469,7 @@
             "id"
           ],
           "referencedTableName": "public.folder",
+          "deleteRule": "set null",
           "updateRule": "cascade"
         }
       },

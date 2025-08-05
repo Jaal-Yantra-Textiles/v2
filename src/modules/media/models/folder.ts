@@ -23,7 +23,7 @@ const Folder = model.define("folder", {
   // Relationships
   parent_folder: model.belongsTo(() => Folder, {
     mappedBy: "child_folders",
-  }),
+  }).nullable(),
   child_folders: model.hasMany(() => Folder, {
     mappedBy: "parent_folder",
   }),

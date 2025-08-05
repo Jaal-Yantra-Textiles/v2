@@ -8,6 +8,7 @@ import {
   clx,
 } from "@medusajs/ui"
 import {
+  ArrowUturnLeft,
   Buildings,
   CogSixTooth,
   CurrencyDollar,
@@ -18,9 +19,12 @@ import {
   Tag,
   Users,
 } from "@medusajs/icons"
+import { usePathname } from "next/navigation"
+import Link from "next/link"
 
 import { NavItem, NavItemProps } from "./nav-item"
 import { logout } from "../../dashboard/actions"
+import { useSettingsRoutes, useIsSettingsRoute } from "./use-settings-routes"
 
 const useCoreRoutes = (): Omit<NavItemProps, "pathname">[] => {
   return [
@@ -69,6 +73,18 @@ const useCoreRoutes = (): Omit<NavItemProps, "pathname">[] => {
 
 const CoreRouteSection = () => {
   const coreRoutes = useCoreRoutes()
+  const isSettingsRoute = useIsSettingsRoute()
+  const settingsRoutes = useSettingsRoutes()
+
+  if (isSettingsRoute) {
+    return (
+      <nav className="flex flex-col gap-y-1 px-3 py-3">
+        {settingsRoutes.map((route) => {
+          return <NavItem key={route.to} {...route} />
+        })}
+      </nav>
+    )
+  }
 
   return (
     <nav className="flex flex-col gap-y-1 px-3 py-3">
@@ -99,7 +115,7 @@ const Header = ({ partner }: { partner: PartnerDetails | null }) => {
             weight="plus"
             className="text-ui-fg-base"
           >
-            {companyName}
+            {companyName.slice(0, 20)}
           </Text>
           {companyHandle && (
             <Text size="xsmall" className="text-ui-fg-subtle">
@@ -216,21 +232,34 @@ const UserSection = ({ userDetails }: { userDetails: PartnerDetails | null }) =>
 }
 
 export default function Sidebar({ partner }: { partner: PartnerDetails | null }) {
+  const pathname = usePathname()
+  const isSettingsRoute = pathname?.startsWith("/dashboard/settings")
+
   return (
     <aside className="bg-ui-bg-subtle flex h-full w-full flex-col justify-between">
       <div>
-        <Header partner={partner} />
+        {isSettingsRoute ? (
+          <div className="flex h-14 items-center px-3">
+            <Link href="/dashboard" className="flex items-center gap-x-2 text-ui-fg-subtle hover:text-ui-fg-base">
+              <ArrowUturnLeft className="text-ui-fg-subtle" />
+            </Link>
+          </div>
+        ) : (
+          <Header partner={partner} />
+        )}
         <Divider variant="dashed"/>
         <CoreRouteSection />
       </div>
       <div className="flex flex-col">
-        <div className="flex flex-col gap-y-1 px-3 py-3">
-          <NavItem
-            icon={<CogSixTooth />}
-            to="/dashboard/settings"
-            label="Settings"
-          />
-        </div>
+        {!isSettingsRoute && (
+          <div className="flex flex-col gap-y-1 px-3 py-3">
+            <NavItem
+              icon={<CogSixTooth />}
+              to="/dashboard/settings"
+              label="Settings"
+            />
+          </div>
+        )}
         <Divider variant="dashed" />
         <UserSection userDetails={partner} />
       </div>

@@ -61,6 +61,7 @@ import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partn
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
 import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreement/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
+import { folderSchema, uploadMediaSchema } from "./admin/media/validators";
 
 
 // Utility function to create CORS middleware with configurable options
@@ -247,6 +248,19 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [],
     },
+    // Media routes
+    {
+      matcher: "/admin/media",
+      method: "POST",
+      middlewares: [adaptMulter(upload.array("files")), validateAndTransformBody(wrapSchema(uploadMediaSchema))],
+    },
+
+    {
+      matcher: "/admin/media/folder",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(folderSchema))],
+    },
+    
     // PersonType routes
     {
       matcher: "/admin/persontypes",

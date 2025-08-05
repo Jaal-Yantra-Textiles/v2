@@ -1,4 +1,4 @@
-import {  UIMatch, useParams } from "react-router-dom";
+import {  LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom";
 import { usePerson } from "../../../hooks/api/persons";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { PersonGeneralSection } from "../../../components/persons/person-general-section";
@@ -9,17 +9,30 @@ import { PersonTagsComponent } from "../../../components/persons/person-tags-com
 import { PersonTypesComponent } from "../../../components/persons/person-types-component";
 import { PersonPartnerComponent } from "../../../components/persons/person-partner-component";
 import { PersonAgreementsSection } from "../../../components/persons/person-agreements-section";
+import { personLoader } from "./loader";
+import { AdminPerson } from "../../../hooks/api/personandtype";
 
 const PersonDetailPage = () => {
-  
   const { id } = useParams();
-  const { person, isLoading, isError, error } = usePerson(id!, {
-    fields: "addresses.*, person_type.*, partner.*, contact_details.*, tags.*, agreements.*, agreements.responses.*"
+  
+  const initialData = useLoaderData() as Awaited<{ person: AdminPerson } >
+  
+  const { person, isPending: isLoading, isError, error } = usePerson(id!, {
+    fields: "addresses.*, person_types.*, partner.*, contact_details.*, tags.*, agreements.*, agreements.responses.*"
+  }, {
+    initialData: initialData
   });
 
   // Show loading skeleton while data is being fetched
-  if (isLoading) {
-    return <TwoColumnPageSkeleton mainSections={3} sidebarSections={3} showJSON showMetadata />;
+  if (isLoading || !person) {
+    return (
+    <TwoColumnPageSkeleton 
+      mainSections={3} 
+      sidebarSections={3} 
+      showJSON 
+      showMetadata 
+      />
+    );
   }
 
   // Handle error state
@@ -27,16 +40,9 @@ const PersonDetailPage = () => {
     throw error;
   }
 
-  // Handle case where person is undefined but not loading
-  if (!person) {
-    throw new Error("Person not found");
-  }
-
-
 
   // Render main content when data is available
   return (
-    
     <TwoColumnPage data={person} hasOutlet={true} showJSON showMetadata={true} >
       <TwoColumnPage.Main>
       <PersonGeneralSection person={person} />
@@ -47,11 +53,16 @@ const PersonDetailPage = () => {
       <TwoColumnPage.Sidebar>
         <PersonContactSection person={person} />
         <PersonTagsComponent person={person} />
-        <PersonTypesComponent personTypes={person.person_type} />
+        <PersonTypesComponent personTypes={person.person_types} />
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
   );
 };
+
+export async function loader({ params }: LoaderFunctionArgs) {
+  return personLoader({ params });
+}
+
 
 export const handle = {
   breadcrumb: (match: UIMatch<{ id: string }>) => {

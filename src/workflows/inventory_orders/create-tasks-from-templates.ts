@@ -14,6 +14,7 @@ import { TASKS_MODULE } from "../../modules/tasks"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MedusaError } from "@medusajs/utils"
 import InventoryOrderService from "../../modules/inventory_orders/service"
+import TaskService from "../../modules/tasks/service"
 
 // Extend the validator type with inventoryOrderId
 type CreateTasksInput = AdminPostInventoryOrderTasksReqType & {
@@ -23,7 +24,7 @@ type CreateTasksInput = AdminPostInventoryOrderTasksReqType & {
 export const validateInventoryOrderStep = createStep(
   "validate-inventory-order-step",
   async (input: CreateTasksInput, { container }) => {
-    console.log("validateInventoryOrderStep", input)
+
     const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE)
     
     try {
@@ -40,19 +41,59 @@ export const validateInventoryOrderStep = createStep(
   }
 )
 
+export const validateTemplateNamesStep = createStep(
+  "validate-template-names-step",
+  async (input: CreateTasksInput, { container }) => {
+    // Only validate if template_names are provided
+    let templateNames: string[] = [];
+    
+    if (input.type === "template" && input.template_names) {
+      templateNames = input.template_names;
+    } else if (input.type === "multiple" && input.tasks) {
+      // Collect template names from all tasks
+      templateNames = input.tasks
+        .filter(task => task.template_names)
+        .flatMap(task => task.template_names || []);
+    }
+    
+    if (templateNames.length === 0) {
+      return new StepResponse({ success: true });
+    }
+    
+    const taskService: TaskService = container.resolve(TASKS_MODULE);
+    
+    // Get templates by names
+    const templates = await taskService.listTaskTemplates({
+      name: templateNames
+    });
+    
+    // Check if all template names exist
+    const foundTemplateNames = templates.map((t: any) => t.name);
+    const missingTemplateNames = templateNames.filter(name => !foundTemplateNames.includes(name));
+    
+    if (missingTemplateNames.length > 0) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Create Template's For Order: Missing templates - ${missingTemplateNames.join(', ')}`
+      );
+    }
+    
+    return new StepResponse({ success: true });
+  }
+)
+
 export const determineTaskDataStep = createStep(
   "determine-task-data-step",
   async (input: any, { container }) => {
-    console.log("determineTaskDataStep input:", JSON.stringify(input, null, 2));
-    
+
     // Handle template-based task creation response
     if (input.withTemplates) {
-      console.log("Found withTemplates:", input.withTemplates);
+
       return new StepResponse(input.withTemplates);
     }
     
     if (input.withParent) {
-      console.log("Found withParent:", input.withParent);
+
       const parentResponse = input.withParent;
       
       if ('parent' in parentResponse && 'children' in parentResponse) {
@@ -73,11 +114,11 @@ export const determineTaskDataStep = createStep(
     } 
     
     if (input.withoutTemplates) {
-      console.log("Found withoutTemplates:", input.withoutTemplates);
+
       return new StepResponse([input.withoutTemplates]);
     }
     
-    console.log("No valid task response found, input keys:", Object.keys(input));
+
     throw new Error("No valid task response found");
   }
 )
@@ -97,7 +138,7 @@ export const createInventoryOrderTaskLinksStep = createStep(
         },
       })
     }
-    console.log("links", links) 
+
     const createdLinks = await remoteLink.create(links)
     return new StepResponse(createdLinks)
   }
@@ -109,18 +150,18 @@ export const createTasksFromTemplatesWorkflow = createWorkflow(
     // First validate that the inventory order exists
     const validateStep = validateInventoryOrderStep(input);
     
+    // Validate that template names exist in the database
+    const validateTemplatesStep = validateTemplateNamesStep(input);
+    
     // Transform input to match CreateTaskStepInput | CreateTaskWithParentInput
     const transformedInput = transform(
       { input },
       (data) => {
         const { inventoryOrderId, ...taskInput } = data.input;
-        console.log("Original input:", data.input);
-        console.log("Transformed taskInput:", taskInput);
-        
         // CRITICAL: Ensure that workflow input metadata (including assignment_notes) 
         // is preserved and will be merged with template metadata
         if ('metadata' in taskInput && taskInput.metadata) {
-          console.log("Input metadata to be merged with templates:", taskInput.metadata);
+  
         }
         
         return taskInput;

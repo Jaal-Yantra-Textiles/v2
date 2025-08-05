@@ -13,16 +13,19 @@ import { useState, useMemo, useCallback, useEffect } from "react"
 import { RouteFocusModal } from "../../modal/route-focus-modal"
 import { AdminPartner, usePartners } from "../../../hooks/api/partners"
 import { usePartnerColumns } from "./hooks/use-partner-columns"
+import { useSendInventoryOrderToPartner } from "../../../hooks/api/inventory-orders"
+import { useRouteModal } from "../../modal/use-route-modal"
 
 interface SendToPartnerFormProps {
   entityId?: string
   entityType?: string
-  onSend?: (partnerIds: string[]) => void
+  onSuccess?: () => void
 }
 
 const filterHelper = createDataTableFilterHelper<AdminPartner>()
 
-export const SendToPartnerForm = ({ entityType, onSend }: SendToPartnerFormProps) => {
+export const SendToPartnerForm = ({ entityId, entityType, onSuccess }: SendToPartnerFormProps) => {
+  const { mutateAsync: sendToPartner } = useSendInventoryOrderToPartner(entityId || "")
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
   const [pagination, setPagination] = useState<DataTablePaginationState>({
@@ -31,7 +34,7 @@ export const SendToPartnerForm = ({ entityType, onSend }: SendToPartnerFormProps
   })
   const [search, setSearch] = useState("")
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
-
+  const { handleSuccess } = useRouteModal();
   // Build query parameters for the API
   const queryParams = useMemo(() => {
     const params: any = {
@@ -160,14 +163,23 @@ export const SendToPartnerForm = ({ entityType, onSend }: SendToPartnerFormProps
       return
     }
 
+    if (!entityId) {
+      toast.error("Entity ID is missing")
+      return
+    }
+
     try {
-      await onSend?.(selectedPartnerIds)
+      // Send to each selected partner
+      for (const partnerId of selectedPartnerIds) {
+        await sendToPartner({ partnerId })
+      }
       toast.success(`Successfully sent to ${selectedCount} partner${selectedCount > 1 ? 's' : ''}`)
       setSelectedRows({})
+      handleSuccess()
     } catch (error: any) {
       toast.error(error?.message || "Failed to send to partners")
     }
-  }, [selectedPartnerIds, selectedCount, onSend])
+  }, [selectedPartnerIds, selectedCount, entityId, sendToPartner, onSuccess])
 
   return (
     <RouteFocusModal>

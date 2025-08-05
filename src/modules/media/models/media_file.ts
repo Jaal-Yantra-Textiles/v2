@@ -40,7 +40,7 @@ const MediaFile = model.define("media_file", {
   // Relationships
   folder: model.belongsTo(() => Folder, {
     mappedBy: "media_files",
-  }),
+  }).nullable(),
   album_medias: model.hasMany(() => AlbumMedia, {
     mappedBy: "media",
   }),

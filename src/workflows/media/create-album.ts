@@ -11,7 +11,7 @@ export type CreateAlbumStepInput = {
   name: string;
   description?: string;
   slug: string;
-  cover_media?: string;
+  cover_media_id?: string;
   is_public?: boolean;
   sort_order?: number;
   type?: "gallery" | "portfolio" | "product" | "profile" | "general";

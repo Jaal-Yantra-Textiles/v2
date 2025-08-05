@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+
 import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 
@@ -30,7 +31,15 @@ export interface StockLocations {
     postal_code: string,
     city: string, 
     country_code: string
-  },
+  }
+  address_1: string
+  address_2: string
+  company: string
+  phone: string
+  province: string
+  postal_code: string
+  city: string
+  country_code: string
 }
 
 export interface AdminInventoryOrder {
@@ -41,15 +50,19 @@ export interface AdminInventoryOrder {
   expected_delivery_date: string;
   order_date: string;
   shipping_address?: Record<string, any>;
-  stock_locations: StockLocations[]
+  stock_locations: StockLocations[];
   order_lines: OrderLine[];
   created_at?: string;
   updated_at?: string;
-  [key: string]: any;
 }
 
 export type CreateAdminInventoryOrderPayload = Omit<AdminInventoryOrder, "id" | "created_at" | "updated_at">;
 export type UpdateAdminInventoryOrderPayload = Partial<CreateAdminInventoryOrderPayload>;
+
+export interface SendInventoryOrderToPartnerPayload {
+  partnerId: string;
+  notes?: string;
+}
 
 export interface AdminInventoryOrderResponse {
   inventoryOrder: AdminInventoryOrder;
@@ -69,7 +82,6 @@ export interface AdminInventoryOrdersQuery {
   quantity?: number;
   order_date?: string;
   expected_delivery_date?: string;
-  [key: string]: any;
 }
 
 const INVENTORY_ORDER_QUERY_KEY = "inventory-orders" as const;
@@ -193,6 +205,26 @@ export const useDeleteInventoryOrder = (
         method: "DELETE",
       }),
     onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
+      options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};
+
+export const useSendInventoryOrderToPartner = (
+  id: string,
+  options?: UseMutationOptions<any, FetchError, SendInventoryOrderToPartnerPayload>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: SendInventoryOrderToPartnerPayload) =>
+      sdk.client.fetch<any>(`/admin/inventory-orders/${id}/send-to-partner`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
       options?.onSuccess?.(...args);
     },

@@ -15,7 +15,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
     "list-single-person-step",
     async (input: ListPersonStepInput, { container }) => {;
       input.fields.push('*')
-      input.fields.push('person_type.*')
+      input.fields.push('person_types.*')
       const query = container.resolve(ContainerRegistrationKeys.QUERY)
       const {data: person} = await query.graph({
         entity: 'person',

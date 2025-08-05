@@ -6,7 +6,7 @@ export default async function Dashboard() {
 
   // If the partner is not verified and their status is pending, show the setup guide.
   if (partner && partner.status === "pending" && !partner.is_verified) {
-    return <Setup />
+    return <Setup partnerId={partner.id} />
   }
 
   return (

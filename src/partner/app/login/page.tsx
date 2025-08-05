@@ -50,7 +50,7 @@ export default function LoginPage() {
     form.formState.errors.password?.message
 
   return (
-    <div className="m-4 flex w-full max-w-xs flex-col items-center">
+    <div className="m-4 flex w-full max-w-xs flex-col items-center text-ui-fg-base">
         <AvatarBox />
         <div className="mb-4 mt-4 flex flex-col items-center">
           <Heading>Welcome to JYT Partner Space</Heading>

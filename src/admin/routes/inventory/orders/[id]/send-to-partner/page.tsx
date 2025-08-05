@@ -1,24 +1,18 @@
 import { useParams } from "react-router-dom"
 import { SendToPartnerForm } from "../../../../../components/forms/send-to-partner/send-to-partner-form"
+import { RouteFocusModal } from "../../../../../components/modal/route-focus-modal"
 
 const InventoryOrderSendToPartnerPage = () => {
   const { id } = useParams()
 
-  const handleSend = async (partnerIds: string[]) => {
-    // TODO: Implement the actual send logic
-    // This could involve creating a workflow to send the inventory order to selected partners
-    console.log("Sending inventory order", id, "to partners:", partnerIds)
-    
-    // For now, just simulate success
-    return Promise.resolve()
-  }
 
   return (
+    <RouteFocusModal>
     <SendToPartnerForm 
       entityId={id}
       entityType="inventory order"
-      onSend={handleSend}
     />
+    </RouteFocusModal>
   )
 }
 

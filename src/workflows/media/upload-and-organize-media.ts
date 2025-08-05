@@ -8,7 +8,7 @@ import {
 import { uploadFilesWorkflow } from "@medusajs/medusa/core-flows";
 import { MEDIA_MODULE } from "../../modules/media";
 import MediaFileService from "../../modules/media/service";
-import { Modules } from "@medusajs/framework/utils";
+
 
 // Step 1: Create folder if needed
 export type CreateFolderStepInput = {
@@ -22,21 +22,49 @@ export const createFolderStep = createStep(
   "create-folder-step",
   async (input: CreateFolderStepInput, { container }) => {
     const service: MediaFileService = container.resolve(MEDIA_MODULE);
-    
     const slug = input.name.toLowerCase().replace(/\s+/g, "-");
-    const folder = await service.createFolders({
+    
+    // If parent folder is specified, calculate path and level
+    let folderData: any = {
       ...input,
       slug,
-      path: `/${slug}`,
-      level: 0,
       sort_order: 0,
-    });
+      is_public: input.is_public ?? true, // Default to public if not specified
+    };
     
+    if (input.parent_folder_id) {
+      const parentFolder = await service.retrieveFolder(input.parent_folder_id);
+      folderData.path = `${parentFolder.path}/${slug}`;
+      folderData.level = parentFolder.level + 1;
+    } else {
+      // Root folder
+      folderData.path = `/${slug}`;
+      folderData.level = 0;
+    }
+    
+    const folder = await service.createFolders(folderData);
     return new StepResponse(folder, folder.id);
   },
   async (folderId: string, { container }) => {
     const service: MediaFileService = container.resolve(MEDIA_MODULE);
     await service.softDeleteFolders(folderId);
+  }
+);
+
+// Step 1a: Validate existing folder ID
+export const validateExistingFolderStep = createStep(
+  "validate-existing-folder-step",
+  async (folderId: string, { container }) => {
+    const service: MediaFileService = container.resolve(MEDIA_MODULE);
+    try {
+      const folder = await service.retrieveFolder(folderId);
+      return new StepResponse(folder, folderId);
+    } catch (error) {
+      throw new Error(`Folder with ID ${folderId} not found`);
+    }
+  },
+  async (folderId: string, { container }) => {
+    // No rollback needed for validation
   }
 );
 
@@ -81,20 +109,47 @@ export type UploadFilesStepInput = {
 export const uploadFilesStep = createStep(
   "upload-files-step",
   async (input: UploadFilesStepInput, { container }) => {
+    // Debug log to see what files we're receiving
+    console.log("Files received in uploadFilesStep:", input.files);
+    
     const { result } = await uploadFilesWorkflow.run({
       input: {
         files: input.files,
       },
     });
     
+    // Log the actual result structure to understand the fields
+    console.log("Upload workflow result:", result);
+    
     // Transform the result to match expected format for createMediaRecordsStep
-    const transformedFiles = result.map((file: any) => ({
-      id: file.id,
-      url: file.url,
-      filename: file.filename,
-      mimeType: file.mimeType,
-      size: file.size,
-    }));
+    // We'll preserve the original file information that we have
+    const transformedFiles = result.map((file: any, index: number) => {
+      // Log individual file structure for debugging
+      console.log("Individual file:", file);
+      
+      // Get original file info from input
+      const originalFile = input.files[index];
+      
+      // Try to extract file information from various possible field names
+      const id = file.id || file.key || "unknown-id";
+      const url = file.url || `http://localhost:9000/static/${id}`;
+      // Use original filename if available, fallback to ID-based name
+      const filename = originalFile?.filename || file.originalName || file.name || file.filename || id || "unknown";
+      // Use original mimeType if available, fallback to extracted value
+      const mimeType = originalFile?.mimeType || file.mimeType || file.type || file.contentType || "application/octet-stream";
+      // Use original size if available (0 if not)
+      const size = originalFile?.content?.length || file.size || file.fileSize || 0;
+      
+      return {
+        id,
+        url,
+        filename,
+        mimeType,
+        size,
+      };
+    });
+    
+    console.log("Transformed files:", transformedFiles);
     
     return new StepResponse(transformedFiles, result);
   },
@@ -122,21 +177,22 @@ export const createMediaRecordsStep = createStep(
   "create-media-records-step",
   async (input: CreateMediaRecordsStepInput, { container }) => {
     const service: MediaFileService = container.resolve(MEDIA_MODULE);
-    
+    console.log("Input:", input);
     const mediaFiles = await Promise.all(
       input.uploadedFiles.map(async (file) => {
-        const extension = file.filename.split(".").pop() || "";
+        const filename = file.filename || "unknown";
+        const extension = filename.split(".").pop() || "";
         const fileType = getFileTypeFromMimeType(file.mimeType);
         
         const mediaFile = await service.createMediaFiles({
-          file_name: file.filename,
-          original_name: file.filename,
+          file_name: filename,
+          original_name: filename,
           file_path: file.url,
           file_size: file.size,
           file_type: fileType as "image" | "video" | "audio" | "document" | "archive" | "other",
           mime_type: file.mimeType,
           extension,
-          folder: input.folderId,
+          ...(input.folderId && { folder_id: input.folderId }), // Only include folder if it's defined
           is_public: true,
           metadata: input.metadata || {},
         });
@@ -145,8 +201,8 @@ export const createMediaRecordsStep = createStep(
         if (input.albumIds && input.albumIds.length > 0) {
           for (const albumId of input.albumIds) {
             await service.createAlbumMedias({
-              album: albumId,
-              media: mediaFile.id,
+              album_id: albumId,
+              media_id: mediaFile.id,
               sort_order: 0,
             });
           }
@@ -194,6 +250,7 @@ export type UploadAndOrganizeMediaInput = {
   folder?: {
     name: string;
     description?: string;
+    parent_folder_id?: string;
   };
   album?: {
     name: string;
@@ -210,9 +267,16 @@ export const uploadAndOrganizeMediaWorkflow = createWorkflow(
   "upload-and-organize-media",
   (input: UploadAndOrganizeMediaInput) => {
     
+    // Validate existing folder if existingFolderId is provided
+    const existingFolder = when({ input }, ({ input }) => !!input.existingFolderId)
+      .then(() => validateExistingFolderStep(input.existingFolderId!));
+    
     // Create folder if new folder is specified
     const folder = when({ input }, ({ input }) => !!input.folder)
-      .then(() => createFolderStep(input.folder!));
+      .then(() => createFolderStep({
+        ...input.folder!,
+        parent_folder_id: input.folder?.parent_folder_id
+      }));
     
     // Create album if new album is specified
     const album = when({ input }, ({ input }) => !!input.album)
@@ -224,10 +288,12 @@ export const uploadAndOrganizeMediaWorkflow = createWorkflow(
     });
     
     // Create media records and associations
+    // Extract folder ID properly from step responses
+    const folderId = input.existingFolderId || (folder ? folder.id : undefined);
     const mediaFiles = createMediaRecordsStep({
       uploadedFiles,
-      folderId: input.existingFolderId || folder?.id,
-      albumIds: input.existingAlbumIds || (album?.id ? [album.id] : undefined),
+      folderId,
+      albumIds: input.existingAlbumIds || (album ? [album.id] : undefined),
       metadata: input.metadata,
     });
     
