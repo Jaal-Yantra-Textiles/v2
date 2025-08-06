@@ -1,0 +1,1 @@
+export const INVENTORY_ORDER_DETAIL_FIELDS = "orderlines.*, orderlines.inventory_items.*, stock_locations.*, stock_locations.address.*, +tasks.*, +partner.*";

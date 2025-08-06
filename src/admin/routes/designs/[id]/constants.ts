@@ -1,0 +1,1 @@
+export const DESIGN_DETAIL_FIELDS = "+inventory_items.*, +tasks.*, tasks.subtasks.*, tasks.outgoing.*, tasks.incoming.*, +partners.*";
