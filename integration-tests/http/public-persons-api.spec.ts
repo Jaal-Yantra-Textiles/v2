@@ -2,17 +2,18 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import PersonService from "../../src/modules/person/service";
 import { PERSON_MODULE } from "../../src/modules/person";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 jest.setTimeout(100000);
 
-medusaIntegrationTestRunner({
-  testSuite: ({ getContainer, api }) => {
+setupSharedTestSuite(() => {
+
     let personService: PersonService;
     let headers;
-
+    const { api , getContainer } = getSharedTestEnv();
     beforeEach(async () => {
       const container = getContainer();
-      personService = container.resolve<PersonService>(PERSON_MODULE);
+      personService = container.resolve(PERSON_MODULE);
       await createAdminUser(container);
       headers = await getAuthHeaders(api);
       
@@ -83,5 +84,4 @@ medusaIntegrationTestRunner({
       expect(response.data.persons.length).toBe(1);
       expect(response.data.persons[0].first_name).toBe("FirstName3");
     });
-  },
 });

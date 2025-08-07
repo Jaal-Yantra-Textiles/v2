@@ -1,16 +1,15 @@
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
-import { error } from "console";
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 jest.setTimeout(30000);
 
 //Add more test cases like delete and etc
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
+
     let headers;
     let personId;
-
+    const { api , getContainer } = getSharedTestEnv();
     beforeEach(async () => {
       const container = getContainer();
       await createAdminUser(container);
@@ -254,7 +253,7 @@ medusaIntegrationTestRunner({
         
         // Request with nested fields for person_type and partner
         const response = await api.get(
-          `/admin/persons/${personId}?fields=id,first_name,person_type.id,person_type.description,partner.handle`,
+          `/admin/persons/${personId}?fields=id,first_name,person_types.id,person_types.description,partner.handle`,
           headers
         );
 
@@ -838,5 +837,4 @@ medusaIntegrationTestRunner({
         expect(getResponse.data.tags.map(t => t.id)).not.toContain(tagToDelete.id);
       });
     });
-  },
 });

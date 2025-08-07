@@ -1,13 +1,14 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 jest.setTimeout(50000)
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
+    const api = getSharedTestEnv().api
     it("should trigger the geocodeAddressWorkflow and log the address", async () => {
-      const container = getContainer()
-      await createAdminUser(container)
+      const { getContainer } = getSharedTestEnv()
+      await createAdminUser(getContainer())
       const headers = await getAuthHeaders(api)
 
       // Create a person
@@ -38,5 +39,4 @@ medusaIntegrationTestRunner({
       // Wait for a moment to allow the async workflow to log the output
       await new Promise((resolve) => setTimeout(resolve, 3000))
     })
-  },
 })

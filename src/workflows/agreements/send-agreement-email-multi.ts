@@ -11,6 +11,7 @@ import {
   createMultipleAgreementResponsesStep
 } from "./steps/create-multiple-agreement-responses";
 import { linkMultiplePersonsWithAgreementStep } from "./steps/link-multiple-persons-with-agreement";
+import { linkMultiplePersonsWithAgreementResponsesStep } from "./steps/link-multiple-persons-with-agreement-responses";
 import { sendMultipleAgreementEmailsStep } from "./steps/send-multiple-agreement-emails";
 import { fetchMultiplePersonsDataStep } from "./steps/fetch-multiple-persons-data";
 
@@ -51,7 +52,15 @@ export const sendAgreementEmailMultiWorkflow = createWorkflow(
       person_ids: input.person_ids,
     });
 
-    // Step 5: Send emails to all signers
+    // Step 5: Create person-agreement response module links for all signers
+    const personAgreementResponseLinks = linkMultiplePersonsWithAgreementResponsesStep({
+      person_ids: input.person_ids,
+      agreement_response_ids: transform({ agreementResponses }, (data) => 
+        data.agreementResponses.map((response: any) => response.id)
+      ),
+    });
+
+    // Step 6: Send emails to all signers
     const emailResults = sendMultipleAgreementEmailsStep({
       agreement: agreement,
       signers: transform({ persons, agreementResponses }, (data) => {
@@ -63,7 +72,7 @@ export const sendAgreementEmailMultiWorkflow = createWorkflow(
       template_key: input.template_key,
     });
 
-    // Step 6: Update agreement stats
+    // Step 7: Update agreement stats
     const statsUpdated = updateAgreementStatsStep({
       agreement_id: input.agreement_id,
     });
@@ -71,6 +80,7 @@ export const sendAgreementEmailMultiWorkflow = createWorkflow(
     return new WorkflowResponse({
       agreement_responses: agreementResponses,
       person_agreement_links: personAgreementLinks,
+      person_agreement_response_links: personAgreementResponseLinks,
       email_results: emailResults,
       stats_updated: statsUpdated,
     });

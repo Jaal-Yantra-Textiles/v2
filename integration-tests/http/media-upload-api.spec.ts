@@ -1,13 +1,12 @@
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import FormData from "form-data";
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 jest.setTimeout(30000);
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
     let headers;
-
+    const { api, getContainer } = getSharedTestEnv();
     beforeEach(async () => {
       const container = getContainer();
       await createAdminUser(container);
@@ -140,5 +139,4 @@ medusaIntegrationTestRunner({
         expect(mediaFile).toHaveProperty("folder_id", createdFolderId);
       });
     });
-  },
 });

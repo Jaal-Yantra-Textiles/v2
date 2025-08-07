@@ -10,6 +10,7 @@ import {
   linkPersonWithAgreementStep,
   updateAgreementStatsStep,
 } from "./steps";
+import { linkPersonWithAgreementResponseStep } from "./steps/link-person-with-agreement-response";
 import { logger } from "@medusajs/framework";
 
 export type SendAgreementEmailInput = {
@@ -42,7 +43,13 @@ export const sendAgreementEmailWorkflow = createWorkflow(
       agreement_id: input.agreement_id,
     });
 
-    // Step 4: Send the email using our email template system to primary signer
+    // Step 4: Create person-agreement response module link for primary signer
+    const personAgreementResponseLink = linkPersonWithAgreementResponseStep({
+      person_id: input.person_id,
+      agreement_response_id: transform({ agreementResponse }, (data) => data.agreementResponse.id),
+    });
+
+    // Step 5: Send the email using our email template system to primary signer
     const emailResult = sendNotificationEmailWorkflow.runAsStep({
       input: transform({ agreement, person, agreementResponse, input }, (data) => {
         const templateKey = data.input.template_key || data.agreement.template_key || "agreement-email";
@@ -85,7 +92,7 @@ export const sendAgreementEmailWorkflow = createWorkflow(
       })
     });
 
-    // Step 5: Update agreement statistics
+    // Step 6: Update agreement statistics
     const statsUpdate = updateAgreementStatsStep({
       agreement_id: input.agreement_id,
     });
@@ -93,6 +100,7 @@ export const sendAgreementEmailWorkflow = createWorkflow(
     return new WorkflowResponse({
       agreement_response: agreementResponse,
       person_agreement_link: personAgreementLink,
+      person_agreement_response_link: personAgreementResponseLink,
       email_result: emailResult,
       stats_updated: statsUpdate,
     });

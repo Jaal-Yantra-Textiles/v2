@@ -3,6 +3,8 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 // Shared test environment instance
 let sharedTestEnv: any = null;
 let testEnvPromise: Promise<any> | null = null;
+let testFileCount = 0;
+const MAX_TESTS_PER_ENVIRONMENT = 10;
 
 /**
  * Gets a shared medusaIntegrationTestRunner instance
@@ -10,6 +12,21 @@ let testEnvPromise: Promise<any> | null = null;
  * across multiple test files instead of creating a new one for each file
  */
 export async function getSharedTestEnvironment() {
+  // Reset environment periodically to prevent memory leaks
+  if (testFileCount >= MAX_TESTS_PER_ENVIRONMENT) {
+    console.log(`Resetting shared test environment after ${testFileCount} test files`);
+    resetSharedTestEnvironment();
+    testFileCount = 0;
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      console.log('Forcing garbage collection...');
+      global.gc();
+    }
+  }
+  
+  testFileCount++;
+  
   if (sharedTestEnv) {
     return sharedTestEnv;
   }
@@ -39,4 +56,10 @@ export async function getSharedTestEnvironment() {
 export function resetSharedTestEnvironment() {
   sharedTestEnv = null;
   testEnvPromise = null;
+  testFileCount = 0;
+  
+  // Force garbage collection if available
+  if (global.gc) {
+    global.gc();
+  }
 }

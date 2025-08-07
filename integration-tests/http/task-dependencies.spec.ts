@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 jest.setTimeout(30000)
 
@@ -72,8 +73,8 @@ const patternTemplate = {
     category: "Pattern Development"
 }
 
-medusaIntegrationTestRunner({
-    testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
+   
         let headers
         let designId
         let templateIds = {
@@ -81,7 +82,7 @@ medusaIntegrationTestRunner({
             design: "",
             pattern: ""
         }
-
+        const { api , getContainer } = getSharedTestEnv()
         beforeEach(async () => {
             const container = getContainer()
             await createAdminUser(container)
@@ -314,5 +315,4 @@ medusaIntegrationTestRunner({
                 }
             })
         })
-    }
 })

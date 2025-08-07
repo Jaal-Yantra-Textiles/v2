@@ -1,13 +1,12 @@
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 jest.setTimeout(30000);
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
     let headers: any;
     let inventoryItemId: string;
     let stockLocationId: string;
-
+    const { api, getContainer } = getSharedTestEnv();
     beforeEach(async () => {
       const container = getContainer();
       await createAdminUser(container);
@@ -352,10 +351,9 @@ medusaIntegrationTestRunner({
         };
         const res = await api.put(`/admin/inventory-orders/${createdOrderId}`, updatePayload, headers).catch((err) => err.response);
         expect(res.status).toBe(400);
-        expect(res.data.message).toBe('too_small Order quantity must be a non-negative integer (at path: quantity)');
+        expect(res.data.message).toBe('Invalid request: Value for field \'quantity\' too small, expected at least: 0');
       });
 
 
     });
-  },
 });

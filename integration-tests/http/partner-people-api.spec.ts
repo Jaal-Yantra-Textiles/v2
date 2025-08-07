@@ -1,13 +1,12 @@
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 const TEST_PARTNER_EMAIL = "admin@medusa-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 jest.setTimeout(60 * 1000);
-medusaIntegrationTestRunner({
-    testSuite: ({ api }) => {
+setupSharedTestSuite(() => {
         let partnerHeaders: Record<string, string>
         let partnerId: string
-
+        const { api } = getSharedTestEnv();
         beforeEach(async () => {
             // Register partner admin
             await api.post("/auth/partner/emailpass/register", {
@@ -131,5 +130,4 @@ medusaIntegrationTestRunner({
                 ).rejects.toThrow()
             })
         })
-    },
 })

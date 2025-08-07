@@ -1,14 +1,12 @@
-import { Modules } from "@medusajs/framework/utils"
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 const TEST_PARTNER_EMAIL = "partner@error-cases-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 
 jest.setTimeout(30000)
 
-medusaIntegrationTestRunner({
-  testSuite: ({ dbConnection, getContainer, api }) => {
+setupSharedTestSuite(() =>{
     describe("Send to Partner - Error Cases", () => {
       let appContainer
       let inventoryItemId
@@ -17,7 +15,7 @@ medusaIntegrationTestRunner({
       let inventoryOrderId
       let adminHeaders
       let partnerHeaders
-
+      const { api , getContainer } = getSharedTestEnv()
       beforeEach(async () => {
         appContainer = getContainer()
         
@@ -314,5 +312,4 @@ medusaIntegrationTestRunner({
         })
       })
     })
-  }
 })

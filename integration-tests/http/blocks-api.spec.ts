@@ -1,17 +1,17 @@
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
+
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 jest.setTimeout(60 * 1000);
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
     let headers;
     let websiteId;
     let pageId;
-
+    const api = getSharedTestEnv().api;
     beforeEach(async () => {
-      const container = getContainer();
-      await createAdminUser(container);
+      const { api, getContainer } = getSharedTestEnv();
+      await createAdminUser(getContainer());
       headers = await getAuthHeaders(api);
 
       // Create a test website
@@ -399,5 +399,4 @@ medusaIntegrationTestRunner({
         });
       });
     });
-  },
 });

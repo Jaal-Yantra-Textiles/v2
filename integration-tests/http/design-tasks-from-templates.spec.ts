@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 jest.setTimeout(30000)
 
@@ -91,8 +92,8 @@ const qualityControlTemplate = {
   category: "Quality Control"
 };
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
+ 
     let headers
     let designId
     let templateIds = {
@@ -101,7 +102,7 @@ medusaIntegrationTestRunner({
       production: "",
       quality: ""
     }
-  
+    const { api, getContainer } = getSharedTestEnv();
     beforeEach(async () => {
       const container = getContainer();
       await createAdminUser(container)
@@ -228,7 +229,7 @@ medusaIntegrationTestRunner({
         } catch (error) {
           console.log(error.response.data)
           expect(error.response.data).toEqual({
-            message: "too_small At least one template name is required (at path: template_names)"
+            message: "Invalid request: Value for field 'template_names' too small, expected at least: '1'"
           })
         }
       })
@@ -440,6 +441,5 @@ medusaIntegrationTestRunner({
           })
         );
       });
-    });
-  }
+    }); 
 })

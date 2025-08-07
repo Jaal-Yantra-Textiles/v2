@@ -629,6 +629,7 @@ export default defineMiddlewares({
     res,
     next
   ) => {
+    console.log(error);
     // Option 1: standard name check
     // if (error.name === "ZodError") {
     // Option 2: check if error is an instance of ZodError

@@ -1,18 +1,15 @@
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { geocodeAllAddressesWorkflowId } from "../../src/workflows/persons/geocode-all-addresses"
-import PersonService from "../../src/modules/person/service"
 import { PERSON_MODULE } from "../../src/modules/person"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 
 jest.setTimeout(50000) // Longer timeout for workflow processing
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
     let headers
     let person: any
     let address: any
-
+    const { api, getContainer } = getSharedTestEnv();
     beforeEach(async () => {
       const container = getContainer()
       await createAdminUser(container)
@@ -46,7 +43,7 @@ medusaIntegrationTestRunner({
       )
 
       // Use the PersonService to create the address directly, bypassing the event system
-      const personService = container.resolve<PersonService>(PERSON_MODULE)
+      const personService = container.resolve(PERSON_MODULE)
       const createdAddresses = await personService.createAddresses([
         {
           person_id: person.id,
@@ -106,5 +103,4 @@ medusaIntegrationTestRunner({
       expect(updatedAddress.latitude).not.toBeNull()
       expect(updatedAddress.longitude).not.toBeNull()
     })
-  },
 })

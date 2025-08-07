@@ -1,14 +1,13 @@
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 jest.setTimeout(30000);
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
     let headers;
     let personId;
     let personTypeIds: string[] = [];
-
+    const { api , getContainer } = getSharedTestEnv();
     beforeEach(async () => {
       const container = getContainer();
       await createAdminUser(container);
@@ -99,13 +98,29 @@ medusaIntegrationTestRunner({
           expect(associateResponse.data.originalCount).toBe(2);
           expect(associateResponse.data.processedCount).toBe(1);
           
+          // Verify the response structure matches the actual API
+          expect(associateResponse.data).toHaveProperty('personTypesLink');
+          expect(associateResponse.data.personTypesLink).toHaveProperty('list');
+          expect(associateResponse.data.personTypesLink).toHaveProperty('count', 1);
+          
+          // Verify the message indicates duplicate IDs were removed
+          expect(associateResponse.data.message).toContain('duplicate IDs were removed');
+          
           // Verify only one association was created
           const getResponse = await api.get(
             `/admin/persons/${personId}`,
             headers
           );
+          
           expect(getResponse.data.person.person_types).toBeDefined();
-          expect(getResponse.data.person.person_type.id).toBe(personTypeIds[0]);
+          
+          // Handle both single object and array cases
+          const personTypes = Array.isArray(getResponse.data.person.person_types) 
+            ? getResponse.data.person.person_types 
+            : [getResponse.data.person.person_types];
+            
+          expect(personTypes).toHaveLength(1);
+          expect(personTypes[0].id).toBe(personTypeIds[0]);
         });
       });
 
@@ -121,5 +136,4 @@ medusaIntegrationTestRunner({
         
       });
     });
-  },
 });

@@ -58,7 +58,7 @@ jobs:
         EOF
 
     - name: Run integration tests
-      run: yarn test:integration:http
+      run: yarn test:integration:http:batched
       env:
         NODE_ENV: test
         DATABASE_URL: postgresql://runner@localhost:5432/postgres

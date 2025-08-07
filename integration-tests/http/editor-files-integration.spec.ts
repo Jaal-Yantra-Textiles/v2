@@ -1,24 +1,23 @@
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import { IFileModuleService } from "@medusajs/types";
 import { Modules } from "@medusajs/utils";
 import FormData from "form-data";
-// import { Readable } from "stream"; // No longer needed as we use File objects or Buffers with FormData
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 jest.setTimeout(50000); // Increased timeout for file operations
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
+  
     let authConfig; // Stores authentication headers for API calls
     let fileService: IFileModuleService;
     const createdFileIds: string[] = [];
     const totalFilesToCreate = 15;
-
+    const { api, getContainer } = getSharedTestEnv();
     beforeAll(async () => {
       const container = getContainer();
       await createAdminUser(container); // Ensure admin user exists
       authConfig = await getAuthHeaders(api); // Get auth config for admin
-      fileService = container.resolve<IFileModuleService>(Modules.FILE); // Still needed for cleanup
+      fileService = container.resolve(Modules.FILE) // Still needed for cleanup
 
       // Create multiple files for testing pagination using the /admin/uploads API
       for (let i = 0; i < totalFilesToCreate; i++) {
@@ -173,5 +172,4 @@ medusaIntegrationTestRunner({
         expect(res.data.message).toContain("Invalid limit or offset"); // From API route parsing
       });
     });
-  },
 });

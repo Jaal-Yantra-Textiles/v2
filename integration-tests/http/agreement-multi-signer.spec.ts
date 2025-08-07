@@ -5,10 +5,6 @@ jest.setTimeout(30000);
 
 setupSharedTestSuite(() => {
   let headers;
-  let personId1;
-  let personId2;
-  let personId3;
-  let emailTemplateId;
 
   beforeAll(async () => {
     const { api, getContainer } = getSharedTestEnv();

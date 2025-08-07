@@ -1,13 +1,13 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 const TEST_PARTNER_EMAIL = "partner@complete-workflow-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 
 jest.setTimeout(60000)
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
     describe("Send to Partner - Complete Workflow", () => {
       let adminHeaders: any
       let partnerHeaders: any
@@ -15,7 +15,7 @@ medusaIntegrationTestRunner({
       let stockLocationId: string
       let inventoryOrderId: string
       let partnerId: string
-
+      const { api , getContainer } = getSharedTestEnv()
       beforeEach(async () => {
         const container = getContainer()
         
@@ -289,5 +289,4 @@ medusaIntegrationTestRunner({
         console.log("\n✅ Complete workflow finished successfully!")
       })
     })
-  }
 })

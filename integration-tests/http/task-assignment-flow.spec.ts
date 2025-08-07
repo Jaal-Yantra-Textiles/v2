@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 const TEST_PARTNER_EMAIL = "admin@medusa-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
@@ -45,14 +46,13 @@ const taskTemplates = [
   }
 ]
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
     let adminHeaders: any
     let partnerHeaders: any
     let designId: string
     let tasks: any[]
     let partnerId: string
-
+    const { api , getContainer } = getSharedTestEnv()
     beforeAll(async () => {
       // Create and login as admin
       const container = getContainer();
@@ -222,5 +222,4 @@ medusaIntegrationTestRunner({
         }
       })
     })
-  }
 })

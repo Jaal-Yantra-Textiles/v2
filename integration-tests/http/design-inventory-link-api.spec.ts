@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 /**
  * This is a simple case where we assume that Raw_maeterials are attached already 
@@ -21,14 +22,15 @@ const testDesign = {
   }
 };
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
+
     let headers;
     let designId;
     let cottonFabricId;
     let buttonsId;
-
+    const api = getSharedTestEnv().api;
     beforeEach(async () => {
+      const { api, getContainer } = getSharedTestEnv();
       const container = getContainer();
       //await createAdminUser(container);
       await createAdminUser(container);
@@ -175,5 +177,4 @@ medusaIntegrationTestRunner({
         });
       });
     });
-  }
 });

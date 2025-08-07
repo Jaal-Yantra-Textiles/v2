@@ -3,15 +3,15 @@ import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import fs from "fs";
 import path from "path";
 import FormData from "form-data";
+import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 
 jest.setTimeout(50000); // Longer timeout for workflow processing
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
+setupSharedTestSuite(() => {
     let headers;
     let csvFilePath;
-
+    const { api , getContainer } = getSharedTestEnv();
     beforeAll(async () => {
       // Create CSV test file with sample person data
       const tempDir = path.join(__dirname, "..", "temp");
@@ -209,10 +209,10 @@ medusaIntegrationTestRunner({
         // Get detailed person info to check person types
         const johnDetailResponse = await api.get(`/admin/persons/${johnDoe.id}`, headers);
         expect(johnDetailResponse.status).toBe(200);
-        console.log('John person types:', JSON.stringify(johnDetailResponse.data.person.person_type, null, 2));
+        console.log('John person types:', JSON.stringify(johnDetailResponse.data.person.person_types, null, 2));
         
         // Verify person types - handle both array and single object cases
-        const johnPersonType = johnDetailResponse.data.person.person_type;
+        const johnPersonType = johnDetailResponse.data.person.person_types;
         expect(johnPersonType).toBeDefined();
         
         // Check if it's a single object or an array
@@ -275,10 +275,10 @@ medusaIntegrationTestRunner({
         // Get detailed person info to check person types
         const janeDetailResponse = await api.get(`/admin/persons/${janeSmith.id}`, headers);
         expect(janeDetailResponse.status).toBe(200);
-        console.log('Jane person types:', JSON.stringify(janeDetailResponse.data.person.person_type, null, 2));
+        console.log('Jane person types:', JSON.stringify(janeDetailResponse.data.person.person_types, null, 2));
         
         // Verify person types - handle both array and single object cases
-        const janePersonType = janeDetailResponse.data.person.person_type;
+        const janePersonType = janeDetailResponse.data.person.person_types;
         expect(janePersonType).toBeDefined();
         
         // For Jane, we expect two types: Vendor and VIP
@@ -343,10 +343,10 @@ medusaIntegrationTestRunner({
         // Get detailed person info to check person types
         const updatedDetailResponse = await api.get(`/admin/persons/${updatedPerson.id}`, headers);
         expect(updatedDetailResponse.status).toBe(200);
-        console.log('Updated person types:', JSON.stringify(updatedDetailResponse.data.person.person_type, null, 2));
+        console.log('Updated person types:', JSON.stringify(updatedDetailResponse.data.person.person_types, null, 2));
         
         // Verify person types - handle both array and single object cases
-        const updatedPersonType = updatedDetailResponse.data.person.person_type;
+        const updatedPersonType = updatedDetailResponse.data.person.person_types;
         expect(updatedPersonType).toBeDefined();
         
         // For updated person, we expect two types: Customer and VIP
@@ -396,5 +396,4 @@ medusaIntegrationTestRunner({
         }
       });
     });
-  },
 });

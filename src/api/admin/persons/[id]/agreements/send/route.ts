@@ -10,7 +10,6 @@ export const POST = async (
 ) => {
   const { id: person_id } = req.params;
   const { agreement_id, person_ids, template_key } = req.validatedBody;
-
   // If person_ids is provided, use multi-signer workflow
   if (person_ids && person_ids.length > 0) {
     // Combine the primary person_id with additional person_ids
