@@ -1,3 +1,41 @@
+# [6.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.0.1...v6.1.0) (2025-08-07)
+
+
+### Bug Fixes
+
+* **Build:** Added ts no check for now ([e8ec4e1](https://github.com/Jaal-Yantra-Textiles/v2/commit/e8ec4e1adf3110ca4e65d4f7bcbbfd5d61feccad))
+* **Agreement:** API returning data with handlebars ([82467aa](https://github.com/Jaal-Yantra-Textiles/v2/commit/82467aaf7370c8acdf328f1a48d6838e9d1d31e4))
+* **Email:** Email templates bug fix ([b60586e](https://github.com/Jaal-Yantra-Textiles/v2/commit/b60586ef880de8f2b1b9d98640e83b7b88c8e73e))
+* **Medusa Config:** Fixed the medusa config ([2c8d764](https://github.com/Jaal-Yantra-Textiles/v2/commit/2c8d764abe5adfa7f7c7817c83fb6879f2ff7023))
+* **UI:** giving me crap vibes ([585c2e7](https://github.com/Jaal-Yantra-Textiles/v2/commit/585c2e77949f263041ca8347737bc7191f80319a))
+* **Meta Fix:** Import meta thingy caused a severe headache now resolved. Always remember that the front end code should not reach inside backend at all ([16f7b3d](https://github.com/Jaal-Yantra-Textiles/v2/commit/16f7b3ded2bf26abed101d87c3d4f3f8350dd55d))
+* **Person:** Person test api bug fix ([21c752f](https://github.com/Jaal-Yantra-Textiles/v2/commit/21c752fb0608e3a3d1a4dac23be95e14cd7e0d02))
+* Rollup file import ([f1dc8aa](https://github.com/Jaal-Yantra-Textiles/v2/commit/f1dc8aa1aa8bdf6a15b83dbcdee7a10d5456b410))
+* SDK was imported inside the editor directl ([a36ca35](https://github.com/Jaal-Yantra-Textiles/v2/commit/a36ca354a4c94dec72826b7dde7df5193c268f2a))
+* **User:** Suspension and Unsuspension feature added ([fce3375](https://github.com/Jaal-Yantra-Textiles/v2/commit/fce337589b4cf41b58b83abbde1bab6368cdcbe6))
+
+
+### Features
+
+* **Modules:** Agreements,Email Templates ([132b643](https://github.com/Jaal-Yantra-Textiles/v2/commit/132b64365b086c4ca76ac48160ab85358a5d9df6))
+* Create Inventory Order Line ([b6762a7](https://github.com/Jaal-Yantra-Textiles/v2/commit/b6762a75e6e79c2a831dba8aeb4f473381f07ef9))
+* **Data Grid:** Data grid inside the order inventory lines ([e0ce77f](https://github.com/Jaal-Yantra-Textiles/v2/commit/e0ce77f87e9922686e8a3ae529885ea1c1d8f0f3))
+* **UI:** Designs can be linked to products using the widgets ([49c98a2](https://github.com/Jaal-Yantra-Textiles/v2/commit/49c98a2116b5538b8cea36a9d615bb1fae055623))
+* **Products:** Designs can be linked to the products now and can be probably fetched to stores to behind the scenes ([86b3d48](https://github.com/Jaal-Yantra-Textiles/v2/commit/86b3d482be3be9d99229ae3979b6684624a8c26a))
+* **INVO:** Enter the new phase of inventory order where inventory can be assigned to the partner and can be started, completed ([811e9c4](https://github.com/Jaal-Yantra-Textiles/v2/commit/811e9c45002ab88fabe555658340d6354403be26))
+* **INVO:** Inventory Orde Lines Uses the data grid ([c557127](https://github.com/Jaal-Yantra-Textiles/v2/commit/c557127305d5723085e7b4c3dad20e1edef05be6))
+* **INVO:** Inventory orders can now be tracked using tasks modules ([c6ef4b7](https://github.com/Jaal-Yantra-Textiles/v2/commit/c6ef4b79f6d1d75e3accf12af85852dde07cd8f0))
+* **Media:** Media where we can store photos and everything else and track them ([c087b84](https://github.com/Jaal-Yantra-Textiles/v2/commit/c087b840f97c148800ec489da8f33f76b36522cc))
+* **Persons:** Payment for people involved now can be traced ([e9a862c](https://github.com/Jaal-Yantra-Textiles/v2/commit/e9a862c652b18060d139ef42199535f67cf1b747))
+* **Agreement:** Person can now send multi signed agreements ([2d61d31](https://github.com/Jaal-Yantra-Textiles/v2/commit/2d61d31e32909cf116384724aa99e9cd8bb6f825))
+* **Agreements:** Send agreements and track them using the person API ([6bcee62](https://github.com/Jaal-Yantra-Textiles/v2/commit/6bcee621593a9c17582a6361ee2a00aae93e8250))
+* **Shared Test Setup:** Shared setup test implemented ([136616c](https://github.com/Jaal-Yantra-Textiles/v2/commit/136616c5897df5ecc7240eee9356e471dcf9f979))
+
+
+### Reverts
+
+* **Stripe Dev Settings:** Reversed stripe dev settings ([c061ebd](https://github.com/Jaal-Yantra-Textiles/v2/commit/c061ebdac91a4f41ddf4813a1834db4537d11e52))
+
 ## [6.0.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.0.0...v6.0.1) (2025-07-18)
 
 # [6.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v5.9.0...v6.0.0) (2025-07-18)
