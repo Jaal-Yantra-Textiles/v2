@@ -9,8 +9,8 @@ import { PersonTagsComponent } from "../../../components/persons/person-tags-com
 import { PersonTypesComponent } from "../../../components/persons/person-types-component";
 import { PersonPartnerComponent } from "../../../components/persons/person-partner-component";
 import { PersonAgreementsSection } from "../../../components/persons/person-agreements-section";
-import { personLoader } from "./loader";
 import { AdminPerson } from "../../../hooks/api/personandtype";
+import { personLoader } from "./loader";
 
 const PersonDetailPage = () => {
   const { id } = useParams();
@@ -60,7 +60,7 @@ const PersonDetailPage = () => {
 };
 
 export async function loader({ params }: LoaderFunctionArgs) {
-  return personLoader({ params });
+  return await personLoader({ params });
 }
 
 

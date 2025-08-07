@@ -1,23 +1,28 @@
-import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
+import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup";
 
 jest.setTimeout(30000);
 
-medusaIntegrationTestRunner({
-  testSuite: ({ api, getContainer }) => {
-    let headers;
-    let personId1;
-    let personId2;
-    let personId3;
-    let agreementId;
-    let emailTemplateId;
+setupSharedTestSuite(() => {
+  let headers;
+  let personId1;
+  let personId2;
+  let personId3;
+  let emailTemplateId;
 
-    beforeEach(async () => {
-      const container = getContainer();
-      await createAdminUser(container);
-      headers = await getAuthHeaders(api);
+  beforeAll(async () => {
+    const { api, getContainer } = getSharedTestEnv();
+    await createAdminUser(getContainer());
+    headers = await getAuthHeaders(api);
+  });
+  
+  describe("Multi-Signer Agreement Email Workflow", () => {
+    it("should send agreement to multiple signers and create responses for all", async () => {
+      const { api } = getSharedTestEnv();
+      console.log('Starting multi-signer test');
+      console.log('headers:', JSON.stringify(headers, null, 2));
       
-      // Create test persons
+      // Create test persons for this test
       const person1Response = await api.post(
         "/admin/persons",
         {
@@ -27,8 +32,8 @@ medusaIntegrationTestRunner({
         },
         headers
       );
-      personId1 = person1Response.data.person.id;
-      
+      const personId1 = person1Response.data.person.id;
+
       const person2Response = await api.post(
         "/admin/persons",
         {
@@ -38,8 +43,8 @@ medusaIntegrationTestRunner({
         },
         headers
       );
-      personId2 = person2Response.data.person.id;
-      
+      const personId2 = person2Response.data.person.id;
+
       const person3Response = await api.post(
         "/admin/persons",
         {
@@ -49,9 +54,9 @@ medusaIntegrationTestRunner({
         },
         headers
       );
-      personId3 = person3Response.data.person.id;
+      const personId3 = person3Response.data.person.id;
       
-      // Create test agreement
+      // Create test agreement for this test
       const agreementResponse = await api.post(
         "/admin/agreement",
         {
@@ -70,9 +75,9 @@ medusaIntegrationTestRunner({
         },
         headers
       );
-      agreementId = agreementResponse.data.agreement.id;
+      const agreementId = agreementResponse.data.agreement.id;
       
-      // Create email template
+      // Create email template for this test
       const emailTemplateResponse = await api.post(
         "/admin/email-templates",
         {
@@ -96,12 +101,10 @@ medusaIntegrationTestRunner({
         },
         headers
       );
-      emailTemplateId = emailTemplateResponse.data.emailTemplate.id;
-    });
-
-    describe("Multi-Signer Agreement Email Workflow", () => {
-      it("should send agreement to multiple signers and create responses for all", async () => {
-        // Send agreement to multiple signers
+      const emailTemplateId = emailTemplateResponse.data.emailTemplate.id;
+      
+      // Send agreement to multiple signers
+      try {
         const sendResponse = await api.post(
           `/admin/persons/${personId1}/agreements/send`,
           {
@@ -111,7 +114,9 @@ medusaIntegrationTestRunner({
           },
           headers
         );
-
+        
+        console.log('Response received:', JSON.stringify(sendResponse.data, null, 2));
+        
         expect(sendResponse.status).toBe(200);
         expect(sendResponse.data).toMatchObject({
           message: "Agreement sent successfully to all signers",
@@ -150,10 +155,78 @@ medusaIntegrationTestRunner({
         expect(Array.isArray(sendResponse.data.stats_updated)).toBe(true);
         expect(sendResponse.data.stats_updated[0]).toHaveProperty('id');
         expect(sendResponse.data.stats_updated[0]).toHaveProperty('sent_count');
-      });
+      } catch (error) {
+        console.error('Error in multi-signer test:', error.response?.data || error.message);
+        throw error;
+      }
+    });
 
-      it("should maintain backward compatibility for single signer", async () => {
-        // Send agreement to single signer (backward compatibility)
+    it("should maintain backward compatibility for single signer", async () => {
+      const { api } = getSharedTestEnv();
+      console.log('Starting backward compatibility test');
+      console.log('headers:', JSON.stringify(headers, null, 2));
+      
+      // Create test persons for this test
+      const person1Response = await api.post(
+        "/admin/persons",
+        {
+          first_name: "Alice",
+          last_name: "Brown",
+          email: "alice.brown@example.com",
+        },
+        headers
+      );
+      const personId1 = person1Response.data.person.id;
+      
+      // Create test agreement for this test
+      const agreementResponse = await api.post(
+        "/admin/agreement",
+        {
+          title: "Single Signer Agreement",
+          content: `
+            <div>
+              <h1>{{agreement.title}}</h1>
+              <p>This is a single signer agreement for {{response.email_sent_to}}</p>
+              <p>Agreement ID: {{agreement.id}}</p>
+            </div>
+          `,
+          subject: "Please review: {{agreement.title}}",
+          template_key: "multi-signer-agreement",
+          status: "active",
+          from_email: "agreements@jaalyantra.com"
+        },
+        headers
+      );
+      const agreementId = agreementResponse.data.agreement.id;
+      
+      // Create email template for this test
+      const emailTemplateResponse = await api.post(
+        "/admin/email-templates",
+        {
+          name: "Single Signer Agreement Notification",
+          template_key: "multi-signer-agreement",
+          subject: "Agreement: {{agreement.title}}",
+          html_content: `
+            <div>
+              <h1>Single Signer Agreement</h1>
+              <p>Dear {{person.first_name}} {{person.last_name}},</p>
+              <p>Please review the agreement: {{agreement.title}}</p>
+              <p><a href="{{agreement_url}}">View Agreement</a></p>
+            </div>
+          `,
+          from: "agreements@jaalyantra.com",
+          variables: {
+            agreement: "Agreement data",
+            response: "Response data"
+          },
+          template_type: 'general'
+        },
+        headers
+      );
+      const emailTemplateId = emailTemplateResponse.data.emailTemplate.id;
+      
+      // Send agreement to single signer (backward compatibility)
+      try {
         const sendResponse = await api.post(
           `/admin/persons/${personId1}/agreements/send`,
           {
@@ -162,7 +235,9 @@ medusaIntegrationTestRunner({
           },
           headers
         );
-
+        
+        console.log('Response received:', JSON.stringify(sendResponse.data, null, 2));
+        
         expect(sendResponse.status).toBe(200);
         expect(sendResponse.data).toMatchObject({
           message: "Agreement sent successfully",
@@ -180,7 +255,10 @@ medusaIntegrationTestRunner({
         expect(Array.isArray(sendResponse.data.stats_updated)).toBe(true);
         expect(sendResponse.data.stats_updated[0]).toHaveProperty('id');
         expect(sendResponse.data.stats_updated[0]).toHaveProperty('sent_count');
-      });
+      } catch (error) {
+        console.error('Error in backward compatibility test:', error.response?.data || error.message);
+        throw error;
+      }
     });
-  }
+  });
 });
