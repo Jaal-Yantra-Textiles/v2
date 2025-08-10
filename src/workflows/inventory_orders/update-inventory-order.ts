@@ -10,7 +10,7 @@ import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 type UpdateInventoryOrderStepInput = {
   id: string;
   update: {
-    status?: "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
+    status?: "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled" | "Partial";
     metadata?: Record<string, any>;
     quantity?: number;
     total_price?: number;

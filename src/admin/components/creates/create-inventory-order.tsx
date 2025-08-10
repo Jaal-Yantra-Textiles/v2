@@ -13,17 +13,35 @@ import { useStockLocations } from "../../hooks/api/stock_location";
 import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
 
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
-export const inventoryOrderFormSchema = z.object({
-  order_date: z.date({ required_error: "Order date is required" }),
-  expected_delivery_date: z.date({ required_error: "Expected delivery date is required" }),
-  stock_location_id: z.string().nonempty("Stock location is required"),
-  is_sample: z.boolean().optional(),
-  order_lines: z.array(z.object({
-    inventory_item_id: z.string().min(1, "Item is required"),
-    quantity: z.number().min(1, "Quantity must be at least 1"),
-    price: z.number().min(0, "Price must be non-negative"),
-  })).min(1, "At least one order line is required"),
-});
+export const inventoryOrderFormSchema = z
+  .object({
+    order_date: z.date({ required_error: "Order date is required" }),
+    expected_delivery_date: z.date({ required_error: "Expected delivery date is required" }),
+    // To location (required)
+    stock_location_id: z.string().nonempty("To stock location is required"),
+    // From location (optional)
+    from_stock_location_id: z.string().optional(),
+    is_sample: z.boolean().optional(),
+    order_lines: z
+      .array(
+        z.object({
+          inventory_item_id: z.string().min(1, "Item is required"),
+          quantity: z.number().min(1, "Quantity must be at least 1"),
+          price: z.number().min(0, "Price must be non-negative"),
+        })
+      )
+      .min(1, "At least one order line is required"),
+  })
+  .superRefine((data, ctx) => {
+    // Validate that from and to are not the same when both are provided
+    if (data.from_stock_location_id && data.stock_location_id === data.from_stock_location_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "From and To stock locations must be different",
+        path: ["from_stock_location_id"],
+      });
+    }
+  });
 
 type InventoryOrderFormData = z.infer<typeof inventoryOrderFormSchema>;
 
@@ -46,6 +64,7 @@ export const CreateInventoryOrderComponent = () => {
       order_date: new Date(),
       expected_delivery_date: undefined,
       stock_location_id: "",
+      from_stock_location_id: undefined,
       is_sample: false,
       order_lines: [],
     },
@@ -59,7 +78,12 @@ export const CreateInventoryOrderComponent = () => {
   });
 
   const onNext = async (currentTab: Tab) => {
-    const valid = await form.trigger(["order_date", "expected_delivery_date", "stock_location_id"]);
+    const valid = await form.trigger([
+      "order_date",
+      "expected_delivery_date",
+      "stock_location_id",
+      "from_stock_location_id",
+    ]);
     if (!valid) return;
     if (currentTab === Tab.GENERAL) setTab(Tab.ORDER_LINES);
   };
@@ -124,7 +148,7 @@ export const CreateInventoryOrderComponent = () => {
   const handleSubmit = form.handleSubmit(async (data) => {
     const { totalQuantity, totalPrice } = calculateTotals();
     
-    const payload = {
+    let payload: any = {
       quantity: totalQuantity,
       total_price: totalPrice,
       order_date: data.order_date.toISOString(),
@@ -141,6 +165,9 @@ export const CreateInventoryOrderComponent = () => {
           price: Number(price) || 0 
         })),
     };
+    if (data.from_stock_location_id) {
+      payload.from_stock_location_id = data.from_stock_location_id;
+    }
     await mutateAsync(payload);
     // Navigation is now handled in the onSuccess callback
   });
@@ -154,8 +181,13 @@ export const CreateInventoryOrderComponent = () => {
             // Only validate fields relevant to the current tab when navigating
             let valid = true;
             if (tab === Tab.GENERAL && value === Tab.ORDER_LINES) {
-              // When moving from General to Order Lines tab, only validate general fields
-              valid = await form.trigger(["order_date", "expected_delivery_date", "stock_location_id"]);
+              // When moving from General to Order Lines tab, validate general fields including from/to locations
+              valid = await form.trigger([
+                "order_date",
+                "expected_delivery_date",
+                "stock_location_id",
+                "from_stock_location_id",
+              ]);
             } else if (tab === Tab.ORDER_LINES) {
               // When moving from Order Lines tab to any other tab, validate everything
               // But allow navigation back to General tab without full validation
@@ -213,17 +245,42 @@ export const CreateInventoryOrderComponent = () => {
                       </Form.Item>
                     )}
                   />
-                  {/* Stock Location */}
+                  {/* To Stock Location */}
                   <Form.Field
                     control={form.control}
                     name="stock_location_id"
                     render={({ field }) => (
                       <Form.Item>
-                        <Form.Label>Stock Location</Form.Label>
+                        <Form.Label>To Stock Location</Form.Label>
                         <Form.Control>
                           <Select value={field.value} onValueChange={field.onChange}>
                             <Select.Trigger>
                               <Select.Value placeholder="Select location" />
+                            </Select.Trigger>
+                            <Select.Content>
+                              {stock_locations.map((loc) => (
+                                <Select.Item key={loc.id} value={loc.id}>
+                                  {loc.name}
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select>
+                        </Form.Control>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
+                  {/* From Stock Location (optional) */}
+                  <Form.Field
+                    control={form.control}
+                    name="from_stock_location_id"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>From Stock Location</Form.Label>
+                        <Form.Control>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <Select.Trigger>
+                              <Select.Value placeholder="Select from location (optional)" />
                             </Select.Trigger>
                             <Select.Content>
                               {stock_locations.map((loc) => (

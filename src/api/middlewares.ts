@@ -61,7 +61,7 @@ import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partn
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
 import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreement/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
-import { folderSchema, uploadMediaSchema } from "./admin/media/validators";
+import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
 
 
 // Utility function to create CORS middleware with configurable options
@@ -85,6 +85,32 @@ const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
 
 // Configure multer for CSV file uploads
 const upload = multer({ storage: multer.memoryStorage() })
+
+// Only apply multer when request is multipart/form-data, and gracefully handle empty/invalid forms
+const maybeMulterArray = (field: string) => {
+  return (req: any, res: any, next: any) => {
+    const ct = String(req.headers["content-type"] || "").toLowerCase()
+    if (!ct.startsWith("multipart/form-data")) {
+      // Not multipart -> treat as no files
+      req.files = []
+      return next()
+    }
+    // Use multer directly so we can intercept Busboy errors
+    const handler = upload.array(field)
+    handler(req, res, (err?: any) => {
+      if (err) {
+        const msg = String(err?.message || "")
+        if (msg.includes("Unexpected end of form")) {
+          // Treat malformed/empty multipart bodies as no files
+          req.files = []
+          return next()
+        }
+        return next(err)
+      }
+      return next()
+    })
+  }
+}
 
 // Adapter function to make multer middleware compatible with Medusa's middleware signature
 const adaptMulter = (multerMiddleware) => {
@@ -250,20 +276,26 @@ export default defineMiddlewares({
     },
     // Media routes
     {
-      matcher: "/admin/media",
+      matcher: "/admin/medias",
       method: "POST",
-      middlewares: [adaptMulter(upload.array("files")), validateAndTransformBody(wrapSchema(uploadMediaSchema))],
+      middlewares: [maybeMulterArray("files"), validateAndTransformBody(wrapSchema(uploadMediaSchema))],
+    },
+
+    // Folder-scoped media uploads
+    {
+      matcher: "/admin/medias/folder/:id/upload",
+      method: "POST",
+      middlewares: [maybeMulterArray("files")],
+    },
+    // Legacy upload path kept for backward compatibility
+    {
+      matcher: "/admin/medias/:id/upload",
+      method: "POST",
+      middlewares: [maybeMulterArray("files")],
     },
 
     {
-      matcher: "/admin/media/folder",
-      method: "POST",
-      middlewares: [validateAndTransformBody(wrapSchema(folderSchema))],
-    },
-    
-    // PersonType routes
-    {
-      matcher: "/admin/persontypes",
+      matcher: "/admin/medias/existdir",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(personTypeSchema))],
     },

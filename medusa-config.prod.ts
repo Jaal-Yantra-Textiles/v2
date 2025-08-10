@@ -165,5 +165,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/media",
   },
+  {
+    resolve: "./src/modules/fullfilled_orders",
+  },
 ],
 });

@@ -6,6 +6,7 @@ setupSharedTestSuite(() => {
     let headers: any;
     let inventoryItemId: string;
     let stockLocationId: string;
+    let fromStockLocationId: string;
     const { api, getContainer } = getSharedTestEnv();
     beforeEach(async () => {
       const container = getContainer();
@@ -26,6 +27,13 @@ setupSharedTestSuite(() => {
       const stockLocation = await api.post("/admin/stock-locations", stockLocations, headers);
       expect(stockLocation.status).toBe(200);
       stockLocationId = stockLocation.data.stock_location.id;
+      // Create an additional stock location to act as fromLocation
+      const fromStockLocations = {
+        name: 'Secondary Warehouse'
+      };
+      const fromStockLocation = await api.post("/admin/stock-locations", fromStockLocations, headers);
+      expect(fromStockLocation.status).toBe(200);
+      fromStockLocationId = fromStockLocation.data.stock_location.id;
 
     });
 
@@ -43,6 +51,7 @@ setupSharedTestSuite(() => {
           order_date: new Date().toISOString(),
           shipping_address: {},
           stock_location_id: stockLocationId,
+          from_stock_location_id: fromStockLocationId,
         };
         
         const res = await api.post("/admin/inventory-orders", orderPayload, headers);
@@ -115,6 +124,7 @@ setupSharedTestSuite(() => {
             order_date: new Date("2025-01-01").toISOString(),
             shipping_address: {},
             stock_location_id: stockLocationId,
+            from_stock_location_id: fromStockLocationId,
           },
           {
             order_lines: [],
@@ -125,6 +135,7 @@ setupSharedTestSuite(() => {
             order_date: new Date("2025-02-01").toISOString(),
             shipping_address: {},
             stock_location_id: stockLocationId,
+            from_stock_location_id: fromStockLocationId,
           },
           {
             order_lines: [],
@@ -135,6 +146,7 @@ setupSharedTestSuite(() => {
             order_date: new Date("2025-03-01").toISOString(),
             shipping_address: {},
             stock_location_id: stockLocationId,
+            from_stock_location_id: fromStockLocationId,
           },
         ];
         createdOrders = [];
@@ -260,6 +272,7 @@ setupSharedTestSuite(() => {
           order_date: new Date().toISOString(),
           shipping_address: {},
           stock_location_id: stockLocationId,
+          from_stock_location_id: fromStockLocationId,
         };
         const res = await api.post("/admin/inventory-orders", orderPayload, headers);
         expect(res.status).toBe(201);
@@ -314,6 +327,7 @@ setupSharedTestSuite(() => {
           order_date: new Date().toISOString(),
           shipping_address: {},
           stock_location_id: stockLocationId,
+          from_stock_location_id: fromStockLocationId,
         };
         const res = await api.post("/admin/inventory-orders", orderPayload, headers);
         expect(res.status).toBe(201);
@@ -351,7 +365,7 @@ setupSharedTestSuite(() => {
         };
         const res = await api.put(`/admin/inventory-orders/${createdOrderId}`, updatePayload, headers).catch((err) => err.response);
         expect(res.status).toBe(400);
-        expect(res.data.message).toBe('Invalid request: Value for field \'quantity\' too small, expected at least: 0');
+        expect(res.data.message).toBe('Invalid request: Value for field \'quantity\' too small, expected at least: \'0\'');
       });
 
 

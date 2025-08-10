@@ -24,7 +24,6 @@ type CreateTasksInput = AdminPostInventoryOrderTasksReqType & {
 export const validateInventoryOrderStep = createStep(
   "validate-inventory-order-step",
   async (input: CreateTasksInput, { container }) => {
-
     const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE)
     
     try {
@@ -161,8 +160,8 @@ export const createTasksFromTemplatesWorkflow = createWorkflow(
         // CRITICAL: Ensure that workflow input metadata (including assignment_notes) 
         // is preserved and will be merged with template metadata
         if ('metadata' in taskInput && taskInput.metadata) {
-  
         }
+        console.log(taskInput)
         
         return taskInput;
       }

@@ -13,7 +13,7 @@ setupSharedTestSuite(() => {
       headers = await getAuthHeaders(api);
     });
 
-    describe("POST /admin/media", () => {
+    describe("POST /admin/medias", () => {
       it("should upload media files successfully", async () => {
         // Create test files as buffers
         const file1Buffer = Buffer.from("This is test image 1 content", "utf-8");
@@ -30,18 +30,13 @@ setupSharedTestSuite(() => {
           contentType: "image/png",
         });
         
-        // Add optional parameters
-        // Add folder creation parameters
-        // Note: Form data with nested fields like folder[name] may not be parsed correctly by default
-        // We'll need to handle this properly in our middleware or use a different approach
-        formData.append("folder[name]", "Test Folder");
-        formData.append("folder[description]", "A test folder for media uploads");
+        // No folder fields here; API will create media without folder association
 
         // Get form headers
         const formHeaders = formData.getHeaders();
 
         // Make the API request
-        const response = await api.post("/admin/media", formData, {
+        const response = await api.post("/admin/medias", formData, {
           ...headers,
           headers: {
             ...headers.headers,
@@ -68,14 +63,43 @@ setupSharedTestSuite(() => {
         });
       });
 
+      it("should upload a single file without folder (independent upload)", async () => {
+        const fileBuffer = Buffer.from("independent upload content", "utf-8");
+
+        const formData = new FormData();
+        formData.append("files", fileBuffer, {
+          filename: "independent.jpg",
+          contentType: "image/jpeg",
+        });
+
+        const formHeaders = formData.getHeaders();
+
+        const response = await api.post("/admin/medias", formData, {
+          ...headers,
+          headers: {
+            ...headers.headers,
+            ...formHeaders,
+          },
+        });
+
+        expect(response.status).toBe(201);
+        expect(response.data).toHaveProperty("result");
+        const { result } = response.data;
+        expect(result).toHaveProperty("mediaFiles");
+        expect(Array.isArray(result.mediaFiles)).toBe(true);
+        expect(result.mediaFiles.length).toBe(1);
+        const media = result.mediaFiles[0];
+        // Independent upload should not associate a folder
+        expect(media.folder_id === undefined || media.folder_id === null).toBe(true);
+      });
+
       it("should fail when no files are uploaded", async () => {
         const formData = new FormData();
-        formData.append("folder[name]", "Test Folder");
         
         const formHeaders = formData.getHeaders();
         
         const response = await api
-          .post("/admin/media", formData, {
+          .post("/admin/medias", formData, {
             ...headers,
             headers: {
               ...headers.headers,
@@ -90,7 +114,7 @@ setupSharedTestSuite(() => {
 
       it("should upload files with existing folder and album", async () => {
         // First, create a folder using the folder API
-        const folderResponse = await api.post("/admin/media/folder", 
+        const folderResponse = await api.post("/admin/medias/folder", 
           {
             name: "Test Existing Folder",
             description: "A test folder created via API"
@@ -120,7 +144,7 @@ setupSharedTestSuite(() => {
         const formHeaders = formData.getHeaders();
 
         // Make the API request
-        const response = await api.post("/admin/media", formData, {
+        const response = await api.post("/admin/medias", formData, {
           ...headers,
           headers: {
             ...headers.headers,

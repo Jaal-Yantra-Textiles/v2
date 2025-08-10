@@ -20,6 +20,8 @@ export const createInventoryOrdersSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
   shipping_address: z.record(z.unknown()),
   stock_location_id: z.string(),
+  from_stock_location_id: z.string().optional(),
+  to_stock_location_id: z.string().optional(),
   is_sample: z.boolean().optional().default(false),
 }).superRefine((data, ctx) => {
   if (!data.is_sample && data.quantity <= 0) {
@@ -31,6 +33,25 @@ export const createInventoryOrdersSchema = z.object({
       message: "Order quantity must be a positive integer for non-sample orders",
       path: ["quantity"],
     });
+  }
+
+  // Require a to location via either stock_location_id or to_stock_location_id
+  const toId = data.to_stock_location_id || data.stock_location_id
+  if (!toId || toId.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "A 'to' stock location is required (use stock_location_id or to_stock_location_id)",
+      path: ["to_stock_location_id"],
+    })
+  }
+
+  // from and to must not be equal when both provided
+  if (data.from_stock_location_id && toId && data.from_stock_location_id === toId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "from_stock_location_id cannot be the same as the 'to' stock location",
+      path: ["from_stock_location_id"],
+    })
   }
 });
 

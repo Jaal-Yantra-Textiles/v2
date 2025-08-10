@@ -1,6 +1,6 @@
 import { Button, Container, Heading, Text, Tooltip } from "@medusajs/ui";
 import { AdminDesign } from "../../hooks/api/designs";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
 import { MediaPlay, ThumbnailBadge } from "@medusajs/icons";
 
@@ -9,13 +9,6 @@ interface DesignMediaSectionProps {
 }
 
 export const DesignMediaSection = ({ design }: DesignMediaSectionProps) => {
-  const { id } = useParams();
-  const navigate = useNavigate();
-
-  // Navigate to media management modal
-  const handleManageMedia = () => {
-    navigate(`/designs/${id}/media`);
-  };
 
   return (
     <Container className="divide-y p-0">

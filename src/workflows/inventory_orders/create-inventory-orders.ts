@@ -4,6 +4,7 @@ import {
   createStep,
   StepResponse,
   WorkflowResponse,
+  when,
 } from "@medusajs/framework/workflows-sdk"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import { LinkDefinition } from "@medusajs/framework/types";
@@ -29,6 +30,7 @@ export interface CreateInventoryOrderInput {
   order_date: Date | undefined;
   shipping_address: Record<string, unknown>;
   stock_location_id: string;
+  from_stock_location_id?: string;
   metadata?: Record<string, unknown>;
   order_lines: InventoryOrderLineInput[];
   is_sample: boolean;
@@ -118,10 +120,43 @@ export const linkInventoryOrderWithStockLocation = createStep(
       },
       [Modules.STOCK_LOCATION]: {
         stock_location_id: input.stock_location_id,
+        
       },
       data: {
         order_id: input.order_id,
         stock_location_id: input.stock_location_id,
+        // toLocation link
+        from_location: false,
+        to_location: true,
+      },
+    });
+    await remoteLink.create(links);
+    return new StepResponse(links);
+  }
+)
+
+
+export const linkInventoryOrderWithFromStockLocation = createStep(
+  "link-inventory-order-with-from-stock-location",
+  async (
+    input: { order_id: string; from_stock_location_id: string },
+    { container }
+  ) => {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const links: LinkDefinition[] = [];
+    links.push({
+      [ORDER_INVENTORY_MODULE]: {
+        inventory_orders_id: input.order_id,
+      },
+      [Modules.STOCK_LOCATION]: {
+        stock_location_id: input.from_stock_location_id,
+      },
+      data: {
+        order_id: input.order_id,
+        stock_location_id: input.from_stock_location_id,
+        // fromLocation link
+        from_location: true,
+        to_location: false,
       },
     });
     await remoteLink.create(links);
@@ -157,9 +192,24 @@ export const createInventoryOrderWorkflow = createWorkflow(
       })
     );
     const links = linkInventoryItemsWithLinesStep(linkInput);
+
+    // Determine the to-location id from alias or stock_location_id
+    const toLocationId = transform({ input }, ({ input }) => (
+      (input as any).to_stock_location_id || input.stock_location_id
+    ));
+
+    // Always link TO location (required by validator)
     linkInventoryOrderWithStockLocation({
       order_id: created.order.id,
-      stock_location_id: input.stock_location_id,
+      stock_location_id: toLocationId as any,
+    });
+
+    // Conditionally link FROM location using when()
+    when(input, (i) => Boolean(i.from_stock_location_id)).then(() => {
+      linkInventoryOrderWithFromStockLocation({
+        order_id: created.order.id,
+        from_stock_location_id: input.from_stock_location_id as string,
+      });
     });
     // Step 4: Use transform to shape the final response
     const response = transform(

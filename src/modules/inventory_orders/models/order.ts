@@ -10,7 +10,8 @@ const InventoryOrder = model.define("inventory_orders", {
     "Processing",
     "Shipped",
     "Delivered",
-    "Cancelled"
+    "Cancelled",
+    "Partial"
   ]).default("Pending"),
   expected_delivery_date: model.dateTime(),
   order_date: model.dateTime(),

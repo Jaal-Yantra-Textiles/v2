@@ -46,7 +46,8 @@
             "Processing",
             "Shipped",
             "Delivered",
-            "Cancelled"
+            "Cancelled",
+            "Partial"
           ],
           "mappedType": "enum"
         },

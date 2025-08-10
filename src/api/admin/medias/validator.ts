@@ -4,6 +4,8 @@ import { z } from "zod";
 export const folderSchema = z.object({
   name: z.string().min(1, "Folder name is required"),
   description: z.string().optional(),
+  parent_folder_id: z.string().optional(),
+  is_public: z.boolean().optional(),
 });
 
 // Validator for creating album

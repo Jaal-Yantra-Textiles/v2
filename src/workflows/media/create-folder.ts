@@ -25,7 +25,14 @@ export const createFolderStep = createStep(
     const service: FolderService = container.resolve(MEDIA_MODULE);
     
     // If parent folder is specified, calculate path and level
-    let folderData = { ...input };
+    let folderData: any = { ...input };
+    // Map default_* fields to actual fields expected by the model
+    if (typeof input.default_sort_order !== "undefined") {
+      folderData.sort_order = input.default_sort_order;
+    }
+    if (typeof input.default_is_public !== "undefined") {
+      folderData.is_public = input.default_is_public;
+    }
     if (input.parent_folder_id) {
       const parentFolder = await service.retrieveFolder(input.parent_folder_id);
       folderData.path = `${parentFolder.path}/${input.slug}`;

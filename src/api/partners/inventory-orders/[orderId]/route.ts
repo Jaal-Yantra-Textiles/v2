@@ -72,12 +72,7 @@ export async function GET(
             task.title?.includes('shipped') && task.status === 'completed'
         );
         
-    // Extract admin notes from inventory order metadata (not task metadata)
-    console.log("Order metadata:", JSON.stringify(order.metadata, null, 2));
-    console.log("order.metadata exists:", !!order.metadata);
-    console.log("order.metadata.assignment_notes:", order.metadata?.assignment_notes);
-    console.log("assignment_notes type:", typeof order.metadata?.assignment_notes);
-    
+   
     if (order.metadata && order.metadata.assignment_notes) {
         adminNotes = String(order.metadata.assignment_notes);
         console.log("Found admin notes in order metadata:", adminNotes);
@@ -85,9 +80,7 @@ export async function GET(
         console.log("No assignment_notes found in order metadata");
     }
     
-    console.log("Final adminNotes value:", adminNotes);
-    console.log("About to create partnerOrderView with admin_notes:", adminNotes);
-        
+       
         if (shippedTask) {
             partnerStatus = 'completed';
             partnerCompletedAt = shippedTask.updated_at ? String(shippedTask.updated_at) : null;
