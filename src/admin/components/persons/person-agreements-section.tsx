@@ -1,13 +1,23 @@
 import { Link } from "react-router-dom";
 import { Badge, Button, Container, Heading, Text } from "@medusajs/ui";
 import { Eye, Plus } from "@medusajs/icons";
+import { usePersonAgreements } from "../../hooks/api/persons";
 
 type PersonAgreementsSectionProps = {
   person: any;
 };
 
 export const PersonAgreementsSection = ({ person }: PersonAgreementsSectionProps) => {
-  const agreements = person?.agreements || [];
+  // Prefer API that includes agreement.responses; fallback to person.agreements
+  const { agreements: fetchedAgreements, isPending } = usePersonAgreements(person.id);
+  const agreements = (fetchedAgreements ?? person?.agreements ?? []).map((a: any) => {
+    const responses = a.responses ?? [];
+    const response_count = a.response_count ?? responses.length ?? 0;
+    const agreed_count = a.agreed_count ?? (responses?.filter((r: any) => ["agreed", "accepted", "signed"].includes((r?.status || "").toLowerCase())).length ?? 0);
+    const sent_count = a.sent_count ?? (Array.isArray(responses) ? responses.length : 0);
+    return { ...a, responses, response_count, agreed_count, sent_count };
+  });
+
   const totalSent = agreements.reduce((sum: number, agreement: any) => sum + (agreement.sent_count || 0), 0);
   const totalResponses = agreements.reduce((sum: number, agreement: any) => sum + (agreement.response_count || 0), 0);
   const totalAgreed = agreements.reduce((sum: number, agreement: any) => sum + (agreement.agreed_count || 0), 0);
@@ -38,7 +48,11 @@ export const PersonAgreementsSection = ({ person }: PersonAgreementsSectionProps
       </div>
 
       <div className="px-6 py-4">
-        {agreements.length === 0 ? (
+        {isPending ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Text className="text-ui-fg-muted">Loading agreements…</Text>
+          </div>
+        ) : agreements.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Text className="text-ui-fg-muted">No agreements found</Text>
             <Text size="small" className="text-ui-fg-subtle mt-1">

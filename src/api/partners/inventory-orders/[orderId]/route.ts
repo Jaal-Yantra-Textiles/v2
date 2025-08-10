@@ -28,7 +28,10 @@ export async function GET(
             "orderlines.*", 
             "stock_locations.*", 
             "partner.*",
-            "tasks.*"
+            "tasks.*",
+            "orderlines.inventory_items.*",
+            "orderlines.inventory_items.raw_materials.*",
+            "orderlines.line_fulfillments.*"
         ],
         filters: {
             id: orderId
@@ -41,7 +44,7 @@ export async function GET(
     }
     
     const order = orders[0];
-    
+    console.log("Order:", JSON.stringify(order, null, 2));
     // Check if this order is assigned to the authenticated partner
     const assignedPartner = order.partner;
     if (!assignedPartner || assignedPartner.id !== partnerAdmin.id) {
@@ -50,27 +53,26 @@ export async function GET(
     
     // Extract partner workflow status from tasks instead of metadata
     const partnerTasks = order.tasks || [];
-    const workflowTasks = partnerTasks.filter((task: any) => 
-        task && task.metadata?.workflow_type === 'partner_assignment'
-    );
+    console.log("Partner tasks:", JSON.stringify(partnerTasks, null, 2));
+    // Identify workflow tasks by title or template_name convention
+    const workflowTasks = (partnerTasks || []).filter((task: any) => {
+        if (!task) return false;
+        const title = String(task.title || '').toLowerCase();
+        const templateName = String(task.metadata?.template_name || '').toLowerCase();
+        return title.startsWith('partner-order-') || templateName.startsWith('partner-order-');
+    });
     
     // Determine partner status based on task completion
     let partnerStatus = 'assigned';
     let partnerStartedAt: string | null = null;
     let partnerCompletedAt: string | null = null;
     let adminNotes: string | null = null;
-    
+    console.log("Workflow tasks:", JSON.stringify(workflowTasks, null, 2));
     if (workflowTasks.length > 0) {
-        console.log("Workflow tasks:", JSON.stringify(workflowTasks, null, 2));
-        const sentTask = workflowTasks.find((task: any) => 
-            task.title?.includes('sent') && task.status === 'completed'
-        );
-        const receivedTask = workflowTasks.find((task: any) => 
-            task.title?.includes('received') && task.status === 'completed'
-        );
-        const shippedTask = workflowTasks.find((task: any) => 
-            task.title?.includes('shipped') && task.status === 'completed'
-        );
+        const getName = (t: any) => (String(t?.title || t?.metadata?.template_name || '')).toLowerCase();
+        const sentTask = workflowTasks.find((t: any) => getName(t).includes('sent') && t.status === 'completed');
+        const receivedTask = workflowTasks.find((t: any) => getName(t).includes('received') && t.status === 'completed');
+        const shippedTask = workflowTasks.find((t: any) => getName(t).includes('shipped') && t.status === 'completed');
         
    
     if (order.metadata && order.metadata.assignment_notes) {
@@ -107,7 +109,22 @@ export async function GET(
             inventory_item_id: line.inventory_item_id,
             quantity: line.quantity,
             price: line.price,
-            metadata: line.metadata
+            metadata: line.metadata ?? null,
+            created_at: line.created_at,
+            updated_at: line.updated_at,
+            deleted_at: line.deleted_at ?? null,
+            // Normalize inventory_items to an array and pass through nested raw_materials
+            inventory_items: (() => {
+                const items = line.inventory_items;
+                if (!items) return [] as any[];
+                return Array.isArray(items) ? items : [items];
+            })(),
+            // Normalize line_fulfillments to an array
+            line_fulfillments: (() => {
+                const fulf = line.line_fulfillments;
+                if (!fulf) return [] as any[];
+                return Array.isArray(fulf) ? fulf : [fulf];
+            })()
         })),
         stock_locations: order.stock_locations,
         partner_info: {

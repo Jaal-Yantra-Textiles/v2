@@ -34,6 +34,11 @@ const useCoreRoutes = (): Omit<NavItemProps, "pathname">[] => {
       to: "/dashboard/orders",
     },
     {
+      icon: <ReceiptPercent />,
+      label: "Inventory Orders",
+      to: "/dashboard/inventory-orders",
+    },
+    {
       icon: <Tag />,
       label: "Products",
       to: "/dashboard/products",
@@ -47,11 +52,6 @@ const useCoreRoutes = (): Omit<NavItemProps, "pathname">[] => {
           to: "/dashboard/categories",
         },
       ],
-    },
-    {
-      icon: <Buildings />,
-      label: "Inventory",
-      to: "/dashboard/inventory",
     },
     {
       icon: <Users />,

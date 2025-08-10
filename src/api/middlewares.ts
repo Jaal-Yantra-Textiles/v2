@@ -357,6 +357,22 @@ export default defineMiddlewares({
       method: 'POST',
       middlewares: [validateAndTransformBody(wrapSchema(sendToPartnerSchema))],
     },
+    // Admin Partners routes
+    {
+      matcher: "/admin/partners",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id",
+      method: "PUT",
+      middlewares: [],
+    },
     {
       matcher: "/admin/persons/partner",
       method: "GET",

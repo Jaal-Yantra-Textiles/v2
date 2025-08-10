@@ -51,7 +51,8 @@ export const usePerson = (
   >,
 ) => {
   const { data, ...rest } = useQuery({
-    queryKey: personsQueryKeys.detail(id),
+    // Include `query` in the key to avoid cache collisions across different field expansions
+    queryKey: personsQueryKeys.detail(id, query),
     queryFn: async () =>
       sdk.client.fetch<{ person: AdminPerson }>(`/admin/persons/${id}`, {
         method: "GET",
@@ -112,6 +113,52 @@ export const useCreatePerson = (
   });
 };
 
+// Agreements (with responses) for a person
+export interface PersonAgreementsAPIResponse {
+  person_id: string;
+  person_name?: string | null;
+  person_email?: string | null;
+  agreements: any[]; // agreements already include `responses` array from API
+  count: number;
+}
+
+export const usePersonAgreements = (
+  personId: string,
+  query?: Record<string, any>,
+  options?: Omit<
+    UseQueryOptions<
+      PersonAgreementsAPIResponse,
+      FetchError,
+      PersonAgreementsAPIResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [PERSONS_QUERY_KEY, personId, "agreements", query],
+    queryFn: async () =>
+      sdk.client.fetch<PersonAgreementsAPIResponse>(
+        `/admin/persons/${personId}/agreements`,
+        {
+          method: "GET",
+          query,
+        },
+      ),
+    placeholderData: keepPreviousData,
+    ...options,
+  });
+
+  return {
+    agreements: data?.agreements,
+    count: data?.count,
+    person_id: data?.person_id,
+    person_name: data?.person_name,
+    person_email: data?.person_email,
+    ...rest,
+  };
+};
+
 export const useUpdatePersonMetadata = (
   id: string,
   options?: UseMutationOptions<
@@ -131,7 +178,8 @@ export const useUpdatePersonMetadata = (
       ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(id) });
+      // Invalidate all person detail variants (different field expansions)
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,
@@ -172,7 +220,9 @@ export const useSendAgreementToPerson = (
         }
       ),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(personId) });
+      // Invalidate all person detail variants and the agreements fetch
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
+      queryClient.invalidateQueries({ queryKey: [PERSONS_QUERY_KEY, personId, "agreements"] });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,
@@ -196,7 +246,8 @@ export const useUpdatePerson = (
       }),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(id) });
+      // Invalidate all person detail variants (different field expansions)
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,
@@ -238,9 +289,9 @@ export const useAddAddressToPerson = (
         body: addressData,
       }),
     onSuccess: (data, variables, context) => {
-      // Invalidate person details to refresh the addresses
+      // Invalidate all person detail variants to refresh any expanded sections
       queryClient.invalidateQueries({
-        queryKey: personsQueryKeys.detail(personId),
+        queryKey: personsQueryKeys.details(),
       });
       options?.onSuccess?.(data, variables, context);
     },
@@ -271,23 +322,9 @@ export const useAddPersonTypes = (
         },
       ),
     onSuccess: (data, variables, context) => {
-      // Invalidate person queries to refresh the person types
-      queryClient.invalidateQueries({
-        queryKey: personsQueryKeys.detail(personId),
-        refetchType: "all",
-      });
-      
-      // Also invalidate the entire persons list to ensure all views are updated
-      queryClient.invalidateQueries({
-        queryKey: personsQueryKeys.lists(),
-      });
-
-      // Forcing a specific refetch of the person details for immediate UI update
-      queryClient.refetchQueries({
-        queryKey: personsQueryKeys.detail(personId),
-        exact: true,
-      });
-      
+      // Invalidate all person detail variants and the persons list
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,

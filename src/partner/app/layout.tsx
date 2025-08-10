@@ -28,6 +28,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} bg-ui-bg-subtle flex min-h-screen w-full items-center justify-center antialiased text-ui-fg-base`}
       >
         {children}
+        {/* Global overlay root for prompts/modals rendered via portal */}
+        <div id="partner-overlay-root" />
       </body>
     </html>
   );

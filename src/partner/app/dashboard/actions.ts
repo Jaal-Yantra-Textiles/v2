@@ -7,6 +7,123 @@ export async function logout() {
   redirect("/login");
 }
 
+export async function partnerCompleteInventoryOrder(
+  orderId: string,
+  body: {
+    notes?: string
+    deliveryDate?: string
+    delivery_date?: string
+    trackingNumber?: string
+    tracking_number?: string
+    lines: { order_line_id: string; quantity: number }[]
+  }
+) {
+  const token = await getAuthCookie();
+
+  if (!token) {
+    redirect("/login");
+  }
+
+  const MEDUSA_BACKEND_URL =
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000";
+
+  try {
+    const response = await fetch(
+      `${MEDUSA_BACKEND_URL}/partners/inventory-orders/${orderId}/complete`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || "Failed to complete (ship) inventory order");
+    }
+
+    return await response.json();
+  } catch (e) {
+    console.error("Error completing inventory order:", e);
+    throw e;
+  }
+}
+
+export async function getPartnerInventoryOrder(orderId: string) {
+  const token = await getAuthCookie();
+
+  if (!token) {
+    redirect("/login");
+  }
+
+  const MEDUSA_BACKEND_URL =
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000";
+
+  try {
+    const response = await fetch(
+      `${MEDUSA_BACKEND_URL}/partners/inventory-orders/${orderId}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      console.error("Failed to fetch partner inventory order:", response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data?.inventoryOrder ?? null;
+  } catch (e) {
+    console.error("Error fetching partner inventory order:", e);
+    return null;
+  }
+}
+
+export async function partnerStartInventoryOrder(orderId: string) {
+  const token = await getAuthCookie();
+
+  if (!token) {
+    redirect("/login");
+  }
+
+  const MEDUSA_BACKEND_URL =
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000";
+
+  try {
+    const response = await fetch(
+      `${MEDUSA_BACKEND_URL}/partners/inventory-orders/${orderId}/start`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || "Failed to start inventory order");
+    }
+
+    return await response.json();
+  } catch (e) {
+    console.error("Error starting inventory order:", e);
+    throw e;
+  }
+}
+
 export async function getDetails() {
   const token = await getAuthCookie();
 
@@ -42,5 +159,46 @@ export async function getDetails() {
   } catch (error) {
     console.error("Error fetching partner details:", error);
     return null;
+  }
+}
+
+export async function getPartnerInventoryOrders({ limit = 20, offset = 0, status }: { limit?: number; offset?: number; status?: string }) {
+  const token = await getAuthCookie();
+
+  if (!token) {
+    redirect("/login");
+  }
+
+  const MEDUSA_BACKEND_URL =
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000";
+
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  if (status) params.set("status", status);
+
+  try {
+    const response = await fetch(
+      `${MEDUSA_BACKEND_URL}/partners/inventory-orders?${params.toString()}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        // We need freshest data as partner status changes via workflows
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      console.error("Failed to fetch partner inventory orders:", response.statusText);
+      return { inventory_orders: [], count: 0, limit, offset };
+    }
+
+    return await response.json();
+  } catch (e) {
+    console.error("Error fetching partner inventory orders:", e);
+    return { inventory_orders: [], count: 0, limit, offset };
   }
 }
