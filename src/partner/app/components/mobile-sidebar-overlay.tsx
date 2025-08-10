@@ -1,12 +1,24 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Button, IconButton } from "@medusajs/ui"
+import { IconButton } from "@medusajs/ui"
 import { SidebarRight } from "@medusajs/icons"
 import Sidebar from "./sidebar/sidebar"
 import { usePathname } from "next/navigation"
 
-export default function MobileSidebarOverlay({ partner }: { partner: any }) {
+type Admin = {
+  first_name: string | null
+  last_name: string | null
+  email: string
+}
+
+type PartnerDetails = {
+  name: string
+  handle: string | null
+  admins: Admin[]
+}
+
+export default function MobileSidebarOverlay({ partner }: { partner: PartnerDetails | null }) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 

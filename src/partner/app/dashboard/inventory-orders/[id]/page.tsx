@@ -8,13 +8,17 @@ import CompletionOrderEntry from "../../../components/completion/completion-orde
 
 
 interface PageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export const dynamic = "force-dynamic"
 
+type LineFulfillment = { quantity_delta?: number | null }
+type PartnerOrderLine = { id: string; quantity: number; line_fulfillments?: LineFulfillment[] }
+type AdminNote = { note?: string }
+
 export default async function InventoryOrderDetailsPage({ params }: PageProps) {
-  const id = params.id
+  const { id } = await params
   const order = await getPartnerInventoryOrder(id)
 
   if (!order) {
@@ -25,16 +29,6 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
   async function startOrder() {
     "use server"
     await partnerStartInventoryOrder(id)
-    redirect(`/dashboard/inventory-orders/${id}`)
-  }
-  async function completeOrder() {
-    "use server"
-    const lines = Array.isArray(order.order_lines)
-      ? order.order_lines.map((l: any) => ({ order_line_id: l.id, quantity: Number(l.quantity) || 0 }))
-      : []
-    // Minimal valid payload: lines must be non-empty.
-    // Notes / delivery / tracking are optional and omitted here.
-    await partnerCompleteInventoryOrder(id, { lines })
     redirect(`/dashboard/inventory-orders/${id}`)
   }
   async function completeOrderFromForm(formData: FormData) {
@@ -76,10 +70,10 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
   const partnerStatus: string = order?.partner_info?.partner_status || "assigned"
   const shortId = order.id && order.id.length > 12 ? `${order.id.slice(0, 10)}…${order.id.slice(-4)}` : order.id
   const allFulfilled = Array.isArray(order.order_lines)
-    ? order.order_lines.every((l: any) => {
+    ? (order.order_lines as PartnerOrderLine[]).every((l) => {
         const requested = Number(l.quantity) || 0
         const fulfilled = Array.isArray(l.line_fulfillments)
-          ? l.line_fulfillments.reduce((sum: number, f: any) => sum + (Number(f?.quantity_delta) || 0), 0)
+          ? l.line_fulfillments.reduce((sum: number, f: LineFulfillment) => sum + (Number(f?.quantity_delta) || 0), 0)
           : 0
         return fulfilled >= requested && requested > 0
       })
@@ -123,10 +117,10 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
                 </Table.Row>
               </Table.Header>
               <Table.Body>
-                {(order.order_lines as any[]).map((l: any) => {
+                {(order.order_lines as PartnerOrderLine[]).map((l) => {
                   const requested = Number(l.quantity) || 0
                   const delivered = Array.isArray(l.line_fulfillments)
-                    ? l.line_fulfillments.reduce((sum: number, f: any) => sum + (Number(f?.quantity_delta) || 0), 0)
+                    ? l.line_fulfillments.reduce((sum: number, f: LineFulfillment) => sum + (Number(f?.quantity_delta) || 0), 0)
                     : 0
                   const remaining = Math.max(0, requested - delivered)
                   return (
@@ -165,7 +159,7 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
         <Heading level="h3" className="mb-2">Admin Notes</Heading>
         {Array.isArray(order.admin_notes) && order.admin_notes.length > 0 ? (
           <ul className="list-disc pl-6">
-            {order.admin_notes.map((n: any, idx: number) => (
+            {(order.admin_notes as AdminNote[]).map((n: AdminNote, idx: number) => (
               <li key={idx}>
                 <Text size="small">{n?.note || JSON.stringify(n)}</Text>
               </li>
@@ -183,10 +177,10 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
       )}
       {partnerStatus === "in_progress" && !allFulfilled && (
         <CompletionOrderEntry
-          lines={(Array.isArray(order.order_lines) ? order.order_lines : []).map((l: any) => {
+          lines={(Array.isArray(order.order_lines) ? (order.order_lines as PartnerOrderLine[]) : []).map((l) => {
             const requested = Number(l.quantity) || 0
             const fulfilled = Array.isArray(l.line_fulfillments)
-              ? l.line_fulfillments.reduce((sum: number, f: any) => sum + (Number(f?.quantity_delta) || 0), 0)
+              ? l.line_fulfillments.reduce((sum: number, f: LineFulfillment) => sum + (Number(f?.quantity_delta) || 0), 0)
               : 0
             return { id: l.id, requested, fulfilled }
           })}

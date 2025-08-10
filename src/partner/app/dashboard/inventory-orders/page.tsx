@@ -4,15 +4,16 @@ import OrdersTable, { PartnerOrderRow } from "./orders-table"
 
 export const dynamic = "force-dynamic"
 
-export default async function InventoryOrdersPage({ searchParams }: { searchParams?: { page?: string } }) {
-  const page = Number(searchParams?.page || 1)
+export default async function InventoryOrdersPage({ searchParams }: { searchParams?: Promise<{ page?: string }> }) {
+  const sp = (await searchParams) || {}
+  const page = Number(sp.page || 1)
   const limit = 20
   const offset = (page - 1) * limit
 
   const res = await getPartnerInventoryOrders({ limit, offset })
   const orders = res?.inventory_orders || []
   const count = res?.count || 0
-  const totalPages = Math.max(1, Math.ceil(count / limit))
+  // Pagination UI handled by data table; total pages can be computed there if needed
 
   return (
     <Container className="w-full">

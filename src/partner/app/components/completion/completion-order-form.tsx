@@ -51,7 +51,8 @@ export default function CompletionOrderForm({
     const fd = new FormData(formRef.current)
     // Validate each line: 0 <= qty <= remaining
     for (const l of lines) {
-      const val = Number(fd.get(`qty_${l.id}`) as any)
+      const raw = fd.get(`qty_${l.id}`)
+      const val = typeof raw === "string" ? Number(raw) : NaN
       const remaining = remainingMap.get(l.id) || 0
       if (!(Number.isFinite(val) && val >= 0 && val <= remaining)) {
         e.preventDefault()
@@ -60,7 +61,8 @@ export default function CompletionOrderForm({
       }
     }
     const changed = lines.some((l) => {
-      const v = Number(fd.get(`qty_${l.id}`) as any)
+      const rv = fd.get(`qty_${l.id}`)
+      const v = typeof rv === "string" ? Number(rv) : NaN
       const base = remainingMap.get(l.id) || 0
       return !Number.isFinite(v) ? false : v !== base
     })
@@ -196,7 +198,7 @@ export default function CompletionOrderForm({
               </div>
               <div className="p-5">
                 <Text size="small" className="text-ui-fg-subtle">
-                  You haven't edited any quantities. The full requested quantities will be marked as delivered. Proceed?
+                  You haven&apos;t edited any quantities. The full requested quantities will be marked as delivered. Proceed?
                 </Text>
               </div>
               <div className="p-5 pt-0 flex items-center justify-end gap-2">

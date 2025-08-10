@@ -9,7 +9,6 @@ import {
 } from "@medusajs/ui"
 import {
   ArrowUturnLeft,
-  Buildings,
   CogSixTooth,
   CurrencyDollar,
   EllipsisHorizontal,
