@@ -1,3 +1,10 @@
+# [6.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.1.0...v6.2.0) (2025-08-10)
+
+
+### Features
+
+* Partner UI and Inventory Order Partial Testing ([a0d4938](https://github.com/Jaal-Yantra-Textiles/v2/commit/a0d49385a2f546fd7e520350ed99f57a267cf82d))
+
 # [6.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.0.1...v6.1.0) (2025-08-07)
 
 
