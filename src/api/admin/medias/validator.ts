@@ -20,15 +20,56 @@ const albumSchema = z.object({
 // Validator for uploading and organizing media
 export const uploadMediaSchema = z.object({
   // Folder options - either create new or use existing
-  folder: folderSchema.optional(),
+  folder: z
+    .preprocess((val) => {
+      if (typeof val === "string") {
+        try {
+          return JSON.parse(val);
+        } catch {
+          return val; // Let Zod handle invalid JSON
+        }
+      }
+      return val;
+    }, folderSchema)
+    .optional(),
   existingFolderId: z.string().optional(),
   
   // Album options - either create new or use existing
-  album: albumSchema.optional(),
-  existingAlbumIds: z.array(z.string()).optional(),
+  album: z
+    .preprocess((val) => {
+      if (typeof val === "string") {
+        try {
+          return JSON.parse(val);
+        } catch {
+          return val;
+        }
+      }
+      return val;
+    }, albumSchema)
+    .optional(),
+  existingAlbumIds: z
+    .preprocess((val) => {
+      if (typeof val === "string") {
+        // Single string value -> wrap as array
+        return [val];
+      }
+      return val;
+    }, z.array(z.string()))
+    .optional(),
   
   // Additional metadata
-  metadata: z.record(z.any()).optional(),
+  metadata: z
+    .preprocess((val) => {
+      if (typeof val === "string") {
+        try {
+          return JSON.parse(val);
+        } catch {
+          return undefined; // ignore bad metadata strings
+        }
+      }
+      return val;
+    }, z.record(z.any()))
+    .optional(),
 });
 
 // Type definitions

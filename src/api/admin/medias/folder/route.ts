@@ -12,11 +12,13 @@ import { getFolderWorkflow } from "../../../../workflows/media/get-folder";
     req: MedusaRequest<FolderRequest>,
     res: MedusaResponse
   ) => {
-    const folderData = req.validatedBody;
+    // Body is validated by middleware (validateAndTransformBody)
+    const folderData = req.validatedBody as FolderRequest;
   
     try {
       // Run the create folder workflow
-      const slug = folderData.name.toLowerCase().replace(/\s+/g, "-")
+      const name = folderData.name.trim()
+      const slug = name.toLowerCase().replace(/\s+/g, "-")
       const { result, errors } = await createFolderWorkflow(req.scope).run({
         input: {
           ...folderData,

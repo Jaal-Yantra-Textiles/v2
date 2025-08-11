@@ -4,6 +4,7 @@ import {
   StepResponse,
   WorkflowResponse,
   when,
+  transform,
 } from "@medusajs/framework/workflows-sdk";
 import { uploadFilesWorkflow } from "@medusajs/medusa/core-flows";
 import { MEDIA_MODULE } from "../../modules/media";
@@ -288,12 +289,21 @@ export const uploadAndOrganizeMediaWorkflow = createWorkflow(
     });
     
     // Create media records and associations
-    // Extract folder ID properly from step responses
-    const folderId = input.existingFolderId || (folder ? folder.id : undefined);
+    // Compute IDs at execution time using transform
+    const computedFolderId = transform(
+      { input, folder },
+      (data) => data.input.existingFolderId || (data.folder ? data.folder.id : undefined)
+    );
+
+    const computedAlbumIds = transform(
+      { input, album },
+      (data) => data.input.existingAlbumIds || (data.album ? [data.album.id] : undefined)
+    );
+
     const mediaFiles = createMediaRecordsStep({
       uploadedFiles,
-      folderId,
-      albumIds: input.existingAlbumIds || (album ? [album.id] : undefined),
+      folderId: computedFolderId,
+      albumIds: computedAlbumIds,
       metadata: input.metadata,
     });
     

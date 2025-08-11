@@ -281,6 +281,13 @@ export default defineMiddlewares({
       middlewares: [maybeMulterArray("files"), validateAndTransformBody(wrapSchema(uploadMediaSchema))],
     },
 
+    // Create media folder
+    {
+      matcher: "/admin/medias/folder",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(folderSchema))],
+    },
+
     // Folder-scoped media uploads
     {
       matcher: "/admin/medias/folder/:id/upload",

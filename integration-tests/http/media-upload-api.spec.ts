@@ -13,6 +13,47 @@ setupSharedTestSuite(() => {
       headers = await getAuthHeaders(api);
     });
 
+  describe("POST /admin/medias/folder", () => {
+    it("should create a folder when valid body is provided", async () => {
+      const response = await api.post(
+        "/admin/medias/folder",
+        {
+          name: "Spec Test Folder",
+          description: "Created from integration test",
+          is_public: false,
+        },
+        headers
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.data).toHaveProperty("message", "Folder created successfully");
+      expect(response.data).toHaveProperty("folder");
+      const { folder } = response.data;
+      expect(folder).toHaveProperty("id");
+      expect(folder).toHaveProperty("name", "Spec Test Folder");
+      expect(folder).toHaveProperty("slug");
+      expect(folder).toHaveProperty("path");
+      expect(folder).toHaveProperty("level");
+    });
+
+    it("should fail validation when name is missing", async () => {
+      const response = await api
+        .post(
+          "/admin/medias/folder",
+          {
+            description: "No name provided",
+          },
+          headers
+        )
+        .catch((err) => err.response);
+
+      expect(response.status).toBe(400);
+      expect(response.data).toHaveProperty("message");
+      // Depending on validateAndTransformBody error formatting, message should include schema error
+      expect(String(response.data.message).toLowerCase()).toContain("name");
+    });
+  });
+
     describe("POST /admin/medias", () => {
       it("should upload media files successfully", async () => {
         // Create test files as buffers
@@ -161,6 +202,52 @@ setupSharedTestSuite(() => {
         // Verify the media file is associated with the correct folder
         const mediaFile = response.data.result.mediaFiles[0];
         expect(mediaFile).toHaveProperty("folder_id", createdFolderId);
+      });
+
+      it("should create a new folder from body and associate uploaded files", async () => {
+        // Prepare a test file
+        const fileBuffer = Buffer.from("content for inline folder upload", "utf-8");
+
+        // Build multipart form data with files and a folder object in body
+        const formData = new FormData();
+        formData.append("files", fileBuffer, {
+          filename: "inline-folder.jpg",
+          contentType: "image/jpeg",
+        });
+        // Pass folder as JSON string so validator can parse
+        formData.append(
+          "folder",
+          JSON.stringify({
+            name: "Inline Created Folder",
+            description: "Folder provided in upload body",
+          })
+        );
+
+        const formHeaders = formData.getHeaders();
+
+        const response = await api.post("/admin/medias", formData, {
+          ...headers,
+          headers: {
+            ...headers.headers,
+            ...formHeaders,
+          },
+        });
+
+        expect(response.status).toBe(201);
+        expect(response.data).toHaveProperty("result");
+        const { result } = response.data;
+
+        // Folder should be created and returned by workflow result
+        expect(result).toHaveProperty("folder");
+        expect(result.folder).toBeTruthy();
+        expect(result.folder).toHaveProperty("id");
+        expect(result.folder).toHaveProperty("name", "Inline Created Folder");
+
+        // Media files should be uploaded and associated to the newly created folder
+        expect(Array.isArray(result.mediaFiles)).toBe(true);
+        expect(result.mediaFiles.length).toBe(1);
+        const media = result.mediaFiles[0];
+        expect(media).toHaveProperty("folder_id", result.folder.id);
       });
     });
 });
