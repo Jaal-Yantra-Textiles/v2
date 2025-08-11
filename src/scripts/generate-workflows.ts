@@ -2,9 +2,48 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // --- Helper Functions ---
-const toPascalCase = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
+// Convert a string like "payment_details" or "payment-details" to "PaymentDetails"
+const toPascalCaseWords = (str: string) =>
+  str
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join("");
+
+// Backwards compatibility: if already PascalCase, keep it
+const toPascalCase = (str: string) => {
+  if (/^[A-Z][A-Za-z0-9]*$/.test(str)) return str;
+  return toPascalCaseWords(str);
+};
 const toKebabCase = (str: string) => str.replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/([A-Z])([A-Z][a-z])/g, '$1-$2').toLowerCase();
-const toSnakeUpperCase = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter}`).toUpperCase();
+const toSnakeUpperCase = (str: string) =>
+  str.includes("_")
+    ? str.replace(/-/g, "_").toUpperCase()
+    : str.replace(/[A-Z]/g, (letter) => `_${letter}`).toUpperCase();
+
+const pluralizePascal = (pascal: string) => (pascal.endsWith('s') ? pascal : `${pascal}s`);
+
+// Try to infer the actual model identifier from the module's service.ts MedusaService config
+const resolveModelPascalFromService = (moduleName: string, modelName: string): string => {
+  try {
+    const servicePath = path.join(__dirname, '..', 'modules', moduleName, 'service.ts');
+    if (!fs.existsSync(servicePath)) return toPascalCase(modelName);
+    const content = fs.readFileSync(servicePath, 'utf-8');
+    const match = content.match(/MedusaService\s*\(\s*\{([\s\S]*?)\}\s*\)/);
+    if (!match) return toPascalCase(modelName);
+    const inside = match[1];
+    const keys = Array.from(inside.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)).map((m) => m[1]);
+    const normalizedInput = modelName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    // Find best match by normalization without underscores/case
+    for (const k of keys) {
+      const normalizedKey = k.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      if (normalizedKey === normalizedInput) return k;
+    }
+    return toPascalCase(modelName);
+  } catch {
+    return toPascalCase(modelName);
+  }
+};
 
 const showHelp = (exitCode = 0, calledFromRun = false) => {
   console.log(`
@@ -21,11 +60,11 @@ Arguments:
 
 // --- Template Generation ---
 
-const getCreateWorkflowTemplate = (moduleName: string, modelName: string) => {
-  const pascal = toPascalCase(modelName);
-  const kebab = toKebabCase(modelName);
+const getCreateWorkflowTemplate = (moduleName: string, pascal: string) => {
+  const kebab = toKebabCase(pascal);
   const moduleConst = toSnakeUpperCase(moduleName) + '_MODULE';
   const serviceName = `${pascal}Service`;
+  const pluralPascal = pluralizePascal(pascal);
 
   return `import {
   createStep,
@@ -45,12 +84,12 @@ export const create${pascal}Step = createStep(
   "create-${kebab}-step",
   async (input: Create${pascal}StepInput, { container }) => {
     const service: ${serviceName} = container.resolve(${moduleConst});
-    const created = await service.create${pascal}s(input);
+    const created = await service.create${pluralPascal}(input);
     return new StepResponse(created, created.id);
   },
   async (id: string, { container }) => {
     const service: ${serviceName} = container.resolve(${moduleConst});
-    await service.softDelete${pascal}s(id);
+    await service.softDelete${pluralPascal}(id);
   }
 );
 
@@ -66,11 +105,11 @@ export const create${pascal}Workflow = createWorkflow(
 `
 };
 
-const getListWorkflowTemplate = (moduleName: string, modelName: string) => {
-  const pascal = toPascalCase(modelName);
-  const kebab = toKebabCase(modelName);
+const getListWorkflowTemplate = (moduleName: string, pascal: string) => {
+  const kebab = toKebabCase(pascal);
   const moduleConst = toSnakeUpperCase(moduleName) + '_MODULE';
   const serviceName = `${pascal}Service`;
+  const pluralPascal = pluralizePascal(pascal);
 
   return `import {
   createStep,
@@ -95,7 +134,7 @@ export const list${pascal}Step = createStep(
   "list-${kebab}-step",
   async (input: List${pascal}StepInput, { container }) => {
     const service: ${serviceName} = container.resolve(${moduleConst});
-    const results = await service.listAndCount${pascal}s(
+    const results = await service.listAndCount${pluralPascal}(
       input.filters,
       input.config
     );
@@ -115,11 +154,11 @@ export const list${pascal}Workflow = createWorkflow(
 `
 };
 
-const getUpdateWorkflowTemplate = (moduleName: string, modelName: string) => {
-  const pascal = toPascalCase(modelName);
-  const kebab = toKebabCase(modelName);
+const getUpdateWorkflowTemplate = (moduleName: string, pascal: string) => {
+  const kebab = toKebabCase(pascal);
   const moduleConst = toSnakeUpperCase(moduleName) + '_MODULE';
   const serviceName = `${pascal}Service`;
+  const pluralPascal = pluralizePascal(pascal);
 
   return `import {
   createStep,
@@ -144,19 +183,13 @@ export const update${pascal}Step = createStep(
 
     const original = await service.retrieve${pascal}(id);
 
-    const updated = await service.update${pascal}s({
-      selector: { id },
-      data: updateData,
-    });
+    const updated = await service.update${pluralPascal}({ id, ...updateData });
 
     return new StepResponse(updated, { id, originalData: original });
   },
   async (compensationData: { id: string; originalData: any }, { container }) => {
     const service: ${serviceName} = container.resolve(${moduleConst});
-    await service.update${pascal}s({
-      selector: { id: compensationData.id },
-      data: compensationData.originalData,
-    });
+    await service.update${pluralPascal}({ id: compensationData.id, ...compensationData.originalData });
   }
 );
 
@@ -172,11 +205,11 @@ export const update${pascal}Workflow = createWorkflow(
 `
 };
 
-const getDeleteWorkflowTemplate = (moduleName: string, modelName: string) => {
-  const pascal = toPascalCase(modelName);
-  const kebab = toKebabCase(modelName);
+const getDeleteWorkflowTemplate = (moduleName: string, pascal: string) => {
+  const kebab = toKebabCase(pascal);
   const moduleConst = toSnakeUpperCase(moduleName) + '_MODULE';
   const serviceName = `${pascal}Service`;
+  const pluralPascal = pluralizePascal(pascal);
 
   return `import {
   createStep,
@@ -197,13 +230,13 @@ export const delete${pascal}Step = createStep(
     const service: ${serviceName} = container.resolve(${moduleConst});
     const original = await service.retrieve${pascal}(input.id);
 
-    await service.delete${pascal}s(input.id);
+    await service.delete${pluralPascal}(input.id);
 
     return new StepResponse({ success: true }, original);
   },
   async (original: any, { container }) => {
     const service: ${serviceName} = container.resolve(${moduleConst});
-    await service.create${pascal}s(original);
+    await service.create${pluralPascal}(original);
   }
 );
 
@@ -230,13 +263,15 @@ const runGeneratorLogic = async (moduleName: string, modelName: string): Promise
     console.log(`Created directory: ${workflowDir}`);
   }
 
-  const kebabModelName = toKebabCase(modelName);
+  // Resolve the real PascalCase model identifier from service.ts if possible
+  const pascalModelName = resolveModelPascalFromService(moduleName, modelName);
+  const kebabModelName = toKebabCase(pascalModelName);
 
   const filesToCreate = {
-    [`create-${kebabModelName}.ts`]: getCreateWorkflowTemplate(moduleName, modelName),
-    [`list-${kebabModelName}.ts`]: getListWorkflowTemplate(moduleName, modelName),
-    [`update-${kebabModelName}.ts`]: getUpdateWorkflowTemplate(moduleName, modelName),
-    [`delete-${kebabModelName}.ts`]: getDeleteWorkflowTemplate(moduleName, modelName),
+    [`create-${kebabModelName}.ts`]: getCreateWorkflowTemplate(moduleName, pascalModelName),
+    [`list-${kebabModelName}.ts`]: getListWorkflowTemplate(moduleName, pascalModelName),
+    [`update-${kebabModelName}.ts`]: getUpdateWorkflowTemplate(moduleName, pascalModelName),
+    [`delete-${kebabModelName}.ts`]: getDeleteWorkflowTemplate(moduleName, pascalModelName),
   };
 
   for (const [fileName, content] of Object.entries(filesToCreate)) {

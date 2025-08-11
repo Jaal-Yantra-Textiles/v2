@@ -2,14 +2,46 @@ import fs from "fs";
 import path from "path";
 
 // Helper functions for naming conventions
-const toPascalCase = (str: string) =>
-  str.replace(/(^\w|-\w)/g, (g) => g.replace(/-/, "").toUpperCase());
+// Convert snake/kebab/mixed to PascalCase, keep Pascal if already
+const toPascalCase = (str: string) => {
+  if (/^[A-Z][A-Za-z0-9]*$/.test(str)) return str;
+  return str
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join("");
+};
+
+// Pluralization helpers consistent with MedusaService method generation
+const pluralizePascal = (pascal: string) => (pascal.endsWith("s") ? pascal : `${pascal}s`);
+const toLowerCamel = (pascal: string) => pascal.charAt(0).toLowerCase() + pascal.slice(1);
 const toKebabCase = (str: string) =>
   str
     .replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, "$1-$2")
     .toLowerCase()
     .replace(/^-/, "");
 const toSnakeCase = (str: string) => toKebabCase(str).replace(/-/g, "_");
+
+// Resolve the actual model PascalCase identifier from the module's service.ts MedusaService config
+const resolveModelPascalFromService = (moduleName: string, modelName: string): string => {
+  try {
+    const servicePath = path.join(process.cwd(), "src", "modules", moduleName, "service.ts");
+    if (!fs.existsSync(servicePath)) return toPascalCase(modelName);
+    const content = fs.readFileSync(servicePath, "utf-8");
+    const match = content.match(/MedusaService\s*\(\s*\{([\s\S]*?)\}\s*\)/);
+    if (!match) return toPascalCase(modelName);
+    const inside = match[1];
+    const keys = Array.from(inside.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)).map((m) => m[1]);
+    const normalizedInput = modelName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    for (const k of keys) {
+      const normalizedKey = k.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      if (normalizedKey === normalizedInput) return k;
+    }
+    return toPascalCase(modelName);
+  } catch {
+    return toPascalCase(modelName);
+  }
+};
 
 // --- Template for helpers.ts ---
 const getHelpersTemplate = (pascalModel: string) => {
@@ -67,21 +99,21 @@ export type Update${pascalModel} = z.infer<typeof Update${pascalModel}Schema>;
 
 // --- Template for [id]/route.ts ---
 const getIdRouteTemplate = (pascalModel: string, moduleName: string) => {
-  const modelNameLower = pascalModel.toLowerCase();
-  const kebabRoute = toKebabCase(pascalModel);
+  const singularKey = toLowerCamel(pascalModel);
+  // Workflows are generated with singular kebab filenames
+  const kebabWorkflow = toKebabCase(pascalModel);
 
   return `import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { Update${pascalModel} } from "../validators";
-import { refetch${pascalModel} } from "../helpers";
-import { list${pascalModel}Workflow } from "../../../../workflows/${moduleName}/list-${kebabRoute}";
-import { update${pascalModel}Workflow } from "../../../../workflows/${moduleName}/update-${kebabRoute}";
-import { delete${pascalModel}Workflow } from "../../../../workflows/${moduleName}/delete-${kebabRoute}";
+import { list${pascalModel}Workflow } from "../../../../workflows/${moduleName}/list-${kebabWorkflow}";
+import { update${pascalModel}Workflow } from "../../../../workflows/${moduleName}/update-${kebabWorkflow}";
+import { delete${pascalModel}Workflow } from "../../../../workflows/${moduleName}/delete-${kebabWorkflow}";
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { result } = await list${pascalModel}Workflow(req.scope).run({
     input: { filters: { id: [req.params.id] } },
   });
-  res.status(200).json({ ${modelNameLower}: result[0][0] });
+  res.status(200).json({ ${singularKey}: result[0][0] });
 };
 
 export const POST = async (req: MedusaRequest<Update${pascalModel}>, res: MedusaResponse) => {
@@ -91,9 +123,7 @@ export const POST = async (req: MedusaRequest<Update${pascalModel}>, res: Medusa
       ...req.validatedBody,
     },
   });
-
-  const ${modelNameLower} = await refetch${pascalModel}(result[0].id, req.scope);
-  res.status(200).json({ ${modelNameLower} });
+  res.status(200).json({ ${singularKey}: result });
 };
 
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -102,7 +132,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   });
   res.status(200).json({
     id: req.params.id,
-    object: "${modelNameLower}",
+    object: "${singularKey}",
     deleted: true,
   });
 };
@@ -111,12 +141,12 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
 
 // --- Template for route.ts ---
 const getRouteTemplate = (pascalModel: string, moduleName: string) => {
-  const modelNameLower = pascalModel.toLowerCase();
-  const kebabRoute = toKebabCase(pascalModel);
+  const singularKey = toLowerCamel(pascalModel);
+  const pluralKey = toLowerCamel(pluralizePascal(pascalModel));
+  const kebabRoute = toKebabCase(pluralizePascal(pascalModel));
 
   return `import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ${pascalModel} } from "./validators";
-import { refetch${pascalModel} } from "./helpers";
 import { create${pascalModel}Workflow } from "../../../workflows/${moduleName}/create-${kebabRoute}";
 import { list${pascalModel}Workflow } from "../../../workflows/${moduleName}/list-${kebabRoute}";
 
@@ -125,16 +155,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { result } = await list${pascalModel}Workflow(req.scope).run({
     input: {},
   });
-  res.status(200).json({ ${modelNameLower}s: result[0], count: result[1] });
+  res.status(200).json({ ${pluralKey}: result[0], count: result[1] });
 };
 
 export const POST = async (req: MedusaRequest<${pascalModel}>, res: MedusaResponse) => {
   const { result } = await create${pascalModel}Workflow(req.scope).run({
     input: req.validatedBody,
   });
-
-  const ${modelNameLower} = await refetch${pascalModel}(result.id, req.scope);
-  res.status(201).json({ ${modelNameLower} });
+  res.status(201).json({ ${singularKey}: result });
 };
 `;
 };
@@ -142,11 +170,13 @@ export const POST = async (req: MedusaRequest<${pascalModel}>, res: MedusaRespon
 // --- Main script logic ---
 const runGeneratorLogic = async (scope: string, moduleName: string, modelName: string) => {
 
-  const pascalModel = toPascalCase(modelName);
+  // Resolve model from service.ts so API aligns with workflows and service naming
+  const pascalModel = resolveModelPascalFromService(moduleName, modelName);
 
   console.log("Generating API for model '" + pascalModel + "'...");
 
-  const apiDir = path.join(process.cwd(), "src", "api", scope, toKebabCase(modelName));
+  // Use pluralized kebab-case for route directory: e.g., payments, orders, payment-details
+  const apiDir = path.join(process.cwd(), "src", "api", scope, toKebabCase(pluralizePascal(pascalModel)));
   const idDir = path.join(apiDir, "[id]");
 
   // Create directories

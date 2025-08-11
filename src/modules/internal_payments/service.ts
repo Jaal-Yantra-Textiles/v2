@@ -9,6 +9,14 @@ class InternalPaymentService extends MedusaService({
   constructor() {
     super(...arguments)
   }
+  async listInternalPaymentDetails(...args) {
+    return this.listPaymentDetails(...args)
+  }
+
+  async listInternalPayments(...args) {
+    return this.listPayments(...args)
+  }
+    
 }
 
 export default InternalPaymentService;

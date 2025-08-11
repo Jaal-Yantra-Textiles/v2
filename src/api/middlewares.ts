@@ -62,6 +62,13 @@ import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchem
 import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreement/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
+// Payments: schemas
+import { PaymentSchema, ListPaymentsQuerySchema } from "./admin/payments/validators";
+import { CreatePaymentAndLinkSchema } from "./admin/payments/link/validators";
+import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/validators";
+import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]/validators";
+import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSchema } from "./admin/payments/persons/[id]/methods/validators";
+import { ListPaymentMethodsByPartnerQuerySchema, CreatePaymentMethodForPartnerSchema } from "./admin/payments/partners/[id]/methods/validators";
 
 
 // Utility function to create CORS middleware with configurable options
@@ -201,6 +208,61 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+
+    // Admin Payments and Payment Methods
+    // Payments root
+    {
+      matcher: "/admin/payments",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListPaymentsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/payments",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(PaymentSchema))],
+    },
+    // Create payment and link to persons/partners
+    {
+      matcher: "/admin/payments/link",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreatePaymentAndLinkSchema))],
+    },
+    // Payments by person
+    {
+      matcher: "/admin/payments/persons/:id",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListPaymentsByPersonQuerySchema), {})],
+    },
+    // Payments by partner
+    {
+      matcher: "/admin/payments/partners/:id",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListPaymentsByPartnerQuerySchema), {})],
+    },
+    // Payment methods for person
+    {
+      matcher: "/admin/payments/persons/:id/methods",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListPaymentMethodsByPersonQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/payments/persons/:id/methods",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreatePaymentMethodForPersonSchema))],
+    },
+    // Payment methods for partner
+    {
+      matcher: "/admin/payments/partners/:id/methods",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListPaymentMethodsByPartnerQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/payments/partners/:id/methods",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreatePaymentMethodForPartnerSchema))],
+    },
+
+    // Payment and its methods 
     {
       matcher: "/admin/persons",
       method: "POST",
