@@ -1,3 +1,10 @@
+# [6.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.2.1...v6.3.0) (2025-08-11)
+
+
+### Features
+
+* **Payments:** Internal Payment and Methods ([b180c64](https://github.com/Jaal-Yantra-Textiles/v2/commit/b180c6466b4167b09bd6b94fda82b69ed6b666ef))
+
 ## [6.2.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.2.0...v6.2.1) (2025-08-10)
 
 # [6.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.1.0...v6.2.0) (2025-08-10)
