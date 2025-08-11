@@ -5,6 +5,7 @@ import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { PartnerGeneralSection } from "../../../components/partners/partner-general-section"
 import { PartnerAdminsSection } from "../../../components/partners/partner-admins-section"
+import { PartnerPaymentsSection } from "../../../components/partners/partner-payments-section"
 import type { AdminPartner } from "../../../hooks/api/partners-admin"
 import { partnerLoader } from "./loader"
 
@@ -13,7 +14,7 @@ const PartnerDetailPage = () => {
   const initialData = useLoaderData() as Awaited<{ partner: AdminPartner }>
   const { partner, isPending: isLoading, isError, error } = usePartner(
     id!,
-    ["*", "admins.*"],
+    ["*", "admins.*", "internal_payments.*", "internal_payments.paid_to.*"],
     { initialData },
   ) as any
 
@@ -33,6 +34,7 @@ const PartnerDetailPage = () => {
       <TwoColumnPage data={partner} hasOutlet={true} showJSON showMetadata>
         <TwoColumnPage.Main>
           <PartnerGeneralSection partner={partner} />
+          <PartnerPaymentsSection partner={partner} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
           <PartnerAdminsSection admins={partner.admins || []} />

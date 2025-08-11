@@ -1,4 +1,5 @@
 import {  LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom";
+import { PERSON_DETAIL_FIELDS } from "./constants";
 import { usePerson } from "../../../hooks/api/persons";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { PersonGeneralSection } from "../../../components/persons/person-general-section";
@@ -9,6 +10,7 @@ import { PersonTagsComponent } from "../../../components/persons/person-tags-com
 import { PersonTypesComponent } from "../../../components/persons/person-types-component";
 import { PersonPartnerComponent } from "../../../components/persons/person-partner-component";
 import { PersonAgreementsSection } from "../../../components/persons/person-agreements-section";
+import { PersonPaymentsSection } from "../../../components/persons/person-payments-section";
 import { AdminPerson } from "../../../hooks/api/personandtype";
 import { personLoader } from "./loader";
 
@@ -18,7 +20,7 @@ const PersonDetailPage = () => {
   const initialData = useLoaderData() as Awaited<{ person: AdminPerson } >
   
   const { person, isPending: isLoading, isError, error } = usePerson(id!, {
-    fields: "addresses.*, person_types.*, partner.*, contact_details.*, tags.*, agreements.*, agreements.responses.*"
+    fields: PERSON_DETAIL_FIELDS,
   }, {
     initialData: initialData
   });
@@ -49,6 +51,7 @@ const PersonDetailPage = () => {
       <PersonsAddressSection person={person} />
       <PersonPartnerComponent person={person} />
       <PersonAgreementsSection person={person} />
+      <PersonPaymentsSection person={person} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <PersonContactSection person={person} />
