@@ -1,5 +1,5 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Tabs } from "@medusajs/ui";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Tabs, Button } from "@medusajs/ui";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useMemo, useState, useCallback } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -253,6 +253,9 @@ const AllMediaPage = () => {
             </Text>
           </div>
           <div className="flex items-center gap-x-2">
+            <Button asChild size="small" variant="secondary">
+               <Link to="upload">{"Upload Files"}</Link>
+            </Button>
             <CreateButton />
           </div>
         </DataTable.Toolbar>

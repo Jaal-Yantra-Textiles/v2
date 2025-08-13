@@ -4,7 +4,8 @@ import { z } from "zod";
 export const folderSchema = z.object({
   name: z.string().min(1, "Folder name is required"),
   description: z.string().optional(),
-  parent_folder_id: z.string().optional(),
+  // Accept null or undefined when no parent is selected
+  parent_folder_id: z.string().nullable().optional(),
   is_public: z.boolean().optional(),
 });
 

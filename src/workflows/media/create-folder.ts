@@ -11,7 +11,7 @@ export type CreateFolderStepInput = {
   name: string;
   slug: string;
   description?: string;
-  parent_folder_id?: string;
+  parent_folder_id?: string | null;
   path: string;
   level?: number;
   default_sort_order?: number;

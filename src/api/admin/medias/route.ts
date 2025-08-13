@@ -35,11 +35,17 @@ import { UploadMediaRequest } from "./validator";
         content: file.buffer,
       }));
 
+      // Normalize/clean validated body for workflow typing
+      const body = { ...(req.validatedBody ?? {}) } as any
+      if (body.folder && (body.folder.parent_folder_id === null || body.folder.parent_folder_id === undefined || body.folder.parent_folder_id === "")) {
+        delete body.folder.parent_folder_id
+      }
+
       // Run the upload and organize workflow
       const { result, errors } = await uploadAndOrganizeMediaWorkflow(req.scope).run({
         input: {
           files,
-          ...(req.validatedBody ?? {}),
+          ...body,
         },
       });
 

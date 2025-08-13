@@ -47,9 +47,15 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
         lines.push({ order_line_id: id, quantity: delivered })
       }
     }
+    // Trim lines to only send positive quantities; omitted/zero treated as 0 for this shipment
+    const trimmed = lines.filter((ln) => Number.isFinite(ln.quantity) && ln.quantity > 0)
+    if (trimmed.length === 0) {
+      // UI should prevent this, but guard to satisfy API requirement (non-empty lines)
+      throw new Error("Please provide at least one line with quantity greater than 0.")
+    }
     const notesInput = (formData.get("notes") as string) || ""
     // Determine if all lines are fully fulfilled
-    const isFull = lines.every((ln) => {
+    const isFull = trimmed.every((ln) => {
       const requested = Number(formData.get(`requested_${ln.order_line_id}`))
       return Number.isFinite(requested) && requested === ln.quantity
     })
@@ -63,7 +69,7 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
       notes,
       deliveryDate, // API accepts deliveryDate or delivery_date
       tracking_number,
-      lines,
+      lines: trimmed,
     })
     redirect(`/dashboard/inventory-orders/${id}`)
   }

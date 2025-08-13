@@ -25,13 +25,7 @@ export default function CompletionOrderForm({
   action: (formData: FormData) => void | Promise<void>
 }) {
   const formRef = useRef<HTMLFormElement>(null)
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [overlayRoot, setOverlayRoot] = useState<Element | null>(null)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setOverlayRoot(document.getElementById('partner-overlay-root'))
-    }
-  }, [])
+  // No overlay confirm needed in partial-by-default UX
 
   // Remaining to deliver and default values
   const remainingMap = useMemo(() => {
@@ -44,6 +38,24 @@ export default function CompletionOrderForm({
     }
     return m
   }, [lines])
+
+  // Helpers to quickly set quantities
+  const fillAllRemaining = () => {
+    if (!formRef.current) return
+    for (const l of lines) {
+      const remaining = remainingMap.get(l.id) || 0
+      const el = formRef.current.querySelector<HTMLInputElement>(`input[name="qty_${l.id}"]`)
+      if (el) el.value = String(remaining)
+    }
+  }
+
+  const setAllZero = () => {
+    if (!formRef.current) return
+    for (const l of lines) {
+      const el = formRef.current.querySelector<HTMLInputElement>(`input[name="qty_${l.id}"]`)
+      if (el) el.value = "0"
+    }
+  }
 
   const handlePrimaryClick = (e: React.MouseEvent) => {
     // We'll inspect current form values to detect changes
@@ -60,24 +72,18 @@ export default function CompletionOrderForm({
         return
       }
     }
-    const changed = lines.some((l) => {
+    // Require at least one line to deliver (> 0)
+    const anyPositive = lines.some((l) => {
       const rv = fd.get(`qty_${l.id}`)
       const v = typeof rv === "string" ? Number(rv) : NaN
-      const base = remainingMap.get(l.id) || 0
-      return !Number.isFinite(v) ? false : v !== base
+      return Number.isFinite(v) && v > 0
     })
-    if (!changed) {
+    if (!anyPositive) {
       e.preventDefault()
-      setShowConfirm(true)
+      alert("Please set at least one line quantity greater than 0 to deliver.")
       return
     }
     // Let the form submit normally
-  }
-
-  const confirmFullQuantity = () => {
-    setShowConfirm(false)
-    // Submit with full quantities as filled in the form (which are already defaulted)
-    formRef.current?.requestSubmit()
   }
 
   function SubmitButton({ children }: { children: React.ReactNode }) {
@@ -102,8 +108,13 @@ export default function CompletionOrderForm({
               <div>
                 <Heading level="h3" className="mb-2">Delivered Quantities</Heading>
                 <Text size="small" className="text-ui-fg-subtle">
-                  Edit quantities to deliver per line. Default is remaining (= requested - delivered so far).
+                  Edit quantities to deliver per line. Default is 0 (untouched lines are delivered as 0 for this shipment).
                 </Text>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="secondary" onClick={setAllZero}>Set all to 0</Button>
+                <Button type="button" variant="secondary" onClick={fillAllRemaining}>Fill all with remaining</Button>
               </div>
 
               <div className="overflow-x-auto rounded-md border border-ui-border-base">
@@ -136,7 +147,7 @@ export default function CompletionOrderForm({
                               max={remaining}
                               step={1}
                               name={`qty_${l.id}`}
-                              defaultValue={remaining}
+                              defaultValue={0}
                             />
                           </Table.Cell>
                           <Table.Cell>
@@ -178,37 +189,6 @@ export default function CompletionOrderForm({
           </FocusModal.Body>
         </FocusModal.Content>
       </FocusModal>
-
-      {showConfirm && createPortal((
-        <div
-          className="fixed inset-0 z-[100000] pointer-events-auto"
-          aria-modal="true"
-          role="dialog"
-          tabIndex={-1}
-        >
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-          />
-          {/* Centered dialog */}
-          <div className="relative z-[100001] h-full w-full flex items-center justify-center p-4 pointer-events-none">
-            <div className="w-full max-w-md rounded-lg bg-ui-bg-base shadow-elevation-flyout border border-ui-border-base pointer-events-auto">
-              <div className="p-5 border-b border-ui-border-base">
-                <Heading level="h3">Complete with full quantities?</Heading>
-              </div>
-              <div className="p-5">
-                <Text size="small" className="text-ui-fg-subtle">
-                  You haven&apos;t edited any quantities. The full requested quantities will be marked as delivered. Proceed?
-                </Text>
-              </div>
-              <div className="p-5 pt-0 flex items-center justify-end gap-2">
-                <Button variant="secondary" onClick={() => setShowConfirm(false)}>Cancel</Button>
-                <Button variant="primary" onClick={confirmFullQuantity}>Yes, complete with full quantities</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ), overlayRoot || document.body)}
     </>
   )
 }
