@@ -57,24 +57,51 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
       return
     }
 
-    await mutateAsync(
-      { files, folderId: folder.id },
-      {
-        onSuccess: async () => {
-          toast.success("Files uploaded")
-          // Ensure folder views are up-to-date before navigating
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: mediaFolderQueryKeys.detail(folder.id) }),
-            queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) }),
-          ])
-          await queryClient.refetchQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) })
-          form.reset({ uploads: [] })
-          setSelection({})
-          goToGallery()
-        },
-        onError: (err) => toast.error(err.message || "Upload failed"),
+    let successCount = 0
+    let failCount = 0
+    const total = files.length
+    let processed = 0
+    // Show persistent loading toast with progress
+    let progressToastId = toast.loading("Uploading files...", {
+      description: `${processed}/${total} uploaded`,
+      duration: Infinity,
+    })
+    for (const file of files) {
+      try {
+        await mutateAsync({ files: [file], folderId: folder.id })
+        successCount++
+      } catch (err: any) {
+        failCount++
+        toast.error(err?.message || "Upload failed")
       }
-    )
+      // Update progress
+      processed++
+      if (progressToastId) {
+        toast.dismiss(progressToastId)
+      }
+      progressToastId = toast.loading("Uploading files...", {
+        description: `${processed}/${total} uploaded`,
+        duration: Infinity,
+      })
+    }
+
+    // Dismiss progress toast
+    if (progressToastId) {
+      toast.dismiss(progressToastId)
+    }
+
+    if (successCount > 0) {
+      toast.success(`Uploaded ${successCount}/${files.length} files`)
+      // Ensure folder views are up-to-date before navigating
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: mediaFolderQueryKeys.detail(folder.id) }),
+        queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) }),
+      ])
+      await queryClient.refetchQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) })
+      form.reset({ uploads: [] })
+      setSelection({})
+      goToGallery()
+    }
   })
 
   const selectedCount = useMemo(() => Object.keys(selection).length, [selection])
