@@ -1,3 +1,10 @@
+## [6.6.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.0...v6.6.1) (2025-08-20)
+
+
+### Bug Fixes
+
+* **INVO:** Inventory Order image extraction bug fix ([d07beb4](https://github.com/Jaal-Yantra-Textiles/v2/commit/d07beb4ef5a3a61270b5eee1627687dbe82a6631))
+
 # [6.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.5.0...v6.6.0) (2025-08-20)
 
 
