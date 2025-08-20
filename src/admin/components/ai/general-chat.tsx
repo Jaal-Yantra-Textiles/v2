@@ -298,7 +298,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
         },
       ])
     } catch (e: any) {
-      setMessages((m) => [
+      setMessages(() => [
         { role: "assistant", content: `Error executing ${tool}: ${e?.message || e}` },
       ])
     }
@@ -539,8 +539,17 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
                       variant="secondary"
                       size="small"
                       type="button"
-                      onClick={() => runPlanned(p.tool, { method: p.request.openapi?.method, path: p.request.openapi?.path })}
-                      disabled={stream.state.isStreaming}
+                      onClick={() => {
+                        const method = (p.request as any)?.openapi?.method as string | undefined
+                        const path = (p.request as any)?.openapi?.path as string | undefined
+                        if (!method || !path) return
+                        runPlanned(p.tool, { method, path })
+                      }}
+                      disabled={
+                        stream.state.isStreaming ||
+                        !(p as any)?.request?.openapi?.method ||
+                        !(p as any)?.request?.openapi?.path
+                      }
                     >
                       Run {p.tool}
                     </Button>
