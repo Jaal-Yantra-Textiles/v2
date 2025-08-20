@@ -1,3 +1,10 @@
+# [6.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.3.0...v6.4.0) (2025-08-20)
+
+
+### Features
+
+* **OpenAPI:** API's working with different llms to work with ([bd51bf4](https://github.com/Jaal-Yantra-Textiles/v2/commit/bd51bf4999725de4f1ea1351e264cc0f7dc1ba5a))
+
 # [6.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.2.1...v6.3.0) (2025-08-11)
 
 
