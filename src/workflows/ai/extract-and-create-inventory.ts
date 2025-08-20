@@ -217,11 +217,7 @@ const createInventoryLevelsStep = createStep(
 export const extractAndCreateInventoryWorkflow = createWorkflow(
   "extract-and-create-inventory",
   (input: ExtractAndCreateInput) => {
-    // CI/Test short-circuit: provide deterministic extraction output
-    const isTestEnv =
-      process.env.NODE_ENV === "test" ||
-      process.env.CI === "true" ||
-      (process.env.TEST_TYPE || "").startsWith("integration")
+    const isTestEnv = process.env.NODE_ENV === "test"
 
     const extraction: any = isTestEnv
       ? transform({ input }, ({ input }) => ({

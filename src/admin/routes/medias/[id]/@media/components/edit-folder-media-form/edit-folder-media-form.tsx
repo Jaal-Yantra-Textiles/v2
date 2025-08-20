@@ -66,27 +66,30 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
       description: `${processed}/${total} uploaded`,
       duration: Infinity,
     })
-    for (const file of files) {
-      try {
-        await mutateAsync({ files: [file], folderId: folder.id })
-        successCount++
-      } catch (err: any) {
-        failCount++
-        toast.error(err?.message || "Upload failed")
-      }
-      // Update progress
-      processed++
-      if (progressToastId) {
-        toast.dismiss(progressToastId)
-      }
-      progressToastId = toast.loading("Uploading files...", {
-        description: `${processed}/${total} uploaded`,
-        duration: Infinity,
-      })
-    }
 
-    // Dismiss progress toast
-    if (progressToastId) {
+    try {
+      for (const [index, file] of files.entries()) {
+        try {
+          await mutateAsync({ files: [file], folderId: folder.id })
+          successCount++
+        } catch (err: any) {
+          failCount++
+          toast.error(err?.message || "Upload failed")
+        }
+        // Update progress
+        processed++
+        // Replace the existing loading toast with updated count
+        toast.dismiss(progressToastId)
+        // If this was not the last file, recreate the loading toast with updated description
+        if (processed < total) {
+          progressToastId = toast.loading("Uploading files...", {
+            description: `${processed}/${total} uploaded`,
+            duration: Infinity,
+          })
+        }
+      }
+    } finally {
+      // Ensure the loading toast is dismissed even if an error occurs
       toast.dismiss(progressToastId)
     }
 
