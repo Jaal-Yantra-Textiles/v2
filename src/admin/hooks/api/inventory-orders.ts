@@ -82,6 +82,7 @@ export interface AdminInventoryOrdersQuery {
   quantity?: number;
   order_date?: string;
   expected_delivery_date?: string;
+  q?: string;
 }
 
 const INVENTORY_ORDER_QUERY_KEY = "inventory-orders" as const;

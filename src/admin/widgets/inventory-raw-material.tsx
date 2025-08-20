@@ -199,9 +199,13 @@ const InventoryRawMaterialWidget = ({
                 Material Type
               </Text>
               <div className="flex items-center gap-x-2">
-                <Badge size="2xsmall" color="grey">
-                  {inventory_item.raw_materials.material_type.name}
-                </Badge>
+                {inventory_item.raw_materials.material_type?.name ? (
+                  <Badge size="2xsmall" color="grey">
+                    {inventory_item.raw_materials.material_type.name}
+                  </Badge>
+                ) : (
+                  <Text size="small" leading="compact">-</Text>
+                )}
               </div>
             </div>
 

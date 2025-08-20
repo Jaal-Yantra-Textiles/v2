@@ -1,4 +1,4 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState } from "@medusajs/ui";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Button } from "@medusajs/ui";
 import { Outlet, useNavigate } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
@@ -209,6 +209,20 @@ const InventoryOrdersPage = () => {
               </Text>
             </div>
             <div className="flex items-center gap-x-2">
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => navigate("/inventory/import-from-image")}
+              >
+                Import inventory
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => navigate("/chats?entity=inventory_order")}
+              >
+                CreateAI
+              </Button>
               <CreateButton />
             </div>
           </DataTable.Toolbar>

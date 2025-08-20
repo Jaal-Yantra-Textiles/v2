@@ -3,6 +3,7 @@ import { openai } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { memory } from "../memory";
 
 export const seoAgent = new Agent({
   name: "seo-agent",
@@ -33,6 +34,9 @@ export const designAgent = new Agent({
   instructions:'You are a design assitant for the designer',
   model: openai("gpt-4o-mini")
 });
+
+
+
 // Initialize OpenRouter provider
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -46,3 +50,27 @@ export const productDescriptionAgent = new Agent({
     'You are an expert product description writer. Given an image and product information, you will generate a compelling and accurate product description. Focus on highlighting key features and benefits that would appeal to the target audience.',
 });
 
+
+
+// Agent specialized for extracting structured item lists from images (receipts, labels, manifests)
+export const imageExtractionAgent = new Agent({
+  name: "image-extraction-agent",
+  model: openrouter("qwen/qwen2.5-vl-72b-instruct:free"),
+  instructions:
+    "You are an expert vision analyst that converts images of inventory lists, bills of materials, and packaging labels into clean, structured JSON. " +
+    "Return only data that is visible or clearly implied. Use conservative estimates if uncertain and mark items with confidence scores. " +
+    "Normalize units (e.g., pcs, m, kg) and include quantity as a number.",
+  memory,
+})
+
+// General chat agent for conversational tasks (text-only)
+export const generalChatAgent = new Agent({
+  name: "general-chat-agent",
+  model: openrouter("deepseek/deepseek-chat-v3-0324:free"),
+  instructions:
+    "You are a concise, helpful assistant for a textile commerce platform. " +
+    "Answer briefly and propose actions when appropriate.",
+  memory,
+})
+
+// Note: When calling .generate/.stream, pass threadId/resourceId in context to leverage working memory

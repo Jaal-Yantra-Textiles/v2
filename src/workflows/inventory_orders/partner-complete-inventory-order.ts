@@ -34,20 +34,7 @@ const debugPartialCompletionStep = createStep(
     try {
       const shortages = Array.isArray(input.shortages) ? input.shortages : []
       const compact = shortages.map((s: any) => ({ line: s.orderLineId || s.order_line_id, shortage: s.shortage }))
-      console.debug(
-        "[partner-complete] PARTIAL path: orderId=",
-        input.orderId,
-        "shortages_count=",
-        shortages.length,
-        "shortages=",
-        compact,
-        "first_shortage_raw=",
-        shortages[0] || null,
-        "tx=",
-        context?.transactionId || input.transactionId
-      )
     } catch (e) {
-      console.debug("[partner-complete] PARTIAL debug log error:", e)
     }
     return new StepResponse(null)
   }
@@ -57,7 +44,6 @@ const prepareFulfillmentPayloadsStep = createStep(
   async (
     input: { orderId: string; notes?: string; deliveryDate?: string; trackingNumber?: string; lines: Array<{ order_line_id: string; quantity: number }> },
   ) => {
-    console.debug("[partner-complete] prepareFulfillmentPayloadsStep: input lines=", Array.isArray(input.lines) ? input.lines.length : "NA", "orderId=", input.orderId)
     const safeLines = Array.isArray(input.lines) ? input.lines : []
     const payloads = safeLines
       .filter((l) => l && typeof l.quantity === "number" && l.quantity !== 0)
@@ -75,8 +61,6 @@ const prepareFulfillmentPayloadsStep = createStep(
         } as Record<string, any>,
       }))
 
-    console.debug("[partner-complete] prepareFulfillmentPayloadsStep: prepared payloads count=", payloads.length)
-
     return new StepResponse(payloads)
   }
 )
@@ -92,9 +76,7 @@ const createFulfillmentEntriesStep = createStep(
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
 
     const createdIds: string[] = []
-    console.debug("[partner-complete] createFulfillmentEntriesStep: payloads count=", (input.payloads || []).length)
     for (const p of (input.payloads || [])) {
-      console.debug("[partner-complete] creating line_fulfillment for orderLineId=", p.orderLineId, "qty=", p.quantityDelta)
       const entry = await service.createLine_fulfillments({
         quantity_delta: p.quantityDelta,
         event_type: p.eventType,
@@ -103,7 +85,6 @@ const createFulfillmentEntriesStep = createStep(
         metadata: p.metadata,
       })
       createdIds.push(entry.id)
-      console.debug("[partner-complete] created line_fulfillment id=", entry.id)
 
       await remoteLink.create([
         {
@@ -115,10 +96,8 @@ const createFulfillmentEntriesStep = createStep(
           [FULLFILLED_ORDERS_MODULE]: { line_fulfillment_id: entry.id },
         },
       ])
-      console.debug("[partner-complete] created links for fulfillment id=", entry.id)
     }
 
-    console.debug("[partner-complete] createFulfillmentEntriesStep: created count=", createdIds.length)
     return new StepResponse({ count: createdIds.length, ids: createdIds }, { ids: createdIds })
   },
   async (rb, { container }) => {
@@ -133,10 +112,7 @@ const createFulfillmentEntriesStep = createStep(
 const validateAndFetchOrderStep = createStep(
   "partner-complete-validate-and-fetch-order",
   async (input: PartnerCompleteInventoryOrderInput, { container }) => {
-    console.debug("[partner-complete] validateAndFetchOrderStep: start", { orderId: input.orderId, linesCount: Array.isArray(input.lines) ? input.lines.length : 0 })
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
-
-    
 
     const { data: orders } = await query.graph({
       entity: "inventory_orders",
@@ -190,13 +166,6 @@ const validateAndFetchOrderStep = createStep(
       )
       const thisPayloadDelivered = deliveredByLine[lineId] ?? 0
       const deliveredCumulative = existingDelivered + thisPayloadDelivered
-      console.debug("[partner-complete] line check:", {
-        lineId,
-        requested,
-        existingDelivered,
-        thisPayloadDelivered,
-        deliveredCumulative,
-      })
       if (deliveredCumulative < requested) {
         fullyFulfilled = false
         shortages.push({
@@ -207,12 +176,6 @@ const validateAndFetchOrderStep = createStep(
         })
       }
     }
-
-    console.debug("[partner-complete] validateAndFetchOrderStep: computed", {
-      fullyFulfilled,
-      shortagesCount: shortages.length,
-      shortagesSample: shortages[0] || null,
-    })
 
     // Compute metadata patch with delivery info
     const completionMetadata = {
@@ -226,7 +189,6 @@ const validateAndFetchOrderStep = createStep(
     }
 
     const response = { order, completionMetadata, fullyFulfilled, shortages }
-    console.debug("[partner-complete] validateAndFetchOrderStep: end")
     return new StepResponse(response)
   }
 )
@@ -237,7 +199,6 @@ const updateOrderOnCompletionStep = createStep(
     input: { orderId: string; completionMetadata: Record<string, any>; fullyFulfilled: boolean },
     { container }
   ) => {
-    console.debug("[partner-complete] updateOrderOnCompletionStep: start", { orderId: input.orderId, fullyFulfilled: input.fullyFulfilled })
     // Use the existing update workflow like in the route
     const scope = container
     const { result, errors } = await updateInventoryOrderWorkflow(scope).run({
@@ -254,7 +215,6 @@ const updateOrderOnCompletionStep = createStep(
       throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Failed to update inventory order: ${JSON.stringify(errors)}`)
     }
 
-    console.debug("[partner-complete] updateOrderOnCompletionStep: end", { hasResult: !!result })
     return new StepResponse(result)
   }
 )
@@ -267,10 +227,8 @@ const completeTaskAndSignalIfFulfilledStep = createStep(
     input: { orderId: string; fullyFulfilled: boolean; updatedOrder: any },
     { container }
   ) => {
-    console.debug("[partner-complete] completeTaskAndSignalIfFulfilledStep: start", { orderId: input.orderId, fullyFulfilled: input.fullyFulfilled })
     if (!input.fullyFulfilled) {
       // Keep open; do not complete tasks or signal completion
-      console.debug("[partner-complete] completeTaskAndSignalIfFulfilledStep: skipping signal (not fully fulfilled)")
       return new StepResponse({ signaled: false })
     }
 
@@ -322,7 +280,6 @@ const completeTaskAndSignalIfFulfilledStep = createStep(
       throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Failed to signal workflow: ${JSON.stringify(stepErrors)}`)
     }
 
-    console.debug("[partner-complete] completeTaskAndSignalIfFulfilledStep: end signaled=true")
     return new StepResponse({ signaled: true })
   }
 )
@@ -372,7 +329,6 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
     })
 
     when(shouldWriteFulfillmentEntries, (b) => Boolean(b)).then(() => {
-      console.debug("[partner-complete] gate shouldWriteFulfillmentEntries passed -> creating entries")
       createFulfillmentEntriesStep({ payloads: fulfillmentPayloads as unknown as any })
     })
 
@@ -383,7 +339,6 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
     })
 
     when(shouldCreateShortageTasks, (b) => Boolean(b)).then(() => {
-      console.debug("[partner-complete] gate shouldCreateShortageTasks passed -> creating summary task")
       // Derive shortages list
       const shortagesList = transform({ v: validated }, ({ v }) => (v.shortages ?? []))
 
@@ -415,13 +370,10 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
 
       // Protect API from being blocked by task creation issues in partial path
       try {
-        console.time(`[partner-complete] summary task creation ${input.orderId}`)
         createTasksFromTemplatesWorkflow.runAsStep({
           input: taskWorkflowInput as any,
         })
-        console.timeEnd(`[partner-complete] summary task creation ${input.orderId}`)
       } catch (e) {
-        console.debug("[partner-complete] summary task creation error (non-fatal):", e)
       }
 
       // Additional focused debug log for partial completion
@@ -431,7 +383,6 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
       })
     })
 
-    console.debug("[partner-complete] signaling with fullyFulfilled=", validated.fullyFulfilled)
     completeTaskAndSignalIfFulfilledStep({
       orderId: input.orderId,
       fullyFulfilled: validated.fullyFulfilled,

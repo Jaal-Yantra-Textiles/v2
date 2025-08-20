@@ -42,14 +42,13 @@ import {  createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from ".
 import { AdminPostDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 import { partnerSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
-import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
+import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema } from "./admin/inventory-orders/validators";
 // Import already defined above
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
 import { createStoreSchema } from "./admin/stores/validators";
-import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
@@ -60,6 +59,7 @@ import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id
 import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partner/validators";
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
 import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreement/validators";
+import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
 // Payments: schemas
@@ -69,7 +69,8 @@ import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/v
 import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]/validators";
 import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSchema } from "./admin/payments/persons/[id]/methods/validators";
 import { ListPaymentMethodsByPartnerQuerySchema, CreatePaymentMethodForPartnerSchema } from "./admin/payments/partners/[id]/methods/validators";
-
+import { AdminGeneralChatReq, AdminGeneralChatStreamQuery } from "./admin/ai/chat/validators";
+import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -91,7 +92,7 @@ const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
 };
 
 // Configure multer for CSV file uploads
-const upload = multer({ storage: multer.memoryStorage() })
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }})
 
 // Only apply multer when request is multipart/form-data, and gracefully handle empty/invalid forms
 const maybeMulterArray = (field: string) => {
@@ -341,6 +342,23 @@ export default defineMiddlewares({
       matcher: "/admin/medias",
       method: "POST",
       middlewares: [maybeMulterArray("files"), validateAndTransformBody(wrapSchema(uploadMediaSchema))],
+    },
+    // AI Image Extraction endpoint (JSON body with image_url)
+    {
+      matcher: "/admin/ai/image-extraction",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminImageExtractionReq))],
+    },
+    // AI General Chat endpoints
+    {
+      matcher: "/admin/ai/chat",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminGeneralChatReq))],
+    },
+    {
+      matcher: "/admin/ai/chat/stream",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminGeneralChatStreamQuery), {})],
     },
 
     // Create media folder
