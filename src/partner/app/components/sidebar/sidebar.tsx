@@ -39,6 +39,11 @@ const useCoreRoutes = (): Omit<NavItemProps, "pathname">[] => {
     },
     {
       icon: <Tag />,
+      label: "Designs",
+      to: "/dashboard/designs",
+    },
+    {
+      icon: <Tag />,
       label: "Products",
       to: "/dashboard/products",
       items: [

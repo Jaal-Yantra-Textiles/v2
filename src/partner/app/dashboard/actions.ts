@@ -202,3 +202,87 @@ export async function getPartnerInventoryOrders({ limit = 20, offset = 0, status
     return { inventory_orders: [], count: 0, limit, offset };
   }
 }
+
+export async function getPartnerDesigns({ limit = 20, offset = 0, status }: { limit?: number; offset?: number; status?: string }) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+
+  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+
+  const params = new URLSearchParams()
+  params.set("limit", String(limit))
+  params.set("offset", String(offset))
+  if (status) params.set("status", status)
+
+  try {
+    const response = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs?${params.toString()}`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }
+    )
+    if (!response.ok) {
+      console.error("Failed to fetch partner designs:", response.statusText)
+      return { designs: [], count: 0, limit, offset }
+    }
+    return await response.json()
+  } catch (e) {
+    console.error("Error fetching partner designs:", e)
+    return { designs: [], count: 0, limit, offset }
+  }
+}
+
+export async function partnerStartDesign(designId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error((await res.text()) || "Failed to start design")
+  return res.json()
+}
+
+export async function partnerFinishDesign(designId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/finish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error((await res.text()) || "Failed to finish design")
+  return res.json()
+}
+
+export async function partnerRedoDesign(designId: string, formData: FormData) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const notes = String(formData.get("notes") || "")
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/redo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ notes }),
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error((await res.text()) || "Failed to request redo")
+  return res.json()
+}
+
+export async function partnerCompleteDesign(designId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error((await res.text()) || "Failed to complete design")
+  return res.json()
+}
