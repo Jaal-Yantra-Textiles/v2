@@ -1,3 +1,10 @@
+# [6.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.5.0...v6.6.0) (2025-08-20)
+
+
+### Features
+
+* **Media:** UI changes to use the progress indicator ([a5f7698](https://github.com/Jaal-Yantra-Textiles/v2/commit/a5f7698fff8b3cf492f4c540214edd97d3a9ac5b))
+
 # [6.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.4.0...v6.5.0) (2025-08-20)
 
 
