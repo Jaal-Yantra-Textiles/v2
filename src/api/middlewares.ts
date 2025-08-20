@@ -71,6 +71,13 @@ import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSche
 import { ListPaymentMethodsByPartnerQuerySchema, CreatePaymentMethodForPartnerSchema } from "./admin/payments/partners/[id]/methods/validators";
 import { AdminGeneralChatReq, AdminGeneralChatStreamQuery } from "./admin/ai/chat/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
+import {
+  ListPaymentsByPartnerQuerySchema as PartnerListPaymentsByPartnerQuerySchema,
+  ListPaymentMethodsByPartnerQuerySchema as PartnerListPaymentMethodsByPartnerQuerySchema,
+  CreatePaymentMethodForPartnerSchema as PartnerCreatePaymentMethodForPartnerSchema,
+} from "./partners/[id]/payments/validators";
+import { sendDesignToPartnerSchema } from "./admin/designs/[id]/send-to-partner/validators";
+import { listDesignsQuerySchema } from "./partners/designs/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -209,7 +216,31 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
-
+    // Partner Payments APIs
+    {
+      matcher: "/partners/:id/payments",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(wrapSchema(PartnerListPaymentsByPartnerQuerySchema), {}),
+      ],
+    },
+    {
+      matcher: "/partners/:id/payments/methods",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(wrapSchema(PartnerListPaymentMethodsByPartnerQuerySchema), {}),
+      ],
+    },
+    {
+      matcher: "/partners/:id/payments/methods",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreatePaymentMethodForPartnerSchema)),
+      ],
+    },
     // Admin Payments and Payment Methods
     // Payments root
     {
@@ -756,6 +787,49 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/partner",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(LinkDesignPartnerSchema))],
+    },
+    // Admin Designs -> send to partner
+    {
+      matcher: "/admin/designs/:id/send-to-partner",
+      method: 'POST',
+      middlewares: [validateAndTransformBody(wrapSchema(sendDesignToPartnerSchema))],
+    },
+    // Partner Designs APIs
+    {
+      matcher: "/partners/designs",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(wrapSchema(listDesignsQuerySchema), {}),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/start",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/redo",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/finish",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/complete",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
     },
   ],
   errorHandler: ((
