@@ -1,3 +1,11 @@
+# [6.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.4.0...v6.5.0) (2025-08-20)
+
+
+### Features
+
+* **Partner:** Design Provider Added in Partner Scope ([da3c9dd](https://github.com/Jaal-Yantra-Textiles/v2/commit/da3c9ddee0be66b06e8942838f0c4b0b3a95005b))
+* **Designs:** Partner Workflow With Redo Option ([f42eebc](https://github.com/Jaal-Yantra-Textiles/v2/commit/f42eebc66a9adeefcd45d68e1d1cdf1b18c94083))
+
 # [6.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.3.0...v6.4.0) (2025-08-20)
 
 
