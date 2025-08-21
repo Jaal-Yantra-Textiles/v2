@@ -1,4 +1,5 @@
 import { UseFormReturn } from "react-hook-form";
+import { useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper";
 import { DataGrid } from "../data-grid/data-grid";
@@ -19,6 +20,8 @@ interface InventoryOrderLinesGridProps<T> {
   onAddNewRow: () => void;
   onRemoveRow?: (index: number) => void;
   searchQuery?: string;
+  onSearchChange?: (q: string) => void;
+  loading?: boolean;
 }
 
 export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; sku?: string; width?: string | null; length?: string | null; height?: string | null; weight?: string | number | null; }>({
@@ -29,6 +32,8 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
   onAddNewRow,
   onRemoveRow,
   searchQuery,
+  onSearchChange,
+  loading,
 }: InventoryOrderLinesGridProps<T>) => {
   // Create columns for the data grid using DataGrid helpers
   const columnHelper = createDataGridHelper<InventoryOrderLine, any>();
@@ -54,6 +59,17 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
     )
   }
 
+  // Build options once per inventory change or search query change
+  const options = useMemo(() => {
+    return inventoryItems.map((item: any) => {
+      const inv = item?.inventory_item ?? item
+      const raw = item?.raw_materials
+      const rawLabel = raw?.name || inv?.title || inv?.sku || ""
+      const value = item?.inventory_item_id || inv?.id || item?.id
+      return { label: rawLabel, value }
+    })
+  }, [inventoryItems])
+
   const columns: ColumnDef<InventoryOrderLine>[] = [
     columnHelper.column({
       id: "item",
@@ -63,15 +79,6 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       type: "text",
       cell: (context: any) => {
         const rowIndex = context.row.index;
-        
-        // Build options supporting both plain inventory items and link objects with nested raw_materials/inventory_item
-        const options = inventoryItems.map((item: any) => {
-          const inv = item?.inventory_item ?? item
-          const raw = item?.raw_materials
-          const rawLabel = raw?.name || inv?.title || inv?.sku || ""
-          const value = item?.inventory_item_id || inv?.id || item?.id
-          return { label: highlight(rawLabel, searchQuery), value }
-        });
 
         // Check if item is already selected in other rows
         const isOptionDisabled = (optionValue: string) => {
@@ -87,6 +94,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
               ...option,
               disabled: isOptionDisabled(option.value)
             }))}
+            loading={loading}
           />
         );
       },
@@ -127,6 +135,22 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
     }),
   ];
 
+  // Increase widths for a more comfortable layout
+  const sizedColumns: ColumnDef<InventoryOrderLine>[] = useMemo(() => {
+    return columns.map((col) => {
+      if (col.id === "item") {
+        return { ...col, size: 600, maxSize: 800 }
+      }
+      if (col.id === "quantity") {
+        return { ...col, size: 180, maxSize: 240 }
+      }
+      if (col.id === "price") {
+        return { ...col, size: 220, maxSize: 320 }
+      }
+      return col
+    })
+  }, [columns])
+
   // Add a new empty row when Enter is pressed in the last row
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Check if Enter key is pressed
@@ -155,7 +179,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
     <div onKeyDown={handleKeyDown}>
       <DataGrid
         data={orderLines}
-        columns={columns}
+        columns={sizedColumns}
         state={form}
         onRemoveRow={onRemoveRow}
       />

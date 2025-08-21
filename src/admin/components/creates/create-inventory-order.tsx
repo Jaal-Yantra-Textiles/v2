@@ -1,7 +1,7 @@
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button, DatePicker, Heading, Text, ProgressTabs, ProgressStatus, Select, toast, Switch, Label, Input } from "@medusajs/ui";
+import { Button, DatePicker, Heading, Text, ProgressTabs, ProgressStatus, Select, toast, Switch, Label } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { useCreateInventoryOrder } from "../../hooks/api/inventory-orders";
 import { RouteFocusModal } from "../modal/route-focus-modal";
@@ -105,20 +105,8 @@ export const CreateInventoryOrderComponent = () => {
     setTabState(state);
   }, [tab]);
 
-  // Search state for inventory/raw materials in Order Lines tab
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  // Debounce search term to reduce query churn
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => clearTimeout(handle);
-  }, [search]);
-
   const { stock_locations = [] } = useStockLocations();
-  const { inventory_items = [] } = useInventoryWithRawMaterials(
-    debouncedSearch ? { q: debouncedSearch } : undefined
-  );
+  const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({ limit: 100 });
 
   // Use Field Array for order lines
   const { fields, append, remove } = useFieldArray({
@@ -337,21 +325,14 @@ export const CreateInventoryOrderComponent = () => {
                       Add items to your inventory order. The total quantity and price will be calculated automatically.
                     </Text>
                   </div>
-                  {/* Debounced search for inventory/raw materials */}
-                  <div className="mb-4">
-                    <Input
-                      placeholder="Search inventory or raw materials..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </div>
+                  {/* Top search bar removed as requested */}
                   <div className="flex-1 min-h-0">
                     <InventoryOrderLinesGrid
                       form={form}
                       orderLines={fields}
                       inventoryItems={inventory_items}
                       defaultCurrencyCode="INR"
-                      searchQuery={debouncedSearch}
+                      loading={isLoading}
                       onAddNewRow={() => append({ inventory_item_id: "", quantity: 0, price: 0 })}
                       onRemoveRow={remove}
                     />

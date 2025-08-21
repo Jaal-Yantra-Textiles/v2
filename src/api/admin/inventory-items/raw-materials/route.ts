@@ -1,7 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { getAllInventoryWithRawMaterial, RawMaterialAllowedFields } from "../[id]/rawmaterials/helpers";
-import RawMaterialInventoryLink from "../../../../links/raw-material-data-inventory";
+import type { ListInventoryItemRawMaterialsQuery } from "./validators";
 
 interface QueryParams {
   limit?: string;
@@ -17,19 +16,29 @@ export const GET = async (
   },
   res: MedusaResponse,
 ) => {
-  // Get filters from query parameters
-  const filters = req.filterableFields || {};
-  
+  // Use validatedQuery from middleware schema
+  const qv = ((req as any).validatequery ?? (req as any).validatedQuery) as Partial<ListInventoryItemRawMaterialsQuery> | undefined
+  const limit = Number(qv?.limit ?? 10)
+  const offset = Number(qv?.offset ?? 0)
+  // Build filters to pass into helper. Helper understands `q` inside the filters object.
+  const filters = {
+    ...(qv?.filters || {}),
+    ...(qv?.q ? { q: qv.q } : {}),
+  } as Record<string, unknown>
+
   const inventoryWithRawMaterials = await getAllInventoryWithRawMaterial(
     req.scope,
     filters,
     req.remoteQueryConfig?.fields || ["*"],
   );
-  
+
+  const total = inventoryWithRawMaterials.length
+  const paginated = inventoryWithRawMaterials.slice(offset, offset + limit)
+
   res.status(200).json({
-    inventory_items: inventoryWithRawMaterials,
-    count: inventoryWithRawMaterials.length,
-    offset: req.validatedQuery?.offset || 0,
-    limit: req.validatedQuery?.limit || 10,
+    inventory_items: paginated,
+    count: total,
+    offset,
+    limit,
   });
-};
+}
