@@ -4,6 +4,7 @@ import { TopNavbar } from "../components/top-navbar"
 
 import { requireAuth } from "@/lib/auth-cookie"
 import { getDetails } from "./actions"
+import { redirect } from "next/navigation"
 
 export default async function DashboardLayout({
   children,
@@ -12,6 +13,10 @@ export default async function DashboardLayout({
 }) {
   await requireAuth() // Protect all dashboard routes
   const partner = await getDetails()
+  // If partner details cannot be fetched (e.g., backend down), prevent dashboard access
+  if (!partner) {
+    redirect("/login")
+  }
 
   return (
     <div className="flex h-screen w-full bg-ui-bg-subtle [--sidebar-width:0px] md:[--sidebar-width:14rem]">

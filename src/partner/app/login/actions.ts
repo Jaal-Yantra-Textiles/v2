@@ -10,9 +10,14 @@ type LoginCredentials = {
 export async function login(credentials: LoginCredentials) {
   const { email, password } = credentials;
 
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000";
+
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_MEDUSA_URL}/auth/partner/emailpass`,
+      `${MEDUSA_BACKEND_URL}/auth/partner/emailpass`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

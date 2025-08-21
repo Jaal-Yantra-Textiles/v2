@@ -1,7 +1,5 @@
 "use server"
 
-
-
 // Define a specific type for the registration data
 type RegisterPartnerData = {
   company_name: string
@@ -15,9 +13,14 @@ type RegisterPartnerData = {
 export async function registerPartner(data: RegisterPartnerData) {
   const { company_name, handle, first_name, last_name, email, password } = data
 
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
   const api = async (path: string, options: RequestInit) => {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_MEDUSA_URL}${path}`,
+      `${MEDUSA_BACKEND_URL}${path}`,
       options
     )
 

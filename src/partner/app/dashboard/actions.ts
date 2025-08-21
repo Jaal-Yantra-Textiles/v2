@@ -25,7 +25,9 @@ export async function partnerCompleteInventoryOrder(
   }
 
   const MEDUSA_BACKEND_URL =
-    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000";
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000";
 
   try {
     const response = await fetch(
@@ -61,7 +63,9 @@ export async function getPartnerInventoryOrder(orderId: string) {
   }
 
   const MEDUSA_BACKEND_URL =
-    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000";
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000";
 
   try {
     const response = await fetch(
@@ -97,7 +101,9 @@ export async function partnerStartInventoryOrder(orderId: string) {
   }
 
   const MEDUSA_BACKEND_URL =
-    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000";
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000";
 
   try {
     const response = await fetch(
@@ -135,7 +141,9 @@ export async function getDetails() {
 
   // It's best practice to store this in an environment variable
   const MEDUSA_BACKEND_URL =
-    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000";
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000";
 
   try {
     const response = await fetch(`${MEDUSA_BACKEND_URL}/partners/details`, {
@@ -170,7 +178,9 @@ export async function getPartnerInventoryOrders({ limit = 20, offset = 0, status
   }
 
   const MEDUSA_BACKEND_URL =
-    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000";
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000";
 
   const params = new URLSearchParams();
   params.set("limit", String(limit));
@@ -207,7 +217,10 @@ export async function getPartnerDesigns({ limit = 20, offset = 0, status }: { li
   const token = await getAuthCookie()
   if (!token) redirect("/login")
 
-  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
 
   const params = new URLSearchParams()
   params.set("limit", String(limit))
@@ -236,7 +249,10 @@ export async function getPartnerDesigns({ limit = 20, offset = 0, status }: { li
 export async function partnerStartDesign(designId: string) {
   const token = await getAuthCookie()
   if (!token) redirect("/login")
-  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
   const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -249,7 +265,10 @@ export async function partnerStartDesign(designId: string) {
 export async function partnerFinishDesign(designId: string) {
   const token = await getAuthCookie()
   if (!token) redirect("/login")
-  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
   const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/finish`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -262,7 +281,10 @@ export async function partnerFinishDesign(designId: string) {
 export async function partnerRedoDesign(designId: string, formData: FormData) {
   const token = await getAuthCookie()
   if (!token) redirect("/login")
-  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
   const notes = String(formData.get("notes") || "")
   const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/redo`, {
     method: "POST",
@@ -277,7 +299,10 @@ export async function partnerRedoDesign(designId: string, formData: FormData) {
 export async function partnerCompleteDesign(designId: string) {
   const token = await getAuthCookie()
   if (!token) redirect("/login")
-  const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
   const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/complete`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
