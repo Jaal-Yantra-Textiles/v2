@@ -33,21 +33,22 @@ export default function OrderDetailsTable({ lines }: { lines: OrderLine[] }) {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
-  const fmtUTC = (iso?: string | null) => (iso ? new Date(iso).toISOString().slice(0, 6) : "-")
+  const fmtUTC = (iso?: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : "-")
 
   return (
     <div className="relative">
-      <div className="overflow-x-auto rounded-md border border-ui-border-base">
+      {/* Desktop / tablet table */}
+      <div className="hidden md:block overflow-x-auto rounded-md border border-ui-border-base">
         <Table>
           <Table.Header>
             <Table.Row>
               <Table.HeaderCell className="w-10 shrink-0" />
-              <Table.HeaderCell>Line ID</Table.HeaderCell>
+              <Table.HeaderCell className="hidden lg:table-cell">Line ID</Table.HeaderCell>
               <Table.HeaderCell>Inventory Item</Table.HeaderCell>
               <Table.HeaderCell>Quantity</Table.HeaderCell>
               <Table.HeaderCell>Price</Table.HeaderCell>
-              <Table.HeaderCell>Created</Table.HeaderCell>
-              <Table.HeaderCell>Updated</Table.HeaderCell>
+              <Table.HeaderCell className="hidden lg:table-cell">Created</Table.HeaderCell>
+              <Table.HeaderCell className="hidden lg:table-cell">Updated</Table.HeaderCell>
             </Table.Row>
           </Table.Header>
           <Table.Body>
@@ -66,12 +67,12 @@ export default function OrderDetailsTable({ lines }: { lines: OrderLine[] }) {
                         {isOpen ? "−" : "+"}
                       </button>
                     </Table.Cell>
-                    <Table.Cell>{line.id}</Table.Cell>
-                    <Table.Cell>{line.inventory_item_id}</Table.Cell>
+                    <Table.Cell className="hidden lg:table-cell">{line.id}</Table.Cell>
+                    <Table.Cell className="truncate max-w-[260px]" title={line.inventory_item_id}>{line.inventory_item_id}</Table.Cell>
                     <Table.Cell>{line.quantity}</Table.Cell>
                     <Table.Cell>{line.price ?? "-"}</Table.Cell>
-                    <Table.Cell>{fmtUTC(line.created_at)}</Table.Cell>
-                    <Table.Cell>{fmtUTC(line.updated_at)}</Table.Cell>
+                    <Table.Cell className="hidden lg:table-cell">{fmtUTC(line.created_at)}</Table.Cell>
+                    <Table.Cell className="hidden lg:table-cell">{fmtUTC(line.updated_at)}</Table.Cell>
                   </Table.Row>
                   {isOpen && (
                     <tr key={`${line.id}-details`}>
@@ -126,6 +127,64 @@ export default function OrderDetailsTable({ lines }: { lines: OrderLine[] }) {
         </Table>
       </div>
 
+      {/* Mobile list */}
+      <div className="md:hidden space-y-3">
+        {lines.map((line) => {
+          const isOpen = !!expanded[line.id]
+          return (
+            <div key={line.id} className="rounded-md border border-ui-border-base p-3 bg-ui-bg-base">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <Text weight="plus" className="truncate" title={line.inventory_item_id}>
+                    {line.inventory_item_id}
+                  </Text>
+                  <div className="text-ui-fg-subtle text-xs mt-0.5">
+                    Qty: <span className="text-ui-fg-base">{line.quantity}</span>
+                    <span className="mx-2">•</span>
+                    Price: <span className="text-ui-fg-base">{line.price ?? "-"}</span>
+                  </div>
+                  <div className="text-ui-fg-muted text-xs mt-0.5">
+                    Created: {fmtUTC(line.created_at)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label={isOpen ? "Collapse" : "Expand"}
+                  className="text-ui-fg-subtle hover:text-ui-fg-base px-2 py-1 text-sm border rounded-md"
+                  onClick={() => toggle(line.id)}
+                >
+                  {isOpen ? "Hide" : "Details"}
+                </button>
+              </div>
+
+              {isOpen && (
+                <div className="mt-3 space-y-3">
+                  {line.metadata ? (
+                    <div>
+                      <Text weight="plus" className="mb-1 block text-sm">Metadata</Text>
+                      <pre className="whitespace-pre-wrap break-words text-ui-fg-subtle text-xs bg-ui-bg-subtle p-2 rounded border border-ui-border-base">{JSON.stringify(line.metadata, null, 2)}</pre>
+                    </div>
+                  ) : null}
+                  {Array.isArray(line.inventory_items) && line.inventory_items.length > 0 ? (
+                    <div>
+                      <Text weight="plus" className="mb-1 block text-sm">Inventory Items</Text>
+                      <div className="space-y-2">
+                        {line.inventory_items.map((ii) => (
+                          <div key={ii.id} className="rounded border p-2">
+                            <div className="text-xs truncate">{ii.id}</div>
+                            <div className="text-xs text-ui-fg-subtle truncate">{ii.title || "-"}</div>
+                            <div className="text-xs text-ui-fg-subtle truncate">{ii.raw_materials?.name || "-"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

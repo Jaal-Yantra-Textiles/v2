@@ -27,7 +27,7 @@ export default async function DashboardLayout({
         {/* Mobile overlay toggle */}
         <MobileSidebarOverlay partner={partner} />
         <TopNavbar />
-        <main className="flex-1 overflow-y-auto p-8 pb-28">{children}</main>
+        <main className="flex-1 overflow-y-auto p-2">{children}</main>
       </div>
     </div>
   )
