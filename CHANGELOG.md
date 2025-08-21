@@ -1,3 +1,10 @@
+## [6.6.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.6...v6.6.7) (2025-08-21)
+
+
+### Bug Fixes
+
+* **Partner:** Payment for partner is now showing ([6c60b90](https://github.com/Jaal-Yantra-Textiles/v2/commit/6c60b906385e1617bcffbc930ddab73e05fbf92d))
+
 ## [6.6.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.5...v6.6.6) (2025-08-21)
 
 
