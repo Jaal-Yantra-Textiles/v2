@@ -145,7 +145,8 @@ export default function CompletionOrderForm({
                               type="number"
                               min={0}
                               max={remaining}
-                              step={1}
+                              step="any"
+                              inputMode="decimal"
                               name={`qty_${l.id}`}
                               defaultValue={0}
                             />
