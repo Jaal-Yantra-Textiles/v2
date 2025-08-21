@@ -14,6 +14,7 @@ export const DataGridNumberCell = <TData, TValue = any>({
   min?: number
   max?: number
   placeholder?: string
+  step?: number | "any"
 }) => {
   const { field, control, renderProps } = useDataGridCell({
     context,
@@ -47,6 +48,7 @@ const Inner = ({
   min?: number
   max?: number
   placeholder?: string
+  step?: number | "any"
 }) => {
   const { ref, value, onChange: _, onBlur, ...fieldProps } = field
   const {
@@ -83,6 +85,7 @@ const Inner = ({
         onFocus={onFocus}
         type="number"
         inputMode="decimal"
+        step={props.step}
         className={clx(
           "txt-compact-small size-full bg-transparent outline-none",
           "placeholder:text-ui-fg-muted"

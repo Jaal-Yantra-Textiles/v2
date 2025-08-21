@@ -3,7 +3,7 @@ import OrderLine from "./orderline";
 
 const InventoryOrder = model.define("inventory_orders", {
   id: model.id({prefix: 'inv_order'}).primaryKey(),
-  quantity: model.number(),
+  quantity: model.float(),
   total_price: model.bigNumber(),
   status: model.enum([
     "Pending",

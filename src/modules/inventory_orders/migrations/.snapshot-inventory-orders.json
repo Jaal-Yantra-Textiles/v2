@@ -17,12 +17,12 @@
         },
         "quantity": {
           "name": "quantity",
-          "type": "integer",
+          "type": "real",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "mappedType": "integer"
+          "mappedType": "float"
         },
         "total_price": {
           "name": "total_price",
@@ -181,12 +181,12 @@
         },
         "quantity": {
           "name": "quantity",
-          "type": "integer",
+          "type": "real",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "mappedType": "integer"
+          "mappedType": "float"
         },
         "price": {
           "name": "price",

@@ -2,17 +2,20 @@ import { z } from "zod";
 // Query schema for listing inventory orders
 import { INVENTORY_ORDER_STATUS } from "../../../modules/inventory_orders/constants";
 
-
+// Input schema for inventory order lines
 export const inventoryOrderLineInputSchema = z.object({
   inventory_item_id: z.string().min(1, "Inventory item ID is required"),
-  quantity: z.number().int().nonnegative("Quantity must be a non-negative integer"), // Allow 0
+  // Allow decimal quantities >= 0 (0 allowed for empty seeded rows)
+  quantity: z.number().nonnegative("Quantity must be zero or positive"),
   price: z.number().nonnegative("Price must be zero or positive"),
   metadata: z.record(z.unknown()).optional(),
 });
 
+// Input schema for creating inventory orders
 export const createInventoryOrdersSchema = z.object({
   order_lines: z.array(inventoryOrderLineInputSchema).min(1, "At least one order line is required"),
-  quantity: z.number().int().nonnegative("Order quantity must be a non-negative integer"),
+  // Allow decimal order quantity (sum of line quantities)
+  quantity: z.number().nonnegative("Order quantity must be zero or positive"),
   total_price: z.number().nonnegative("Total price must be zero or positive"),
   status: z.enum(["Pending", "Processing", "Shipped", "Delivered", "Cancelled"]),
   expected_delivery_date: z.coerce.date(),
@@ -30,7 +33,7 @@ export const createInventoryOrdersSchema = z.object({
       minimum: 1,
       type: "number",
       inclusive: true,
-      message: "Order quantity must be a positive integer for non-sample orders",
+      message: "Order quantity must be a positive number for non-sample orders",
       path: ["quantity"],
     });
   }
@@ -55,23 +58,26 @@ export const createInventoryOrdersSchema = z.object({
   }
 });
 
+// Query schema for reading a single inventory order
 export const ReadSingleInventoryOrderQuerySchema = z.object({
   fields: z.string().optional(),
 })
 
+// Input schema for updating inventory orders
 export const updateInventoryOrdersSchema = createInventoryOrdersSchema._def.schema.partial();
 
+// Type definitions for inventory orders
 export type UpdateInventoryOrder = z.infer<typeof updateInventoryOrdersSchema>;
-
 export type CreateInventoryOrder = z.infer<typeof createInventoryOrdersSchema>;
 
-
+// Query schema for listing inventory orders
 export const listInventoryOrdersQuerySchema = z.object({
   status: z.enum(INVENTORY_ORDER_STATUS).optional(),
   q: z.string().optional(),
+  // Allow decimal filter for quantity in queries as well
   quantity: z.preprocess(
     (val) => (val !== undefined && val !== null ? Number(val) : undefined),
-    z.number().int().positive().optional()
+    z.number().positive().optional()
   ),
   total_price: z.preprocess(
     (val) => (val !== undefined && val !== null ? Number(val) : undefined),
@@ -97,4 +103,5 @@ export const listInventoryOrdersQuerySchema = z.object({
   // Add more fields as needed
 });
 
+// Type definition for listing inventory orders query
 export type ListInventoryOrdersQuery = z.infer<typeof listInventoryOrdersQuerySchema>;
