@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { createPortal } from "react-dom"
+import { useMemo, useRef } from "react"
 import { Button, FocusModal, Heading, Input, Label, Table, Text } from "@medusajs/ui"
 import { useFormStatus } from "react-dom"
 
