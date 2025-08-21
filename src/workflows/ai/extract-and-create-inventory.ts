@@ -61,7 +61,6 @@ const buildInventoryPayloads = createStep(
         stock_location_id: input.defaults?.inventory?.stock_location_id,
       },
     }))
-    console.log("[extract-and-create] inventory payloads:", JSON.stringify(payloads, null, 2))
     return new StepResponse(payloads)
   }
 )
@@ -99,7 +98,6 @@ const buildRawMaterialPayloads = createStep(
         },
       }
     })
-    console.log("[extract-and-create] raw material payloads:", JSON.stringify(payloads, null, 2))
     return new StepResponse(payloads)
   }
 )
@@ -110,14 +108,12 @@ const createInventoryItemsStep = createStep(
     if (!input.persist || !input.items.length) {
       return new StepResponse({ items: [], ids: [] as string[] })
     }
-    console.log("[extract-and-create] creating inventory items, persist=", input.persist, "count=", input.items.length)
+
     const { result } = await createInventoryItemsWorkflow(container).run({
       input: { items: input.items },
     })
-    console.log("[extract-and-create] inventory creation result:", JSON.stringify(result, null, 2))
     const createdItems: any[] = (result as any)?.items || (result as any) || []
     const ids = createdItems.map((it: any) => it.id).filter(Boolean)
-    console.log("[extract-and-create] created inventory ids:", ids)
     return new StepResponse({ items: createdItems, ids })
   }
 )
@@ -132,7 +128,6 @@ const createRawMaterialsForInventoryStep = createStep(
       const rmPayload = input.rawMaterialPayloads[i]
       if (!inventoryId || !rmPayload) continue
 
-      console.log("[extract-and-create] creating raw material for inventory:", inventoryId, "payload:", JSON.stringify(rmPayload, null, 2))
       const { result, errors } = await createRawMaterialWorkflow(container).run({
         input: {
           inventoryId,
@@ -151,7 +146,6 @@ const createRawMaterialsForInventoryStep = createStep(
       } else if (result && typeof result === "object") {
         rmId = (result as any)?.id || (result as any)?.raw_materials?.id
       }
-      console.log("[extract-and-create] raw material creation result:", JSON.stringify(result, null, 2), "extracted rmId:", rmId)
       if (rmId) createdIds.push(rmId)
     }
 
@@ -181,12 +175,11 @@ const createInventoryLevelsStep = createStep(
         const { data } = await query.graph({ entity: "stock_location", fields: ["id"] })
         stockLocationId = Array.isArray(data) && data.length ? data[0].id : undefined
       } catch (e) {
-        console.warn("[extract-and-create] failed to resolve stock location via query:", e)
+        // Failed to resolve stock location via query; continue without logging
       }
     }
 
     if (!stockLocationId) {
-      console.warn("[extract-and-create] No stock_location_id available. Skipping inventory levels creation.")
       return new StepResponse({ created: 0, levels: [] as any[] })
     }
 
@@ -209,7 +202,6 @@ const createInventoryLevelsStep = createStep(
     const { result } = await createInventoryLevelsWorkflow(container).run({
       input: { inventory_levels: levels },
     })
-    console.log("[extract-and-create] created inventory levels:", JSON.stringify(result, null, 2))
     return new StepResponse({ created: levels.length, levels: result })
   }
 )
@@ -230,7 +222,6 @@ export const extractAndCreateInventoryWorkflow = createWorkflow(
           verification: { passed: true, issues: [] as string[] },
         }))
       : imageExtractionMedusaWorkflow.runAsStep({ input })
-    console.log("[extract-and-create] extraction result:", extraction)
 
     const persist = transform({ extraction, input }, ({ extraction, input }) => {
       const passed = extraction?.verification?.passed ?? true
@@ -250,13 +241,11 @@ export const extractAndCreateInventoryWorkflow = createWorkflow(
       items: inventoryPayloads,
       persist,
     })
-    console.log("[extract-and-create] inventory response ids:", transform({ inventoryRes }, ({ inventoryRes }) => inventoryRes.ids))
 
     const rawMaterialIds = createRawMaterialsForInventoryStep({
       inventoryIds: transform({ inventoryRes }, ({ inventoryRes }) => inventoryRes.ids || []),
       rawMaterialPayloads,
     })
-    console.log("[extract-and-create] raw material ids:", rawMaterialIds)
 
     const levelsRes = createInventoryLevelsStep({
       inventoryIds: transform({ inventoryRes }, ({ inventoryRes }) => inventoryRes.ids || []),
@@ -264,7 +253,6 @@ export const extractAndCreateInventoryWorkflow = createWorkflow(
       defaults: transform({ input }, ({ input }) => input.defaults),
       persist,
     })
-    console.log("[extract-and-create] inventory levels result:", levelsRes)
 
     return new WorkflowResponse(
       transform(

@@ -1,17 +1,20 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import listSinglePartnerWorkflow from "../../../../workflows/partners/list-single-partner"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
+import { ListPartnersQuerySchema } from "../validators"
 
 // Get a single partner by id
 export const GET = async (
-  req: MedusaRequest,
+  req: MedusaRequest<ListPartnersQuerySchema>,
   res: MedusaResponse
 ) => {
   const id = req.params.id
+  const vq = (req as any).validatedQuery as ListPartnersQuerySchema | undefined
+  const fields = vq?.fields
   const { result } = await listSinglePartnerWorkflow(req.scope).run({
     input: {
       id,
-      fields: req.queryConfig?.fields || ["*", "admins.*"],
+      fields: fields || ["*", "admins.*"],
     },
   })
 

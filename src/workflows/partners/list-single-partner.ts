@@ -10,9 +10,17 @@ export const listSinglePartnerStep = createStep(
   "list-single-partner",
   async (input: ListSinglePartnerInput, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
-
-    const fields = Array.from(new Set([...(input.fields || []), "*", "admins.*"]))
-
+    // Normalize fields: accept array or comma-joined strings, trim, filter empties, dedupe
+    const raw = Array.isArray(input.fields)
+      ? input.fields
+      : typeof (input as any)?.fields === "string"
+        ? (input as any).fields.split(",")
+        : []
+    const cleaned = raw
+      .flatMap((v) => (typeof v === "string" ? v.split(",") : []))
+      .map((s) => (typeof s === "string" ? s.trim() : ""))
+      .filter((s) => !!s)
+    const fields = Array.from(new Set(["*", "admins.*", ...cleaned]))
     const { data } = await query.graph({
       entity: "partners",
       fields,
