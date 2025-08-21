@@ -1,5 +1,5 @@
 import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer";
-import { Button, Input, Label, Select, Textarea } from "@medusajs/ui";
+import { Button, Input, Label, Select, Textarea, DatePicker, toast } from "@medusajs/ui";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useListPartnerPaymentMethods } from "../../../../hooks/api/payment-methods";
@@ -13,7 +13,7 @@ const AddPaymentForPartner = () => {
 
   const [amount, setAmount] = useState<string>("");
   const [note, setNote] = useState<string>("");
-  const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState<Date | null>(() => new Date());
   const [paidToId, setPaidToId] = useState<string>("__none__");
 
   const onCreate = async () => {
@@ -27,17 +27,23 @@ const AddPaymentForPartner = () => {
           : "Digital_Wallet")
       : "Cash";
 
-    await mutateAsync({
-      payment: {
-        amount: Number(amount),
-        payment_type: derivedPaymentType as any,
-        payment_date: new Date(paymentDate),
-        metadata: note ? { note } : undefined,
-        paid_to_id: paidToId === "__none__" ? undefined : paidToId,
-      },
-      partnerIds: [id!],
-    });
-    navigate("..", { replace: true });
+    try {
+      const numericAmount = Number(amount);
+      await mutateAsync({
+        payment: {
+          amount: numericAmount,
+          payment_type: derivedPaymentType as any,
+          payment_date: paymentDate ?? new Date(),
+          metadata: note ? { note } : undefined,
+          paid_to_id: paidToId === "__none__" ? undefined : paidToId,
+        },
+        partnerIds: [id!],
+      });
+      toast.success("Payment created successfully");
+      navigate("..", { replace: true });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to create payment");
+    }
   };
 
   return (
@@ -56,7 +62,10 @@ const AddPaymentForPartner = () => {
         
         <div className="grid gap-y-2">
           <Label htmlFor="payment_date">Payment Date</Label>
-          <Input id="payment_date" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+          <DatePicker
+            value={paymentDate}
+            onChange={(date) => setPaymentDate(date)}
+          />
         </div>
         <div className="grid gap-y-2">
           <Label>Payment Method (optional)</Label>
@@ -83,7 +92,7 @@ const AddPaymentForPartner = () => {
         <RouteDrawer.Close asChild>
           <Button variant="secondary" size="small">Cancel</Button>
         </RouteDrawer.Close>
-        <Button size="small" onClick={onCreate} disabled={isPending || !amount}>Create Payment</Button>
+        <Button size="small" onClick={onCreate} disabled={isPending || Number(amount) <= 0 || !paymentDate}>Create Payment</Button>
       </RouteDrawer.Footer>
     </RouteDrawer>
   );
