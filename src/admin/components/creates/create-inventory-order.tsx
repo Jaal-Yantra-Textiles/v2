@@ -66,7 +66,8 @@ export const CreateInventoryOrderComponent = () => {
       stock_location_id: "",
       from_stock_location_id: undefined,
       is_sample: false,
-      order_lines: [],
+      // Seed multiple empty rows so users can start filling without needing to add immediately
+      order_lines: Array.from({ length: 5 }, () => ({ inventory_item_id: "", quantity: 0, price: 0 })),
     },
     resolver: zodResolver(inventoryOrderFormSchema),
   });
@@ -113,13 +114,6 @@ export const CreateInventoryOrderComponent = () => {
     control: form.control,
     name: "order_lines",
   });
-
-  // Initialize with one empty line if no lines exist
-  useEffect(() => {
-    if (fields.length === 0) {
-      append({ inventory_item_id: "", quantity: 0, price: 0 });
-    }
-  }, [fields.length, append]);
 
   const { handleSuccess } = useRouteModal();
 
@@ -320,8 +314,13 @@ export const CreateInventoryOrderComponent = () => {
               <div className="flex-1 overflow-hidden flex flex-col">
                 <div className="flex-1 overflow-y-auto p-8">
                   <div className="mb-6">
-                    <Heading className="text-xl mb-4">Order Lines</Heading>
-                    <Text size="small" className="text-ui-fg-subtle mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <Heading className="text-xl">Order Lines</Heading>
+                      <Button size="small" variant="secondary" type="button" onClick={() => append({ inventory_item_id: "", quantity: 0, price: 0 })}>
+                        Add Row
+                      </Button>
+                    </div>
+                    <Text size="small" className="text-ui-fg-subtle">
                       Add items to your inventory order. The total quantity and price will be calculated automatically.
                     </Text>
                   </div>
@@ -338,7 +337,7 @@ export const CreateInventoryOrderComponent = () => {
                     />
                   </div>
                   <Text size="small" className="text-ui-fg-subtle mt-2">
-                    Press Enter in the last row to add a new line.
+                    Use Enter to navigate/edit cells. Press Enter in the last row to add a new line, or use the Add Row button.
                   </Text>
                 </div>
                 

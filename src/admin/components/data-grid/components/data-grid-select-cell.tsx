@@ -3,7 +3,7 @@ import { Controller } from "react-hook-form"
 import { useDataGridCell, useDataGridCellError } from "../hooks"
 import { DataGridCellProps } from "../types"
 import { DataGridCellContainer } from "./data-grid-cell-container"
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useDataGridContext } from "../context"
 
 interface DataGridSelectCellProps<TData, TValue = any>
