@@ -35,16 +35,21 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
 
   const highlight = (text: string, query?: string) => {
     if (!query) return text
-    const i = text.toLowerCase().indexOf(query.toLowerCase())
-    if (i === -1) return text
-    const before = text.slice(0, i)
-    const match = text.slice(i, i + query.length)
-    const after = text.slice(i + query.length)
+    if (!text) return text
+    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const escaped = escapeRegExp(query)
+    const re = new RegExp(`(${escaped})`, "ig")
+    const parts = text.split(re)
+    if (parts.length === 1) return text
     return (
       <>
-        {before}
-        <span className="bg-ui-bg-subtle text-ui-fg-base rounded px-0.5">{match}</span>
-        {after}
+        {parts.map((part, idx) =>
+          part.toLowerCase() === query.toLowerCase() ? (
+            <span key={idx} className="bg-ui-bg-subtle text-ui-fg-base rounded px-0.5">{part}</span>
+          ) : (
+            <span key={idx}>{part}</span>
+          )
+        )}
       </>
     )
   }
