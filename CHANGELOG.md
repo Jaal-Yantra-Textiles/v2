@@ -1,3 +1,12 @@
+## [6.6.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.4...v6.6.5) (2025-08-21)
+
+
+### Bug Fixes
+
+* **Partner:** Fixed partner decimal values ([e5acfa1](https://github.com/Jaal-Yantra-Textiles/v2/commit/e5acfa1d15af3d69c311cda4fc6e401ff9e599fb))
+* **Partner:** Partner API not getting assigned ([2a514d9](https://github.com/Jaal-Yantra-Textiles/v2/commit/2a514d96fb5b2346ca0d0336dddaa54487326802))
+* **Partner:** Removed unused code stub ([fd6816e](https://github.com/Jaal-Yantra-Textiles/v2/commit/fd6816e6cc4d82b6bdb64d5258c23ac2178eb31b))
+
 ## [6.6.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.3...v6.6.4) (2025-08-21)
 
 ## [6.6.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.2...v6.6.3) (2025-08-21)
