@@ -1,3 +1,15 @@
+# [6.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.7...v6.7.0) (2025-08-21)
+
+
+### Bug Fixes
+
+* **Partner:** Payment methods and some logs ([b48b502](https://github.com/Jaal-Yantra-Textiles/v2/commit/b48b5020735fb6b282b00ac23784d090f41339ab))
+
+
+### Features
+
+* **Partners:** can be now assigned succesfully ([a15d98e](https://github.com/Jaal-Yantra-Textiles/v2/commit/a15d98ef4a7aaa2d1f0ebceace708b7f628c8efc))
+
 ## [6.6.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.6...v6.6.7) (2025-08-21)
 
 
