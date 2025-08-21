@@ -1,3 +1,10 @@
+## [6.6.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.5...v6.6.6) (2025-08-21)
+
+
+### Bug Fixes
+
+* **Partner:** API endpoint issue resolvied ([bf5b735](https://github.com/Jaal-Yantra-Textiles/v2/commit/bf5b735fd2da7660fbdd0c1edb51b1f5e1f638fb))
+
 ## [6.6.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.4...v6.6.5) (2025-08-21)
 
 
