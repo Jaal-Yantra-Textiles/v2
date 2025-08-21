@@ -18,19 +18,37 @@ interface InventoryOrderLinesGridProps<T> {
   defaultCurrencyCode: string;
   onAddNewRow: () => void;
   onRemoveRow?: (index: number) => void;
+  searchQuery?: string;
 }
 
-export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; sku?: string; width?: string | null; length?: string | null; height?: string | null; weight?: string | number | null; }>({  
+export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; sku?: string; width?: string | null; length?: string | null; height?: string | null; weight?: string | number | null; }>({
   form,
   orderLines,
   inventoryItems,
   defaultCurrencyCode,
   onAddNewRow,
   onRemoveRow,
+  searchQuery,
 }: InventoryOrderLinesGridProps<T>) => {
   // Create columns for the data grid using DataGrid helpers
   const columnHelper = createDataGridHelper<InventoryOrderLine, any>();
-  
+
+  const highlight = (text: string, query?: string) => {
+    if (!query) return text
+    const i = text.toLowerCase().indexOf(query.toLowerCase())
+    if (i === -1) return text
+    const before = text.slice(0, i)
+    const match = text.slice(i, i + query.length)
+    const after = text.slice(i + query.length)
+    return (
+      <>
+        {before}
+        <span className="bg-ui-bg-subtle text-ui-fg-base rounded px-0.5">{match}</span>
+        {after}
+      </>
+    )
+  }
+
   const columns: ColumnDef<InventoryOrderLine>[] = [
     columnHelper.column({
       id: "item",
@@ -41,10 +59,14 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       cell: (context: any) => {
         const rowIndex = context.row.index;
         
-        const options = inventoryItems.map((item: any) => ({
-          label: item.title || item.sku || "",
-          value: item.id
-        }));
+        // Build options supporting both plain inventory items and link objects with nested raw_materials/inventory_item
+        const options = inventoryItems.map((item: any) => {
+          const inv = item?.inventory_item ?? item
+          const raw = item?.raw_materials
+          const rawLabel = raw?.name || inv?.title || inv?.sku || ""
+          const value = item?.inventory_item_id || inv?.id || item?.id
+          return { label: highlight(rawLabel, searchQuery), value }
+        });
 
         // Check if item is already selected in other rows
         const isOptionDisabled = (optionValue: string) => {

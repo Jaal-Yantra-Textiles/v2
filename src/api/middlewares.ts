@@ -78,6 +78,8 @@ import {
 } from "./partners/[id]/payments/validators";
 import { sendDesignToPartnerSchema } from "./admin/designs/[id]/send-to-partner/validators";
 import { listDesignsQuerySchema } from "./partners/designs/validators";
+import { PostPartnerSchema } from "./admin/partners/validators";
+import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -492,6 +494,11 @@ export default defineMiddlewares({
       middlewares: [],
     },
     {
+      matcher: "/admin/partners",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(PostPartnerSchema))],
+    },
+    {
       matcher: "/admin/persons/partner",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(AdminGetPartnersParamsSchema), {})],
@@ -830,6 +837,17 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
       ],
+    },
+    // Admin Users: list auth identities by email
+    {
+      matcher: "/admin/users/identities",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListIdentitiesQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/users/:id/suspend",
+      method: "POST",
+      middlewares: [],
     },
   ],
   errorHandler: ((

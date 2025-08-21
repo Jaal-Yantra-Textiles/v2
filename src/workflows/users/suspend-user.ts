@@ -1,7 +1,6 @@
 import { MedusaError, Modules } from "@medusajs/framework/utils";
-import { setAuthAppMetadataStep } from "@medusajs/medusa/core-flows";
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/workflows-sdk";
-import { AuthIdentityDTO, ProviderIdentityDTO, UserDTO } from "@medusajs/types";
+import { UserDTO } from "@medusajs/types";
 
 export const listAuthIdentitiesStep = createStep(
     "list-auth-identities-step",

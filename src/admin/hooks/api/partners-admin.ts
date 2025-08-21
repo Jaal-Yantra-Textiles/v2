@@ -1,5 +1,5 @@
 import { FetchError } from "@medusajs/js-sdk"
-import { useQuery, UseQueryOptions, QueryKey, useMutation } from "@tanstack/react-query"
+import { useQuery, UseQueryOptions, QueryKey, useMutation, UseMutationOptions, useQueryClient } from "@tanstack/react-query"
 import { sdk } from "../../lib/config"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
@@ -95,5 +95,47 @@ export const useUpdatePartner = () => {
         body: data,
       })
     },
+  })
+}
+
+// Create partner with admin
+export type CreatePartnerWithAdminPayload = {
+  partner: {
+    name: string
+    handle?: string
+    logo?: string
+    status?: "active" | "inactive" | "pending"
+    is_verified?: boolean
+  }
+  admin: {
+    email: string
+    first_name?: string
+    last_name?: string
+    phone?: string
+    role?: "owner" | "admin" | "manager"
+  }
+  auth_identity_id?: string
+}
+
+export type CreatePartnerWithAdminResponse = {
+  partner: AdminPartner
+  partner_admin: AdminPartnerAdmin
+}
+
+export const useCreatePartnerWithAdmin = (
+  options?: UseMutationOptions<CreatePartnerWithAdminResponse, FetchError, CreatePartnerWithAdminPayload>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: CreatePartnerWithAdminPayload) =>
+      sdk.client.fetch<CreatePartnerWithAdminResponse>(`/admin/partners`, {
+        method: "POST",
+        body: payload,
+      }) as Promise<CreatePartnerWithAdminResponse>,
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
   })
 }
