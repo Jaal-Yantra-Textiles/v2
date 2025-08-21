@@ -74,9 +74,6 @@ export const setInventoryOrderStepSuccessStep = createStep(
                 workflowId: sendInventoryOrderToPartnerWorkflow.getName(),
             },
             stepResponse: new StepResponse(updatedOrder, updatedOrder.id),
-            options: {
-                container,
-            },
         })
     }
 )
@@ -148,9 +145,6 @@ export const setInventoryOrderStepFailedStep = createStep(
                 workflowId: sendInventoryOrderToPartnerWorkflow.getName(),
             },
             stepResponse: new StepResponse(updatedOrder, updatedOrder.id),
-            options: {
-                container,
-            },
         })
     }
 )
