@@ -1,8 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { sendInventoryOrderToPartnerWorkflow } from "../../../../../workflows/inventory_orders/send-to-partner";
-import { setInventoryOrderStepSuccessWorkflow } from "../../../../../workflows/inventory_orders/inventory-order-steps";
 import { SendInventoryOrderToPartnerInput } from "./validators";
-
 
 
 
@@ -21,27 +19,6 @@ export async function POST(
                 partnerId,
                 notes
             }
-        });
-
-        // Create transaction object with the real transaction ID (matching task pattern)
-        const postOrderTransactionId = {
-            id: inventoryOrderId, // ✅ Add the missing inventory order ID
-            transaction_id: transaction.transactionId,
-            metadata: {
-                partner_workflow_transaction_id: transaction.transactionId
-            }
-        }
-
-
-
-        // Manually signal the notify-partner step (matching task assignment pattern)
-        await setInventoryOrderStepSuccessWorkflow(req.scope).run({
-            input: {
-                stepId: 'notify-partner-inventory-order',
-                updatedOrder: postOrderTransactionId
-            }
-        }).catch((error) => {
-            throw error;
         });
 
         res.status(200).json({

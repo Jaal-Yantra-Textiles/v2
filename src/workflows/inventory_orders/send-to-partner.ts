@@ -115,8 +115,6 @@ const linkInventoryOrderWithPartnerStep = createStep(
 const notifyPartnerStep = createStep(
     {
         name: 'notify-partner-inventory-order',
-        async: true,
-        // ✅ Remove async: true - should execute synchronously like task workflow
     },
     async (input: {input: SendInventoryOrderToPartnerInput, order: any}, { container }) => {
         const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
