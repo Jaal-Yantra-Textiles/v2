@@ -1,3 +1,10 @@
+## [6.7.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.7.0...v6.7.1) (2025-08-22)
+
+
+### Bug Fixes
+
+* **Partner API:** Partner API Single Get ([d3aee81](https://github.com/Jaal-Yantra-Textiles/v2/commit/d3aee8125fb26d5a5587ce3ed3e3edcc51a45c49))
+
 # [6.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.6.7...v6.7.0) (2025-08-21)
 
 
