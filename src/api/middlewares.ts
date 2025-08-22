@@ -78,7 +78,7 @@ import {
 } from "./partners/[id]/payments/validators";
 import { sendDesignToPartnerSchema } from "./admin/designs/[id]/send-to-partner/validators";
 import { listDesignsQuerySchema } from "./partners/designs/validators";
-import { PostPartnerSchema } from "./admin/partners/validators";
+import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
 
@@ -487,7 +487,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/partners/:id",
       method: "GET",
-      middlewares: [],
+      middlewares: [validateAndTransformQuery(wrapSchema(listPartnersQuerySchema), {})],
     },
     {
       matcher: "/admin/partners/:id",

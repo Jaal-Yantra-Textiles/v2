@@ -54,7 +54,7 @@ const AddPaymentForPartner = () => {
           Create a payment for this partner and optionally link a payment method.
         </RouteDrawer.Description>
       </RouteDrawer.Header>
-      <RouteDrawer.Body className="flex flex-col gap-y-4">
+      <RouteDrawer.Body className="flex flex-col gap-y-4 pb-24">
         <div className="grid gap-y-2">
           <Label htmlFor="amount">Amount</Label>
           <Input id="amount" type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -88,11 +88,11 @@ const AddPaymentForPartner = () => {
           <Textarea id="note" placeholder="Optional note" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
       </RouteDrawer.Body>
-      <RouteDrawer.Footer>
+      <RouteDrawer.Footer className="sticky bottom-0 bg-ui-bg-base border-t border-ui-border-base">
         <RouteDrawer.Close asChild>
           <Button variant="secondary" size="small">Cancel</Button>
         </RouteDrawer.Close>
-        <Button size="small" onClick={onCreate} disabled={isPending || Number(amount) <= 0 || !paymentDate}>Create Payment</Button>
+        <Button size="small" onClick={onCreate} disabled={isPending || Number(amount) <= 0 || !paymentDate}>{isPending ? "Creating..." : "Create Payment"}</Button>
       </RouteDrawer.Footer>
     </RouteDrawer>
   );

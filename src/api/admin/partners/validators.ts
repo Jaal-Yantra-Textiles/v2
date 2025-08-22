@@ -19,24 +19,25 @@ export const PostPartnerSchema = z.object({
 })
 
 export const listPartnersQuerySchema = z.object({
-  fields: z
-    .preprocess((val) => {
-      if (typeof val === "string") {
-        return val.split(",");
-      }
-      if (Array.isArray(val)) {
-        // Flatten any accidental comma-joined items inside the array
-        return val.flatMap((v) => (typeof v === "string" ? v.split(",") : []));
-      }
-      return val;
-    }, z.array(z.string()).optional())
-    .transform((arr) => {
-      if (!arr) return arr;
-      const cleaned = arr
-        .map((s) => (typeof s === "string" ? s.trim() : ""))
-        .filter((s) => !!s);
-      return Array.from(new Set(cleaned));
-    }),
+  // Medusa's prepareListQuery expects `fields` to be a string and calls `.split(",")`.
+  // Normalize both string and array inputs to a single comma-separated string.
+  fields: z.preprocess((val) => {
+    if (Array.isArray(val)) {
+      const cleaned = val
+        .flatMap((v) => (typeof v === "string" ? v.split(",") : []))
+        .map((s) => s.trim())
+        .filter(Boolean)
+      return Array.from(new Set(cleaned)).join(",") || undefined
+    }
+    if (typeof val === "string") {
+      const cleaned = val
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+      return cleaned.length ? cleaned.join(",") : undefined
+    }
+    return undefined
+  }, z.string().optional()),
 })
 
 export type PostPartnerWithAdminSchema = z.infer<typeof PostPartnerSchema>

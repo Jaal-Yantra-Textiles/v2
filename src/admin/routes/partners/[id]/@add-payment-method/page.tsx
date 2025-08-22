@@ -1,5 +1,5 @@
 import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer";
-import { Button, Input, Label, Select, Textarea } from "@medusajs/ui";
+import { Button, Input, Label, Select, Textarea, toast } from "@medusajs/ui";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useCreatePartnerPaymentMethod } from "../../../../hooks/api/payment-methods";
@@ -27,6 +27,7 @@ const AddPaymentMethodForPartner = () => {
       wallet_id: walletId || undefined,
       metadata: note ? { note } : undefined,
     });
+    toast.success("Payment method created");
     navigate("..", { replace: true });
   };
 
@@ -38,7 +39,7 @@ const AddPaymentMethodForPartner = () => {
           Create and link a payment method to this partner.
         </RouteDrawer.Description>
       </RouteDrawer.Header>
-      <RouteDrawer.Body className="flex flex-col gap-y-4">
+      <RouteDrawer.Body className="flex flex-1 flex-col gap-y-4 overflow-y-auto pb-4">
         <div className="grid gap-y-2">
           <Label>Type</Label>
           <Select value={type} onValueChange={setType}>
@@ -77,7 +78,7 @@ const AddPaymentMethodForPartner = () => {
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
         </div>
       </RouteDrawer.Body>
-      <RouteDrawer.Footer>
+      <RouteDrawer.Footer className="bg-ui-bg-base border-t border-ui-border-base">
         <RouteDrawer.Close asChild>
           <Button variant="secondary" size="small">Cancel</Button>
         </RouteDrawer.Close>

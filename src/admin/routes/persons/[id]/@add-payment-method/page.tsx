@@ -1,5 +1,5 @@
 import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer";
-import { Button, Input, Label, Select, Textarea } from "@medusajs/ui";
+import { Button, Input, Label, Select, Textarea, toast } from "@medusajs/ui";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useCreatePersonPaymentMethod } from "../../../../hooks/api/payment-methods";
@@ -18,16 +18,21 @@ const AddPaymentMethodForPerson = () => {
   const [note, setNote] = useState("");
 
   const onCreate = async () => {
-    await mutateAsync({
-      type, // must match API enum validation
-      account_name: accountName || undefined,
-      account_number: accountNumber || undefined,
-      bank_name: bankName || undefined,
-      ifsc_code: ifsc || undefined,
-      wallet_id: walletId || undefined,
-      metadata: note ? { note } : undefined,
-    });
-    navigate("..", { replace: true });
+    try {
+      await mutateAsync({
+        type, // must match API enum validation
+        account_name: accountName || undefined,
+        account_number: accountNumber || undefined,
+        bank_name: bankName || undefined,
+        ifsc_code: ifsc || undefined,
+        wallet_id: walletId || undefined,
+        metadata: note ? { note } : undefined,
+      });
+      toast.success("Payment method created");
+      navigate("..", { replace: true });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to create payment method");
+    }
   };
 
   return (
@@ -38,7 +43,7 @@ const AddPaymentMethodForPerson = () => {
           Create and link a payment method to this person.
         </RouteDrawer.Description>
       </RouteDrawer.Header>
-      <RouteDrawer.Body className="flex flex-col gap-y-4">
+      <RouteDrawer.Body className="flex flex-1 flex-col gap-y-4 overflow-y-auto pb-4">
         <div className="grid gap-y-2">
           <Label>Type</Label>
           <Select value={type} onValueChange={setType}>
@@ -77,11 +82,11 @@ const AddPaymentMethodForPerson = () => {
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
         </div>
       </RouteDrawer.Body>
-      <RouteDrawer.Footer>
+      <RouteDrawer.Footer className="bg-ui-bg-base border-t border-ui-border-base">
         <RouteDrawer.Close asChild>
           <Button variant="secondary" size="small">Cancel</Button>
         </RouteDrawer.Close>
-        <Button size="small" onClick={onCreate} disabled={isPending || !type}>Create Method</Button>
+        <Button size="small" onClick={onCreate} disabled={isPending || !type}>{isPending ? "Creating..." : "Create Method"}</Button>
       </RouteDrawer.Footer>
     </RouteDrawer>
   );

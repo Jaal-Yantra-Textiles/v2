@@ -17,7 +17,7 @@ export const useCreatePaymentAndLink = (
     onSuccess: (data, variables, context) => {
       // Invalidate common views that might reflect payment changes
       queryClient.invalidateQueries({ queryKey: ["persons"] });
-      queryClient.invalidateQueries({ queryKey: ["partners-admin"] });
+      queryClient.invalidateQueries({ queryKey: ["partners"] });
       queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
       // If detail pages are open, invalidate detail variants
       if (Array.isArray((variables as any)?.personIds)) {

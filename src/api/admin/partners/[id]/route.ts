@@ -10,11 +10,24 @@ export const GET = async (
 ) => {
   const id = req.params.id
   const vq = (req as any).validatedQuery as ListPartnersQuerySchema | undefined
-  const fields = vq?.fields
+  const fields = (() => {
+    const f = vq?.fields as unknown as string | string[] | undefined
+    let arr: string[] | undefined
+    if (typeof f === "string") {
+      arr = f.split(",").map((s) => s.trim()).filter(Boolean)
+    } else if (Array.isArray(f)) {
+      arr = f
+    }
+    // Always include defaults
+    const defaults = ["*", "admins.*"]
+    const finalSet = new Set([...(arr || []), ...defaults])
+    const final = Array.from(finalSet)
+    return final.length ? final : undefined
+  })()
   const { result } = await listSinglePartnerWorkflow(req.scope).run({
     input: {
       id,
-      fields: fields || ["*", "admins.*"],
+      fields,
     },
   })
 
