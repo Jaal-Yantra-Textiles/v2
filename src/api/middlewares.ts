@@ -81,6 +81,8 @@ import { listDesignsQuerySchema } from "./partners/designs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
+import { PartnerCreateStoreReq } from "./partners/stores/validators";
+import { PartnerCreateProductReq } from "./partners/products/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -185,6 +187,31 @@ export default defineMiddlewares({
     {
       matcher: "/partners/tasks/:taskId/accept",
       method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+
+    {
+      matcher: "/partners/stores",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateStoreReq)),
+      ],
+    },
+    {
+      matcher: "/partners/products",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateProductReq)),
+      ],
+    },
+
+    {
+      matcher: "/partners/stores/:id/products",
+      method: "GET",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
       ],

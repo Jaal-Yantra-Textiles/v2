@@ -145,6 +145,9 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/fullfilled_orders",
   },
+  {
+    resolve: "@medusajs/index",
+  }
 ]
 
     // {

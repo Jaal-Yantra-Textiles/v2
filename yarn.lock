@@ -3092,6 +3092,11 @@
   resolved "https://registry.yarnpkg.com/@medusajs/index/-/index-2.8.8.tgz#3b1ff5f3bf35974976ed85ee5b2c715528ccc241"
   integrity sha512-2eq0ZMy94n8ynjdGz819d88o/2tZbi3WL5UFAGNa3CBJQxhtxH0VuaNr2IXsc02GeiGOVelfVwPTb2mPIjD7ug==
 
+"@medusajs/index@^2.9.0":
+  version "2.9.0"
+  resolved "https://registry.yarnpkg.com/@medusajs/index/-/index-2.9.0.tgz#e9f4a2d17f1814cc4fb877645c0c2cba82602be6"
+  integrity sha512-Z259b6idR7xaVUhzGVeciwVpb0+UI7a45VuB9llJbSP5ldBXvClzpGAuLSs83owANmwrykrqZ+0a/SepEugh4g==
+
 "@medusajs/inventory@2.8.8":
   version "2.8.8"
   resolved "https://registry.yarnpkg.com/@medusajs/inventory/-/inventory-2.8.8.tgz#4307c04cbbc85042cd6e5b25ec185e3b47c9c7dc"
