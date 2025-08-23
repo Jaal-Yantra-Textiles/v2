@@ -1,3 +1,10 @@
+# [6.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.9.0...v6.10.0) (2025-08-23)
+
+
+### Features
+
+* **Partner:** API that can create partner by sending them an email ([2a3efdb](https://github.com/Jaal-Yantra-Textiles/v2/commit/2a3efdb508ce8bf03237fac9825fa450630c2b27))
+
 # [6.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.8.0...v6.9.0) (2025-08-23)
 
 
