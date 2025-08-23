@@ -10,8 +10,8 @@ export const PostPartnerSchema = z.object({
   }),
   admin: z.object({
     email: z.string().email(),
-    first_name: z.string().optional(),
-    last_name: z.string().optional(),
+    first_name: z.string().min(1),
+    last_name: z.string().min(1),
     phone: z.string().optional(),
     role: z.enum(["owner", "admin", "manager"]).optional().default("owner"),
   }),

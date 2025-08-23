@@ -29,15 +29,14 @@ const partnerAdminSchema = z.object({
   }),
   admin: z.object({
     email: z.string().email("Invalid email"),
-    first_name: z.string().optional(),
-    last_name: z.string().optional(),
+    first_name: z.string().min(1, "First name is required"),
+    last_name: z.string().min(1, "Last name is required"),
     phone: z.string().optional(),
     role: z.enum(ROLE_ENUM).default("owner"),
   }),
   // Optional: allow passing auth identity if already created
   auth_identity_id: z.string().optional(),
 })
-
 
 const CreatePartnerComponent = () => {
   const form = useForm({
@@ -78,8 +77,8 @@ const CreatePartnerComponent = () => {
         },
         admin: {
           email: validated.admin.email,
-          first_name: validated.admin.first_name || undefined,
-          last_name: validated.admin.last_name || undefined,
+          first_name: validated.admin.first_name,
+          last_name: validated.admin.last_name,
           phone: validated.admin.phone || undefined,
           role: validated.admin.role,
         },
@@ -170,7 +169,9 @@ const CreatePartnerComponent = () => {
                     <Form.Label>{"Status"}</Form.Label>
                     <Form.Control>
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <Select.Trigger />
+                        <Select.Trigger>
+                          <Select.Value placeholder="Select status" />
+                        </Select.Trigger>
                         <Select.Content>
                           <Select.Item value="active">Active</Select.Item>
                           <Select.Item value="inactive">Inactive</Select.Item>
@@ -228,7 +229,9 @@ const CreatePartnerComponent = () => {
                     <Form.Label>{"Role"}</Form.Label>
                     <Form.Control>
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <Select.Trigger />
+                        <Select.Trigger>
+                          <Select.Value placeholder="Select role" />
+                        </Select.Trigger>
                         <Select.Content>
                           <Select.Item value="owner">Owner</Select.Item>
                           <Select.Item value="admin">Admin</Select.Item>
@@ -246,9 +249,9 @@ const CreatePartnerComponent = () => {
                 name="admin.first_name"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label optional>{"First Name"}</Form.Label>
+                    <Form.Label>{"First Name"}</Form.Label>
                     <Form.Control>
-                      <Input autoComplete="off" {...field} />
+                      <Input autoComplete="off" required {...field} />
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>
@@ -260,9 +263,9 @@ const CreatePartnerComponent = () => {
                 name="admin.last_name"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label optional>{"Last Name"}</Form.Label>
+                    <Form.Label>{"Last Name"}</Form.Label>
                     <Form.Control>
-                      <Input autoComplete="off" {...field} />
+                      <Input autoComplete="off" required {...field} />
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>

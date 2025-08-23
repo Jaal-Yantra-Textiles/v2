@@ -1,10 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { listPartnersWorkflow } from "../../../workflows/partners/list-partners"
-import { z } from "zod"
-import createPartnerAdminWorkflow from "../../../workflows/partner/create-partner-admin"
-import { MedusaError } from "@medusajs/framework/utils"
-import { PARTNER_MODULE } from "../../../modules/partner"
-import PartnerService from "../../../modules/partner/service"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { createPartnerAdminWithRegistrationWorkflow } from "../../../workflows/partner/create-partner-admin"
 import { PostPartnerWithAdminSchema } from "./validators"
 
 export const GET = async (
@@ -53,51 +50,43 @@ export const POST = async (
   req: MedusaRequest<PostPartnerWithAdminSchema>,
   res: MedusaResponse
 ) => {
- 
-   const { partner: partnerInput, admin: adminInput, auth_identity_id } = req.validatedBody
-   console.log(partnerInput, adminInput, auth_identity_id)
+  const { partner: partnerInput, admin: adminInput } = req.validatedBody
 
-  // If auth identity is provided, run the full workflow (creates partner, admin, and sets app metadata)
-  if (auth_identity_id) {
-    const { result, errors } = await createPartnerAdminWorkflow(req.scope).run({
-      input: {
-        partner: partnerInput,
-        admin: adminInput,
-        authIdentityId: auth_identity_id,
-      },
-    })
+  // Use internal workflow that registers auth identity and links it
+  const { result, errors } = await createPartnerAdminWithRegistrationWorkflow(req.scope).run({
+    input: {
+      partner: partnerInput,
+      admin: adminInput,
+    },
+  })
 
-    if (errors?.length) {
-      throw errors[0].error || new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "Failed to create partner admin")
-    }
-
-    const payload = result as any
-    return res.status(201).json({
-      partner: payload.createdPartner,
-      partner_admin: payload.partnerAdmin,
-    })
-  }
-
-  // Fallback path: create partner and admin without linking auth identity
-  const partnerService: PartnerService = req.scope.resolve(PARTNER_MODULE)
-  try {
-    const createdPartner = await partnerService.createPartners(partnerInput)
-    const partnerAdmin = await partnerService.createPartnerAdmins({
-      ...adminInput,
-      partner_id: createdPartner.id,
-    })
-
-    return res.status(201).json({
-      partner: createdPartner,
-      partner_admin: partnerAdmin,
-    })
-  } catch (err: any) {
-    if (typeof err?.message === "string" && err.message.includes("already exists")) {
-      throw new MedusaError(
-        MedusaError.Types.DUPLICATE_ERROR,
-        `A partner with handle "${partnerInput.handle}" already exists. Please use a unique handle.`
+  if (errors?.length) {
+    throw (
+      errors[0].error ||
+      new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "Failed to create partner admin"
       )
-    }
-    throw err
+    )
   }
+
+  const payload = result as any
+
+  // Emit partner.created.fromAdmin with the workflow-provided temp password
+  const eventService = req.scope.resolve(Modules.EVENT_BUS)
+  console.log("Emitting partner.created.fromAdmin event",payload)
+  eventService.emit({
+    name: "partner.created.fromAdmin",
+    data: {
+      partner_id: payload.partnerWithAdmin.createdPartner.id,
+      partner_admin_id: payload.partnerWithAdmin.partnerAdmin.id,
+      email: adminInput.email,
+      temp_password: payload.registered.tempPassword,
+    },
+  })
+
+  return res.status(201).json({
+    partner: payload.partnerWithAdmin.createdPartner,
+    partner_admin: payload.partnerWithAdmin.partnerAdmin,
+  })
 }

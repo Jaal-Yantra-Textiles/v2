@@ -9,7 +9,8 @@ import {
 } from "@medusajs/medusa/core-flows"
 import { PARTNER_MODULE } from "../../modules/partner"
 import PartnerService from "../../modules/partner/service"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { randomBytes } from "crypto"
 
 export type CreatePartnerAdminWorkflowInput = {
     partner: {
@@ -27,6 +28,7 @@ export type CreatePartnerAdminWorkflowInput = {
         role?: 'owner' | 'admin' | 'manager'
     }
     authIdentityId: string
+    tempPassword?: string
 }
 
 const createPartnerAndAdminStep = createStep(
@@ -42,7 +44,7 @@ const createPartnerAndAdminStep = createStep(
         try {
             createdPartner = await partnerService.createPartners(partnerData)
         } catch (err: any) {
-            if (err.message.includes("already exists")) {
+            if (err.message?.includes?.("already exists")) {
                 throw new MedusaError(
                     MedusaError.Types.DUPLICATE_ERROR,
                     `A partner with handle "${partnerData.handle}" already exists. Please use a unique handle.`
@@ -67,15 +69,14 @@ const createPartnerAndAdminStep = createStep(
     },
     async (partnerWithAdmin, { container }) => {
         const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
-        if(partnerWithAdmin){
+        if (partnerWithAdmin) {
             await partnerService.deletePartnerAdmins(partnerWithAdmin.partnerAdmin.id)
-            await partnerService.deletePartners(partnerWithAdmin?.partner.id)
+            await partnerService.deletePartners(partnerWithAdmin.partner.id)
         }
-
-        
     }
 )
 
+// External workflow: requires authIdentityId
 const createPartnerAdminWorkflow = createWorkflow(
     "create-partner-admin",
     (input: CreatePartnerAdminWorkflowInput) => {
@@ -83,14 +84,57 @@ const createPartnerAdminWorkflow = createWorkflow(
             partner: input.partner,
             admin: input.admin,
         })
+
         setAuthAppMetadataStep({
             authIdentityId: input.authIdentityId,
             actorType: "partner",
             value: partnerWithAdmin.partnerAdmin.id,  
         })
+
         return new WorkflowResponse(
             partnerWithAdmin
         )
+    }
+)
+
+// Internal workflow: registers auth via provider and then sets app metadata
+export type CreatePartnerAdminWithRegistrationInput = Omit<CreatePartnerAdminWorkflowInput, "authIdentityId">
+
+const registerPartnerAdminAuthStep = createStep(
+    "register-partner-admin-auth-step",
+    async (input: { email: string }, { container }) => {
+        const tempPassword = randomBytes(12).toString("base64url")
+        const authModule = container.resolve(Modules.AUTH)
+        const reg = await authModule.createAuthIdentities({
+            provider_identities: [{
+              provider: "emailpass",
+              entity_id: "user@example.com",
+            }]
+          });
+        return new StepResponse({ authIdentityId: reg.id, tempPassword })
+    }
+)
+
+export const createPartnerAdminWithRegistrationWorkflow = createWorkflow(
+    "create-partner-admin-with-registration",
+    (input: CreatePartnerAdminWithRegistrationInput) => {
+        const partnerWithAdmin = createPartnerAndAdminStep({
+            partner: input.partner,
+            admin: input.admin,
+        })
+
+        const registered = registerPartnerAdminAuthStep({ email: input.admin.email })
+
+        setAuthAppMetadataStep({
+            authIdentityId: registered.authIdentityId,
+            actorType: "partner",
+            value: partnerWithAdmin.partnerAdmin.id,
+        })
+
+        return new WorkflowResponse({
+            partnerWithAdmin,
+            registered
+        })
     }
 )
 

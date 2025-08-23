@@ -198,3 +198,23 @@ export const sendPasswordResetWorkflow = createWorkflow(
     })
   }
 )
+
+// Admin partner creation email workflow
+export const sendAdminPartnerCreationEmail = createWorkflow(
+  "send-admin-partner-creation-email",
+  (input: { to: string; partner_name: string; temp_password: string }) => {
+    // Reuse the generic email workflow with our specific template and data
+    const result = sendNotificationEmailWorkflow.runAsStep({
+      input: {
+        to: input.to,
+        template: "partner-created-from-admin",
+        data: {
+          partner_name: input.partner_name,
+          temp_password: input.temp_password,
+        },
+      },
+    })
+
+    return new WorkflowResponse(result)
+  }
+)
