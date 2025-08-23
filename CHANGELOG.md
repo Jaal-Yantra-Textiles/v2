@@ -1,3 +1,10 @@
+# [6.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.7.1...v6.8.0) (2025-08-23)
+
+
+### Features
+
+* **Partner:** Partners can now start a store and add products ([4cb4db1](https://github.com/Jaal-Yantra-Textiles/v2/commit/4cb4db1a88231f6d59ef00c74b2c50e730d8a4d4))
+
 ## [6.7.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.7.0...v6.7.1) (2025-08-22)
 
 
