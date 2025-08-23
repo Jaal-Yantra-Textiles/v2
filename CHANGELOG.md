@@ -1,3 +1,10 @@
+# [6.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.8.0...v6.9.0) (2025-08-23)
+
+
+### Features
+
+* **Payment:** Payments can be marked as complete ([fd31eab](https://github.com/Jaal-Yantra-Textiles/v2/commit/fd31eabcb1431163dcc4f72d36d4bfba4fa6863f))
+
 # [6.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.7.1...v6.8.0) (2025-08-23)
 
 
