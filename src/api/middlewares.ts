@@ -63,7 +63,7 @@ import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators"
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
 // Payments: schemas
-import { PaymentSchema, ListPaymentsQuerySchema } from "./admin/payments/validators";
+import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema } from "./admin/payments/validators";
 import { CreatePaymentAndLinkSchema } from "./admin/payments/link/validators";
 import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/validators";
 import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]/validators";
@@ -282,6 +282,12 @@ export default defineMiddlewares({
       matcher: "/admin/payments",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(PaymentSchema))],
+    },
+
+    {
+      matcher: "/admin/payments/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdatePaymentSchema))],
     },
     // Create payment and link to persons/partners
     {

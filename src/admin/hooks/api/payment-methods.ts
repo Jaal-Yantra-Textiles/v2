@@ -2,6 +2,8 @@ import { FetchError } from "@medusajs/js-sdk";
 import { keepPreviousData, QueryKey, UseMutationOptions, UseQueryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
+import { partnersQueryKeys as adminPartnersQueryKeys } from "./partners-admin";
+import { personsQueryKeys } from "./persons";
 
 const PAYMENT_METHODS_QUERY_KEY = "payment-methods" as const;
 export const paymentMethodsQueryKeys = queryKeysFactory(PAYMENT_METHODS_QUERY_KEY);
@@ -39,9 +41,9 @@ export const useCreatePersonPaymentMethod = (
       ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: [PAYMENT_METHODS_QUERY_KEY, "person", personId] });
-      // Invalidate person details (all variants)
-      queryClient.invalidateQueries({ queryKey: ["persons", { id: personId }] });
-      queryClient.invalidateQueries({ queryKey: ["persons", personId] });
+      // Invalidate person details (all variants) and specific person detail
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
+      queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(personId) });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,
@@ -78,9 +80,11 @@ export const useCreatePartnerPaymentMethod = (
         { method: "POST", body: payload }
       ),
     onSuccess: (data, variables, context) => {
+      // List of payment methods for this partner
       queryClient.invalidateQueries({ queryKey: [PAYMENT_METHODS_QUERY_KEY, "partner", partnerId] });
-      // Invalidate partner details (all variants)
-      queryClient.invalidateQueries({ queryKey: ["partners-admin", partnerId] });
+      // Invalidate partner detail queries (all variants + specific)
+      queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.details() });
+      queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.detail(partnerId) });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,

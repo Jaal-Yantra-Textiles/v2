@@ -1,9 +1,63 @@
-import { Badge, Container, Heading, Text } from "@medusajs/ui";
-import { Plus } from "@medusajs/icons";
+import { Badge, Container, Heading, Text, toast } from "@medusajs/ui";
+import { Plus, Check } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
+import { useUpdatePayment } from "../../hooks/api/payments";
+import { useState } from "react";
 
 type PartnerPaymentsSectionProps = {
   partner: any;
+};
+
+const PaymentRow = ({ p }: { p: any }) => {
+  const { mutateAsync, isPending } = useUpdatePayment(p.id);
+  const [loading, setLoading] = useState(false);
+
+  const onMarkCompleted = async () => {
+    try {
+      setLoading(true);
+      await mutateAsync({ status: "Completed" });
+      toast.success("Payment marked as Completed");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update payment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isCompleted = p?.status === "Completed";
+
+  // Must be () => void to satisfy Action type
+  const handleClick = () => {
+    if (isCompleted || loading || isPending) return;
+    void onMarkCompleted();
+  };
+
+  return (
+    <div className="flex items-center justify-between py-3">
+      <div className="flex items-center gap-x-3">
+        <Badge size="2xsmall">{p.status}</Badge>
+        <Text size="small" className="text-ui-fg-base">{p.payment_type}</Text>
+        <Text size="small" className="text-ui-fg-subtle">{new Date(p.payment_date).toLocaleDateString()}</Text>
+      </div>
+      <div className="flex items-center gap-x-3">
+        <Text size="small" className="text-ui-fg-base font-medium">₹ {p.amount ?? p?.raw_amount?.value}</Text>
+        <ActionMenu
+          groups={[
+            {
+              actions: [
+                {
+                  label: isCompleted ? "Already Completed" : "Mark as Completed",
+                  icon: <Check />,
+                  onClick: handleClick,
+                  disabled: isCompleted || loading || isPending,
+                },
+              ],
+            },
+          ]}
+        />
+      </div>
+    </div>
+  );
 };
 
 export const PartnerPaymentsSection = ({ partner }: PartnerPaymentsSectionProps) => {
@@ -43,16 +97,7 @@ export const PartnerPaymentsSection = ({ partner }: PartnerPaymentsSectionProps)
       ) : (
         <div className="px-6 py-2 flex flex-col divide-y">
           {payments.map((p: any) => (
-            <div key={p.id} className="flex items-center justify-between py-3">
-              <div className="flex items-center gap-x-3">
-                <Badge size="2xsmall">{p.status}</Badge>
-                <Text size="small" className="text-ui-fg-base">{p.payment_type}</Text>
-                <Text size="small" className="text-ui-fg-subtle">{new Date(p.payment_date).toLocaleDateString()}</Text>
-              </div>
-              <div>
-                <Text size="small" className="text-ui-fg-base font-medium">₹ {p.amount ?? p?.raw_amount?.value}</Text>
-              </div>
-            </div>
+            <PaymentRow key={p.id} p={p} />
           ))}
         </div>
       )}
