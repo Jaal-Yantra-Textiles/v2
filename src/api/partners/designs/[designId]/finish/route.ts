@@ -61,15 +61,29 @@ export async function POST(
     }
   }
 
-  // Signal step success for await-design-finish
-  const { errors: stepErrors } = await setDesignStepSuccessWorkflow(req.scope).run({
-    input: {
-      stepId: "await-design-finish",
-      updatedDesign: result[0],
-    },
-  })
-  if (stepErrors && stepErrors.length) {
-    return res.status(500).json({ error: "Failed to update workflow", details: stepErrors })
+  // Signal step success: prefer redo refinish gate if present, otherwise the original finish gate
+  let signaled = false
+  let lastErr: any = null
+  try {
+    const { errors: refinishErrors } = await setDesignStepSuccessWorkflow(req.scope).run({
+      input: { stepId: "await-design-refinish", updatedDesign: result[0] },
+    })
+    if (!refinishErrors || refinishErrors.length === 0) {
+      signaled = true
+    } else {
+      lastErr = refinishErrors
+    }
+  } catch (e: any) {
+    lastErr = e
+  }
+
+  if (!signaled) {
+    const { errors: finishErrors } = await setDesignStepSuccessWorkflow(req.scope).run({
+      input: { stepId: "await-design-finish", updatedDesign: result[0] },
+    })
+    if (finishErrors && finishErrors.length) {
+      return res.status(500).json({ error: "Failed to update workflow", details: finishErrors, lastErr })
+    }
   }
 
   res.status(200).json({

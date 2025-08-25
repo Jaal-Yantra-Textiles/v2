@@ -1,10 +1,9 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { refetchPartnerForThisAdmin } from "../../../../partners/helpers"
-import { updateDesignWorkflow } from "../../../../../workflows/designs/update-design"
 import { TASKS_MODULE } from "../../../../../modules/tasks"
 import TaskService from "../../../../../modules/tasks/service"
-import { setDesignStepFailedWorkflow } from "../../../../../workflows/designs/design-steps"
+import { setDesignStepSuccessWorkflow } from "../../../../../workflows/designs/design-steps"
 
 export async function POST(
   req: AuthenticatedMedusaRequest,
@@ -28,21 +27,6 @@ export async function POST(
   })
   const taskLinks = taskLinksResult.data || []
 
-  // Update design status/metadata for redo
-  const { result, errors } = await updateDesignWorkflow(req.scope).run({
-    input: {
-      id: designId,
-      status: "In_Development",
-      metadata: {
-        partner_redo_at: new Date().toISOString(),
-        partner_phase: "redo",
-      },
-    },
-  })
-  if (errors && errors.length) {
-    return res.status(500).json({ error: "Failed to update design", details: errors })
-  }
-
   // Mark the redo task as completed
   const taskService: TaskService = req.scope.resolve(TASKS_MODULE)
   for (const d of taskLinks) {
@@ -60,25 +44,14 @@ export async function POST(
     }
   }
 
-  // Derive transactionId from tasks: prefer 'partner-design-finish', fallback to any with transaction_id
+  // Derive transactionId from tasks
   let transactionId: string | null = null
   for (const d of taskLinks) {
     if (Array.isArray(d.tasks)) {
-      const finishTask = d.tasks.find((t: any) => t?.title === "partner-design-finish" && t?.transaction_id)
-      if (finishTask?.transaction_id) {
-        transactionId = finishTask.transaction_id
+      const anyTx = d.tasks.find((t: any) => t?.transaction_id)
+      if (anyTx?.transaction_id) {
+        transactionId = anyTx.transaction_id
         break
-      }
-    }
-  }
-  if (!transactionId) {
-    for (const d of taskLinks) {
-      if (Array.isArray(d.tasks)) {
-        const anyTx = d.tasks.find((t: any) => t?.transaction_id)
-        if (anyTx?.transaction_id) {
-          transactionId = anyTx.transaction_id
-          break
-        }
       }
     }
   }
@@ -87,63 +60,19 @@ export async function POST(
     return res.status(400).json({ error: "No workflow transaction found to reopen for redo" })
   }
 
-  // Mark await-design-finish as FAILED to reopen it in the same transaction
-  console.info(`[DesignWF] redo: setStepFailure for await-design-finish using tx ${transactionId}`)
-  const { errors: failErrors } = await setDesignStepFailedWorkflow(req.scope).run({
+  // Signal success on the redo gate so the main workflow enters the redo sub-workflow
+  console.info(`[DesignWF] redo: setStepSuccess for await-design-redo using tx ${transactionId}`)
+  const { errors: stepErrors } = await setDesignStepSuccessWorkflow(req.scope).run({
     input: {
-      stepId: "await-design-finish",
-      updatedDesign: result[0],
-      error: "redo_requested",
+      stepId: "await-design-redo",
+      updatedDesign: { id: designId },
     },
   })
-  if (failErrors && failErrors.length) {
-    return res.status(500).json({ error: "Failed to set step failure for redo", details: failErrors })
-  }
-
-  // After reopening the step, revert tasks that marked the design as finished/completed
-  console.info(`[DesignWF] redo: reverting task statuses (finish/completed -> assigned) for design ${designId}`)
-  try {
-    const updates: Promise<any>[] = []
-    for (const d of taskLinks) {
-      if (Array.isArray(d.tasks)) {
-        // Revert FINISH task(s)
-        const finishedTasks = d.tasks.filter(
-          (t: any) => t?.title === "partner-design-finish" && t?.status === "completed"
-        )
-        for (const t of finishedTasks) {
-          updates.push(
-            taskService.updateTasks({
-              id: t?.id,
-              status: "assigned",
-              metadata: { ...t?.metadata, rollback_reason: "redo_requested", rollback_at: new Date().toISOString() },
-            })
-          )
-        }
-
-        // Optionally revert COMPLETED task(s) if any exist
-        const completedTasks = d.tasks.filter(
-          (t: any) => t?.title === "partner-design-completed" && t?.status === "completed"
-        )
-        for (const t of completedTasks) {
-          updates.push(
-            taskService.updateTasks({
-              id: t?.id,
-              status: "assigned",
-              metadata: { ...t?.metadata, rollback_reason: "redo_requested", rollback_at: new Date().toISOString() },
-            })
-          )
-        }
-      }
-    }
-    if (updates.length) {
-      await Promise.all(updates)
-    }
-  } catch (e: any) {
-    return res.status(500).json({ error: "Failed to revert tasks after cancel", details: e?.message || e })
+  if (stepErrors && stepErrors.length) {
+    return res.status(500).json({ error: "Failed to trigger redo workflow", details: stepErrors })
   }
 
   res.status(200).json({
-    message: "Redo acknowledged. Finish step reopened; awaiting finish again.",
-    design: result[0],
+    message: "Redo acknowledged. Redo cycle started; awaiting re-finish.",
   })
 }

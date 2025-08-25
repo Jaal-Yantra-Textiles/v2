@@ -234,6 +234,66 @@ const awaitDesignCompleted = createStep(
   }
 )
 
+// --- Redo sub-workflow definitions (inlined to avoid circular imports) ---
+export const awaitDesignRefinish = createStep(
+  { name: "await-design-refinish", async: true, timeout: 60 * 60 * 24 * 7, maxRetries: 1 },
+  async (_, { container }) => {
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.info("Awaiting design re-finish during redo cycle...")
+  }
+)
+
+const prepareRedoStep = createStep(
+  "prepare-redo",
+  async (input: { designId: string }, { container }) => {
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const designService: DesignService = container.resolve(DESIGN_MODULE)
+    const updated = await designService.updateDesigns({
+      id: input.designId,
+      status: "In_Development",
+      metadata: { partner_phase: "redo", partner_redo_at: new Date().toISOString() },
+    })
+    logger.info(`[DesignWF] prepare-redo: design ${input.designId} set to In_Development with phase=redo`)
+    return new StepResponse(updated)
+  }
+)
+
+const revertFinishTasksStep = createStep(
+  "revert-finish-tasks",
+  async (input: { designId: string }, { container }) => {
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const taskService: TaskService = container.resolve(TASKS_MODULE)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+
+    const taskLinksResult = await query.graph({
+      entity: "designs",
+      fields: ["id", "tasks.*"],
+      filters: { id: input.designId },
+    })
+    const taskLinks = taskLinksResult.data || []
+    const updates: Promise<any>[] = []
+    for (const d of taskLinks) {
+      if (Array.isArray(d.tasks)) {
+        const finishedTasks = d.tasks.filter((t: any) => t?.title === "partner-design-finish" && t?.status === "completed")
+        for (const t of finishedTasks) {
+          updates.push(
+            taskService.updateTasks({ id: t?.id, status: "assigned", metadata: { ...t?.metadata, rollback_reason: "redo_cycle" } })
+          )
+        }
+        const completedTasks = d.tasks.filter((t: any) => t?.title === "partner-design-completed" && t?.status === "completed")
+        for (const t of completedTasks) {
+          updates.push(
+            taskService.updateTasks({ id: t?.id, status: "assigned", metadata: { ...t?.metadata, rollback_reason: "redo_cycle" } })
+          )
+        }
+      }
+    }
+    if (updates.length) await Promise.all(updates)
+    logger.info(`[DesignWF] revert-finish-tasks: reverted ${updates.length} task(s) for design ${input.designId}`)
+    return new StepResponse({ reverted: updates.length })
+  }
+)
+
 export const sendDesignToPartnerWorkflow = createWorkflow(
   {
     name: "send-design-to-partner",
@@ -283,6 +343,10 @@ export const sendDesignToPartnerWorkflow = createWorkflow(
     awaitDesignStart()
     awaitDesignFinish()
     awaitDesignRedo() // optional redo after finish/inspection
+    // If redo is requested, run the redo cycle inline in this workflow, then move to completion
+    prepareRedoStep({ designId: input.designId })
+    revertFinishTasksStep({ designId: input.designId })
+    awaitDesignRefinish()
     awaitDesignCompleted()
 
     return new WorkflowResponse({ success: true })

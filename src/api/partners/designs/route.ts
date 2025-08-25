@@ -32,7 +32,7 @@ export async function GET(
     filters,
     pagination: { skip: offset, take: limit },
   })
-  console.log(results)
+
   // Include all linked designs for this partner.
   // We'll compute assignment status based on presence of partner workflow tasks (by known titles).
   const allLinked = (results || [])
@@ -43,7 +43,7 @@ export async function GET(
     filtered = allLinked.filter((linkData: any) => linkData.design?.status === status)
   }
 
-  const items = filtered.map((linkData: any) => {
+  const designs = filtered.map((linkData: any) => {
     const design = linkData.design
 
     const tasks = design.tasks || []
@@ -60,7 +60,7 @@ export async function GET(
     // If no workflow tasks exist -> incoming (linked but not sent/assigned)
     // If tasks exist -> consider assigned and derive phase progression
     let partnerStatus: "incoming" | "assigned" | "in_progress" | "finished" | "completed" = "incoming"
-    let partnerPhase: string | null = null
+    let partnerPhase: "redo" | null = null
     let partnerStartedAt: string | null = null
     let partnerFinishedAt: string | null = null
     let partnerCompletedAt: string | null = null
@@ -94,25 +94,25 @@ export async function GET(
       }
     }
 
+    const partner_info = {
+      assigned_partner_id: linkData.partner?.id || partnerAdmin.id,
+      partner_status: partnerStatus,
+      partner_phase: partnerPhase,
+      partner_started_at: partnerStartedAt,
+      partner_finished_at: partnerFinishedAt,
+      partner_completed_at: partnerCompletedAt,
+      workflow_tasks_count: workflowTasks.length,
+    }
+
     return {
-      design_id: design.id,
-      partner_id: linkData.partner?.id || partnerAdmin.id,
-      design,
-      partner: linkData.partner,
-      assignment: {
-        status: partnerStatus,
-        phase: partnerPhase,
-        started_at: partnerStartedAt,
-        finished_at: partnerFinishedAt,
-        completed_at: partnerCompletedAt,
-        workflow_tasks_count: workflowTasks.length,
-      },
+      ...design,
+      partner_info,
     }
   })
 
   res.status(200).json({
-    designs: items,
-    count: items.length,
+    designs,
+    count: designs.length,
     limit,
     offset,
   })

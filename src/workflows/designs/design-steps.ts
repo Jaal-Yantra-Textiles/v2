@@ -3,20 +3,24 @@ import {
   Modules,
   TransactionHandlerType,
 } from "@medusajs/framework/utils"
+import { DESIGN_MODULE } from "../../modules/designs"
+import DesignService from "../../modules/designs/service"
+import { TASKS_MODULE as TASKS_MODULE_KEY } from "../../modules/tasks"
+import TaskService from "../../modules/tasks/service"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { sendDesignToPartnerWorkflow } from "./send-to-partner"
 
 const TASKS_MODULE = "tasksModuleService"
 
-
 type SetDesignStepSuccessInput = {
   stepId: string
   updatedDesign: any
+  workflowId?: string
 }
 
 export const setDesignStepSuccessStep = createStep(
   "set-design-step-success",
-  async function ({ stepId, updatedDesign }: SetDesignStepSuccessInput, { container }) {
+  async function ({ stepId, updatedDesign, workflowId }: SetDesignStepSuccessInput, { container }) {
     const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
     const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
     // Get the workflow transaction ID from associated tasks instead of design metadata
@@ -67,8 +71,9 @@ export const setDesignStepSuccessStep = createStep(
       throw new Error(`No workflow transaction ID found in tasks for design ${updatedDesign.id}`)
     }
 
+    const targetWorkflowId = workflowId || sendDesignToPartnerWorkflow.getName()
     logger.info(
-      `[DesignWF] setStepSuccess: transactionId=${workflowTransactionId} workflowId=${sendDesignToPartnerWorkflow.getName()} stepId=${stepId}`
+      `[DesignWF] setStepSuccess: transactionId=${workflowTransactionId} workflowId=${targetWorkflowId} stepId=${stepId}`
     )
     try {
     
@@ -77,7 +82,7 @@ export const setDesignStepSuccessStep = createStep(
           action: TransactionHandlerType.INVOKE,
           transactionId: workflowTransactionId,
           stepId,
-          workflowId: sendDesignToPartnerWorkflow.getName(),
+          workflowId: targetWorkflowId,
         },
         stepResponse: new StepResponse(updatedDesign, updatedDesign.id),
         options: { container },
@@ -97,11 +102,12 @@ type SetDesignStepFailedInput = {
   stepId: string
   updatedDesign: any
   error?: string
+  workflowId?: string
 }
 
 export const setDesignStepFailedStep = createStep(
   "set-design-step-failed",
-  async function ({ stepId, updatedDesign, error }: SetDesignStepFailedInput, { container }) {
+  async function ({ stepId, updatedDesign, error, workflowId }: SetDesignStepFailedInput, { container }) {
     const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
     const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
 
@@ -147,8 +153,9 @@ export const setDesignStepFailedStep = createStep(
       throw new Error(`No workflow transaction ID found in tasks for design ${updatedDesign.id}`)
     }
 
+    const targetWorkflowId = workflowId || sendDesignToPartnerWorkflow.getName()
     logger.warn(
-      `[DesignWF] setStepFailure: transactionId=${workflowTransactionId} workflowId=${sendDesignToPartnerWorkflow.getName()} stepId=${stepId} error=${error}`
+      `[DesignWF] setStepFailure: transactionId=${workflowTransactionId} workflowId=${targetWorkflowId} stepId=${stepId} error=${error}`
     )
     try {
       await engineService.setStepFailure({
@@ -156,7 +163,7 @@ export const setDesignStepFailedStep = createStep(
           action: TransactionHandlerType.INVOKE,
           transactionId: workflowTransactionId,
           stepId,
-          workflowId: sendDesignToPartnerWorkflow.getName(),
+          workflowId: targetWorkflowId,
         },
         stepResponse: new StepResponse(updatedDesign, updatedDesign.id),
         options: { container },
@@ -225,3 +232,5 @@ export const setDesignStepFailedWorkflow = createWorkflow(
     return new WorkflowResponse(result)
   }
 )
+
+// Redo sub-workflow moved to send-to-partner.ts to avoid circular imports
