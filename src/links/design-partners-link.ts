@@ -4,6 +4,6 @@ import PartnerModule from "../modules/partner"
 import { defineLink } from "@medusajs/framework/utils"
 
 export default defineLink(
-  DesignModule.linkable.design,
+  { linkable: DesignModule.linkable.design , isList: true },
   { linkable: PartnerModule.linkable.partner, isList: true }
 )

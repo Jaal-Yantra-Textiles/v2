@@ -246,6 +246,35 @@ export async function getPartnerDesigns({ limit = 20, offset = 0, status }: { li
   }
 }
 
+export async function getPartnerDesign(designId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  try {
+    const response = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }
+    )
+    if (!response.ok) {
+      console.error("Failed to fetch partner design:", response.statusText)
+      return null
+    }
+    const data = await response.json()
+    return data?.design ?? null
+  } catch (e) {
+    console.error("Error fetching partner design:", e)
+    return null
+  }
+}
+
 export async function partnerStartDesign(designId: string) {
   const token = await getAuthCookie()
   if (!token) redirect("/login")

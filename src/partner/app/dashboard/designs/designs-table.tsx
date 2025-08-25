@@ -7,12 +7,26 @@ import { useRouter } from "next/navigation"
 
 export type PartnerDesignRow = {
   id: string
-  name?: string
-  status: string
-  priority?: string
-  partner_info?: {
-    partner_status?: "assigned" | "in_progress" | "finished" | "completed" | string
-    partner_phase?: string | null
+  design_id: string
+  partner_id: string
+  design: {
+    id: string
+    name?: string
+    status: string
+    priority?: string
+  }
+  partner: {
+    id: string
+    name?: string
+    handle?: string
+  }
+  assignment: {
+    status: "incoming" | "assigned" | "in_progress" | "finished" | "completed" | string
+    phase?: string | null
+    started_at?: string | null
+    finished_at?: string | null
+    completed_at?: string | null
+    workflow_tasks_count?: number
   }
 }
 
@@ -24,40 +38,40 @@ const statusColor = (status: string): "green" | "orange" | "blue" => {
 
 const buildColumns = (): ColumnDef<PartnerDesignRow>[] => [
   {
-    id: "design",
+    id: "id",
     header: "Design",
-    accessorKey: "name",
+    accessorFn: (row) => row.design?.name || row.design_id,
     cell: ({ row }) => (
       <div className="flex flex-col">
-        <Text weight="plus">{row.original.name || row.original.id}</Text>
-        <Text size="xsmall" className="text-ui-fg-subtle">{row.original.id}</Text>
+        <Text weight="plus">{row.original.design?.name || row.original.design_id}</Text>
+        <Text size="xsmall" className="text-ui-fg-subtle">{row.original.design_id}</Text>
       </div>
     ),
   },
   {
     id: "status",
     header: "Status",
-    accessorKey: "status",
+    accessorFn: (row) => row.design?.status,
     cell: ({ row }) => (
-      <StatusBadge color={statusColor(row.original.status)}>
-        {row.original.status}
+      <StatusBadge color={statusColor(row.original.design?.status || "")}> 
+        {row.original.design?.status}
       </StatusBadge>
     ),
   },
   {
     id: "partner_status",
     header: "Partner Status",
-    accessorFn: (row) => row.partner_info?.partner_status || "assigned",
+    accessorFn: (row) => row.assignment?.status || "incoming",
     cell: ({ row }) => (
-      <StatusBadge color={statusColor(row.original.partner_info?.partner_status || "assigned")}>
-        {row.original.partner_info?.partner_status || "assigned"}
+      <StatusBadge color={statusColor(row.original.assignment?.status || "incoming")}>
+        {row.original.assignment?.status || "incoming"}
       </StatusBadge>
     ),
   },
   {
     id: "partner_phase",
     header: "Partner Phase",
-    accessorFn: (row) => row.partner_info?.partner_phase || "-",
+    accessorFn: (row) => row.assignment?.phase || "-",
   },
 ]
 
@@ -66,12 +80,16 @@ export default function DesignsTable({ data, count }: { data: PartnerDesignRow[]
   const [pagination, setPagination] = useState<DataTablePaginationState>({ pageIndex: 0, pageSize: 20 })
   const router = useRouter()
 
+  const handleRowClick = (row: PartnerDesignRow) => {
+    router.push(`/dashboard/designs/${row.id}`)
+  }
+
   const table = useDataTable<PartnerDesignRow>({
     columns,
     data,
-    getRowId: (row) => row.id,
+    getRowId: (row) => row.design_id,
     rowCount: count,
-    onRowClick: (_, row) => router.push(`/dashboard/designs/${row.id}`),
+    onRowClick: (_, row: PartnerDesignRow) => { handleRowClick(row) },
     pagination: {
       state: pagination,
       onPaginationChange: setPagination,

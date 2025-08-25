@@ -36,6 +36,7 @@ export async function POST(
       metadata: {
         partner_finished_at: new Date().toISOString(),
         partner_status: "finished",
+        partner_phase: null,
       },
     },
   })

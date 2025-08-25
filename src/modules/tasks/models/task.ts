@@ -10,7 +10,7 @@ const Task = model.define("task",  {
     start_date: model.dateTime(),
     end_date: model.dateTime().nullable(),
     
-    status: model.enum(['pending', 'in_progress', 'completed', 'cancelled', 'accepted'])
+    status: model.enum(['pending', 'in_progress', 'completed', 'cancelled', 'accepted', 'assigned'])
         .default('pending'),
     
     priority: model.enum(['low', 'medium', 'high'])

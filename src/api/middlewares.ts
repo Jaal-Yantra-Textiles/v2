@@ -851,6 +851,13 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/designs/:designId",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/designs/:designId/start",
       method: "POST",
       middlewares: [

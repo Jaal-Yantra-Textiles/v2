@@ -7,7 +7,6 @@ import updateDesignWorkflow from "../../../../workflows/designs/update-design";
 import deleteDesignWorkflow from "../../../../workflows/designs/delete-design";
 import { DesignAllowedFields, refetchDesign } from "../helpers";
 import listSingleDesignsWorkflow from "../../../../workflows/designs/list-single-design";
-import { MedusaError } from "@medusajs/framework/utils";
 
 
 export const GET = async (

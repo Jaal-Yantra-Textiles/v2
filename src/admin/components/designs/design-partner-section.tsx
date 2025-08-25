@@ -1,7 +1,7 @@
-import { Container, Heading, Text, Avatar } from "@medusajs/ui";
+import { Container, Heading, Text, Avatar, Button, toast } from "@medusajs/ui";
 import { Plus, TriangleRightMini } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
-import { AdminDesign } from "../../hooks/api/designs";
+import { AdminDesign, useSendDesignToPartner } from "../../hooks/api/designs";
 import { AdminPartner } from "../../hooks/api/partners";  
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
@@ -13,7 +13,19 @@ interface DesignPartnerSectionProps {
 export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
   const navigate = useNavigate();
   const partners = design.partners || [];
-  
+  const { mutateAsync: sendDesign, isPending } = useSendDesignToPartner(design.id)
+
+  const handleSendToPartner = async (e: React.MouseEvent, partnerId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      await sendDesign({ partnerId })
+      toast.success("Design sent to partner. Workflow triggered.")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send design to partner")
+    }
+  }
+
   return (
     <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -60,8 +72,18 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                       {partner.handle || "-"}
                     </span>
                   </div>
-                  <div className="size-7 flex items-center justify-center">
-                    <TriangleRightMini className="text-ui-fg-muted" />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="small"
+                      variant="secondary"
+                      isLoading={isPending}
+                      onClick={(e) => handleSendToPartner(e, partner.id)}
+                    >
+                      Send
+                    </Button>
+                    <div className="size-7 flex items-center justify-center">
+                      <TriangleRightMini className="text-ui-fg-muted" />
+                    </div>
                   </div>
                 </div>
               </div>

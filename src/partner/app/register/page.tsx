@@ -9,6 +9,7 @@ import { registerPartner } from "./actions"
 import { useTransition, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Alert } from "@medusajs/ui"
+import Link from "next/link"
 
 const RegisterSchema = z.object({
   company_name: z.string().min(1, "Company name is required"),
@@ -165,6 +166,12 @@ export default function RegisterPage() {
           <Button type="submit" className="w-full mt-4" isLoading={isPending}>
             Create Account
           </Button>
+          <Text className="text-ui-fg-subtle text-center mt-6">
+            Already have an account?
+            <Link href="/login" className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover ml-1">
+              Log in
+            </Link>
+          </Text>
 
           {isSuccess && (
             <Alert variant="success" className="mt-4 text-ui-fg-base">

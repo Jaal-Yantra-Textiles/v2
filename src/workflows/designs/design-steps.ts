@@ -8,6 +8,7 @@ import { sendDesignToPartnerWorkflow } from "./send-to-partner"
 
 const TASKS_MODULE = "tasksModuleService"
 
+
 type SetDesignStepSuccessInput = {
   stepId: string
   updatedDesign: any
@@ -18,7 +19,6 @@ export const setDesignStepSuccessStep = createStep(
   async function ({ stepId, updatedDesign }: SetDesignStepSuccessInput, { container }) {
     const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
     const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-
     // Get the workflow transaction ID from associated tasks instead of design metadata
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -37,18 +37,27 @@ export const setDesignStepSuccessStep = createStep(
       `[DesignWF] setStepSuccess requested: stepId=${stepId} designId=${updatedDesign?.id} taskLinksCount=${taskLinks.length}`
     )
 
-    // Find a task with a transaction ID (should be one of the partner workflow tasks)
+    // Choose the most recent transaction ID from linked tasks (prefer latest by created_at)
     let workflowTransactionId: string | null = null
+    const txCandidates: any[] = []
     for (const design of taskLinks) {
       if (design.tasks && Array.isArray(design.tasks)) {
         for (const task of design.tasks) {
-          if (task && task.transaction_id) {
-            workflowTransactionId = task.transaction_id
-            break
+          if (task?.transaction_id) {
+            txCandidates.push(task)
           }
         }
-        if (workflowTransactionId) break
       }
+    }
+    if (txCandidates.length) {
+      txCandidates.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      logger.info(
+        `[DesignWF] txCandidates(${txCandidates.length}): ${txCandidates
+          .map((t) => `${t?.title}@${t?.created_at || "-"}`)
+          .join(", ")}`
+      )
+      workflowTransactionId = txCandidates[0].transaction_id
+      logger.info(`[DesignWF] setStepSuccess using tx from task '${txCandidates[0]?.title}' created_at=${txCandidates[0]?.created_at}`)
     }
 
     if (!workflowTransactionId) {
@@ -62,6 +71,7 @@ export const setDesignStepSuccessStep = createStep(
       `[DesignWF] setStepSuccess: transactionId=${workflowTransactionId} workflowId=${sendDesignToPartnerWorkflow.getName()} stepId=${stepId}`
     )
     try {
+    
       await engineService.setStepSuccess({
         idempotencyKey: {
           action: TransactionHandlerType.INVOKE,
@@ -77,6 +87,7 @@ export const setDesignStepSuccessStep = createStep(
       logger.error(
         `[DesignWF] setStepSuccess FAILED for stepId=${stepId} tx=${workflowTransactionId}: ${e?.message}`
       )
+      if (e?.stack) logger.warn(e.stack)
       throw e
     }
   }
@@ -108,16 +119,25 @@ export const setDesignStepFailedStep = createStep(
     const taskLinks = taskLinksResult.data || []
 
     let workflowTransactionId: string | null = null
+    const txCandidates: any[] = []
     for (const design of taskLinks) {
       if (design.tasks && Array.isArray(design.tasks)) {
         for (const task of design.tasks) {
-          if (task && task.transaction_id) {
-            workflowTransactionId = task.transaction_id
-            break
+          if (task?.transaction_id) {
+            txCandidates.push(task)
           }
         }
-        if (workflowTransactionId) break
       }
+    }
+    if (txCandidates.length) {
+      txCandidates.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      logger.info(
+        `[DesignWF] txCandidates(${txCandidates.length}): ${txCandidates
+          .map((t) => `${t?.title}@${t?.created_at || "-"}`)
+          .join(", ")}`
+      )
+      workflowTransactionId = txCandidates[0].transaction_id
+      logger.info(`[DesignWF] setStepFailure using tx from task '${txCandidates[0]?.title}' created_at=${txCandidates[0]?.created_at}`)
     }
 
     if (!workflowTransactionId) {
@@ -146,8 +166,41 @@ export const setDesignStepFailedStep = createStep(
       logger.error(
         `[DesignWF] setStepFailure FAILED for stepId=${stepId} tx=${workflowTransactionId}: ${e?.message}`
       )
+      if (e?.stack) logger.warn(e.stack)
       throw e
     }
+  }
+)
+
+export const cancelWorkflowTransactionStep = createStep(
+  "cancel-workflow-transaction",
+  async (input: { transactionId: string, updatedDesign: any }, { container }) => {
+    const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.info(`Cancelling workflow transaction ${input.transactionId}`)
+    try {
+      await engineService.cancel(sendDesignToPartnerWorkflow.getName(), 
+        {
+          transactionId: input.transactionId,
+    
+        }
+      )
+      logger.info(`Workflow transaction ${input.transactionId} cancelled successfully`)
+    } catch (e: any) {
+      logger.error(`Failed to cancel workflow transaction ${input.transactionId}: ${e?.message}`)
+      throw e
+    }
+  }
+)
+
+export const cancelWorkflowTransactionWorkflow = createWorkflow(
+  {
+    name: "cancel-workflow-transaction-workflow",
+    store: true,
+  },
+  (input: { transactionId: string, updatedDesign: any }) => {
+    const result = cancelWorkflowTransactionStep(input)
+    return new WorkflowResponse(result)
   }
 )
 

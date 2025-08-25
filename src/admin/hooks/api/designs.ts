@@ -88,6 +88,18 @@ export interface LinkDesignPartner {
   partnerIds: string[];
 }
 
+export interface SendDesignToPartnerPayload {
+  partnerId: string
+  notes?: string
+}
+
+export interface SendDesignToPartnerResponse {
+  message: string
+  designId: string
+  partnerId: string
+  transactionId: string
+}
+
 const DESIGN_QUERY_KEY = "designs" as const;
 export const designQueryKeys = queryKeysFactory(DESIGN_QUERY_KEY);
 
@@ -233,8 +245,6 @@ export interface DesignInventoryResponse {
   inventory_items: string[];
 }
 
-
-
 export const useDesignInventory = (
   id: string,
   options?: Omit<
@@ -281,6 +291,54 @@ export const useLinkDesignInventory = (
   });
 };
 
+export const useLinkDesignToPartner = (
+    id: string,
+    options?: UseMutationOptions<
+    AdminDesignResponse,
+    FetchError,
+    LinkDesignPartner
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: LinkDesignPartner) =>
+      sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}/partner`, {
+        method: "POST",
+        body: data,
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+}
+
+export const useSendDesignToPartner = (
+  id: string,
+  options?: UseMutationOptions<
+    SendDesignToPartnerResponse,
+    FetchError,
+    SendDesignToPartnerPayload
+  >
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: SendDesignToPartnerPayload) =>
+      sdk.client.fetch<SendDesignToPartnerResponse>(`/admin/designs/${id}/send-to-partner`, {
+        method: "POST",
+        body: data,
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+}
+
 export interface CreateDesignLLMPayload {
   designPrompt: string;
   existingValues?: Record<string, any>;
@@ -307,28 +365,3 @@ export const useCreateDesignLLM = (
     ...options,
   });
 };
-
-
-export const useLinkDesignToPartner = (
-    id: string,
-    options?: UseMutationOptions<
-    AdminDesignResponse,
-    FetchError,
-    LinkDesignPartner
-  >,
-) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (data: LinkDesignPartner) =>
-      sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}/partner`, {
-        method: "POST",
-        body: data,
-      }),
-    onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
-      options?.onSuccess?.(data, variables, context);
-    },
-    ...options,
-  });
-}

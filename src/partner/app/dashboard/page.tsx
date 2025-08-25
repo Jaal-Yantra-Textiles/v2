@@ -1,5 +1,6 @@
 import { getDetails } from "./actions"
 import Setup from "../components/setup/setup"
+import { redirect } from "next/navigation"
 
 export default async function Dashboard() {
   const partner = await getDetails()
@@ -9,10 +10,6 @@ export default async function Dashboard() {
     return <Setup partnerId={partner.id} />
   }
 
-  return (
-    <div>
-      Partner dashboard – you’re logged in.
-      {/* The main dashboard content for verified partners will go here */}
-    </div>
-  )
+  // Otherwise, redirect to inventory orders as the default landing page
+  redirect("/dashboard/inventory-orders")
 }

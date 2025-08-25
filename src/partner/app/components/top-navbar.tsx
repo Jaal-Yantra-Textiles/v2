@@ -16,10 +16,24 @@ export const TopNavbar = () => {
     return "Settings"
   }
 
+  const shortenId = (id: string) => (id && id.length > 12 ? `${id.slice(0, 10)}…${id.slice(-4)}` : id)
+
   // Determine a general page title for non-settings routes
   const getRouteTitle = () => {
     if (!pathname) return "Dashboard"
-    // Exact matches
+
+    // Detail page patterns: insert the entity id into the title
+    const segs = pathname.split("/").filter(Boolean)
+    // Expecting ["dashboard", "designs", ":id", ...]
+    if (segs[0] === "dashboard" && segs[1] === "designs" && segs[2]) {
+      return `Designs: ${shortenId(decodeURIComponent(segs[2]))}`
+    }
+    // Expecting ["dashboard", "inventory-orders", ":id", ...]
+    if (segs[0] === "dashboard" && segs[1] === "inventory-orders" && segs[2]) {
+      return `Inventory Orders: ${shortenId(decodeURIComponent(segs[2]))}`
+    }
+
+    // Exact/section matches
     if (pathname === "/dashboard") return "Dashboard"
     if (pathname.startsWith("/dashboard/inventory-orders")) return "Inventory Orders"
     if (pathname.startsWith("/dashboard/orders")) return "Orders"
@@ -31,7 +45,7 @@ export const TopNavbar = () => {
     if (pathname.startsWith("/dashboard/price-lists")) return "Price Lists"
 
     // Fallback: take last path segment and title-case it
-    const seg = pathname.split("/").filter(Boolean).pop() || "Dashboard"
+    const seg = segs.pop() || "Dashboard"
     return seg
       .split("-")
       .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
