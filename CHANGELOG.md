@@ -1,3 +1,11 @@
+# [6.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.10.0...v6.11.0) (2025-08-25)
+
+
+### Features
+
+* **Partner:** Api now supports the redo operation ([99d96d6](https://github.com/Jaal-Yantra-Textiles/v2/commit/99d96d65c076ee7911f7972dfc183b4e13815fde))
+* **Partner:** Fixed adding new designs ([61a79d8](https://github.com/Jaal-Yantra-Textiles/v2/commit/61a79d80b893db45e40a04e398e65937791524d4))
+
 # [6.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.9.0...v6.10.0) (2025-08-23)
 
 
