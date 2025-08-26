@@ -1,3 +1,10 @@
+# [6.12.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.11.0...v6.12.0) (2025-08-26)
+
+
+### Features
+
+* **Partner:** Scoping for verifying and redoing implemented ([956cf64](https://github.com/Jaal-Yantra-Textiles/v2/commit/956cf6472c89c27cd0162ce4f3cf9556397cbc2b))
+
 # [6.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.10.0...v6.11.0) (2025-08-25)
 
 
