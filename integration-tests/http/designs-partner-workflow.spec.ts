@@ -165,6 +165,61 @@ setupSharedTestSuite(() => {
         },
       }
 
+      // Redo child templates for the redo sub-workflow
+      const partnerDesignRedoLogTemplate = {
+        name: "partner-design-redo-log",
+        description: "Log redo feedback and changes",
+        priority: "low",
+        estimated_duration: 15,
+        required_fields: {
+          design_id: { type: "string", required: true },
+          partner_id: { type: "string", required: true },
+        },
+        eventable: false,
+        notifiable: false,
+        message_template: "Redo log captured for design {{design_id}}.",
+        metadata: {
+          workflow_type: "partner_design_assignment",
+          workflow_step: "redo_log",
+        },
+      }
+
+      const partnerDesignRedoApplyTemplate = {
+        name: "partner-design-redo-apply",
+        description: "Apply redo changes",
+        priority: "medium",
+        estimated_duration: 45,
+        required_fields: {
+          design_id: { type: "string", required: true },
+          partner_id: { type: "string", required: true },
+        },
+        eventable: false,
+        notifiable: false,
+        message_template: "Redo changes applied for design {{design_id}}.",
+        metadata: {
+          workflow_type: "partner_design_assignment",
+          workflow_step: "redo_apply",
+        },
+      }
+
+      const partnerDesignRedoVerifyTemplate = {
+        name: "partner-design-redo-verify",
+        description: "Verify redo changes",
+        priority: "medium",
+        estimated_duration: 30,
+        required_fields: {
+          design_id: { type: "string", required: true },
+          partner_id: { type: "string", required: true },
+        },
+        eventable: false,
+        notifiable: false,
+        message_template: "Redo verification done for design {{design_id}}.",
+        metadata: {
+          workflow_type: "partner_design_assignment",
+          workflow_step: "redo_verify",
+        },
+      }
+
       // Create the first template to create the category
       const startTemplateRes = await api.post("/admin/task-templates", partnerDesignStartTemplate, adminHeaders)
       expect(startTemplateRes.status).toBe(201)
@@ -180,6 +235,15 @@ setupSharedTestSuite(() => {
       const completedWithCat = { ...partnerDesignCompletedTemplate, category_id: categoryId }
       const { category: _c3, ...completedClean } = completedWithCat as any
 
+      const redoLogWithCat = { ...partnerDesignRedoLogTemplate, category_id: categoryId }
+      const { category: _c4, ...redoLogClean } = redoLogWithCat as any
+
+      const redoApplyWithCat = { ...partnerDesignRedoApplyTemplate, category_id: categoryId }
+      const { category: _c5, ...redoApplyClean } = redoApplyWithCat as any
+
+      const redoVerifyWithCat = { ...partnerDesignRedoVerifyTemplate, category_id: categoryId }
+      const { category: _c6, ...redoVerifyClean } = redoVerifyWithCat as any
+
       const redoTemplateRes = await api.post("/admin/task-templates", redoClean, adminHeaders)
       expect(redoTemplateRes.status).toBe(201)
 
@@ -188,6 +252,15 @@ setupSharedTestSuite(() => {
 
       const completedTemplateRes = await api.post("/admin/task-templates", completedClean, adminHeaders)
       expect(completedTemplateRes.status).toBe(201)
+
+      const redoLogTemplateRes = await api.post("/admin/task-templates", redoLogClean, adminHeaders)
+      expect(redoLogTemplateRes.status).toBe(201)
+
+      const redoApplyTemplateRes = await api.post("/admin/task-templates", redoApplyClean, adminHeaders)
+      expect(redoApplyTemplateRes.status).toBe(201)
+
+      const redoVerifyTemplateRes = await api.post("/admin/task-templates", redoVerifyClean, adminHeaders)
+      expect(redoVerifyTemplateRes.status).toBe(201)
 
       // Optionally verify list
       const templatesList = await api.get("/admin/task-templates", adminHeaders)
@@ -266,16 +339,26 @@ setupSharedTestSuite(() => {
       expect(redoNode?.partner_info?.partner_status).toBe("in_progress")
       expect(redoNode?.partner_info?.partner_phase).toBe("redo")
 
-      // Small delay to allow engine to register await-design-refinish gate
-      await new Promise((r) => setTimeout(r, 300))
+      // Wait until redo child tasks are created (ensures redo branch started and refinish gate registered)
+      for (let i = 0; i < 20; i++) {
+        const tasksRes = await api.get(`/admin/designs/${designId}/tasks`, adminHeaders)
+        const tasks: any[] = tasksRes.data?.tasks || []
+        const hasRedoChildren = [
+          "partner-design-redo-log",
+          "partner-design-redo-apply",
+          "partner-design-redo-verify",
+        ].every((t) => tasks.some((x: any) => x?.title === t))
+        if (hasRedoChildren) break
+        await new Promise((r) => setTimeout(r, 200))
+      }
 
       // Re-finish during redo before completing (required by workflow)
-      const refinishRes = await api.post(`/partners/designs/${designId}/finish`, {}, { headers: partnerHeaders })
+      const refinishRes = await api.post(`/partners/designs/${designId}/refinish`, {}, { headers: partnerHeaders })
       // Optional debug
       // eslint-disable-next-line no-console
       console.log(`[TEST DBG] refinishRes:`, JSON.stringify({ status: refinishRes.status, data: refinishRes.data }, null, 2))
       expect(refinishRes.status).toBe(200)
-      expect(refinishRes.data.message).toBe("Design marked as finished")
+      expect(String(refinishRes.data.message || "")).toMatch(/re-finished/i)
 
       // Ensure listing reflects finished again before completing
       let postRefinishNode: any

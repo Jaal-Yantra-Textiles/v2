@@ -28,7 +28,7 @@ export async function POST(
   })
   const taskLinks = taskLinksResult.data || []
 
-  // Update design status/metadata
+  // Update design status/metadata (same as finish)
   const { result, errors } = await updateDesignWorkflow(req.scope).run({
     input: {
       id: designId,
@@ -44,7 +44,7 @@ export async function POST(
     return res.status(500).json({ error: "Failed to update design", details: errors })
   }
 
-  // Mark the finish task as completed
+  // Mark the finish task as completed (idempotent)
   const taskService: TaskService = req.scope.resolve(TASKS_MODULE)
   for (const d of taskLinks) {
     if (d.tasks && Array.isArray(d.tasks)) {
@@ -61,16 +61,16 @@ export async function POST(
     }
   }
 
-  // Signal step success
-  const { errors: finishErrors } = await setDesignStepSuccessWorkflow(req.scope).run({
-    input: { stepId: "await-design-finish", updatedDesign: result[0] },
+  // Signal re-finish gate explicitly (no retry/backoff)
+  const { errors: refinishErrors } = await setDesignStepSuccessWorkflow(req.scope).run({
+    input: { stepId: "await-design-refinish", updatedDesign: result[0] },
   })
-  if (finishErrors && finishErrors.length) {
-    return res.status(500).json({ error: "Failed to update workflow", details: finishErrors })
+  if (refinishErrors && refinishErrors.length) {
+    return res.status(500).json({ error: "Failed to update workflow (refinish)", details: refinishErrors })
   }
 
   res.status(200).json({
-    message: "Design marked as finished",
+    message: "Design re-finished successfully",
     design: result[0],
   })
 }

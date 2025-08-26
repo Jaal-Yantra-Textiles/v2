@@ -340,3 +340,19 @@ export async function partnerCompleteDesign(designId: string) {
   if (!res.ok) throw new Error((await res.text()) || "Failed to complete design")
   return res.json()
 }
+
+export async function partnerRefinishDesign(designId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/refinish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error((await res.text()) || "Failed to re-finish design")
+  return res.json()
+}

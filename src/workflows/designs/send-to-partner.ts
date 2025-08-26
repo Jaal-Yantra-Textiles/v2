@@ -1,5 +1,5 @@
 import { ContainerRegistrationKeys, MedusaError, Module, Modules } from "@medusajs/framework/utils"
-import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
+import { createStep, createWorkflow, StepResponse, WorkflowResponse, when } from "@medusajs/framework/workflows-sdk"
 import { DESIGN_MODULE } from "../../modules/designs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import DesignService from "../../modules/designs/service"
@@ -13,6 +13,7 @@ type SendDesignToPartnerInput = {
   designId: string
   partnerId: string
   notes?: string
+  enableRedo?: boolean
 }
 
 // Step 1: Validate the design exists and is eligible
@@ -294,6 +295,146 @@ const revertFinishTasksStep = createStep(
   }
 )
 
+// Find the existing redo parent task linked to this design
+const findRedoParentTaskStep = createStep(
+  "find-redo-parent-task",
+  async (input: { designId: string }, { container }) => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: "designs",
+      fields: ["id", "tasks.*"],
+      filters: { id: input.designId },
+    })
+    const designs = data || []
+    for (const d of designs) {
+      if (Array.isArray(d.tasks)) {
+        const redoParent = d.tasks.find((t: any) => t?.title === "partner-design-redo")
+        if (redoParent) {
+          return new StepResponse({ parentTaskId: redoParent.id })
+        }
+      }
+    }
+    return new StepResponse({ parentTaskId: "" })
+  }
+)
+
+// Create redo child subtasks under the redo parent task
+const createRedoSubtasksStep = createStep(
+  "create-redo-subtasks",
+  async (
+    input: { designId: string; partnerId: string; parentTaskId: string | null },
+    { container }
+  ) => {
+    const taskService: TaskService = container.resolve(TASKS_MODULE)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+
+    if (!input.parentTaskId) {
+      logger.warn("[DesignWF] create-redo-subtasks: No redo parent task found; skipping subtask creation")
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Redo requested but no redo parent task found on design"
+      )
+    }
+
+    // Resolve template IDs for child subtasks (if templates exist)
+    const childTemplateNames = [
+      "partner-design-redo-log",
+      "partner-design-redo-apply",
+      "partner-design-redo-verify",
+    ]
+
+    const templates = await taskService.listTaskTemplates({ name: childTemplateNames })
+    const templatesByName = new Map<string, string>()
+    for (const tpl of templates) {
+      if (tpl?.name && tpl?.id) templatesByName.set(tpl.name, tpl.id)
+    }
+
+    // Strict validation: all redo child templates must exist
+    const missing = childTemplateNames.filter((n) => !templatesByName.has(n))
+    if (missing.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Missing redo child task templates: ${missing.join(", ")}`
+      )
+    }
+
+    const created: any[] = []
+    for (const name of childTemplateNames) {
+      const templateId = templatesByName.get(name)
+      try {
+        if (templateId) {
+          const t = await taskService.createTaskWithTemplates({
+            template_ids: [templateId],
+            parent_task: input.parentTaskId,
+            dependency_type: "subtask",
+            metadata: {
+              design_id: input.designId,
+              partner_id: input.partnerId,
+              workflow_type: "partner_design_assignment",
+              redo_child_of: input.parentTaskId,
+            },
+          })
+          if (Array.isArray(t)) created.push(...t)
+          else created.push(t)
+        }
+      } catch (e: any) {
+        logger.warn(`[DesignWF] create-redo-subtasks: failed to create child '${name}': ${e?.message}`)
+      }
+    }
+
+    if (!created.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Redo child tasks were not created despite valid templates"
+      )
+    }
+    return new StepResponse({ tasks: created })
+  }
+)
+
+// Link redo child subtasks to the design via module links
+const linkRedoSubtasksToDesignStep = createStep(
+  "link-redo-subtasks-to-design",
+  async (input: { designId: string; tasks: any[] }, { container }) => {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const links: LinkDefinition[] = []
+    const tasks = input.tasks || []
+    for (const t of tasks) {
+      if (!t?.id) continue
+      links.push({
+        [DESIGN_MODULE]: { design_id: input.designId },
+        [TASKS_MODULE]: { task_id: t.id },
+      })
+    }
+    if (!links.length) return new StepResponse([])
+    const createdLinks = await remoteLink.create(links)
+    return new StepResponse(createdLinks)
+  }
+)
+
+// Tag redo child subtasks with current workflow transactionId
+const tagRedoSubtasksTransactionIdStep = createStep(
+  "tag-redo-subtasks-transaction-id",
+  async (input: { tasks: any[] }, { container, context }) => {
+    const taskService: TaskService = container.resolve(TASKS_MODULE)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const workflowTransactionId = context.transactionId
+
+    const tasks = input.tasks || []
+    const updated: any[] = []
+    for (const t of tasks) {
+      if (!t?.id) continue
+      try {
+        const u = await taskService.updateTasks({ id: t.id, transaction_id: workflowTransactionId })
+        updated.push(u)
+      } catch (e: any) {
+        logger.warn(`[DesignWF] tag-redo-subtasks-transaction-id: failed for ${t.id}: ${e?.message}`)
+      }
+    }
+    return new StepResponse(updated)
+  }
+)
+
 export const sendDesignToPartnerWorkflow = createWorkflow(
   {
     name: "send-design-to-partner",
@@ -342,11 +483,23 @@ export const sendDesignToPartnerWorkflow = createWorkflow(
     // 7. Await partner milestones
     awaitDesignStart()
     awaitDesignFinish()
-    awaitDesignRedo() // optional redo after finish/inspection
-    // If redo is requested, run the redo cycle inline in this workflow, then move to completion
-    prepareRedoStep({ designId: input.designId })
-    revertFinishTasksStep({ designId: input.designId })
-    awaitDesignRefinish()
+
+    // Conditional redo branch (runs only if enableRedo !== false)
+    when(
+      input,
+      (i) => i.enableRedo !== false
+    ).then(() => {
+      awaitDesignRedo() // optional redo after finish/inspection
+      awaitDesignRefinish()
+      prepareRedoStep({ designId: input.designId })
+      revertFinishTasksStep({ designId: input.designId })
+      const redoParent = findRedoParentTaskStep({ designId: input.designId })
+      const redoChildren = createRedoSubtasksStep({ designId: input.designId, partnerId: input.partnerId, parentTaskId: redoParent.parentTaskId })
+      const redoLinks = linkRedoSubtasksToDesignStep({ designId: input.designId, tasks: redoChildren.tasks })
+      tagRedoSubtasksTransactionIdStep({ tasks: redoChildren.tasks })
+    })
+
+    // Single completion gate at the end (can be signaled after initial finish if no redo, or after redo-refinish)
     awaitDesignCompleted()
 
     return new WorkflowResponse({ success: true })

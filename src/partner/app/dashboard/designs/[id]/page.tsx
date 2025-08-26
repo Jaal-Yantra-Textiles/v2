@@ -1,6 +1,6 @@
 import { Container, Heading, StatusBadge, Text } from "@medusajs/ui"
 import { redirect } from "next/navigation"
-import { getPartnerDesign, partnerStartDesign, partnerFinishDesign, partnerRedoDesign, partnerCompleteDesign } from "../../actions"
+import { getPartnerDesign, partnerStartDesign, partnerFinishDesign, partnerRedoDesign, partnerCompleteDesign, partnerRefinishDesign } from "../../actions"
 import MoodboardSection from "./sections/moodboard-section"
 import SpecsSection from "./sections/specs-section"
 import NotesSection from "./sections/notes-section"
@@ -22,6 +22,7 @@ export default async function DesignDetailsPage({ params }: PageProps) {
   }
 
   const partnerStatus: "incoming" | "assigned" | "in_progress" | "finished" | "completed" = (design?.partner_info?.partner_status) ?? "assigned"
+  const isRedoPhase = design?.partner_info?.partner_phase === "redo"
   const shortId = design.id && design.id.length > 12 ? `${design.id.slice(0, 10)}…${design.id.slice(-4)}` : design.id
 
   async function startDesign() {
@@ -33,6 +34,12 @@ export default async function DesignDetailsPage({ params }: PageProps) {
   async function finishDesign() {
     "use server"
     await partnerFinishDesign(id)
+    redirect(`/dashboard/designs/${id}`)
+  }
+
+  async function refinishDesign() {
+    "use server"
+    await partnerRefinishDesign(id)
     redirect(`/dashboard/designs/${id}`)
   }
 
@@ -135,11 +142,11 @@ export default async function DesignDetailsPage({ params }: PageProps) {
           <ActionFormButton action={startDesign}>Start</ActionFormButton>
         )}
 
-        {partnerStatus === "in_progress" && (
-          <ActionFormButton action={finishDesign}>Finish</ActionFormButton>
+        {(partnerStatus === "in_progress" || isRedoPhase) && (
+          <ActionFormButton action={isRedoPhase ? refinishDesign : finishDesign}>{isRedoPhase ? "Re-Finish" : "Finish"}</ActionFormButton>
         )}
 
-        {partnerStatus === "finished" && (
+        {partnerStatus === "finished" && !isRedoPhase && (
           <>
             {/* Redo request after Finish */}
             <form action={requestRedo} className="flex items-center gap-2">

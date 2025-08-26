@@ -15,6 +15,7 @@ export async function POST(
       designId,
       partnerId,
       notes,
+      enableRedo: true,
     },
   })
 

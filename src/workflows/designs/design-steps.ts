@@ -76,7 +76,6 @@ export const setDesignStepSuccessStep = createStep(
       `[DesignWF] setStepSuccess: transactionId=${workflowTransactionId} workflowId=${targetWorkflowId} stepId=${stepId}`
     )
     try {
-    
       await engineService.setStepSuccess({
         idempotencyKey: {
           action: TransactionHandlerType.INVOKE,
@@ -89,8 +88,42 @@ export const setDesignStepSuccessStep = createStep(
       })
       logger.info(`[DesignWF] setStepSuccess OK for stepId=${stepId}`)
     } catch (e: any) {
+      const msg = String(e?.message || "")
+      // Benign: already OK/idle
+      if (msg.includes("status is ok")) {
+        logger.info(
+          `[DesignWF] setStepSuccess benign: stepId=${stepId} already ok. Swallowing.`
+        )
+        return
+      }
+      // If a custom workflowId was provided and failed, retry with parent workflow
+      if (workflowId && targetWorkflowId !== sendDesignToPartnerWorkflow.getName()) {
+        logger.warn(
+          `[DesignWF] setStepSuccess retrying with parent workflowId due to error: ${msg}`
+        )
+        try {
+          await engineService.setStepSuccess({
+            idempotencyKey: {
+              action: TransactionHandlerType.INVOKE,
+              transactionId: workflowTransactionId,
+              stepId,
+              workflowId: sendDesignToPartnerWorkflow.getName(),
+            },
+            stepResponse: new StepResponse(updatedDesign, updatedDesign.id),
+            options: { container },
+          })
+          logger.info(`[DesignWF] setStepSuccess OK on retry for stepId=${stepId}`)
+          return
+        } catch (e2: any) {
+          logger.error(
+            `[DesignWF] setStepSuccess RETRY FAILED for stepId=${stepId} tx=${workflowTransactionId}: ${e2?.message}`
+          )
+          if (e2?.stack) logger.warn(e2.stack)
+          throw e2
+        }
+      }
       logger.error(
-        `[DesignWF] setStepSuccess FAILED for stepId=${stepId} tx=${workflowTransactionId}: ${e?.message}`
+        `[DesignWF] setStepSuccess FAILED for stepId=${stepId} tx=${workflowTransactionId}: ${msg}`
       )
       if (e?.stack) logger.warn(e.stack)
       throw e

@@ -871,6 +871,14 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+
+    {
+      matcher: "/partners/designs/:designId/refinish",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     {
       matcher: "/partners/designs/:designId/finish",
       method: "POST",
