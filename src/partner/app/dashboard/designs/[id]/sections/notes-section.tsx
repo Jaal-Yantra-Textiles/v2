@@ -84,7 +84,7 @@ function renderBlock(node: BlockNode, idx: number): React.ReactNode {
     case "heading": {
       const n = node as HeadingNode
       const level = Math.min(Math.max(n.attrs?.level ?? 2, 1), 6)
-      const Tag = `h${level}` as keyof JSX.IntrinsicElements
+      const Tag = `h${level}` as keyof React.JSX.IntrinsicElements
       return <Tag key={idx} className="font-semibold mt-3 mb-2">{renderInline(n.content)}</Tag>
     }
     case "bulletList": {
