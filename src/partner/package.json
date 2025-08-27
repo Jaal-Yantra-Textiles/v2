@@ -10,7 +10,7 @@
   },
   "license": "MIT",
   "author": "JYT (https://jaalyantra.in)",
-  "description": "JYT Partner Dashboard", 
+  "description": "JYT Partner Dashboard",
   "keywords": [
     "medusa",
     "partner",
@@ -20,6 +20,7 @@
     "garment"
   ],
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.0",
     "@hookform/resolvers": "^5.1.1",
     "@medusajs/ui": "^4.0.15",
     "motion": "^12.23.12",
