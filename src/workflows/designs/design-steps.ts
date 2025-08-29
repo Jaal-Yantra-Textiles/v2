@@ -7,7 +7,8 @@ import { DESIGN_MODULE } from "../../modules/designs"
 import DesignService from "../../modules/designs/service"
 import { TASKS_MODULE as TASKS_MODULE_KEY } from "../../modules/tasks"
 import TaskService from "../../modules/tasks/service"
-import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
+import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
+import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 import { sendDesignToPartnerWorkflow } from "./send-to-partner"
 
 const TASKS_MODULE = "tasksModuleService"
@@ -22,7 +23,6 @@ export const setDesignStepSuccessStep = createStep(
   "set-design-step-success",
   async function ({ stepId, updatedDesign, workflowId }: SetDesignStepSuccessInput, { container }) {
     const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
     // Get the workflow transaction ID from associated tasks instead of design metadata
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -37,9 +37,7 @@ export const setDesignStepSuccessStep = createStep(
 
     const taskLinks = taskLinksResult.data || []
 
-    logger.info(
-      `[DesignWF] setStepSuccess requested: stepId=${stepId} designId=${updatedDesign?.id} taskLinksCount=${taskLinks.length}`
-    )
+    
 
     // Choose the most recent transaction ID from linked tasks (prefer latest by created_at)
     let workflowTransactionId: string | null = null
@@ -55,26 +53,16 @@ export const setDesignStepSuccessStep = createStep(
     }
     if (txCandidates.length) {
       txCandidates.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-      logger.info(
-        `[DesignWF] txCandidates(${txCandidates.length}): ${txCandidates
-          .map((t) => `${t?.title}@${t?.created_at || "-"}`)
-          .join(", ")}`
-      )
       workflowTransactionId = txCandidates[0].transaction_id
-      logger.info(`[DesignWF] setStepSuccess using tx from task '${txCandidates[0]?.title}' created_at=${txCandidates[0]?.created_at}`)
+      
     }
 
     if (!workflowTransactionId) {
-      logger.error(
-        `[DesignWF] No workflow transaction ID found in tasks for design ${updatedDesign.id} while signaling ${stepId}`
-      )
       throw new Error(`No workflow transaction ID found in tasks for design ${updatedDesign.id}`)
     }
 
     const targetWorkflowId = workflowId || sendDesignToPartnerWorkflow.getName()
-    logger.info(
-      `[DesignWF] setStepSuccess: transactionId=${workflowTransactionId} workflowId=${targetWorkflowId} stepId=${stepId}`
-    )
+    
     try {
       await engineService.setStepSuccess({
         idempotencyKey: {
@@ -84,23 +72,15 @@ export const setDesignStepSuccessStep = createStep(
           workflowId: targetWorkflowId,
         },
         stepResponse: new StepResponse(updatedDesign, updatedDesign.id),
-        options: { container },
       })
-      logger.info(`[DesignWF] setStepSuccess OK for stepId=${stepId}`)
     } catch (e: any) {
       const msg = String(e?.message || "")
       // Benign: already OK/idle
       if (msg.includes("status is ok")) {
-        logger.info(
-          `[DesignWF] setStepSuccess benign: stepId=${stepId} already ok. Swallowing.`
-        )
         return
       }
       // If a custom workflowId was provided and failed, retry with parent workflow
       if (workflowId && targetWorkflowId !== sendDesignToPartnerWorkflow.getName()) {
-        logger.warn(
-          `[DesignWF] setStepSuccess retrying with parent workflowId due to error: ${msg}`
-        )
         try {
           await engineService.setStepSuccess({
             idempotencyKey: {
@@ -110,22 +90,12 @@ export const setDesignStepSuccessStep = createStep(
               workflowId: sendDesignToPartnerWorkflow.getName(),
             },
             stepResponse: new StepResponse(updatedDesign, updatedDesign.id),
-            options: { container },
           })
-          logger.info(`[DesignWF] setStepSuccess OK on retry for stepId=${stepId}`)
           return
         } catch (e2: any) {
-          logger.error(
-            `[DesignWF] setStepSuccess RETRY FAILED for stepId=${stepId} tx=${workflowTransactionId}: ${e2?.message}`
-          )
-          if (e2?.stack) logger.warn(e2.stack)
           throw e2
         }
       }
-      logger.error(
-        `[DesignWF] setStepSuccess FAILED for stepId=${stepId} tx=${workflowTransactionId}: ${msg}`
-      )
-      if (e?.stack) logger.warn(e.stack)
       throw e
     }
   }
@@ -142,7 +112,6 @@ export const setDesignStepFailedStep = createStep(
   "set-design-step-failed",
   async function ({ stepId, updatedDesign, error, workflowId }: SetDesignStepFailedInput, { container }) {
     const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
 
     // Get the workflow transaction ID from associated tasks instead of metadata
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -170,26 +139,16 @@ export const setDesignStepFailedStep = createStep(
     }
     if (txCandidates.length) {
       txCandidates.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-      logger.info(
-        `[DesignWF] txCandidates(${txCandidates.length}): ${txCandidates
-          .map((t) => `${t?.title}@${t?.created_at || "-"}`)
-          .join(", ")}`
-      )
       workflowTransactionId = txCandidates[0].transaction_id
-      logger.info(`[DesignWF] setStepFailure using tx from task '${txCandidates[0]?.title}' created_at=${txCandidates[0]?.created_at}`)
+      
     }
 
     if (!workflowTransactionId) {
-      logger.error(
-        `[DesignWF] No workflow transaction ID found in tasks for design ${updatedDesign.id} while signaling FAILURE for ${stepId}`
-      )
       throw new Error(`No workflow transaction ID found in tasks for design ${updatedDesign.id}`)
     }
 
     const targetWorkflowId = workflowId || sendDesignToPartnerWorkflow.getName()
-    logger.warn(
-      `[DesignWF] setStepFailure: transactionId=${workflowTransactionId} workflowId=${targetWorkflowId} stepId=${stepId} error=${error}`
-    )
+    
     try {
       await engineService.setStepFailure({
         idempotencyKey: {
@@ -199,14 +158,8 @@ export const setDesignStepFailedStep = createStep(
           workflowId: targetWorkflowId,
         },
         stepResponse: new StepResponse(updatedDesign, updatedDesign.id),
-        options: { container },
       })
-      logger.info(`[DesignWF] setStepFailure OK for stepId=${stepId}`)
     } catch (e: any) {
-      logger.error(
-        `[DesignWF] setStepFailure FAILED for stepId=${stepId} tx=${workflowTransactionId}: ${e?.message}`
-      )
-      if (e?.stack) logger.warn(e.stack)
       throw e
     }
   }
@@ -216,8 +169,6 @@ export const cancelWorkflowTransactionStep = createStep(
   "cancel-workflow-transaction",
   async (input: { transactionId: string, updatedDesign: any }, { container }) => {
     const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    logger.info(`Cancelling workflow transaction ${input.transactionId}`)
     try {
       await engineService.cancel(sendDesignToPartnerWorkflow.getName(), 
         {
@@ -225,9 +176,7 @@ export const cancelWorkflowTransactionStep = createStep(
     
         }
       )
-      logger.info(`Workflow transaction ${input.transactionId} cancelled successfully`)
     } catch (e: any) {
-      logger.error(`Failed to cancel workflow transaction ${input.transactionId}: ${e?.message}`)
       throw e
     }
   }
@@ -250,7 +199,39 @@ export const setDesignStepSuccessWorkflow = createWorkflow(
     store: true,
   },
   (input: SetDesignStepSuccessInput) => {
+    // Failure notification if this workflow itself errors
+    const failureNotification = transform({ input }, (data) => {
+      return [
+        {
+          to: "",
+          channel: "feed",
+          template: "admin-ui",
+          data: {
+            title: "Design Workflow Signal",
+            description: `Failed to mark step ${data.input.stepId} as success for design ${data.input.updatedDesign?.id}.`,
+          },
+        },
+      ]
+    })
+    notifyOnFailureStep(failureNotification)
+
     const result = setDesignStepSuccessStep(input)
+
+    // Success notification
+    const successNotification = transform({ input }, (data) => {
+      return [
+        {
+          to: "",
+          channel: "feed",
+          template: "admin-ui",
+          data: {
+            title: "Design Workflow Signal",
+            description: `Marked step ${data.input.stepId} as success for design ${data.input.updatedDesign?.id}.`,
+          },
+        },
+      ]
+    })
+    sendNotificationsStep(successNotification)
     return new WorkflowResponse(result)
   }
 )
@@ -261,7 +242,39 @@ export const setDesignStepFailedWorkflow = createWorkflow(
     store: true,
   },
   (input: SetDesignStepFailedInput) => {
+    // Failure notification if this workflow itself errors
+    const failureNotification = transform({ input }, (data) => {
+      return [
+        {
+          to: "",
+          channel: "feed",
+          template: "admin-ui",
+          data: {
+            title: "Design Workflow Signal",
+            description: `Failed to mark step ${data.input.stepId} as failed for design ${data.input.updatedDesign?.id}.`,
+          },
+        },
+      ]
+    })
+    notifyOnFailureStep(failureNotification)
+
     const result = setDesignStepFailedStep(input)
+
+    // Success notification
+    const successNotification = transform({ input }, (data) => {
+      return [
+        {
+          to: "",
+          channel: "feed",
+          template: "admin-ui",
+          data: {
+            title: "Design Workflow Signal",
+            description: `Marked step ${data.input.stepId} as failed for design ${data.input.updatedDesign?.id}.`,
+          },
+        },
+      ]
+    })
+    sendNotificationsStep(successNotification)
     return new WorkflowResponse(result)
   }
 )

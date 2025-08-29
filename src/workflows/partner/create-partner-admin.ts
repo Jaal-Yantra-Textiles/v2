@@ -31,6 +31,8 @@ export type CreatePartnerAdminWorkflowInput = {
     tempPassword?: string
 }
 
+import Scrypt from "scrypt-kdf"
+
 const createPartnerAndAdminStep = createStep(
     "create-partner-and-admin-step",
     async ({ 
@@ -103,15 +105,20 @@ export type CreatePartnerAdminWithRegistrationInput = Omit<CreatePartnerAdminWor
 const registerPartnerAdminAuthStep = createStep(
     "register-partner-admin-auth-step",
     async (input: { email: string }, { container }) => {
-        const tempPassword = randomBytes(12).toString("base64url")
+        const hashConfig = { logN: 15, r: 8, p: 1 }
+        const rand = randomBytes(12)
+        const tempPassword = await Scrypt.kdf(randomBytes(12), hashConfig )
         const authModule = container.resolve(Modules.AUTH)
         const reg = await authModule.createAuthIdentities({
             provider_identities: [{
               provider: "emailpass",
               entity_id: input.email,
+              provider_metadata: {
+                password: tempPassword.toString("base64")
+              }
             }]
           });
-        return new StepResponse({ authIdentityId: reg.id, tempPassword })
+        return new StepResponse({ authIdentityId: reg.id, tempPassword: rand.toString("base64") })
     }
 )
 

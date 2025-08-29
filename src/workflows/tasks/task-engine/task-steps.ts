@@ -28,9 +28,6 @@ import { runTaskAssignmentWorkflow } from "../run-task-assignment";
           workflowId: runTaskAssignmentWorkflow.getName(),
         },
         stepResponse: new StepResponse(updatedTask, updatedTask.id),
-        options: {
-          container,
-        },
       })
     }
   )
@@ -59,9 +56,6 @@ import { runTaskAssignmentWorkflow } from "../run-task-assignment";
           workflowId: 'run-task-assignment',
         },
         stepResponse: new StepResponse(updateTask, updateTask.id),
-        options: {
-          container,
-        },
       })
     }
   )
