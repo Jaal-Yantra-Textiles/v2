@@ -1,3 +1,10 @@
+# [6.13.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.12.0...v6.13.0) (2025-08-29)
+
+
+### Features
+
+* **Social:** Now, we can publish facebook and instagram posts directly from the suite ([8f19c03](https://github.com/Jaal-Yantra-Textiles/v2/commit/8f19c034f00f290bdf89e44301e43efc9f91d8ba))
+
 # [6.12.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.11.0...v6.12.0) (2025-08-26)
 
 
