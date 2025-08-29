@@ -12,20 +12,25 @@ import listSingleDesignsWorkflow from "../../../../workflows/designs/list-single
 export const GET = async (
   req: MedusaRequest & {
     params: { id: string };
-    queryConfig?: {
-      fields?: DesignAllowedFields[];
-    };
+    // validatedQuery is populated by middleware; `fields` arrives as a comma-separated string
+    validatedQuery?: { fields?: string };
   },
   res: MedusaResponse
 ) => {
-      const {result} = await listSingleDesignsWorkflow(req.scope).run({
-      input: {
-        id: req.params.id,
-        fields: req.queryConfig?.fields || ["*"],
-      },
-    })
+  // Extract fields from validated query and convert to array for the workflow
+  const fieldsStr = req.validatedQuery?.fields;
+  const fields = fieldsStr
+    ? fieldsStr.split(",").map((f) => f.trim()).filter(Boolean)
+    : ["*"];
 
-    res.status(200).json({ design: result });
+  const { result } = await listSingleDesignsWorkflow(req.scope).run({
+    input: {
+      id: req.params.id,
+      fields,
+    },
+  });
+
+  res.status(200).json({ design: result });
 };
 
 // Update design

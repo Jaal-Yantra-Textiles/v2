@@ -1,5 +1,5 @@
 import { ContainerRegistrationKeys, MedusaError, Module, Modules } from "@medusajs/framework/utils"
-import { createStep, createWorkflow, StepResponse, WorkflowResponse, when } from "@medusajs/framework/workflows-sdk"
+import { createStep, createWorkflow, StepResponse, WorkflowResponse, when, transform } from "@medusajs/framework/workflows-sdk"
 import { DESIGN_MODULE } from "../../modules/designs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import DesignService from "../../modules/designs/service"
@@ -7,6 +7,7 @@ import { LinkDefinition } from "@medusajs/framework/types"
 import { createTasksFromTemplatesWorkflow } from "./create-tasks-from-templates"
 import { TASKS_MODULE } from "../../modules/tasks"
 import TaskService from "../../modules/tasks/service"
+import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 
 // Input for sending a design to a partner
 type SendDesignToPartnerInput = {
@@ -441,6 +442,21 @@ export const sendDesignToPartnerWorkflow = createWorkflow(
     store: true,
   },
   (input: SendDesignToPartnerInput) => {
+    // Configure failure notification (admin feed) similar to blogs workflow
+    const failureNotification = transform({ input }, (data) => {
+      return [
+        {
+          to: "",
+          channel: "feed",
+          template: "admin-ui",
+          data: {
+            title: "Design Partner Link",
+            description: `Failed to send design ${data.input.designId} to partner ${data.input.partnerId}. The link may have been rolled back.`,
+          },
+        },
+      ]
+    })
+    notifyOnFailureStep(failureNotification)
     // 1. Validate entities
     const design = validateDesignStep(input)
     const partner = validatePartnerStep(input)
@@ -501,6 +517,22 @@ export const sendDesignToPartnerWorkflow = createWorkflow(
 
     // Single completion gate at the end (can be signaled after initial finish if no redo, or after redo-refinish)
     awaitDesignCompleted()
+
+    // Success feed notification
+    const successNotification = transform({ input }, (data) => {
+      return [
+        {
+          to: "",
+          channel: "feed",
+          template: "admin-ui",
+          data: {
+            title: "Design Partner Link",
+            description: `Design ${data.input.designId} sent to partner ${data.input.partnerId}.`,
+          },
+        },
+      ]
+    })
+    sendNotificationsStep(successNotification)
 
     return new WorkflowResponse({ success: true })
   }

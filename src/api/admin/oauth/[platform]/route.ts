@@ -5,8 +5,8 @@ import { initiateOauthWorkflow } from "../../../../workflows/socials/initiate-oa
 /**
  * GET /admin/oauth/:platform
  *
- * Returns a JSON object `{ authUrl: string, code_verifier: string, state: string }`
- * where `authUrl` is the provider authorization URL that the frontend should
+ * Returns a JSON object `{ location: string, state?: string }` for user flows,
+ * where `location` is the provider authorization URL that the frontend should
  * redirect the user to in order to start the OAuth flow.
  *
  * Supports Instagram, Facebook, LinkedIn, Twitter, and (placeholder) Bluesky.
@@ -48,8 +48,8 @@ export const GET = async (
   const redirectEnvKey = `${platform.toUpperCase()}_REDIRECT_URI`
   const scopeEnvKey = `${platform.toUpperCase()}_SCOPE`
   const redirectUri = process.env[redirectEnvKey] ?? ""
-  const scope =
-    process.env[scopeEnvKey] ?? "tweet.read tweet.write offline.access"
+  // IMPORTANT: Do not default to Twitter scopes. Let provider choose defaults.
+  const scope = process.env[scopeEnvKey] ?? ""
 
   const { result, errors } = await initiateOauthWorkflow(req.scope).run({
     input: {
@@ -66,9 +66,9 @@ export const GET = async (
     return
   }
 
+  // Align with UI hook expectations (useInitiateSocialPlatformOAuth): { location, state }
   res.status(200).json({
-    authUrl: result.authUrl,
-    code_verifier: result.codeVerifier,
+    location: result.authUrl,
     state: result.state,
   })
 }

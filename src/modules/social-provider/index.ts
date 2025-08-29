@@ -1,6 +1,4 @@
 import { Module } from "@medusajs/framework/utils"
-import { MedusaError } from "@medusajs/utils";
-import { TwitterOAuth2Token } from "./types";
 import SocialProviderService from "./service"
 
 

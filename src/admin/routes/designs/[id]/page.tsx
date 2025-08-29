@@ -21,12 +21,10 @@ const DesignDetailPage = () => {
   
   // Use staleTime: 0 to ensure data is always refetched when navigating back to this page
   const { design, isLoading, isError, error } = useDesign(id!, {
-    fields: ["+inventory_items.*", '+tasks.*', 'tasks.subtasks.*', 'tasks.outgoing.*', 'tasks.incoming.*', '+partners.*']
+    fields: ["inventory_items.*", 'tasks.*', 'tasks.subtasks.*', 'tasks.outgoing.*', 'tasks.incoming.*', 'partners.*']
   }, {
     // This ensures fresh data is fetched when returning from other pages
-    staleTime: 0,
     // This ensures the query is refetched when the component remounts
-    refetchOnMount: true,
     initialData: intialData
   });
 

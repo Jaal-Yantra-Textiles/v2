@@ -108,7 +108,7 @@ const registerPartnerAdminAuthStep = createStep(
         const reg = await authModule.createAuthIdentities({
             provider_identities: [{
               provider: "emailpass",
-              entity_id: "user@example.com",
+              entity_id: input.email,
             }]
           });
         return new StepResponse({ authIdentityId: reg.id, tempPassword })

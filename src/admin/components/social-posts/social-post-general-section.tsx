@@ -1,4 +1,5 @@
 import { AdminSocialPost } from "../../hooks/api/social-posts"
+import { usePublishSocialPost } from "../../hooks/api/social-posts"
 import { CommonField, CommonSection } from "../common/section-views"
 import { useTranslation } from "react-i18next"
 import dayjs from "dayjs"
@@ -10,6 +11,7 @@ export const SocialPostGeneralSection = ({
   post: AdminSocialPost
 }) => {
   const { t } = useTranslation()
+  const { mutate: publishNow, isPending } = usePublishSocialPost()
 
 
   const actionGroups = [
@@ -19,6 +21,16 @@ export const SocialPostGeneralSection = ({
           label: t("Edit notes"),
           icon: <Newspaper />,
           to: `notes`, // Relative path for editing
+        },
+      ],
+    },
+    {
+      actions: [
+        {
+          label: t("Publish now"),
+          icon: <Newspaper />,
+          onClick: () => publishNow({ post_id: post.id }),
+          disabled: post.status === "posted" || isPending,
         },
       ],
     },

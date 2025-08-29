@@ -121,6 +121,30 @@ export const useCreateSocialPost = (): UseMutationResult<
   })
 }
 
+// Trigger publish workflow for a social post
+export const usePublishSocialPost = (): UseMutationResult<
+  { post: AdminSocialPost },
+  Error,
+  { post_id: string; page_id?: string }
+> => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch(`/admin/socials/facebook/pages`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: () => {
+      toast.success("Publish started")
+      queryClient.invalidateQueries({ queryKey: socialPostsQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: socialPostsQueryKeys.all })
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+}
+
 export const useUpdateSocialPost = (
   id: string
 ): UseMutationResult<

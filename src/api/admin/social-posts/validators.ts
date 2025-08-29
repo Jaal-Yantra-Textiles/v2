@@ -4,6 +4,12 @@ export const SocialPostSchema = z.object({
   name: z.string().min(1, "Name is required"),
   post_url: z.string().optional(),
   caption: z.string().optional(),
+  // Additional raw input fields used by workflow normalization
+  message: z.string().optional(),
+  link: z.string().url().optional(),
+  media_urls: z.array(z.string().url()).optional(),
+  platform_name: z.string().optional(),
+  post_type: z.enum(["photo", "feed", "reel"]).optional(),
   status: z.enum(["draft","scheduled","posted","failed","archived"]).default("draft").optional(),
   scheduled_at: z.coerce.date().optional(),
   posted_at: z.coerce.date().optional(),
@@ -14,6 +20,7 @@ export const SocialPostSchema = z.object({
   related_item_type: z.string().optional(),
   related_item_id: z.string().optional(),
   platform_id: z.string(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 export type SocialPost = z.infer<typeof SocialPostSchema>;
@@ -32,6 +39,8 @@ export const UpdateSocialPostSchema = z.object({
   related_item_type: z.string().optional(),
   related_item_id: z.string().optional(),
   platform_id: z.string().optional(),
+  // allow metadata updates too
+  metadata: z.record(z.unknown()).optional(),
 });
 
 export const listSocialPostsQuerySchema = z.object({
