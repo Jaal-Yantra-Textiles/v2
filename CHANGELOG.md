@@ -1,3 +1,10 @@
+## [6.13.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.0...v6.13.1) (2025-08-29)
+
+
+### Bug Fixes
+
+* **Design:** Partner design workflow issues ([abee222](https://github.com/Jaal-Yantra-Textiles/v2/commit/abee2222b3ee450d47fd31ca0166e88ea6687c7c))
+
 # [6.13.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.12.0...v6.13.0) (2025-08-29)
 
 
