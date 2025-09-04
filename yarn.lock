@@ -13810,9 +13810,9 @@ hono-openapi@^0.4.8:
     json-schema-walker "^2.0.0"
 
 hono@^4.8.9:
-  version "4.9.1"
-  resolved "https://registry.yarnpkg.com/hono/-/hono-4.9.1.tgz#b64463f5f15e6320476764c9295454dc51053e12"
-  integrity sha512-qfvdJ42t6CQE0N/iSCa8KsW8SQqYD67YB+TYbwPHlnALvX+s7ynh8otR1NEk5jXtUg73gpV/B82OSufDmwtX3w==
+  version "4.9.6"
+  resolved "https://registry.yarnpkg.com/hono/-/hono-4.9.6.tgz#fe1f37ec78f574b9ddcffa1d79d399b3a8a12d31"
+  integrity sha512-doVjXhSFvYZ7y0dNokjwwSahcrAfdz+/BCLvAMa/vHLzjj8+CFyV5xteThGUsKdkaasgN+gF2mUxao+SGLpUeA==
 
 hook-std@^3.0.0:
   version "3.0.0"
