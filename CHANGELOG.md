@@ -1,3 +1,10 @@
+## [6.13.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.1...v6.13.2) (2025-09-07)
+
+
+### Bug Fixes
+
+* **Password:** Partner password creation takes place in proper hashed format ([044ed7d](https://github.com/Jaal-Yantra-Textiles/v2/commit/044ed7d484bd6d2be1302271dff6b3cb7f201bbd))
+
 ## [6.13.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.0...v6.13.1) (2025-08-29)
 
 
