@@ -1,7 +1,7 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { MedusaError } from "@medusajs/framework/utils"
 import { mastra } from "../../mastra"
-import { createInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
+import { queryAdminEndpoints } from "../../mastra/rag/adminCatalog"
 
 export type GeneralChatInput = {
   message: string
@@ -31,83 +31,83 @@ const runMastraGeneralChat = createStep(
   "general-chat:run-mastra",
   async (input: GeneralChatInput) => {
     try {
-      const wf = mastra.getWorkflow?.("generalChatWorkflow") as any
-      if (!wf) {
-        // Deterministic fallback
-        return new StepResponse({ reply: `You said: ${input.message}`, toolCalls: [], threadId: input.threadId, resourceId: input.resourceId } as GeneralChatResult)
-      }
-
-      // Prefer direct run if available
-      if (typeof wf.run === "function") {
-        const out = await wf.run({ inputData: {
-          message: input.message,
-          threadId: input.threadId,
-          resourceId: input.resourceId,
-          context: input.context,
-        }})
-        const reply = (out as any)?.reply ?? `You said: ${input.message}`
-        const toolCalls = (out as any)?.toolCalls ?? []
-        const threadId = (out as any)?.threadId ?? input.threadId
-        const resourceId = (out as any)?.resourceId ?? input.resourceId
-        return new StepResponse({ reply, toolCalls, threadId, resourceId } as GeneralChatResult)
-      }
-
-      // Fallback to createRunAsync/start
-      const run = await wf.createRunAsync?.()
-      const result = await run.start?.({ inputData: {
+      // Initialize and run using the same reliable pattern as image-extraction
+      const run = await mastra.getWorkflow("generalChatWorkflow").createRunAsync()
+      const result = await run.start({ inputData: {
         message: input.message,
         threadId: input.threadId,
         resourceId: input.resourceId,
         context: input.context,
       } })
 
-      const step = result
-      const reply = (step as any)?.reply || (step as any)?.steps?.run?.output?.reply || `You said: ${input.message}`
-      const toolCalls = (step as any)?.toolCalls || (step as any)?.steps?.run?.output?.toolCalls || []
-      const threadId = (step as any)?.threadId || (step as any)?.steps?.run?.output?.threadId || input.threadId
-      const resourceId = (step as any)?.resourceId || (step as any)?.steps?.run?.output?.resourceId || input.resourceId
+      const reply = (result as any)?.reply
+        ?? (result as any)?.steps?.run?.output?.reply
+        ?? ""
+      const toolCalls = (result as any)?.toolCalls
+        ?? (result as any)?.steps?.run?.output?.toolCalls
+        ?? []
+      const threadId = (result as any)?.threadId
+        ?? (result as any)?.steps?.run?.output?.threadId
+        ?? input.threadId
+      const resourceId = (result as any)?.resourceId
+        ?? (result as any)?.steps?.run?.output?.resourceId
+        ?? input.resourceId
 
-      const out: GeneralChatResult = { reply, toolCalls, threadId, resourceId }
-      return new StepResponse(out)
-    } catch (_) {
-      // Final fallback to keep API stable in CI
-      return new StepResponse({ reply: `You said: ${input.message}`, toolCalls: [], threadId: input.threadId, resourceId: input.resourceId } as GeneralChatResult)
+      // Try to detect error surfaces from Mastra run
+      const detectedError: any = (result as any)?.error
+        || (result as any)?.steps?.run?.error
+        || (result as any)?.steps?.run?.output?.error
+
+      if (detectedError) {
+        const msg = typeof detectedError === "string" ? detectedError : (detectedError?.message || JSON.stringify(detectedError))
+        throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `chat-generate error ${msg}`)
+      }
+
+      // If reply is empty, consider it an error from provider
+      if (!reply || (typeof reply === "string" && reply.trim() === "")) {
+        throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "chat-generate error Provider returned empty reply")
+      }
+
+      return new StepResponse({ reply, toolCalls, threadId, resourceId, message: input.message } as any)
+    } catch (e: any) {
+      // Propagate error so API/stream can surface it to UI
+      throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `chat-generate error ${e?.message || e}`)
     }
   }
 )
 
-const executeToolCalls = createStep(
-  "general-chat:execute-tools",
-  async (input: GeneralChatResult, { container }) => {
-    const calls = input.toolCalls || []
-    const activations: Array<{ name: string; arguments: Record<string, any>; result: any }> = []
-
+// Augment tool calls with RAG/index candidates and lightweight schemas
+const augmentToolCallsWithRag = createStep(
+  "general-chat:augment-tools-with-rag",
+  async (input: any) => {
+    const calls = Array.isArray(input?.toolCalls) ? input.toolCalls : []
+    const message: string = String(input?.message || "")
+    const augmented = [] as Array<{ name: string; arguments: Record<string, any> } & { ragCandidates?: any[] }>
     for (const call of calls) {
       const name = call?.name
       const args = call?.arguments || {}
-
-      switch (name) {
-        case "create_inventory_from_levels": {
-          // Expect arguments.inventory_levels: Array<{ inventory_item_id, location_id, stocked_quantity, incoming_quantity }>
-          const levels = Array.isArray(args?.inventory_levels) ? args.inventory_levels : []
-          if (!levels.length) {
-            activations.push({ name, arguments: args, result: { error: "No inventory_levels provided" } })
-            break
-          }
-          const { result } = await createInventoryLevelsWorkflow(container).run({
-            input: { inventory_levels: levels },
-          })
-          activations.push({ name, arguments: args, result })
-          break
+      if (name === "admin_api_request") {
+        const method = String(args?.openapi?.method || args?.method || "").toUpperCase()
+        const path = String(args?.openapi?.path || args?.path || "")
+        try {
+          const rag = await queryAdminEndpoints(`${method} ${path} ${message}`.trim(), method || undefined, 5)
+          augmented.push({ ...call, ragCandidates: rag })
+        } catch {
+          augmented.push({ ...call })
         }
-        default: {
-          // Unrecognized tool - echo back for client-side handling
-          activations.push({ name: name || "unknown", arguments: args, result: { status: "ignored" } })
-        }
+      } else {
+        augmented.push({ ...call })
       }
     }
+    return new StepResponse({ ...input, toolCalls: augmented })
+  }
+)
 
-    return new StepResponse({ ...input, activations })
+// Generic execute: server does not execute actions; defer to client using planned toolCalls
+const executeToolCalls = createStep(
+  "general-chat:execute-tools",
+  async (input: GeneralChatResult) => {
+    return new StepResponse({ ...input, activations: [] })
   }
 )
 
@@ -116,7 +116,8 @@ export const generalChatMedusaWorkflow = createWorkflow(
   (input: GeneralChatInput) => {
     const withId = deriveStableResourceId(input)
     const res = runMastraGeneralChat(withId)
-    const executed = executeToolCalls(res)
+    const augmented = augmentToolCallsWithRag(res)
+    const executed = executeToolCalls(augmented as any)
     return new WorkflowResponse(executed)
   }
 )

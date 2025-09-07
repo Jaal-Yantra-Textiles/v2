@@ -40,6 +40,7 @@
     "@mastra/loggers": "latest",
     "@mastra/memory": "^0.0.0-ai-v5-20250801192614",
     "@mastra/pg": "^0.14.0",
+    "@mastra/rag": "^1.2.2",
     "@medusajs/admin-sdk": "^2.8.8",
     "@medusajs/cli": "2.8.8",
     "@medusajs/framework": "2.8.8",

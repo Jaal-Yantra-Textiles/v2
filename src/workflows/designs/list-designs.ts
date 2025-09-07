@@ -26,8 +26,14 @@ export const listDesignsStep = createStep(
   async (input: ListDesignsStepInput, { container }) => {
     const designService: DesignService = container.resolve(DESIGN_MODULE);
 
+    // Normalize filters: support partial name search when a simple string is provided
+    const filters = { ...(input.filters || {}) } as any
+    if (typeof filters.name === "string" && filters.name.trim().length > 0) {
+      filters.name = { $ilike: `%${filters.name.trim()}%` }
+    }
+
     const [designs, count] = await designService.listAndCountDesigns(
-      input.filters,
+      filters,
       {
         skip: input.pagination.offset,
         take: input.pagination.limit

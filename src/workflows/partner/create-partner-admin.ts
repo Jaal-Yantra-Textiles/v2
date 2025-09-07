@@ -104,21 +104,30 @@ export type CreatePartnerAdminWithRegistrationInput = Omit<CreatePartnerAdminWor
 
 const registerPartnerAdminAuthStep = createStep(
     "register-partner-admin-auth-step",
-    async (input: { email: string }, { container }) => {
+    async (
+        input: { email: string; tempPassword?: string },
+        { container }
+    ) => {
         const hashConfig = { logN: 15, r: 8, p: 1 }
-        const rand = randomBytes(12)
-        const tempPassword = await Scrypt.kdf(randomBytes(12), hashConfig )
+        // Generate or reuse the provided plain password
+        const plainPassword = input.tempPassword || randomBytes(12).toString("base64")
+        // Hash the exact password we will return to caller
+        const hashed = await Scrypt.kdf(Buffer.from(plainPassword), hashConfig)
+
         const authModule = container.resolve(Modules.AUTH)
         const reg = await authModule.createAuthIdentities({
-            provider_identities: [{
-              provider: "emailpass",
-              entity_id: input.email,
-              provider_metadata: {
-                password: tempPassword.toString("base64")
-              }
-            }]
-          });
-        return new StepResponse({ authIdentityId: reg.id, tempPassword: rand.toString("base64") })
+            provider_identities: [
+                {
+                    provider: "emailpass",
+                    // emailpass provider expects entity_id to be the email identifier
+                    entity_id: input.email,
+                    provider_metadata: {
+                        password: hashed.toString("base64"),
+                    },
+                },
+            ],
+        })
+        return new StepResponse({ authIdentityId: reg.id, tempPassword: plainPassword })
     }
 )
 
@@ -130,7 +139,10 @@ export const createPartnerAdminWithRegistrationWorkflow = createWorkflow(
             admin: input.admin,
         })
 
-        const registered = registerPartnerAdminAuthStep({ email: input.admin.email })
+        const registered = registerPartnerAdminAuthStep({
+            email: input.admin.email,
+            tempPassword: input.tempPassword,
+        })
 
         setAuthAppMetadataStep({
             authIdentityId: registered.authIdentityId,

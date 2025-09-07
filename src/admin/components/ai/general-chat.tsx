@@ -1,5 +1,6 @@
 import React from "react"
 import { Button, Heading, Input, Text, Textarea, Select } from "@medusajs/ui"
+import { Spinner } from "@medusajs/icons"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal"
 import { useGeneralChat, useGeneralChatStream } from "../../hooks/api/ai"
@@ -138,6 +139,8 @@ const AdminApiModal: React.FC<{
   )
 }
 
+// Use Medusa UI Spinner as typing indicator during streaming
+
 export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) => {
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [input, setInput] = React.useState("")
@@ -153,15 +156,49 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
   const [catalogSource, setCatalogSource] = React.useState<string>("static")
   const executedPlannedRef = React.useRef<Set<string>>(new Set())
 
-  // API preview (table)
-  const [preview, setPreview] = React.useState<{
-    columns: string[]
-    rows: Record<string, any>[]
-    hiddenKeys: string[]
-  } | null>(null)
-  // Raw response + toggle
-  const [lastResponse, setLastResponse] = React.useState<any>(null)
-  const [showJson, setShowJson] = React.useState<boolean>(false)
+  // Planned actions for non-streaming responses
+  const [manualPlanned, setManualPlanned] = React.useState<any[]>([])
+
+  // Results are shown inline as chat messages now; no separate preview panel
+  const [showJson, setShowJson] = React.useState<boolean>(false) // still used by AdminApiModal
+  // Keep the last executed API JSON so the workflow can summarize it on the next turn
+  const [lastExecutedResponse, setLastExecutedResponse] = React.useState<any>(undefined)
+
+  // Lightweight client-side heuristic summarizer to ensure summaries are shown even if the model/provider fails
+  const summarizeDataHeuristic = React.useCallback((data: any): string => {
+    try {
+      if (data == null) return "No data to summarize."
+      if (Array.isArray(data)) {
+        const n = data.length
+        const sample = data.slice(0, 3)
+        const keys = sample[0] ? Object.keys(sample[0]).slice(0, 6) : []
+        const preview = sample.map((it: any, i: number) => {
+          const id = it?.id || it?._id || it?.sku || it?.title || it?.name || `#${i + 1}`
+          return typeof id === "string" ? id : JSON.stringify(it).slice(0, 120)
+        })
+        return [
+          `Items: ${n}`,
+          keys.length ? `Top keys: ${keys.join(", ")}` : undefined,
+          preview.length ? `Examples: ${preview.join(", ")}` : undefined,
+        ].filter(Boolean).join("\n")
+      }
+      if (typeof data === "object") {
+        const keys = Object.keys(data)
+        const lines: string[] = []
+        lines.push(`Object with ${keys.length} keys`)
+        const top = keys.slice(0, 8)
+        lines.push(`Top keys: ${top.join(", ")}`)
+        for (const k of top) {
+          const v = (data as any)[k]
+          if (Array.isArray(v)) lines.push(`${k}: ${v.length} items`)
+        }
+        return lines.join("\n")
+      }
+      return String(data)
+    } catch {
+      return "(unable to summarize data)"
+    }
+  }, [])
 
   const chat = useGeneralChat()
   const stream = useGeneralChatStream()
@@ -205,56 +242,50 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
     return ""
   }
 
-  // Extract a tabular preview from various response shapes
-  function buildPreviewFromResponse(resp: any): { columns: string[]; rows: Record<string, any>[]; hiddenKeys: string[] } | null {
-    if (!resp) return null
-    const payload = resp.result ?? resp
+  // Validate a planned request against the loaded catalog, normalize path if needed, and run
+  const validateAndRun = (tool: string, reqLike: any) => {
+    const method = ((reqLike?.openapi?.method || reqLike?.method || "") as string).toUpperCase()
+    const path = (reqLike?.openapi?.path || reqLike?.path || "") as string
+    if (!method || !path) return
+    const findMatch = (m: string, pth: string) =>
+      catalog.find((ep) => ep.method.toUpperCase() === m.toUpperCase() && ep.path === pth)
 
-    // Prefer arrays directly
-    let list: any[] | null = null
-    if (Array.isArray(payload)) list = payload
-
-    // Common Medusa patterns: { products: [...] }, { orders: [...] }, { items: [...] }
-    const arrayKeys = ["products", "orders", "customers", "inventory_items", "items", "data"]
-    if (!list) {
-      for (const k of arrayKeys) {
-        if (Array.isArray(payload?.[k])) {
-          list = payload[k]
-          break
-        }
+    let match = findMatch(method, path)
+    let correctedPath = path
+    if (!match) {
+      const withAdmin = path.startsWith("/admin") ? path : `/admin${path.startsWith("/") ? "" : "/"}${path}`
+      const hyphenated = withAdmin.replace(/_/g, "-")
+      const tryMatch = findMatch(method, hyphenated)
+      if (tryMatch) {
+        match = tryMatch
+        correctedPath = hyphenated
+        try {
+          console.log("[AI][planned] auto-corrected path", { from: path, to: correctedPath })
+        } catch {}
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: `Adjusted endpoint to ${method} ${correctedPath} (normalized)` },
+        ])
       }
     }
-
-    // If still not array, try wrapping single object
-    if (!list) {
-      if (payload && typeof payload === "object") list = [payload]
+    if (!match) {
+      try { console.warn("[AI][planned] No catalog match", { method, path }) } catch {}
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: `Unknown API path from tool: ${method} ${path}. Please select a valid endpoint from the APIs panel.`,
+        },
+      ])
+      return
     }
-
-    if (!list || !list.length) return null
-
-    // Determine columns from the first item (max 4)
-    const first = list[0] || {}
-    const keys = Object.keys(first)
-    if (!keys.length) return null
-
-    const columns = keys.slice(0, 4)
-    const hiddenKeys = keys.slice(4)
-
-    // Normalize rows to plain objects; pick only columns for table cells
-    const rows = list.map((item) => {
-      const row: Record<string, any> = {}
-      for (const k of columns) row[k] = item?.[k]
-      // attach a synthetic field with hidden data for tooltip rendering
-      if (hiddenKeys.length) {
-        const rest: Record<string, any> = {}
-        for (const hk of hiddenKeys) rest[hk] = item?.[hk]
-        row.__hidden__ = rest
-      }
-      return row
-    })
-
-    return { columns, rows, hiddenKeys }
+    try {
+      console.log("[AI][planned] click →", { tool, method, path: correctedPath, body: reqLike?.body, args: (reqLike as any)?.args })
+    } catch {}
+    runPlanned(tool, { method, path: correctedPath, body: reqLike?.body })
   }
+
+  // No preview table builder needed
 
   // When endpoint changes, prefill required inputs
   React.useEffect(() => {
@@ -281,21 +312,32 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
       const method = (req.method || "POST").toUpperCase()
       const init: any = { method }
       if (!(method === "GET" || method === "DELETE") && req.body !== undefined) {
+        // Pass through plain object; SDK will handle JSON
         init.body = req.body
       }
+      // Debug: log outgoing planned request
+      try {
+        console.log("[AI][runPlanned] →", {
+          tool,
+          method,
+          path: req.path,
+          body: init.body,
+        })
+      } catch {}
       const res = await sdk.client.fetch(req.path, init)
       const json = res as any
-      setLastResponse(json)
-      setPreview(buildPreviewFromResponse(json))
       const ok = true
+      setLastExecutedResponse(json)
       setMessages((m) => [
         ...m,
         {
           role: "assistant",
           content: ok
-            ? `Action executed (${method} ${req.path})`
+            ? `Action executed (${method} ${req.path}). Use "View JSON" to see the full result.`
             : `Failed to execute ${tool}. ${json?.message || ""}`,
         },
+        // Immediate local summary so the user doesn't have to wait for the model step
+        { role: "assistant", content: `Summary of latest API result:\n${summarizeDataHeuristic(json)}` },
       ])
     } catch (e: any) {
       setMessages(() => [
@@ -325,6 +367,16 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
       const pathParams = JSON.parse(pathParamsJson || "{}")
       const query = JSON.parse(queryJson || "{}")
       const body = JSON.parse(bodyJson || "{}")
+      // Debug: log outgoing Admin API request
+      try {
+        console.log("[AI][handleRunApi] →", {
+          method: selected.method,
+          path: selected.path,
+          pathParams,
+          query,
+          body,
+        })
+      } catch {}
       const resp = await apiExec.mutateAsync({
         method: selected.method as any,
         path: selected.path,
@@ -332,11 +384,11 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
         query,
         body,
       })
-      setLastResponse(resp)
-      setPreview(buildPreviewFromResponse(resp))
+      setLastExecutedResponse(resp)
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: `Action executed (${selected.method} ${selected.path})` },
+        { role: "assistant", content: `Action executed (${selected.method} ${selected.path}). Use "View JSON" to see the full result.` },
+        { role: "assistant", content: `Summary of latest API result:\n${summarizeDataHeuristic(resp)}` },
       ])
     } catch (e: any) {
       setMessages((m) => [
@@ -360,6 +412,12 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
         entity: entity || undefined,
         entity_id: entityId || undefined,
         ui: "admin",
+        api_context: {
+          source: catalogSource,
+          selectedEndpointId: selectedEndpointId || undefined,
+          // Avoid sending potentially huge JSON during streaming which can cause provider stream errors
+          executed_response: useStreaming ? undefined : lastExecutedResponse,
+        },
       },
     }
 
@@ -369,6 +427,10 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
       setMessages((m) => [...m, { role: "assistant", content: "" }])
 
       stream.start(basePayload)
+      // clear any manually captured planned actions
+      if (manualPlanned.length) setManualPlanned([])
+      // Clear after handing it off so we don't duplicate summaries on subsequent turns
+      if (lastExecutedResponse !== undefined) setLastExecutedResponse(undefined)
 
       // Observe changes to stream chunks and update message content
     } else {
@@ -376,6 +438,18 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
         const resp = await chat.mutateAsync(basePayload as any)
         const reply = resp?.result?.reply || ""
         setMessages((m) => [...m, { role: "assistant", content: reply }])
+        // Extract planned actions from non-streaming response
+        const acts = Array.isArray((resp as any)?.result?.activations) ? (resp as any).result.activations : []
+        const planned = acts
+          .filter((a: any) => a?.result?.status === "planned" && a?.result?.request)
+          .map((a: any) => ({
+            tool: a.name,
+            request: a.result.request,
+            secondary: (a.result as any)?.secondary,
+            next: (a.result as any)?.next,
+          }))
+        setManualPlanned(planned)
+        if (lastExecutedResponse !== undefined) setLastExecutedResponse(undefined)
       } catch (e: any) {
         setMessages((m) => [...m, { role: "assistant", content: e?.message || "Unexpected error" }])
       }
@@ -402,7 +476,12 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
   // If stream errors, append an error note
   React.useEffect(() => {
     if (stream.state.error) {
-      setMessages((m) => [...m, { role: "assistant", content: `Error: ${stream.state.error}` }])
+      const err = String(stream.state.error || "")
+      const label = err.includes("Failed after 3 attempts") ? "System error" : "Error"
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: `${label}: ${err}` },
+      ])
     }
   }, [stream.state.error])
 
@@ -454,110 +533,93 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
         </div>
       </RouteFocusModal.Header>
 
-      <RouteFocusModal.Body className="flex h-full flex-col gap-y-4 overflow-y-hidden">
-        {(preview || lastResponse) && (
-          <div className="px-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="text-ui-fg-subtle text-small">Last action result</div>
-              <label className="flex items-center gap-2 text-ui-fg-subtle text-small">
-                <input type="checkbox" checked={showJson} onChange={(e) => setShowJson(e.target.checked)} />
-                See JSON
-              </label>
-            </div>
-            {!showJson && (
-              <div className="mb-3 rounded-md border border-ui-border-base bg-ui-bg-subtle p-2 text-small">
-                Action executed. Below is a preview when applicable.
-              </div>
-            )}
-            {showJson ? (
-              <pre className="max-h-[420px] overflow-auto rounded-md border border-ui-border-base bg-ui-bg-base p-3 text-xs">
-                {JSON.stringify(lastResponse ?? {}, null, 2)}
-              </pre>
-            ) : (
-              preview && (
-                <div className="overflow-auto border border-ui-border-base rounded-md">
-                  <table className="min-w-full text-left text-small">
-                    <thead className="bg-ui-bg-subtle">
-                      <tr>
-                        {preview.columns.map((c) => (
-                          <th key={c} className="px-3 py-2 font-medium text-ui-fg-subtle border-b border-ui-border-base">{c}</th>
-                        ))}
-                        {preview.hiddenKeys.length ? (
-                          <th className="px-3 py-2 font-medium text-ui-fg-subtle border-b border-ui-border-base">More</th>
-                        ) : null}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.rows.map((r, i) => (
-                        <tr key={i} className="odd:bg-ui-bg-base even:bg-ui-bg-subtle/20">
-                          {preview.columns.map((c) => (
-                            <td key={c} className="px-3 py-2 align-top border-b border-ui-border-base max-w-[280px] truncate" title={String(r[c] ?? "")}>
-                              {typeof r[c] === "object" ? JSON.stringify(r[c]) : String(r[c] ?? "")}
-                            </td>
-                          ))}
-                          {preview.hiddenKeys.length ? (
-                            <td className="px-3 py-2 align-top border-b border-ui-border-base">
-                              <span
-                                className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-ui-bg-base border border-ui-border-base cursor-help"
-                                title={JSON.stringify(r.__hidden__ || {}, null, 2)}
-                              >
-                                …
-                              </span>
-                            </td>
-                          ) : null}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
-            )}
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto p-4">
+      <RouteFocusModal.Body className="flex h-full flex-col overflow-hidden">
+        {/* Scrollable content: messages + previews + planned actions */}
+        <div className="flex-1 overflow-y-auto px-4 py-2">
           <div className="flex flex-col gap-y-3">
             {messages.map((m, i) => (
               <div key={i} className={`max-w-[80%] rounded-md px-3 py-2 ${bubbleClass(m.role)}`}>
                 <Text className="text-ui-fg-subtle text-small block mb-1">{m.role === "user" ? "You" : "Assistant"}</Text>
-                <div className="whitespace-pre-wrap break-words">{m.content || (stream.state.isStreaming && i === messages.length - 1 ? "…" : "")}</div>
+                <div className="whitespace-pre-wrap break-words">
+                  {m.content}
+                  {stream.state.isStreaming && i === messages.length - 1 && m.role === "assistant" && !m.content ? (
+                    <Spinner className="inline-block ml-1 align-middle" />
+                  ) : null}
+                </div>
               </div>
             ))}
-            {messages.length === 0 && (
-              <div className="text-ui-fg-subtle">
-                Start a conversation. Context will include entity and entityId if supplied.
-              </div>
-            )}
-            {/* Planned tool actions surfaced from stream */}
-            {stream.state.actions?.planned?.length ? (
-              <div className="mt-4 border border-dashed border-ui-border-base rounded-md p-3">
-                <Text className="text-ui-fg-subtle text-small block mb-2">Planned actions</Text>
+          </div>
+          {/* Removed separate Last action result panel; results are posted as chat messages */}
+        {(stream.state.actions?.planned?.length || manualPlanned.length) ? (
+          <div className="mt-4 border border-dashed border-ui-border-base rounded-md p-3">
+            <Text className="text-ui-fg-subtle text-small block mb-2">Planned actions</Text>
+            <div className="flex flex-wrap gap-2">
+              {(stream.state.actions?.planned?.length ? stream.state.actions.planned : manualPlanned).map((p: any, idx: number) => (
+                <Button
+                  key={`${p.tool}-${idx}`}
+                  variant="secondary"
+                  size="small"
+                  type="button"
+                  onClick={() => validateAndRun(p.tool, (p as any).request)}
+                  disabled={
+                    stream.state.isStreaming ||
+                    !(p as any)?.request?.openapi?.method ||
+                    !(p as any)?.request?.openapi?.path
+                  }
+                >
+                  Run {p.tool}
+                </Button>
+              ))}
+            </div>
+
+            {/* Secondary actions if present on planned entries */}
+            {(stream.state.actions?.planned || manualPlanned).some((p: any) => p.secondary) ? (
+              <div className="mt-3">
+                <Text className="text-ui-fg-subtle text-small block mb-2">Secondary actions</Text>
                 <div className="flex flex-wrap gap-2">
-                  {stream.state.actions.planned.map((p, idx) => (
-                    <Button
-                      key={`${p.tool}-${idx}`}
-                      variant="secondary"
-                      size="small"
-                      type="button"
-                      onClick={() => {
-                        const method = (p.request as any)?.openapi?.method as string | undefined
-                        const path = (p.request as any)?.openapi?.path as string | undefined
-                        if (!method || !path) return
-                        runPlanned(p.tool, { method, path })
-                      }}
-                      disabled={
-                        stream.state.isStreaming ||
-                        !(p as any)?.request?.openapi?.method ||
-                        !(p as any)?.request?.openapi?.path
-                      }
-                    >
-                      Run {p.tool}
-                    </Button>
-                  ))}
+                  {(stream.state.actions?.planned || manualPlanned).flatMap((p: any, i: number) =>
+                    p.secondary ? (
+                      <Button
+                        key={`secondary-${p.tool}-${i}`}
+                        variant="secondary"
+                        size="small"
+                        type="button"
+                        onClick={() => validateAndRun(p.tool, p.secondary)}
+                        disabled={stream.state.isStreaming}
+                      >
+                        Run {p.tool} (secondary)
+                      </Button>
+                    ) : []
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Next steps if provided (planner sequences) */}
+            {(stream.state.actions?.planned || manualPlanned).some((p: any) => Array.isArray(p.next) && p.next.length) ? (
+              <div className="mt-3">
+                <Text className="text-ui-fg-subtle text-small block mb-2">Next steps</Text>
+                <div className="flex flex-wrap gap-2">
+                  {(stream.state.actions?.planned || manualPlanned).flatMap((p: any, i: number) =>
+                    Array.isArray(p.next) ?
+                      p.next.map((n: any, j: number) => (
+                        <Button
+                          key={`next-${p.tool}-${i}-${j}`}
+                          variant="secondary"
+                          size="small"
+                          type="button"
+                          onClick={() => validateAndRun(p.tool, n)}
+                          disabled={stream.state.isStreaming}
+                        >
+                          Next: {(n?.openapi?.method || n?.method || "").toUpperCase()} {n?.openapi?.path || n?.path || ""}
+                        </Button>
+                      )) : []
+                  )}
                 </div>
               </div>
             ) : null}
           </div>
+        ) : null}
         </div>
 
         <div className="border-t border-ui-border-base p-4">
@@ -581,6 +643,27 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
 
       <RouteFocusModal.Footer>
         <div className="flex items-center justify-end gap-x-2">
+          {/* View last JSON result modal trigger */}
+          <StackedFocusModal id="last-json-modal">
+            <StackedFocusModal.Trigger asChild>
+              <Button size="small" variant="secondary" type="button" disabled={lastExecutedResponse === undefined}>View JSON</Button>
+            </StackedFocusModal.Trigger>
+            <StackedFocusModal.Content className="flex flex-col">
+              <StackedFocusModal.Header>
+                <StackedFocusModal.Title>Last API Result</StackedFocusModal.Title>
+              </StackedFocusModal.Header>
+              <div className="p-3 max-h-[70vh] overflow-y-auto">
+                <pre className="text-xs whitespace-pre-wrap break-words bg-ui-bg-subtle p-3 rounded">{JSON.stringify(lastExecutedResponse ?? {}, null, 2)}</pre>
+              </div>
+              <StackedFocusModal.Footer>
+                <div className="flex w-full items-center justify-end gap-x-2">
+                  <StackedFocusModal.Close asChild>
+                    <Button variant="secondary">Close</Button>
+                  </StackedFocusModal.Close>
+                </div>
+              </StackedFocusModal.Footer>
+            </StackedFocusModal.Content>
+          </StackedFocusModal>
           <RouteFocusModal.Close asChild>
             <Button variant="secondary" type="button">Close</Button>
           </RouteFocusModal.Close>
