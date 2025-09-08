@@ -21,7 +21,7 @@ export type ListAllMediasInput = {
 export const listAllMediasWorkflow = createWorkflow(
   "list-all-medias",
   (input: ListAllMediasInput) => {
-    // Forward the same filters/config to each underlying workflow
+    // Derive per-entity filters to avoid querying by non-existent fields
     const foldersRes = listFolderWorkflow.runAsStep({
       input: transform({ input }, (data) => ({
         filters: data.input.filters || {},
@@ -44,10 +44,19 @@ export const listAllMediasWorkflow = createWorkflow(
     });
 
     const albumMediaRes = listAlbumMediaWorkflow.runAsStep({
-      input: transform({ input }, (data) => ({
-        filters: data.input.filters || {},
-        config: data.input.config,
-      })),
+      input: transform({ input }, (data) => {
+        const raw = { ...(data.input.filters || {}) }
+        // Whitelist only fields that exist on AlbumMedia
+        const allowedKeys = new Set(["sort_order", "title", "description", "album", "media"]) // relations by FK supported via Medusa service
+        const filtered: Record<string, any> = {}
+        for (const [k, v] of Object.entries(raw)) {
+          if (allowedKeys.has(k)) filtered[k] = v
+        }
+        return {
+          filters: filtered,
+          config: data.input.config,
+        }
+      }),
     });
 
     const result = transform(
