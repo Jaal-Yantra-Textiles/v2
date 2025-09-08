@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { uploadAndOrganizeMediaWorkflow } from "../../../../../workflows/media/upload-and-organize-media"
+import fs from "fs"
 
 // DEPRECATED: Use POST /admin/medias/folder/:id/upload instead
 export const POST = async (
@@ -30,12 +31,17 @@ export const POST = async (
       throw new MedusaError(MedusaError.Types.INVALID_DATA, "No files provided for upload")
     }
 
-    const files = uploadedFiles.map((file) => ({
-      filename: file.originalname,
-      mimeType: file.mimetype,
-      content: file.buffer,
-      size: file.size,
-    }))
+    const files = uploadedFiles.map((file) => {
+      const hasBuffer = (file as any).buffer && Buffer.isBuffer((file as any).buffer)
+      const hasPath = (file as any).path && typeof (file as any).path === "string"
+      return {
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        content: hasBuffer ? (file as any).buffer : hasPath ? fs.createReadStream((file as any).path) : Buffer.from([]),
+        size: file.size,
+        _tempPath: hasPath ? (file as any).path : undefined,
+      } as any
+    })
 
     const { result, errors } = await uploadAndOrganizeMediaWorkflow(req.scope).run({
       input: {
@@ -50,6 +56,15 @@ export const POST = async (
         `Failed to upload media: ${errors.map((e) => e.error?.message || "Unknown error").join(", ")}`
       )
     }
+
+    // Cleanup temp files if any
+    try {
+      for (const f of files as any[]) {
+        if (f._tempPath) {
+          fs.unlink(f._tempPath, () => {})
+        }
+      }
+    } catch {}
 
     return res.status(200).json({
       deprecated: true,

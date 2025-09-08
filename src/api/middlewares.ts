@@ -9,6 +9,8 @@ import {
   MedusaNextFunction,
 } from "@medusajs/framework/http";
 import multer from "multer";
+import os from "os";
+import path from "path";
 import { ConfigModule } from "@medusajs/framework/types";
 import { parseCorsOrigins } from "@medusajs/framework/utils";
 import cors from "cors";
@@ -103,8 +105,23 @@ const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
   };
 };
 
-// Configure multer for CSV file uploads
+// Configure multer for small/CSV uploads (memory) - safe small limit
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }})
+
+// Configure disk-based multer for large media uploads to avoid OOM
+const mediaUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+    filename: (_req, file, cb) => {
+      const unique = Date.now() + "-" + Math.round(Math.random() * 1e9)
+      // preserve original extension if present
+      const ext = path.extname(file.originalname)
+      cb(null, `${unique}${ext}`)
+    },
+  }),
+  // Allow large files; adjust if you want a cap (e.g., 2GB)
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 },
+})
 
 // Only apply multer when request is multipart/form-data, and gracefully handle empty/invalid forms
 const maybeMulterArray = (field: string) => {
@@ -122,6 +139,29 @@ const maybeMulterArray = (field: string) => {
         const msg = String(err?.message || "")
         if (msg.includes("Unexpected end of form")) {
           // Treat malformed/empty multipart bodies as no files
+          req.files = []
+          return next()
+        }
+        return next(err)
+      }
+      return next()
+    })
+  }
+}
+
+// Only apply disk-based multer for media (large) uploads
+const maybeMediaMulterArray = (field: string) => {
+  return (req: any, res: any, next: any) => {
+    const ct = String(req.headers["content-type"] || "").toLowerCase()
+    if (!ct.startsWith("multipart/form-data")) {
+      req.files = []
+      return next()
+    }
+    const handler = mediaUpload.array(field)
+    handler(req, res, (err?: any) => {
+      if (err) {
+        const msg = String(err?.message || "")
+        if (msg.includes("Unexpected end of form")) {
           req.files = []
           return next()
         }
@@ -408,7 +448,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/medias",
       method: "POST",
-      middlewares: [maybeMulterArray("files"), validateAndTransformBody(wrapSchema(uploadMediaSchema))],
+      middlewares: [maybeMediaMulterArray("files"), validateAndTransformBody(wrapSchema(uploadMediaSchema))],
     },
     // AI Image Extraction endpoint (JSON body with image_url)
     {
@@ -439,13 +479,13 @@ export default defineMiddlewares({
     {
       matcher: "/admin/medias/folder/:id/upload",
       method: "POST",
-      middlewares: [maybeMulterArray("files")],
+      middlewares: [maybeMediaMulterArray("files")],
     },
     // Legacy upload path kept for backward compatibility
     {
       matcher: "/admin/medias/:id/upload",
       method: "POST",
-      middlewares: [maybeMulterArray("files")],
+      middlewares: [maybeMediaMulterArray("files")],
     },
 
     {

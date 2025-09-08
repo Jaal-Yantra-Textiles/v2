@@ -103,15 +103,18 @@ export type UploadFilesStepInput = {
   files: {
     filename: string;
     mimeType: string;
-    content: Buffer;
+    content: Buffer | NodeJS.ReadableStream;
   }[];
 };
 
 export const uploadFilesStep = createStep(
   "upload-files-step",
   async (input: UploadFilesStepInput, { container }) => {
-    // Debug log to see what files we're receiving
-    console.log("Files received in uploadFilesStep:", input.files);
+    // Avoid logging the entire file objects to prevent memory bloat
+    console.log(
+      "Files received in uploadFilesStep:",
+      input.files.map((f) => ({ filename: f.filename, mimeType: f.mimeType }))
+    );
     
     const { result } = await uploadFilesWorkflow.run({
       input: {
@@ -119,14 +122,13 @@ export const uploadFilesStep = createStep(
       },
     });
     
-    // Log the actual result structure to understand the fields
-    console.log("Upload workflow result:", result);
+    // Log basic info only
+    console.log("Upload workflow result count:", Array.isArray(result) ? result.length : 0);
     
     // Transform the result to match expected format for createMediaRecordsStep
     // We'll preserve the original file information that we have
     const transformedFiles = result.map((file: any, index: number) => {
-      // Log individual file structure for debugging
-      console.log("Individual file:", file);
+      // Avoid logging entire file objects
       
       // Get original file info from input
       const originalFile = input.files[index];
@@ -138,8 +140,8 @@ export const uploadFilesStep = createStep(
       const filename = originalFile?.filename || file.originalName || file.name || file.filename || id || "unknown";
       // Use original mimeType if available, fallback to extracted value
       const mimeType = originalFile?.mimeType || file.mimeType || file.type || file.contentType || "application/octet-stream";
-      // Use original size if available (0 if not)
-      const size = originalFile?.content?.length || file.size || file.fileSize || 0;
+      // Size may not be available when streaming
+      const size = (originalFile as any)?.content?.length || (file as any).size || (file as any).fileSize || 0;
       
       return {
         id,
