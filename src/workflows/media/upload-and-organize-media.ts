@@ -118,11 +118,6 @@ export type UploadFilesStepInput = {
 export const uploadFilesStep = createStep(
   "upload-files-step",
   async (input: UploadFilesStepInput, { container }) => {
-    // Avoid logging the entire file objects to prevent memory bloat
-    console.log(
-      "Files received in uploadFilesStep:",
-      input.files.map((f) => ({ filename: f.filename, mimeType: f.mimeType }))
-    );
     
     let result: any
     try {
@@ -151,7 +146,7 @@ export const uploadFilesStep = createStep(
         : (result && typeof result === "object" && (result as any).uploaded && Array.isArray((result as any).uploaded))
           ? (result as any).uploaded
           : []
-    console.log("Upload workflow result count:", resultArray.length);
+    
     
     // Transform the result to match expected format for createMediaRecordsStep
     // We'll preserve the original file information that we have
@@ -180,7 +175,6 @@ export const uploadFilesStep = createStep(
       };
     });
     
-    console.log("Transformed files:", transformedFiles);
     
     return new StepResponse(transformedFiles, resultArray);
   },
@@ -208,7 +202,6 @@ export const createMediaRecordsStep = createStep(
   "create-media-records-step",
   async (input: CreateMediaRecordsStepInput, { container }) => {
     const service: MediaFileService = container.resolve(MEDIA_MODULE);
-    console.log("Input:", input);
     const mediaFiles = await Promise.all(
       input.uploadedFiles.map(async (file) => {
         const filename = file.filename || "unknown";

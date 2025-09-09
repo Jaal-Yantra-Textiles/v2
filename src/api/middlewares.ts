@@ -448,7 +448,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/medias",
       method: "POST",
-      middlewares: [maybeMediaMulterArray("files"), validateAndTransformBody(wrapSchema(uploadMediaSchema))],
+      middlewares: [maybeMulterArray("files"), validateAndTransformBody(wrapSchema(uploadMediaSchema))],
     },
     // AI Image Extraction endpoint (JSON body with image_url)
     {
@@ -479,13 +479,13 @@ export default defineMiddlewares({
     {
       matcher: "/admin/medias/folder/:id/upload",
       method: "POST",
-      middlewares: [maybeMediaMulterArray("files")],
+      middlewares: [maybeMulterArray("files")],
     },
     // Legacy upload path kept for backward compatibility
     {
       matcher: "/admin/medias/:id/upload",
       method: "POST",
-      middlewares: [maybeMediaMulterArray("files")],
+      middlewares: [maybeMulterArray("files")],
     },
 
     {
