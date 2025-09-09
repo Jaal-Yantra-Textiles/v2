@@ -1,3 +1,11 @@
+## [6.13.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.4...v6.13.5) (2025-09-09)
+
+
+### Bug Fixes
+
+* **Medias:** File upload with local storage ([67be6b3](https://github.com/Jaal-Yantra-Textiles/v2/commit/67be6b3239343c16ea91cdc1ffdd18a38ec176d3))
+* **Media:** Media page filter boolean fix ([60d5156](https://github.com/Jaal-Yantra-Textiles/v2/commit/60d5156909f0a16229fc90db1779da77e8954b2e))
+
 ## [6.13.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.3...v6.13.4) (2025-09-08)
 
 ## [6.13.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.2...v6.13.3) (2025-09-08)
