@@ -34,15 +34,15 @@ export const POST = async (
     const files = uploadedFiles.map((file) => {
       const hasBuffer = (file as any).buffer && Buffer.isBuffer((file as any).buffer)
       const hasPath = (file as any).path && typeof (file as any).path === "string"
-      const buffer = hasBuffer
-        ? (file as any).buffer
+      const contentStr = hasBuffer
+        ? (file as any).buffer.toString("binary")
         : hasPath
-          ? fs.readFileSync((file as any).path)
-          : Buffer.from([])
+          ? fs.readFileSync((file as any).path).toString("binary")
+          : ""
       return {
         filename: file.originalname,
         mimeType: file.mimetype,
-        content: buffer,
+        content: contentStr,
         size: file.size,
         _tempPath: hasPath ? (file as any).path : undefined,
       } as any

@@ -27,11 +27,6 @@ export const validateExistingFolderStep = createStep(
   }
 );
 
- 
-
- 
-
-
 // Step 1: Create folder if needed
 export type CreateFolderStepInput = {
   name: string;
@@ -93,7 +88,6 @@ export const createAlbumStep = createStep(
       slug,
       sort_order: 0,
     });
-    
     return new StepResponse(album, album.id);
   },
   async (albumId: string, { container }) => {
@@ -102,16 +96,14 @@ export const createAlbumStep = createStep(
   }
 );
 
- 
-
 // Step 3: Upload files using Medusa's core workflow
 export type UploadFilesStepInput = {
   files: {
     filename: string;
     mimeType: string;
-    // keep both for backward compatibility; we'll map to `file` internally
-    content?: Buffer | NodeJS.ReadableStream;
-    file?: Buffer | NodeJS.ReadableStream;
+    // keep both for backward compatibility; accept string to avoid Buffer in workflow inputs
+    content?: string | Buffer | NodeJS.ReadableStream;
+    file?: string | Buffer | NodeJS.ReadableStream;
   }[];
 };
 
@@ -119,40 +111,49 @@ export const uploadFilesStep = createStep(
   "upload-files-step",
   async (input: UploadFilesStepInput, { container }) => {
     
-    let result: any
-    try {
-      // Core flow expects `{ content }` as the binary property
-      const filesForUpload = input.files.map((f) => ({
+    // Upload one-by-one to reduce memory footprint in provider/core-flow
+    const uploadedResults: any[] = []
+    for (let i = 0; i < input.files.length; i++) {
+      const f = input.files[i] as any
+      // Convert Buffer to binary string for core workflow
+      const raw = f.content ?? f.file
+      const contentString = Buffer.isBuffer(raw)
+        ? (raw as Buffer).toString("binary")
+        : (typeof raw === "string" ? raw : undefined)
+      const payload = {
         filename: f.filename,
-        mimeType: (f as any).mimeType,
-        content: (f as any).content ?? (f as any).file,
-      }))
-      const out = await uploadFilesWorkflow.run({
-        input: {
-          files: filesForUpload,
-        },
-      })
-      result = out.result
-    } catch (e: any) {
-      console.error("uploadFilesWorkflow failed:", e)
-      throw new Error(`File upload failed: ${e?.message || e}`)
+        mimeType: f.mimeType,
+        content: contentString,
+        access: "public" as const,
+      }
+      if (!payload.content) {
+        throw new Error(`File content missing for index ${i} (${payload.filename})`)
+      }
+      // Scrub original Buffer reference to help GC (we already derived string)
+      try {
+        if (f.content) (f as any).content = undefined
+        if (f.file) (f as any).file = undefined
+      } catch {}
+      try {
+        const out = await uploadFilesWorkflow.run({ input: { files: [payload] } })
+        const res = out.result
+        // Normalize to array element
+        const arr = Array.isArray(res)
+          ? res
+          : (res && typeof res === "object" && (res as any).files && Array.isArray((res as any).files))
+            ? (res as any).files
+            : (res && typeof res === "object" && (res as any).uploaded && Array.isArray((res as any).uploaded))
+              ? (res as any).uploaded
+              : []
+        if (arr.length) uploadedResults.push(arr[0])
+      } catch (e: any) {
+        throw new Error(`File upload failed at index ${i}: ${e?.message || e}`)
+      }
     }
-    
-    // Log basic info only
-    const resultArray = Array.isArray(result)
-      ? result
-      : (result && typeof result === "object" && (result as any).files && Array.isArray((result as any).files))
-        ? (result as any).files
-        : (result && typeof result === "object" && (result as any).uploaded && Array.isArray((result as any).uploaded))
-          ? (result as any).uploaded
-          : []
-    
     
     // Transform the result to match expected format for createMediaRecordsStep
     // We'll preserve the original file information that we have
-    const transformedFiles = resultArray.map((file: any, index: number) => {
-      // Avoid logging entire file objects
-      
+    const transformedFiles = uploadedResults.map((file: any, index: number) => {
       // Get original file info from input
       const originalFile = input.files[index];
       
@@ -175,8 +176,7 @@ export const uploadFilesStep = createStep(
       };
     });
     
-    
-    return new StepResponse(transformedFiles, resultArray);
+    return new StepResponse(transformedFiles, uploadedResults);
   },
   async (uploadResult, { container }) => {
     // Note: File deletion would need custom implementation
@@ -235,7 +235,6 @@ export const createMediaRecordsStep = createStep(
         return mediaFile;
       })
     );
-    
     return new StepResponse(mediaFiles, mediaFiles.map(f => f.id));
   },
   async (mediaFileIds: string[], { container }) => {
@@ -269,7 +268,7 @@ export type UploadAndOrganizeMediaInput = {
   files: {
     filename: string;
     mimeType: string;
-    content: Buffer;
+    content: string; // pass binary as string to avoid Buffer serialization in workflow inputs
   }[];
   folder?: {
     name: string;
@@ -290,7 +289,6 @@ export type UploadAndOrganizeMediaInput = {
 export const uploadAndOrganizeMediaWorkflow = createWorkflow(
   "upload-and-organize-media",
   (input: UploadAndOrganizeMediaInput) => {
-    
     // Validate existing folder if existingFolderId is provided
     const existingFolder = when({ input }, ({ input }) => !!input.existingFolderId)
       .then(() => validateExistingFolderStep(input.existingFolderId!));
@@ -310,8 +308,7 @@ export const uploadAndOrganizeMediaWorkflow = createWorkflow(
     const uploadedFiles = uploadFilesStep({
       files: input.files,
     });
-    
-    // Create media records and associations
+
     // Compute IDs at execution time using transform
     const computedFolderId = transform(
       { input, folder },
@@ -324,12 +321,12 @@ export const uploadAndOrganizeMediaWorkflow = createWorkflow(
     );
 
     const mediaFiles = createMediaRecordsStep({
-      uploadedFiles,
+      uploadedFiles: uploadedFiles,
       folderId: computedFolderId,
       albumIds: computedAlbumIds,
       metadata: input.metadata,
     });
-    
+
     return new WorkflowResponse({
       folder,
       album,

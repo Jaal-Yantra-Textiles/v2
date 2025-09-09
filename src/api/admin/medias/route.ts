@@ -6,7 +6,7 @@ import {
   import { uploadAndOrganizeMediaWorkflow } from "../../../workflows/media/upload-and-organize-media";
   import { listAllMediasWorkflow } from "../../../workflows/media/list-all-medias";
 import { UploadMediaRequest } from "./validator";
-import fs from "fs";
+  import fs from "fs";
 
   
   export const POST = async (
@@ -20,8 +20,7 @@ import fs from "fs";
       const uploadedFiles: Express.Multer.File[] = Array.isArray(req.files)
         ? (req.files as Express.Multer.File[])
         : (req.file ? [req.file as Express.Multer.File] : [])
-      console.log("Uploaded files:", uploadedFiles);
-      console.log("Body:", req.validatedBody);
+      
       if (!uploadedFiles || uploadedFiles.length === 0) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
@@ -30,20 +29,19 @@ import fs from "fs";
       }
 
       // Transform multer files to workflow input format
-      // Support both memoryStorage (buffer) and diskStorage (path -> stream)
+      // Pass content as a binary string to avoid Buffer in workflow inputs
       const files = uploadedFiles.map((file) => {
         const hasBuffer = (file as any).buffer && Buffer.isBuffer((file as any).buffer)
         const hasPath = (file as any).path && typeof (file as any).path === "string"
-        const buffer = hasBuffer
-          ? (file as any).buffer
+        const contentStr = hasBuffer
+          ? (file as any).buffer.toString("binary")
           : hasPath
-            ? fs.readFileSync((file as any).path)
-            : Buffer.from([])
+            ? fs.readFileSync((file as any).path).toString("binary")
+            : ""
         return {
           filename: file.originalname,
           mimeType: file.mimetype,
-          content: buffer,
-          // keep a tempPath for cleanup if present
+          content: contentStr,
           _tempPath: hasPath ? (file as any).path : undefined,
         } as any
       })
