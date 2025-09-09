@@ -1,5 +1,5 @@
 // designs-notes-section.tsx
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { Button } from "@medusajs/ui";
 import { SimpleEditor } from "../editor/editor";
@@ -12,24 +12,38 @@ interface DesignNotesProps {
 }
 
 export function DesignNotesSection({ designId, initialNotes = "", onChange }: DesignNotesProps) {
-  const [notes, setNotes] = useState(initialNotes || `<p>Add your design notes here...</p><p>Include details about materials, colors, patterns, and any special instructions.</p><p></p>`);
-  const [hasChanges, setHasChanges] = useState(false);
   const { mutateAsync: updateDesign, isPending: isSaving } = useUpdateDesign(designId);
 
-  const handleNotesChange = useCallback((content: string) => {
-    setNotes(content);
-    setHasChanges(content !== initialNotes);
-    onChange?.(content);
-  }, [initialNotes, onChange]);
+  // Baseline string from API and current notes string (we always save a string)
+  const [baseline, setBaseline] = useState<string>(initialNotes || "");
+  const [notesString, setNotesString] = useState<string>(initialNotes || "");
+  const [hasChanges, setHasChanges] = useState(false);
+
+  const handleNotesChange = useCallback((content: any | string) => {
+    const nextString = typeof content === 'string' ? content : (() => {
+      try { return JSON.stringify(content); } catch { return String(content); }
+    })();
+    setNotesString(nextString);
+    setHasChanges(nextString !== baseline);
+    onChange?.(nextString);
+  }, [baseline, onChange]);
 
   const handleSave = useCallback(async () => {
     try {
-      await updateDesign({ designer_notes: notes });
+      await updateDesign({ designer_notes: notesString });
       setHasChanges(false);
+      setBaseline(notesString);
     } catch (error) {
       console.error('Error saving design notes:', error);
     }
-  }, [notes, updateDesign]);
+  }, [notesString, updateDesign]);
+
+  // When API value changes (prop change), reset editor and baseline
+  useEffect(() => {
+    setBaseline(initialNotes || "");
+    setNotesString(initialNotes || "");
+    setHasChanges(false);
+  }, [initialNotes]);
 
   return (
     <RouteFocusModal>
@@ -44,9 +58,11 @@ export function DesignNotesSection({ designId, initialNotes = "", onChange }: De
       <RouteFocusModal.Body>
         <div className="p-6">
           <SimpleEditor 
-            editorContent={notes}
+            key={`${designId}:${baseline.length}`}
+            editorContent={notesString}
             setEditorContent={handleNotesChange}
-            outputFormat="html"
+            // Force JSON output so we always persist JSON
+            outputFormat={"json"}
           />
         </div>
       </RouteFocusModal.Body>

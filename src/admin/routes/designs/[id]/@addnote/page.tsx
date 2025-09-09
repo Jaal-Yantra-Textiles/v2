@@ -27,8 +27,8 @@ const AddNoteDocumentForDesign = () => {
   
   return (
     <DesignNotesSection 
-      designId={design.id} 
-      data={design.designer_notes ? JSON.parse(design.designer_notes) : undefined} 
+      designId={design.id}
+      initialNotes={design.designer_notes || ""}
     />
   );
 };
