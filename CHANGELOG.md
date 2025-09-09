@@ -1,3 +1,10 @@
+## [6.13.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.5...v6.13.6) (2025-09-09)
+
+
+### Bug Fixes
+
+* **Media:** File Upload Console Logs ([e7ea7e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/e7ea7e9a95dcaeb5b2c240b9352c1d899335760d))
+
 ## [6.13.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.4...v6.13.5) (2025-09-09)
 
 
