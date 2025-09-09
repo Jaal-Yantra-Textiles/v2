@@ -1,3 +1,10 @@
+## [6.13.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.6...v6.13.7) (2025-09-09)
+
+
+### Bug Fixes
+
+* **Design:** Design editor notes section fixed ([4bd274d](https://github.com/Jaal-Yantra-Textiles/v2/commit/4bd274d1ef78e6154b9377df89c5f56f7fed8d2d))
+
 ## [6.13.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.5...v6.13.6) (2025-09-09)
 
 
