@@ -34,14 +34,15 @@ import fs from "fs";
       const files = uploadedFiles.map((file) => {
         const hasBuffer = (file as any).buffer && Buffer.isBuffer((file as any).buffer)
         const hasPath = (file as any).path && typeof (file as any).path === "string"
+        const buffer = hasBuffer
+          ? (file as any).buffer
+          : hasPath
+            ? fs.readFileSync((file as any).path)
+            : Buffer.from([])
         return {
           filename: file.originalname,
           mimeType: file.mimetype,
-          content: hasBuffer
-            ? (file as any).buffer
-            : hasPath
-              ? fs.createReadStream((file as any).path)
-              : Buffer.from([]),
+          content: buffer,
           // keep a tempPath for cleanup if present
           _tempPath: hasPath ? (file as any).path : undefined,
         } as any
@@ -88,7 +89,7 @@ import fs from "fs";
         const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
         return res.status(status).json({ message: (error as Error).message })
       }
-      return res.status(500).json({ message: "An unexpected error occurred" })
+      return res.status(500).json({ message: (error as any)?.message || "An unexpected error occurred" })
     }
   };
 

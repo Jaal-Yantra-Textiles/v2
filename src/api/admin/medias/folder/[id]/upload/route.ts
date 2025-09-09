@@ -2,20 +2,21 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { uploadAndOrganizeMediaWorkflow } from "../../../../../../workflows/media/upload-and-organize-media"
 import { UploadMediaRequest } from "../../../validator";
+import fs from "fs"
 
 // POST /admin/medias/folder/:id/upload
 export const POST = async (
   req: MedusaRequest<UploadMediaRequest> & { files?: Express.Multer.File[]; file?: Express.Multer.File },
   res: MedusaResponse
 ) => {
-  console.log("Uploaded files:", req.validatedBody);
+  console.log("Uploaded body:", req.validatedBody)
   try {
     const { id: folderId } = req.params as { id?: string }
     if (!folderId) {
       throw new MedusaError(MedusaError.Types.INVALID_DATA, "Folder ID is required")
     }
-    console.log("Uploaded files:", req.files);
-    
+    console.log("Uploaded files (multer):", req.files)
+
     // Normalize uploaded files (support single or multiple)
     const uploadedFiles: Express.Multer.File[] = Array.isArray(req.files)
       ? (req.files as Express.Multer.File[])
@@ -25,13 +26,26 @@ export const POST = async (
       throw new MedusaError(MedusaError.Types.INVALID_DATA, "No files provided for upload")
     }
 
-    const files = uploadedFiles.map((file) => ({
-      filename: file.originalname,
-      mimeType: file.mimetype,
-      content: file.buffer,
-      size: file.size,
-    }))
+    // Build workflow files, using disk path buffer when memory buffer is not present
+    const files = uploadedFiles.map((file) => {
+      const hasBuffer = (file as any).buffer && Buffer.isBuffer((file as any).buffer)
+      const hasPath = (file as any).path && typeof (file as any).path === "string"
+      const buffer = hasBuffer
+        ? (file as any).buffer
+        : hasPath
+          ? fs.readFileSync((file as any).path)
+          : Buffer.from([])
+      return {
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        content: buffer,
+        file: buffer,
+        size: file.size,
+        _tempPath: hasPath ? (file as any).path : undefined,
+      } as any
+    })
 
+    // Single workflow: upload and organize
     const { result, errors } = await uploadAndOrganizeMediaWorkflow(req.scope).run({
       input: {
         files,
@@ -42,16 +56,27 @@ export const POST = async (
     if (errors.length > 0) {
       throw new MedusaError(
         MedusaError.Types.UNEXPECTED_STATE,
-        `Failed to upload media: ${errors.map((e) => e.error?.message || "Unknown error").join(", ")}`
+        `Failed to create media records: ${errors.map((e) => e.error?.message || "Unknown error").join(", ")}`
       )
     }
+
+    // Cleanup temp files if any
+    try {
+      for (const f of files as any[]) {
+        if (f._tempPath) {
+          fs.unlink(f._tempPath, () => {})
+        }
+      }
+    } catch {}
 
     return res.status(200).json({ result })
   } catch (error) {
     if (error instanceof MedusaError) {
+      console.error("Folder upload Medusa error:", error)
       const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
       return res.status(status).json({ message: (error as Error).message })
     }
-    return res.status(500).json({ message: "An unexpected error occurred" })
+    console.error("Folder upload error:", error)
+    return res.status(500).json({ message: (error as any)?.message || "An unexpected error occurred" })
   }
 }

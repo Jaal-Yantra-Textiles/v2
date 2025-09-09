@@ -10,6 +10,27 @@ import { uploadFilesWorkflow } from "@medusajs/medusa/core-flows";
 import { MEDIA_MODULE } from "../../modules/media";
 import MediaFileService from "../../modules/media/service";
 
+// Define first to avoid TDZ when referenced by workflows declared later
+export const validateExistingFolderStep = createStep(
+  "validate-existing-folder-step",
+  async (folderId: string, { container }) => {
+    const service: MediaFileService = container.resolve(MEDIA_MODULE);
+    try {
+      const folder = await service.retrieveFolder(folderId);
+      return new StepResponse(folder, folderId);
+    } catch (error) {
+      throw new Error(`Folder with ID ${folderId} not found`);
+    }
+  },
+  async (folderId: string) => {
+    // No rollback needed for validation
+  }
+);
+
+ 
+
+ 
+
 
 // Step 1: Create folder if needed
 export type CreateFolderStepInput = {
@@ -52,24 +73,7 @@ export const createFolderStep = createStep(
   }
 );
 
-// Step 1a: Validate existing folder ID
-export const validateExistingFolderStep = createStep(
-  "validate-existing-folder-step",
-  async (folderId: string, { container }) => {
-    const service: MediaFileService = container.resolve(MEDIA_MODULE);
-    try {
-      const folder = await service.retrieveFolder(folderId);
-      return new StepResponse(folder, folderId);
-    } catch (error) {
-      throw new Error(`Folder with ID ${folderId} not found`);
-    }
-  },
-  async (folderId: string, { container }) => {
-    // No rollback needed for validation
-  }
-);
-
-// Step 2: Create album if needed
+// Step 2: Create album if needed (must be declared before workflows that use it)
 export type CreateAlbumStepInput = {
   name: string;
   description?: string;
@@ -98,12 +102,16 @@ export const createAlbumStep = createStep(
   }
 );
 
+ 
+
 // Step 3: Upload files using Medusa's core workflow
 export type UploadFilesStepInput = {
   files: {
     filename: string;
     mimeType: string;
-    content: Buffer | NodeJS.ReadableStream;
+    // keep both for backward compatibility; we'll map to `file` internally
+    content?: Buffer | NodeJS.ReadableStream;
+    file?: Buffer | NodeJS.ReadableStream;
   }[];
 };
 
@@ -116,18 +124,38 @@ export const uploadFilesStep = createStep(
       input.files.map((f) => ({ filename: f.filename, mimeType: f.mimeType }))
     );
     
-    const { result } = await uploadFilesWorkflow.run({
-      input: {
-        files: input.files,
-      },
-    });
+    let result: any
+    try {
+      // Core flow expects `{ content }` as the binary property
+      const filesForUpload = input.files.map((f) => ({
+        filename: f.filename,
+        mimeType: (f as any).mimeType,
+        content: (f as any).content ?? (f as any).file,
+      }))
+      const out = await uploadFilesWorkflow.run({
+        input: {
+          files: filesForUpload,
+        },
+      })
+      result = out.result
+    } catch (e: any) {
+      console.error("uploadFilesWorkflow failed:", e)
+      throw new Error(`File upload failed: ${e?.message || e}`)
+    }
     
     // Log basic info only
-    console.log("Upload workflow result count:", Array.isArray(result) ? result.length : 0);
+    const resultArray = Array.isArray(result)
+      ? result
+      : (result && typeof result === "object" && (result as any).files && Array.isArray((result as any).files))
+        ? (result as any).files
+        : (result && typeof result === "object" && (result as any).uploaded && Array.isArray((result as any).uploaded))
+          ? (result as any).uploaded
+          : []
+    console.log("Upload workflow result count:", resultArray.length);
     
     // Transform the result to match expected format for createMediaRecordsStep
     // We'll preserve the original file information that we have
-    const transformedFiles = result.map((file: any, index: number) => {
+    const transformedFiles = resultArray.map((file: any, index: number) => {
       // Avoid logging entire file objects
       
       // Get original file info from input
@@ -154,7 +182,7 @@ export const uploadFilesStep = createStep(
     
     console.log("Transformed files:", transformedFiles);
     
-    return new StepResponse(transformedFiles, result);
+    return new StepResponse(transformedFiles, resultArray);
   },
   async (uploadResult, { container }) => {
     // Note: File deletion would need custom implementation

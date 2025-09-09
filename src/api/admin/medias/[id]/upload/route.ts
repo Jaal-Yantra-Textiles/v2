@@ -34,10 +34,15 @@ export const POST = async (
     const files = uploadedFiles.map((file) => {
       const hasBuffer = (file as any).buffer && Buffer.isBuffer((file as any).buffer)
       const hasPath = (file as any).path && typeof (file as any).path === "string"
+      const buffer = hasBuffer
+        ? (file as any).buffer
+        : hasPath
+          ? fs.readFileSync((file as any).path)
+          : Buffer.from([])
       return {
         filename: file.originalname,
         mimeType: file.mimetype,
-        content: hasBuffer ? (file as any).buffer : hasPath ? fs.createReadStream((file as any).path) : Buffer.from([]),
+        content: buffer,
         size: file.size,
         _tempPath: hasPath ? (file as any).path : undefined,
       } as any
@@ -72,10 +77,12 @@ export const POST = async (
       result,
     })
   } catch (error) {
+    console.error("Folder upload error:", error)
     if (error instanceof MedusaError) {
       const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
+      console.error("Medusa error:", error)
       return res.status(status).json({ message: (error as Error).message })
     }
-    return res.status(500).json({ message: "An unexpected error occurred" })
+    return res.status(500).json({ message: (error as any)?.message || "An unexpected error occurred in the media upload" })
   }
 }
