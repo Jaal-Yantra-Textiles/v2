@@ -1,3 +1,10 @@
+## [6.13.8](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.7...v6.13.8) (2025-09-09)
+
+
+### Bug Fixes
+
+* **Media:** fixed the large media upload issue ([e9d9006](https://github.com/Jaal-Yantra-Textiles/v2/commit/e9d9006be88322c420769dd6629c9963a4f2cb77))
+
 ## [6.13.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.6...v6.13.7) (2025-09-09)
 
 
