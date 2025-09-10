@@ -96,10 +96,17 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
       const parsedSizes = JSON.parse(jsonValue);
       const newStructuredSizes = Object.entries(parsedSizes).map(([sizeName, measurements]) => ({
         name: sizeName,
-        measurements: Object.entries(measurements as Record<string, number>).map(([name, value]) => ({
-          name,
-          value: typeof value === 'number' ? value : 0,
-        })),
+        measurements: Object.entries(measurements as Record<string, any>).map(([name, value]) => {
+          let numericValue: number = 0
+          if (typeof value === 'number') {
+            numericValue = value
+          } else if (typeof value === 'string') {
+            const trimmed = value.trim()
+            const maybeNum = Number(trimmed)
+            numericValue = isNaN(maybeNum) ? 0 : maybeNum
+          }
+          return { name, value: numericValue }
+        }),
       }));
       
       setStructuredSizes(newStructuredSizes);
@@ -372,6 +379,8 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
                       <div className="flex-1">
                         <Input 
                           type="number"
+                          step="any"
+                          inputMode="decimal"
                           value={measurement.value}
                           onChange={(e) => handleMeasurementValueChange(sizeIndex, measurementIndex, Number(e.target.value))}
                           placeholder="Value"

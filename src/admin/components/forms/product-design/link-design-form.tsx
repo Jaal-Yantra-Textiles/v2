@@ -30,7 +30,16 @@ export const LinkDesignForm = ({ productId }: LinkDesignFormProps) => {
     throw new Error("Product ID is required")
   }
 
-  const { designs, isLoading: designsLoading } = useDesigns()
+  // Pagination state (declare before data hooks that depend on it)
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  })
+
+  const { designs, count: totalCount = 0, isLoading: designsLoading } = useDesigns({
+    limit: pagination.pageSize,
+    offset: pagination.pageIndex * pagination.pageSize,
+  })
   const { product, isLoading: productLoading } = useProduct(actualProductId, {
     fields: "*designs"
   })
@@ -38,10 +47,6 @@ export const LinkDesignForm = ({ productId }: LinkDesignFormProps) => {
   
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
-  const [pagination, setPagination] = useState<DataTablePaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  })
   const [search, setSearch] = useState("")
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
 
@@ -139,12 +144,7 @@ export const LinkDesignForm = ({ productId }: LinkDesignFormProps) => {
     }),
   ]
 
-  // Paginated items
-  const paginatedItems = useMemo(() => {
-    const start = pagination.pageIndex * pagination.pageSize
-    const end = start + pagination.pageSize
-    return filteredItems.slice(start, end)
-  }, [filteredItems, pagination])
+  // Server-side pagination: data is already limited by useDesigns(limit, offset)
 
   // Create columns
   const columns = useDesignColumns(selectedRows, handleRowSelect, linkedDesignIds)
@@ -152,9 +152,9 @@ export const LinkDesignForm = ({ productId }: LinkDesignFormProps) => {
   // Create table
   const table = useDataTable({
     columns: columns,
-    data: paginatedItems,
+    data: filteredItems,
     getRowId: (row) => row.id,
-    rowCount: filteredItems.length,
+    rowCount: totalCount,
     onRowClick: (_, row) => {
       const rowId = row.id
       if (!linkedDesignIds.has(rowId)) {

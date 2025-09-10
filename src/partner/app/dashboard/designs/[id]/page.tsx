@@ -1,21 +1,26 @@
-import { Container, Heading, StatusBadge, Text } from "@medusajs/ui"
+import { Container, Heading, StatusBadge, Text, Button } from "@medusajs/ui"
 import { redirect } from "next/navigation"
 import { getPartnerDesign, partnerStartDesign, partnerFinishDesign, partnerRedoDesign, partnerCompleteDesign, partnerRefinishDesign } from "../../actions"
+
 import MoodboardSection from "./sections/moodboard-section"
 import SpecsSection from "./sections/specs-section"
 import NotesSection from "./sections/notes-section"
 import MediaSection from "./sections/media-section"
 import ActionFooter from "../../../components/action-footer/action-footer"
 import ActionFormButton from "../../../components/action-footer/action-form-button"
+import { getAuthCookie } from "../../../../lib/auth-cookie"
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 export const dynamic = "force-dynamic"
 
-export default async function DesignDetailsPage({ params }: PageProps) {
+export default async function DesignDetailsPage({ params, searchParams }: PageProps) {
   const { id } = await params
+  type SP = { [key: string]: string | string[] | undefined }
+  const sp = ((await (searchParams || Promise.resolve({} as SP))) || {}) as SP
   const design = await getPartnerDesign(id)
   if (!design) {
     redirect("/dashboard/designs")
@@ -53,6 +58,68 @@ export default async function DesignDetailsPage({ params }: PageProps) {
     "use server"
     await partnerCompleteDesign(id)
     redirect(`/dashboard/designs/${id}`)
+  }
+
+  // Upload + attach media in one step for partners
+  async function uploadAndAttachMedia(formData: FormData) {
+    "use server"
+    try {
+      const token = await getAuthCookie()
+      if (!token) redirect("/login")
+      const MEDUSA_BACKEND_URL = process.env.MEDUSA_BACKEND_URL || process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+
+      // 1) Forward files to partner media upload endpoint with size/type guard
+      const files = formData.getAll("files") as unknown as File[]
+      if (!files || files.length === 0) {
+        redirect(`/dashboard/designs/${id}?error=${encodeURIComponent("Please select at least one file.")}`)
+      }
+
+      // Guard: max 25 MB per file, basic type allow-list (image/*, video/*)
+      const MAX_BYTES = 25 * 1024 * 1024
+      const allowedPrefixes = ["image/", "video/"]
+      for (const f of files) {
+        if (f.size > MAX_BYTES) {
+          redirect(`/dashboard/designs/${id}?error=${encodeURIComponent(`File ${f.name} exceeds 25MB limit`)}`)
+        }
+        if (!allowedPrefixes.some((p) => f.type?.startsWith(p))) {
+          redirect(`/dashboard/designs/${id}?error=${encodeURIComponent(`Unsupported file type for ${f.name}`)}`)
+        }
+      }
+
+      const fd = new FormData()
+      for (const f of files) fd.append("files", f)
+
+      const uploadRes = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${id}/media`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+        cache: "no-store",
+      })
+      if (!uploadRes.ok) {
+        throw new Error((await uploadRes.text()) || "Failed to upload media")
+      }
+      const { files: uploaded } = (await uploadRes.json()) as { files: Array<{ url: string; id?: string }> }
+      if (!uploaded || !uploaded.length) {
+        redirect(`/dashboard/designs/${id}?error=${encodeURIComponent("Upload did not return any files.")}`)
+      }
+
+      // 2) Attach URLs to the design, optionally set first as thumbnail
+      const setThumb = formData.get("setThumbnail") === "1"
+      const media_files = uploaded.map((f, i) => ({ url: f.url, isThumbnail: setThumb && i === 0 }))
+      const attachRes = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${id}/media/attach`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ media_files }),
+        cache: "no-store",
+      })
+      if (!attachRes.ok) {
+        throw new Error((await attachRes.text()) || "Failed to attach media")
+      }
+      redirect(`/dashboard/designs/${id}`)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "An error occurred while uploading media"
+      redirect(`/dashboard/designs/${id}?error=${encodeURIComponent(msg)}`)
+    }
   }
 
   return (
@@ -124,6 +191,26 @@ export default async function DesignDetailsPage({ params }: PageProps) {
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <MediaSection thumbnailUrl={design.thumbnail_url} mediaFiles={design.media_files} designFiles={design.design_files} />
           <MoodboardSection moodboard={design.moodboard} />
+        </section>
+
+        {/* Partner media upload */}
+        <section className="mb-8">
+          <Heading level="h3" className="mb-2">Upload Media</Heading>
+          {(() => {
+            const err = Array.isArray(sp.error) ? sp.error[0] : sp.error
+            return typeof err === "string" && err ? (
+              <Text size="small" className="text-ui-fg-error mb-2">{err}</Text>
+            ) : null
+          })()}
+          <form action={uploadAndAttachMedia} encType="multipart/form-data" className="flex items-center gap-3">
+            <input type="file" name="files" multiple className="text-sm" accept="image/*,video/*" />
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="setThumbnail" value="1" />
+              Set first as thumbnail
+            </label>
+            <Button type="submit" size="small" variant="secondary">Upload & Attach</Button>
+          </form>
+          <Text size="xsmall" className="text-ui-fg-subtle mt-1 block">Supported: images/videos as configured by storage provider.</Text>
         </section>
 
         {/* Specs and Notes */}
