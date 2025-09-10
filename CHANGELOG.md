@@ -1,3 +1,10 @@
+## [6.13.9](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.8...v6.13.9) (2025-09-10)
+
+
+### Bug Fixes
+
+* **product:** Design linking now works with pagination ([27573d1](https://github.com/Jaal-Yantra-Textiles/v2/commit/27573d10cf71d2521ca2257bc8001cea4d9657e6))
+
 ## [6.13.8](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.7...v6.13.8) (2025-09-09)
 
 
