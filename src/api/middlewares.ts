@@ -933,6 +933,22 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    {
+      matcher: "/partners/designs/:designId/media",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        maybeMulterArray("files"),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/media/attach",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        // JSON body is handled by default express.json; no multer needed here
+      ],
+    },
     // Admin Users: list auth identities by email
     {
       matcher: "/admin/users/identities",

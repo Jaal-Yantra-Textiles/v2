@@ -50,7 +50,7 @@ export default function MoodboardSection({ moodboard }: { moodboard?: MoodboardD
 
   return (
     <Container className="p-0 divide-y">
-      <div className="px-6 py-4 flex items-center justify-between">
+      <div className="px-4 md:px-6 py-4 flex items-center justify-between">
         <Heading level="h3">Moodboard</Heading>
         {hasData && (
           <Button size="small" variant="secondary" onClick={() => setOpen(true)}>
@@ -58,14 +58,14 @@ export default function MoodboardSection({ moodboard }: { moodboard?: MoodboardD
           </Button>
         )}
       </div>
-      <div className="px-6 py-4 space-y-4">
+      <div className="px-4 md:px-6 py-4 space-y-4">
         {!hasData && (
           <Text size="small" className="text-ui-fg-subtle">No moodboard yet</Text>
         )}
         {hasData && (
           <div className="space-y-3">
             <div className="rounded-md border bg-ui-bg-base">
-              <div className="relative h-[600px]">
+              <div className="relative h-[360px] sm:h-[420px] md:h-[520px] lg:h-[600px]">
                 <Excalidraw
                   excalidrawAPI={(api) => {
                     apiRef.current = api
@@ -97,11 +97,6 @@ export default function MoodboardSection({ moodboard }: { moodboard?: MoodboardD
                 />
               </div>
             </div>
-            {/* Raw JSON preview (collapsed) */}
-            <details className="rounded-md border p-3 bg-ui-bg-base">
-              <summary className="cursor-pointer select-none text-sm">View raw moodboard JSON</summary>
-              <pre className="mt-2 max-h-64 overflow-auto text-xs whitespace-pre-wrap">{JSON.stringify(parsed, null, 2)}</pre>
-            </details>
           </div>
         )}
       </div>

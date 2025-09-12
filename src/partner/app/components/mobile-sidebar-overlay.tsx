@@ -36,27 +36,30 @@ export default function MobileSidebarOverlay({ partner }: { partner: PartnerDeta
         </IconButton>
       </div>
 
-      {open && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
+      {/* Overlay root */}
+      <div className={`fixed inset-0 z-50 md:hidden ${open ? '' : 'pointer-events-none'}`}>
+        {/* Backdrop with fade */}
+        <div
+          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`}
+          onClick={() => setOpen(false)}
+        />
 
-          {/* Drawer panel */}
-          <div
-            className="absolute left-0 top-0 h-full w-56 bg-ui-bg-base border-r border-ui-border-base shadow-xl"
-            onClick={(e) => {
-              // If a link (<a>) inside sidebar is clicked, close the drawer
-              const target = e.target as HTMLElement
-              const anchor = target.closest('a')
-              if (anchor) {
-                setOpen(false)
-              }
-            }}
-          >
-            <Sidebar partner={partner} />
-          </div>
+        {/* Drawer panel with slide animation and near full width */}
+        <div
+          className={`absolute left-0 top-0 h-full w-[92vw] max-w-[24rem] bg-ui-bg-base border-r border-ui-border-base shadow-xl
+          transition-transform duration-300 ease-out ${open ? 'translate-x-0' : '-translate-x-full'}`}
+          onClick={(e) => {
+            // If a link (<a>) inside sidebar is clicked, close the drawer
+            const target = e.target as HTMLElement
+            const anchor = target.closest('a')
+            if (anchor) {
+              setOpen(false)
+            }
+          }}
+        >
+          <Sidebar partner={partner} />
         </div>
-      )}
+      </div>
     </>
   )
 }

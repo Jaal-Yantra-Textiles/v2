@@ -19,6 +19,7 @@ export default async function DashboardLayout({
   }
 
   return (
+    <>
     <div className="flex h-screen w-full bg-ui-bg-subtle [--sidebar-width:0px] md:[--sidebar-width:14rem]">
       <div className="hidden md:block h-full md:w-56 flex-shrink-0 border-r">
         <Sidebar partner={partner} />
@@ -30,5 +31,6 @@ export default async function DashboardLayout({
         <main className="flex-1 overflow-y-auto p-2">{children}</main>
       </div>
     </div>
+    </>
   )
 }

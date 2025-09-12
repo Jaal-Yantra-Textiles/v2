@@ -155,12 +155,11 @@ export default function NotesSection({ designerNotes }: { designerNotes?: string
         {!hasContent ? (
           <Text size="small" className="text-ui-fg-subtle">No notes</Text>
         ) : (
-          <div className="space-y-2 text-sm leading-6">
-            {blocks.map((n, i) => renderBlock(n, i))}
-            <details className="rounded-md border p-3 bg-ui-bg-base mt-2">
-              <summary className="cursor-pointer select-none text-sm">View raw TipTap JSON</summary>
-              <pre className="mt-2 max-h-64 overflow-auto text-xs whitespace-pre-wrap">{JSON.stringify(doc, null, 2)}</pre>
-            </details>
+          <div className="space-y-2">
+            <div className="text-sm leading-6 resize-y overflow-auto min-h-[120px] max-h-[60vh] rounded-md border bg-ui-bg-base p-3">
+              {blocks.map((n, i) => renderBlock(n, i))}
+            </div>
+            <Text size="xsmall" className="text-ui-fg-muted">Drag the bottom edge to resize</Text>
           </div>
         )}
       </div>

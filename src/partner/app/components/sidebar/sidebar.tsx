@@ -105,7 +105,7 @@ const Header = ({ partner }: { partner: PartnerDetails | null }) => {
   const fallback = partner?.name?.[0] || "J"
 
   return (
-    <div className="flex h-14 items-center justify-between px-3">
+    <div className="flex h-14 items-center justify-between px-3 overflow-visible">
       <div className="flex items-center gap-x-2">
         <Avatar
           variant="squared"
@@ -135,7 +135,7 @@ const Header = ({ partner }: { partner: PartnerDetails | null }) => {
               <EllipsisHorizontal />
             </button>
           </DropdownMenu.Trigger>
-          <DropdownMenu.Content>
+          <DropdownMenu.Content align="end" sideOffset={6} className="z-50">
             <DropdownMenu.Item>Store details</DropdownMenu.Item>
             <DropdownMenu.Item>Go to store</DropdownMenu.Item>
           </DropdownMenu.Content>
@@ -197,7 +197,7 @@ const UserSection = ({ userDetails }: { userDetails: PartnerDetails | null }) =>
           </div>
           <EllipsisHorizontal className="text-ui-fg-muted" />
         </DropdownMenu.Trigger>
-        <DropdownMenu.Content className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-0">
+        <DropdownMenu.Content className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-0 z-50" align="end" sideOffset={6}>
           <div className="flex items-center gap-x-3 px-2 py-1">
             <Avatar variant="squared" size="small" fallback={user.avatar} />
             <div className="flex flex-col overflow-hidden">
@@ -240,7 +240,7 @@ export default function Sidebar({ partner }: { partner: PartnerDetails | null })
   const isSettingsRoute = pathname?.startsWith("/dashboard/settings")
 
   return (
-    <aside className="bg-ui-bg-subtle flex h-full w-full flex-col justify-between">
+    <aside className="bg-ui-bg-subtle flex h-full w-full flex-col justify-between relative z-40">
       <div>
         {isSettingsRoute ? (
           <div className="flex h-14 items-center px-3">
