@@ -24,7 +24,7 @@ export default async function Footer() {
               Cici Label Store
             </LocalizedClientLink>
           </div>
-          <div className="text-small-regular gap-10 md:gap-x-16 grid grid-cols-2 sm:grid-cols-3">
+          <div className="text-small-regular gap-10 md:gap-x-16 grid grid-cols-2 sm:grid-cols-4">
             {productCategories && productCategories?.length > 0 && (
               <div className="flex flex-col gap-y-2">
                 <span className="txt-small-plus txt-ui-fg-base">
@@ -141,6 +141,37 @@ export default async function Footer() {
                   >
                     Source code
                   </a>
+                </li>
+              </ul>
+            </div>
+            {/* Info pages */}
+            <div className="flex flex-col gap-y-2">
+              <span className="txt-small-plus txt-ui-fg-base">Info</span>
+              <ul className="grid grid-cols-1 gap-y-2 text-ui-fg-subtle txt-small">
+                <li>
+                  <LocalizedClientLink className="hover:text-ui-fg-base" href="/pages/terms-and-conditions">
+                    Terms & Conditions
+                  </LocalizedClientLink>
+                </li>
+                <li>
+                  <LocalizedClientLink className="hover:text-ui-fg-base" href="/pages/refund-policy">
+                    Refund policy
+                  </LocalizedClientLink>
+                </li>
+                <li>
+                  <LocalizedClientLink className="hover:text-ui-fg-base" href="/pages/about-us">
+                    About Us
+                  </LocalizedClientLink>
+                </li>
+                <li>
+                  <LocalizedClientLink className="hover:text-ui-fg-base" href="/pages/privacy-policy">
+                    Privacy Policy
+                  </LocalizedClientLink>
+                </li>
+                <li>
+                  <LocalizedClientLink className="hover:text-ui-fg-base" href="/pages/contact-us">
+                    Contact Us
+                  </LocalizedClientLink>
                 </li>
               </ul>
             </div>

@@ -34,26 +34,8 @@ export default async function DesignPage({ params }: { params: { handle: string,
   }
 
   return (
-    <div className="container py-12">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        <div>
-          {product.thumbnail && (
-            <Image
-              src={product.thumbnail}
-              alt={`Thumbnail for ${product.title}`}
-              width={500}
-              height={500}
-              className="rounded-lg"
-            />
-          )}
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold">Design Editor for {product.title}</h1>
-          <div className="mt-6">
-            <DesignEditorForm />
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen">
+      <DesignEditorForm product={{ title: product.title, thumbnail: product.thumbnail || undefined }} />
     </div>
   )
 }
