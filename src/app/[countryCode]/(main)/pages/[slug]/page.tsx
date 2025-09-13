@@ -52,15 +52,59 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     </section>
   )
 
+  // Very small formatter for body text: supports
+  // - Headings: "# ", "## " => h2/h3
+  // - Unordered lists: lines starting with "- " or "* "
+  // - Ordered lists: lines like "1. "
+  // - Paragraphs as fallback
+  const renderFormattedBody = (body: string) => {
+    const blocks = body.split(/\n\n+/)
+    return (
+      <div className="space-y-6 text-ui-fg-subtle">
+        {blocks.map((block, idx) => {
+          const lines = block.split(/\n/).filter(Boolean)
+          if (lines.length === 0) return null
+
+          // Headings
+          if (block.startsWith('# ')) {
+            return <h2 key={idx} className="text-xl md:text-2xl font-semibold m-0">{block.replace(/^#\s+/, '')}</h2>
+          }
+          if (block.startsWith('## ')) {
+            return <h3 key={idx} className="text-lg md:text-xl font-semibold m-0">{block.replace(/^##\s+/, '')}</h3>
+          }
+
+          // Unordered list
+          const isUL = lines.every(l => /^[-*]\s+/.test(l))
+          if (isUL) {
+            return (
+              <ul key={idx} className="list-disc ml-6 space-y-1">
+                {lines.map((l, i) => <li key={i}>{l.replace(/^[-*]\s+/, '')}</li>)}
+              </ul>
+            )
+          }
+
+          // Ordered list
+          const isOL = lines.every(l => /^\d+\.\s+/.test(l))
+          if (isOL) {
+            return (
+              <ol key={idx} className="list-decimal ml-6 space-y-1">
+                {lines.map((l, i) => <li key={i}>{l.replace(/^\d+\.\s+/, '')}</li>)}
+              </ol>
+            )
+          }
+
+          // Paragraph fallback
+          return <p key={idx} className={idx === 0 ? 'text-base md:text-lg' : undefined}>{block}</p>
+        })}
+      </div>
+    )
+  }
+
   const renderMain = (body?: string, sectionTitle?: string) => (
     <section className="prose prose-neutral max-w-none">
       {sectionTitle && <h2 className="mt-0 mb-4">{sectionTitle}</h2>}
       {body ? (
-        <div className="space-y-6 text-ui-fg-subtle">
-          {body.split(/\n\n+/).map((para, i) => (
-            <p key={i} className={i === 0 ? "text-base md:text-lg" : undefined}>{para}</p>
-          ))}
-        </div>
+        renderFormattedBody(body)
       ) : (
         <p className="text-ui-fg-subtle">No content</p>
       )}
