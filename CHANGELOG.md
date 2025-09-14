@@ -1,3 +1,10 @@
+# [6.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.10...v6.14.0) (2025-09-14)
+
+
+### Features
+
+* **Editor:** Fixed editor inside the website pages ([963fb01](https://github.com/Jaal-Yantra-Textiles/v2/commit/963fb01758cb330945a8aa0b4f7dd9401d90f69e))
+
 ## [6.13.10](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.9...v6.13.10) (2025-09-12)
 
 ## [6.13.9](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.8...v6.13.9) (2025-09-10)
