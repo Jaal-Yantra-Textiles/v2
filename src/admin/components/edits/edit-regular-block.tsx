@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import { Button, Text, toast, Input, Tooltip } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +11,8 @@ import { RouteFocusModal } from "../modal/route-focus-modal";
 import { useUpdateBlock } from "../../hooks/api/blocks";
 import { BlockType } from "../../hooks/api/pages";
 import { JsonKeyValueEditor } from "../common/json-key-value-editor";
+import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal";
+import { SimpleEditor } from "../editor/editor";
 
 
 
@@ -40,6 +43,10 @@ type BlockFormValues = {
   block: z.infer<typeof blockSchema>;
 };
 
+const blockFormSchema = z.object({
+  block: blockSchema,
+});
+
 interface EditRegularBlockProps {
   websiteId: string;
   pageId: string;
@@ -53,7 +60,7 @@ export const EditRegularBlock = ({ websiteId, pageId, blockId, block, onSuccess 
   const { handleSuccess } = useRouteModal();
 
   const form = useForm<BlockFormValues>({
-    resolver: zodResolver(blockSchema),
+    resolver: zodResolver(blockFormSchema),
     defaultValues: {
       block: {
         id: block.id,
@@ -66,6 +73,12 @@ export const EditRegularBlock = ({ websiteId, pageId, blockId, block, onSuccess 
     },
     mode: "onSubmit", // Only validate on submit to avoid premature validation
   });
+
+  // Local state for rich editor modal
+  const [richBodyDraft, setRichBodyDraft] = useState<any>(() => {
+    const current = (block?.content as any)?.body
+    return current ?? { type: "doc", content: [{ type: "paragraph" }] }
+  })
 
   // Direct submit handler to bypass form validation issues
   const handleDirectSubmit = async () => {
@@ -174,6 +187,59 @@ export const EditRegularBlock = ({ websiteId, pageId, blockId, block, onSuccess 
                             label="Content"
                           />
                         </Form.Control>
+                        {form.getValues("block.type") === "MainContent" && (
+                          <div className="mt-2">
+                            <StackedFocusModal id="rich-body-editor">
+                              <StackedFocusModal.Trigger asChild>
+                                <Button
+                                  variant="secondary"
+                                  size="small"
+                                  onClick={() => {
+                                    const current = form.getValues("block.content") as any
+                                    setRichBodyDraft(current?.body ?? { type: "doc", content: [{ type: "paragraph" }] })
+                                  }}
+                                >
+                                  Edit Body (Rich Editor)
+                                </Button>
+                              </StackedFocusModal.Trigger>
+                              <StackedFocusModal.Content className="flex flex-col">
+                                <StackedFocusModal.Header>
+                                  <StackedFocusModal.Title>Edit Main Content Body</StackedFocusModal.Title>
+                                </StackedFocusModal.Header>
+                                <div className="overflow-y-auto p-2">
+                                  <SimpleEditor
+                                    editorContent={typeof richBodyDraft === 'string' ? richBodyDraft : JSON.stringify(richBodyDraft)}
+                                    setEditorContent={(content) => {
+                                      // content will be JSON object when outputFormat=json
+                                      setRichBodyDraft(content)
+                                    }}
+                                    outputFormat="json"
+                                  />
+                                </div>
+                                <StackedFocusModal.Footer>
+                                  <div className="flex w-full items-center justify-end gap-x-2">
+                                    <StackedFocusModal.Close asChild>
+                                      <Button variant="secondary">Cancel</Button>
+                                    </StackedFocusModal.Close>
+                                    <StackedFocusModal.Close asChild>
+                                      <Button
+                                        variant="primary"
+                                        onClick={() => {
+                                          const current = (form.getValues("block.content") as any) || {}
+                                          const next = { ...current, body: richBodyDraft }
+                                          form.setValue("block.content", next, { shouldDirty: true })
+                                          toast.success("Body content updated")
+                                        }}
+                                      >
+                                        Save and Close
+                                      </Button>
+                                    </StackedFocusModal.Close>
+                                  </div>
+                                </StackedFocusModal.Footer>
+                              </StackedFocusModal.Content>
+                            </StackedFocusModal>
+                          </div>
+                        )}
                         <Form.ErrorMessage />
                       </Form.Item>
                     )}
