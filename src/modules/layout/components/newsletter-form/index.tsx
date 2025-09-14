@@ -8,6 +8,8 @@ import { toast } from "@medusajs/ui"
 import { subscribeToNewsletter } from "@lib/data/newsletter"
 
 const NewsletterForm = () => {
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -15,12 +17,25 @@ const NewsletterForm = () => {
     e.preventDefault()
     setLoading(true)
     try {
-      await subscribeToNewsletter(email)
+      if (!firstName.trim() || !lastName.trim()) {
+        toast.error("Please provide your first and last name to personalize emails.")
+        setLoading(false)
+        return
+      }
+      await subscribeToNewsletter(email, {
+        domain: "shop.cicilabel.com",
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        subscription_type: "email",
+        network: "cicilabel",
+      })
     } catch (error) {
       console.error(error)
       // ignore, don't show error to user
     }
     toast.success("Thanks for subscribing!")
+    setFirstName("")
+    setLastName("")
     setEmail("")
     setLoading(false)
   }
@@ -32,10 +47,33 @@ const NewsletterForm = () => {
         <p className="text-base-regular text-ui-fg-subtle">
           Receive updates on our latest products and exclusive offers.
         </p>
+        <blockquote className="mt-2 border-l-2 pl-3 text-ui-fg-subtle italic text-sm">
+          We need your first name and last name to personalize the emails being sent.
+        </blockquote>
       </div>
       <div className="flex-1 max-w-md w-full">
-        <form onSubmit={handleSubmit} className="flex gap-x-2">
-          <div className="flex-1">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <Input
+              label="First name"
+              name="first_name"
+              type="text"
+              autoComplete="off"
+              required
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              disabled={loading}
+            />
+            <Input
+              label="Last name"
+              name="last_name"
+              type="text"
+              autoComplete="off"
+              required
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              disabled={loading}
+            />
             <Input
               label="Email"
               name="email"
@@ -48,7 +86,7 @@ const NewsletterForm = () => {
               disabled={loading}
             />
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end justify-end">
             <SubmitButton data-testid="newsletter-submit-button">
               Subscribe
             </SubmitButton>
