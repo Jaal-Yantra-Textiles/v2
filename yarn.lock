@@ -6819,7 +6819,9 @@ __metadata:
     "@radix-ui/react-accordion": ^1.2.1
     "@stripe/react-stripe-js": ^3.7.0
     "@stripe/stripe-js": ^7.3.1
+    "@tiptap/core": ^3.4.2
     "@tiptap/html": ^3.4.2
+    "@tiptap/pm": ^3.4.2
     "@tiptap/starter-kit": ^3.4.2
     "@types/lodash": ^4.14.195
     "@types/node": 17.0.21

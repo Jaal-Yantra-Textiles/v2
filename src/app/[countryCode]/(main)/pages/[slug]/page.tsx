@@ -131,7 +131,17 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   }
 
   const blocks = Array.isArray(page.blocks)
-    ? page.blocks.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    ? page.blocks
+        .slice()
+        .sort((a: any, b: any) => {
+          const ao = Number(a?.order ?? 0)
+          const bo = Number(b?.order ?? 0)
+          if (ao !== bo) return ao - bo
+          const an = String(a?.name || "")
+          const bn = String(b?.name || "")
+          return an.localeCompare(bn)
+        })
+        .map((b: any, idx: number) => ({ ...b, order: Number(b?.order ?? idx) }))
     : []
 
   const normalizeType = (raw?: string) => {
