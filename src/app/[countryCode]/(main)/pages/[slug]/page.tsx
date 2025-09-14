@@ -2,6 +2,8 @@ import { notFound } from "next/navigation"
 import { Metadata } from "next"
 import { getWebsitePage } from "@lib/data/website"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { generateHTML } from "@tiptap/html"
+import StarterKit from "@tiptap/starter-kit"
 
 const DOMAIN = "shop.cicilabel.com"
 
@@ -52,7 +54,9 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     </section>
   )
 
-  // Very small formatter for body text: supports
+  // Note: For TipTap JSON, render via official static renderer (server-side).
+
+  // Very small formatter for plain body text: supports
   // - Headings: "# ", "## " => h2/h3
   // - Unordered lists: lines starting with "- " or "* "
   // - Ordered lists: lines like "1. "
@@ -100,16 +104,31 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     )
   }
 
-  const renderMain = (body?: string, sectionTitle?: string) => (
-    <section className="prose prose-neutral max-w-none">
-      {sectionTitle && <h2 className="mt-0 mb-4">{sectionTitle}</h2>}
-      {body ? (
-        renderFormattedBody(body)
-      ) : (
-        <p className="text-ui-fg-subtle">No content</p>
-      )}
-    </section>
-  )
+  const renderMain = (body?: unknown, sectionTitle?: string) => {
+    // If TipTap JSON object is provided
+    if (body && typeof body === "object") {
+      const html = generateHTML(body as any, [StarterKit])
+      return (
+        <section className="prose prose-neutral max-w-none">
+          {sectionTitle && <h2 className="mt-0 mb-4">{sectionTitle}</h2>}
+          <div dangerouslySetInnerHTML={{ __html: html }} />
+        </section>
+      )
+    }
+
+    // Otherwise treat as plain string
+    const text = typeof body === "string" ? body : ""
+    return (
+      <section className="prose prose-neutral max-w-none">
+        {sectionTitle && <h2 className="mt-0 mb-4">{sectionTitle}</h2>}
+        {text ? (
+          renderFormattedBody(text)
+        ) : (
+          <p className="text-ui-fg-subtle">No content</p>
+        )}
+      </section>
+    )
+  }
 
   const blocks = Array.isArray(page.blocks)
     ? page.blocks.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -159,16 +178,16 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
               )
             }
             if (type === "Main") {
-              const content = rawContent as { body?: string; title?: string }
+              const content = rawContent as { body?: unknown; title?: string }
               return (
                 <div key={`main-${idx}`}>{renderMain(content?.body, content?.title)}</div>
               )
             }
             // Fallback for unknown block types: if title/body exist, render nicely
             const c = rawContent as { title?: string; body?: string }
-            if (typeof c?.title === 'string' || typeof c?.body === 'string') {
+            if (typeof c?.title === 'string' || typeof c?.body !== 'undefined') {
               return (
-                <div key={`${block.type}-${idx}`}>{renderMain(c.body, c.title)}</div>
+                <div key={`${block.type}-${idx}`}>{renderMain(c.body as any, c.title)}</div>
               )
             }
             // Otherwise minimal presentation
