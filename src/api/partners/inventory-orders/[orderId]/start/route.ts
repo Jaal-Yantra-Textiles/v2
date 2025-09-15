@@ -150,7 +150,7 @@ export async function POST(
     const { result: stepResult, errors: stepErrors } = await setInventoryOrderStepSuccessWorkflow(req.scope).run({
         input: {
             stepId: 'await-order-start',
-            updatedOrder: result[0] // Use result from updateWorkflow, just like tasks
+            updatedOrder: result // Pass the updated order object directly
         }
     });
     
@@ -164,7 +164,7 @@ export async function POST(
     
     res.status(200).json({
         message: "Order started successfully",
-        order: result[0], // Return the order from updateWorkflow result
+        order: result, // Return the order object from updateWorkflow result
         workflowResult: stepResult
     });
 }

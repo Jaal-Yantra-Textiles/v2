@@ -272,7 +272,7 @@ const completeTaskAndSignalIfFulfilledStep = createStep(
     const { errors: stepErrors } = await setInventoryOrderStepSuccessWorkflow(container).run({
       input: {
         stepId: "await-order-completion",
-        updatedOrder: input.updatedOrder?.[0],
+        updatedOrder: input.updatedOrder, // Pass the updated order object directly
       },
     })
 

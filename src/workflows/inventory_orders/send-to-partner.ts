@@ -142,7 +142,7 @@ const awaitOrderStart = createStep(
     {
         name: 'await-order-start',
         async: true,
-        timeout: 60 * 60 * 24, // 24 hours timeout
+        timeout: 60 * 60 * 24 * 30, // 30 days timeout
         maxRetries: 2
     },
     async (_, { container }) => {
@@ -156,7 +156,7 @@ const awaitOrderCompletion = createStep(
     {
         name: 'await-order-completion',
         async: true,
-        timeout: 60 * 60 * 24 * 7, // 7 days timeout
+        timeout: 60 * 60 * 24 * 30, // 30 days timeout
         maxRetries: 2
     },
     async (_, { container }) => {

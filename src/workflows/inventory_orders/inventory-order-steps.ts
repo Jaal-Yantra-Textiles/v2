@@ -39,8 +39,14 @@ export const setInventoryOrderStepSuccessStep = createStep(
                 id: updatedOrder.id
             }
         })
-        console.log("taskLinksResult", taskLinksResult.data[0].tasks)
         const taskLinks = taskLinksResult.data || []
+        try {
+            const first = Array.isArray(taskLinks) ? taskLinks[0] : undefined
+            const tasksPreview = first?.tasks ? first.tasks.map((t: any) => ({ id: t.id, status: t.status })) : []
+            console.log("taskLinksResult preview", { count: taskLinks.length, tasksPreview })
+        } catch (e) {
+            console.warn("Unable to log taskLinksResult safely")
+        }
         
         // Find a task with a transaction ID (should be one of the partner workflow tasks)
         let workflowTransactionId: string | null = null
