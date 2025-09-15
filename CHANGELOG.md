@@ -1,3 +1,10 @@
+## [6.14.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.14.0...v6.14.1) (2025-09-15)
+
+
+### Bug Fixes
+
+* **INVO:** Inventory order workflow fixes ([2b9a29a](https://github.com/Jaal-Yantra-Textiles/v2/commit/2b9a29a997806016e27ee5fce598d46b0d2163bb))
+
 # [6.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.13.10...v6.14.0) (2025-09-14)
 
 
