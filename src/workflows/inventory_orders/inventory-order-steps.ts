@@ -81,6 +81,32 @@ export const setInventoryOrderStepSuccessStep = createStep(
             },
             stepResponse: new StepResponse(updatedOrder, updatedOrder.id),
         })
+
+        // Emit an admin feed success notification indicating step was signaled
+        try {
+            const eventService = container.resolve(Modules.EVENT_BUS)
+            const title = stepId === "await-order-start" ? "Inventory Order Started" : (stepId === "await-order-completion" ? "Inventory Order Completed" : "Inventory Order Step Succeeded")
+            const description = stepId === "await-order-start"
+                ? `Order ${updatedOrder.id} was marked as started by partner.`
+                : (stepId === "await-order-completion" ? `Order ${updatedOrder.id} was marked as completed by partner.` : `Order ${updatedOrder.id} step ${stepId} succeeded.`)
+            await eventService.emit({
+                name: "admin_feed_notification",
+                data: {
+                    channel: "feed",
+                    template: "admin-ui",
+                    title,
+                    description,
+                    metadata: {
+                        inventory_order_id: updatedOrder.id,
+                        step_id: stepId,
+                        transaction_id: workflowTransactionId,
+                        action: "workflow_step_success",
+                    }
+                }
+            })
+        } catch (e) {
+            console.warn("Failed to emit step success admin feed notification", e)
+        }
     }
 )
 
@@ -152,6 +178,29 @@ export const setInventoryOrderStepFailedStep = createStep(
             },
             stepResponse: new StepResponse(updatedOrder, updatedOrder.id),
         })
+
+        // Emit an admin feed failure notification so failures are visible in UI
+        try {
+            const eventService = container.resolve(Modules.EVENT_BUS)
+            await eventService.emit({
+                name: "admin_feed_notification",
+                data: {
+                    channel: "feed",
+                    template: "admin-ui",
+                    title: "Inventory Order Workflow Step Failed",
+                    description: `Order ${updatedOrder.id} step ${stepId} failed${error ? `: ${error}` : ''}`,
+                    metadata: {
+                        inventory_order_id: updatedOrder.id,
+                        step_id: stepId,
+                        transaction_id: workflowTransactionId,
+                        action: "workflow_step_failure",
+                        error,
+                    }
+                }
+            })
+        } catch (e) {
+            console.warn("Failed to emit step failure admin feed notification", e)
+        }
     }
 )
 

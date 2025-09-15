@@ -109,6 +109,26 @@ const linkInventoryOrderWithPartnerStep = createStep(
         }
         const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
         await remoteLink.dismiss(links)
+
+        // Emit an admin-feed style event so history is visible even when link is rolled back
+        try {
+            const eventService = container.resolve(Modules.EVENT_BUS)
+            const link = (links || [])[0] as any
+            const inventoryOrderId = link?.[ORDER_INVENTORY_MODULE]?.inventory_orders_id
+            const partnerId = link?.[PARTNER_MODULE]?.partner_id
+            await eventService.emit({
+                name: "inventory_order_partner_link_rolled_back",
+                data: {
+                    inventory_order_id: inventoryOrderId,
+                    partner_id: partnerId,
+                    reason: "workflow_rollback",
+                    timestamp: new Date().toISOString(),
+                }
+            })
+        } catch (e) {
+            const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+            logger.warn(`Failed to emit rollback event for partner link: ${e?.message}`)
+        }
     }
 )
 
@@ -133,6 +153,26 @@ const notifyPartnerStep = createStep(
             }
         })
         
+        // Also emit an admin feed style success notification for visibility
+        try {
+            await eventService.emit({
+                name: "admin_feed_notification",
+                data: {
+                    channel: "feed",
+                    template: "admin-ui",
+                    title: "Inventory Order Assigned",
+                    description: `Order ${input.input.inventoryOrderId} sent to partner ${input.input.partnerId}`,
+                    metadata: {
+                        inventory_order_id: input.input.inventoryOrderId,
+                        partner_id: input.input.partnerId,
+                        action: "send_to_partner"
+                    }
+                }
+            })
+        } catch (e) {
+            logger.warn(`Failed to emit admin feed notification: ${e?.message}`)
+        }
+
         logger.info("Partner notified about inventory order")
         
     }

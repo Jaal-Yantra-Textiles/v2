@@ -35,7 +35,8 @@ export const listInventoryOrdersStep = createStep(
         ...(input.findConfig || {}),
         skip: input.pagination.offset,
         take: input.pagination.limit,
-      }
+      },
+      
     );
     return new StepResponse({ inventoryOrders, count }, null);
   }
