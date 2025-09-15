@@ -1,5 +1,6 @@
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
+import { createStep, createWorkflow, StepResponse, WorkflowResponse, transform } from "@medusajs/framework/workflows-sdk"
+import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { PARTNER_MODULE } from "../../modules/partner"
 import InventoryOrderService from "../../modules/inventory_orders/service"
@@ -153,26 +154,6 @@ const notifyPartnerStep = createStep(
             }
         })
         
-        // Also emit an admin feed style success notification for visibility
-        try {
-            await eventService.emit({
-                name: "admin_feed_notification",
-                data: {
-                    channel: "feed",
-                    template: "admin-ui",
-                    title: "Inventory Order Assigned",
-                    description: `Order ${input.input.inventoryOrderId} sent to partner ${input.input.partnerId}`,
-                    metadata: {
-                        inventory_order_id: input.input.inventoryOrderId,
-                        partner_id: input.input.partnerId,
-                        action: "send_to_partner"
-                    }
-                }
-            })
-        } catch (e) {
-            logger.warn(`Failed to emit admin feed notification: ${e?.message}`)
-        }
-
         logger.info("Partner notified about inventory order")
         
     }
@@ -325,6 +306,22 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
         store: true
     },
     (input: SendInventoryOrderToPartnerInput) => {
+        // Failure notification if this workflow itself errors at kickoff
+        const failureNotification = transform({ input }, (data) => {
+            return [
+                {
+                    to: "",
+                    channel: "feed",
+                    template: "admin-ui",
+                    data: {
+                        title: "Inventory Order Partner Workflow",
+                        description: `Failed to send order ${data.input.inventoryOrderId} to partner ${data.input.partnerId}.`,
+                    },
+                },
+            ]
+        })
+        notifyOnFailureStep(failureNotification)
+
         // Step 1: Validate the inventory order
         const order = validateInventoryOrderStep(input)
         
@@ -365,6 +362,22 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
         
         // Step 6: Notify partner
         notifyPartnerStep({input, order})
+
+        // Success notification that kickoff completed
+        const successNotification = transform({ input }, (data) => {
+            return [
+                {
+                    to: "",
+                    channel: "feed",
+                    template: "admin-ui",
+                    data: {
+                        title: "Inventory Order Partner Workflow",
+                        description: `Order ${data.input.inventoryOrderId} sent to partner ${data.input.partnerId}.`,
+                    },
+                },
+            ]
+        })
+        sendNotificationsStep(successNotification)
         
         // Step 7: Wait for partner to start
         awaitOrderStart()

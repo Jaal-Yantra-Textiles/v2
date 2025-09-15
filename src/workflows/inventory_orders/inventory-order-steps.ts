@@ -3,7 +3,8 @@ import {
     Modules,
     TransactionHandlerType,
 } from "@medusajs/framework/utils"
-import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
+import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
+import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 import { sendInventoryOrderToPartnerWorkflow } from "./send-to-partner";
 
 const TASKS_MODULE = "tasksModuleService"
@@ -81,32 +82,6 @@ export const setInventoryOrderStepSuccessStep = createStep(
             },
             stepResponse: new StepResponse(updatedOrder, updatedOrder.id),
         })
-
-        // Emit an admin feed success notification indicating step was signaled
-        try {
-            const eventService = container.resolve(Modules.EVENT_BUS)
-            const title = stepId === "await-order-start" ? "Inventory Order Started" : (stepId === "await-order-completion" ? "Inventory Order Completed" : "Inventory Order Step Succeeded")
-            const description = stepId === "await-order-start"
-                ? `Order ${updatedOrder.id} was marked as started by partner.`
-                : (stepId === "await-order-completion" ? `Order ${updatedOrder.id} was marked as completed by partner.` : `Order ${updatedOrder.id} step ${stepId} succeeded.`)
-            await eventService.emit({
-                name: "admin_feed_notification",
-                data: {
-                    channel: "feed",
-                    template: "admin-ui",
-                    title,
-                    description,
-                    metadata: {
-                        inventory_order_id: updatedOrder.id,
-                        step_id: stepId,
-                        transaction_id: workflowTransactionId,
-                        action: "workflow_step_success",
-                    }
-                }
-            })
-        } catch (e) {
-            console.warn("Failed to emit step success admin feed notification", e)
-        }
     }
 )
 
@@ -178,29 +153,6 @@ export const setInventoryOrderStepFailedStep = createStep(
             },
             stepResponse: new StepResponse(updatedOrder, updatedOrder.id),
         })
-
-        // Emit an admin feed failure notification so failures are visible in UI
-        try {
-            const eventService = container.resolve(Modules.EVENT_BUS)
-            await eventService.emit({
-                name: "admin_feed_notification",
-                data: {
-                    channel: "feed",
-                    template: "admin-ui",
-                    title: "Inventory Order Workflow Step Failed",
-                    description: `Order ${updatedOrder.id} step ${stepId} failed${error ? `: ${error}` : ''}`,
-                    metadata: {
-                        inventory_order_id: updatedOrder.id,
-                        step_id: stepId,
-                        transaction_id: workflowTransactionId,
-                        action: "workflow_step_failure",
-                        error,
-                    }
-                }
-            })
-        } catch (e) {
-            console.warn("Failed to emit step failure admin feed notification", e)
-        }
     }
 )
 
@@ -210,8 +162,40 @@ export const setInventoryOrderStepSuccessWorkflow = createWorkflow(
         store: true
     },
     (input: SetInventoryOrderStepSuccessInput) => {
-        const result = setInventoryOrderStepSuccessStep(input);
-        return new WorkflowResponse(result);
+        // Failure notification if this workflow itself errors
+        const failureNotification = transform({ input }, (data) => {
+            return [
+                {
+                    to: "",
+                    channel: "feed",
+                    template: "admin-ui",
+                    data: {
+                        title: "Inventory Order Workflow Signal",
+                        description: `Failed to mark step ${data.input.stepId} as success for order ${data.input.updatedOrder?.id}.`,
+                    },
+                },
+            ]
+        })
+        notifyOnFailureStep(failureNotification)
+
+        const result = setInventoryOrderStepSuccessStep(input)
+
+        // Success notification
+        const successNotification = transform({ input }, (data) => {
+            return [
+                {
+                    to: "",
+                    channel: "feed",
+                    template: "admin-ui",
+                    data: {
+                        title: "Inventory Order Workflow Signal",
+                        description: `Marked step ${data.input.stepId} as success for order ${data.input.updatedOrder?.id}.`,
+                    },
+                },
+            ]
+        })
+        sendNotificationsStep(successNotification)
+        return new WorkflowResponse(result)
     },
 )
 
@@ -221,7 +205,39 @@ export const setInventoryOrderStepFailedWorkflow = createWorkflow(
         store: true
     },
     (input: SetInventoryOrderStepFailedInput) => {
-        const result = setInventoryOrderStepFailedStep(input);
-        return new WorkflowResponse(result);
+        // Failure notification if this workflow itself errors
+        const failureNotification = transform({ input }, (data) => {
+            return [
+                {
+                    to: "",
+                    channel: "feed",
+                    template: "admin-ui",
+                    data: {
+                        title: "Inventory Order Workflow Signal",
+                        description: `Failed to mark step ${data.input.stepId} as failed for order ${data.input.updatedOrder?.id}.`,
+                    },
+                },
+            ]
+        })
+        notifyOnFailureStep(failureNotification)
+
+        const result = setInventoryOrderStepFailedStep(input)
+
+        // Success notification
+        const successNotification = transform({ input }, (data) => {
+            return [
+                {
+                    to: "",
+                    channel: "feed",
+                    template: "admin-ui",
+                    data: {
+                        title: "Inventory Order Workflow Signal",
+                        description: `Marked step ${data.input.stepId} as failed for order ${data.input.updatedOrder?.id}.`,
+                    },
+                },
+            ]
+        })
+        sendNotificationsStep(successNotification)
+        return new WorkflowResponse(result)
     },
 )
