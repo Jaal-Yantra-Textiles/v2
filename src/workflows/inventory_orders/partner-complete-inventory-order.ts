@@ -8,6 +8,8 @@ import TaskService from "../../modules/tasks/service";
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders";
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import Fullfilled_ordersService from "../../modules/fullfilled_orders/service";
+import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow, sendNotificationsStep } from "@medusajs/medusa/core-flows";
+import type { UpdateInventoryLevelInput } from "@medusajs/framework/types";
 
 export type PartnerCompleteOrderLine = {
   order_line_id: string
@@ -19,10 +21,45 @@ export type PartnerCompleteInventoryOrderInput = {
   notes?: string
   deliveryDate?: string
   trackingNumber?: string
+  stock_location_id?: string
   lines: PartnerCompleteOrderLine[]
 }
 
 // Step: prepare fulfillment payloads (filters happen inside the step)
+
+// Step: resolve existing inventory levels for given (item, location) pairs
+export const resolveExistingLevelsStep = createStep(
+  "partner-complete-resolve-existing-levels",
+  async (
+    input: { levels: Array<{ location_id: string; inventory_item_id: string; stocked_quantity: number }> },
+    { container }
+  ) => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const levels = input.levels || []
+    const existing: Array<{ id: string; location_id: string; inventory_item_id: string; stocked_quantity: number }> = []
+    for (const lv of levels) {
+      try {
+        const { data } = await query.graph({
+          entity: "inventory_level",
+          fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
+          filters: { inventory_item_id: lv.inventory_item_id, location_id: lv.location_id },
+        })
+        if (Array.isArray(data) && data.length > 0) {
+          const node = data[0] as any
+          existing.push({
+            id: String(node.id),
+            location_id: String(node.location_id),
+            inventory_item_id: String(node.inventory_item_id),
+            stocked_quantity: Number(node.stocked_quantity) || 0,
+          })
+        }
+      } catch {
+        // ignore, we only care about matches
+      }
+    }
+    return new StepResponse({ existing })
+  }
+)
 
 // Debug step: logs partial completion context at execution time
 const debugPartialCompletionStep = createStep(
@@ -119,6 +156,9 @@ const validateAndFetchOrderStep = createStep(
       fields: [
         "*",
         "orderlines.*",
+        // fetch inventory item linkage and stock location information for stock posting
+        "orderlines.inventory_items.*",
+        "orderlines.inventory_items.stock_locations.*",
         // include existing fulfillments to compute cumulative delivered qty
         "orderlines.line_fulfillments.quantity_delta",
       ],
@@ -380,6 +420,70 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
       debugPartialCompletionStep({
         orderId: input.orderId,
         shortages: shortagesList as unknown as any[],
+      })
+    })
+
+    // Prepare inventory levels input from delivered lines
+    const inventoryLevelsInput = transform({ v: validated, input }, ({ v, input }) => {
+      const order = v.order as any
+      const inputs: Array<{ location_id: string; inventory_item_id: string; stocked_quantity: number }> = []
+      const deliveredByLine: Record<string, number> = {}
+      const deliveredLines = (v.completionMetadata?.partner_delivered_lines || []) as Array<{ order_line_id: string; quantity: number }>
+      for (const l of deliveredLines) {
+        if (l?.order_line_id && typeof l.quantity === 'number' && l.quantity > 0) {
+          deliveredByLine[l.order_line_id] = (deliveredByLine[l.order_line_id] || 0) + l.quantity
+        }
+      }
+      const orderDestLocation = input?.stock_location_id || order.to_stock_location_id || order.stock_location_id || order.destination_stock_location_id
+      for (const ol of (order.orderlines ?? []).filter(Boolean)) {
+        const lineId = (ol as any).id
+        const qty = deliveredByLine[lineId]
+        if (!qty) continue
+        const iitems = (ol as any).inventory_items || []
+        const firstItem = iitems[0]
+        const itemId = firstItem?.id || (ol as any).inventory_item_id
+        // Prefer stock location on inventory item; fallback to first available or to order-level destination
+        const locations = firstItem?.stock_locations || []
+        const locId = locations[0]?.id || orderDestLocation
+        if (itemId && locId) {
+          inputs.push({ location_id: String(locId), inventory_item_id: String(itemId), stocked_quantity: Number(qty) })
+        }
+      }
+      return inputs
+    })
+
+    // Compute updates deterministically, then gate a single when(hasUpdates).then(...)
+    const levels = inventoryLevelsInput as any
+    const resolved = resolveExistingLevelsStep({ levels }) as any
+    const existing = transform({ resolved }, ({ resolved }) => (resolved?.existing || []))
+
+    const updates = transform<{ existing: any[]; levels: any[] }, UpdateInventoryLevelInput[]>(
+      { existing, levels },
+      ({ existing, levels }) => {
+        const lvlArr = (levels as any[]) || []
+        const exArr = (existing as any[]) || []
+        return exArr.map((ex: any) => {
+          const found = lvlArr.find(
+            (l: any) => l.inventory_item_id === ex.inventory_item_id && l.location_id === ex.location_id
+          )
+          const add = Number(found?.stocked_quantity || 0)
+          return {
+            id: String(ex.id),
+            inventory_item_id: String(ex.inventory_item_id),
+            location_id: String(ex.location_id),
+            stocked_quantity: Number(ex.stocked_quantity || 0) + add,
+          }
+        })
+      }
+    )
+
+    const hasUpdates = transform({ updates }, ({ updates }) => Array.isArray(updates) && (updates as any[]).length > 0)
+
+    when(hasUpdates, (b) => Boolean(b)).then(() => {
+      updateInventoryLevelsWorkflow.runAsStep({
+        input: {
+          updates,
+        },
       })
     })
 

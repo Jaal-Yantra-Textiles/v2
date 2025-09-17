@@ -2,11 +2,15 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { createInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
 
 const TEST_PARTNER_EMAIL = "partner@complete-workflow-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 
-jest.setTimeout(70000)
+jest.setTimeout(120000)
+
+// Keep workflow await steps short in this spec so the test runner doesn't wait indefinitely
+process.env.INVENTORY_AWAIT_TIMEOUT_SECONDS = "5"
 
 setupSharedTestSuite(() => {
     describe("Send to Partner - Complete Workflow", () => {
@@ -30,6 +34,8 @@ setupSharedTestSuite(() => {
           email: TEST_PARTNER_EMAIL,
           password: TEST_PARTNER_PASSWORD,
         })
+
+      
 
         const partnerLoginResponse = await api.post("/auth/partner/emailpass", {
           email: TEST_PARTNER_EMAIL,
@@ -224,6 +230,23 @@ setupSharedTestSuite(() => {
         expect(fromLocationResponse.status).toBe(200)
         fromStockLocationId = fromLocationResponse.data.stock_location.id
 
+        // Pre-associate the inventory item with the destination stock location by creating a 0-qty level
+        {
+          const container = getContainer()
+          const { result: assocLevelRes } = await createInventoryLevelsWorkflow(container).run({
+            input: {
+              inventory_levels: [
+                {
+                  inventory_item_id: inventoryItemId,
+                  location_id: stockLocationId,
+                  stocked_quantity: 0,
+                },
+              ],
+            },
+          })
+          console.log("[DBG][setup] associated inventory_item to stock_location via levels:", JSON.stringify(assocLevelRes, null, 2))
+        }
+
         // Create inventory order
         const orderPayload = {
           order_lines: [
@@ -252,9 +275,82 @@ setupSharedTestSuite(() => {
         inventoryOrderId = orderResponse.data.inventoryOrder.id
       })
 
+      it("should be idempotent when re-sending: no duplicate tasks", async () => {
+        // First send
+        const firstSend = await api.post(
+          `/admin/inventory-orders/${inventoryOrderId}/send-to-partner`,
+          { partnerId, notes: "first send" },
+          adminHeaders
+        )
+        expect(firstSend.status).toBe(200)
+
+        // Proceed without fixed wait
+
+        // Fetch partner order and capture task count
+        const beforeRes = await api.get(`/partners/inventory-orders/${inventoryOrderId}`, { headers: partnerHeaders })
+        expect(beforeRes.status).toBe(200)
+        const beforeCount = beforeRes.data.inventoryOrder.partner_info?.workflow_tasks_count || 0
+        const beforeStatus = beforeRes.data.inventoryOrder.partner_info?.partner_status
+
+        // Second send (should not create tasks; only reset transaction IDs on existing tasks)
+        const secondSend = await api.post(
+          `/admin/inventory-orders/${inventoryOrderId}/send-to-partner`,
+          { partnerId, notes: "second send" },
+          adminHeaders
+        )
+        expect(secondSend.status).toBe(200)
+
+        // Proceed without fixed wait
+
+        // Fetch again and compare counts
+        const afterRes = await api.get(`/partners/inventory-orders/${inventoryOrderId}`, { headers: partnerHeaders })
+        expect(afterRes.status).toBe(200)
+        const afterCount = afterRes.data.inventoryOrder.partner_info?.workflow_tasks_count || 0
+        const afterStatus = afterRes.data.inventoryOrder.partner_info?.partner_status
+
+        expect(afterCount).toBe(beforeCount)
+        // Status should remain assigned if no partner action yet
+        expect(afterStatus).toBe("assigned")
+
+        // To avoid leaving async awaits open for the test runner, progress the workflow to completion
+        // 1) Partner starts the order
+        const startRes = await api.post(
+          `/partners/inventory-orders/${inventoryOrderId}/start`,
+          {},
+          { headers: partnerHeaders }
+        )
+        expect([200, 204]).toContain(startRes.status)
+
+        // 2) Fetch order lines to complete fully
+        const orderViewRes = await api.get(`/partners/inventory-orders/${inventoryOrderId}`, { headers: partnerHeaders })
+        expect(orderViewRes.status).toBe(200)
+        const olView = orderViewRes.data.inventoryOrder
+        const orderLinesForComplete = Array.isArray(olView?.order_lines) ? olView.order_lines : []
+        if (!orderLinesForComplete.length) {
+          throw new Error("Partner order view returned no order_lines; cannot complete")
+        }
+        const lines = orderLinesForComplete.map((l: any) => ({
+          order_line_id: String(l.id),
+          quantity: Number(l.quantity),
+        }))
+
+        // 3) Partner completes the order fully
+        const completeRes = await api.post(
+          `/partners/inventory-orders/${inventoryOrderId}/complete`,
+          {
+            lines,
+            notes: "idempotency-test-complete",
+            trackingNumber: "IDEM-TEST-TRACK",
+            deliveryDate: new Date().toISOString(),
+          },
+          { headers: partnerHeaders }
+        )
+        expect([200, 204]).toContain(completeRes.status)
+      })
+
       it("should complete full send-to-partner workflow", async () => {
         // 1. Send order to partner (admin)
-        console.log("\nSending order to partner...")
+        
         const sendToPartnerPayload = {
           partnerId: partnerId,
           notes: "Complete workflow test order"
@@ -271,11 +367,11 @@ setupSharedTestSuite(() => {
         expect(sendResponse.data.inventoryOrderId).toBe(inventoryOrderId)
         expect(sendResponse.data.partnerId).toBe(partnerId)
 
-        // Wait for workflow to initialize and create tasks
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        // Small wait for workflow initialization
+        await new Promise(resolve => setTimeout(resolve, 500))
         
         // Verify that partner workflow tasks were created
-        console.log("\nVerifying partner order status...")
+        
         const initialPartnerOrderResponse = await api.get(`/partners/inventory-orders/${inventoryOrderId}`, {
           headers: partnerHeaders
         })
@@ -288,7 +384,7 @@ setupSharedTestSuite(() => {
         expect(initialPartnerOrderResponse.data.inventoryOrder.admin_notes).toBe("Complete workflow test order")
 
         // 2. Start order (partner)
-        console.log("\nStarting order as partner...")
+        
         const startResponse = await api.post(`/partners/inventory-orders/${inventoryOrderId}/start`, {}, {
           headers: partnerHeaders
         })
@@ -314,6 +410,29 @@ setupSharedTestSuite(() => {
         const partnerOrderForComplete = await api.get(`/partners/inventory-orders/${inventoryOrderId}`, {
           headers: partnerHeaders
         })
+        // Debug: log order structure with lines
+        console.log("[DBG][complete] partnerOrderForComplete.order_lines=", JSON.stringify(partnerOrderForComplete.data.inventoryOrder.order_lines, null, 2))
+
+        // Debug: inspect inventory_items and stock_locations linked to lines via graph
+        {
+          const container = getContainer()
+          const query = container.resolve(ContainerRegistrationKeys.QUERY)
+          const { data: debugOrderData } = await query.graph({
+            entity: "inventory_orders",
+            fields: [
+              "id",
+              "to_stock_location_id",
+              "stock_location_id",
+              "orderlines.id",
+              "orderlines.quantity",
+              "orderlines.inventory_item_id",
+              "orderlines.inventory_items.*",
+              "orderlines.inventory_items.stock_locations.*",
+            ],
+            filters: { id: inventoryOrderId },
+          })
+          console.log("[DBG][complete] debugOrderData=", JSON.stringify(debugOrderData, null, 2))
+        }
         const linesForComplete = (partnerOrderForComplete.data.inventoryOrder.order_lines || []).map((l: any) => ({
           order_line_id: l.id,
           quantity: l.quantity, // deliver full requested quantity
@@ -321,6 +440,7 @@ setupSharedTestSuite(() => {
         const completeResponse = await api.post(`/partners/inventory-orders/${inventoryOrderId}/complete`, {
           notes: "Order completed successfully",
           tracking_number: "TRACK123456",
+          stock_location_id: stockLocationId,
           lines: linesForComplete,
         }, {
           headers: partnerHeaders
@@ -364,6 +484,18 @@ setupSharedTestSuite(() => {
         const sumDelta = (fulfillments as any[]).reduce((s: number, f: any) => s + (Number(f.quantity_delta) || 0), 0)
         const sumRequested = (orderNode.orderlines || []).reduce((s: number, l: any) => s + (Number(l.quantity) || 0), 0)
         expect(sumDelta).toBe(sumRequested)
+
+        // Verify inventory levels have been created for the delivered quantities at the destination location
+        const { data: levelsAfterFull } = await query.graph({
+          entity: "inventory_level",
+          fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
+          filters: { inventory_item_id: inventoryItemId },
+        })
+        console.log("levelsAfterFull", JSON.stringify(levelsAfterFull, null, 2))
+        const destLevelsFull = (levelsAfterFull || []).filter((l: any) => String(l.location_id) === String(stockLocationId))
+        expect(destLevelsFull.length).toBeGreaterThan(0)
+        const totalStockedAtDest = destLevelsFull.reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
+        expect(totalStockedAtDest).toBe(sumRequested)
 
         console.log("\n✅ Complete workflow finished successfully!")
       })
@@ -410,6 +542,7 @@ setupSharedTestSuite(() => {
           notes: "Delivered half due to shortage",
           deliveryDate: new Date().toISOString(),
           trackingNumber: "TRACK-PARTIAL-001",
+          stock_location_id: stockLocationId,
           lines: [
             {
               order_line_id: firstLineId,
@@ -460,6 +593,18 @@ setupSharedTestSuite(() => {
         expect(totalDelta).toBe(deliveredQty)
         console.log("[LOG][verify-partial] fulfillmentsPartial=", fulfillmentsPartial.length, "totalDelta=", totalDelta, "deliveredQty=", deliveredQty)
 
+        // Verify inventory levels reflect the partial delivered quantity at destination location
+        const { data: levelsAfterPartial } = await query.graph({
+          entity: "inventory_level",
+          fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
+          filters: { inventory_item_id: inventoryItemId },
+        })
+        const destLevelsPartial = (levelsAfterPartial || []).filter((l: any) => String(l.location_id) === String(stockLocationId))
+        expect(destLevelsPartial.length).toBeGreaterThan(0)
+        const partialStockedAtDest = destLevelsPartial.reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
+        expect(partialStockedAtDest).toBe(deliveredQty)
+        console.log("[DBG][partial] levelsAfterPartial=", JSON.stringify(levelsAfterPartial, null, 2))
+
         // 6. Finalize the order by delivering the remaining quantities for ALL lines
         // Get current order lines with their fulfillments to compute remaining per line
         const { data: finalPrep } = await query.graph({
@@ -491,6 +636,7 @@ setupSharedTestSuite(() => {
           notes: "Deliver remaining to complete order",
           deliveryDate: new Date().toISOString(),
           trackingNumber: "TRACK-FINAL-001",
+          stock_location_id: stockLocationId,
           lines: remainingLines.map((x) => ({ order_line_id: x.order_line_id, quantity: x.remaining })),
         }
         const finalCompleteResponse = await api.post(
@@ -537,6 +683,18 @@ setupSharedTestSuite(() => {
         const sumRequestedAll = (finalNode.orderlines || []).reduce((s: number, l: any) => s + (Number(l.quantity) || 0), 0)
         expect(finalSumDelta).toBe(sumRequestedAll)
         console.log("[LOG][verify-final] finalSumDelta=", finalSumDelta, "sumRequestedAll=", sumRequestedAll, "fulfillmentsAll=", fulfillmentsAll.length)
+
+        // Verify inventory levels now match the full requested quantity at destination location
+        const { data: levelsAfterFinal } = await query.graph({
+          entity: "inventory_level",
+          fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
+          filters: { inventory_item_id: inventoryItemId },
+        })
+        const destLevelsFinal = (levelsAfterFinal || []).filter((l: any) => String(l.location_id) === String(stockLocationId))
+        expect(destLevelsFinal.length).toBeGreaterThan(0)
+        const finalStockedAtDest = destLevelsFinal.reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
+        expect(finalStockedAtDest).toBe(sumRequestedAll)
+        console.log("[DBG][final] levelsAfterFinal=", JSON.stringify(levelsAfterFinal, null, 2))
       })
     })
 })

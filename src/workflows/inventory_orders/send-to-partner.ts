@@ -1,5 +1,12 @@
+// Configurable await timeouts (in seconds). Defaults to 30 days if not provided.
+const DEFAULT_AWAIT_TIMEOUT_SECONDS = 60 * 60 * 24 * 30
+const AWAIT_TIMEOUT_SECONDS = (() => {
+  const v = process.env.INVENTORY_AWAIT_TIMEOUT_SECONDS
+  const n = v ? Number(v) : NaN
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_AWAIT_TIMEOUT_SECONDS
+})()
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { createStep, createWorkflow, StepResponse, WorkflowResponse, transform } from "@medusajs/framework/workflows-sdk"
+import { createStep, createWorkflow, StepResponse, WorkflowResponse, transform, when } from "@medusajs/framework/workflows-sdk"
 import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { PARTNER_MODULE } from "../../modules/partner"
@@ -12,7 +19,8 @@ import TaskService from "../../modules/tasks/service"
 type SendInventoryOrderToPartnerInput = {
     inventoryOrderId: string,
     partnerId: string,
-    notes?: string
+    notes?: string,
+    reinitiate?: boolean,
 }
 
 const validateInventoryOrderStep = createStep(
@@ -39,6 +47,60 @@ const validateInventoryOrderStep = createStep(
         }
         
         return new StepResponse(order)
+    }
+)
+
+// Detect if this order already has the partner workflow tasks (idempotency guard)
+const checkExistingPartnerAssignmentStep = createStep(
+    "check-existing-partner-assignment",
+    async (input: { orderId: string }, { container }) => {
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({
+            entity: "inventory_orders",
+            fields: ["id", "tasks.*"],
+            filters: { id: input.orderId },
+        })
+        const orders = data || []
+        let taskIds: string[] = []
+        let hasAssignment = false
+        if (orders.length > 0) {
+            const order: any = orders[0]
+            const tasks: any[] = Array.isArray(order.tasks) ? order.tasks : []
+            taskIds = tasks.map((t) => t.id).filter(Boolean)
+            // Consider assigned if any of the partner templates exist
+            hasAssignment = tasks.some((t) =>
+                ["partner-order-sent", "partner-order-received", "partner-order-shipped"].includes(t?.title)
+            )
+        }
+        return new StepResponse({ hasAssignment, taskIds })
+    }
+)
+
+// If tasks already exist, just (re)set their transaction IDs for coordination
+const setExistingTasksTransactionIdsStep = createStep(
+    "set-existing-task-transaction-ids",
+    async (input: { orderId: string }, { container, context }) => {
+        const taskService: TaskService = container.resolve(TASKS_MODULE)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const workflowTransactionId = context.transactionId
+
+        const { data } = await query.graph({
+            entity: "inventory_orders",
+            fields: ["id", "tasks.*"],
+            filters: { id: input.orderId },
+        })
+        const orders = data || []
+        const tasks: any[] = orders.length > 0 ? (orders[0] as any).tasks || [] : []
+        const updated: any[] = []
+        for (const t of tasks) {
+            const upd = await taskService.updateTasks({
+                id: t.id,
+                transaction_id: workflowTransactionId,
+                status: (t.title || "").includes("sent") ? "completed" : t.status || "pending",
+            })
+            updated.push(upd)
+        }
+        return new StepResponse({ count: updated.length })
     }
 )
 
@@ -85,7 +147,7 @@ const linkInventoryOrderWithPartnerStep = createStep(
     "link-inventory-order-with-partner",
     async (input: {inventoryOrderId: string, partnerId: string}, { container }) => {
         const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
-        
+
         const links: LinkDefinition[] = [{
             [PARTNER_MODULE]: {
                 partner_id: input.partnerId,
@@ -99,7 +161,6 @@ const linkInventoryOrderWithPartnerStep = createStep(
                 assigned_at: new Date().toISOString()
             },
         }]
-        
         await remoteLink.create(links)
         return new StepResponse(links)
     },
@@ -163,7 +224,7 @@ const awaitOrderStart = createStep(
     {
         name: 'await-order-start',
         async: true,
-        timeout: 60 * 60 * 24 * 30, // 30 days timeout
+        timeout: AWAIT_TIMEOUT_SECONDS,
         maxRetries: 2
     },
     async (_, { container }) => {
@@ -177,7 +238,7 @@ const awaitOrderCompletion = createStep(
     {
         name: 'await-order-completion',
         async: true,
-        timeout: 60 * 60 * 24 * 30, // 30 days timeout
+        timeout: AWAIT_TIMEOUT_SECONDS,
         maxRetries: 2
     },
     async (_, { container }) => {
@@ -328,10 +389,16 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
         // Step 2: Validate the partner
         const partner = validatePartnerStep(input)
         
-        // Step 3: Create link between partner and inventory order
-        const partnerLink = linkInventoryOrderWithPartnerStep({
-            inventoryOrderId: input.inventoryOrderId,
-            partnerId: input.partnerId
+        // Check if assignment already exists (idempotency)
+        const existing = checkExistingPartnerAssignmentStep({ orderId: input.inventoryOrderId })
+        const hasExisting = transform({ existing }, ({ existing }) => Boolean((existing as any)?.hasAssignment))
+
+        // Step 3: Create link between partner and inventory order only if not already assigned
+        when(hasExisting, (b) => !b).then(() => {
+            linkInventoryOrderWithPartnerStep({
+                inventoryOrderId: input.inventoryOrderId,
+                partnerId: input.partnerId
+            })
         })
         
         // Step 4: Update inventory order with admin notes
@@ -342,25 +409,29 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
             }
         })
         
-        // Step 5: Create partner workflow tasks using the proper MedusaJS pattern
-        // Run the task creation workflow as a step (not from inside a step function)
-        const partnerTasks = createTasksFromTemplatesWorkflow.runAsStep({
-            input: {
-                inventoryOrderId: input.inventoryOrderId,
-                type: "template",
-                template_names: ["partner-order-sent", "partner-order-received", "partner-order-shipped"],
-                metadata: {
-                    partner_id: input.partnerId,
-                    inventory_order_id: input.inventoryOrderId,
-                    workflow_type: "partner_assignment"
+        // Step 5/6: If no existing, create tasks and set transaction ids
+        // Otherwise, only (re)set the transaction ids on existing tasks
+        let tasksWithTransactionIds: any
+        when(hasExisting, (b) => !b).then(() => {
+            const partnerTasks = createTasksFromTemplatesWorkflow.runAsStep({
+                input: {
+                    inventoryOrderId: input.inventoryOrderId,
+                    type: "template",
+                    template_names: ["partner-order-sent", "partner-order-received", "partner-order-shipped"],
+                    metadata: {
+                        partner_id: input.partnerId,
+                        inventory_order_id: input.inventoryOrderId,
+                        workflow_type: "partner_assignment"
+                    }
                 }
-            }
+            })
+            tasksWithTransactionIds = setTaskTransactionIdsStep({ partnerTasks })
+        })
+        when(hasExisting, (b) => Boolean(b)).then(() => {
+            setExistingTasksTransactionIdsStep({ orderId: input.inventoryOrderId })
         })
         
-        // Step 6: Set workflow transaction IDs on the created tasks
-        const tasksWithTransactionIds = setTaskTransactionIdsStep({partnerTasks})
-        
-        // Step 6: Notify partner
+        // Step 7: Notify partner (always)
         notifyPartnerStep({input, order})
 
         // Success notification that kickoff completed
@@ -379,10 +450,10 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
         })
         sendNotificationsStep(successNotification)
         
-        // Step 7: Wait for partner to start
+        // Step 8: Wait for partner to start
         awaitOrderStart()
         
-        // Step 8: Wait for partner to complete
+        // Step 9: Wait for partner to complete
         awaitOrderCompletion()
         
         return new WorkflowResponse({

@@ -17,6 +17,8 @@ const requestBodySchema = z.object({
     delivery_date: z.string().optional(),
     trackingNumber: z.string().optional(),
     tracking_number: z.string().optional(),
+    stock_location_id: z.string().optional(),
+    stockLocationId: z.string().optional(),
     lines: z.array(z.object({
         order_line_id: z.string(),
         quantity: z.number().min(0)
@@ -38,14 +40,16 @@ export async function POST(
         });
     }
     
-    const { notes, deliveryDate, delivery_date, trackingNumber, tracking_number, lines } = validation.data;
+    const { notes, deliveryDate, delivery_date, trackingNumber, tracking_number, stock_location_id, stockLocationId, lines } = validation.data;
     const normalizedDeliveryDate = deliveryDate || delivery_date;
     const normalizedTrackingNumber = trackingNumber || tracking_number;
+    const normalizedStockLocationId = stock_location_id || stockLocationId;
     console.debug("[partners.complete] request:", {
         orderId,
         notes: !!notes,
         deliveryDate: normalizedDeliveryDate,
         trackingNumber: normalizedTrackingNumber,
+        stockLocationId: normalizedStockLocationId,
         linesCount: Array.isArray(lines) ? lines.length : 0,
         sampleLine: Array.isArray(lines) && lines[0] ? lines[0] : null,
     })
@@ -67,6 +71,7 @@ export async function POST(
                 notes,
                 deliveryDate: normalizedDeliveryDate,
                 trackingNumber: normalizedTrackingNumber,
+                stock_location_id: normalizedStockLocationId,
                 lines
             }
         })
