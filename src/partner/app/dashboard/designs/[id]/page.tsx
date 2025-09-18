@@ -76,7 +76,7 @@ export default async function DesignDetailsPage({ params }: PageProps) {
 
   return (
     <>
-      <Container className="py-6 p-4 w-full !max-w-none">
+      <Container className="py-6 p-4 pb-24 w-full !max-w-none">
         {/* Header */}
         <section aria-labelledby="design-header" className="mb-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
@@ -198,19 +198,19 @@ export default async function DesignDetailsPage({ params }: PageProps) {
 
       <ActionFooter>
         {partnerStatus === "assigned" && (
-          <ActionFormButton action={startDesign}>Start</ActionFormButton>
+          <ActionFormButton fullWidth action={startDesign}>Start</ActionFormButton>
         )}
 
         {(partnerStatus === "in_progress" || isRedoPhase) && (
-          <ActionFormButton action={isRedoPhase ? refinishDesign : finishDesign}>{isRedoPhase ? "Re-Finish" : "Finish"}</ActionFormButton>
+          <ActionFormButton fullWidth action={isRedoPhase ? refinishDesign : finishDesign}>{isRedoPhase ? "Re-Finish" : "Finish"}</ActionFormButton>
         )}
 
         {partnerStatus === "finished" && !isRedoPhase && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full">
             {/* Request Redo as a distinct, less prominent action */}
-            <form action={requestRedo} className="flex items-center gap-2">
-              <input name="notes" placeholder="Reason to redo" className="border rounded px-2 py-1 text-sm" />
-              <Button type="submit" variant="secondary" size="base">Request Redo</Button>
+            <form action={requestRedo} className="flex items-center gap-2 w-full sm:w-auto">
+              <input name="notes" placeholder="Reason to redo" className="border rounded px-2 py-1 text-sm flex-1" />
+              <Button className="w-full sm:w-auto" type="submit" variant="secondary" size="base">Request Redo</Button>
             </form>
             {/* Complete via modal that asks for inventory used */}
             <CompleteDesignModal completeAction={completeWithInventory} />

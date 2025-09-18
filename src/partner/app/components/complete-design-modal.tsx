@@ -12,14 +12,14 @@ export default function CompleteDesignModal({
 
   return (
     <>
-      <Button variant="primary" onClick={() => setOpen(true)}>Complete</Button>
+      <Button className="w-full sm:w-auto" variant="primary" onClick={() => setOpen(true)}>Complete</Button>
       <FocusModal open={open} onOpenChange={setOpen}>
-        <FocusModal.Content className="max-w-md w-full mx-auto my-8">
+        <FocusModal.Content className="z-50 max-w-md w-[92vw] sm:w-full mx-auto my-6 sm:my-8">
           <FocusModal.Header>
             <Heading>Complete Design</Heading>
           </FocusModal.Header>
-          <FocusModal.Body>
-            <div className="flex flex-col gap-4">
+          <FocusModal.Body className="max-h-[80vh] overflow-y-auto">
+            <div className="flex flex-col gap-4 p-2 sm:p-4">
               <Text size="small" className="text-ui-fg-subtle">
                 Please enter the total inventory used for this design before completing.
               </Text>
