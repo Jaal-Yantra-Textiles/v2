@@ -4,8 +4,8 @@ import { TopNavbar } from "../components/top-navbar"
 
 import { requireAuth } from "@/lib/auth-cookie"
 import { getDetails } from "./actions"
-import { redirect } from "next/navigation"
 import { TooltipProvider } from "@medusajs/ui"
+import BackendHealthBanner from "../components/backend-health-banner"
 
 export default async function DashboardLayout({
   children,
@@ -14,23 +14,29 @@ export default async function DashboardLayout({
 }) {
   await requireAuth() // Protect all dashboard routes
   const partner = await getDetails()
-  // If partner details cannot be fetched (e.g., backend down), prevent dashboard access
-  if (!partner) {
-    redirect("/login")
-  }
+  // Show banner only when we couldn't fetch partner details
+  const backendError = !partner
 
   return (
     <>
     <div className="flex h-screen w-full bg-ui-bg-subtle [--sidebar-width:0px] md:[--sidebar-width:14rem]">
-      <div className="hidden md:block h-full md:w-56 flex-shrink-0 border-r">
-        <Sidebar partner={partner} />
-      </div>
+      {partner ? (
+        <div className="hidden md:block h-full md:w-56 flex-shrink-0 border-r">
+          <Sidebar partner={partner} />
+        </div>
+      ) : (
+        <div className="hidden md:block h-full md:w-56 flex-shrink-0 border-r" />
+      )}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile overlay toggle */}
-        <MobileSidebarOverlay partner={partner} />
+        {partner ? <MobileSidebarOverlay partner={partner} /> : null}
         <TopNavbar />
         <TooltipProvider>
-        <main className="flex-1 overflow-y-auto p-2">{children}</main>
+        <main className="flex-1 overflow-y-auto p-2">
+          {/* Client banner controlled via server health check */}
+          <BackendHealthBanner backendError={backendError} />
+          {children}
+        </main>
         </TooltipProvider>
       </div>
     </div>
