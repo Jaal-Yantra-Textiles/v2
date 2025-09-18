@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef } from "react"
-import { Button, FocusModal, Heading, Input, Label, Table, Text } from "@medusajs/ui"
+import { Button, DatePicker, FocusModal, Heading, Input, Label, Table, Text } from "@medusajs/ui"
 import { useFormStatus } from "react-dom"
 
 export type CompletionLine = {
@@ -25,6 +25,12 @@ export default function CompletionOrderForm({
 }) {
   const formRef = useRef<HTMLFormElement>(null)
   // No overlay confirm needed in partial-by-default UX
+  // Format numbers to avoid long floating tails
+  const fmt = (n: number) => {
+    if (!Number.isFinite(n)) return "0"
+    const s = (Math.round(n * 1000) / 1000).toFixed(3)
+    return s.replace(/\.0+$/, "").replace(/(\.[0-9]*?)0+$/, "$1")
+  }
 
   // Remaining to deliver and default values
   const remainingMap = useMemo(() => {
@@ -97,13 +103,13 @@ export default function CompletionOrderForm({
   return (
     <>
       <FocusModal open={open} onOpenChange={onOpenChange}>
-        <FocusModal.Content className="max-w-3xl w-full mx-auto my-8 z-[80]">
+        <FocusModal.Content className="z-[500] max-w-3xl w-[92vw] sm:w-full mx-auto my-6 sm:my-8">
             <FocusModal.Title></FocusModal.Title>
           <FocusModal.Header>
             <Heading>Complete / Ship Order</Heading>
           </FocusModal.Header>
-          <FocusModal.Body className="size-full overflow-hidden p-0">
-            <form ref={formRef} action={action} className="flex flex-col gap-y-6 p-6">
+          <FocusModal.Body className="max-h-[80vh] overflow-y-auto p-0">
+            <form ref={formRef} action={action} className="flex flex-col gap-y-6 p-4 sm:p-6">
               <div>
                 <Heading level="h3" className="mb-2">Delivered Quantities</Heading>
                 <Text size="small" className="text-ui-fg-subtle">
@@ -132,10 +138,12 @@ export default function CompletionOrderForm({
                       const requested = Number(l.requested) || 0
                       const fulfilled = Number(l.fulfilled) || 0
                       const remaining = Math.max(0, requested - fulfilled)
+                      const id = String(l.id)
+                      const shortId = id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id
                       return (
                         <Table.Row key={l.id}>
                           <Table.Cell>
-                            <Text size="small" className="break-all">{l.id}</Text>
+                            <Text size="small" className="truncate max-w-[160px]" title={id}>{shortId}</Text>
                           </Table.Cell>
                           <Table.Cell>
                             <input type="hidden" name={`requested_${l.id}`} value={requested} />
@@ -151,13 +159,13 @@ export default function CompletionOrderForm({
                             />
                           </Table.Cell>
                           <Table.Cell>
-                            <Text size="small">{requested}</Text>
+                            <Text size="small">{fmt(requested)}</Text>
                           </Table.Cell>
                           <Table.Cell>
-                            <Text size="small">{fulfilled}</Text>
+                            <Text size="small">{fmt(fulfilled)}</Text>
                           </Table.Cell>
                           <Table.Cell>
-                            <Text size="small">{remaining}</Text>
+                            <Text size="small">{fmt(remaining)}</Text>
                           </Table.Cell>
                         </Table.Row>
                       )
@@ -166,16 +174,16 @@ export default function CompletionOrderForm({
                 </Table>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 <div className="flex flex-col gap-y-1">
                   <Label htmlFor="tracking_number">Tracking Number</Label>
                   <Input id="tracking_number" name="tracking_number" placeholder="e.g. TRACK123456" />
                 </div>
-                <div className="flex flex-col gap-y-1">
+                <div className="flex flex-col gap-y-1 relative z-[600]">
                   <Label htmlFor="deliveryDate">Delivery Date</Label>
-                  <Input id="deliveryDate" name="deliveryDate" type="date" />
+                  <DatePicker name="deliveryDate" />
                 </div>
-                <div className="flex flex-col gap-y-1 md:col-span-1">
+                <div className="flex flex-col gap-y-1 sm:col-span-2 md:col-span-1">
                   <Label htmlFor="notes">Notes</Label>
                   <Input id="notes" name="notes" placeholder="Optional note" />
                 </div>

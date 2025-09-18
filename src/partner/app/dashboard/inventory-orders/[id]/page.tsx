@@ -1,3 +1,10 @@
+  // Helper to format quantities to avoid long floating tails like 1.00009999
+  const fmt = (n: number) => {
+    if (!Number.isFinite(n)) return "0"
+    // round to 3 decimals, trim trailing zeros
+    const s = (Math.round(n * 1000) / 1000).toFixed(3)
+    return s.replace(/\.0+$/, "").replace(/(\.[0-9]*?)0+$/, "$1")
+  }
 import { Container, Heading, Text, StatusBadge, Table } from "@medusajs/ui"
 import { redirect } from "next/navigation"
 import { getPartnerInventoryOrder, partnerStartInventoryOrder, partnerCompleteInventoryOrder } from "../../actions"
@@ -60,7 +67,7 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
       // UI should prevent this, but guard to satisfy API requirement (non-empty lines)
       throw new Error("Please provide at least one line with quantity greater than 0.")
     }
-    const notesInput = (formData.get("notes") as string) || ""
+    const notesInput = ((formData.get("notes") as string) || "").trim()
     // Determine if all lines are fully fulfilled
     const isFull = trimmed.every((ln) => {
       const requested = Number(formData.get(`requested_${ln.order_line_id}`))
@@ -69,8 +76,10 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
     const notes = notesInput.trim().length > 0
       ? notesInput
       : (isFull ? "Add Notes" : "Delivered half due to shortage")
-    const deliveryDate = (formData.get("deliveryDate") as string) || undefined
-    const tracking_number = (formData.get("tracking_number") as string) || undefined
+    const deliveryDateRaw = (formData.get("deliveryDate") as string) || ""
+    const deliveryDate = deliveryDateRaw ? deliveryDateRaw.trim() : undefined
+    const trackingRaw = (formData.get("tracking_number") as string) || ""
+    const tracking_number = trackingRaw ? trackingRaw.trim() : undefined
 
     await partnerCompleteInventoryOrder(id, {
       notes,
@@ -171,13 +180,13 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
                             <Text size="small" className="truncate" title={String(label)}>{label}</Text>
                           </Table.Cell>
                           <Table.Cell>
-                            <Text size="small">{requested}</Text>
+                            <Text size="small">{fmt(requested)}</Text>
                           </Table.Cell>
                           <Table.Cell>
-                            <Text size="small">{delivered}</Text>
+                            <Text size="small">{fmt(delivered)}</Text>
                           </Table.Cell>
                           <Table.Cell>
-                            <Text size="small">{remaining}</Text>
+                            <Text size="small">{fmt(remaining)}</Text>
                           </Table.Cell>
                         </Table.Row>
                       )
@@ -206,16 +215,16 @@ export default async function InventoryOrderDetailsPage({ params }: PageProps) {
                       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                         <div className="rounded bg-ui-bg-subtle p-2">
                           <div className="text-[10px] text-ui-fg-muted">Requested</div>
-                          <div className="text-sm">{requested}</div>
+                          <div className="text-sm">{fmt(requested)}</div>
                         </div>
                         <div className="rounded bg-ui-bg-subtle p-2">
                           <div className="text-[10px] text-ui-fg-muted">Delivered</div>
-                          <div className="text-sm">{delivered}</div>
+                          <div className="text-sm">{fmt(delivered)}</div>
                         </div>
                         <div className="rounded bg-ui-bg-subtle p-2">
                           <div className="text-[10px] text-ui-fg-muted">Remaining</div>
                           <div className="text-sm">
-                            {remaining}
+                            {fmt(remaining)}
                             {remaining > 0 && (
                               <span className="ml-1 inline-block rounded-full px-1.5 py-0.5 text-[10px] bg-ui-tag-orange text-ui-fg-on-color">left</span>
                             )}
