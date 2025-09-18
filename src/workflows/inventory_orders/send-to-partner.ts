@@ -1,9 +1,13 @@
-// Configurable await timeouts (in seconds). Defaults to 30 days if not provided.
-const DEFAULT_AWAIT_TIMEOUT_SECONDS = 60 * 60 * 24 * 30
+// Configurable await timeouts (seconds) with sane defaults and Node clamp
+const DEFAULT_AWAIT_TIMEOUT_SECONDS = 60 * 60 * 24 * 23 // 23 days (per requirement)
+const NODE_MAX_TIMEOUT_MS = 2_147_483_647 // ~24.8 days
+const SAFE_MAX_TIMEOUT_SECONDS = Math.floor(NODE_MAX_TIMEOUT_MS / 1000)
+const MAX_ALLOWED_SECONDS = 60 * 60 * 24 * 23 // Hard cap at 23 days
 const AWAIT_TIMEOUT_SECONDS = (() => {
   const v = process.env.INVENTORY_AWAIT_TIMEOUT_SECONDS
   const n = v ? Number(v) : NaN
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_AWAIT_TIMEOUT_SECONDS
+  const desired = Number.isFinite(n) && n > 0 ? n : DEFAULT_AWAIT_TIMEOUT_SECONDS
+  return Math.min(desired, MAX_ALLOWED_SECONDS, SAFE_MAX_TIMEOUT_SECONDS)
 })()
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse, transform, when } from "@medusajs/framework/workflows-sdk"
@@ -224,7 +228,6 @@ const awaitOrderStart = createStep(
     {
         name: 'await-order-start',
         async: true,
-        timeout: AWAIT_TIMEOUT_SECONDS,
         maxRetries: 2
     },
     async (_, { container }) => {
@@ -238,7 +241,6 @@ const awaitOrderCompletion = createStep(
     {
         name: 'await-order-completion',
         async: true,
-        timeout: AWAIT_TIMEOUT_SECONDS,
         maxRetries: 2
     },
     async (_, { container }) => {
@@ -389,16 +391,10 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
         // Step 2: Validate the partner
         const partner = validatePartnerStep(input)
         
-        // Check if assignment already exists (idempotency)
-        const existing = checkExistingPartnerAssignmentStep({ orderId: input.inventoryOrderId })
-        const hasExisting = transform({ existing }, ({ existing }) => Boolean((existing as any)?.hasAssignment))
-
-        // Step 3: Create link between partner and inventory order only if not already assigned
-        when(hasExisting, (b) => !b).then(() => {
-            linkInventoryOrderWithPartnerStep({
-                inventoryOrderId: input.inventoryOrderId,
-                partnerId: input.partnerId
-            })
+        // Idempotency removed: always create/update the link
+        linkInventoryOrderWithPartnerStep({
+            inventoryOrderId: input.inventoryOrderId,
+            partnerId: input.partnerId
         })
         
         // Step 4: Update inventory order with admin notes
@@ -409,27 +405,20 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
             }
         })
         
-        // Step 5/6: If no existing, create tasks and set transaction ids
-        // Otherwise, only (re)set the transaction ids on existing tasks
-        let tasksWithTransactionIds: any
-        when(hasExisting, (b) => !b).then(() => {
-            const partnerTasks = createTasksFromTemplatesWorkflow.runAsStep({
-                input: {
-                    inventoryOrderId: input.inventoryOrderId,
-                    type: "template",
-                    template_names: ["partner-order-sent", "partner-order-received", "partner-order-shipped"],
-                    metadata: {
-                        partner_id: input.partnerId,
-                        inventory_order_id: input.inventoryOrderId,
-                        workflow_type: "partner_assignment"
-                    }
+        // Step 5/6: Always create tasks and set transaction ids
+        const partnerTasks = createTasksFromTemplatesWorkflow.runAsStep({
+            input: {
+                inventoryOrderId: input.inventoryOrderId,
+                type: "template",
+                template_names: ["partner-order-sent", "partner-order-received", "partner-order-shipped"],
+                metadata: {
+                    partner_id: input.partnerId,
+                    inventory_order_id: input.inventoryOrderId,
+                    workflow_type: "partner_assignment"
                 }
-            })
-            tasksWithTransactionIds = setTaskTransactionIdsStep({ partnerTasks })
+            }
         })
-        when(hasExisting, (b) => Boolean(b)).then(() => {
-            setExistingTasksTransactionIdsStep({ orderId: input.inventoryOrderId })
-        })
+        const tasksWithTransactionIds = setTaskTransactionIdsStep({ partnerTasks })
         
         // Step 7: Notify partner (always)
         notifyPartnerStep({input, order})

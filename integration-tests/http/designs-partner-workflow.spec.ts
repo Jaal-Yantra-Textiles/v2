@@ -5,6 +5,7 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 const TEST_PARTNER_EMAIL = "partner@design-workflow-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 
+// Keep a reasonable suite timeout
 jest.setTimeout(60000)
 
 setupSharedTestSuite(() => {
@@ -27,6 +28,70 @@ setupSharedTestSuite(() => {
         console.log(`[TEST DBG] ${label}:`, payload)
       }
     }
+
+    // Helper: log current tasks for a design (title/status)
+    const logDesignTaskSummary = async (designId: string) => {
+      try {
+        const res: any = await api.get(`/admin/designs/${designId}/tasks`, adminHeaders)
+        const tasks: any[] = res.data?.tasks || []
+        const summary = tasks.map((t: any) => ({ id: t?.id, title: t?.title, status: t?.status }))
+        dbg("tasks.summary", summary)
+      } catch (e: any) {
+        dbg("tasks.summary.error", e?.message || e)
+      }
+    }
+
+    // Helper: log available task templates and ensure redo child templates exist
+    const logAndCheckRedoTemplates = async () => {
+      try {
+        const res: any = await api.get("/admin/task-templates", adminHeaders)
+        const tpls: any[] = res.data?.task_templates || res.data?.task_templates || []
+        const names = tpls.map((t: any) => t?.name).filter(Boolean)
+        dbg("templates.names", names)
+        const need = [
+          "partner-design-redo-log",
+          "partner-design-redo-apply",
+          "partner-design-redo-verify",
+        ]
+        const present = need.every((n) => names.includes(n))
+        if (!present) {
+          // Provide an explicit test failure cause to surface root issue
+          throw new Error(`Missing redo child templates. Required: ${need.join(", ")}. Got: ${names.join(", ")}`)
+        }
+      } catch (e: any) {
+        // eslint-disable-next-line no-console
+        console.error("[TEST DBG] templates.check.error:", e?.message || e)
+        throw e
+      }
+    }
+
+    // Helper: wait for redo child tasks to be present (bounded polling)
+    const waitForRedoChildren = async (designId: string, attempts = 50, sleepMs = 100) => {
+      const childTitles = [
+        "partner-design-redo-log",
+        "partner-design-redo-apply",
+        "partner-design-redo-verify",
+      ]
+      for (let i = 0; i < attempts; i++) {
+        const res: any = await api.get(`/admin/designs/${designId}/tasks`, adminHeaders)
+        const tasks: any[] = res.data?.tasks || []
+        const hasAll = childTitles.every((t) => tasks.some((x: any) => x?.title === t))
+        dbg(`redo-children.poll[${i}]`, { hasAll, count: tasks.length })
+        if (hasAll) return true
+        await new Promise((r) => setTimeout(r, sleepMs))
+      }
+      // Final snapshot for debugging: list current task titles
+      try {
+        const res: any = await api.get(`/admin/designs/${designId}/tasks`, adminHeaders)
+        const tasks: any[] = res.data?.tasks || []
+        dbg("redo-children.final", { titles: tasks.map((t: any) => t?.title), count: tasks.length })
+      } catch (e: any) {
+        dbg("redo-children.final.error", e?.message || e)
+      }
+      return false
+    }
+
+    // No per-call timeouts; run as a normal integration spec
 
     const sampleDesign = {
       name: "Partner Workflow Test Design",
@@ -76,17 +141,12 @@ setupSharedTestSuite(() => {
           last_name: "Admin",
         },
       }
-      const partnerResponse = await api.post("/partners", partnerPayload, {
-        headers: partnerHeaders,
-      })
+      const partnerResponse: any = await api.post("/partners", partnerPayload, { headers: partnerHeaders })
       expect(partnerResponse.status).toBe(200)
       partnerId = partnerResponse.data.partner.id
 
       // Fresh token after partner creation (best practice in tests)
-      const newAuth = await api.post("/auth/partner/emailpass", {
-        email: TEST_PARTNER_EMAIL,
-        password: TEST_PARTNER_PASSWORD,
-      })
+      const newAuth: any = await api.post("/auth/partner/emailpass", { email: TEST_PARTNER_EMAIL, password: TEST_PARTNER_PASSWORD })
       partnerHeaders = { Authorization: `Bearer ${newAuth.data.token}` }
 
       // Create partner design task templates required by the send-to-partner workflow
@@ -221,7 +281,7 @@ setupSharedTestSuite(() => {
       }
 
       // Create the first template to create the category
-      const startTemplateRes = await api.post("/admin/task-templates", partnerDesignStartTemplate, adminHeaders)
+      const startTemplateRes: any = await api.post("/admin/task-templates", partnerDesignStartTemplate, adminHeaders)
       expect(startTemplateRes.status).toBe(201)
       const categoryId = startTemplateRes.data.task_template.category_id
 
@@ -244,42 +304,48 @@ setupSharedTestSuite(() => {
       const redoVerifyWithCat = { ...partnerDesignRedoVerifyTemplate, category_id: categoryId }
       const { category: _c6, ...redoVerifyClean } = redoVerifyWithCat as any
 
-      const redoTemplateRes = await api.post("/admin/task-templates", redoClean, adminHeaders)
+      const redoTemplateRes: any = await api.post("/admin/task-templates", redoClean, adminHeaders)
       expect(redoTemplateRes.status).toBe(201)
 
-      const finishTemplateRes = await api.post("/admin/task-templates", finishClean, adminHeaders)
+      const finishTemplateRes: any = await api.post("/admin/task-templates", finishClean, adminHeaders)
       expect(finishTemplateRes.status).toBe(201)
 
-      const completedTemplateRes = await api.post("/admin/task-templates", completedClean, adminHeaders)
+      const completedTemplateRes: any = await api.post("/admin/task-templates", completedClean, adminHeaders)
       expect(completedTemplateRes.status).toBe(201)
 
-      const redoLogTemplateRes = await api.post("/admin/task-templates", redoLogClean, adminHeaders)
+      const redoLogTemplateRes: any = await api.post("/admin/task-templates", redoLogClean, adminHeaders)
       expect(redoLogTemplateRes.status).toBe(201)
 
-      const redoApplyTemplateRes = await api.post("/admin/task-templates", redoApplyClean, adminHeaders)
+      const redoApplyTemplateRes: any = await api.post("/admin/task-templates", redoApplyClean, adminHeaders)
       expect(redoApplyTemplateRes.status).toBe(201)
 
-      const redoVerifyTemplateRes = await api.post("/admin/task-templates", redoVerifyClean, adminHeaders)
+      const redoVerifyTemplateRes: any = await api.post("/admin/task-templates", redoVerifyClean, adminHeaders)
       expect(redoVerifyTemplateRes.status).toBe(201)
 
       // Optionally verify list
-      const templatesList = await api.get("/admin/task-templates", adminHeaders)
+      const templatesList: any = await api.get("/admin/task-templates", adminHeaders)
       expect(templatesList.status).toBe(200)
 
       // Create a design via admin
-      const createDesignRes = await api.post("/admin/designs", sampleDesign, adminHeaders)
+      const createDesignRes: any = await api.post("/admin/designs", sampleDesign, adminHeaders)
       expect(createDesignRes.status).toBe(201)
       designId = createDesignRes.data.design.id
 
+      // Ensure redo child templates are present before running workflow
+      await logAndCheckRedoTemplates()
+
       // Send the design to partner
       const sendPayload = { partnerId, notes: "Please start work on this design" }
-      const sendRes = await api.post(`/admin/designs/${designId}/send-to-partner`, sendPayload, adminHeaders)
+      const sendRes: any = await api.post(`/admin/designs/${designId}/send-to-partner`, sendPayload, adminHeaders)
+      console.log("[TEST DBG] sendRes:", JSON.stringify({ status: sendRes.status, data: sendRes.data }, null, 2))
       expect(sendRes.status).toBe(200)
       expect(sendRes.data.message).toBe("Design sent to partner successfully")
-
-      // Small wait to allow workflow to create tasks
-      await new Promise((r) => setTimeout(r, 500))
+      
+      // No artificial waits; proceed directly
+      await logDesignTaskSummary(designId)
     })
+
+    
 
     it("should progress through start → finish → redo → complete and reflect statuses", async () => {
       // Initial listing for this partner should show assigned status
@@ -322,34 +388,17 @@ setupSharedTestSuite(() => {
       // Message may vary slightly; ensure it acknowledges redo and starting cycle
       expect(String(redoRes.data.message || "")).toMatch(/Redo acknowledged/i)
 
-      // Wait until listing reflects redo (async propagation)
-      let redoNode: any
-      for (let i = 0; i < 20; i++) {
-        const listAfterRedo = await api.get("/partners/designs", { headers: partnerHeaders })
-        redoNode = (listAfterRedo.data.designs || []).find((d: any) => d.id === designId)
-        dbg(`poll[${i}] redoNode.partner_info`, redoNode?.partner_info)
-        if (
-          redoNode?.partner_info?.partner_status === "in_progress" &&
-          redoNode?.partner_info?.partner_phase === "redo"
-        ) {
-          break
-        }
-        await new Promise((r) => setTimeout(r, 200))
-      }
+      // Single check for redo state (no polling sleeps)
+      const listAfterRedo = await api.get("/partners/designs", { headers: partnerHeaders })
+      const redoNode: any = (listAfterRedo.data.designs || []).find((d: any) => d.id === designId)
+      dbg("redoNode.partner_info", redoNode?.partner_info)
       expect(redoNode?.partner_info?.partner_status).toBe("in_progress")
       expect(redoNode?.partner_info?.partner_phase).toBe("redo")
 
-      // Wait until redo child tasks are created (ensures redo branch started and refinish gate registered)
-      for (let i = 0; i < 20; i++) {
-        const tasksRes = await api.get(`/admin/designs/${designId}/tasks`, adminHeaders)
-        const tasks: any[] = tasksRes.data?.tasks || []
-        const hasRedoChildren = [
-          "partner-design-redo-log",
-          "partner-design-redo-apply",
-          "partner-design-redo-verify",
-        ].every((t) => tasks.some((x: any) => x?.title === t))
-        if (hasRedoChildren) break
-        await new Promise((r) => setTimeout(r, 200))
+      // Wait briefly for redo child tasks to be created and linked
+      {
+        const ok = await waitForRedoChildren(designId)
+        expect(ok).toBe(true)
       }
 
       // Re-finish during redo before completing (required by workflow)
@@ -361,15 +410,16 @@ setupSharedTestSuite(() => {
       expect(String(refinishRes.data.message || "")).toMatch(/re-finished/i)
 
       // Ensure listing reflects finished again before completing
-      let postRefinishNode: any
-      for (let i = 0; i < 10; i++) {
-        const listAfterRefinish = await api.get("/partners/designs", { headers: partnerHeaders })
-        postRefinishNode = (listAfterRefinish.data.designs || []).find((d: any) => d.id === designId)
-        dbg(`poll[refinish ${i}] postRefinishNode.partner_info`, postRefinishNode?.partner_info)
-        if (postRefinishNode?.partner_info?.partner_status === "finished") break
-        await new Promise((r) => setTimeout(r, 200))
-      }
+      const listAfterRefinish = await api.get("/partners/designs", { headers: partnerHeaders })
+      const postRefinishNode: any = (listAfterRefinish.data.designs || []).find((d: any) => d.id === designId)
+      dbg("postRefinishNode.partner_info", postRefinishNode?.partner_info)
       expect(postRefinishNode?.partner_info?.partner_status).toBe("finished")
+
+      // Inventory used step: report decimal inventory before completing
+      const inventoryRes = await api.post(`/partners/designs/${designId}/inventory`, { inventory_used: 3.1 }, { headers: partnerHeaders })
+      dbg("inventoryRes", { status: inventoryRes.status, data: inventoryRes.data })
+      expect(inventoryRes.status).toBe(200)
+      expect(inventoryRes.data?.design?.metadata?.partner_inventory_used).toBe(3.1)
 
       // Complete
       const completeRes = await api.post(`/partners/designs/${designId}/complete`, {}, { headers: partnerHeaders })
@@ -378,89 +428,81 @@ setupSharedTestSuite(() => {
       expect(completeRes.data.message).toBe("Design marked as completed")
       expect(completeRes.data.design.status).toBe("Approved")
 
-      // Poll a bit since workflow signaling is async to reflect completed
-      let finalNode: any
-      for (let i = 0; i < 20; i++) {
-        const listFinal = await api.get("/partners/designs", { headers: partnerHeaders })
-        finalNode = (listFinal.data.designs || []).find((d: any) => d.id === designId)
-        dbg(`poll[${i}] finalNode.partner_info`, finalNode?.partner_info)
-        if (finalNode?.partner_info?.partner_status === "completed") break
-        await new Promise((r) => setTimeout(r, 200))
-      }
+      const listFinal = await api.get("/partners/designs", { headers: partnerHeaders })
+      const finalNode: any = (listFinal.data.designs || []).find((d: any) => d.id === designId)
+      dbg("finalNode.partner_info", finalNode?.partner_info)
       expect(finalNode?.partner_info?.partner_status).toBe("completed")
     })
 
-    // it("should support redo sub-workflow cycle: finish → redo → re-finish → complete", async () => {
-    //   // Start
-    //   const startRes = await api.post(`/partners/designs/${designId}/start`, {}, { headers: partnerHeaders })
-    //   dbg("startRes.2", { status: startRes.status, data: startRes.data })
-    //   expect(startRes.status).toBe(200)
+    it("should support redo sub-workflow cycle: finish → redo → re-finish → complete", async () => {
+      // Start
+      const startRes = await api.post(`/partners/designs/${designId}/start`, {}, { headers: partnerHeaders })
+      dbg("startRes.2", { status: startRes.status, data: startRes.data })
+      expect(startRes.status).toBe(200)
+      await logDesignTaskSummary(designId)
 
-    //   // Finish (ready for inspection)
-    //   const finishRes1 = await api.post(`/partners/designs/${designId}/finish`, {}, { headers: partnerHeaders })
-    //   dbg("finishRes1", { status: finishRes1.status, data: finishRes1.data })
-    //   expect(finishRes1.status).toBe(200)
-    //   expect(finishRes1.data.message).toBe("Design marked as finished")
+      // Finish (ready for inspection)
+      const finishRes1 = await api.post(`/partners/designs/${designId}/finish`, {}, { headers: partnerHeaders })
+      dbg("finishRes1", { status: finishRes1.status, data: finishRes1.data })
+      expect(finishRes1.status).toBe(200)
+      expect(finishRes1.data.message).toBe("Design marked as finished")
+      await logDesignTaskSummary(designId)
 
-    //   // Trigger redo (enters redo sub-workflow via await-design-redo)
-    //   const redoRes = await api.post(`/partners/designs/${designId}/redo`, {}, { headers: partnerHeaders })
-    //   dbg("redoRes.2", { status: redoRes.status, data: redoRes.data })
-    //   expect(redoRes.status).toBe(200)
-    //   // Message may vary slightly; ensure it acknowledges redo and starting cycle
-    //   expect(String(redoRes.data.message || "")).toMatch(/Redo acknowledged/i)
+      // Trigger redo (enters redo sub-workflow via await-design-redo)
+      const redoRes = await api.post(`/partners/designs/${designId}/redo`, {}, { headers: partnerHeaders })
+      dbg("redoRes.2", { status: redoRes.status, data: redoRes.data })
+      expect(redoRes.status).toBe(200)
+      // Message may vary slightly; ensure it acknowledges redo and starting cycle
+      expect(String(redoRes.data.message || "")).toMatch(/Redo acknowledged/i)
+      await logDesignTaskSummary(designId)
 
-    //   // Poll partner listing until redo state is visible (in_progress + phase=redo)
-    //   let redoNode: any
-    //   for (let i = 0; i < 25; i++) {
-    //     const listAfterRedo = await api.get("/partners/designs", { headers: partnerHeaders })
-    //     redoNode = (listAfterRedo.data.designs || []).find((d: any) => d.id === designId)
-    //     dbg(`poll2[${i}] redoNode.partner_info`, redoNode?.partner_info)
-    //     if (
-    //       redoNode?.partner_info?.partner_status === "in_progress" &&
-    //       redoNode?.partner_info?.partner_phase === "redo"
-    //     ) {
-    //       break
-    //     }
-    //     await new Promise((r) => setTimeout(r, 200))
-    //   }
-    //   expect(redoNode?.partner_info?.partner_status).toBe("in_progress")
-    //   expect(redoNode?.partner_info?.partner_phase).toBe("redo")
+      // Confirm templates are still present before waiting for child tasks
+      await logAndCheckRedoTemplates()
 
-    //   // Small delay to allow engine to register await-design-refinish gate
-    //   await new Promise((r) => setTimeout(r, 300))
+      // Immediate check for redo state (no polling)
+      {
+        const listAfterRedo = await api.get("/partners/designs", { headers: partnerHeaders })
+        const redoNode: any = (listAfterRedo.data.designs || []).find((d: any) => d.id === designId)
+        dbg("redoNode.partner_info", redoNode?.partner_info)
+        expect(redoNode?.partner_info?.partner_status).toBe("in_progress")
+        expect(redoNode?.partner_info?.partner_phase).toBe("redo")
+      }
 
-    //   // Re-finish during redo
-    //   const finishRes2 = await api.post(`/partners/designs/${designId}/finish`, {}, { headers: partnerHeaders })
-    //   dbg("finishRes2", { status: finishRes2.status, data: finishRes2.data })
-    //   expect(finishRes2.status).toBe(200)
-    //   expect(finishRes2.data.message).toBe("Design marked as finished")
+      // Re-finish during redo (use refinish endpoint)
+      const refinishRes2 = await api.post(`/partners/designs/${designId}/refinish`, {}, { headers: partnerHeaders })
+      dbg("refinishRes2", { status: refinishRes2.status, data: refinishRes2.data })
+      expect(refinishRes2.status).toBe(200)
+      expect(String(refinishRes2.data.message || "")).toMatch(/re-finished/i)
+      await logDesignTaskSummary(designId)
 
-    //   // Ensure listing reflects finished before completing
-    //   let postRefinishNode2: any
-    //   for (let i = 0; i < 10; i++) {
-    //     const listAfterRefinish2 = await api.get("/partners/designs", { headers: partnerHeaders })
-    //     postRefinishNode2 = (listAfterRefinish2.data.designs || []).find((d: any) => d.id === designId)
-    //     dbg(`poll2[refinish ${i}] postRefinishNode.partner_info`, postRefinishNode2?.partner_info)
-    //     if (postRefinishNode2?.partner_info?.partner_status === "finished") break
-    //     await new Promise((r) => setTimeout(r, 200))
-    //   }
-    //   expect(postRefinishNode2?.partner_info?.partner_status).toBe("finished")
+      // Immediate check for finished status
+      {
+        const listAfterRefinish2 = await api.get("/partners/designs", { headers: partnerHeaders })
+        const postRefinishNode2: any = (listAfterRefinish2.data.designs || []).find((d: any) => d.id === designId)
+        dbg("postRefinishNode2.partner_info", postRefinishNode2?.partner_info)
+        expect(postRefinishNode2?.partner_info?.partner_status).toBe("finished")
+      }
 
-    //   // Complete
-    //   const completeRes = await api.post(`/partners/designs/${designId}/complete`, {}, { headers: partnerHeaders })
-    //   dbg("completeRes.2", { status: completeRes.status, data: completeRes.data })
-    //   expect(completeRes.status).toBe(200)
+      // Inventory used step before completion
+      const inventoryRes2 = await api.post(`/partners/designs/${designId}/inventory`, { inventory_used: "4.25" }, { headers: partnerHeaders })
+      dbg("inventoryRes2", { status: inventoryRes2.status, data: inventoryRes2.data })
+      expect(inventoryRes2.status).toBe(200)
+      expect(inventoryRes2.data?.design?.metadata?.partner_inventory_used).toBe(4.25)
 
-    //   // Poll until completed is reflected
-    //   let finalNode: any
-    //   for (let i = 0; i < 25; i++) {
-    //     const listFinal = await api.get("/partners/designs", { headers: partnerHeaders })
-    //     finalNode = (listFinal.data.designs || []).find((d: any) => d.id === designId)
-    //     dbg(`poll2[${i}] finalNode.partner_info`, finalNode?.partner_info)
-    //     if (finalNode?.partner_info?.partner_status === "completed") break
-    //     await new Promise((r) => setTimeout(r, 200))
-    //   }
-    //   expect(finalNode?.partner_info?.partner_status).toBe("completed")
-    // })
+      // Complete
+      const completeRes = await api.post(`/partners/designs/${designId}/complete`, {}, { headers: partnerHeaders })
+      dbg("completeRes.2", { status: completeRes.status, data: completeRes.data })
+      expect(completeRes.status).toBe(200)
+      await logDesignTaskSummary(designId)
+
+      // Immediate check for completed status
+      {
+        const listFinal = await api.get("/partners/designs", { headers: partnerHeaders })
+        const finalNode: any = (listFinal.data.designs || []).find((d: any) => d.id === designId)
+        dbg("finalNode.partner_info", finalNode?.partner_info)
+        expect(finalNode?.partner_info?.partner_status).toBe("completed")
+      }
+
+    })
   })
 })

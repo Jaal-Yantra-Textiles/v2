@@ -56,14 +56,13 @@ export async function GET(
       ].includes(t.title)
     const workflowTasks = tasks.filter(isPartnerWorkflowTask)
 
-    // Determine partner assignment + status from task completion stages
-    // If no workflow tasks exist -> incoming (linked but not sent/assigned)
-    // If tasks exist -> consider assigned and derive phase progression
-    let partnerStatus: "incoming" | "assigned" | "in_progress" | "finished" | "completed" = "incoming"
-    let partnerPhase: "redo" | null = null
-    let partnerStartedAt: string | null = null
-    let partnerFinishedAt: string | null = null
-    let partnerCompletedAt: string | null = null
+    // Derive from metadata first (authoritative), then fall back to task-based inference
+    let partnerStatus: "incoming" | "assigned" | "in_progress" | "finished" | "completed" =
+      (design?.metadata?.partner_status as any) || "incoming"
+    let partnerPhase: "redo" | null = (design?.metadata?.partner_phase as any) || null
+    let partnerStartedAt: string | null = (design?.metadata?.partner_started_at as any) || null
+    let partnerFinishedAt: string | null = (design?.metadata?.partner_finished_at as any) || null
+    let partnerCompletedAt: string | null = (design?.metadata?.partner_completed_at as any) || null
 
     if (workflowTasks.length > 0) {
       // start -> redo (optional) -> finish -> completed
@@ -72,25 +71,26 @@ export async function GET(
       const finishTask = workflowTasks.find((t: any) => t.title === "partner-design-finish" && t.status === "completed")
       const completedTask = workflowTasks.find((t: any) => t.title === "partner-design-completed" && t.status === "completed")
 
-      partnerStatus = "assigned"
-
-      if (completedTask) {
-        partnerStatus = "completed"
-        partnerCompletedAt = completedTask.updated_at ? String(completedTask.updated_at) : null
-      } else if (finishTask || redoTask) {
-        const finishAt = finishTask?.updated_at ? new Date(finishTask.updated_at).getTime() : -1
-        const redoAt = redoTask?.updated_at ? new Date(redoTask.updated_at).getTime() : -1
-        if (redoAt > finishAt) {
-          // Redo requested after finish -> still in progress, but in redo phase
+      // If metadata didn't set a terminal state, infer from tasks
+      if (!partnerStatus || partnerStatus === "incoming" || partnerStatus === "assigned") {
+        partnerStatus = "assigned"
+        if (completedTask) {
+          partnerStatus = "completed"
+          partnerCompletedAt = partnerCompletedAt || (completedTask.updated_at ? String(completedTask.updated_at) : null)
+        } else if (finishTask || redoTask) {
+          const finishAt = finishTask?.updated_at ? new Date(finishTask.updated_at).getTime() : -1
+          const redoAt = redoTask?.updated_at ? new Date(redoTask.updated_at).getTime() : -1
+          if (redoAt > finishAt) {
+            partnerStatus = "in_progress"
+            partnerPhase = "redo"
+          } else if (finishTask) {
+            partnerStatus = "finished"
+            partnerFinishedAt = partnerFinishedAt || (finishTask.updated_at ? String(finishTask.updated_at) : null)
+          }
+        } else if (startTask) {
           partnerStatus = "in_progress"
-          partnerPhase = "redo"
-        } else if (finishTask) {
-          partnerStatus = "finished"
-          partnerFinishedAt = finishTask.updated_at ? String(finishTask.updated_at) : null
+          partnerStartedAt = partnerStartedAt || (startTask.updated_at ? String(startTask.updated_at) : null)
         }
-      } else if (startTask) {
-        partnerStatus = "in_progress"
-        partnerStartedAt = startTask.updated_at ? String(startTask.updated_at) : null
       }
     }
 

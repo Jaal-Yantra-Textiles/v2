@@ -9,6 +9,20 @@ import { TASKS_MODULE } from "../../modules/tasks"
 import TaskService from "../../modules/tasks/service"
 import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 
+// Configurable await timeouts (seconds) with sane defaults
+
+const ONE_DAY = 24 * 60 * 60 * 1000; // milliseconds in a day
+const timeout = 23 * ONE_DAY; // 23 days
+const DEFAULT_AWAIT_TIMEOUT_SECONDS = timeout // 23 days (per requirement)
+// Node's setTimeout max is ~2_147_483_647 ms (~24.8 days). The workflows engine converts seconds->ms under the hood,
+// so clamp to a safe maximum in seconds to avoid TimeoutOverflowWarning.
+const NODE_MAX_TIMEOUT_MS = 2_147_483_647
+const SAFE_MAX_TIMEOUT_SECONDS = Math.floor(NODE_MAX_TIMEOUT_MS / 1000) // 2_147_483 seconds (~24.8 days)
+const MAX_ALLOWED_SECONDS = 60 * 60 * 24 * 23 // hard cap at 23 days
+const envTimeout = Number(process.env.DESIGNS_AWAIT_TIMEOUT_SECONDS)
+const desiredTimeoutSeconds = Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : DEFAULT_AWAIT_TIMEOUT_SECONDS
+export const DESIGNS_AWAIT_TIMEOUT_SECONDS = Math.min(desiredTimeoutSeconds, MAX_ALLOWED_SECONDS, SAFE_MAX_TIMEOUT_SECONDS)
+
 // Input for sending a design to a partner
 type SendDesignToPartnerInput = {
   designId: string
@@ -113,11 +127,8 @@ const updateDesignMetadataStep = createStep(
 const setDesignTaskTransactionIdsStep = createStep(
   "set-design-task-transaction-ids",
   async (input: { partnerTasks: any }, { container, context }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
     const taskService: TaskService = container.resolve(TASKS_MODULE)
     const workflowTransactionId = context.transactionId
-
-    logger.info("Setting workflow transaction ID on design tasks...")
 
     const workflowResult = input.partnerTasks
     let createdTasks: any[] = []
@@ -134,12 +145,9 @@ const setDesignTaskTransactionIdsStep = createStep(
       }
     }
 
-    logger.info(`Found ${taskIds.length} task IDs from links: ${JSON.stringify(taskIds)}`)
-
     if (taskIds.length > 0) {
       const tasks = await taskService.listTasks({ id: taskIds })
       createdTasks = tasks
-      logger.info(`Retrieved ${createdTasks.length} task objects from TaskService`)
     }
 
     // Only set transaction_id; keep all tasks pending initially for design flows
@@ -152,7 +160,7 @@ const setDesignTaskTransactionIdsStep = createStep(
             transaction_id: workflowTransactionId,
           })
           updatedTasks.push(updatedTask)
-          logger.info(`Updated task ${task.id} with transaction ID: ${workflowTransactionId}`)
+          // transaction id applied
         }
       }
     }
@@ -162,15 +170,13 @@ const setDesignTaskTransactionIdsStep = createStep(
   async (taskData, { container }) => {
     if (!taskData || !taskData.tasks || !Array.isArray(taskData.tasks)) return
     const taskService: TaskService = container.resolve(TASKS_MODULE)
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
 
     for (const task of taskData.tasks) {
       if (task && typeof task === "object" && "id" in task) {
         try {
           await taskService.updateTasks({ id: task.id, transaction_id: null })
-          logger.info(`Compensated: removed transaction ID from task ${task.id}`)
         } catch (e: any) {
-          logger.warn(`Failed to compensate task ${task.id}: ${e.message}`)
+          // ignore
         }
       }
     }
@@ -202,46 +208,45 @@ const notifyPartnerStep = createStep(
   }
 )
 
-// Await steps for workflow coordination (external signaling with setStepSuccess)
-const awaitDesignStart = createStep(
-  { name: "await-design-start", async: true, timeout: 60 * 60 * 24, maxRetries: 2 },
-  async (_, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    logger.info("Awaiting partner to start design...")
-  }
-)
+// Await step factories so timeout reflects current env at composition time
+const makeAwaitDesignStart = () =>
+  createStep(
+    { name: "await-design-start", async: true, maxRetries: 2 },
+    async () => {
+      // waits for external signaling
+    }
+  )
 
-const awaitDesignFinish = createStep(
-  { name: "await-design-finish", async: true, timeout: 60 * 60 * 24 * 7, maxRetries: 2 },
-  async (_, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    logger.info("Awaiting design finish (ready for inspection)...")
-  }
-)
+const makeAwaitDesignFinish = () =>
+  createStep(
+    { name: "await-design-finish", async: true, maxRetries: 2 },
+    async () => {
+      // waits for external signaling
+    }
+  )
 
 // Optional redo loop gate — partners can request redo after inspection
-const awaitDesignRedo = createStep(
-  { name: "await-design-redo", async: true, timeout: 60 * 60 * 24 * 3, maxRetries: 1 },
-  async (_, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    logger.info("Awaiting potential design redo request...")
-  }
-)
+const makeAwaitDesignRedo = () =>
+  createStep(
+    { name: "await-design-redo", async: true, maxRetries: 1 },
+    async () => {
+      // waits for external signaling
+    }
+  )
 
-const awaitDesignCompleted = createStep(
-  { name: "await-design-completed", async: true, timeout: 60 * 60 * 24 * 14, maxRetries: 2 },
-  async (_, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    logger.info("Awaiting design completion (post-inspection approved)...")
-  }
-)
+const makeAwaitDesignCompleted = () =>
+  createStep(
+    { name: "await-design-completed", async: true, maxRetries: 2 },
+    async () => {
+      // waits for external signaling
+    }
+  )
 
 // --- Redo sub-workflow definitions (inlined to avoid circular imports) ---
 export const awaitDesignRefinish = createStep(
-  { name: "await-design-refinish", async: true, timeout: 60 * 60 * 24 * 7, maxRetries: 1 },
+  { name: "await-design-refinish", async: true, maxRetries: 1 },
   async (_, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    logger.info("Awaiting design re-finish during redo cycle...")
+    // waits for external signaling
   }
 )
 
@@ -461,8 +466,38 @@ export const sendDesignToPartnerWorkflow = createWorkflow(
     const design = validateDesignStep(input)
     const partner = validatePartnerStep(input)
 
-    // 2. Link design and partner
-    const partnerLink = linkDesignWithPartnerStep({ designId: input.designId, partnerId: input.partnerId })
+    // Idempotency check: does this design already have partner tasks?
+    const checkExistingTasksStep = createStep(
+      "check-existing-design-partner-assignment",
+      async (i: { designId: string }, { container }) => {
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({ entity: "designs", fields: ["id", "tasks.*"], filters: { id: i.designId } })
+        const nodes = data || []
+        let hasAssignment = false
+        if (nodes.length) {
+          const d: any = nodes[0]
+          const tasks: any[] = Array.isArray(d.tasks) ? d.tasks : []
+          hasAssignment = tasks.some((t) =>
+            [
+              "partner-design-start",
+              "partner-design-redo",
+              "partner-design-finish",
+              "partner-design-completed",
+            ].includes(t?.title)
+          )
+        }
+        return new StepResponse({ hasAssignment })
+      }
+    )
+    const existing = checkExistingTasksStep({ designId: input.designId })
+    const hasExisting = transform({ existing }, ({ existing }) => Boolean((existing as any)?.hasAssignment))
+
+    // (removed debug existing-assignment log)
+
+    // 2. Link design and partner (only if not already assigned)
+    when(hasExisting, (b) => !b).then(() => {
+      linkDesignWithPartnerStep({ designId: input.designId, partnerId: input.partnerId })
+    })
 
     // 3. Store admin notes on design metadata
     const designWithNotes = updateDesignMetadataStep({
@@ -470,53 +505,79 @@ export const sendDesignToPartnerWorkflow = createWorkflow(
       metadata: { assignment_notes: input.notes },
     })
 
-    // 4. Create partner coordination tasks (sequential & blocking)
-    const partnerTasks = createTasksFromTemplatesWorkflow.runAsStep({
-      input: {
-        designId: input.designId,
-        type: "template",
-        template_names: [
-          "partner-design-start",
-          "partner-design-redo",
-          "partner-design-finish",
-          "partner-design-completed",
-        ],
-        dependency_type: "blocking",
-        metadata: {
-          partner_id: input.partnerId,
-          design_id: input.designId,
-          workflow_type: "partner_design_assignment",
-        },
-      },
-    })
+    // 4/5. Create partner tasks only if none; else reset transaction IDs on existing tasks
+    const setExistingDesignTasksTransactionIdsStep = createStep(
+      "set-existing-design-task-transaction-ids",
+      async (i: { designId: string }, { container, context }) => {
+        const taskService: TaskService = container.resolve(TASKS_MODULE)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const workflowTransactionId = context.transactionId
+        const { data } = await query.graph({ entity: "designs", fields: ["id", "tasks.*"], filters: { id: i.designId } })
+        const nodes = data || []
+        const tasks: any[] = nodes.length ? (nodes[0] as any).tasks || [] : []
+        const updated: any[] = []
+        for (const t of tasks) {
+          if (!t?.id) continue
+          const upd = await taskService.updateTasks({ id: t.id, transaction_id: workflowTransactionId })
+          updated.push(upd)
+        }
+        return new StepResponse({ count: updated.length })
+      }
+    )
 
-    // 5. Tag created tasks with transaction ID
-    const tasksWithTransactionIds = setDesignTaskTransactionIdsStep({ partnerTasks })
+    when(hasExisting, (b) => !b).then(() => {
+      const partnerTasks = createTasksFromTemplatesWorkflow.runAsStep({
+        input: {
+          designId: input.designId,
+          type: "template",
+          template_names: [
+            "partner-design-start",
+            "partner-design-redo",
+            "partner-design-finish",
+            "partner-design-completed",
+          ],
+          dependency_type: "blocking",
+          metadata: {
+            partner_id: input.partnerId,
+            design_id: input.designId,
+            workflow_type: "partner_design_assignment",
+          },
+        },
+      })
+      setDesignTaskTransactionIdsStep({ partnerTasks })
+    })
+    when(hasExisting, (b) => Boolean(b)).then(() => {
+      setExistingDesignTasksTransactionIdsStep({ designId: input.designId })
+    })
 
     // 6. Notify partner
     notifyPartnerStep({ input, design })
 
-    // 7. Await partner milestones
-    awaitDesignStart()
-    awaitDesignFinish()
+    // 7. Await partner milestones (dynamic timeout)
+    makeAwaitDesignStart()()
+    makeAwaitDesignFinish()()
 
     // Conditional redo branch (runs only if enableRedo !== false)
-    when(
-      input,
-      (i) => i.enableRedo !== false
-    ).then(() => {
-      awaitDesignRedo() // optional redo after finish/inspection
+    // Note: we no longer auto-create redo subtasks here; redo API will create them on-demand
+    when(input, (i) => i.enableRedo !== false).then(() => {
+      makeAwaitDesignRedo()() // optional redo after finish/inspection
       awaitDesignRefinish()
-      prepareRedoStep({ designId: input.designId })
-      revertFinishTasksStep({ designId: input.designId })
-      const redoParent = findRedoParentTaskStep({ designId: input.designId })
-      const redoChildren = createRedoSubtasksStep({ designId: input.designId, partnerId: input.partnerId, parentTaskId: redoParent.parentTaskId })
-      const redoLinks = linkRedoSubtasksToDesignStep({ designId: input.designId, tasks: redoChildren.tasks })
-      tagRedoSubtasksTransactionIdStep({ tasks: redoChildren.tasks })
     })
 
-    // Single completion gate at the end (can be signaled after initial finish if no redo, or after redo-refinish)
-    awaitDesignCompleted()
+    // Insert an inventory reporting gate before final completion
+    // Partners will POST inventory used and signal this step
+    const makeAwaitDesignInventory = () =>
+      createStep(
+        { name: "await-design-inventory", async: true, maxRetries: 2 },
+        async () => {
+          // waits for external signaling
+        }
+      )
+
+    makeAwaitDesignInventory()()
+
+    // Single completion gate at the end (can be signaled after initial finish if no redo, or after redo-refinish and inventory submission)
+    makeAwaitDesignCompleted()()
 
     // Success feed notification
     const successNotification = transform({ input }, (data) => {

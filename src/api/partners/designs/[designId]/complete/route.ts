@@ -4,7 +4,7 @@ import { refetchPartnerForThisAdmin } from "../../../helpers"
 import { updateDesignWorkflow } from "../../../../../workflows/designs/update-design"
 import { TASKS_MODULE } from "../../../../../modules/tasks"
 import TaskService from "../../../../../modules/tasks/service"
-import { setDesignStepSuccessWorkflow } from "../../../../../workflows/designs/design-steps"
+import { setDesignStepSuccessWorkflow, setDesignStepFailedWorkflow } from "../../../../../workflows/designs/design-steps"
 
 export async function POST(
   req: AuthenticatedMedusaRequest,
@@ -57,10 +57,52 @@ export async function POST(
           metadata: { ...task?.metadata, completed_at: new Date().toISOString(), completed_by: "partner" },
         })
       }
+
+      // Option A: also complete redo-verify child if present
+      const redoVerify = d.tasks.find((t: any) => t?.title === "partner-design-redo-verify" && t?.status !== "completed")
+      if (redoVerify) {
+        await taskService.updateTasks({
+          id: redoVerify.id,
+          status: "completed",
+          metadata: { ...(redoVerify.metadata || {}), completed_at: new Date().toISOString(), completed_by: "partner" },
+        })
+      }
+
+      // Cancel any leftover redo-related tasks if redo was bypassed (not completed)
+      const redoTitles = new Set([
+        "partner-design-redo",
+        "partner-design-redo-log",
+        "partner-design-redo-apply",
+        "partner-design-redo-verify",
+      ])
+      const redoPending = d.tasks.filter((t: any) => redoTitles.has(t?.title) && t?.status !== "completed")
+      for (const t of redoPending) {
+        await taskService.updateTasks({
+          id: t?.id,
+          status: "cancelled",
+          metadata: { ...(t?.metadata || {}), cancelled_at: new Date().toISOString(), cancelled_by: "system" },
+        })
+      }
     }
   }
 
   // Signal step success for await-design-completed
+  // If redo phase was bypassed, proactively fail redo gates so the workflow can continue
+  try {
+    await setDesignStepFailedWorkflow(req.scope).run({
+      input: { stepId: "await-design-redo", updatedDesign: result[0] },
+    })
+  } catch (e) {
+    // ignore; step may be idle or not waiting
+  }
+  try {
+    await setDesignStepFailedWorkflow(req.scope).run({
+      input: { stepId: "await-design-refinish", updatedDesign: result[0] },
+    })
+  } catch (e) {
+    // ignore; step may be idle or not waiting
+  }
+
   const { errors: stepErrors } = await setDesignStepSuccessWorkflow(req.scope).run({
     input: {
       stepId: "await-design-completed",

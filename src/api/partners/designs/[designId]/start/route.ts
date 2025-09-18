@@ -51,7 +51,7 @@ export async function POST(
       status: "In_Development",
       metadata: {
         partner_started_at: new Date().toISOString(),
-        partner_status: "started",
+        partner_status: "in_progress",
       },
     },
   })

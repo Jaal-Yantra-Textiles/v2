@@ -17,6 +17,7 @@ export async function POST(
       notes,
       enableRedo: true,
     },
+    throwOnError: true,
   })
 
   // Build object for potential step payloads (kept for future use if needed)

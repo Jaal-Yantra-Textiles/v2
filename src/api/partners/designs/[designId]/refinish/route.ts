@@ -44,18 +44,34 @@ export async function POST(
     return res.status(500).json({ error: "Failed to update design", details: errors })
   }
 
-  // Mark the finish task as completed (idempotent)
+  // Mark the finish task as completed (force-update to refresh updated_at)
   const taskService: TaskService = req.scope.resolve(TASKS_MODULE)
   for (const d of taskLinks) {
     if (d.tasks && Array.isArray(d.tasks)) {
       const finishTasks = d.tasks.filter(
-        (task: any) => task.title === "partner-design-finish" && task.status !== "completed"
+        (task: any) => task.title === "partner-design-finish"
       )
       for (const task of finishTasks) {
         await taskService.updateTasks({
           id: task?.id,
           status: "completed",
-          metadata: { ...task?.metadata, completed_at: new Date().toISOString(), completed_by: "partner" },
+          metadata: { ...task?.metadata, refinish_at: new Date().toISOString(), completed_at: new Date().toISOString(), completed_by: "partner" },
+        })
+      }
+
+      // Option A: Advance redo-child tasks upon refinish
+      const redoChildrenToComplete = d.tasks.filter((t: any) => {
+        if (!t) return false
+        const title = t.title as string | undefined
+        const status = t.status as string | undefined
+        return !!title && ["partner-design-redo-log", "partner-design-redo-apply"].includes(title) && status !== "completed"
+      })
+      for (const t of redoChildrenToComplete) {
+        if (!t || !t.id) continue
+        await taskService.updateTasks({
+          id: t.id,
+          status: "completed",
+          metadata: { ...(t.metadata || {}), completed_at: new Date().toISOString(), completed_by: "partner" },
         })
       }
     }

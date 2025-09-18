@@ -1,6 +1,6 @@
-import { Container, Heading, StatusBadge, Text } from "@medusajs/ui"
+import { Button, Container, Heading, StatusBadge, Text } from "@medusajs/ui"
 import { redirect } from "next/navigation"
-import { getPartnerDesign, partnerStartDesign, partnerFinishDesign, partnerRedoDesign, partnerCompleteDesign, partnerRefinishDesign } from "../../actions"
+import { getPartnerDesign, partnerStartDesign, partnerFinishDesign, partnerRedoDesign, partnerRefinishDesign } from "../../actions"
 
 import MoodboardSection from "./sections/moodboard-section"
 import SpecsSection from "./sections/specs-section"
@@ -8,6 +8,7 @@ import NotesSection from "./sections/notes-section"
 import MediaSection from "./sections/media-section"
 import ActionFooter from "../../../components/action-footer/action-footer"
 import ActionFormButton from "../../../components/action-footer/action-form-button"
+import CompleteDesignModal from "../../../components/complete-design-modal"
  
 
 interface PageProps {
@@ -23,7 +24,15 @@ export default async function DesignDetailsPage({ params }: PageProps) {
     redirect("/dashboard/designs")
   }
 
-  const partnerStatus: "incoming" | "assigned" | "in_progress" | "finished" | "completed" = (design?.partner_info?.partner_status) ?? "assigned"
+  type PartnerStatus = "incoming" | "assigned" | "in_progress" | "finished" | "completed"
+  const partnerStatusRaw = design?.partner_info?.partner_status as string | undefined
+  const normalizeStatus = (s?: string): PartnerStatus => {
+    if (!s) return "assigned"
+    if (s === "started") return "in_progress"
+    if (["incoming", "assigned", "in_progress", "finished", "completed"].includes(s)) return s as PartnerStatus
+    return "assigned"
+  }
+  const partnerStatus: PartnerStatus = normalizeStatus(partnerStatusRaw)
   const isRedoPhase = design?.partner_info?.partner_phase === "redo"
   const shortId = design.id && design.id.length > 12 ? `${design.id.slice(0, 10)}…${design.id.slice(-4)}` : design.id
 
@@ -51,9 +60,15 @@ export default async function DesignDetailsPage({ params }: PageProps) {
     redirect(`/dashboard/designs/${id}`)
   }
 
-  async function completeDesign() {
+  // Modal-completion handler: records inventory then completes
+  async function completeWithInventory(formData: FormData) {
     "use server"
-    await partnerCompleteDesign(id)
+    const used = String(formData.get("inventory_used") ?? "").trim()
+    if (!used) {
+      redirect(`/dashboard/designs/${id}`)
+    }
+    // Reuse composed action to record inventory and complete
+    await (await import("../../actions")).partnerCompleteDesignWithInventory(id, used)
     redirect(`/dashboard/designs/${id}`)
   }
 
@@ -124,6 +139,41 @@ export default async function DesignDetailsPage({ params }: PageProps) {
           </div>
         </section>
 
+        {/* Redo subtasks progress (visible only when in redo phase) */}
+        {isRedoPhase && (
+          <section className="mb-6">
+            <div className="flex flex-col gap-2">
+              <Heading level="h3">Redo cycle progress</Heading>
+              <div className="flex items-center gap-4 flex-wrap">
+                {(() => {
+                  type TaskLite = { title?: string; status?: "pending" | "in_progress" | "completed" | "cancelled" | "accepted" }
+                  const tasks: TaskLite[] = Array.isArray((design as { tasks?: TaskLite[] })?.tasks)
+                    ? ((design as { tasks?: TaskLite[] }).tasks as TaskLite[])
+                    : []
+                  const findTask = (title: string) => tasks.find((t) => t?.title === title)
+                  const badge = (title: string, label: string) => {
+                    const t = findTask(title)
+                    const s: TaskLite["status"] = t?.status || "pending"
+                    const color: "green" | "orange" | "blue" = s === "completed" ? "green" : s === "in_progress" ? "orange" : "blue"
+                    return (
+                      <div className="flex items-center gap-2" key={title}>
+                        <StatusBadge color={color}>{label}: {s}</StatusBadge>
+                      </div>
+                    )
+                  }
+                  return (
+                    <>
+                      {badge("partner-design-redo-log", "Redo Log")}
+                      {badge("partner-design-redo-apply", "Redo Apply")}
+                      {badge("partner-design-redo-verify", "Redo Verify")}
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Media and Moodboard grid */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <MediaSection
@@ -156,14 +206,15 @@ export default async function DesignDetailsPage({ params }: PageProps) {
         )}
 
         {partnerStatus === "finished" && !isRedoPhase && (
-          <>
-            {/* Redo request after Finish */}
+          <div className="flex items-center gap-3">
+            {/* Request Redo as a distinct, less prominent action */}
             <form action={requestRedo} className="flex items-center gap-2">
               <input name="notes" placeholder="Reason to redo" className="border rounded px-2 py-1 text-sm" />
-              <button type="submit" className="btn btn-secondary px-3 py-1 rounded text-sm">Request Redo</button>
+              <Button type="submit" variant="secondary" size="base">Request Redo</Button>
             </form>
-            <ActionFormButton action={completeDesign}>Complete</ActionFormButton>
-          </>
+            {/* Complete via modal that asks for inventory used */}
+            <CompleteDesignModal completeAction={completeWithInventory} />
+          </div>
         )}
 
         {partnerStatus === "completed" && (

@@ -80,6 +80,7 @@ import {
 } from "./partners/[id]/payments/validators";
 import { sendDesignToPartnerSchema } from "./admin/designs/[id]/send-to-partner/validators";
 import { listDesignsQuerySchema } from "./partners/designs/validators";
+import { PartnerDesignInventorySchema } from "./partners/designs/[designId]/inventory/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
@@ -924,6 +925,14 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/inventory",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerDesignInventorySchema)),
       ],
     },
     {

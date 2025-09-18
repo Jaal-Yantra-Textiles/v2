@@ -66,16 +66,18 @@ export const GET = async (
   const finishTask = findCompleted("partner-design-finish")
   const completedTask = findCompleted("partner-design-completed")
 
-  let partner_status: "incoming" | "assigned" | "in_progress" | "finished" | "completed" = hasWorkflowTasks ? "assigned" : "incoming"
-  let partner_phase: "redo" | null = null
-  let partner_started_at: string | null = null
-  let partner_finished_at: string | null = null
-  let partner_completed_at: string | null = null
+  // Prefer metadata from the design node (authoritative), then infer from tasks
+  let partner_status: "incoming" | "assigned" | "in_progress" | "finished" | "completed" =
+    ((workflowDesign as any)?.metadata?.partner_status as any) || ((linkData.design as any)?.metadata?.partner_status as any) || (hasWorkflowTasks ? "assigned" : "incoming")
+  let partner_phase: "redo" | null = ((workflowDesign as any)?.metadata?.partner_phase as any) || ((linkData.design as any)?.metadata?.partner_phase as any) || null
+  let partner_started_at: string | null = ((workflowDesign as any)?.metadata?.partner_started_at as any) || ((linkData.design as any)?.metadata?.partner_started_at as any) || null
+  let partner_finished_at: string | null = ((workflowDesign as any)?.metadata?.partner_finished_at as any) || ((linkData.design as any)?.metadata?.partner_finished_at as any) || null
+  let partner_completed_at: string | null = ((workflowDesign as any)?.metadata?.partner_completed_at as any) || ((linkData.design as any)?.metadata?.partner_completed_at as any) || null
 
-  if (hasWorkflowTasks) {
+  if ((!partner_status || partner_status === "incoming" || partner_status === "assigned") && hasWorkflowTasks) {
     if (completedTask) {
       partner_status = "completed"
-      partner_completed_at = completedTask.updated_at ? String(completedTask.updated_at) : null
+      partner_completed_at = partner_completed_at || (completedTask.updated_at ? String(completedTask.updated_at) : null)
     } else if (finishTask || redoTask) {
       const finishAt = finishTask?.updated_at ? new Date(finishTask.updated_at).getTime() : -1
       const redoAt = redoTask?.updated_at ? new Date(redoTask.updated_at).getTime() : -1
@@ -84,11 +86,11 @@ export const GET = async (
         partner_phase = "redo"
       } else if (finishTask) {
         partner_status = "finished"
-        partner_finished_at = finishTask.updated_at ? String(finishTask.updated_at) : null
+        partner_finished_at = partner_finished_at || (finishTask.updated_at ? String(finishTask.updated_at) : null)
       }
     } else if (startTask) {
       partner_status = "in_progress"
-      partner_started_at = startTask.updated_at ? String(startTask.updated_at) : null
+      partner_started_at = partner_started_at || (startTask.updated_at ? String(startTask.updated_at) : null)
     }
   }
 
