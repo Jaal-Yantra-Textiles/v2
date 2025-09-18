@@ -209,6 +209,15 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+
+    {
+      matcher: "/partners/update",
+      method: "PUT",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(partnerSchema)),
+      ],
+    },
     
     {
       matcher: "/partners/:id",

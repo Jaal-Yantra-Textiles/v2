@@ -7,6 +7,271 @@ export async function logout() {
   redirect("/login");
 }
 
+// Payments: methods and payments listing/creation
+export type PartnerPaymentMethod = {
+  id: string
+  type: "bank_account" | "cash_account" | "digital_wallet"
+  account_name: string
+  account_number?: string | null
+  bank_name?: string | null
+  ifsc_code?: string | null
+  wallet_id?: string | null
+  created_at?: string
+}
+
+export type PartnerPayment = {
+  id: string
+  amount?: number
+  currency_code?: string
+  created_at?: string
+  metadata?: Record<string, unknown> | null
+}
+
+export async function getPartnerPaymentMethods() {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const partner = await getDetails()
+  if (!partner?.id) return [] as PartnerPaymentMethod[]
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/${partner.id}/payments/methods`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    console.error("Failed to fetch partner payment methods:", await res.text())
+    return [] as PartnerPaymentMethod[]
+  }
+  const json = await res.json()
+  return (json?.paymentMethods || []) as PartnerPaymentMethod[]
+}
+
+export async function addPartnerPaymentMethod(formData: FormData) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const partner = await getDetails()
+  if (!partner?.id) throw new Error("Partner not found")
+
+  // Build payload per validators at src/api/partners/[id]/payments/validators.ts
+  const type = String(formData.get("type") || "bank_account") as "bank_account" | "cash_account" | "digital_wallet"
+  const account_name = String(formData.get("account_name") || "")
+  const account_number = formData.get("account_number") ? String(formData.get("account_number")) : undefined
+  const bank_name = formData.get("bank_name") ? String(formData.get("bank_name")) : undefined
+  const ifsc_code = formData.get("ifsc_code") ? String(formData.get("ifsc_code")) : undefined
+  const wallet_id = formData.get("wallet_id") ? String(formData.get("wallet_id")) : undefined
+
+  const payload: Record<string, unknown> = {
+    type,
+    account_name,
+  }
+  if (account_number) payload.account_number = account_number
+  if (bank_name) payload.bank_name = bank_name
+  if (ifsc_code) payload.ifsc_code = ifsc_code
+  if (wallet_id) payload.wallet_id = wallet_id
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/${partner.id}/payments/methods`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to add payment method")
+  }
+  return await res.json()
+}
+
+export async function getPartnerPayments() {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const partner = await getDetails()
+  if (!partner?.id) return [] as PartnerPayment[]
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/${partner.id}/payments`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    console.error("Failed to fetch partner payments:", await res.text())
+    return [] as PartnerPayment[]
+  }
+  const json = await res.json()
+  return (json?.payments || []) as PartnerPayment[]
+}
+
+export type PartnerPerson = {
+  id: string
+  first_name?: string | null
+  last_name?: string | null
+  email?: string | null
+  phone?: string | null
+  role?: string | null
+  created_at?: string
+}
+
+export async function getPartnerPeople() {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  // get current partner to determine id
+  const partner = await getDetails()
+  if (!partner?.id) return [] as PartnerPerson[]
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/${partner.id}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    console.error("Failed to fetch partner people:", await res.text())
+    return [] as PartnerPerson[]
+  }
+  const json = await res.json()
+  // API typically returns { result: [...]} or { partner: { people: [...] }}; handle both
+  return (json?.result?.[0]?.people || json?.people || json?.partner?.people || []) as PartnerPerson[]
+}
+
+export async function addPartnerPerson(formData: FormData) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const partner = await getDetails()
+  if (!partner?.id) throw new Error("Partner not found")
+
+  const person = {
+    first_name: String(formData.get("first_name") || ""),
+    last_name: String(formData.get("last_name") || ""),
+    email: String(formData.get("email") || ""),
+  }
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/${partner.id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ people: [person] }),
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to add person")
+  }
+  return await res.json()
+}
+
+export async function updatePartnerStatusVerification(formData: FormData) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const status = String(formData.get("status") || "") as
+    | "active"
+    | "inactive"
+    | "pending"
+  const isVerifiedRaw = formData.get("is_verified")
+  // Switch/checkbox can submit "on" or "true" or "1"; coerce robustly
+  const is_verified = (() => {
+    if (typeof isVerifiedRaw === "string") {
+      const v = isVerifiedRaw.toLowerCase()
+      return v === "true" || v === "on" || v === "1"
+    }
+    return Boolean(isVerifiedRaw)
+  })()
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/update`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify({ status, is_verified }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to update partner status & verification")
+  }
+}
+
+export async function updatePartnerGeneral(formData: FormData) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const name = String(formData.get("name") || "")
+  const handle = String(formData.get("handle") || "")
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/update`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify({ name, handle }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to update partner general details")
+  }
+}
+
+export async function updatePartnerBranding(formData: FormData) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const logo = String(formData.get("logo") || "")
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/update`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify({ logo: logo || null }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to update partner branding")
+  }
+}
+
 export async function partnerCompleteDesignWithInventory(designId: string, inventoryUsed: string | number) {
   const token = await getAuthCookie()
   if (!token) redirect("/login")

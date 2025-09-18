@@ -1,13 +1,17 @@
-"use client"
+import { Heading, Text } from "@medusajs/ui"
 
-import { Container, Heading } from "@medusajs/ui"
+import { ProfileSettingsClient } from "./profile-settings-client"
+import { getDetails } from "../../actions"
 
-export default function ProfileSettingsPage() {
+export default async function ProfileSettingsPage() {
+  const partner = await getDetails()
   return (
-    <div className="flex flex-col gap-y-6">      
-      <Container>
-        <Heading level="h1">hello</Heading>
-      </Container>
+    <div className="flex flex-col gap-y-6">
+      <div>
+        <Heading level="h1">Profile</Heading>
+        <Text className="text-ui-fg-subtle">Manage your partner profile and branding.</Text>
+      </div>
+      <ProfileSettingsClient initial={partner} />
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { TopNavbar } from "../components/top-navbar"
 import { requireAuth } from "@/lib/auth-cookie"
 import { getDetails } from "./actions"
 import { redirect } from "next/navigation"
+import { TooltipProvider } from "@medusajs/ui"
 
 export default async function DashboardLayout({
   children,
@@ -28,7 +29,9 @@ export default async function DashboardLayout({
         {/* Mobile overlay toggle */}
         <MobileSidebarOverlay partner={partner} />
         <TopNavbar />
+        <TooltipProvider>
         <main className="flex-1 overflow-y-auto p-2">{children}</main>
+        </TooltipProvider>
       </div>
     </div>
     </>
