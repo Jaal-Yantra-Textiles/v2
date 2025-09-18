@@ -1,3 +1,11 @@
+## [6.14.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.14.2...v6.14.3) (2025-09-18)
+
+
+### Bug Fixes
+
+* **Workflow:** Fixed the inventory order long term workflow ([343f291](https://github.com/Jaal-Yantra-Textiles/v2/commit/343f2912083ad3a51a0d74ed2a9a2cf38a234d7c))
+* **Workflows:** Workflows bug fixes ([ca63ea7](https://github.com/Jaal-Yantra-Textiles/v2/commit/ca63ea7c0ee11c3a685d183ad00e1e9eaf64b728))
+
 ## [6.14.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.14.1...v6.14.2) (2025-09-15)
 
 
