@@ -1,3 +1,10 @@
+# [6.16.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.15.1...v6.16.0) (2025-09-18)
+
+
+### Features
+
+* **UI:** Partner UI upgrade ([6bbcab5](https://github.com/Jaal-Yantra-Textiles/v2/commit/6bbcab533a0411da57eda5d790c172a614409532))
+
 ## [6.15.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.15.0...v6.15.1) (2025-09-18)
 
 
