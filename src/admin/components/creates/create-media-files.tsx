@@ -1,16 +1,29 @@
 import React from "react"
 import { Button, Heading, Input, Select, Text, toast } from "@medusajs/ui"
 import { FileUpload } from "../common/file-upload"
-import { useUploadMedia } from "../../hooks/api/media-folders/use-upload-media"
 import { useListMediaDictionaries } from "../../hooks/api/media-folders/use-list-dictionaries"
 import { RouteFocusModal } from "../modal/route-focus-modal"
+import { UploadManager, UploadItemState } from "../../lib/uploads/upload-manager"
 
 export const CreateMediaFilesComponent: React.FC = () => {
   const [pendingFiles, setPendingFiles] = React.useState<{ file: File; url: string }[]>([])
   const [albumIdsText, setAlbumIdsText] = React.useState<string>("")
-
-  const { mutateAsync: uploadMedia, isPending: isUploading } = useUploadMedia()
   const { data: dicts, isLoading: isDictsLoading } = useListMediaDictionaries()
+
+  // Singleton-ish manager per component instance
+  const managerRef = React.useRef<UploadManager>()
+  if (!managerRef.current) {
+    managerRef.current = new UploadManager()
+  }
+
+  // Track live uploads for basic progress rendering
+  const [uploads, setUploads] = React.useState<Record<string, UploadItemState>>({})
+  React.useEffect(() => {
+    const off = managerRef.current!.onUpdate((s) => {
+      setUploads((prev) => ({ ...prev, [s.id]: s }))
+    })
+    return () => off()
+  }, [])
 
   React.useEffect(() => {
     return () => {
@@ -56,6 +69,23 @@ export const CreateMediaFilesComponent: React.FC = () => {
               {pendingFiles.slice(0, 12).map((f, idx) => (
                 <img key={idx} src={f.url} alt={f.file.name} className="h-16 w-16 object-cover rounded" />
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Basic live progress (uploads within this session) */}
+        {Object.keys(uploads).length > 0 && (
+          <div className="flex flex-col gap-y-2">
+            <Text size="small" className="text-ui-fg-subtle">In-progress uploads</Text>
+            <div className="flex flex-col gap-1">
+              {Object.values(uploads)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((u) => (
+                  <div key={u.id} className="flex items-center justify-between text-xs">
+                    <span className="truncate max-w-[60%]" title={u.name}>{u.name}</span>
+                    <span className="text-ui-fg-subtle">{Math.floor((u.progress || 0) * 100)}% · {u.status}</span>
+                  </div>
+                ))}
             </div>
           </div>
         )}
@@ -115,8 +145,7 @@ export const CreateMediaFilesComponent: React.FC = () => {
           </RouteFocusModal.Close>
           <Button
             type="button"
-            isLoading={isUploading}
-            disabled={isUploading || pendingFiles.length === 0}
+            disabled={pendingFiles.length === 0}
             onClick={async () => {
               try {
                 const files = pendingFiles.map((p) => p.file)
@@ -128,9 +157,14 @@ export const CreateMediaFilesComponent: React.FC = () => {
                   .split(',')
                   .map((s) => s.trim())
                   .filter(Boolean)
-                await uploadMedia({ files, existingAlbumIds: existingAlbumIds.length ? existingAlbumIds : undefined })
-                toast.success(`${files.length} file(s) uploaded`)
-                // Cleanup object URLs
+
+                for (const f of files) {
+                  managerRef.current!.enqueue(f, {
+                    existingAlbumIds: existingAlbumIds.length ? existingAlbumIds : undefined,
+                  })
+                }
+                toast.success(`${files.length} file(s) enqueued. Uploading in background.`)
+                // Cleanup previews and selection; uploads continue in manager
                 pendingFiles.forEach((pf) => URL.revokeObjectURL(pf.url))
                 setPendingFiles([])
                 setAlbumIdsText("")

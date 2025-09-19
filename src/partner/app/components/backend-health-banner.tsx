@@ -1,12 +1,25 @@
 "use client"
 
+import React from "react"
+
 type Props = {
-  backendError?: boolean
   force?: boolean
 }
 
-export default function BackendHealthBanner({ backendError, force }: Props) {
-  const show = Boolean(force) || Boolean(backendError)
+export default function BackendHealthBanner({ force }: Props) {
+  const [online, setOnline] = React.useState<boolean>(true)
+  React.useEffect(() => {
+    const set = () => setOnline(navigator.onLine)
+    set()
+    window.addEventListener("online", set)
+    window.addEventListener("offline", set)
+    return () => {
+      window.removeEventListener("online", set)
+      window.removeEventListener("offline", set)
+    }
+  }, [])
+
+  const show = Boolean(force) || !online
   if (!show) return null
   return (
     <div className="mx-2 mb-2 rounded-md border border-red-300 dark:border-red-900 bg-red-50/60 dark:bg-red-900/20 text-red-800 dark:text-red-300 px-4 py-2 text-sm">
