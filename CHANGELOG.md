@@ -1,3 +1,15 @@
+# [6.17.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.16.0...v6.17.0) (2025-09-19)
+
+
+### Bug Fixes
+
+* **UI:** Feed channel sending fix ([ec62d01](https://github.com/Jaal-Yantra-Textiles/v2/commit/ec62d01a0a7b3cf68fe538430ee6b9ed681e3f20))
+
+
+### Features
+
+* **UI:** Partner UI polished ([3ce70c3](https://github.com/Jaal-Yantra-Textiles/v2/commit/3ce70c339948aecc5698e101d95a5375262811f8))
+
 # [6.16.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.15.1...v6.16.0) (2025-09-18)
 
 
