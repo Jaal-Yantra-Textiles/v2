@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CompleteMultipartUploadCommand } from "@aws-sdk/client-s3"
 import { getS3Client, getPublicUrl } from "../s3"
 import { finalizeS3MediaWorkflow } from "../../../../../workflows/media/finalize-s3-media"
@@ -33,24 +33,42 @@ export const POST = async (req: MedusaRequest<CompleteBody>, res: MedusaResponse
       throw new MedusaError(MedusaError.Types.INVALID_DATA, "Missing required fields: name, type, size")
     }
 
-    const { client, cfg } = getS3Client()
+    // Prefer provider if it supports completeMultipartUpload
+    const fileService: any = req.scope.resolve(Modules.FILE)
+    const provider = fileService?.getProvider ? await fileService.getProvider() : null
 
-    // Ensure parts are sorted by PartNumber
-    const sortedParts = [...parts].sort((a, b) => a.PartNumber - b.PartNumber)
-
-    const cmd = new CompleteMultipartUploadCommand({
-      Bucket: cfg.bucket,
-      Key: key,
-      UploadId: uploadId,
-      MultipartUpload: {
-        Parts: sortedParts.map((p) => ({ ETag: p.ETag, PartNumber: p.PartNumber })),
-      },
-    })
-
-    const resp = await client.send(cmd)
-
-    // Build a public URL for the stored object
-    const url = getPublicUrl(key)
+    let url: string | undefined
+    if (provider && typeof provider.completeMultipartUpload === "function") {
+      const providerResp = await provider.completeMultipartUpload({
+        upload_id: uploadId,
+        key,
+        parts: parts.map((p) => ({ etag: p.ETag, part_number: p.PartNumber })),
+      })
+      url = providerResp?.location || providerResp?.url
+    } else {
+      const { client, cfg } = getS3Client()
+      const sortedParts = [...parts].sort((a, b) => a.PartNumber - b.PartNumber)
+      const cmd = new CompleteMultipartUploadCommand({
+        Bucket: cfg.bucket,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: {
+          Parts: sortedParts.map((p) => ({ ETag: p.ETag, PartNumber: p.PartNumber })),
+        },
+      })
+      await client.send(cmd)
+      // Build a public URL for the stored object
+      url = getPublicUrl(key)
+    }
+    // Prefer explicit public base if configured
+    if (!url) {
+      const base = process.env.S3_FILE_URL?.replace(/\/$/, "")
+      if (base) {
+        url = `${base}/${key.replace(/^\/+/, "")}`
+      } else {
+        url = getPublicUrl(key)
+      }
+    }
 
     // Finalize in our domain (DB records, album links)
     const { result, errors } = await finalizeS3MediaWorkflow(req.scope).run({
@@ -79,7 +97,7 @@ export const POST = async (req: MedusaRequest<CompleteBody>, res: MedusaResponse
 
     return res.status(200).json({
       message: "Upload completed",
-      s3: { location: resp.Location, key, bucket: cfg.bucket },
+      s3: { location: url, key },
       result,
     })
   } catch (error) {

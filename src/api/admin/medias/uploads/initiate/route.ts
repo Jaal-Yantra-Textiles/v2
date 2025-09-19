@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CreateMultipartUploadCommand } from "@aws-sdk/client-s3"
 import crypto from "crypto"
 import { getS3Client } from "../s3"
@@ -25,7 +25,9 @@ export const POST = async (req: MedusaRequest<InitiateBody>, res: MedusaResponse
       throw new MedusaError(MedusaError.Types.INVALID_DATA, "Missing required fields: name, type, size")
     }
 
-    const { client, cfg } = getS3Client()
+    // Prefer provider if it supports multipart init
+    const fileService: any = req.scope.resolve(Modules.FILE)
+    const provider = fileService?.getProvider ? await fileService.getProvider() : null
 
     const date = new Date()
     const y = date.getUTCFullYear()
@@ -37,6 +39,26 @@ export const POST = async (req: MedusaRequest<InitiateBody>, res: MedusaResponse
     const prefix = (body?.folderPath || "uploads").replace(/^\/+/, "").replace(/\/+/g, "/")
     const key = `${prefix}/${y}/${m}/${d}/${rand}-${name}`
 
+    // If provider exposes initiateMultipartUpload, use it
+    if (provider && typeof provider.initiateMultipartUpload === "function") {
+      const init = await provider.initiateMultipartUpload({ name, type, size, access, key })
+      const uploadId = init?.upload_id || init?.uploadId
+      const partSize = init?.part_size || 8 * 1024 * 1024
+      if (!uploadId) {
+        throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "Provider failed to initiate multipart upload")
+      }
+      return res.status(200).json({
+        uploadId,
+        key: init?.key || key,
+        bucket: init?.bucket,
+        region: init?.region,
+        partSize,
+        existingAlbumIds: body?.existingAlbumIds || [],
+      })
+    }
+
+    // Fallback to direct AWS SDK if provider does not support multipart
+    const { client, cfg } = getS3Client()
     const cmd = new CreateMultipartUploadCommand({
       Bucket: cfg.bucket,
       Key: key,
@@ -49,7 +71,6 @@ export const POST = async (req: MedusaRequest<InitiateBody>, res: MedusaResponse
       throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "Failed to initiate multipart upload")
     }
 
-    // Sensible default part size: 8MB
     const partSize = 8 * 1024 * 1024
 
     return res.status(200).json({
@@ -58,7 +79,6 @@ export const POST = async (req: MedusaRequest<InitiateBody>, res: MedusaResponse
       bucket: cfg.bucket,
       region: cfg.region,
       partSize,
-      // Echo back album IDs for client context if provided
       existingAlbumIds: body?.existingAlbumIds || [],
     })
   } catch (error) {

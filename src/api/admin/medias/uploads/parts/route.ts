@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { UploadPartCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { getS3Client } from "../s3"
@@ -21,21 +21,36 @@ export const POST = async (req: MedusaRequest<PartsBody>, res: MedusaResponse) =
       throw new MedusaError(MedusaError.Types.INVALID_DATA, "Missing required fields: uploadId, key, partNumbers")
     }
 
-    const { client, cfg } = getS3Client()
+    // Prefer provider if it supports presigning part uploads
+    const fileService: any = req.scope.resolve(Modules.FILE)
+    const provider = fileService?.getProvider ? await fileService.getProvider() : null
 
-    const urls: { partNumber: number; url: string }[] = []
-
-    for (const partNumber of partNumbers) {
-      const cmd = new UploadPartCommand({
-        Bucket: cfg.bucket,
-        Key: key,
-        UploadId: uploadId,
-        PartNumber: partNumber,
-      })
-      const url = await getSignedUrl(client as any, cmd as any, { expiresIn: 60 * 15 }) // 15 minutes
-      urls.push({ partNumber, url })
+    if (provider) {
+      // Try plural API first
+      if (typeof provider.getPresignedPartUrls === "function") {
+        const resp = await provider.getPresignedPartUrls({ upload_id: uploadId, key, part_numbers: partNumbers })
+        const urls = (resp?.urls || resp || []).map((u: any) => ({ partNumber: u.part_number || u.partNumber, url: u.url }))
+        if (urls.length) return res.status(200).json({ urls })
+      }
+      // Try singular API fallback
+      if (typeof provider.getPresignedPartUrl === "function") {
+        const urls: { partNumber: number; url: string }[] = []
+        for (const pn of partNumbers) {
+          const u = await provider.getPresignedPartUrl({ upload_id: uploadId, key, part_number: pn })
+          urls.push({ partNumber: pn, url: u?.url })
+        }
+        if (urls.length) return res.status(200).json({ urls })
+      }
     }
 
+    // Fallback to AWS SDK presigner
+    const { client, cfg } = getS3Client()
+    const urls: { partNumber: number; url: string }[] = []
+    for (const partNumber of partNumbers) {
+      const cmd = new UploadPartCommand({ Bucket: cfg.bucket, Key: key, UploadId: uploadId, PartNumber: partNumber })
+      const url = await getSignedUrl(client as any, cmd as any, { expiresIn: 60 * 15 })
+      urls.push({ partNumber, url })
+    }
     return res.status(200).json({ urls })
   } catch (error) {
     if (error instanceof MedusaError) {

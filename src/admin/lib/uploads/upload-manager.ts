@@ -54,6 +54,28 @@ function fileId(file: File) {
   return `${file.name}|${file.size}`
 }
 
+async function uploadViaServer(file: File, opts: EnqueueOptions) {
+  const base = (VITE_MEDUSA_BACKEND_URL || "").replace(/\/$/, "")
+  const url = `${base}/admin/medias`
+  const fd = new FormData()
+  fd.append("files", file, file.name || "upload.bin")
+  if (opts.existingAlbumIds?.length) {
+    for (const id of opts.existingAlbumIds) {
+      fd.append("existingAlbumIds", id)
+    }
+  }
+  const res = await fetch(url, { method: "POST", body: fd, credentials: "include" })
+  if (!res.ok) {
+    let msg = `Server upload failed: ${res.status}`
+    try {
+      const data = await res.json()
+      if (data?.message) msg = data.message
+    } catch {}
+    throw new Error(msg)
+  }
+  return res.json().catch(() => ({}))
+}
+
 export class UploadManager {
   private queue: Array<{ file: File; opts: EnqueueOptions; state: UploadItemState }>
   private running = 0
@@ -126,6 +148,73 @@ export class UploadManager {
   private async uploadFile(item: { file: File; opts: EnqueueOptions; state: UploadItemState }) {
     const { file, opts, state } = item
     try {
+      const SMALL_FILE_THRESHOLD = 5 * 1024 * 1024 // 5MB
+
+      // Small-file path: single PUT presign via provider
+      if (file.size <= SMALL_FILE_THRESHOLD) {
+        const presign = await api(`/admin/medias/uploads/presign`, {
+          method: "POST",
+          body: JSON.stringify({
+            name: file.name,
+            type: file.type || "application/octet-stream",
+            size: file.size,
+            access: "public",
+          }),
+        })
+
+        // Upload directly to storage
+        const putUrl: string = presign.url
+        const file_key: string =
+          presign.file_key ||
+          presign.key ||
+          presign.fileKey ||
+          presign.filepath ||
+          presign.path ||
+          presign.object_key ||
+          presign.objectKey
+        if (!putUrl || !file_key) {
+          throw new Error("Provider presign response missing url or file key")
+        }
+        try {
+          const putResp = await fetch(putUrl, {
+            method: "PUT",
+            body: file,
+            mode: "cors",
+            credentials: "omit",
+          })
+          if (!putResp.ok) {
+            throw new Error(`Direct upload failed: ${putResp.status}`)
+          }
+        } catch (err: any) {
+          const msg = String(err?.message || err || "")
+          // CORS/access-control fallback: proxy through server
+          if (/access control|Failed to fetch|TypeError/i.test(msg)) {
+            await uploadViaServer(file, opts)
+          } else {
+            throw err
+          }
+        }
+
+        // Finalize in our domain (DB record, album links)
+        await api(`/admin/medias/uploads/finalize-single`, {
+          method: "POST",
+          body: JSON.stringify({
+            file_key,
+            name: file.name,
+            type: file.type || "application/octet-stream",
+            size: file.size,
+            existingAlbumIds: opts.existingAlbumIds,
+            existingFolderId: opts.existingFolderId,
+            metadata: opts.metadata,
+          }),
+        })
+
+        state.progress = 1
+        state.status = "completed"
+        this.emit(state)
+        return
+      }
+
       // 1) Initiate multipart
       const initResp = await api(`/admin/medias/uploads/initiate`, {
         method: "POST",
@@ -174,17 +263,25 @@ export class UploadManager {
             let attempt = 0
             while (attempt < 3) {
               try {
-                const resp = await fetch(url, { method: "PUT", body: blob })
+                const resp = await fetch(url, { method: "PUT", body: blob, mode: "cors", credentials: "omit" })
                 if (!resp.ok) throw new Error(`Part ${partNumber} upload failed: ${resp.status}`)
                 const etag = resp.headers.get("ETag") || ""
-                etags.push({ PartNumber: partNumber, ETag: etag.replaceAll('"', '') })
+                etags.push({ PartNumber: partNumber, ETag: (etag || "").replace(/"/g, "") })
                 completed++
                 state.progress = completed / totalParts
                 this.emit(state)
                 return
               } catch (e) {
                 attempt++
-                if (attempt >= 3) throw e
+                if (attempt >= 3) {
+                  // Bail out to server-side upload for the whole file (CORS or repeated failures)
+                  await uploadViaServer(file, opts)
+                  // Mark as completed and short-circuit remaining uploads by throwing a special token
+                  state.progress = 1
+                  state.status = "completed"
+                  this.emit(state)
+                  throw new Error("__FALLBACK_COMPLETED__")
+                }
                 await new Promise((r) => setTimeout(r, 500 * attempt))
               }
             }

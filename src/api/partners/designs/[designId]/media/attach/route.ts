@@ -7,13 +7,16 @@ import { refetchPartnerForThisAdmin } from "../../../../helpers"
 import { z } from "zod"
 // Payload schema for attaching media to a design
 const partnerAttachMediaSchema = z.object({
-  media_files: z.array(
-    z.object({
-      id: z.string().optional(),
-      url: z.string().url(),
-      isThumbnail: z.boolean().optional().default(false),
-    })
-  ).min(1),
+  media_files: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        // Accept absolute URLs or provider keys (e.g., "uploads/2025/09/19/file.jpg")
+        url: z.string().min(1),
+        isThumbnail: z.boolean().optional().default(false),
+      })
+    )
+    .min(1),
   metadata: z.record(z.any()).optional(),
 })
 
