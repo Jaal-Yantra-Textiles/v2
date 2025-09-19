@@ -1,6 +1,7 @@
 "use client"
 
 import { Container, Heading, Text, Button } from "@medusajs/ui"
+import Image from "next/image"
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
@@ -184,7 +185,16 @@ export default function MediaSection({
       <div className="px-4 md:px-6 pt-4 pb-8">
         <Text weight="plus" className="mb-2 block">Thumbnail</Text>
         {derivedThumb ? (
-          <img src={derivedThumb} alt="Design thumbnail" className="w-full h-64 md:h-72 object-cover rounded border" />
+          <div className="w-full h-64 md:h-72 relative rounded border overflow-hidden">
+            <Image
+              src={derivedThumb}
+              alt="Design thumbnail"
+              fill
+              sizes="(max-width: 768px) 100vw, 60vw"
+              className="object-cover"
+              priority
+            />
+          </div>
         ) : (
           <div className="w-full aspect-video grid place-items-center rounded border bg-ui-bg-subtle text-ui-fg-subtle text-sm">No thumbnail</div>
         )}
@@ -203,8 +213,14 @@ export default function MediaSection({
               if (!url) return null
               return (
                 <a key={i} href={url} target="_blank" className="block group">
-                  <div className="aspect-square overflow-hidden rounded border bg-ui-bg-subtle">
-                    <img src={url} alt={getName(m, i)} className="w-full h-full object-cover group-hover:opacity-90" />
+                  <div className="aspect-square relative overflow-hidden rounded border bg-ui-bg-subtle">
+                    <Image
+                      src={url}
+                      alt={getName(m, i)}
+                      fill
+                      sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                      className="object-cover group-hover:opacity-90"
+                    />
                   </div>
                   <Text size="xsmall" className="truncate mt-1 block" title={getName(m, i)}>{getName(m, i)}</Text>
                 </a>

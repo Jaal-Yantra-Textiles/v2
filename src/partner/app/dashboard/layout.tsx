@@ -34,7 +34,7 @@ export default async function DashboardLayout({
         <TooltipProvider>
         <main className="flex-1 overflow-y-auto p-2">
           {/* Client banner controlled via server health check */}
-          <BackendHealthBanner backendError={backendError} />
+          <BackendHealthBanner force={backendError} />
           {children}
         </main>
         </TooltipProvider>

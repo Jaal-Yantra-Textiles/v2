@@ -3,9 +3,9 @@ import { cookies } from "next/headers"
 
 export const runtime = "nodejs"
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
     const cookieStore = await cookies()
     const token = cookieStore.get("medusa_jwt")?.value || null
     if (!token) {

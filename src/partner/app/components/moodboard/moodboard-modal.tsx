@@ -2,7 +2,7 @@
 
 import { FocusModal, Heading } from "@medusajs/ui"
 import "@excalidraw/excalidraw/index.css"
-import { useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import dynamic from "next/dynamic"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
@@ -33,7 +33,7 @@ export function MoodboardModal({
   title?: string
   moodboard?: MoodboardData | null
 }) {
-  const parsed: MoodboardData = moodboard || ({} as MoodboardData)
+  const parsed: MoodboardData = useMemo(() => moodboard || ({} as MoodboardData), [moodboard])
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
 
   // When modal opens, center/contain the scene
