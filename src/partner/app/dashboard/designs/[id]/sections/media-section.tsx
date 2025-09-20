@@ -91,9 +91,9 @@ function UploadInlineForm({ designId }: { designId: string }) {
   }
 
   return (
-    <div className="px-4 md:px-6 pb-8">
+    <div className="px-4 md:px-6 py-8">
       <Text weight="plus" className="mb-2 block">Upload Media</Text>
-      <form onSubmit={handleSubmit} encType="multipart/form-data" className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <form onSubmit={handleSubmit} encType="multipart/form-data" className="flex flex-wrap items-center gap-3">
         {/* Hidden native file input */}
         <input
           ref={inputRef}
@@ -102,6 +102,7 @@ function UploadInlineForm({ designId }: { designId: string }) {
           multiple
           accept="image/*,video/*"
           className="hidden"
+          disabled={submitting}
           onChange={(e) => {
             const files = e.currentTarget.files
             setFileCount(files ? files.length : 0)
@@ -109,7 +110,7 @@ function UploadInlineForm({ designId }: { designId: string }) {
         />
 
         <div className="flex items-center gap-3">
-          <Button type="button" size="small" variant="secondary" onClick={() => inputRef.current?.click()}>
+          <Button type="button" size="small" variant="secondary" onClick={() => inputRef.current?.click()} disabled={submitting}>
             Choose files
           </Button>
           <Text size="small" className="text-ui-fg-subtle">
@@ -118,13 +119,20 @@ function UploadInlineForm({ designId }: { designId: string }) {
         </div>
 
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="setThumbnail" value="1" />
+          <input type="checkbox" name="setThumbnail" value="1" disabled={submitting} />
           Set first as thumbnail
         </label>
 
         {fileCount > 0 && (
-          <Button type="submit" size="small" variant="secondary" disabled={submitting}>
-            Upload & Attach
+          <Button type="submit" size="small" variant="secondary" disabled={submitting} aria-busy={submitting} className="relative">
+            {submitting ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block size-4 rounded-full border-2 border-transparent border-t-current animate-spin" aria-hidden="true" />
+                Uploading...
+              </span>
+            ) : (
+              "Upload & Attach"
+            )}
           </Button>
         )}
         {error && <Text size="small" className="text-ui-fg-error">{error}</Text>}
@@ -233,7 +241,7 @@ export default function MediaSection({
       </div>
 
       {/* Design files */}
-      <div className="px-4 md:px-6 pb-8">
+      <div className="px-4 md:px-6 py-8">
         <Text weight="plus" className="mb-2 block">Design Files</Text>
         {files.length > 0 ? (
           <ul className="space-y-3 sm:space-y-2">

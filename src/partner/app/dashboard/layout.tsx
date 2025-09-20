@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth-cookie"
 import { getDetails } from "./actions"
 import { TooltipProvider } from "@medusajs/ui"
 import BackendHealthBanner from "../components/backend-health-banner"
+import TopLoader from "../components/top-loader"
 
 export default async function DashboardLayout({
   children,
@@ -19,6 +20,7 @@ export default async function DashboardLayout({
 
   return (
     <>
+    <TopLoader />
     <div className="flex h-screen w-full bg-ui-bg-subtle [--sidebar-width:0px] md:[--sidebar-width:14rem]">
       {partner ? (
         <div className="hidden md:block h-full md:w-56 flex-shrink-0 border-r">

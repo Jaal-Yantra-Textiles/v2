@@ -6,6 +6,9 @@ export const runtime = "nodejs"
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if (!id) {
+      return NextResponse.json({ error: "Missing design id in route params" }, { status: 400 })
+    }
     const cookieStore = await cookies()
     const token = cookieStore.get("medusa_jwt")?.value || null
     if (!token) {
@@ -26,12 +29,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
 
     const text = await upstream.text()
+    if (!upstream.ok) {
+      const contentType = upstream.headers.get("content-type") || ""
+      if (contentType.includes("application/json")) {
+        return NextResponse.json(JSON.parse(text || "{}"), { status: upstream.status })
+      }
+      return new NextResponse(text || "Upstream error", { status: upstream.status })
+    }
     return new NextResponse(text, {
       status: upstream.status,
       headers: { "content-type": upstream.headers.get("content-type") || "application/json" },
     })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Proxy error"
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json({ error: msg, proxy: "partner/designs/[id]/media/attach" }, { status: 500 })
   }
 }
