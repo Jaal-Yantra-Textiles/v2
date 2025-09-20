@@ -1,3 +1,11 @@
+## [6.17.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.17.3...v6.17.4) (2025-09-20)
+
+
+### Bug Fixes
+
+* **Proxy:** Fixed proxy issues ([f3fec27](https://github.com/Jaal-Yantra-Textiles/v2/commit/f3fec276c24a45fd9b31b9ef72e246ce89db3a59))
+* **Proxy:** removed proxy API ([e083099](https://github.com/Jaal-Yantra-Textiles/v2/commit/e08309926d06c6ab3ccc215e916443ababc865d8))
+
 ## [6.17.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.17.2...v6.17.3) (2025-09-20)
 
 
