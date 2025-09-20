@@ -1,10 +1,96 @@
 "use server";
 import { redirect } from "next/navigation";
 import { clearAuthCookie, getAuthCookie } from "../../lib/auth-cookie";
+import { revalidatePath } from "next/cache";
 
 export async function logout() {
   await clearAuthCookie();
   redirect("/login");
+}
+
+// Media: upload and attach via backend APIs (used by client components instead of Next API proxy)
+export async function partnerUploadDesignMedia(designId: string, formData: FormData) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/media`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      // Important: do NOT set Content-Type for multipart; let fetch set the boundary
+    },
+    body: formData,
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to upload media")
+  }
+  const json = await res.json()
+  return json as { files: Array<{ id?: string; url: string }> }
+}
+
+export async function partnerAttachDesignMedia(
+  designId: string,
+  payload: { media_files: Array<{ id?: string; url: string; isThumbnail?: boolean }>; metadata?: Record<string, unknown> }
+) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/media/attach`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to attach media")
+  }
+  return await res.json()
+}
+
+export async function partnerUploadAndAttachDesignMedia(
+  designId: string,
+  formData: FormData,
+  opts?: { setThumbnail?: boolean }
+) {
+  const uploaded = await partnerUploadDesignMedia(designId, formData)
+  const files = Array.isArray(uploaded?.files) ? uploaded.files : []
+  const setThumb = !!opts?.setThumbnail
+  const media_files = files.map((f, idx) => ({ url: f.url, id: f.id, isThumbnail: setThumb && idx === 0 }))
+  const metadata = setThumb && media_files.length > 0 ? { thumbnail: media_files[0]?.url } : undefined
+  return await partnerAttachDesignMedia(designId, { media_files, metadata })
+}
+
+// Server Action: Use from forms to upload and attach media, then revalidate the design page
+export async function partnerUploadAndAttachDesignMediaAction(formData: FormData) {
+  const designId = String(formData.get("designId") || "")
+  if (!designId) {
+    throw new Error("Missing designId")
+  }
+  // Coerce thumbnail checkbox
+  const setThumbRaw = formData.get("setThumbnail")
+  const setThumbnail = !!setThumbRaw && String(setThumbRaw).toLowerCase() !== "false"
+
+  // Build a new FormData that contains only files for the upload endpoint
+  const uploadFD = new FormData()
+  for (const [key, value] of formData.entries()) {
+    if (key === "files" && value instanceof File) {
+      uploadFD.append("files", value)
+    }
+  }
+
+  await partnerUploadAndAttachDesignMedia(designId, uploadFD, { setThumbnail })
+  // Ensure UI refreshes
+  revalidatePath(`/dashboard/designs/${designId}`)
 }
 
 // Payments: methods and payments listing/creation

@@ -3,7 +3,8 @@
 import { Container, Heading, Text, Button } from "@medusajs/ui"
 import Image from "next/image"
 import { useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useFormStatus } from "react-dom"
+import { partnerUploadAndAttachDesignMediaAction } from "../../../actions"
 
 export type Urlish =
   | string
@@ -18,82 +19,34 @@ export type Urlish =
       isThumbnail?: boolean
     }
 
-type UploadResponse = { files: Array<{ url: string; id?: string }> }
-function isUploadResponse(obj: unknown): obj is UploadResponse {
-  if (typeof obj !== "object" || obj === null) return false
-  const rec = obj as Record<string, unknown>
-  if (!("files" in rec)) return false
-  const files = (rec as { files?: unknown }).files
-  return Array.isArray(files)
+// Inline upload form component to keep MediaSection lean
+function SubmitButton({ hasFiles }: { hasFiles: boolean }) {
+  const { pending } = useFormStatus()
+  if (!hasFiles) return null
+  return (
+    <Button type="submit" size="small" variant="secondary" disabled={pending} aria-busy={pending} className="relative">
+      {pending ? (
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-block size-4 rounded-full border-2 border-transparent border-t-current animate-spin" aria-hidden="true" />
+          Uploading...
+        </span>
+      ) : (
+        "Upload & Attach"
+      )}
+    </Button>
+  )
 }
 
-// Inline upload form component to keep MediaSection lean
 function UploadInlineForm({ designId }: { designId: string }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [fileCount, setFileCount] = useState(0)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setError(null)
-    const formEl = e.currentTarget
-    const setThumbCheckedInitial = (formEl.querySelector('input[name="setThumbnail"]') as HTMLInputElement | null)?.checked ?? false
-    if (!inputRef.current || !inputRef.current.files || inputRef.current.files.length === 0) {
-      setError("Please select at least one file.")
-      return
-    }
-    try {
-      setSubmitting(true)
-      const fd = new FormData()
-      for (const f of Array.from(inputRef.current.files)) fd.append("files", f)
-
-      // 1) Upload files via Next API proxy (carries auth token server-side)
-      const uploadRes = await fetch(`/api/partner/designs/${designId}/media`, {
-        method: "POST",
-        body: fd,
-        credentials: "include",
-      })
-      const uploadText = await uploadRes.text()
-      if (!uploadRes.ok) {
-        throw new Error(uploadText || "Failed to upload media")
-      }
-      const parsedUpload = JSON.parse(uploadText) as unknown
-      const uploaded = isUploadResponse(parsedUpload) ? parsedUpload.files : []
-      if (!uploaded || !uploaded.length) {
-        throw new Error("Upload did not return any files.")
-      }
-
-      // 2) Attach URLs to the design
-      const setThumb = !!setThumbCheckedInitial
-      const media_files = uploaded.map((f, i) => ({ url: f.url, isThumbnail: setThumb && i === 0 }))
-      const attachRes = await fetch(`/api/partner/designs/${designId}/media/attach`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ media_files }),
-        credentials: "include",
-      })
-      const attachText = await attachRes.text()
-      if (!attachRes.ok) {
-        throw new Error(attachText || "Failed to attach media")
-      }
-
-      // Soft refresh data without full page reload
-      router.refresh()
-      setFileCount(0)
-      if (inputRef.current) inputRef.current.value = ""
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unexpected error")
-    } finally {
-      setSubmitting(false)
-    }
-  }
+  // Note: errors thrown by server action will surface in Next error overlay.
 
   return (
     <div className="px-4 md:px-6 py-8">
       <Text weight="plus" className="mb-2 block">Upload Media</Text>
-      <form onSubmit={handleSubmit} encType="multipart/form-data" className="flex flex-wrap items-center gap-3">
+      <form action={partnerUploadAndAttachDesignMediaAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-3">
+        <input type="hidden" name="designId" value={designId} />
         {/* Hidden native file input */}
         <input
           ref={inputRef}
@@ -102,7 +55,7 @@ function UploadInlineForm({ designId }: { designId: string }) {
           multiple
           accept="image/*,video/*"
           className="hidden"
-          disabled={submitting}
+          // disabled handled by submit pending state is not required for file input
           onChange={(e) => {
             const files = e.currentTarget.files
             setFileCount(files ? files.length : 0)
@@ -110,7 +63,7 @@ function UploadInlineForm({ designId }: { designId: string }) {
         />
 
         <div className="flex items-center gap-3">
-          <Button type="button" size="small" variant="secondary" onClick={() => inputRef.current?.click()} disabled={submitting}>
+          <Button type="button" size="small" variant="secondary" onClick={() => inputRef.current?.click()}>
             Choose files
           </Button>
           <Text size="small" className="text-ui-fg-subtle">
@@ -119,23 +72,11 @@ function UploadInlineForm({ designId }: { designId: string }) {
         </div>
 
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="setThumbnail" value="1" disabled={submitting} />
+          <input type="checkbox" name="setThumbnail" value="1" />
           Set first as thumbnail
         </label>
 
-        {fileCount > 0 && (
-          <Button type="submit" size="small" variant="secondary" disabled={submitting} aria-busy={submitting} className="relative">
-            {submitting ? (
-              <span className="inline-flex items-center gap-2">
-                <span className="inline-block size-4 rounded-full border-2 border-transparent border-t-current animate-spin" aria-hidden="true" />
-                Uploading...
-              </span>
-            ) : (
-              "Upload & Attach"
-            )}
-          </Button>
-        )}
-        {error && <Text size="small" className="text-ui-fg-error">{error}</Text>}
+        <SubmitButton hasFiles={fileCount > 0} />
       </form>
     </div>
   )
