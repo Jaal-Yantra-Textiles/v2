@@ -1,3 +1,10 @@
+## [6.17.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.17.2...v6.17.3) (2025-09-20)
+
+
+### Bug Fixes
+
+* **UI:** Partner Dashboard UI ([76745d9](https://github.com/Jaal-Yantra-Textiles/v2/commit/76745d9de7ab6cdcf7acbb0e0fd88c8cedf50c1b))
+
 ## [6.17.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.17.1...v6.17.2) (2025-09-19)
 
 
