@@ -1,3 +1,10 @@
+## [6.18.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.4...v6.18.5) (2025-09-21)
+
+
+### Bug Fixes
+
+* **Files:** Upload url downstream s3 fix ([0ea5e72](https://github.com/Jaal-Yantra-Textiles/v2/commit/0ea5e72abfa913a58e2faefd196aff5b9be36fb7))
+
 ## [6.18.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.3...v6.18.4) (2025-09-21)
 
 
