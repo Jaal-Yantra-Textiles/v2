@@ -36,15 +36,14 @@ export const POST = async (req: AuthenticatedMedusaRequest<InitiateBody>, res: M
     const fileService: any = req.scope.resolve(Modules.FILE)
     const provider = fileService?.getProvider ? await fileService.getProvider() : null
 
-    const date = new Date()
-    const y = date.getUTCFullYear()
-    const m = String(date.getUTCMonth() + 1).padStart(2, "0")
-    const d = String(date.getUTCDate()).padStart(2, "0")
+    // Generate a flat filename at bucket root: <originalNameSansExt>-<rand>.<ext>
+    // This produces URLs like https://automatic.jaalyantra.com/IMG_2472-<rand>.jpeg
     const rand = crypto.randomBytes(8).toString("hex")
-
-    // Folder path for partners
-    const prefix = (body?.folderPath || `partners/${partnerAdmin.id}/uploads`).replace(/^\/+/, "").replace(/\/+/g, "/")
-    const key = `${prefix}/${y}/${m}/${d}/${rand}-${name}`
+    const dot = name.lastIndexOf(".")
+    const base = dot > 0 ? name.substring(0, dot) : name
+    const ext = dot > 0 ? name.substring(dot + 1) : ""
+    const safeBase = base.replace(/[^a-zA-Z0-9-_]+/g, "_")
+    const key = ext ? `${safeBase}-${rand}.${ext}` : `${safeBase}-${rand}`
 
     if (provider && typeof provider.initiateMultipartUpload === "function") {
       const init = await provider.initiateMultipartUpload({ name, type, size, access, key })
@@ -65,7 +64,7 @@ export const POST = async (req: AuthenticatedMedusaRequest<InitiateBody>, res: M
     const { client, cfg } = getS3Client()
     const cmd = new CreateMultipartUploadCommand({
       Bucket: cfg.bucket,
-      Key: key,
+      Key: ext ? `${safeBase}-${rand}.${ext}` : `${safeBase}-${rand}`,
       ContentType: type,
       ACL: access === "public" ? "public-read" : undefined,
     })

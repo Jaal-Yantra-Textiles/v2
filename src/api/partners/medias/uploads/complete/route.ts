@@ -62,9 +62,12 @@ export const POST = async (req: AuthenticatedMedusaRequest<CompleteBody>, res: M
       await client.send(cmd)
       url = getPublicUrl(key)
     }
-    if (!url) {
+    // Prefer explicit public base if configured (override provider location)
+    {
       const base = process.env.S3_FILE_URL?.replace(/\/$/, "")
-      url = base ? `${base}/${key.replace(/^\/+/, "")}` : getPublicUrl(key)
+      if (base) {
+        url = `${base}/${key.replace(/^\/+/, "")}`
+      }
     }
 
     return res.status(200).json({
