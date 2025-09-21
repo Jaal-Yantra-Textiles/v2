@@ -6,9 +6,16 @@ export const runtime = "nodejs"
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+    console.info("[partner-proxy:initiate] request", {
+      name: body?.name,
+      type: body?.type,
+      size: body?.size,
+      folderPath: body?.folderPath,
+    })
     const cookieStore = await cookies()
     const token = cookieStore.get("medusa_jwt")?.value
     if (!token) {
+      console.warn("[partner-proxy:initiate] missing auth token")
       return NextResponse.json({ message: "Not authenticated" }, { status: 401 })
     }
 
@@ -19,7 +26,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(body),
       cache: "no-store",
     })
-
+    console.info("[partner-proxy:initiate] upstream status", upstream.status)
     const text = await upstream.text()
     return new NextResponse(text, {
       status: upstream.status,
@@ -27,6 +34,7 @@ export async function POST(req: NextRequest) {
     })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Proxy error"
+    console.error("[partner-proxy:initiate] error", msg)
     return NextResponse.json({ message: msg }, { status: 500 })
   }
 }

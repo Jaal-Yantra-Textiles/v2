@@ -9,6 +9,7 @@ export type InitiateResponse = {
 export type PartUrl = { partNumber: number; url: string }
 
 export async function initiateMultipart(file: File, folderPath?: string): Promise<InitiateResponse> {
+  console.info("[multipart] initiate", { name: file.name, type: file.type, size: file.size, folderPath })
   const res = await fetch(`/api/partner/medias/uploads/initiate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -16,10 +17,13 @@ export async function initiateMultipart(file: File, folderPath?: string): Promis
     credentials: "include",
   })
   if (!res.ok) throw new Error((await res.text()) || "Failed to initiate multipart upload")
-  return res.json()
+  const json = await res.json()
+  console.info("[multipart] initiate:response", json)
+  return json
 }
 
 export async function getPartUrls(uploadId: string, key: string, partNumbers: number[]): Promise<{ urls: PartUrl[] }> {
+  console.info("[multipart] parts", { uploadId, key: key.slice(0, 80), partNumbers })
   const res = await fetch(`/api/partner/medias/uploads/parts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -27,7 +31,9 @@ export async function getPartUrls(uploadId: string, key: string, partNumbers: nu
     credentials: "include",
   })
   if (!res.ok) throw new Error((await res.text()) || "Failed to get part URLs")
-  return res.json()
+  const json = await res.json()
+  console.info("[multipart] parts:response", { urls: json?.urls?.length })
+  return json
 }
 
 export async function uploadParts(file: File, urls: PartUrl[], partSize: number): Promise<{ PartNumber: number; ETag: string }[]> {
@@ -37,7 +43,7 @@ export async function uploadParts(file: File, urls: PartUrl[], partSize: number)
     const start = (partNumber - 1) * partSize
     const end = Math.min(start + partSize, file.size)
     const chunk = file.slice(start, end)
-
+    console.info("[multipart] upload part", { partNumber, start, end })
     const putRes = await fetch(url, { method: "PUT", body: chunk })
     if (!putRes.ok) throw new Error(`Failed to upload part ${partNumber}: ${await putRes.text()}`)
     const etag = putRes.headers.get("ETag") || putRes.headers.get("Etag") || ""
@@ -53,6 +59,7 @@ export async function completeMultipart(
   parts: { PartNumber: number; ETag: string }[],
   file: File
 ): Promise<{ s3: { location: string; key: string } }> {
+  console.info("[multipart] complete", { uploadId, key: key.slice(0, 80), parts: parts.length, name: file.name })
   const res = await fetch(`/api/partner/medias/uploads/complete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -60,7 +67,9 @@ export async function completeMultipart(
     credentials: "include",
   })
   if (!res.ok) throw new Error((await res.text()) || "Failed to complete multipart upload")
-  return res.json()
+  const json = await res.json()
+  console.info("[multipart] complete:response", json)
+  return json
 }
 
 export async function uploadFileMultipart(file: File, folderPath?: string) {
