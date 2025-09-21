@@ -91,49 +91,13 @@ export async function partnerUploadAndAttachDesignMediaAction(formData: FormData
   for (const f of files) uploadFD.append("files", f)
 
   try {
-    await Sentry.startSpan(
-      {
-        op: "media.upload_attach",
-        name: "Partner Upload & Attach Media",
-      },
-      async (parentSpan) => {
-        parentSpan?.setAttribute("design.id", designId)
-        parentSpan?.setAttribute("files.count", files.length)
-        parentSpan?.setAttribute("thumbnail.set", setThumbnail)
-
-        // Upload span
-        const uploaded = await Sentry.startSpan(
-          { op: "http.client", name: `POST /partners/designs/${designId}/media` },
-          async (span) => {
-            try {
-              const res = await partnerUploadDesignMedia(designId, uploadFD)
-              return res
-            } catch (e) {
-              span?.setAttribute("error", true)
-              span?.setAttribute("error.message", e instanceof Error ? e.message : String(e))
-              throw e
-            }
-          }
-        )
-
-        // Attach span
-        await Sentry.startSpan(
-          { op: "http.client", name: `POST /partners/designs/${designId}/media/attach` },
-          async (span) => {
-            try {
-              const uploadedFiles = Array.isArray(uploaded?.files) ? uploaded.files : []
-              const media_files = uploadedFiles.map((f, idx) => ({ url: f.url, id: f.id, isThumbnail: setThumbnail && idx === 0 }))
-              const metadata = setThumbnail && media_files.length > 0 ? { thumbnail: media_files[0]?.url } : undefined
-              await partnerAttachDesignMedia(designId, { media_files, metadata })
-            } catch (e) {
-              span?.setAttribute("error", true)
-              span?.setAttribute("error.message", e instanceof Error ? e.message : String(e))
-              throw e
-            }
-          }
-        )
-      }
-    )
+    // Upload
+    const uploaded = await partnerUploadDesignMedia(designId, uploadFD)
+    // Attach
+    const uploadedFiles = Array.isArray(uploaded?.files) ? uploaded.files : []
+    const media_files = uploadedFiles.map((f, idx) => ({ url: f.url, id: f.id, isThumbnail: setThumbnail && idx === 0 }))
+    const metadata = setThumbnail && media_files.length > 0 ? { thumbnail: media_files[0]?.url } : undefined
+    await partnerAttachDesignMedia(designId, { media_files, metadata })
 
     revalidatePath(`/dashboard/designs/${designId}`)
   } catch (e) {

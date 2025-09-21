@@ -62,15 +62,12 @@ function UploadInlineForm({ designId }: { designId: string }) {
         encType="multipart/form-data"
         className="flex flex-wrap items-center gap-3"
         onSubmit={async (e) => {
-          // Intercept when any file is larger than 7MB and use multipart upload path
+          // Always use multipart upload path to avoid 413s from platform limits
           try {
             setError(null)
             const inputEl = inputRef.current
             const files = inputEl?.files
             if (!files || files.length === 0) return
-            const threshold = 7 * 1024 * 1024
-            const hasLarge = Array.from(files).some((f) => f.size > threshold)
-            if (!hasLarge) return // let server action handle small files
 
             e.preventDefault()
             setPendingExternal(true)

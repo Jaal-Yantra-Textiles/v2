@@ -43,3 +43,5 @@ src/partner/.next
 src/partner/.env
 src/partner/node_modules/*
 src/partner/.DS_Store
+# Local Netlify folder
+.netlify
