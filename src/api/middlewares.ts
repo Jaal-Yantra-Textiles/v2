@@ -967,6 +967,22 @@ export default defineMiddlewares({
         // JSON body is handled by default express.json; no multer needed here
       ],
     },
+    // Partner multipart upload endpoints (bypass Netlify 8MB limit)
+    {
+      matcher: "/partners/medias/uploads/initiate",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/medias/uploads/parts",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/medias/uploads/complete",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
     // Admin Users: list auth identities by email
     {
       matcher: "/admin/users/identities",

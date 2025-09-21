@@ -3,19 +3,18 @@ import { cookies } from "next/headers"
 
 export const runtime = "nodejs"
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest) {
   try {
-    const { id } = await params
-    const body = await req.text()
+    const body = await req.json()
     const cookieStore = await cookies()
     const token = cookieStore.get("medusa_jwt")?.value
     if (!token) return NextResponse.json({ message: "Not authenticated" }, { status: 401 })
 
     const BASE_URL = process.env.MEDUSA_BACKEND_URL || process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-    const upstream = await fetch(`${BASE_URL}/partners/designs/${id}/media/attach`, {
+    const upstream = await fetch(`${BASE_URL}/partners/medias/uploads/parts`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body,
+      body: JSON.stringify(body),
       cache: "no-store",
     })
 
@@ -24,8 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       status: upstream.status,
       headers: { "content-type": upstream.headers.get("content-type") || "application/json" },
     })
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Proxy error"
-    return NextResponse.json({ message: msg }, { status: 500 })
+  } catch (e: any) {
+    return NextResponse.json({ message: e?.message || "Proxy error" }, { status: 500 })
   }
 }

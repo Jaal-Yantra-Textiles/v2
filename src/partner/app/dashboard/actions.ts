@@ -802,3 +802,64 @@ export async function partnerRefinishDesign(designId: string) {
   if (!res.ok) throw new Error((await res.text()) || "Failed to re-finish design")
   return res.json()
 }
+
+// ===== Multipart upload (partner) server actions =====
+export async function partnerMultipartInitiate(input: { name: string; type: string; size: number; folderPath?: string }) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL || process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/medias/uploads/initiate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error((await res.text()) || "Failed to initiate multipart upload")
+  return res.json() as Promise<{ uploadId: string; key: string; bucket?: string; region?: string; partSize: number }>
+}
+
+export async function partnerMultipartPartUrls(input: { uploadId: string; key: string; partNumbers: number[] }) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL || process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/medias/uploads/parts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error((await res.text()) || "Failed to get presigned part URLs")
+  return res.json() as Promise<{ urls: { partNumber: number; url: string }[] }>
+}
+
+export async function partnerMultipartComplete(input: {
+  uploadId: string
+  key: string
+  parts: { PartNumber: number; ETag: string }[]
+  name: string
+  type: string
+  size: number
+}) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL || process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/medias/uploads/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error((await res.text()) || "Failed to complete multipart upload")
+  return res.json() as Promise<{ s3: { location: string; key: string } }>
+}
+
+export async function partnerAttachDesignMediaDirect(
+  designId: string,
+  media_files: Array<{ url: string; id?: string; isThumbnail?: boolean }>,
+  metadata?: Record<string, unknown>
+) {
+  return partnerAttachDesignMedia(designId, { media_files, metadata })
+}

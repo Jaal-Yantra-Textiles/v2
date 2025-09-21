@@ -5,6 +5,8 @@ import Image from "next/image"
 import { useRef, useState } from "react"
 import { useFormStatus } from "react-dom"
 import { partnerUploadAndAttachDesignMediaAction } from "../../../actions"
+import { uploadFileMultipart } from "../../../../../lib/multipart-upload"
+import { useRouter } from "next/navigation"
 
 export type Urlish =
   | string
@@ -20,12 +22,13 @@ export type Urlish =
     }
 
 // Inline upload form component to keep MediaSection lean
-function SubmitButton({ hasFiles }: { hasFiles: boolean }) {
+function SubmitButton({ hasFiles, pendingExternal = false }: { hasFiles: boolean; pendingExternal?: boolean }) {
   const { pending } = useFormStatus()
+  const busy = pending || pendingExternal
   if (!hasFiles) return null
   return (
-    <Button type="submit" size="small" variant="secondary" disabled={pending} aria-busy={pending} className="relative">
-      {pending ? (
+    <Button type="submit" size="small" variant="secondary" disabled={busy} aria-busy={busy} className="relative">
+      {busy ? (
         <span className="inline-flex items-center gap-2">
           <span className="inline-block size-4 rounded-full border-2 border-transparent border-t-current animate-spin" aria-hidden="true" />
           Uploading...
@@ -40,12 +43,75 @@ function SubmitButton({ hasFiles }: { hasFiles: boolean }) {
 function UploadInlineForm({ designId }: { designId: string }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [fileCount, setFileCount] = useState(0)
-  // Note: errors thrown by server action will surface in Next error overlay.
+  const [pendingExternal, setPendingExternal] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null)
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message })
+    // Auto-hide after 3 seconds
+    setTimeout(() => setToast(null), 3000)
+  }
 
   return (
     <div className="px-4 md:px-6 py-8">
       <Text weight="plus" className="mb-2 block">Upload Media</Text>
-      <form action={partnerUploadAndAttachDesignMediaAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-3">
+      <form
+        action={partnerUploadAndAttachDesignMediaAction}
+        encType="multipart/form-data"
+        className="flex flex-wrap items-center gap-3"
+        onSubmit={async (e) => {
+          // Intercept when any file is larger than 7MB and use multipart upload path
+          try {
+            setError(null)
+            const inputEl = inputRef.current
+            const files = inputEl?.files
+            if (!files || files.length === 0) return
+            const threshold = 7 * 1024 * 1024
+            const hasLarge = Array.from(files).some((f) => f.size > threshold)
+            if (!hasLarge) return // let server action handle small files
+
+            e.preventDefault()
+            setPendingExternal(true)
+
+            // Determine thumbnail checkbox
+            const setThumb = !!(e.currentTarget.querySelector('input[name="setThumbnail"]') as HTMLInputElement | null)?.checked
+
+            // Upload each file via multipart
+            const uploadedUrls: string[] = []
+            for (const f of Array.from(files)) {
+              const completed = await uploadFileMultipart(f)
+              const url = completed?.s3?.location
+              if (!url) throw new Error("Multipart upload did not return a URL")
+              uploadedUrls.push(url)
+            }
+
+            // Attach via Next proxy (server will add bearer)
+            const media_files = uploadedUrls.map((url, idx) => ({ url, isThumbnail: setThumb && idx === 0 }))
+            const attachRes = await fetch(`/api/partner/designs/${designId}/media/attach`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ media_files }),
+            })
+            if (!attachRes.ok) {
+              throw new Error((await attachRes.text()) || "Failed to attach media")
+            }
+
+            // Refresh page to show new media
+            router.refresh()
+            setFileCount(0)
+            if (inputRef.current) inputRef.current.value = ""
+            showToast("success", `${uploadedUrls.length} file${uploadedUrls.length > 1 ? "s" : ""} uploaded successfully`)
+          } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Unexpected error during multipart upload")
+            showToast("error", err instanceof Error ? err.message : "Unexpected error during multipart upload")
+          } finally {
+            setPendingExternal(false)
+          }
+        }}
+      >
         <input type="hidden" name="designId" value={designId} />
         {/* Hidden native file input */}
         <input
@@ -76,8 +142,24 @@ function UploadInlineForm({ designId }: { designId: string }) {
           Set first as thumbnail
         </label>
 
-        <SubmitButton hasFiles={fileCount > 0} />
+        <SubmitButton hasFiles={fileCount > 0} pendingExternal={pendingExternal} />
+        {error && <Text size="small" className="text-ui-fg-error">{error}</Text>}
       </form>
+      {toast && (
+        <div
+          role="status"
+          className={`fixed bottom-6 right-6 z-50 min-w-[240px] max-w-sm rounded-md border px-4 py-3 shadow-lg ${
+            toast.type === "success" ? "bg-green-50 border-green-200 text-green-900" : "bg-red-50 border-red-200 text-red-900"
+          }`}
+        >
+          <Text weight="plus" className="block mb-1">
+            {toast.type === "success" ? "Success" : "Error"}
+          </Text>
+          <Text size="small" className="block">
+            {toast.message}
+          </Text>
+        </div>
+      )}
     </div>
   )
 }
