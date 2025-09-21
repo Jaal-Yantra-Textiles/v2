@@ -1,3 +1,10 @@
+## [6.18.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.1...v6.18.2) (2025-09-21)
+
+
+### Bug Fixes
+
+* **files:** Upload from partner now supports the S3 streaming ([164ddb4](https://github.com/Jaal-Yantra-Textiles/v2/commit/164ddb4273de54b11b2f9c999b71965eba2a6aa1))
+
 ## [6.18.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.0...v6.18.1) (2025-09-21)
 
 
