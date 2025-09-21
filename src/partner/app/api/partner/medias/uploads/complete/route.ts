@@ -23,7 +23,8 @@ export async function POST(req: NextRequest) {
       status: upstream.status,
       headers: { "content-type": upstream.headers.get("content-type") || "application/json" },
     })
-  } catch (e: any) {
-    return NextResponse.json({ message: e?.message || "Proxy error" }, { status: 500 })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Proxy error"
+    return NextResponse.json({ message: msg }, { status: 500 })
   }
 }
