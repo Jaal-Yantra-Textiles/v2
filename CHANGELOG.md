@@ -1,3 +1,10 @@
+# [6.18.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.17.4...v6.18.0) (2025-09-21)
+
+
+### Features
+
+* **Instrumentation:** Sentry integration to partner and backend service ([01589fd](https://github.com/Jaal-Yantra-Textiles/v2/commit/01589fdda26efa9c2ad65c5c9dcdd6de9f3d613c))
+
 ## [6.17.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.17.3...v6.17.4) (2025-09-20)
 
 
