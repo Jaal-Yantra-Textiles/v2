@@ -1,3 +1,10 @@
+## [6.18.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.0...v6.18.1) (2025-09-21)
+
+
+### Bug Fixes
+
+* **Error:** reporting sentry API ([285e08b](https://github.com/Jaal-Yantra-Textiles/v2/commit/285e08b6ac176b5ff7c401955b90bfd697523b74))
+
 # [6.18.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.17.4...v6.18.0) (2025-09-21)
 
 
