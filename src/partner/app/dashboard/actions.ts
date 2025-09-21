@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { clearAuthCookie, getAuthCookie } from "../../lib/auth-cookie";
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 
 export async function logout() {
   await clearAuthCookie();
@@ -76,21 +77,65 @@ export async function partnerUploadAndAttachDesignMediaAction(formData: FormData
   if (!designId) {
     throw new Error("Missing designId")
   }
-  // Coerce thumbnail checkbox
   const setThumbRaw = formData.get("setThumbnail")
   const setThumbnail = !!setThumbRaw && String(setThumbRaw).toLowerCase() !== "false"
 
-  // Build a new FormData that contains only files for the upload endpoint
-  const uploadFD = new FormData()
+  // Compute file count for tracing attributes
+  const files: File[] = []
   for (const [key, value] of formData.entries()) {
-    if (key === "files" && value instanceof File) {
-      uploadFD.append("files", value)
-    }
+    if (key === "files" && value instanceof File) files.push(value)
   }
 
-  await partnerUploadAndAttachDesignMedia(designId, uploadFD, { setThumbnail })
-  // Ensure UI refreshes
-  revalidatePath(`/dashboard/designs/${designId}`)
+  // Build a new FormData that contains only files for the upload endpoint
+  const uploadFD = new FormData()
+  for (const f of files) uploadFD.append("files", f)
+
+  try {
+    await Sentry.startSpan(
+      {
+        op: "media.upload_attach",
+        name: "Partner Upload & Attach Media",
+      },
+      async (parentSpan) => {
+        parentSpan?.setAttribute("design.id", designId)
+        parentSpan?.setAttribute("files.count", files.length)
+        parentSpan?.setAttribute("thumbnail.set", setThumbnail)
+
+        // Upload span
+        await Sentry.startSpan(
+          { op: "http.client", name: `POST /partners/designs/${designId}/media` },
+          async (span) => {
+            try {
+              await partnerUploadDesignMedia(designId, uploadFD)
+            } catch (e) {
+              span?.setAttribute("error", true)
+              span?.setAttribute("error.message", e instanceof Error ? e.message : String(e))
+              throw e
+            }
+          }
+        )
+
+        // Attach span
+        await Sentry.startSpan(
+          { op: "http.client", name: `POST /partners/designs/${designId}/media/attach` },
+          async (span) => {
+            try {
+              await partnerUploadAndAttachDesignMedia(designId, uploadFD, { setThumbnail })
+            } catch (e) {
+              span?.setAttribute("error", true)
+              span?.setAttribute("error.message", e instanceof Error ? e.message : String(e))
+              throw e
+            }
+          }
+        )
+      }
+    )
+
+    revalidatePath(`/dashboard/designs/${designId}`)
+  } catch (e) {
+    Sentry.captureException(e)
+    throw e
+  }
 }
 
 // Payments: methods and payments listing/creation
