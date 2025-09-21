@@ -102,11 +102,12 @@ export async function partnerUploadAndAttachDesignMediaAction(formData: FormData
         parentSpan?.setAttribute("thumbnail.set", setThumbnail)
 
         // Upload span
-        await Sentry.startSpan(
+        const uploaded = await Sentry.startSpan(
           { op: "http.client", name: `POST /partners/designs/${designId}/media` },
           async (span) => {
             try {
-              await partnerUploadDesignMedia(designId, uploadFD)
+              const res = await partnerUploadDesignMedia(designId, uploadFD)
+              return res
             } catch (e) {
               span?.setAttribute("error", true)
               span?.setAttribute("error.message", e instanceof Error ? e.message : String(e))
@@ -120,7 +121,10 @@ export async function partnerUploadAndAttachDesignMediaAction(formData: FormData
           { op: "http.client", name: `POST /partners/designs/${designId}/media/attach` },
           async (span) => {
             try {
-              await partnerUploadAndAttachDesignMedia(designId, uploadFD, { setThumbnail })
+              const uploadedFiles = Array.isArray(uploaded?.files) ? uploaded.files : []
+              const media_files = uploadedFiles.map((f, idx) => ({ url: f.url, id: f.id, isThumbnail: setThumbnail && idx === 0 }))
+              const metadata = setThumbnail && media_files.length > 0 ? { thumbnail: media_files[0]?.url } : undefined
+              await partnerAttachDesignMedia(designId, { media_files, metadata })
             } catch (e) {
               span?.setAttribute("error", true)
               span?.setAttribute("error.message", e instanceof Error ? e.message : String(e))
