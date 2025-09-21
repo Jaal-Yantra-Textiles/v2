@@ -1,3 +1,10 @@
+## [6.18.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.2...v6.18.3) (2025-09-21)
+
+
+### Bug Fixes
+
+* **Partner:** build issue fixed ([035e52a](https://github.com/Jaal-Yantra-Textiles/v2/commit/035e52ab60200ad146867e882c881a902ab5459e))
+
 ## [6.18.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.1...v6.18.2) (2025-09-21)
 
 
