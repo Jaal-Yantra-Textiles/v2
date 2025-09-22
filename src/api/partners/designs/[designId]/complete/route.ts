@@ -64,5 +64,8 @@ export async function POST(
     })
   } catch (_) {}
 
-  return res.status(200).json({ message: "Design marked as completed", result })
+  // Backward-compatible response: expose updated design at top-level `design`
+  const updatedDesign = (result as any)?.updatedDesign
+  const design = Array.isArray(updatedDesign) ? updatedDesign[0] : updatedDesign
+  return res.status(200).json({ message: "Design marked as completed", design, result })
 }

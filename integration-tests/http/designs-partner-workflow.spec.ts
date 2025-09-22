@@ -415,14 +415,12 @@ setupSharedTestSuite(() => {
       dbg("postRefinishNode.partner_info", postRefinishNode?.partner_info)
       expect(postRefinishNode?.partner_info?.partner_status).toBe("finished")
 
-      // Inventory used step: report decimal inventory before completing
-      const inventoryRes = await api.post(`/partners/designs/${designId}/inventory`, { inventory_used: 3.1 }, { headers: partnerHeaders })
-      dbg("inventoryRes", { status: inventoryRes.status, data: inventoryRes.data })
-      expect(inventoryRes.status).toBe(200)
-      expect(inventoryRes.data?.design?.metadata?.partner_inventory_used).toBe(3.1)
-
-      // Complete
-      const completeRes = await api.post(`/partners/designs/${designId}/complete`, {}, { headers: partnerHeaders })
+      // Complete (can pass consumptions directly now; using empty to rely on defaults/no-op)
+      const completeRes = await api.post(
+        `/partners/designs/${designId}/complete`,
+        { consumptions: [] },
+        { headers: partnerHeaders }
+      )
       dbg("completeRes", { status: completeRes.status, data: completeRes.data })
       expect(completeRes.status).toBe(200)
       expect(completeRes.data.message).toBe("Design marked as completed")
@@ -483,14 +481,12 @@ setupSharedTestSuite(() => {
         expect(postRefinishNode2?.partner_info?.partner_status).toBe("finished")
       }
 
-      // Inventory used step before completion
-      const inventoryRes2 = await api.post(`/partners/designs/${designId}/inventory`, { inventory_used: "4.25" }, { headers: partnerHeaders })
-      dbg("inventoryRes2", { status: inventoryRes2.status, data: inventoryRes2.data })
-      expect(inventoryRes2.status).toBe(200)
-      expect(inventoryRes2.data?.design?.metadata?.partner_inventory_used).toBe(4.25)
-
-      // Complete
-      const completeRes = await api.post(`/partners/designs/${designId}/complete`, {}, { headers: partnerHeaders })
+      // Complete directly (inventory consumptions can be provided here if needed)
+      const completeRes = await api.post(
+        `/partners/designs/${designId}/complete`,
+        { consumptions: [] },
+        { headers: partnerHeaders }
+      )
       dbg("completeRes.2", { status: completeRes.status, data: completeRes.data })
       expect(completeRes.status).toBe(200)
       await logDesignTaskSummary(designId)

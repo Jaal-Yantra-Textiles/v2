@@ -78,16 +78,13 @@ export const GET = async (
     if (completedTask) {
       partner_status = "completed"
       partner_completed_at = partner_completed_at || (completedTask.updated_at ? String(completedTask.updated_at) : null)
-    } else if (finishTask || redoTask) {
-      const finishAt = finishTask?.updated_at ? new Date(finishTask.updated_at).getTime() : -1
-      const redoAt = redoTask?.updated_at ? new Date(redoTask.updated_at).getTime() : -1
-      if (redoAt > finishAt) {
-        partner_status = "in_progress"
-        partner_phase = "redo"
-      } else if (finishTask) {
-        partner_status = "finished"
-        partner_finished_at = partner_finished_at || (finishTask.updated_at ? String(finishTask.updated_at) : null)
-      }
+    } else if (redoTask) {
+      // Prefer redo state whenever redo task is completed, regardless of timestamp ordering vs finish
+      partner_status = "in_progress"
+      partner_phase = "redo"
+    } else if (finishTask) {
+      partner_status = "finished"
+      partner_finished_at = partner_finished_at || (finishTask.updated_at ? String(finishTask.updated_at) : null)
     } else if (startTask) {
       partner_status = "in_progress"
       partner_started_at = partner_started_at || (startTask.updated_at ? String(startTask.updated_at) : null)

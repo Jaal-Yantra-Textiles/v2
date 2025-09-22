@@ -40,11 +40,12 @@ export async function POST(
     await updateDesignWorkflow(req.scope).run({
       input: {
         id: designId,
-          status: "In_Development",
-          metadata: {
-            ...(node.metadata || {}),
-            partner_phase: "redo",
-          },
+        status: "In_Development",
+        metadata: {
+          ...(node.metadata || {}),
+          partner_phase: "redo",
+          partner_status: "in_progress",
+        },
       },
     })
   } catch (e) {

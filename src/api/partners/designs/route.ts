@@ -64,6 +64,11 @@ export async function GET(
     let partnerFinishedAt: string | null = (design?.metadata?.partner_finished_at as any) || null
     let partnerCompletedAt: string | null = (design?.metadata?.partner_completed_at as any) || null
 
+    // If redo phase is flagged in metadata, reflect in-progress immediately (deterministic)
+    if (partnerPhase === "redo") {
+      partnerStatus = "in_progress"
+    }
+
     if (workflowTasks.length > 0) {
       // start -> redo (optional) -> finish -> completed
       const startTask = workflowTasks.find((t: any) => t.title === "partner-design-start" && t.status === "completed")
@@ -77,21 +82,23 @@ export async function GET(
         if (completedTask) {
           partnerStatus = "completed"
           partnerCompletedAt = partnerCompletedAt || (completedTask.updated_at ? String(completedTask.updated_at) : null)
-        } else if (finishTask || redoTask) {
-          const finishAt = finishTask?.updated_at ? new Date(finishTask.updated_at).getTime() : -1
-          const redoAt = redoTask?.updated_at ? new Date(redoTask.updated_at).getTime() : -1
-          if (redoAt > finishAt) {
-            partnerStatus = "in_progress"
-            partnerPhase = "redo"
-          } else if (finishTask) {
-            partnerStatus = "finished"
-            partnerFinishedAt = partnerFinishedAt || (finishTask.updated_at ? String(finishTask.updated_at) : null)
-          }
+        } else if (redoTask) {
+          // Prefer redo state whenever redo task is completed, regardless of timestamp ordering vs finish
+          partnerStatus = "in_progress"
+          partnerPhase = "redo"
+        } else if (finishTask) {
+          partnerStatus = "finished"
+          partnerFinishedAt = partnerFinishedAt || (finishTask.updated_at ? String(finishTask.updated_at) : null)
         } else if (startTask) {
           partnerStatus = "in_progress"
           partnerStartedAt = partnerStartedAt || (startTask.updated_at ? String(startTask.updated_at) : null)
         }
       }
+    }
+
+    // Final safeguard: if phase is redo, ensure status reflects in-progress
+    if (partnerPhase === "redo") {
+      partnerStatus = "in_progress"
     }
 
     const partner_info = {

@@ -386,51 +386,9 @@ export async function updatePartnerBranding(formData: FormData) {
   }
 }
 
-export async function partnerCompleteDesignWithInventory(designId: string, inventoryUsed: string | number) {
-  const token = await getAuthCookie()
-  if (!token) redirect("/login")
-  const MEDUSA_BACKEND_URL =
-    process.env.MEDUSA_BACKEND_URL ||
-    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
-    "http://localhost:9000"
-  // 1) Report inventory used (idempotent)
-  {
-    const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/inventory`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ inventory_used: inventoryUsed }),
-      cache: "no-store",
-    })
-    if (!res.ok) throw new Error((await res.text()) || "Failed to record inventory used")
-  }
-  // 2) Complete design
-  {
-    const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/complete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-    if (!res.ok) throw new Error((await res.text()) || "Failed to complete design")
-    return res.json()
-  }
-}
+// Deprecated: partnerCompleteDesignWithInventory removed in favor of partnerCompleteDesignWithConsumptions
 
-export async function partnerReportDesignInventory(designId: string, inventoryUsed: number | string) {
-  const token = await getAuthCookie()
-  if (!token) redirect("/login")
-  const MEDUSA_BACKEND_URL =
-    process.env.MEDUSA_BACKEND_URL ||
-    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
-    "http://localhost:9000"
-  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/inventory`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ inventory_used: inventoryUsed }),
-    cache: "no-store",
-  })
-  if (!res.ok) throw new Error((await res.text()) || "Failed to record inventory used")
-  return res.json()
-}
+// Deprecated: partnerReportDesignInventory removed; use partnerCompleteDesignWithConsumptions via the complete route
 
 export async function partnerCompleteInventoryOrder(
   orderId: string,
