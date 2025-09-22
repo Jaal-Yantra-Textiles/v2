@@ -130,6 +130,25 @@ export class UploadManager {
     this.pump()
   }
 
+  // Pause a single file by its id (name|size)
+  pause(id: string) {
+    const q = this.queue.find((x) => x.state.id === id)
+    if (q && (q.state.status === "uploading" || q.state.status === "queued")) {
+      q.state.status = "paused"
+      this.emit(q.state)
+    }
+  }
+
+  // Resume a single file by its id (name|size)
+  resume(id: string) {
+    const q = this.queue.find((x) => x.state.id === id)
+    if (q && q.state.status === "paused") {
+      q.state.status = "queued"
+      this.emit(q.state)
+      this.pump()
+    }
+  }
+
   private async pump() {
     if (!navigator.onLine) return
     while (this.running < 2) { // up to 2 files concurrently

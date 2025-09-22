@@ -1,3 +1,4 @@
+
 export default function GlobalLoading() {
   return (
     <div className="fixed inset-0 z-[10000] grid place-items-center bg-[rgb(250,250,250)]/80 dark:bg-black/60">

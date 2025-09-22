@@ -19,7 +19,7 @@ export default function TopLoader() {
 
     // Hide after a short delay — adjust to your network characteristics
     if (hideTimeout.current) clearTimeout(hideTimeout.current)
-    hideTimeout.current = setTimeout(() => setVisible(false), 800)
+    hideTimeout.current = setTimeout(() => setVisible(false), 1200)
 
     return () => {
       if (hideTimeout.current) {
