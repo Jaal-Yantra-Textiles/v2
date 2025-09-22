@@ -22,7 +22,7 @@ export default function AuthInterceptor() {
       try {
         // Clear the medusa_jwt cookie
         document.cookie = "medusa_jwt=; Max-Age=0; path=/; SameSite=Lax"
-      } catch (_) {
+      } catch {
         // no-op
       }
 
