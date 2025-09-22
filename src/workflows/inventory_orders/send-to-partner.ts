@@ -192,8 +192,7 @@ const linkInventoryOrderWithPartnerStep = createStep(
                 }
             })
         } catch (e) {
-            const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-            logger.warn(`Failed to emit rollback event for partner link: ${e?.message}`)
+            // swallow rollback event emission errors silently
         }
     }
 )
@@ -203,9 +202,6 @@ const notifyPartnerStep = createStep(
         name: 'notify-partner-inventory-order',
     },
     async (input: {input: SendInventoryOrderToPartnerInput, order: any}, { container }) => {
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-        logger.info("Notifying partner about inventory order...")
-        
         const eventService = container.resolve(Modules.EVENT_BUS)
         
         // Emit event for partner notification
@@ -219,8 +215,6 @@ const notifyPartnerStep = createStep(
             }
         })
         
-        logger.info("Partner notified about inventory order")
-        
     }
 )
 
@@ -231,8 +225,6 @@ const awaitOrderStart = createStep(
         maxRetries: 2
     },
     async (_, { container }) => {
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-        logger.info("Awaiting partner to start the order...")
         // ✅ NO return statement - waits for external signaling via setStepSuccess
     }
 )
@@ -244,8 +236,6 @@ const awaitOrderCompletion = createStep(
         maxRetries: 2
     },
     async (_, { container }) => {
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-        logger.info("Awaiting partner to complete the order...")
         // ✅ NO return statement - waits for external signaling via setStepSuccess
     }
 )
@@ -270,8 +260,7 @@ const updateOrderStatusStep = createStep(
         const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE)
         // Note: In a real scenario, you'd want to store the previous status
         // For now, we'll just log the compensation
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-        logger.warn(`Compensating order status change for order ${updatedOrder.id}`)
+        // (no-op logging removed)
     }
 )
 
@@ -280,12 +269,9 @@ const updateOrderStatusStep = createStep(
 const setTaskTransactionIdsStep = createStep(
     "set-task-transaction-ids",
     async (input: {partnerTasks: any}, { container, context }) => {
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
         const taskService: TaskService = container.resolve(TASKS_MODULE)
         const workflowTransactionId = context.transactionId
 
-        logger.info("Setting workflow transaction ID on partner tasks...")
-        
         // Get the created tasks from the workflow result
         // The task creation workflow returns [validateStep, createTasksStep, createLinksStep]
         // The actual tasks are in createTasksStep.withTemplates, and task IDs are in the links
@@ -304,15 +290,12 @@ const setTaskTransactionIdsStep = createStep(
             }
         }
         
-        logger.info(`Found ${taskIds.length} task IDs from links: ${JSON.stringify(taskIds)}`)
-        
         // Get the actual task objects using TaskService
         if (taskIds.length > 0) {
             const tasks = await taskService.listTasks({
                 id: taskIds
             })
             createdTasks = tasks
-            logger.info(`Retrieved ${createdTasks.length} task objects from TaskService`)
         }
         
         // Update tasks with workflow transaction ID for proper coordination
@@ -326,12 +309,9 @@ const setTaskTransactionIdsStep = createStep(
                         status: task.title?.includes("sent") ? "completed" : "pending" // Mark "sent" task as completed
                     })
                     updatedTasks.push(updatedTask)
-                    logger.info(`Updated task ${task.id} with transaction ID: ${workflowTransactionId}`)
                 }
             }
         }
-        
-        logger.info(`Updated ${updatedTasks.length} partner tasks with transaction ID: ${workflowTransactionId}`)
         
         return new StepResponse({
             tasks: updatedTasks,
@@ -345,7 +325,6 @@ const setTaskTransactionIdsStep = createStep(
         }
         
         const taskService: TaskService = container.resolve(TASKS_MODULE)
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
         
         for (const task of taskData.tasks) {
             if (task && typeof task === 'object' && 'id' in task) {
@@ -354,9 +333,8 @@ const setTaskTransactionIdsStep = createStep(
                         id: task.id,
                         transaction_id: null // Remove transaction ID
                     })
-                    logger.info(`Compensated: removed transaction ID from task ${task.id}`)
                 } catch (error) {
-                    logger.warn(`Failed to compensate task ${task.id}: ${error.message}`)
+                    // swallow compensation errors silently
                 }
             }
         }

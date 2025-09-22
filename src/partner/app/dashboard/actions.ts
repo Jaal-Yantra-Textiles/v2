@@ -4,6 +4,18 @@ import { clearAuthCookie, getAuthCookie } from "../../lib/auth-cookie";
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 
+// Global helper: if backend returns 401/403, clear cookie and redirect to login
+async function enforceAuthOrRedirect(res: Response) {
+  if (res.status === 401 || res.status === 403) {
+    try {
+      await clearAuthCookie();
+    } catch (e) {
+      throw e;
+    }
+    redirect("/login");
+  }
+}
+
 export async function logout() {
   await clearAuthCookie();
   redirect("/login");
@@ -142,6 +154,7 @@ export async function getPartnerPaymentMethods() {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     cache: "no-store",
   })
+  await enforceAuthOrRedirect(res)
   if (!res.ok) {
     console.error("Failed to fetch partner payment methods:", await res.text())
     return [] as PartnerPaymentMethod[]
@@ -207,6 +220,7 @@ export async function getPartnerPayments() {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     cache: "no-store",
   })
+  await enforceAuthOrRedirect(res)
   if (!res.ok) {
     console.error("Failed to fetch partner payments:", await res.text())
     return [] as PartnerPayment[]
@@ -243,6 +257,7 @@ export async function getPartnerPeople() {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     cache: "no-store",
   })
+  await enforceAuthOrRedirect(res)
   if (!res.ok) {
     console.error("Failed to fetch partner people:", await res.text())
     return [] as PartnerPerson[]
@@ -489,6 +504,7 @@ export async function getPartnerInventoryOrder(orderId: string) {
         cache: "no-store",
       }
     );
+    await enforceAuthOrRedirect(response)
 
     if (!response.ok) {
       console.error("Failed to fetch partner inventory order:", response.statusText);
@@ -498,8 +514,8 @@ export async function getPartnerInventoryOrder(orderId: string) {
     const data = await response.json();
     return data?.inventoryOrder ?? null;
   } catch (e) {
-    console.error("Error fetching partner inventory order:", e);
-    return null;
+    // Do not swallow redirects; rethrow for Next.js to handle
+    throw e
   }
 }
 
@@ -565,6 +581,7 @@ export async function getDetails() {
       // Cache the result for a short period to avoid refetching on every navigation
       next: { revalidate: 60 },
     });
+    await enforceAuthOrRedirect(response)
     
     if (!response.ok) {
       console.error("Failed to fetch partner details:", response.statusText);
@@ -575,8 +592,8 @@ export async function getDetails() {
     const { partner } = await response.json();
     return partner;
   } catch (error) {
-    console.error("Error fetching partner details:", error);
-    return null;
+    // Do not swallow redirects; rethrow for Next.js to handle
+    throw error
   }
 }
 
@@ -610,7 +627,7 @@ export async function getPartnerInventoryOrders({ limit = 20, offset = 0, status
         cache: "no-store",
       }
     );
-
+    await enforceAuthOrRedirect(response)
     if (!response.ok) {
       console.error("Failed to fetch partner inventory orders:", response.statusText);
       return { inventory_orders: [], count: 0, limit, offset };
@@ -618,8 +635,8 @@ export async function getPartnerInventoryOrders({ limit = 20, offset = 0, status
 
     return await response.json();
   } catch (e) {
-    console.error("Error fetching partner inventory orders:", e);
-    return { inventory_orders: [], count: 0, limit, offset };
+    // Do not swallow redirects; rethrow for Next.js to handle
+    throw e
   }
 }
 
@@ -645,14 +662,15 @@ export async function getPartnerDesigns({ limit = 20, offset = 0, status }: { li
         cache: "no-store",
       }
     )
+    await enforceAuthOrRedirect(response)
     if (!response.ok) {
       console.error("Failed to fetch partner designs:", response.statusText)
       return { designs: [], count: 0, limit, offset }
     }
     return await response.json()
   } catch (e) {
-    console.error("Error fetching partner designs:", e)
-    return { designs: [], count: 0, limit, offset }
+    // Do not swallow redirects; rethrow for Next.js to handle
+    throw e
   }
 }
 
@@ -673,6 +691,7 @@ export async function getPartnerDesign(designId: string) {
         cache: "no-store",
       }
     )
+    await enforceAuthOrRedirect(response)
     if (!response.ok) {
       console.error("Failed to fetch partner design:", response.statusText)
       return null
@@ -680,8 +699,8 @@ export async function getPartnerDesign(designId: string) {
     const data = await response.json()
     return data?.design ?? null
   } catch (e) {
-    console.error("Error fetching partner design:", e)
-    return null
+    // Do not swallow redirects; rethrow for Next.js to handle
+    throw e
   }
 }
 

@@ -5,11 +5,14 @@ export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get("medusa_jwt")?.value
 
-  // Pages that should not be accessible when already authenticated
-  const authPages = new Set(["/login", "/register"]) // add "/reset-password" if needed
+  // Public pages that don't require authentication
+  const publicPages = new Set(["/login", "/register", "/favicon.ico"]) // Extend as needed
 
-  if (token && authPages.has(pathname)) {
-    const url = new URL("/dashboard", request.url)
+  // If user is not authenticated and path is not public, redirect to login
+  if (!token && !publicPages.has(pathname)) {
+    const url = new URL("/login", request.url)
+    // Preserve intended destination to possibly redirect after login
+    url.searchParams.set("next", pathname)
     return NextResponse.redirect(url)
   }
 

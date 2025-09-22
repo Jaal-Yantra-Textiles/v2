@@ -17,13 +17,13 @@ export const deletePaymentDetailsStep = createStep(
     const service: PaymentDetailsService = container.resolve(INTERNAL_PAYMENTS_MODULE);
     const original = await service.retrievePaymentDetails(input.id);
 
-    await service.deletePaymentDetails(input.id);
+    await service.deletePaymentDetailses(input.id);
 
     return new StepResponse({ success: true }, original);
   },
   async (original: any, { container }) => {
     const service: PaymentDetailsService = container.resolve(INTERNAL_PAYMENTS_MODULE);
-    await service.createPaymentDetails(original);
+    await service.createPaymentDetailses(original);
   }
 );
 

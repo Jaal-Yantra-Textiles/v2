@@ -28,13 +28,13 @@ export const updatePaymentDetailsStep = createStep(
 
     const original = await service.retrievePaymentDetails(id);
 
-    const updated = await service.updatePaymentDetails({ id, ...updateData });
+    const updated = await service.updatePaymentDetailses({ id, ...updateData });
 
     return new StepResponse(updated, { id, originalData: original });
   },
   async (compensationData: { id: string; originalData: any }, { container }) => {
     const service: PaymentDetailsService = container.resolve(INTERNAL_PAYMENTS_MODULE);
-    await service.updatePaymentDetails({ id: compensationData.id, ...compensationData.originalData });
+    await service.updatePaymentDetailses({ id: compensationData.id, ...compensationData.originalData });
   }
 );
 

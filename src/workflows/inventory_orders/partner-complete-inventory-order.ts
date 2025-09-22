@@ -27,6 +27,37 @@ export type PartnerCompleteInventoryOrderInput = {
 
 // Step: prepare fulfillment payloads (filters happen inside the step)
 
+// Debug step: logs stock posting decisions and computed arrays
+const debugStockPostingStep = createStep(
+  "partner-complete-debug-stock-posting",
+  async (
+    input: {
+      orderId: string
+      orderDestLocation?: string | null
+      deliveredLines?: Array<{ order_line_id: string; quantity: number }>
+      levels?: Array<{ location_id: string; inventory_item_id: string; stocked_quantity: number }>
+      existing?: Array<{ id: string; location_id: string; inventory_item_id: string; stocked_quantity: number }>
+      missing?: Array<{ location_id: string; inventory_item_id: string; stocked_quantity: number }>
+      createInputs?: Array<{ inventory_item_id: string; location_id: string; stocked_quantity: number; incoming_quantity?: number }>
+      updates?: Array<{ id: string; inventory_item_id: string; location_id: string; stocked_quantity: number }>
+    }
+  ) => {
+    try {
+      console.log("[WF][partner-complete] orderId=", input.orderId)
+      console.log("[WF][partner-complete] orderDestLocation=", input.orderDestLocation)
+      console.log("[WF][partner-complete] deliveredLines=", JSON.stringify(input.deliveredLines || [], null, 2))
+      console.log("[WF][partner-complete] inventoryLevelsInput (levels)=", JSON.stringify(input.levels || [], null, 2))
+      console.log("[WF][partner-complete] existingLevels=", JSON.stringify(input.existing || [], null, 2))
+      console.log("[WF][partner-complete] missingPairs=", JSON.stringify(input.missing || [], null, 2))
+      console.log("[WF][partner-complete] createInputs=", JSON.stringify(input.createInputs || [], null, 2))
+      console.log("[WF][partner-complete] updates=", JSON.stringify(input.updates || [], null, 2))
+    } catch (e) {
+      // no-op
+    }
+    return new StepResponse(null)
+  }
+)
+
 // Step: resolve existing inventory levels for given (item, location) pairs
 export const resolveExistingLevelsStep = createStep(
   "partner-complete-resolve-existing-levels",
@@ -159,6 +190,8 @@ const validateAndFetchOrderStep = createStep(
         // fetch inventory item linkage and stock location information for stock posting
         "orderlines.inventory_items.*",
         "orderlines.inventory_items.stock_locations.*",
+        // include order-level stock locations as a fallback destination
+        "stock_locations.*",
         // include existing fulfillments to compute cumulative delivered qty
         "orderlines.line_fulfillments.quantity_delta",
       ],
@@ -434,7 +467,12 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
           deliveredByLine[l.order_line_id] = (deliveredByLine[l.order_line_id] || 0) + l.quantity
         }
       }
-      const orderDestLocation = input?.stock_location_id || order.to_stock_location_id || order.stock_location_id || order.destination_stock_location_id
+      const orderDestLocation =
+        input?.stock_location_id ||
+        order.to_stock_location_id ||
+        order.stock_location_id ||
+        order.destination_stock_location_id ||
+        (Array.isArray(order?.stock_locations) && order.stock_locations.length > 0 ? order.stock_locations[0]?.id : undefined)
       for (const ol of (order.orderlines ?? []).filter(Boolean)) {
         const lineId = (ol as any).id
         const qty = deliveredByLine[lineId]
@@ -442,9 +480,9 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
         const iitems = (ol as any).inventory_items || []
         const firstItem = iitems[0]
         const itemId = firstItem?.id || (ol as any).inventory_item_id
-        // Prefer stock location on inventory item; fallback to first available or to order-level destination
+        // Prefer the provided destination location (input/order), fall back to the item's default linked location
         const locations = firstItem?.stock_locations || []
-        const locId = locations[0]?.id || orderDestLocation
+        const locId = orderDestLocation || locations[0]?.id
         if (itemId && locId) {
           inputs.push({ location_id: String(locId), inventory_item_id: String(itemId), stocked_quantity: Number(qty) })
         }
@@ -456,6 +494,41 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
     const levels = inventoryLevelsInput as any
     const resolved = resolveExistingLevelsStep({ levels }) as any
     const existing = transform({ resolved }, ({ resolved }) => (resolved?.existing || []))
+
+    // Determine which (item, location) pairs are missing inventory levels and need creation
+    const missing = transform<{ existing: any[]; levels: any[] }, any[]>(
+      { existing, levels },
+      ({ existing, levels }) => {
+        const exArr = (existing as any[]) || []
+        const lvlArr = (levels as any[]) || []
+        return lvlArr.filter((l: any) =>
+          !exArr.some((ex: any) => ex.inventory_item_id === l.inventory_item_id && ex.location_id === l.location_id)
+        )
+      }
+    )
+
+    // Build creation inputs for levels that do not exist yet
+    const createInputs = transform({ missing }, ({ missing }) => {
+      const missArr = (missing as any[]) || []
+      return missArr.map((m: any) => ({
+        inventory_item_id: String(m.inventory_item_id),
+        location_id: String(m.location_id),
+        // Since this workflow posts received stock, we treat it as stocked quantity
+        stocked_quantity: Number(m.stocked_quantity || 0),
+        incoming_quantity: 0,
+      }))
+    })
+
+    const hasCreates = transform({ createInputs }, ({ createInputs }) => Array.isArray(createInputs) && (createInputs as any[]).length > 0)
+
+    // First, create any missing inventory levels so subsequent updates can succeed
+    when(hasCreates, (b) => Boolean(b)).then(() => {
+      createInventoryLevelsWorkflow.runAsStep({
+        input: {
+          inventory_levels: createInputs as unknown as any[],
+        },
+      })
+    })
 
     const updates = transform<{ existing: any[]; levels: any[] }, UpdateInventoryLevelInput[]>(
       { existing, levels },
@@ -476,6 +549,23 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
         })
       }
     )
+
+    // Log computed state for debugging stock postings
+    const orderDestLocationForLog = transform({ v: validated, input }, ({ v, input }) => {
+      const order = v.order as any
+      return String(input?.stock_location_id || order.to_stock_location_id || order.stock_location_id || order.destination_stock_location_id || "")
+    })
+    const deliveredLinesForLog = transform({ v: validated }, ({ v }) => (v.completionMetadata?.partner_delivered_lines || []))
+    debugStockPostingStep({
+      orderId: input.orderId,
+      orderDestLocation: orderDestLocationForLog as unknown as string,
+      deliveredLines: deliveredLinesForLog as unknown as any[],
+      levels: inventoryLevelsInput as unknown as any[],
+      existing: existing as unknown as any[],
+      missing: missing as unknown as any[],
+      createInputs: createInputs as unknown as any[],
+      updates: updates as unknown as any[],
+    })
 
     const hasUpdates = transform({ updates }, ({ updates }) => Array.isArray(updates) && (updates as any[]).length > 0)
 

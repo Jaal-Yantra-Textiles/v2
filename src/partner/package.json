@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": false,
   "scripts": {
-    "dev": "netlify dev",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "license": "MIT",
-  "author": "JYT (https://jaalyantra.in)",
+  "author": "Saransh Sharma saransh@jaalyantra.com (https://jaalyantra.com)",
   "description": "JYT Partner Dashboard",
   "keywords": [
     "medusa",

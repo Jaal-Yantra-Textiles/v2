@@ -33,8 +33,6 @@ setupSharedTestSuite(() => {
           password: TEST_PARTNER_PASSWORD,
         })
 
-      
-
         const partnerLoginResponse = await api.post("/auth/partner/emailpass", {
           email: TEST_PARTNER_EMAIL,
           password: TEST_PARTNER_PASSWORD,
@@ -683,6 +681,91 @@ setupSharedTestSuite(() => {
         const finalStockedAtDest = destLevelsFinal.reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
         expect(finalStockedAtDest).toBe(sumRequestedAll)
         console.log("[DBG][final] levelsAfterFinal=", JSON.stringify(levelsAfterFinal, null, 2))
+      })
+
+      it("should create missing inventory levels at destination location on completion", async () => {
+        // Create a fresh inventory item without pre-associated inventory levels
+        const newItemRes = await api.post(
+          "/admin/inventory-items",
+          { title: "Test Fabric Without Level", description: "No level pre-created" },
+          adminHeaders
+        )
+        expect(newItemRes.status).toBe(200)
+        const newInventoryItemId = newItemRes.data.inventory_item.id
+
+        // Create a new inventory order for this item pointing to the existing destination stockLocationId
+        const newOrderPayload = {
+          order_lines: [{ inventory_item_id: newInventoryItemId, quantity: 50, price: 10 }],
+          quantity: 50,
+          total_price: 500,
+          status: "Pending",
+          expected_delivery_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {
+            address_1: "456 Factory St",
+            city: "Another City",
+            postal_code: "67890",
+            country_code: "US",
+          },
+          stock_location_id: stockLocationId,
+          to_stock_location_id: stockLocationId,
+          from_stock_location_id: fromStockLocationId,
+          is_sample: false,
+        }
+        const newOrderRes = await api.post("/admin/inventory-orders", newOrderPayload, adminHeaders)
+        expect(newOrderRes.status).toBe(201)
+        const newInventoryOrderId = newOrderRes.data.inventoryOrder.id
+
+        // Send to partner
+        const sendRes = await api.post(
+          `/admin/inventory-orders/${newInventoryOrderId}/send-to-partner`,
+          { partnerId, notes: "Create-levels test" },
+          adminHeaders
+        )
+        expect(sendRes.status).toBe(200)
+
+        // Partner starts the order
+        const startRes = await api.post(
+          `/partners/inventory-orders/${newInventoryOrderId}/start`,
+          {},
+          { headers: partnerHeaders }
+        )
+        expect([200, 204]).toContain(startRes.status)
+
+        // Fetch order lines for completion
+        const partnerOrderRes = await api.get(`/partners/inventory-orders/${newInventoryOrderId}`, { headers: partnerHeaders })
+        expect(partnerOrderRes.status).toBe(200)
+        const orderLines = partnerOrderRes.data.inventoryOrder.order_lines || []
+        expect(orderLines.length).toBeGreaterThan(0)
+        const deliverLines = orderLines.map((l: any) => ({ order_line_id: l.id, quantity: l.quantity }))
+
+        // Complete the order fully; provide stock_location_id to ensure destination resolution
+        const completeRes = await api.post(
+          `/partners/inventory-orders/${newInventoryOrderId}/complete`,
+          {
+            notes: "Auto-create levels on completion",
+            tracking_number: "TRACK-NEW-ITEM-001",
+            stock_location_id: stockLocationId,
+            lines: deliverLines,
+          },
+          { headers: partnerHeaders }
+        )
+        expect([200, 204]).toContain(completeRes.status)
+
+        // Verify an inventory_level now exists at destination location with stocked_quantity == requested
+        const container = getContainer()
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const { data: levels } = await query.graph({
+          entity: "inventory_level",
+          fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
+          filters: { inventory_item_id: newInventoryItemId },
+        })
+        const destLevels = (levels || []).filter((l: any) => String(l.location_id) === String(stockLocationId))
+        console.log("[DBG] destLevels=", JSON.stringify(destLevels, null, 2))
+        expect(destLevels.length).toBeGreaterThan(0)
+        const totalStocked = destLevels.reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
+        const requestedQty = newOrderPayload.quantity
+        expect(totalStocked).toBe(requestedQty)
       })
     })
 })
