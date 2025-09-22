@@ -1,3 +1,10 @@
+## [6.19.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.19.0...v6.19.1) (2025-09-22)
+
+
+### Bug Fixes
+
+* **Payment:** Internal payment fix api because of the plural s ([d60d47d](https://github.com/Jaal-Yantra-Textiles/v2/commit/d60d47dd4b09bd050839bb031fc6901d49036310))
+
 # [6.19.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.5...v6.19.0) (2025-09-22)
 
 
