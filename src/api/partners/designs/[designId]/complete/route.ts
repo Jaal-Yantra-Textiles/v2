@@ -1,10 +1,9 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { refetchPartnerForThisAdmin } from "../../../helpers"
-import { updateDesignWorkflow } from "../../../../../workflows/designs/update-design"
-import { TASKS_MODULE } from "../../../../../modules/tasks"
-import TaskService from "../../../../../modules/tasks/service"
-import { setDesignStepSuccessWorkflow, setDesignStepFailedWorkflow } from "../../../../../workflows/designs/design-steps"
+import { z } from "zod"
+import { completePartnerDesignWorkflow } from "../../../../../workflows/designs/complete-partner-design"
+import { setDesignStepFailedWorkflow, setDesignStepSuccessWorkflow } from "../../../../../workflows/designs/design-steps"
 
 export async function POST(
   req: AuthenticatedMedusaRequest,
@@ -19,102 +18,51 @@ export async function POST(
     return res.status(401).json({ error: "Partner authentication required" })
   }
 
-  // Load tasks linked to this design
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const taskLinksResult = await query.graph({
-    entity: "designs",
-    fields: ["id", "tasks.*"],
-    filters: { id: designId },
+  // Parse optional consumptions payload for inventory adjustments
+  const BodySchema = z.object({
+    consumptions: z
+      .array(
+        z.object({
+          inventory_item_id: z.string(),
+          quantity: z.number().positive().optional(),
+          location_id: z.string().optional(),
+        })
+      )
+      .optional(),
   })
-  const taskLinks = taskLinksResult.data || []
+  const parsed = BodySchema.safeParse((req as any).validatedBody || (req.body as any))
+  const consumptions = parsed.success ? parsed.data.consumptions : undefined
 
-  // Update design status/metadata as Approved
-  const { result, errors } = await updateDesignWorkflow(req.scope).run({
-    input: {
-      id: designId,
-      status: "Approved",
-      metadata: {
-        partner_completed_at: new Date().toISOString(),
-        partner_status: "completed",
-      },
-    },
+  // Delegate to workflow that adjusts inventory, updates design/tasks, and signals steps
+  const { result, errors } = await completePartnerDesignWorkflow(req.scope).run({
+    input: { design_id: designId, consumptions },
   })
   if (errors && errors.length) {
-    return res.status(500).json({ error: "Failed to update design", details: errors })
+    return res.status(500).json({ error: "Failed to complete design", details: errors })
   }
 
-  // Mark the completed task as completed
-  const taskService: TaskService = req.scope.resolve(TASKS_MODULE)
-  for (const d of taskLinks) {
-    if (d.tasks && Array.isArray(d.tasks)) {
-      const completedTasks = d.tasks.filter(
-        (task: any) => task.title === "partner-design-completed" && task.status !== "completed"
-      )
-      for (const task of completedTasks) {
-        await taskService.updateTasks({
-          id: task?.id,
-          status: "completed",
-          metadata: { ...task?.metadata, completed_at: new Date().toISOString(), completed_by: "partner" },
-        })
-      }
-
-      // Option A: also complete redo-verify child if present
-      const redoVerify = d.tasks.find((t: any) => t?.title === "partner-design-redo-verify" && t?.status !== "completed")
-      if (redoVerify) {
-        await taskService.updateTasks({
-          id: redoVerify.id,
-          status: "completed",
-          metadata: { ...(redoVerify.metadata || {}), completed_at: new Date().toISOString(), completed_by: "partner" },
-        })
-      }
-
-      // Cancel any leftover redo-related tasks if redo was bypassed (not completed)
-      const redoTitles = new Set([
-        "partner-design-redo",
-        "partner-design-redo-log",
-        "partner-design-redo-apply",
-        "partner-design-redo-verify",
-      ])
-      const redoPending = d.tasks.filter((t: any) => redoTitles.has(t?.title) && t?.status !== "completed")
-      for (const t of redoPending) {
-        await taskService.updateTasks({
-          id: t?.id,
-          status: "cancelled",
-          metadata: { ...(t?.metadata || {}), cancelled_at: new Date().toISOString(), cancelled_by: "system" },
-        })
-      }
-    }
-  }
-
-  // Signal step success for await-design-completed
-  // If redo phase was bypassed, proactively fail redo gates so the workflow can continue
+  // Signal gates from the route to avoid duplicate runAsStep invocations within the workflow
+  // First, signal inventory-reported gate in case the workflow expects it prior to completion
+  try {
+    await setDesignStepSuccessWorkflow(req.scope).run({
+      input: { stepId: "await-design-inventory", updatedDesign: (result as any)?.updatedDesign },
+    })
+  } catch (_) {}
   try {
     await setDesignStepFailedWorkflow(req.scope).run({
-      input: { stepId: "await-design-redo", updatedDesign: result[0] },
+      input: { stepId: "await-design-redo", updatedDesign: (result as any)?.updatedDesign },
     })
-  } catch (e) {
-    // ignore; step may be idle or not waiting
-  }
+  } catch (_) {}
   try {
     await setDesignStepFailedWorkflow(req.scope).run({
-      input: { stepId: "await-design-refinish", updatedDesign: result[0] },
+      input: { stepId: "await-design-refinish", updatedDesign: (result as any)?.updatedDesign },
     })
-  } catch (e) {
-    // ignore; step may be idle or not waiting
-  }
+  } catch (_) {}
+  try {
+    await setDesignStepSuccessWorkflow(req.scope).run({
+      input: { stepId: "await-design-completed", updatedDesign: (result as any)?.updatedDesign },
+    })
+  } catch (_) {}
 
-  const { errors: stepErrors } = await setDesignStepSuccessWorkflow(req.scope).run({
-    input: {
-      stepId: "await-design-completed",
-      updatedDesign: result[0],
-    },
-  })
-  if (stepErrors && stepErrors.length) {
-    return res.status(500).json({ error: "Failed to update workflow", details: stepErrors })
-  }
-
-  res.status(200).json({
-    message: "Design marked as completed",
-    design: result[0],
-  })
+  return res.status(200).json({ message: "Design marked as completed", result })
 }

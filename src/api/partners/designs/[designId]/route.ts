@@ -104,10 +104,26 @@ export const GET = async (
     workflow_tasks_count: wfTasks.length,
   }
 
-  // Merge partner_info into the design payload
+  // Fetch linked inventory items (with raw_materials and stock_locations) for partner UI consumption list
+  const invResult = await query.graph({
+    entity: "designs",
+    fields: [
+      "id",
+      "inventory_items.*",
+      "inventory_items.raw_materials.*",
+      "inventory_items.location_levels.*",
+      "inventory_items.location_levels.stock_locations.*",
+    ],
+    filters: { id: designId },
+  })
+
+  const invNode = (invResult?.data || [])[0] || {}
+
+  // Merge partner_info and inventory_items into the design payload
   const design = {
     ...(workflowDesign || linkData.design),
     partner_info,
+    inventory_items: invNode?.inventory_items || [],
   }
 
   return res.status(200).json({ design })

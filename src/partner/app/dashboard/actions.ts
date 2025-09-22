@@ -770,6 +770,30 @@ export async function partnerCompleteDesign(designId: string) {
   return res.json()
 }
 
+// Complete a design providing consumptions array (inventory_item_id and quantity). location_id is optional and
+// will be resolved server-side from the first linked stock location when not supplied.
+export async function partnerCompleteDesignWithConsumptions(
+  designId: string,
+  consumptions: Array<{ inventory_item_id: string; quantity?: number; location_id?: string }>
+) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/designs/${designId}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ consumptions }),
+    cache: "no-store",
+  })
+  await enforceAuthOrRedirect(res)
+  if (!res.ok) throw new Error((await res.text()) || "Failed to complete design with consumptions")
+  return res.json()
+}
+
 export async function partnerRefinishDesign(designId: string) {
   const token = await getAuthCookie()
   if (!token) redirect("/login")

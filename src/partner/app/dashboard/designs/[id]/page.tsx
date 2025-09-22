@@ -24,6 +24,20 @@ export default async function DesignDetailsPage({ params }: PageProps) {
     redirect("/dashboard/designs")
   }
 
+  type LinkedItem = {
+    id: string
+    title?: string | null
+    raw_materials?: { name?: string | null } | null
+    location_levels?: Array<{
+      stocked_quantity?: number
+      available_quantity?: number
+      stock_locations?: Array<{ id: string; name?: string | null }>
+    }>
+  }
+  const linkedItems: LinkedItem[] = Array.isArray((design as { inventory_items?: unknown[] })?.inventory_items)
+    ? (((design as { inventory_items?: LinkedItem[] }).inventory_items as LinkedItem[]) || [])
+    : []
+
   type PartnerStatus = "incoming" | "assigned" | "in_progress" | "finished" | "completed"
   const partnerStatusRaw = design?.partner_info?.partner_status as string | undefined
   const normalizeStatus = (s?: string): PartnerStatus => {
@@ -60,15 +74,21 @@ export default async function DesignDetailsPage({ params }: PageProps) {
     redirect(`/dashboard/designs/${id}`)
   }
 
-  // Modal-completion handler: records inventory then completes
+  // Modal-completion handler: optionally accepts consumptions JSON and completes
   async function completeWithInventory(formData: FormData) {
     "use server"
-    const used = String(formData.get("inventory_used") ?? "").trim()
-    if (!used) {
-      redirect(`/dashboard/designs/${id}`)
+    const consumptionsRaw = formData.get("consumptions")
+    try {
+      if (typeof consumptionsRaw === "string" && consumptionsRaw.length) {
+        const parsed = JSON.parse(consumptionsRaw) as Array<{ inventory_item_id: string; quantity?: number; location_id?: string }>
+        await (await import("../../actions")).partnerCompleteDesignWithConsumptions(id, parsed)
+      } else {
+        await (await import("../../actions")).partnerCompleteDesign(id)
+      }
+    } catch {
+      // fallback to simple complete
+      await (await import("../../actions")).partnerCompleteDesign(id)
     }
-    // Reuse composed action to record inventory and complete
-    await (await import("../../actions")).partnerCompleteDesignWithInventory(id, used)
     redirect(`/dashboard/designs/${id}`)
   }
 
@@ -194,6 +214,37 @@ export default async function DesignDetailsPage({ params }: PageProps) {
             <NotesSection designerNotes={design.designer_notes} />
           </div>
         </section>
+
+        {/* Inventory in use (linked inventory overview) */}
+        {linkedItems.length > 0 && (
+          <section className="mt-8">
+            <div className="flex flex-col gap-3">
+              <Heading level="h3">Inventory in use</Heading>
+              <div className="rounded-md border border-ui-border-subtle divide-y">
+                {linkedItems.map((it) => {
+                  const lvl = it.location_levels && it.location_levels.length ? it.location_levels[0] : undefined
+                  const firstLoc = lvl?.stock_locations && lvl.stock_locations.length ? lvl.stock_locations[0] : undefined
+                  const locLabel = firstLoc?.name || firstLoc?.id || "—"
+                  return (
+                    <div key={it.id} className="grid grid-cols-12 gap-2 p-3 items-center">
+                      <div className="col-span-6">
+                        <div className="font-medium truncate">{it.title || it.id}</div>
+                        <div className="text-ui-fg-subtle text-xs truncate">{it.raw_materials?.name || "Raw material"}</div>
+                      </div>
+                      <div className="col-span-6 text-right">
+                        <div className="text-xs text-ui-fg-subtle">Location</div>
+                        <div className="text-sm truncate">{locLabel}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Specify the quantities to consume when you click Complete.
+              </Text>
+            </div>
+          </section>
+        )}
       </Container>
 
       <ActionFooter>
@@ -213,7 +264,7 @@ export default async function DesignDetailsPage({ params }: PageProps) {
               <Button className="w-full sm:w-auto" type="submit" variant="secondary" size="base">Request Redo</Button>
             </form>
             {/* Complete via modal that asks for inventory used */}
-            <CompleteDesignModal completeAction={completeWithInventory} />
+            <CompleteDesignModal completeAction={completeWithInventory} items={linkedItems} />
           </div>
         )}
 
