@@ -6,7 +6,6 @@ import { requireAuth } from "@/lib/auth-cookie"
 import { getDetails } from "./actions"
 import { TooltipProvider } from "@medusajs/ui"
 import BackendHealthBanner from "../components/backend-health-banner"
-import TopLoader from "../components/top-loader"
 import AuthLayer from "../components/auth-layer"
 
 export default async function DashboardLayout({
@@ -23,7 +22,6 @@ export default async function DashboardLayout({
     <>
     {/* Unified auth layer: ensures 401/403 redirect and cookie clear */}
     <AuthLayer />
-    <TopLoader />
     <div className="flex h-screen w-full bg-ui-bg-subtle [--sidebar-width:0px] md:[--sidebar-width:14rem]">
       {partner ? (
         <div className="hidden md:block h-full md:w-56 flex-shrink-0 border-r">

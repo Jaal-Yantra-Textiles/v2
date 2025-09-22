@@ -22,12 +22,12 @@ export const createPaymentDetailsStep = createStep(
   "create-payment-details-step",
   async (input: CreatePaymentDetailsStepInput, { container }) => {
     const service: PaymentDetailsService = container.resolve(INTERNAL_PAYMENTS_MODULE);
-    const created = await service.createPaymentDetailses(input);
+    const created = await service.createPaymentDetails(input);
     return new StepResponse(created, created.id);
   },
   async (id: string, { container }) => {
     const service: PaymentDetailsService = container.resolve(INTERNAL_PAYMENTS_MODULE);
-    await service.softDeletePaymentDetailses(id);
+    await service.softDeletePaymentDetails(id);
   }
 );
 

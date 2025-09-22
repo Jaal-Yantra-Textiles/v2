@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Button, FocusModal, Heading, Input, Text } from "@medusajs/ui"
+import { Button, FocusModal, Heading, Input, Text, toast } from "@medusajs/ui"
 
 type ConsumptionRow = { inventory_item_id: string; quantity: number }
 type LinkedItem = {
@@ -77,7 +77,14 @@ export default function CompleteDesignModal({
                       formData.set("consumptions", JSON.stringify(filtered))
                     }
                   }
-                  await completeAction(formData)
+                  try {
+                    await completeAction(formData)
+                    toast.success("Design completed: inventory adjustments were recorded successfully.")
+                    setOpen(false)
+                  } catch (e: unknown) {
+                    const msg = e instanceof Error ? e.message : "Failed to complete design"
+                    toast.error(`Completion failed: ${msg}`)
+                  }
                 }}
                 className="flex flex-col gap-4"
               >

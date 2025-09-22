@@ -1,6 +1,6 @@
 import { model } from "@medusajs/framework/utils";
 
-const PaymentDetails = model.define("internal_payment_details", {
+const PaymentDetail = model.define("internal_payment_details", {
   id: model.id().primaryKey(),
   type: model.enum([
     "bank_account",
@@ -15,4 +15,4 @@ const PaymentDetails = model.define("internal_payment_details", {
   metadata: model.json().nullable(),
 });
 
-export default PaymentDetails;
+export default PaymentDetail;

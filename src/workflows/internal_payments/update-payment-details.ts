@@ -26,15 +26,15 @@ export const updatePaymentDetailsStep = createStep(
     const service: PaymentDetailsService = container.resolve(INTERNAL_PAYMENTS_MODULE);
     const { id, ...updateData } = input;
 
-    const original = await service.retrievePaymentDetails(id);
+    const original = await service.retrievePaymentDetail(id);
 
-    const updated = await service.updatePaymentDetailses({ id, ...updateData });
+    const updated = await service.updatePaymentDetails({ id, ...updateData });
 
     return new StepResponse(updated, { id, originalData: original });
   },
   async (compensationData: { id: string; originalData: any }, { container }) => {
     const service: PaymentDetailsService = container.resolve(INTERNAL_PAYMENTS_MODULE);
-    await service.updatePaymentDetailses({ id: compensationData.id, ...compensationData.originalData });
+    await service.updatePaymentDetails({ id: compensationData.id, ...compensationData.originalData });
   }
 );
 

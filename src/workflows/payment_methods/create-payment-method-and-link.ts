@@ -22,7 +22,7 @@ const createPaymentMethodStep = createStep(
   "create-payment-method-step",
   async (input: CreatePaymentMethodInput, { container }) => {
     const service: InternalPaymentService = container.resolve(INTERNAL_PAYMENTS_MODULE)
-    const created = await service.createPaymentDetailses({
+    const created = await service.createPaymentDetails({
       type: input.type,
       account_name: input.account_name,
       account_number: input.account_number,
@@ -35,7 +35,7 @@ const createPaymentMethodStep = createStep(
   },
   async (id: string, { container }) => {
     const service: InternalPaymentService = container.resolve(INTERNAL_PAYMENTS_MODULE)
-    await service.softDeletePaymentDetailses(id)
+    await service.softDeletePaymentDetails(id)
   }
 )
 

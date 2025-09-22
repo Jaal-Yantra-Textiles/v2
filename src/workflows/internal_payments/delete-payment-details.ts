@@ -15,15 +15,15 @@ export const deletePaymentDetailsStep = createStep(
   "delete-payment-details-step",
   async (input: DeletePaymentDetailsStepInput, { container }) => {
     const service: PaymentDetailsService = container.resolve(INTERNAL_PAYMENTS_MODULE);
-    const original = await service.retrievePaymentDetails(input.id);
+    const original = await service.retrievePaymentDetail(input.id);
 
-    await service.deletePaymentDetailses(input.id);
+    await service.deletePaymentDetails(input.id);
 
     return new StepResponse({ success: true }, original);
   },
   async (original: any, { container }) => {
     const service: PaymentDetailsService = container.resolve(INTERNAL_PAYMENTS_MODULE);
-    await service.createPaymentDetailses(original);
+    await service.createPaymentDetails(original);
   }
 );
 
