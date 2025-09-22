@@ -1,3 +1,16 @@
+# [6.19.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.5...v6.19.0) (2025-09-22)
+
+
+### Bug Fixes
+
+* **Partner:** Fixing the partner type script ([a6e50e3](https://github.com/Jaal-Yantra-Textiles/v2/commit/a6e50e3cdca331d557930d339881d84ad88ec1d8))
+* **Inventory:** Orders now reflect the inventory order stock location wise ([a9b276d](https://github.com/Jaal-Yantra-Textiles/v2/commit/a9b276da327a5c746b9778506b0daf664ef46c42))
+
+
+### Features
+
+* **Partner:** Inventory scope added to the partner focus area ([3a48571](https://github.com/Jaal-Yantra-Textiles/v2/commit/3a48571e53a4358028e82c34b6c323671b84a409))
+
 ## [6.18.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.18.4...v6.18.5) (2025-09-21)
 
 
