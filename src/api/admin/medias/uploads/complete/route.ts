@@ -62,7 +62,7 @@ export const POST = async (req: MedusaRequest<CompleteBody>, res: MedusaResponse
     }
     // Prefer explicit public base if configured
     if (!url) {
-      const base = process.env.S3_FILE_URL?.replace(/\/$/, "")
+      const base = (process.env.FILE_PUBLIC_BASE || process.env.S3_FILE_URL)?.replace(/\/$/, "")
       if (base) {
         url = `${base}/${key.replace(/^\/+/, "")}`
       } else {

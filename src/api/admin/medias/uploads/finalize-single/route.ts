@@ -43,8 +43,10 @@ export const POST = async (req: MedusaRequest<FinalizeSingleBody>, res: MedusaRe
       )
     }
 
-    // Prefer explicit public base URL if configured (works great for MinIO/Supabase dev)
-    const base = process.env.S3_FILE_URL?.replace(/\/$/, "")
+    // Prefer explicit public base URL if configured (custom domain/proxy)
+    // 1) FILE_PUBLIC_BASE (recommended): e.g. https://automatic.jaalyantra.com/automatica/file
+    // 2) S3_FILE_URL (legacy): base bucket URL
+    const base = (process.env.FILE_PUBLIC_BASE || process.env.S3_FILE_URL)?.replace(/\/$/, "")
     const url = base ? `${base}/${file_key.replace(/^\/+/, "")}` : getPublicUrl(file_key)
 
     const { result, errors } = await finalizeS3MediaWorkflow(req.scope).run({
