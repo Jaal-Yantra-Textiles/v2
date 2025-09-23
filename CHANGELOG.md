@@ -1,3 +1,10 @@
+# [6.20.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.19.2...v6.20.0) (2025-09-23)
+
+
+### Features
+
+* **Products:** People and QR code gen ([975dd5e](https://github.com/Jaal-Yantra-Textiles/v2/commit/975dd5e3b08897a1dc73cc793131a3ca77146458))
+
 ## [6.19.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.19.1...v6.19.2) (2025-09-22)
 
 ## [6.19.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.19.0...v6.19.1) (2025-09-22)
