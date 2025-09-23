@@ -1,3 +1,10 @@
+## [6.20.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.0...v6.20.1) (2025-09-23)
+
+
+### Bug Fixes
+
+* **Medias:** Medias upload command selection with delete option ([76d5e05](https://github.com/Jaal-Yantra-Textiles/v2/commit/76d5e059130dd3ba1d91b5852662899893074fa7))
+
 # [6.20.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.19.2...v6.20.0) (2025-09-23)
 
 
