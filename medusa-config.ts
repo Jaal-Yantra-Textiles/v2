@@ -36,9 +36,6 @@ module.exports = defineConfig({
       }
     })
   },
-  featureFlags: {
-    view_configurations: false,
-  },
   modules: [
     {
       resolve: "./src/modules/person",
