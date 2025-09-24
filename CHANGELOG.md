@@ -1,3 +1,10 @@
+## [6.20.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.3...v6.20.4) (2025-09-24)
+
+
+### Bug Fixes
+
+* **Medias:** Fixed the media low resolution ([1a2263f](https://github.com/Jaal-Yantra-Textiles/v2/commit/1a2263faaa6628bb1b6ca71074fe157684d1b1ce))
+
 ## [6.20.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.2...v6.20.3) (2025-09-24)
 
 ## [6.20.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.1...v6.20.2) (2025-09-24)
