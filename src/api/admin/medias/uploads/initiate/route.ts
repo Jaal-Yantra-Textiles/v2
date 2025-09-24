@@ -29,15 +29,14 @@ export const POST = async (req: MedusaRequest<InitiateBody>, res: MedusaResponse
     const fileService: any = req.scope.resolve(Modules.FILE)
     const provider = fileService?.getProvider ? await fileService.getProvider() : null
 
-    const date = new Date()
-    const y = date.getUTCFullYear()
-    const m = String(date.getUTCMonth() + 1).padStart(2, "0")
-    const d = String(date.getUTCDate()).padStart(2, "0")
+    // Generate a flat filename at bucket root: <safeBase>-<rand>.<ext>
+    // This mirrors the partner initiate behavior and yields clean public URLs
     const rand = crypto.randomBytes(8).toString("hex")
-
-    // Optional folderPath from client (sanitized to avoid leading //)
-    const prefix = (body?.folderPath || "uploads").replace(/^\/+/, "").replace(/\/+/g, "/")
-    const key = `${prefix}/${y}/${m}/${d}/${rand}-${name}`
+    const dot = name.lastIndexOf(".")
+    const base = dot > 0 ? name.substring(0, dot) : name
+    const ext = dot > 0 ? name.substring(dot + 1) : ""
+    const safeBase = base.replace(/[^a-zA-Z0-9-_]+/g, "_")
+    const key = ext ? `${safeBase}-${rand}.${ext}` : `${safeBase}-${rand}`
 
     // If provider exposes initiateMultipartUpload, use it
     if (provider && typeof provider.initiateMultipartUpload === "function") {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo } from "react"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button, CommandBar, IconButton, Text, clx, toast } from "@medusajs/ui"
@@ -12,7 +12,8 @@ import { useUploadFolderMedia } from "../../../../../../hooks/api/media-folders/
 import { mediaFolderQueryKeys } from "../../../../../../hooks/api/media-folders/use-media-folder"
 import { mediaFolderDetailQueryKeys } from "../../../../../../hooks/api/media-folders/use-media-folder-detail"
 import { Trash } from "@medusajs/icons"
-import { UploadManager, UploadItemState } from "../../../../../../lib/uploads/upload-manager"
+import { UploadItemState } from "../../../../../../lib/uploads/upload-manager"
+import { useFolderUploads } from "../../../../../../hooks/api/use-folder-uploads"
 
 const UploadEntrySchema = z.object({
   id: z.string().optional(),
@@ -45,18 +46,8 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
 
   const [selection, setSelection] = useState<Record<number, true>>({})
 
-  // UploadManager integration (mirrors CreateMediaFilesComponent)
-  const managerRef = useRef<UploadManager>()
-  if (!managerRef.current) {
-    managerRef.current = new UploadManager()
-  }
-  const [uploads, setUploads] = useState<Record<string, UploadItemState>>({})
-  useEffect(() => {
-    const off = managerRef.current!.onUpdate((s: UploadItemState) => {
-      setUploads((prev) => ({ ...prev, [s.id]: s }))
-    })
-    return () => off()
-  }, [])
+  // UploadManager integration via hook
+  const { uploads, enqueueFiles, pauseAll, resumeAll, manager } = useFolderUploads(folder.id)
 
   const handleFilesSelected: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     const files = Array.from(e.target.files || [])
@@ -72,10 +63,8 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
       return
     }
 
-    // Enqueue each file with folder targeting; UploadManager handles presigned URLs & multipart
-    for (const file of files) {
-      managerRef.current!.enqueue(file, { existingFolderId: folder.id })
-    }
+    // Enqueue via hook (targets this folder automatically)
+    enqueueFiles(files)
 
     toast.success(`${files.length} file(s) enqueued. Uploading...`)
     // Keep UI in place to show per-file spinners/progress; refresh data in background
@@ -124,10 +113,10 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
             {/* Upload controls */}
             {Object.values(uploads).some((u) => u.status === "uploading" || u.status === "queued") ? (
               <>
-                <Button size="small" type="button" variant="secondary" onClick={() => managerRef.current!.pauseAll()}>
+                <Button size="small" type="button" variant="secondary" onClick={pauseAll}>
                   Pause all
                 </Button>
-                <Button size="small" type="button" onClick={() => managerRef.current!.resumeAll()}>
+                <Button size="small" type="button" onClick={resumeAll}>
                   Resume all
                 </Button>
               </>
@@ -156,8 +145,8 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
                   selected={!!selection[index]}
                   onSelectedChange={handleToggle(index)}
                   uploads={uploads}
-                  onPause={(id: string) => managerRef.current!.pause(id)}
-                  onResume={(id: string) => managerRef.current!.resume(id)}
+                  onPause={(id: string) => manager.pause(id)}
+                  onResume={(id: string) => manager.resume(id)}
                 />
               ))}
             </div>
