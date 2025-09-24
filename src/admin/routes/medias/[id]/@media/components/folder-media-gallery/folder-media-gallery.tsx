@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import { AdminMediaFolder, MediaFile } from "../../../../../../hooks/api/media-folders"
 import { useFolderMediaViewContext } from "../folder-media-view/folder-media-view"
 import { RouteFocusModal } from "../../../../../../components/modal/route-focus-modal"
+import { getThumbUrl, isImageUrl } from "../../../../../../lib/media"
 
 export type FolderMediaGalleryProps = {
   folder: AdminMediaFolder
@@ -171,7 +172,12 @@ const Preview = ({
               })}
               key={item.id}
             >
-              <img src={item.url} alt="" className="size-full object-cover" />
+              <img
+                src={isImageUrl(item.url) ? getThumbUrl(item.url, { width: 128, quality: 65, fit: "cover" }) : item.url}
+                alt=""
+                className="size-full object-cover"
+                loading="lazy"
+              />
             </button>
           )
         })}

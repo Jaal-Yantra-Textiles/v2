@@ -10,25 +10,34 @@ export type UseFolderUploadsReturn = {
   enqueueFiles: (files: File[], opts?: { existingAlbumIds?: string[]; metadata?: Record<string, any> }) => void
   pauseAll: () => void
   resumeAll: () => void
+  retryAllErrors: () => void
+  retry: (id: string) => void
   manager: UploadManager
 }
 
-export function useFolderUploads(folderId: string): UseFolderUploadsReturn {
+export function useFolderUploads(
+  folderId: string,
+  options?: { onAllCompleted?: () => void }
+): UseFolderUploadsReturn {
   const queryClient = useQueryClient()
   const managerRef = useRef<UploadManager>()
   if (!managerRef.current) {
     managerRef.current = new UploadManager()
   }
   const [uploads, setUploads] = useState<Record<string, UploadItemState>>({})
+  const uploadsRef = useRef<Record<string, UploadItemState>>({})
   const sessionIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     const off = managerRef.current!.onUpdate(async (s: UploadItemState) => {
-      setUploads((prev) => ({ ...prev, [s.id]: s }))
+      setUploads((prev) => {
+        const next = { ...prev, [s.id]: s }
+        uploadsRef.current = next
+        return next
+      })
       if (sessionIdsRef.current.has(s.id)) {
-        const allDone = Array.from(sessionIdsRef.current).every(
-          (id) => uploads[id]?.status === "completed" || (id === s.id && s.status === "completed")
-        )
+        // Use ref to avoid stale state in closure
+        const allDone = Array.from(sessionIdsRef.current).every((id) => uploadsRef.current[id]?.status === "completed")
         if (allDone && sessionIdsRef.current.size > 0) {
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: mediaFolderQueryKeys.detail(folderId) }),
@@ -36,6 +45,8 @@ export function useFolderUploads(folderId: string): UseFolderUploadsReturn {
           ])
           sessionIdsRef.current.clear()
           toast.success("Uploads completed. Gallery updated.")
+          // give the UI a tick to render refreshed data
+          setTimeout(() => options?.onAllCompleted?.(), 150)
         }
       }
     })
@@ -53,12 +64,16 @@ export function useFolderUploads(folderId: string): UseFolderUploadsReturn {
 
   const pauseAll = () => managerRef.current!.pauseAll()
   const resumeAll = () => managerRef.current!.resumeAll()
+  const retryAllErrors = () => managerRef.current!.retryAllErrors()
+  const retry = (id: string) => managerRef.current!.retry(id)
 
   return {
     uploads,
     enqueueFiles,
     pauseAll,
     resumeAll,
+    retryAllErrors,
+    retry,
     manager: managerRef.current!,
   }
 }

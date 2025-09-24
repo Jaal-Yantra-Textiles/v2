@@ -47,7 +47,12 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
   const [selection, setSelection] = useState<Record<number, true>>({})
 
   // UploadManager integration via hook
-  const { uploads, enqueueFiles, pauseAll, resumeAll, manager } = useFolderUploads(folder.id)
+  const { uploads, enqueueFiles, pauseAll, resumeAll, manager } = useFolderUploads(folder.id, {
+    onAllCompleted: () => {
+      // Navigate back to gallery when this session's uploads have completed and data has refreshed
+      goToGallery()
+    },
+  })
 
   const handleFilesSelected: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     const files = Array.from(e.target.files || [])
@@ -121,6 +126,11 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
                 </Button>
               </>
             ) : null}
+            {Object.values(uploads).some((u) => u.status === "error") && (
+              <Button size="small" type="button" variant="secondary" onClick={() => manager.retryAllErrors()}>
+                Retry failed
+              </Button>
+            )}
             <Button size="small" type="submit" isLoading={isPending}>
               Upload
             </Button>
@@ -147,25 +157,14 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
                   uploads={uploads}
                   onPause={(id: string) => manager.pause(id)}
                   onResume={(id: string) => manager.resume(id)}
+                  onRetry={(id: string) => manager.retry(id)}
                 />
               ))}
             </div>
           </div>
-          {/* In-session upload progress (for files enqueued in this view) */}
+          {/* In-session upload progress (collapsible with segmented bar) */}
           {Object.keys(uploads).length > 0 && (
-            <div className="border-t p-3">
-              <Text size="small" className="text-ui-fg-subtle">In-progress uploads</Text>
-              <div className="mt-1 flex flex-col gap-1">
-                {Object.values(uploads)
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((u) => (
-                    <div key={u.id} className="flex items-center justify-between text-xs">
-                      <span className="truncate max-w-[60%]" title={u.name}>{u.name}</span>
-                      <span className="text-ui-fg-subtle">{Math.floor((u.progress || 0) * 100)}% · {u.status}</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
+            <UploadsPanel uploads={uploads} />
           )}
         </RouteFocusModal.Body>
         <CommandBar open={selectedCount > 0}>
@@ -180,13 +179,14 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
   )
 }
 
-const UploadPreviewItem = ({ file, selected, onSelectedChange, uploads, onPause, onResume }: { file?: File; selected: boolean; onSelectedChange: (v: boolean) => void; uploads: Record<string, UploadItemState>; onPause: (id: string) => void; onResume: (id: string) => void }) => {
+const UploadPreviewItem = ({ file, selected, onSelectedChange, uploads, onPause, onResume, onRetry }: { file?: File; selected: boolean; onSelectedChange: (v: boolean) => void; uploads: Record<string, UploadItemState>; onPause: (id: string) => void; onResume: (id: string) => void; onRetry: (id: string) => void }) => {
   const url = useMemo(() => (file ? URL.createObjectURL(file) : ""), [file])
   const uploadKey = useMemo(() => (file ? `${file.name}|${file.size}` : ""), [file])
   const state = uploads[uploadKey]
   const isUploading = !!state && (state.status === "queued" || state.status === "uploading")
   const isPaused = state?.status === "paused"
   const isCompleted = state?.status === "completed"
+  const isError = state?.status === "error"
   const percent = Math.floor((state?.progress || 0) * 100)
 
   return (
@@ -198,27 +198,31 @@ const UploadPreviewItem = ({ file, selected, onSelectedChange, uploads, onPause,
       )}
 
       {/* Per-file upload overlay */}
-      {(isUploading || isPaused || isCompleted) && (
+      {(isUploading || isPaused || isCompleted || isError) && (
         <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
           <div className="flex items-center gap-2 text-white">
-            {!isCompleted && !isPaused ? (
+            {!isCompleted && !isPaused && !isError ? (
               <div className="h-5 w-5 rounded-full border-2 border-white/60 border-t-transparent animate-spin" />
             ) : isPaused ? (
               <div className="h-5 w-5 rounded-sm border-2 border-yellow-300/80" />
+            ) : isError ? (
+              <div className="h-5 w-5 rounded-full border-2 border-rose-400/80" />
             ) : (
               <div className="h-5 w-5 rounded-full border-2 border-emerald-400/80" />
             )}
-            <span className="text-xs font-medium">{isCompleted ? "Done" : isPaused ? "Paused" : `${percent}%`}</span>
+            <span className="text-xs font-medium">{isCompleted ? "Done" : isPaused ? "Paused" : isError ? (state?.message || "Failed") : `${percent}%`}</span>
             {!!uploadKey && (
               isPaused ? (
                 <Button size="small" variant="secondary" type="button" onClick={() => onResume(uploadKey)}>Resume</Button>
+              ) : isError ? (
+                <Button size="small" variant="secondary" type="button" onClick={() => onRetry(uploadKey)}>Retry</Button>
               ) : !isCompleted ? (
                 <Button size="small" variant="secondary" type="button" onClick={() => onPause(uploadKey)}>Pause</Button>
               ) : null
             )}
           </div>
           {/* Bottom progress bar */}
-          {!isCompleted && !isPaused && (
+          {!isCompleted && !isPaused && !isError && (
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/30">
               <div className="h-full bg-white/90 transition-all" style={{ width: `${percent}%` }} />
             </div>
@@ -231,6 +235,84 @@ const UploadPreviewItem = ({ file, selected, onSelectedChange, uploads, onPause,
           <Trash />
         </IconButton>
       </div>
+    </div>
+  )
+}
+
+const UploadsPanel = ({ uploads }: { uploads: Record<string, UploadItemState> }) => {
+  const [open, setOpen] = useState(true)
+  const items = useMemo(() => Object.values(uploads), [uploads])
+  const total = items.length || 0
+  const completed = items.filter((i) => i.status === "completed").length
+  const errors = items.filter((i) => i.status === "error").length
+  // const paused = items.filter((i) => i.status === "paused").length
+  // const uploading = items.filter((i) => i.status === "uploading" || i.status === "queued").length
+
+  // Build segmented bar: order by status for stable color blocks
+  const segments = useMemo(() => {
+    const ordered = [
+      ...items.filter((i) => i.status === "completed"),
+      ...items.filter((i) => i.status === "error"),
+      ...items.filter((i) => i.status === "paused"),
+      ...items.filter((i) => i.status === "uploading" || i.status === "queued"),
+    ]
+    return ordered.map((i) => i.status)
+  }, [items])
+
+  return (
+    <div className="border-t p-3">
+      <div className="flex items-center justify-between">
+        <Text size="small" className="text-ui-fg-subtle">
+          Uploads • {completed}/{total} done{errors ? ` • ${errors} failed` : ""}
+        </Text>
+        <Button size="small" variant="secondary" type="button" onClick={() => setOpen((v) => !v)}>
+          {open ? "Hide" : "Show"}
+        </Button>
+      </div>
+      {/* Segmented progress bar */}
+      <div className="mt-2 h-2 w-full overflow-hidden rounded bg-ui-bg-base border border-ui-border">
+        <div className="flex h-full w-full">
+          {segments.map((status, idx) => (
+            <div
+              key={idx}
+              className={clx(
+                "h-full",
+                status === "completed" && "bg-emerald-500",
+                status === "error" && "bg-rose-500",
+                status === "paused" && "bg-yellow-400",
+                (status === "uploading" || status === "queued") && "bg-ui-bg-muted"
+              )}
+              style={{ width: `${100 / (total || 1)}%` }}
+            />
+          ))}
+        </div>
+      </div>
+      {open && (
+        <div className="mt-2 flex max-h-40 flex-col gap-1 overflow-auto">
+          {items
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((u) => (
+              <div key={u.id} className="flex items-center justify-between text-xs">
+                <span className="truncate max-w-[60%]" title={u.name}>{u.name}</span>
+                <span
+                  className={clx(
+                    "ml-2",
+                    u.status === "completed" && "text-emerald-600",
+                    u.status === "error" && "text-rose-600",
+                    u.status === "paused" && "text-yellow-600",
+                    (u.status === "uploading" || u.status === "queued") && "text-ui-fg-subtle"
+                  )}
+                >
+                  {u.status === "completed"
+                    ? "Done"
+                    : u.status === "error"
+                    ? u.message || "Failed"
+                    : `${Math.floor((u.progress || 0) * 100)}% · ${u.status}`}
+                </span>
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   )
 }

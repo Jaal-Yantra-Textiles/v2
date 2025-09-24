@@ -149,6 +149,31 @@ export class UploadManager {
     }
   }
 
+  // Retry a single file that failed
+  retry(id: string) {
+    const q = this.queue.find((x) => x.state.id === id)
+    if (q && q.state.status === "error") {
+      q.state.status = "queued"
+      q.state.message = undefined
+      q.state.progress = 0
+      this.emit(q.state)
+      this.pump()
+    }
+  }
+
+  // Retry all files currently in error state
+  retryAllErrors() {
+    for (const q of this.queue) {
+      if (q.state.status === "error") {
+        q.state.status = "queued"
+        q.state.message = undefined
+        q.state.progress = 0
+        this.emit(q.state)
+      }
+    }
+    this.pump()
+  }
+
   private async pump() {
     if (!navigator.onLine) return
     while (this.running < 2) { // up to 2 files concurrently

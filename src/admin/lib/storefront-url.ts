@@ -1,7 +1,6 @@
 export const getStorefrontBaseUrl = (): string => {
-  // Prefer explicit admin env var, then public env var, then window origin as last resort
-  const fromEnv = (import.meta as any)?.env?.VITE_ADMIN_STOREFRONT_URL
-    || (import.meta as any)?.env?.NEXT_PUBLIC_STOREFRONT_URL
+  // Use only public storefront URL to avoid mismatches with admin URL.
+  const fromEnv = (import.meta as any)?.env?.NEXT_PUBLIC_STOREFRONT_URL
     || (typeof window !== "undefined" ? window.location.origin : "");
   return (fromEnv || "").replace(/\/$/, "");
 }

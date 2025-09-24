@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { sdk } from "../../../lib/config";
 import { mediaFolderDetailQueryKeys } from "../../../hooks/api/media-folders/use-media-folder-detail";
+import { getThumbUrl } from "../../../lib/media";
 
 interface FolderMediaSectionProps {
   folder: AdminMediaFolder;
@@ -90,7 +91,14 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
                     </Tooltip>
                   </div>
                 )}
-                <img src={media.file_path} alt={`${folder.name} image`} className="size-full object-cover" />
+                <img
+                  src={(media.mime_type?.startsWith("image/") || (media as any).file_type === "image")
+                    ? getThumbUrl(media.file_path, { width: 256, quality: 70, fit: "cover" })
+                    : media.file_path}
+                  alt={`${folder.name} image`}
+                  className="size-full object-cover"
+                  loading="lazy"
+                />
                 {isSelected && (
                   <div className="absolute inset-0 bg-black/20">
                     <div className="absolute right-2 top-2 h-5 w-5 rounded-full border-2 border-white bg-emerald-400/90" />
