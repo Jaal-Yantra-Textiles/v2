@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef } from "react";
 import { AdminDesign } from "../../hooks/api/designs";
 import { Tooltip, Button, Text, Select, DropdownMenu } from "@medusajs/ui";
-import { InformationCircle, Plus, ArrowPathMini, MinusMini, PlusMini } from "@medusajs/icons";
+import { Plus, ArrowPathMini, MinusMini, PlusMini } from "@medusajs/icons";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AdminDesignTask } from "../../hooks/api/design-tasks";
@@ -27,7 +27,7 @@ interface Task extends AdminDesignTask {
   incoming?: TaskDependency[]
   outgoing?: TaskDependency[]
   start_date?:  Date | undefined
-  end_date?: string | Date | undefined
+  end_date?: Date | undefined
   // Override the description property to allow null values
   description?: string | undefined
 }
@@ -131,16 +131,16 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "#ffc9c9"; // Light red
+        return "#fa5252"; // Red - matches blocking edge
       case "in_progress":
-        return "#a5d8ff"; // Light blue
+        return "#4c6ef5"; // Blue - matches non-blocking edge
       case "completed":
-        return "#c0eb75"; // Light green
+        return "#40c057"; // Green - matches related edge
       case "cancelled":
       case "blocked":
-        return "#e9ecef"; // Light gray
+        return "#9ca3af"; // Gray
       default:
-        return "#e9ecef"; // Light gray
+        return "#9ca3af"; // Gray
     }
   };
 
@@ -198,32 +198,15 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
 
   // Custom node component for tasks
   const CustomTaskNode = ({ data }: { data: TaskNodeData }) => {
-    // Format status text for display
+    // Format status text for tooltip
     const formatStatus = (status: string): string => {
-      return status.replace(/_/g, ' ')
+      return status
+        .replace(/_/g, ' ')
         .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
     };
-    
-    // Get status emoji
-    const getStatusEmoji = (status: string): string => {
-      switch (status) {
-        case "pending":
-          return "⏳";
-        case "in_progress":
-          return "🔄";
-        case "completed":
-          return "✅";
-        case "cancelled":
-          return "❌";
-        case "blocked":
-          return "🚫";
-        default:
-          return "❓";
-      }
-    };
-    
+
     // Generate task details for tooltip
     const getTaskDetails = () => {
       const details = [
@@ -237,63 +220,35 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
         data.task.outgoing?.length ? `Outgoing Dependencies: ${data.task.outgoing.length}` : null,
         data.task.incoming?.length ? `Incoming Dependencies: ${data.task.incoming.length}` : null,
       ].filter(Boolean) as string[];
-      
+
       return details.join('\n');
     };
-    
+
     return (
-      <div className="px-3 py-2 shadow-md rounded-md bg-white border-2 relative" 
+      <div
+        className="relative inline-flex items-center rounded-full border bg-black text-white shadow-sm"
         style={{
-          borderColor: data.isParentTask ? '#3b82f6' : '#e5e7eb',
-          width: '130px', // Reduced width
+          borderColor: '#2d2d2d',
+          padding: '4px 10px',
+          maxWidth: 280,
         }}
+        title={getTaskDetails()}
       >
-        {/* Info icon with tooltip */}
-        <div className="absolute -top-2 -right-2 z-10">
-          <Tooltip content={getTaskDetails()}>
-            <div className="bg-white rounded-full p-1 shadow-sm border border-gray-200 cursor-help">
-              <InformationCircle className="text-gray-500 h-3 w-3" />
-            </div>
-          </Tooltip>
-        </div>
-        
-        <div className="flex">
-          {/* Status emoji circle */}
-          <div className="rounded-full w-8 h-8 flex justify-center items-center" 
-            style={{ backgroundColor: `${getStatusColor(data.status)}30` }}
-          >
-            {getStatusEmoji(data.status)}
-          </div>
-          
-          {/* Task title */}
-          <div className="ml-2 overflow-hidden">
-            <div className="font-bold text-xs flex items-center">
-              {data.isParentTask && (
-                <span style={{ color: '#3b82f6', marginRight: '2px' }} title="Has subtasks">•</span>
-              )}
-              <span className="truncate" style={{ maxWidth: '80px' }}>
-                {data.label}
-              </span>
-            </div>
-            <div className="text-xs text-gray-500 truncate" style={{ maxWidth: '80px' }}>
-              {formatStatus(data.status)}
-            </div>
-          </div>
-        </div>
-        
+        {/* Status badge */}
+        <span
+          className="inline-block h-3 w-3 rounded-[3px] mr-2"
+          style={{ backgroundColor: getStatusColor(data.status) }}
+          aria-hidden
+        />
+
+        {/* Title */}
+        <span className="truncate text-xs font-medium" title={data.label} style={{ maxWidth: 240 }}>
+          {data.label}
+        </span>
+
         {/* Connection handles */}
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-10 !bg-teal-500"
-          style={{ opacity: 0.6 }}
-        />
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="w-10 !bg-teal-500"
-          style={{ opacity: 0.6 }}
-        />
+        <Handle type="target" position={Position.Left} className="!bg-gray-400" style={{ opacity: 0.7 }} />
+        <Handle type="source" position={Position.Right} className="!bg-gray-400" style={{ opacity: 0.7 }} />
       </div>
     );
   };
@@ -335,8 +290,9 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
     const flowEdges: Edge[] = [];
     const taskMap = new Map<string, { task: Task, x: number, y: number }>();
     // Constants for node positioning
-    const HORIZONTAL_SPACING = 350; // Increased for better edge visibility
-    const VERTICAL_SPACING = 250; // Increased for better edge visibility
+    const HORIZONTAL_SPACING = 350; // Base spacing
+    const VERTICAL_SPACING = 260; // Slightly increased for clarity
+    const SUBTASK_SPACING = Math.max(240, Math.floor(HORIZONTAL_SPACING * 0.85));
     
     // Create a flattened array of all tasks and subtasks
     const flattenTasks = (tasks: Task[]): Task[] => {
@@ -373,7 +329,14 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
     const positionedTasks = new Set<string>();
     
     // Function to position a task and its subtasks
-    const positionTaskHierarchy = (task: Task, level: number, position: number, parentX?: number, parentY?: number) => {
+    const positionTaskHierarchy = (
+      task: Task,
+      level: number,
+      position: number,
+      parentX?: number,
+      parentY?: number,
+      siblingCount?: number
+    ) => {
       // Calculate position
       let x: number;
       let y: number;
@@ -383,8 +346,10 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
         x = 100 + position * HORIZONTAL_SPACING;
         y = 100;
       } else {
-        // Subtasks below their parent, slightly offset
-        x = (parentX || 0) + (position - Math.floor(task.subtasks?.length || 0) / 2) * (HORIZONTAL_SPACING / 2);
+        // Subtasks below their parent, evenly spaced to avoid overlap
+        const count = Math.max(1, siblingCount ?? 1);
+        const offset = (position - (count - 1) / 2) * SUBTASK_SPACING;
+        x = (parentX || 0) + offset;
         y = (parentY || 0) + VERTICAL_SPACING;
       }
       
@@ -397,8 +362,9 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
       
       // Position subtasks if any
       if (task.subtasks && task.subtasks.length > 0) {
+        const count = task.subtasks.length;
         task.subtasks.forEach((subtask, idx) => {
-          positionTaskHierarchy(subtask, level + 1, idx, x, y);
+          positionTaskHierarchy(subtask, level + 1, idx, x, y, count);
         });
       }
       
@@ -407,7 +373,7 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
     
     // Position all top-level tasks and their subtasks
     topLevelTasks.forEach((task, index) => {
-      positionTaskHierarchy(task, 0, index);
+      positionTaskHierarchy(task, 0, index, undefined, undefined, topLevelTasks.length);
     });
     
     // Group independent tasks (no parent, no subtasks, no dependencies)
@@ -687,7 +653,7 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Main task canvas - takes full height */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative min-h-[70vh]">
           <ReactFlowProvider>
             <EnhancedCanvas 
               nodes={nodes} 
@@ -797,7 +763,7 @@ const EnhancedCanvas = ({ nodes, edges, nodeTypes, t }: EnhancedCanvasProps) => 
   };
 
   return (
-    <div className="h-[400px] w-full">
+    <div className="h-full w-full">
       <div className="relative h-full w-full">
         {/* The actual ReactFlow component directly renders the flow */}
         {nodes.length > 0 ? (

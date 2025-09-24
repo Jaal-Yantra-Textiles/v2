@@ -38,6 +38,8 @@ export const POST = async (req: MedusaRequest<CompleteBody>, res: MedusaResponse
     const provider = fileService?.getProvider ? await fileService.getProvider() : null
 
     let url: string | undefined
+    // If FILE_PUBLIC_BASE/S3_FILE_URL is configured, we will use it regardless of provider's location
+    const publicBase = (process.env.FILE_PUBLIC_BASE || process.env.S3_FILE_URL)?.replace(/\/$/, "")
     if (provider && typeof provider.completeMultipartUpload === "function") {
       const providerResp = await provider.completeMultipartUpload({
         upload_id: uploadId,
@@ -57,17 +59,14 @@ export const POST = async (req: MedusaRequest<CompleteBody>, res: MedusaResponse
         },
       })
       await client.send(cmd)
-      // Build a public URL for the stored object
+      // Build a public URL for the stored object (will be overridden by publicBase if set)
       url = getPublicUrl(key)
     }
-    // Prefer explicit public base if configured
-    if (!url) {
-      const base = (process.env.FILE_PUBLIC_BASE || process.env.S3_FILE_URL)?.replace(/\/$/, "")
-      if (base) {
-        url = `${base}/${key.replace(/^\/+/, "")}`
-      } else {
-        url = getPublicUrl(key)
-      }
+    // Prefer explicit public base if configured (override regardless of provider return)
+    if (publicBase) {
+      url = `${publicBase}/${key.replace(/^\/+/, "")}`
+    } else if (!url) {
+      url = getPublicUrl(key)
     }
 
     // Finalize in our domain (DB records, album links)

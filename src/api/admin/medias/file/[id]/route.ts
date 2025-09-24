@@ -17,7 +17,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
       )
     }
 
-    return res.status(204).send()
+    return res.status(200).json({ id, deleted: true })
   } catch (error) {
     if (error instanceof MedusaError) {
       const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500

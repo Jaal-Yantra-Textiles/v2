@@ -73,11 +73,11 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
       {folder.media_files && folder.media_files.length > 0 ? (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-4 p-6">
           {folder.media_files.map((media: MediaFile, index) => {
-            const id = media.id || `${index}`
+            const id = media.id // Only use real IDs; skip selection if absent
             const isSelected = !!selection[id]
             const tile = (
               <div
-                onClick={toggleSelect(id)}
+                onClick={id ? toggleSelect(id) : undefined}
                 className={clx(
                   "shadow-elevation-card-rest hover:shadow-elevation-card-hover transition-fg group relative aspect-square size-full cursor-pointer overflow-hidden rounded-lg",
                   { "shadow-borders-focus ring-2 ring-ui-border-strong": isSelected }
@@ -99,10 +99,17 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
               </div>
             )
             return (
-              <div key={id}>
-                {selectedCount > 0 ? (
-                  tile
+              <div key={id || `media-${index}`}>
+                {id ? (
+                  selectedCount > 0 ? (
+                    tile
+                  ) : (
+                    <Link to={`media`} state={{ curr: index }}>
+                      {tile}
+                    </Link>
+                  )
                 ) : (
+                  // If the media has no id, disable selection and just show as a static tile/link
                   <Link to={`media`} state={{ curr: index }}>
                     {tile}
                   </Link>
