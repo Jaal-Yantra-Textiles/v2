@@ -1,3 +1,10 @@
+## [6.20.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.1...v6.20.2) (2025-09-24)
+
+
+### Bug Fixes
+
+* **Medias:** Fixed the file upload url thing ([9245c91](https://github.com/Jaal-Yantra-Textiles/v2/commit/9245c916c6a9a7194eb239e560dbd959ca01dd32))
+
 ## [6.20.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.0...v6.20.1) (2025-09-23)
 
 
