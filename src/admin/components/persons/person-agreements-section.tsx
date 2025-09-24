@@ -11,7 +11,13 @@ export const PersonAgreementsSection = ({ person }: PersonAgreementsSectionProps
   // Prefer API that includes agreement.responses; fallback to person.agreements
   const { agreements: fetchedAgreements, isPending } = usePersonAgreements(person.id);
   const agreements = (fetchedAgreements ?? person?.agreements ?? []).map((a: any) => {
-    const responses = a.responses ?? [];
+    // Defensively scope responses to the current person to avoid showing other signers' links
+    const allResponses = Array.isArray(a.responses) ? a.responses : [];
+    const scopedResponses = allResponses.filter((r: any) => {
+      const rid = r?.person_id || r?.person?.id;
+      return !rid || rid === person.id; // if missing person_id, keep it; else ensure it matches
+    });
+    const responses = scopedResponses;
     const response_count = a.response_count ?? responses.length ?? 0;
     const agreed_count = a.agreed_count ?? (responses?.filter((r: any) => ["agreed", "accepted", "signed"].includes((r?.status || "").toLowerCase())).length ?? 0);
     const sent_count = a.sent_count ?? (Array.isArray(responses) ? responses.length : 0);

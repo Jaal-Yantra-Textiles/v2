@@ -1,7 +1,7 @@
 import { Badge, Button, Heading, ProgressAccordion, Text } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { RouteDrawer } from "../modal/route-drawer/route-drawer";
-import { usePerson } from "../../hooks/api/persons";
+import { usePersonAgreements } from "../../hooks/api/persons";
 import { format } from "date-fns";
 
 type ShowAgreementsProps = {
@@ -41,12 +41,10 @@ const getAgreementStatusColor = (status: string) => {
 
 export const ShowAgreementsForm = ({ personId, personName }: ShowAgreementsProps) => {
   const { handleSuccess } = useRouteModal();
-  
-  const { person, isLoading } = usePerson(personId, {
-    fields: "agreements.*, agreements.responses.*"
-  });
 
-  const agreements = (person as any)?.agreements || [];
+  // Use person-scoped agreements API to avoid leaking other signers' responses
+  const { agreements: scopedAgreements, isPending: isLoading } = usePersonAgreements(personId);
+  const agreements = scopedAgreements || [];
 
   return (
     <RouteDrawer>
