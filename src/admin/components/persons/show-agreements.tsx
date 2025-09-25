@@ -97,10 +97,10 @@ export const ShowAgreementsForm = ({ personId, personName }: ShowAgreementsProps
                       <div className="flex items-center gap-4 text-right">
                         <div className="flex flex-col">
                           <Text size="xsmall" className="text-ui-fg-subtle">
-                            Sent: {agreement.sent_count}
+                            Sent: {Array.isArray(agreement.responses) ? agreement.responses.length : 0}
                           </Text>
                           <Text size="xsmall" className="text-ui-fg-subtle">
-                            Responses: {agreement.response_count}
+                            Responses: {Array.isArray(agreement.responses) ? agreement.responses.length : 0}
                           </Text>
                         </div>
                       </div>

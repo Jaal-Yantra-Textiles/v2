@@ -1,5 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+import PersonAgreementLink from "../../../../../links/person-agreements";
+import PersonAgreementResponseLink from "../../../../../links/person-agreement-responses";
 
 // GET /admin/persons/:id/agreements - Fetch all agreements for a person
 export const GET = async (
@@ -8,49 +10,44 @@ export const GET = async (
 ) => {
   const { id: person_id } = req.params;
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
-
-  // Fetch agreements linked to this person via Index Module (agreement.people)
-  const { data: agreements } = await query.index({
-    entity: "agreement",
-    fields: ["*", "people.*"],
-    filters: {
-      people: { id: person_id },
-    },
+  // 1) Fetch agreements for this person via module link (graph)
+  const { data: agreementData } = await query.graph({
+    entity: PersonAgreementLink.entryPoint,
+    fields: ["agreement.*", "person.*"],
+    filters: { person_id },
   });
 
-  if (!agreements || agreements.length === 0) {
+  if (!agreementData || agreementData.length === 0) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
       `No agreements found for person with id "${person_id}"`
     );
   }
 
-  // Person info from first joined record's linked people
-  const personInfo = ((agreements[0] as any)?.people?.[0]) || {};
+  const personInfo = agreementData[0].person;
+  const agreements = agreementData.map((rec: any) => rec.agreement);
 
-  // Fetch responses for this person across all agreements via Index Module
-  const { data: responses } = await query.index({
-    entity: "agreement_response",
-    fields: ["*", "people.*"],
-    filters: {
-      people: { id: person_id },
-    },
+  // 2) Fetch agreement responses for this person via module link (graph)
+  const { data: responseData } = await query.graph({
+    entity: PersonAgreementResponseLink.entryPoint,
+    fields: ["agreement_response.*", "person.*"],
+    filters: { person_id },
   });
 
   // Group responses by agreement_id for easier access
   const responsesByAgreement: Record<string, any[]> = {};
-  for (const r of responses || []) {
-    const agreementId = (r as any).agreement_id;
+  for (const rec of responseData || []) {
+    const ar = rec.agreement_response;
+    const agreementId = ar.agreement_id;
     if (!responsesByAgreement[agreementId]) {
       responsesByAgreement[agreementId] = [];
     }
-    responsesByAgreement[agreementId].push(r);
+    responsesByAgreement[agreementId].push(ar);
   }
 
-  // Attach responses and compute person-scoped counters
-  const agreementsWithResponses = (agreements || []).map((agreement: any) => {
-    const aId = agreement.id;
-    const resps = responsesByAgreement[aId] || [];
+  // Attach responses and compute per-person counters
+  const agreementsWithResponses = agreements.map((agreement: any) => {
+    const resps = responsesByAgreement[agreement.id] || [];
     const perPersonSent = resps.length;
     const perPersonAgreed = resps.filter((r: any) => ["agreed", "accepted", "signed"].includes((r?.status || "").toLowerCase())).length;
     return {

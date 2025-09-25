@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { createPersonTypeWorkflow } from "../../../workflows/person_type/create-person_type";
-import {  PersonTypeSchema } from "./validators";
+import { personTypeSchema, PersonTypeSchema } from "./validators";
+import { MedusaError } from "@medusajs/framework/utils";
 
 import {
   ListPersonTypesWorkFlowInput,
@@ -12,8 +13,19 @@ export const POST = async (
   req: MedusaRequest<PersonTypeSchema>,
   res: MedusaResponse,
 ) => {
+  // Some routes might not have validator middleware wired; fall back safely
+  const rawBody = (req as any).validatedBody ?? (req as any).body;
+
+  const parsed = personTypeSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      parsed.error.errors?.[0]?.message || "Invalid person type payload"
+    );
+  }
+
   const { result } = await createPersonTypeWorkflow(req.scope).run({
-    input: req.validatedBody,
+    input: parsed.data,
   });
   res.status(201).json({ personType: result });
 };

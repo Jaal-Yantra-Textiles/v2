@@ -3125,15 +3125,10 @@
   resolved "https://registry.yarnpkg.com/@medusajs/icons/-/icons-2.10.3.tgz#e53874fb6c8a502f0ddc8f5f996163ca214bad78"
   integrity sha512-w1NQzNY/cTsfjuEQ8AOpEI49mxA6Oa6tJlg4HMfpOjDl3/R2qZtQXa8DIchSr3Sx+/RTsIGYUxv4Vbd+VTszJg==
 
-"@medusajs/index@2.10.3":
+"@medusajs/index@2.10.3", "@medusajs/index@^2.10.3":
   version "2.10.3"
   resolved "https://registry.yarnpkg.com/@medusajs/index/-/index-2.10.3.tgz#5076d89eb6b4d78313807e2777c64f438fb57625"
   integrity sha512-ajBFU/TsHgjHQlJSmtThv8LqUDp6FI3muBnT1JjpZkiDhJUcJmIO6KhpjDIEL7qiHTUEMGuPBYS1MuJEAddZOg==
-
-"@medusajs/index@^2.9.0":
-  version "2.9.0"
-  resolved "https://registry.yarnpkg.com/@medusajs/index/-/index-2.9.0.tgz#e9f4a2d17f1814cc4fb877645c0c2cba82602be6"
-  integrity sha512-Z259b6idR7xaVUhzGVeciwVpb0+UI7a45VuB9llJbSP5ldBXvClzpGAuLSs83owANmwrykrqZ+0a/SepEugh4g==
 
 "@medusajs/inventory@2.10.3":
   version "2.10.3"

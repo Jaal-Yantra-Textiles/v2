@@ -7,6 +7,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { PERSON_TYPE_MODULE } from "../../modules/persontype";
 import PersonTypeService from "../../modules/persontype/service";
+import { MedusaError } from "@medusajs/framework/utils";
 
 export type CreatePersonTypeStepInput = {
   name: string;
@@ -16,6 +17,13 @@ export type CreatePersonTypeStepInput = {
 export const createPersonTypeStep = createStep(
   "create-person-type-step",
   async (input: CreatePersonTypeStepInput, { container }) => {
+    // Defensive validation to avoid runtime TypeError
+    if (!input || !input.name) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Missing required field: name"
+      );
+    }
     const personTypeService: PersonTypeService =
       container.resolve(PERSON_TYPE_MODULE);
     // Create the PersonType entity
@@ -44,6 +52,13 @@ export type CreatePersonTypeWorkflowInput = {
 export const createPersonTypeWorkflow = createWorkflow(
   "create-person-type",
   (input: CreatePersonTypeWorkflowInput) => {
+    // Validate at workflow boundary as well for clearer errors when misused
+    if (!input || !input.name) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Missing required field: name"
+      );
+    }
     const newPersonType = createPersonTypeStep(input);
 
     return new WorkflowResponse(newPersonType);

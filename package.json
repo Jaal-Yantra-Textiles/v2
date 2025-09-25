@@ -44,7 +44,7 @@
     "@medusajs/admin-sdk": "^2.10.3",
     "@medusajs/cli": "2.10.3",
     "@medusajs/framework": "2.10.3",
-    "@medusajs/index": "^2.9.0",
+    "@medusajs/index": "^2.10.3",
     "@medusajs/medusa": "2.10.3",
     "@medusajs/medusa-oas-cli": "^2.10.3",
     "@medusajs/workflows-sdk": "2.10.3",

@@ -21,7 +21,7 @@ const wrapSchema = <T extends z.ZodType>(schema: T) => {
   return z.preprocess((obj) => obj, schema) as any;
 };
 
-import { personTypeSchema } from "./admin/persontypes/validators";
+import { personTypeSchema, updatePersonTypeSchema } from "./admin/persontypes/validators";
 import { addressSchema } from "./admin/persons/[id]/addresses/validators";
 import { contactSchema } from "./admin/persons/[id]/contacts/validators";
 import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
@@ -502,12 +502,18 @@ export default defineMiddlewares({
     {
       matcher: "/admin/medias/existdir",
       method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(folderSchema))],
+    },
+    // Person Types
+    {
+      matcher: "/admin/persontypes",
+      method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(personTypeSchema))],
     },
     {
       matcher: "/admin/persontypes/:id",
       method: "POST",
-      middlewares: [validateAndTransformBody(wrapSchema(personTypeSchema))],
+      middlewares: [validateAndTransformBody(wrapSchema(updatePersonTypeSchema))],
     },
     {
       matcher: "/admin/persontypes/:id",
