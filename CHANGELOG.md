@@ -1,3 +1,10 @@
+## [6.20.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.5...v6.20.6) (2025-09-25)
+
+
+### Bug Fixes
+
+* **Person Types:** fixed a small bug for validator in the middlewares ([c88edfc](https://github.com/Jaal-Yantra-Textiles/v2/commit/c88edfc3bb01408dab35a6f60df5e5988efab022))
+
 ## [6.20.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.4...v6.20.5) (2025-09-24)
 
 ## [6.20.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.3...v6.20.4) (2025-09-24)
