@@ -7,6 +7,13 @@ export default function medusaError(error: any): never {
   // Log the full error object for debugging
   console.log("medusaError received error:", error);
 
+  // Handle top-level 400 error (non-Axios shape)
+  if (error.status === 400) {
+    const rawMessage = error.message || "Bad request";
+    console.warn("400 Bad Request (top-level):", rawMessage);
+    throw new Error(rawMessage.charAt(0).toUpperCase() + rawMessage.slice(1));
+  }
+
   if (error.response) {
     // The request was made and the server responded with a status code
     // that falls out of the range of 2xx
