@@ -4,6 +4,9 @@
  * For 400 Bad Request, it crafts a friendly message and minimizes noisy logs.
  */
 export default function medusaError(error: any): never {
+  // Log the full error object for debugging
+  console.log("medusaError received error:", error);
+
   if (error.response) {
     // The request was made and the server responded with a status code
     // that falls out of the range of 2xx
