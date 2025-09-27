@@ -4,13 +4,9 @@
  * For 400 Bad Request, it crafts a friendly message and minimizes noisy logs.
  */
 export default function medusaError(error: any): never {
-  // Log the full error object for debugging
-  console.log("medusaError received error:", error);
-
   // Handle top-level 400 error (non-Axios shape)
   if (error.status === 400) {
     const rawMessage = error.message || "Bad request";
-    console.warn("400 Bad Request (top-level):", rawMessage);
     throw new Error(rawMessage.charAt(0).toUpperCase() + rawMessage.slice(1));
   }
 
@@ -40,7 +36,6 @@ export default function medusaError(error: any): never {
 
       const message = (rawMessage || "Bad request").toString()
       // Do a minimal, contextual log without dumping entire payloads
-      console.warn("400 Bad Request:", u.toString(), "=>", message)
       // Throw so current callers relying on try/catch can surface this to the UI
       throw new Error(message.charAt(0).toUpperCase() + message.slice(1))
     }
