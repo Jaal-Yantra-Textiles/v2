@@ -50,10 +50,21 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
       return
     }
     const input = document.getElementById("promotion-input") as HTMLInputElement
+    // Normalize user input to avoid server-side pattern errors
+    const raw = String(code)
+    const normalized = raw.trim().toUpperCase()
+    if (!normalized) {
+      setErrorMessage("Please enter a valid promotion code")
+      return
+    }
+
     const codes = promotions
       .filter((p) => p.code !== undefined)
       .map((p) => p.code!)
-    codes.push(code.toString())
+    // Avoid adding duplicates
+    if (!codes.includes(normalized)) {
+      codes.push(normalized)
+    }
 
     try {
       const res = await fetch("/api/cart/promotions", {
