@@ -3,7 +3,6 @@
 import { Badge, Heading, Input, Label, Text } from "@medusajs/ui"
 import React from "react"
 
-import { applyPromotions } from "@lib/data/cart"
 import { convertToLocale } from "@lib/util/money"
 import { HttpTypes } from "@medusajs/types"
 import Trash from "@modules/common/icons/trash"
@@ -25,11 +24,19 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
     const validPromotions = promotions.filter((promotion) => promotion.code !== code)
 
     try {
-      await applyPromotions(
-        validPromotions
-          .filter((p) => p.code !== undefined)
-          .map((p) => p.code!)
-      )
+      const res = await fetch("/api/cart/promotions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          codes: validPromotions
+            .filter((p) => p.code !== undefined)
+            .map((p) => p.code!),
+        }),
+      })
+      const json = await res.json()
+      if (!json?.ok) {
+        throw new Error(json?.error || "Failed to update promotions")
+      }
     } catch (e: any) {
       setErrorMessage(e?.message || "Failed to update promotions")
     }
@@ -49,9 +56,17 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
     codes.push(code.toString())
 
     try {
-      await applyPromotions(codes)
+      const res = await fetch("/api/cart/promotions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ codes }),
+      })
+      const json = await res.json()
+      if (!json?.ok) {
+        throw new Error(json?.error || "Failed to apply promotions")
+      }
     } catch (e: any) {
-      setErrorMessage(e.message)
+      setErrorMessage(e?.message || "Failed to apply promotions")
     }
 
     if (input) {

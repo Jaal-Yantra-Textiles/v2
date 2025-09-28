@@ -109,6 +109,7 @@ export function getMedusaErrorMessage(error: any): string {
   try {
     // Reuse the logic above by simulating the throw path and catching the message
     medusaError(error)
+    
     return "" // unreachable
   } catch (e: any) {
     return typeof e?.message === "string" && e.message ? e.message : "An error occurred"
