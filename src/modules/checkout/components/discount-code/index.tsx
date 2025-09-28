@@ -15,20 +15,24 @@ type DiscountCodeProps = {
     promotions: HttpTypes.StorePromotion[]
   }
 }
-
 const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   const [isOpen, setIsOpen] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState("")
 
   const { promotions = [] } = cart
-  const removePromotionCode = async (code: string) => {
-    const validPromotions = promotions.filter(
-      (promotion) => promotion.code !== code
-    )
 
-    await applyPromotions(
-      validPromotions.filter((p) => p.code !== undefined).map((p) => p.code!)
-    )
+  const removePromotionCode = async (code: string) => {
+    const validPromotions = promotions.filter((promotion) => promotion.code !== code)
+
+    try {
+      await applyPromotions(
+        validPromotions
+          .filter((p) => p.code !== undefined)
+          .map((p) => p.code!)
+      )
+    } catch (e: any) {
+      setErrorMessage(e?.message || "Failed to update promotions")
+    }
   }
 
   const addPromotionCode = async (formData: FormData) => {
@@ -58,7 +62,14 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   return (
     <div className="w-full bg-white flex flex-col">
       <div className="txt-medium">
-        <form action={(a) => addPromotionCode(a)} className="w-full mb-5">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            const formData = new FormData(e.currentTarget)
+            void addPromotionCode(formData)
+          }}
+          className="w-full mb-5"
+        >
           <Label className="flex gap-x-1 my-2 items-center">
             <button
               onClick={() => setIsOpen(!isOpen)}
