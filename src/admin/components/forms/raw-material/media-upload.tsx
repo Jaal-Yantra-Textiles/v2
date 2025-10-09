@@ -5,6 +5,7 @@ import {
   useEditorFiles,
 } from "../../../hooks/api/editor-files"
 import { RoundSpinner } from "../../ui/spinner"
+import { getThumbUrl, isImageUrl } from "../../../lib/media"
 
 interface MediaUploadProps {
   selectedUrls: string[]
@@ -43,6 +44,12 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
         {files.map((file: AdminEditorFile) => {
           const isSelected = selectedUrls.includes(file.url)
           const displayName = decodeURIComponent(file.id.split("/").pop() || file.id);
+          
+          // Use thumbnail for images to reduce bandwidth and improve performance
+          const thumbnailUrl = isImageUrl(file.url) 
+            ? getThumbUrl(file.url, { width: 128, quality: 70, fit: "cover" })
+            : file.url
+          
           return (
             <Tooltip content={displayName} key={file.id}>
               <div
@@ -56,9 +63,10 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
                 )}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={file.url}
+                  src={thumbnailUrl}
                   alt={displayName}
                   className="h-full w-full object-cover"
+                  loading="lazy"
                 />
               </div>
             </Tooltip>

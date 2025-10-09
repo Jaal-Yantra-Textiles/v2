@@ -6,6 +6,7 @@ import { useProduct, useUpdateProduct } from "../hooks/api/products"
 import ProductMediaModal from "../components/media/product-media-modal"
 import { ActionMenu } from "../components/common/action-menu"
 import { useState } from "react"
+import { getThumbUrl, isImageUrl } from "../lib/media"
 
 type ProductImage = {
   id: string
@@ -126,25 +127,33 @@ const ProductMediaWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
           </div>
         ) : (
           <div className="grid grid-cols-4 gap-3 md:grid-cols-6 lg:grid-cols-8">
-            {currentImages.map((image) => (
-              <div key={image.id} className="relative h-20 w-20 overflow-hidden rounded-md border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img 
-                  src={image.url} 
-                  alt="Product media" 
-                  className="h-full w-full object-cover" 
-                />
-                <div className="absolute top-1 right-1 flex items-center justify-center rounded-full bg-white/80 p-0.5 hover:bg-white">
-                  <button
-                    onClick={() => handleRemoveImage(image.url)}
-                    className="text-ui-fg-muted hover:text-ui-fg-subtle cursor-pointer"
-                    disabled={updateProductMutation.isPending}
-                  >
-                    <XMark className="h-4 w-4" />
-                  </button>
+            {currentImages.map((image) => {
+              // Use thumbnail for better performance
+              const thumbnailUrl = isImageUrl(image.url)
+                ? getThumbUrl(image.url, { width: 128, quality: 70, fit: "cover" })
+                : image.url
+              
+              return (
+                <div key={image.id} className="relative h-20 w-20 overflow-hidden rounded-md border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img 
+                    src={thumbnailUrl} 
+                    alt="Product media" 
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute top-1 right-1 flex items-center justify-center rounded-full bg-white/80 p-0.5 hover:bg-white">
+                    <button
+                      onClick={() => handleRemoveImage(image.url)}
+                      className="text-ui-fg-muted hover:text-ui-fg-subtle cursor-pointer"
+                      disabled={updateProductMutation.isPending}
+                    >
+                      <XMark className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
