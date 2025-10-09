@@ -1,3 +1,10 @@
+## [6.21.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.21.0...v6.21.1) (2025-10-09)
+
+
+### Performance Improvements
+
+* **Medias:** Fixed the image loading ([6015225](https://github.com/Jaal-Yantra-Textiles/v2/commit/601522506c4e70fc6fe7eff4d372306ca25e35bf))
+
 # [6.21.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.6...v6.21.0) (2025-10-09)
 
 
