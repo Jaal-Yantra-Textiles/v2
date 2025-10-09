@@ -1,3 +1,10 @@
+# [6.21.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.6...v6.21.0) (2025-10-09)
+
+
+### Features
+
+* **Medias:** Now, we can associate existing products view from editor files ([289894b](https://github.com/Jaal-Yantra-Textiles/v2/commit/289894bdd95a8016c35a050da6b01ed895e5f7fe))
+
 ## [6.20.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.20.5...v6.20.6) (2025-09-25)
 
 
