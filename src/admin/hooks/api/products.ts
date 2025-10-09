@@ -236,3 +236,43 @@ export const useUnlinkProductDesign = () => {
     },
   })
 }
+
+// Product update hook for images
+type UpdateProductPayload = {
+  images?: Array<{
+    url: string
+  }>
+  [key: string]: any
+}
+
+export const useUpdateProduct = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ productId, payload }: { productId: string; payload: UpdateProductPayload }) => {
+      const response = await sdk.admin.product.update(productId, payload as any)
+      return response
+    },
+    onSuccess: (data, { productId }) => {
+      // If API returned the updated product, seed all cached detail variants immediately
+      if (data?.product) {
+        queryClient.setQueryData(productsQueryKeys.detail(productId), { product: data.product })
+        queryClient.setQueriesData({ queryKey: productsQueryKeys.details() }, (old: any) => {
+          if (!old) return old
+          if (old.product?.id === data.product.id) {
+            return { ...old, product: data.product }
+          }
+          return old
+        })
+      }
+      // Invalidate and refetch product data
+      queryClient.invalidateQueries({ queryKey: productsQueryKeys.detail(productId) })
+      queryClient.invalidateQueries({ queryKey: productsQueryKeys.details() })
+      queryClient.invalidateQueries({ queryKey: productsQueryKeys.lists() })
+      toast.success("Product updated successfully")
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update product")
+    },
+  })
+}

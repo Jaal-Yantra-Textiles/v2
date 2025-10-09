@@ -9,11 +9,12 @@ const logger = new PinoLogger();
 // 1. Define the input schema for the workflow
 const triggerSchema = z.object({
   imageUrl: z.string().url("A valid image URL is required."),
+  hint: z.string().optional(),
   productData: z.object({
     designers: z.array(z.string()).optional(),
     modelUsed: z.string().optional(),
     materialType: z.string().optional(),
-  }),
+  }).optional().default({}),
 });
 
 // 2. Define the output schema for the AI-generated content
@@ -28,7 +29,7 @@ const generateDescriptionStep = createStep({
   inputSchema: triggerSchema,
   outputSchema: productDescriptionSchema,
   execute: async ({ inputData }) => {
-    const { imageUrl, productData } = inputData;
+    const { imageUrl, productData, hint } = inputData;
 
     logger.info(`Generating product description for image: ${imageUrl}`);
 
@@ -37,8 +38,8 @@ const generateDescriptionStep = createStep({
         {
           role: "user",
           content: [
-            { type: "text", text: `Generate a compelling product title and description based on the provided image and product details. Product Details: ${JSON.stringify(productData, null, 2)}` },
-            { type: "image", image: new URL(imageUrl) },
+            { type: "text", text: `Generate a compelling product title and description based on the provided image and product details.${hint ? `\nWriter hint: ${hint}` : ""}\nProduct Details: ${JSON.stringify(productData || {}, null, 2)}` },
+            { type: "image_url", imageUrl },
           ],
         },
       ],

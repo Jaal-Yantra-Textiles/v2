@@ -44,7 +44,7 @@ const openrouter = createOpenRouter({
 
 // Create an agent
 export const productDescriptionAgent = new Agent({
-  model: openrouter('mistralai/mistral-small-3.2-24b-instruct:free') as any,
+  model: openrouter('x-ai/grok-4-fast:free') as any,
   name: 'ProductDescriptionAgent',
   instructions:
     'You are an expert product description writer. Given an image and product information, you will generate a compelling and accurate product description. Focus on highlighting key features and benefits that would appeal to the target audience.',

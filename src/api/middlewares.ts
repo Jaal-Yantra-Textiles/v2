@@ -87,6 +87,7 @@ import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-item
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq } from "./partners/products/validators";
 import { LinkPersonValidator, UnlinkPersonValidator } from "./admin/products/[id]/linkPerson/validators";
+import { GenerateDescriptionValidator } from "./admin/products/[id]/generateDescription/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -849,6 +850,11 @@ export default defineMiddlewares({
       matcher: "/admin/products/:id/unlinkPerson",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UnlinkPersonValidator))],
+    },
+    {
+      matcher: "/admin/products/:id/generateDescription",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(GenerateDescriptionValidator))],
     },
     // Store management APIs
 

@@ -9,6 +9,7 @@ import { mastra } from "../../mastra";
 // 1. Define the input type for the workflow
 export type GenerateProductDescriptionInput = {
   imageUrl: string;
+  hint?: string;
   productData: {
     designers?: string[];
     modelUsed?: string;
@@ -26,6 +27,7 @@ export const generateProductDescriptionStep = createStep(
         inputData: {
           imageUrl: input.imageUrl,
           productData: input.productData,
+          hint: input.hint,
         },
       });
 
