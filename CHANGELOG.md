@@ -1,3 +1,10 @@
+# [6.22.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.21.1...v6.22.0) (2025-10-11)
+
+
+### Features
+
+* **LLM:** Now, we can generate product description on the fly ([0d8e8ae](https://github.com/Jaal-Yantra-Textiles/v2/commit/0d8e8ae928a48a638e3d3e629113b095496080dc))
+
 ## [6.21.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.21.0...v6.21.1) (2025-10-09)
 
 
