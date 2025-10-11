@@ -22,22 +22,35 @@ export const generateProductDescriptionStep = createStep(
   "generate-product-description-step",
   async (input: GenerateProductDescriptionInput, { container }) => {
     try {
-      const { runId, start } = mastra.getWorkflow('productDescriptionWorkflow').createRun();
-      const runResult = await start({
+      // createRunAsync returns a Run object, we need to call .start() on it
+      const run = await mastra.getWorkflow('productDescriptionWorkflow').createRunAsync();
+      const workflowResult = await run.start({
         inputData: {
           imageUrl: input.imageUrl,
-          productData: input.productData,
+          productData: input.productData || {},
           hint: input.hint,
         },
       });
 
-      if (runResult.steps.validateDescription?.status !== 'success') {
-        const error = runResult.steps.validateDescription || 'Unknown error during validation.';
+      // Check if validateDescription step succeeded
+      if (workflowResult.steps.validateDescription?.status === 'success') {
+        const descriptionData = workflowResult.steps.validateDescription.output;
+        return new StepResponse(descriptionData);
+      }
+
+      // Check if validateDescription step failed
+      if (workflowResult.steps.validateDescription?.status === 'failed') {
+        const error = workflowResult.steps.validateDescription.error || 'Unknown validation error';
         throw new Error(`Product description validation failed: ${error}`);
       }
 
-      const descriptionData = runResult.steps.validateDescription.output;
-      return new StepResponse(descriptionData);
+      // Fallback: try to get from generateDescription step
+      if (workflowResult.steps.generateDescription?.status === 'success') {
+        const descriptionData = workflowResult.steps.generateDescription.output;
+        return new StepResponse(descriptionData);
+      }
+
+      throw new Error('Mastra workflow did not complete successfully');
     } catch (error) {
       console.error("Error generating product description:", error);
       throw error;

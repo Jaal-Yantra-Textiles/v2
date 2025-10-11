@@ -276,3 +276,51 @@ export const useUpdateProduct = () => {
     },
   })
 }
+
+// AI Description Generation hook
+type GenerateDescriptionPayload = {
+  imageUrl: string
+  hint?: string
+  notes?: string
+  productData?: {
+    designers?: string[]
+    modelUsed?: string
+    materialType?: string
+  }
+}
+
+type GenerateDescriptionResponse = {
+  product_id: string
+  title: string
+  description: string
+}
+
+export const useGenerateProductDescription = () => {
+  return useMutation({
+    mutationFn: async ({ 
+      productId, 
+      payload 
+    }: { 
+      productId: string
+      payload: GenerateDescriptionPayload 
+    }): Promise<GenerateDescriptionResponse> => {
+      const response = await fetch(`/admin/products/${productId}/generateDescription`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || "Failed to generate description")
+      }
+
+      return response.json()
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to generate AI description")
+    },
+  })
+}
