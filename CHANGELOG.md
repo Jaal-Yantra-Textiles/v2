@@ -1,3 +1,10 @@
+# [6.23.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.22.0...v6.23.0) (2025-10-14)
+
+
+### Features
+
+* **Notification:** Fixed "order-fulfillment-procured ([2026239](https://github.com/Jaal-Yantra-Textiles/v2/commit/20262397b038e857b13380e9404304b70d38d4b5))
+
 # [6.22.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.21.1...v6.22.0) (2025-10-11)
 
 
