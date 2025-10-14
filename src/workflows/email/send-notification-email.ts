@@ -218,3 +218,50 @@ export const sendAdminPartnerCreationEmail = createWorkflow(
     return new WorkflowResponse(result)
   }
 )
+
+// Order fulfillment email workflow
+export const sendOrderFulfillmentEmail = createWorkflow(
+  "send-order-fulfillment-email",
+  (input: { order_id: string; fulfillment_id: string }) => {
+    const retrieveOrderDataStep = createStep(
+      "retrieve-order-fulfillment-data",
+      async ({ order_id, fulfillment_id }: { order_id: string; fulfillment_id: string }, { container }) => {
+        const orderService = container.resolve(Modules.ORDER)
+        
+        // Retrieve order with items and shipping address
+        const order = await orderService.retrieveOrder(order_id, {
+          relations: ["items", "shipping_address"],
+        })
+        
+        return new StepResponse({
+          order,
+          fulfillment_id,
+          customer_email: order.email || "",
+          customer_name: "Customer",
+        })
+      }
+    )
+
+    const orderData = retrieveOrderDataStep(input)
+    
+    // Transform to prepare email data
+    const emailInput = transform({ orderData }, (data) => ({
+      to: data.orderData.customer_email,
+      template: "order-fulfillment-procured",
+      data: {
+        customer_name: data.orderData.customer_name,
+        order_id: data.orderData.order.display_id || data.orderData.order.id,
+        order_date: data.orderData.order.created_at,
+        items: data.orderData.order.items || [],
+        fulfillment_id: data.orderData.fulfillment_id,
+        shipping_address: data.orderData.order.shipping_address,
+      },
+    }))
+    
+    const result = sendNotificationEmailWorkflow.runAsStep({
+      input: emailInput,
+    })
+
+    return new WorkflowResponse(result)
+  }
+)
