@@ -3,10 +3,6 @@ import PartnerModule from "../modules/partner"
 import TaskModule from "../modules/tasks"
 
 export default defineLink(
-    PartnerModule.linkable.partner,
-    {
-        linkable: TaskModule.linkable.task,
-        isList: true,
-        field: 'tasks'
-    }
+    { linkable: PartnerModule.linkable.partner, isList: true },
+    { linkable: TaskModule.linkable.task, isList: true }
 )

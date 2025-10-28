@@ -9,11 +9,7 @@ import { DesignInventoryAllowedFields, refetchDesign } from "../inventory/helper
 import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/inventory/list-design-inventory";
   
   export const POST = async (
-    req: MedusaRequest<AdminPostDesignInventoryReq> & {
-      remoteQueryConfig?: {
-        fields?: DesignInventoryAllowedFields[];
-      };
-    },
+    req: MedusaRequest<AdminPostDesignInventoryReq>,
     res: MedusaResponse,
   ) => {
 
@@ -25,8 +21,6 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
         inventory_ids: req.validatedBody.inventoryIds
       },
     })
-
-    console.log(result)
   
     if (errors.length > 0) {
       console.warn("Error reported at", errors);
@@ -36,7 +30,7 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
     const design = await refetchDesign(
       req.params.id,
       req.scope,
-      req.remoteQueryConfig?.fields || ["*"],
+      (req.queryConfig?.fields as DesignInventoryAllowedFields[]) || ["*"],
     );
   
     res.status(201).json( design );
@@ -44,12 +38,7 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
 
 
   export const GET = async (
-    req: MedusaRequest & {
-      params: { id: string };
-      remoteQueryConfig?: {
-        fields?: DesignInventoryAllowedFields[];
-      };
-    },
+    req: MedusaRequest,
     res: MedusaResponse,
   ) => {
     const designId = req.params.id

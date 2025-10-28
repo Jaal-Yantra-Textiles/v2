@@ -34,7 +34,8 @@ const validateParnter = createStep(
     "validate-partner",
     async (input: AssignTaskWorkFlowInput, { container }) => {
         const partnerService: PartnerService = container.resolve(PARTNER_MODULE);
-        const task = await partnerService.retrievePartner(input.partnerId)
+        const partner = await partnerService.retrievePartner(input.partnerId)
+        return new StepResponse(partner)
     }
 )
 

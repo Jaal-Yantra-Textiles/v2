@@ -1,7 +1,7 @@
-import { Container, Heading, Skeleton, Text } from "@medusajs/ui";
-import { Plus, TriangleRightMini } from "@medusajs/icons";
+import { Container, Heading, Skeleton, Text, toast } from "@medusajs/ui";
+import { Plus, Trash, TriangleRightMini } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
-import { AdminDesign, useDesignInventory } from "../../hooks/api/designs";  
+import { AdminDesign, useDesignInventory, useDelinkInventory } from "../../hooks/api/designs";  
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 
@@ -28,44 +28,55 @@ interface DesignInventorySectionProps {
 
 export const DesignInventorySection = ({ design }: DesignInventorySectionProps) => {
   const navigate = useNavigate();
-  const { data, isLoading } = useDesignInventory(design.id);  
+  const { data, isLoading } = useDesignInventory(design.id);
+  const { mutateAsync: delinkInventory, isPending: isDelinking } = useDelinkInventory(design.id);  
   
-  // Transform items into proper inventory items with proper object handling
+  // Transform items into proper inventory items
   const inventoryItems: InventoryItem[] = data?.inventory_items?.map(item => {
-    // Check if the item is an object with an id property
     if (typeof item === 'object' && item !== null && 'id' in item) {
       const typedItem = item as ApiInventoryItem;
       return {
         id: String(typedItem.id),
-        title: typedItem.title ? String(typedItem.title) : `Inventory Item ${String(typedItem.id)}`,
+        title: typedItem.title || `Inventory Item ${String(typedItem.id)}`,
         thumbnail: typedItem.thumbnail || null,
         sku: typedItem.sku || `SKU ${String(typedItem.id)}`,
       };
     }
     
-    // Fallback for primitives
     const id = String(item);
     return {
       id,
       title: `Inventory Item ${id}`,
+      sku: `SKU ${id}`,
     };
   }) || [];
+  
+  const handleRemoveInventory = async (inventoryId: string) => {
+    try {
+      await delinkInventory({
+        inventoryIds: [inventoryId]
+      });
+      toast.success("Success", {
+        description: "Inventory item removed successfully",
+        dismissable: true,
+      });
+    } catch (error) {
+      toast.error("Error", {
+        description: error instanceof Error ? error.message : "Failed to remove inventory item",
+        dismissable: true,
+      });
+    }
+  };
   
   return (
     <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
-      <div className="flex items-center justify-between mb-4">
-          <div>
-            <Heading level="h2">{("Inventory")}</Heading>
-            <Text className="text-ui-fg-subtle" size="small">
+        <div>
+          <Heading level="h2">Inventory</Heading>
+          <Text className="text-ui-fg-subtle" size="small">
             Inventory items used in this design
-            </Text>
-          </div>
-          <div className="flex items-center gap-x-2">
-            
-          </div>
+          </Text>
         </div>
-        <div className="flex items-center gap-x-4">
         <ActionMenu
           groups={[
             {
@@ -81,7 +92,6 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
             },
           ]}
         />
-        </div>
       </div>
         {isLoading ? (
           <Skeleton className="h-7 w-full" />
@@ -100,17 +110,30 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
                     <div className="flex items-center gap-3">
                       <div className="flex flex-1 flex-col overflow-hidden">
                         <span className="text-ui-fg-base font-medium">
-                          {item.title || `Inventory Item ${item.id}`}
+                          {item.title}
                         </span>
-                        <span className="text-ui-fg-base font-medium">
-                          {item.sku || `SKU ${item.sku}`}
+                        <span className="text-ui-fg-subtle text-sm">
+                          {item.sku}
                         </span>
-                        <span className="text-ui-fg-subtle truncate max-w-[150px] sm:max-w-[200px] md:max-w-full block">
-                          {item.id || "-"}
+                        <span className="text-ui-fg-subtle text-xs truncate max-w-[150px] sm:max-w-[200px] md:max-w-full block">
+                          {item.id}
                         </span>
                       </div>
-                      <div className="size-7 flex items-center justify-center">
-                        <TriangleRightMini className="text-ui-fg-muted" />
+                      <div className="flex items-center gap-x-2">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleRemoveInventory(item.id);
+                          }}
+                          disabled={isDelinking}
+                          className="size-7 flex items-center justify-center text-ui-fg-muted hover:text-ui-fg-subtle transition-colors disabled:opacity-50"
+                          title="Remove inventory item"
+                        >
+                          <Trash className="size-5" />
+                        </button>
+                        <div className="size-7 flex items-center justify-center">
+                          <TriangleRightMini className="text-ui-fg-muted" />
+                        </div>
                       </div>
                     </div>
                   </div>

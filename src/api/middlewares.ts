@@ -41,7 +41,7 @@ import {
   postPagesSchema,
 } from "./admin/websites/[id]/pages/validators";
 import {  createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
-import { AdminPostDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
+import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 import { partnerSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
@@ -73,6 +73,8 @@ import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSche
 import { ListPaymentMethodsByPartnerQuerySchema, CreatePaymentMethodForPartnerSchema } from "./admin/payments/partners/[id]/methods/validators";
 import { AdminGeneralChatReq, AdminGeneralChatStreamQuery } from "./admin/ai/chat/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
+import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
+import { AdminCreatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
 import {
   ListPaymentsByPartnerQuerySchema as PartnerListPaymentsByPartnerQuerySchema,
   ListPaymentMethodsByPartnerQuerySchema as PartnerListPaymentMethodsByPartnerQuerySchema,
@@ -237,7 +239,43 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/tasks",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/tasks/:taskId/accept",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/tasks/:taskId/finish",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Assigned Tasks routes (standalone tasks)
+    {
+      matcher: "/partners/assigned-tasks",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/assigned-tasks/:taskId/accept",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/assigned-tasks/:taskId/finish",
       method: "POST",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
@@ -590,6 +628,22 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(PostPartnerSchema))],
     },
+    // Admin Partner Tasks routes
+    {
+      matcher: "/admin/partners/:id/tasks",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id/tasks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreatePartnerTaskReq))],
+    },
+    {
+      matcher: "/admin/partners/:id/tasks/:taskId/assign",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostPartnerTaskAssignReq))],
+    },
     {
       matcher: "/admin/persons/partner",
       method: "GET",
@@ -624,6 +678,12 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/inventory",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostDesignInventoryReq))],
+    },
+
+    {
+      matcher: "/admin/designs/:id/inventory/delink",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminDeleteDesignInventoryReq))],
     },
 
     //Task on Designs 

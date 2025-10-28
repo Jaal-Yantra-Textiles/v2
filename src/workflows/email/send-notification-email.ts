@@ -227,15 +227,21 @@ export const sendOrderFulfillmentEmail = createWorkflow(
       "retrieve-order-fulfillment-data",
       async ({ order_id, fulfillment_id }: { order_id: string; fulfillment_id: string }, { container }) => {
         const orderService = container.resolve(Modules.ORDER)
+        const fulfillmentService = container.resolve(Modules.FULFILLMENT)
         
-        // Retrieve order with items and shipping address
+        // Retrieve order with shipping address
         const order = await orderService.retrieveOrder(order_id, {
-          relations: ["items", "shipping_address"],
+          relations: ["shipping_address"],
+        })
+        
+        // Retrieve the specific fulfillment with its items
+        const fulfillment = await fulfillmentService.retrieveFulfillment(fulfillment_id, {
+          relations: ["items"],
         })
         
         return new StepResponse({
           order,
-          fulfillment_id,
+          fulfillment,
           customer_email: order.email || "",
           customer_name: "Customer",
         })
@@ -252,9 +258,12 @@ export const sendOrderFulfillmentEmail = createWorkflow(
         customer_name: data.orderData.customer_name,
         order_id: data.orderData.order.display_id || data.orderData.order.id,
         order_date: data.orderData.order.created_at,
-        items: data.orderData.order.items || [],
-        fulfillment_id: data.orderData.fulfillment_id,
+        // Use fulfillment items instead of all order items
+        items: data.orderData.fulfillment.items || [],
+        fulfillment_id: data.orderData.fulfillment.id,
         shipping_address: data.orderData.order.shipping_address,
+        // Additional fulfillment details
+        total_items_fulfilled: data.orderData.fulfillment.items?.length || 0,
       },
     }))
     

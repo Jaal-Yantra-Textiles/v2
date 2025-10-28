@@ -285,6 +285,32 @@ export const useLinkDesignInventory = (
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id, ["inventory"]) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};
+
+export const useDelinkInventory = (
+  id: string,
+  options?: UseMutationOptions<
+    AdminDesignResponse,
+    FetchError,
+    LinkDesignInventoryPayload
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: LinkDesignInventoryPayload) =>
+      sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}/inventory/delink`, {
+        method: "POST",
+        body: data,
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id, ["inventory"]) });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,
