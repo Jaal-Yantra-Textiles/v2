@@ -110,6 +110,8 @@ export const useInventoryOrder = (
           fields: query?.fields ? query.fields.join(",") : undefined,
         },
       }),
+    refetchOnWindowFocus: true,
+    staleTime: 0,
     ...options,
   });
   return { ...data, ...rest };
@@ -168,7 +170,7 @@ export const useUpdateInventoryOrder = (
       }),
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.details() });
       options?.onSuccess?.(...args);
     },
     ...options,
@@ -228,6 +230,45 @@ export const useSendInventoryOrderToPartner = (
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
       options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};
+
+export interface UpdateInventoryOrderLinesPayload {
+  id: string;
+  data: {
+    quantity?: number;
+    total_price?: number;
+  };
+  order_lines: Array<{
+    id?: string;
+    inventory_item_id: string;
+    quantity: number;
+    price: number;
+  }>;
+}
+
+export const useUpdateInventoryOrderLines = (
+  options?: UseMutationOptions<AdminInventoryOrderResponse, FetchError, UpdateInventoryOrderLinesPayload>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: UpdateInventoryOrderLinesPayload) =>
+      sdk.client.fetch<AdminInventoryOrderResponse>(`/admin/inventory-orders/${payload.id}/order-lines`, {
+        method: "PUT",
+        body: payload,
+      }),
+    onSuccess: async (data, variables, ...args) => {
+      // Invalidate all queries related to inventory orders
+      await queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.details() });
+      // Force refetch of all active detail queries
+      await queryClient.refetchQueries({ 
+        queryKey: inventoryOrderQueryKeys.details(),
+        type: 'active'
+      });
+      options?.onSuccess?.(data, variables, ...args);
     },
     ...options,
   });

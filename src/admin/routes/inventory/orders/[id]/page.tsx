@@ -17,6 +17,7 @@ const InventoryOrderDetailPage = () => {
   }, {
     initialData: intialData
   });
+  
   // Show loading skeleton while data is being fetched
   if (isLoading || !inventoryOrder) {
     return <TwoColumnPageSkeleton mainSections={1} sidebarSections={3} showJSON showMetadata />;

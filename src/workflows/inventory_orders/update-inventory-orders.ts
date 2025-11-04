@@ -1,5 +1,5 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/workflows-sdk";
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils";
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 
@@ -33,11 +33,11 @@ export const fetchOriginalOrderStep = createStep(
   async (input: { id: string }, { container }) => {
     const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
     const originalOrder = await inventoryOrderService.retrieveInventoryOrder(input.id, { relations: ["orderlines"] });
-    // Only allow update if status is 'Pending'
-    if (originalOrder.status !== "Pending") {
+    // Only allow update if status is 'Pending' or 'Processing'
+    if (!["Pending", "Processing"].includes(originalOrder.status)) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        "Order can only be updated if status is 'Pending'."
+        "Order can only be updated if status is 'Pending' or 'Processing'."
       );
     }
     return new StepResponse(originalOrder, originalOrder); // Save for compensation
@@ -91,10 +91,10 @@ export const updateOrderLinesStep = createStep(
       if (line.inventory_item_id) {
         await remoteLink.dismiss({
           [ORDER_INVENTORY_MODULE]: {
-            orderline_id: line.id!
+            inventory_order_line_id: line.id!
           },
-          inventory: {
-            id: line.inventory_item_id
+          [Modules.INVENTORY]: {
+            inventory_item_id: line.inventory_item_id
           }
         });
       }
@@ -122,10 +122,14 @@ export const updateOrderLinesStep = createStep(
         if (line.inventory_item_id) {
           await remoteLink.create({
             [ORDER_INVENTORY_MODULE]: {
-              orderline_id: created.id
+              inventory_order_line_id: created.id
             },
-            inventory: {
-              id: line.inventory_item_id
+            [Modules.INVENTORY]: {
+              inventory_item_id: line.inventory_item_id
+            },
+            data: {
+              order_line_id: created.id,
+              inventory_item_id: line.inventory_item_id
             }
           });
         }
@@ -157,10 +161,14 @@ export const updateOrderLinesStep = createStep(
       if (orig.inventory_item_id) {
         await remoteLink.create({
           [ORDER_INVENTORY_MODULE]: {
-            orderline_id: restored.id
+            inventory_order_line_id: restored.id
           },
-          inventory: {
-            id: orig.inventory_item_id
+          [Modules.INVENTORY]: {
+            inventory_item_id: orig.inventory_item_id
+          },
+          data: {
+            order_line_id: restored.id,
+            inventory_item_id: orig.inventory_item_id
           }
         });
       }

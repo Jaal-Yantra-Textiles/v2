@@ -45,7 +45,7 @@ import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./ad
 import { partnerSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
-import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema } from "./admin/inventory-orders/validators";
+import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema } from "./admin/inventory-orders/validators";
 // Import already defined above
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
@@ -606,6 +606,11 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders/:id/send-to-partner",
       method: 'POST',
       middlewares: [validateAndTransformBody(wrapSchema(sendToPartnerSchema))],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/order-lines",
+      method: 'PUT',
+      middlewares: [validateAndTransformBody(wrapSchema(updateInventoryOrderLinesSchema))],
     },
     // Admin Partners routes
     {

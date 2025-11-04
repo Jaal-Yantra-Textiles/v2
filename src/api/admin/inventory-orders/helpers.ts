@@ -16,7 +16,7 @@ export const refetchInventoryOrder = async (
     fields: [
       "*",
       "orderlines.*",
-      'orderlines.inventory_items.*.*',
+      "orderlines.inventory_items.*",
     ],
   })
 

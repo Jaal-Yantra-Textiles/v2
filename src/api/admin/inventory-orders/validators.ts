@@ -105,3 +105,21 @@ export const listInventoryOrdersQuerySchema = z.object({
 
 // Type definition for listing inventory orders query
 export type ListInventoryOrdersQuery = z.infer<typeof listInventoryOrdersQuerySchema>;
+
+// Schema for updating order lines
+export const updateOrderLineSchema = z.object({
+  id: z.string().optional(), // Existing lines have IDs
+  inventory_item_id: z.string().min(1, "Inventory item ID is required"),
+  quantity: z.number().min(1, "Quantity must be at least 1"),
+  price: z.number().min(0, "Price must be non-negative"),
+});
+
+export const updateInventoryOrderLinesSchema = z.object({
+  data: z.object({
+    quantity: z.number().optional(),
+    total_price: z.number().optional(),
+  }).optional(),
+  order_lines: z.array(updateOrderLineSchema).min(1, "At least one order line is required"),
+});
+
+export type UpdateInventoryOrderLines = z.infer<typeof updateInventoryOrderLinesSchema>;

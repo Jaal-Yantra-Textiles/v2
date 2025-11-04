@@ -1,11 +1,18 @@
 import { Container, Heading, Text, Badge } from "@medusajs/ui";
-import { TriangleRightMini } from "@medusajs/icons";
+import { TriangleRightMini, PencilSquare } from "@medusajs/icons";
 import { AdminInventoryOrder, OrderLine } from "../../hooks/api/inventory-orders";
 import { Link } from "react-router-dom";
+import { ActionMenu } from "../common/action-menu";
 
 export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder: AdminInventoryOrder }) => {
   // Define extended line type with inventory_item relation
   type InventoryOrderLine = OrderLine & { inventory_items: [{ id: string; sku: string; title?: string }] };
+
+  // Only allow editing if status is Pending or Processing
+  const canEdit = ["Pending", "Processing"].includes(inventoryOrder.status);
+
+  // Handle both orderlines (from API) and order_lines (from type)
+  const orderLines = (inventoryOrder as any).orderlines || inventoryOrder.order_lines || [];
 
   return (
     <Container className="p-0">
@@ -13,16 +20,37 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
         <div className="flex items-center gap-x-4">
           <Heading level="h2">Order Lines</Heading>
         </div>
+        {canEdit && (
+          <ActionMenu
+            groups={[
+              {
+                actions: [
+                  {
+                    label: "Edit",
+                    to: `editorder`,
+                    icon: <PencilSquare />,
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
       </div>
       
       <div className="txt-small flex flex-col gap-2 px-2 pb-2">
-        {!inventoryOrder.orderlines?.length ? (
+        {!orderLines.length ? (
           <div className="px-6 py-4 text-ui-fg-subtle">
             <Text>No order lines found</Text>
           </div>
         ) : (
-          inventoryOrder.orderlines.map((line: InventoryOrderLine, idx: number) => {
-            const inventoryItem = line.inventory_items[0];
+          orderLines.map((line: InventoryOrderLine, idx: number) => {
+            const inventoryItem = line.inventory_items?.[0];
+            
+            // Skip lines without inventory item data
+            if (!inventoryItem) {
+              return null;
+            }
+            
             const link = `/inventory/${inventoryItem.id}`;
             
             const Inner = (
