@@ -1,3 +1,10 @@
+## [6.25.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.2...v6.25.3) (2025-11-05)
+
+
+### Bug Fixes
+
+* **Partner:** fixing the login and logut partner issue ([8e9686b](https://github.com/Jaal-Yantra-Textiles/v2/commit/8e9686b11a78f8ba47791d0c7f8a4974c0918e13))
+
 ## [6.25.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.1...v6.25.2) (2025-11-05)
 
 
