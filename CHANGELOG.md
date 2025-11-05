@@ -1,3 +1,11 @@
+## [6.25.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.0...v6.25.1) (2025-11-05)
+
+
+### Bug Fixes
+
+* **Partner:** fixed the build ([6d91449](https://github.com/Jaal-Yantra-Textiles/v2/commit/6d914497b065e18b2510df8820b665811c15defd))
+* **2:** Fixed the prod issue with indexing engine ([bb6c675](https://github.com/Jaal-Yantra-Textiles/v2/commit/bb6c67560c70f5a8e67832391a42a1aaa93b3f66))
+
 # [6.25.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.24.0...v6.25.0) (2025-11-05)
 
 
