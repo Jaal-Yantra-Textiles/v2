@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
-import { refetchPartnerForThisAdmin } from "../helpers";
+import { getPartnerFromActorId } from "../helpers";
 import { ListInventoryOrdersQuery } from "./validators";
 import InventoryOrderPartnerLink from "../../../links/partner-inventory-order"
 
@@ -14,33 +14,37 @@ export async function GET(
 
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
         
-        // Get the authenticated partner using the same pattern as details route
-        const adminId = req.auth_context?.actor_id;
+        // Get the authenticated partner from auth context
+        // Note: actor_id can be either the partner ID (new auth) or admin ID (old auth)
+        const actorId = req.auth_context?.actor_id;
         
-        if (!adminId) {
+        if (!actorId) {
             console.error("[Inventory Orders] No actor ID in auth context");
             return res.status(401).json({
                 error: "Partner authentication required - no actor ID"
             });
         }
         
-        console.log("[Inventory Orders] Fetching partner for admin:", adminId);
-        const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope);
+        console.log("[Inventory Orders] Actor ID from auth:", actorId);
         
-        if (!partnerAdmin) {
-            console.error("[Inventory Orders] No partner found for admin:", adminId);
+        // Get partner using the helper that handles both auth flows
+        const partner = await getPartnerFromActorId(actorId, req.scope);
+        
+        if (!partner) {
+            console.error("[Inventory Orders] No partner found for actor:", actorId);
             return res.status(401).json({
-                error: "Partner authentication required - no partner found for admin"
+                error: "Partner authentication required - no partner found"
             });
         }
         
-        console.log("[Inventory Orders] Partner found:", partnerAdmin.id);
+        const partnerId = partner.id;
+        console.log("[Inventory Orders] Partner found:", partnerId);
         
         // Build filters for orders assigned to this partner
         // Note: Cannot filter on linked module properties (inventory_orders.status)
         // due to MedusaJS limitation - filters only work on link table columns
         const filters: any = {
-            partner_id: partnerAdmin.id
+            partner_id: partnerId
         };
         
         // Status filtering will be done after query, not in filters
@@ -120,7 +124,7 @@ export async function GET(
                 order_lines_count: order.orderlines?.length || 0,
                 stock_location: order.stock_locations?.[0]?.name || 'Unknown',
                 partner_info: {
-                    assigned_partner_id: linkData.partner?.id || partnerAdmin.id,
+                    assigned_partner_id: linkData.partner?.id || partnerId,
                     partner_status: partnerStatus,
                     partner_started_at: partnerStartedAt,
                     partner_completed_at: partnerCompletedAt,

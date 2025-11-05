@@ -39,3 +39,23 @@ export const refetchPartnerForThisAdmin = async (
    
     return partner[0]
 }
+
+/**
+ * Get partner from actor ID, handling both old and new auth flows
+ * - New auth: actor_id is the partner ID directly
+ * - Old auth: actor_id is the admin user ID
+ */
+export const getPartnerFromActorId = async (
+    actorId: string,
+    container: MedusaContainer,
+): Promise<any> => {
+    // Try to fetch partner by ID first (new auth flow)
+    let partner = await refetchPartner(actorId, container)
+    
+    // If not found, try to fetch by admin ID (old auth flow)
+    if (!partner) {
+        partner = await refetchPartnerForThisAdmin(actorId, container)
+    }
+    
+    return partner
+}
