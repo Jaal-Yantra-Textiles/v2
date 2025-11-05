@@ -9,20 +9,32 @@ export async function GET(
     req: AuthenticatedMedusaRequest<ListInventoryOrdersQuery>,
     res: MedusaResponse
 ) {
-   
-    const { limit = 20, offset = 0, status } = req.validatedQuery;
+    try {
+        const { limit = 20, offset = 0, status } = req.validatedQuery;
 
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
         
         // Get the authenticated partner using the same pattern as details route
-        const adminId = req.auth_context.actor_id;
+        const adminId = req.auth_context?.actor_id;
+        
+        if (!adminId) {
+            console.error("[Inventory Orders] No actor ID in auth context");
+            return res.status(401).json({
+                error: "Partner authentication required - no actor ID"
+            });
+        }
+        
+        console.log("[Inventory Orders] Fetching partner for admin:", adminId);
         const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope);
         
         if (!partnerAdmin) {
+            console.error("[Inventory Orders] No partner found for admin:", adminId);
             return res.status(401).json({
-                error: "Partner authentication required"
+                error: "Partner authentication required - no partner found for admin"
             });
         }
+        
+        console.log("[Inventory Orders] Partner found:", partnerAdmin.id);
         
         // Build filters for orders assigned to this partner
         // Note: Cannot filter on linked module properties (inventory_orders.status)
@@ -125,4 +137,11 @@ export async function GET(
             limit,
             offset
         });
+    } catch (error) {
+        console.error("[Inventory Orders] Error:", error);
+        return res.status(500).json({
+            error: "Failed to fetch inventory orders",
+            details: error instanceof Error ? error.message : String(error)
+        });
+    }
 }
