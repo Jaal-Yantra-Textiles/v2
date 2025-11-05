@@ -1,3 +1,11 @@
+# [6.24.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.23.0...v6.24.0) (2025-11-05)
+
+
+### Features
+
+* **INVO:** Inventory order has not edit option ([75d8674](https://github.com/Jaal-Yantra-Textiles/v2/commit/75d8674954980bc6e7241954ef0a7c59f7854695))
+* **Designs:** Now,we can de-link the inventory line from the designs ([7b75efd](https://github.com/Jaal-Yantra-Textiles/v2/commit/7b75efd79f7b124ae380647e709ff415daf3444b))
+
 # [6.23.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.22.0...v6.23.0) (2025-10-14)
 
 
