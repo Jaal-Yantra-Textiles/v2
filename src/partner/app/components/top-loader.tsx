@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, Suspense } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 
 /**
  * Lightweight indeterminate top loader for App Router.
  * Shows a thin animated bar at the top during route changes.
  */
-export default function TopLoader() {
+function TopLoaderInner() {
   const pathname = usePathname()
   const search = useSearchParams()
   const [visible, setVisible] = useState(false)
@@ -43,5 +43,13 @@ export default function TopLoader() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function TopLoader() {
+  return (
+    <Suspense fallback={null}>
+      <TopLoaderInner />
+    </Suspense>
   )
 }
