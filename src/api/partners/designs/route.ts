@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { refetchPartnerForThisAdmin } from "../helpers"
+import { getPartnerFromActorId } from "../helpers"
 import { ListDesignsQuery } from "./validators"
 import designPartnersLink from "../../../links/design-partners-link"
 
@@ -13,10 +13,14 @@ export async function GET(
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
   // Authenticated partner
-  const adminId = req.auth_context.actor_id
-  const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope)
+  const actorId = req.auth_context?.actor_id
+  if (!actorId) {
+    return res.status(401).json({ error: "Partner authentication required - no actor ID" })
+  }
+  
+  const partnerAdmin = await getPartnerFromActorId(actorId, req.scope)
   if (!partnerAdmin) {
-    return res.status(401).json({ error: "Partner authentication required" })
+    return res.status(401).json({ error: "Partner authentication required - no partner found" })
   }
 
   // Filters: cannot filter on linked design properties; filter post-query if needed

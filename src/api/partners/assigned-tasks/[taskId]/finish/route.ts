@@ -4,7 +4,7 @@ import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";
 import { setStepSuccessWorkflow } from "../../../../../workflows/tasks/task-engine/task-steps";
 import { Status } from "../../../../../workflows/tasks/create-task";
 import PartnerTaskLink from "../../../../../links/partner-task";
-import { refetchPartnerForThisAdmin } from "../../../helpers";
+import { getPartnerFromActorId } from "../../../helpers";
 import { TASKS_MODULE } from "../../../../../modules/tasks";
 import TaskService from "../../../../../modules/tasks/service";
 
@@ -18,17 +18,17 @@ export async function POST(
     res: MedusaResponse
 ) {
     const taskId = req.params.taskId;
-    const adminId = req.auth_context?.actor_id;
+    const actorId = req.auth_context?.actor_id;
     
-    if (!adminId) {
+    if (!actorId) {
         return res.status(401).json({ 
             message: "Partner authentication required" 
         });
     }
 
     try {
-        // Fetch the partner associated with this admin
-        const partner = await refetchPartnerForThisAdmin(adminId, req.scope);
+        // Fetch the partner using the helper that handles both auth flows
+        const partner = await getPartnerFromActorId(actorId, req.scope);
         
         if (!partner) {
             throw new MedusaError(
@@ -37,7 +37,7 @@ export async function POST(
             );
         }
 
-        console.log("Finish task - Partner ID:", partner.id, "Admin ID:", adminId, "Task ID:", taskId);
+        console.log("Finish task - Partner ID:", partner.id, "Actor ID:", actorId, "Task ID:", taskId);
 
         // Verify the task is assigned to this partner
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
