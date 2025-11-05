@@ -1,3 +1,10 @@
+## [6.25.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.1...v6.25.2) (2025-11-05)
+
+
+### Bug Fixes
+
+* **Partner:** Fixed cookies ([7a86cde](https://github.com/Jaal-Yantra-Textiles/v2/commit/7a86cdea2a5603cf98d50ec35ad8d1caca2f6b91))
+
 ## [6.25.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.0...v6.25.1) (2025-11-05)
 
 
