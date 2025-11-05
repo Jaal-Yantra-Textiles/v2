@@ -828,3 +828,179 @@ export async function partnerAttachDesignMediaDirect(
 ) {
   return partnerAttachDesignMedia(designId, { media_files, metadata })
 }
+
+// ============ TASKS ============
+
+export type PartnerTask = {
+  id: string
+  title: string
+  description?: string
+  priority: string
+  status: string
+  end_date?: string | Date
+  start_date?: string | Date
+  metadata?: Record<string, unknown>
+  created_at: string | Date
+  updated_at: string | Date
+}
+
+export async function getPartnerTasks() {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/assigned-tasks`, {
+    method: "GET",
+    headers: { 
+      "Content-Type": "application/json", 
+      Authorization: `Bearer ${token}` 
+    },
+    cache: "no-store",
+  })
+  
+  await enforceAuthOrRedirect(res)
+  
+  if (!res.ok) {
+    console.error("Failed to fetch partner tasks:", await res.text())
+    return { tasks: [] as PartnerTask[], count: 0 }
+  }
+  
+  const json = await res.json()
+  return { 
+    tasks: (json?.tasks || []) as PartnerTask[], 
+    count: json?.count || 0 
+  }
+}
+
+export async function acceptTask(taskId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/assigned-tasks/${taskId}/accept`, {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json", 
+      Authorization: `Bearer ${token}` 
+    },
+    cache: "no-store",
+  })
+  
+  await enforceAuthOrRedirect(res)
+  
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to accept task")
+  }
+  
+  revalidatePath("/dashboard/tasks")
+  return await res.json()
+}
+
+export async function finishTask(taskId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/assigned-tasks/${taskId}/finish`, {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json", 
+      Authorization: `Bearer ${token}` 
+    },
+    cache: "no-store",
+  })
+  
+  await enforceAuthOrRedirect(res)
+  
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to finish task")
+  }
+  
+  revalidatePath("/dashboard/tasks")
+  return await res.json()
+}
+
+export type TaskComment = {
+  id: string
+  comment: string
+  author_type: "partner" | "admin"
+  author_id: string
+  author_name: string
+  created_at: string
+}
+
+export async function getTaskComments(taskId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/assigned-tasks/${taskId}/comments`, {
+    method: "GET",
+    headers: { 
+      "Content-Type": "application/json", 
+      Authorization: `Bearer ${token}` 
+    },
+    cache: "no-store",
+  })
+  
+  await enforceAuthOrRedirect(res)
+  
+  if (!res.ok) {
+    console.error("Failed to fetch task comments:", await res.text())
+    return { comments: [] as TaskComment[], count: 0 }
+  }
+  
+  const json = await res.json()
+  return { 
+    comments: (json?.comments || []) as TaskComment[], 
+    count: json?.count || 0 
+  }
+}
+
+export async function addTaskComment(taskId: string, comment: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/assigned-tasks/${taskId}/comments`, {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json", 
+      Authorization: `Bearer ${token}` 
+    },
+    body: JSON.stringify({ comment }),
+    cache: "no-store",
+  })
+  
+  await enforceAuthOrRedirect(res)
+  
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to add comment")
+  }
+  
+  revalidatePath("/dashboard/tasks")
+  return await res.json()
+}

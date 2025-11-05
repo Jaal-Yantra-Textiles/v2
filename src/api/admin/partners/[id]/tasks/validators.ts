@@ -9,7 +9,7 @@ export const AdminCreatePartnerTaskReq = z.object({
     description: z.string().optional(),
     status: z.nativeEnum(Status).optional(),
     priority: z.nativeEnum(PriorityLevel).optional(),
-    due_date: z.string().or(z.date()).optional(),
+    end_date: z.string().or(z.date()).optional(),
     start_date: z.string().or(z.date()).optional(),
     template_names: z.array(z.string()).optional(),
     eventable: z.boolean().optional(),

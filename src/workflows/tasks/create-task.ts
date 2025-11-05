@@ -37,7 +37,7 @@ type CreateTaskStepInput = {
   description?: string;
   status?: Status;
   priority?: PriorityLevel;
-  due_date?: Date;
+  end_date?: Date;
   start_date?: Date;
   assignee_id?: string;
   template_names?: string[];  // Optional template names to create task from

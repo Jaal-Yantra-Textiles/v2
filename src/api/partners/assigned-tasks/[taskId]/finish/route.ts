@@ -1,9 +1,12 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";
 import { setStepSuccessWorkflow } from "../../../../../workflows/tasks/task-engine/task-steps";
 import { Status } from "../../../../../workflows/tasks/create-task";
 import PartnerTaskLink from "../../../../../links/partner-task";
+import { refetchPartnerForThisAdmin } from "../../../helpers";
+import { TASKS_MODULE } from "../../../../../modules/tasks";
+import TaskService from "../../../../../modules/tasks/service";
 
 /**
  * POST /partners/assigned-tasks/[taskId]/finish
@@ -15,22 +18,34 @@ export async function POST(
     res: MedusaResponse
 ) {
     const taskId = req.params.taskId;
-    const partnerId = req.auth_context?.actor_id;
+    const adminId = req.auth_context?.actor_id;
     
-    if (!partnerId) {
+    if (!adminId) {
         return res.status(401).json({ 
             message: "Partner authentication required" 
         });
     }
 
     try {
+        // Fetch the partner associated with this admin
+        const partner = await refetchPartnerForThisAdmin(adminId, req.scope);
+        
+        if (!partner) {
+            throw new MedusaError(
+                MedusaError.Types.UNAUTHORIZED, 
+                "No partner associated with this admin"
+            );
+        }
+
+        console.log("Finish task - Partner ID:", partner.id, "Admin ID:", adminId, "Task ID:", taskId);
+
         // Verify the task is assigned to this partner
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
         const { data: taskData } = await query.index({
             entity: 'task',
             fields: ["*","partners.*"],
             filters: {
-               partners: {id: partnerId},
+               partners: {id: partner.id},
                id: taskId
             }
         });
@@ -41,7 +56,36 @@ export async function POST(
             });
         }
 
-        // Update task status to completed
+        const task = taskData[0];
+
+        // Get existing metadata and update all steps to completed
+        const metadata = ((task as any).metadata || {}) as Record<string, any>;
+        const workflowConfig = metadata.workflow_config || {};
+        const steps = workflowConfig.steps || [];
+
+        // Mark all steps as completed
+        if (steps.length > 0) {
+            const updatedSteps = steps.map((step: any) => ({
+                ...step,
+                status: "completed"
+            }));
+
+            workflowConfig.steps = updatedSteps;
+            metadata.workflow_config = workflowConfig;
+
+            console.log(`Marking ${steps.length} steps as completed`);
+        }
+
+        // Update task status to completed and update steps
+        const taskService = req.scope.resolve<TaskService>(TASKS_MODULE);
+        await taskService.updateTasks({
+            id: taskId,
+            status: "completed" as any,
+            metadata: metadata,
+            completed_at: new Date()
+        });
+
+        // Fetch updated task
         const { result, errors } = await updateTaskWorkflow(req.scope).run({
             input: {
                 id: taskId,

@@ -9,6 +9,7 @@ import {
 } from "@medusajs/ui"
 import {
   ArrowUturnLeft,
+  CheckCircleSolid,
   CogSixTooth,
   CurrencyDollar,
   EllipsisHorizontal,
@@ -27,6 +28,11 @@ import { useSettingsRoutes, useIsSettingsRoute } from "./use-settings-routes"
 
 const useCoreRoutes = (): Omit<NavItemProps, "pathname">[] => {
   return [
+    {
+      icon: <CheckCircleSolid />,
+      label: "Tasks",
+      to: "/dashboard/tasks",
+    },
     {
       icon: <ShoppingCart />,
       label: "Orders",

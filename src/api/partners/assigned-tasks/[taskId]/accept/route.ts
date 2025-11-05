@@ -1,9 +1,10 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";
 import { setStepSuccessWorkflow } from "../../../../../workflows/tasks/task-engine/task-steps";
 import { Status } from "../../../../../workflows/tasks/create-task";
 import PartnerTaskLink from "../../../../../links/partner-task";
+import { refetchPartnerForThisAdmin } from "../../../helpers";
 
 /**
  * POST /partners/assigned-tasks/[taskId]/accept
@@ -14,16 +15,26 @@ export async function POST(
     res: MedusaResponse
 ) {
     const taskId = req.params.taskId;
-    const partnerId = req.auth_context?.actor_id;
+    const adminId = req.auth_context?.actor_id;
     
-    if (!partnerId) {
+    if (!adminId) {
         return res.status(401).json({ 
             message: "Partner authentication required" 
         });
     }
 
     try {
-        console.log("Accept task - Partner ID:", partnerId, "Task ID:", taskId);
+        // Fetch the partner associated with this admin
+        const partner = await refetchPartnerForThisAdmin(adminId, req.scope);
+        
+        if (!partner) {
+            throw new MedusaError(
+                MedusaError.Types.UNAUTHORIZED, 
+                "No partner associated with this admin"
+            );
+        }
+
+        console.log("Accept task - Partner ID:", partner.id, "Admin ID:", adminId, "Task ID:", taskId);
         
         // Verify the task is assigned to this partner
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
@@ -31,7 +42,7 @@ export async function POST(
             entity: 'task',
             fields: ["*","partners.*"],
             filters: {
-               partners: { id: partnerId },
+               partners: { id: partner.id },
                id: taskId
             }
         });

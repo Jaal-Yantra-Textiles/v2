@@ -283,6 +283,21 @@ export default defineMiddlewares({
     },
 
     {
+      matcher: "/partners/assigned-tasks/:taskId/comments",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/assigned-tasks/:taskId/comments",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+
+    {
       matcher: "/partners/stores",
       method: "POST",
       middlewares: [

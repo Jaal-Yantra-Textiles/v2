@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import PartnerTaskLink from "../../../links/partner-task";
+import { refetchPartnerForThisAdmin } from "../helpers";
 
 /**
  * GET /partners/assigned-tasks
@@ -13,24 +14,34 @@ export async function GET(
 ) {
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
     
-    // Get partner ID from authenticated user
-    const partnerId = req.auth_context?.actor_id;
+    // Get admin ID from authenticated user
+    const adminId = req.auth_context?.actor_id;
     
-    if (!partnerId) {
+    if (!adminId) {
         return res.status(401).json({ 
             message: "Partner authentication required" 
         });
     }
 
     try {
-        console.log("Fetching tasks for partner:", partnerId);
+        // Fetch the partner associated with this admin
+        const partner = await refetchPartnerForThisAdmin(adminId, req.scope);
+        
+        if (!partner) {
+            throw new MedusaError(
+                MedusaError.Types.UNAUTHORIZED, 
+                "No partner associated with this admin"
+            );
+        }
+
+        console.log("Fetching tasks for partner:", partner.id, "via admin:", adminId);
         
         // Query all tasks linked to this partner
         const { data: partnerData } = await query.index({
             entity: 'partner',
             fields: [ '*','tasks.*'],
             filters: {
-                id: partnerId
+                id: partner.id
             }
         });
 

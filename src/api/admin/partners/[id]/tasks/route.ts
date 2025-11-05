@@ -58,10 +58,10 @@ export const POST = async (req: MedusaRequest<AdminCreatePartnerTaskReq>, res: M
                 description: req.validatedBody.description,
                 status: req.validatedBody.status,
                 priority: req.validatedBody.priority,
-                due_date: req.validatedBody.due_date 
-                    ? (typeof req.validatedBody.due_date === 'string' 
-                        ? new Date(req.validatedBody.due_date) 
-                        : req.validatedBody.due_date)
+                end_date: req.validatedBody.end_date 
+                    ? (typeof req.validatedBody.end_date === 'string' 
+                        ? new Date(req.validatedBody.end_date) 
+                        : req.validatedBody.end_date)
                     : undefined,
                 start_date: req.validatedBody.start_date 
                     ? (typeof req.validatedBody.start_date === 'string' 
