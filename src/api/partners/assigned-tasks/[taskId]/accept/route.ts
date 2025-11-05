@@ -23,17 +23,21 @@ export async function POST(
     }
 
     try {
+        console.log("Accept task - Partner ID:", partnerId, "Task ID:", taskId);
+        
         // Verify the task is assigned to this partner
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
         const { data: partnerTaskLinks } = await query.index({
             entity: 'task',
-            fields: ["partner.*"],
+            fields: ["*","partners.*"],
             filters: {
-               partner_id: partnerId,
+               partners: { id: partnerId },
                id: taskId
             }
         });
-
+        console.log("Partner task links found:", partnerTaskLinks?.length || 0);
+        console.log("Partner task links data:", JSON.stringify(partnerTaskLinks, null, 2));
+        
         if (!partnerTaskLinks || partnerTaskLinks.length === 0) {
             return res.status(403).json({ 
                 message: "Task not assigned to this partner or does not exist" 
@@ -57,6 +61,8 @@ export async function POST(
 
         /**
          * Signal the workflow step for task acceptance
+         * This will only succeed if there's an active workflow waiting
+         * If no workflow exists, it will fail silently (caught error)
          */
         await setStepSuccessWorkflow(req.scope).run({
             input: {
@@ -64,8 +70,9 @@ export async function POST(
                 updatedTask: result[0]
             }
         }).catch((error) => {
-            console.error("Error signaling workflow step:", error);
+            console.log("No active workflow to signal (this is OK for standalone tasks):", error.message);
             // Don't throw - task is already updated
+            // This is expected for standalone tasks without workflows
         });
 
         res.status(200).json({ 

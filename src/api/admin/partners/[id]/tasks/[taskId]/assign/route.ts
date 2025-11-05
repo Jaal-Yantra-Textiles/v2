@@ -27,7 +27,7 @@ export const POST = async (req: MedusaRequest<AdminPostPartnerTaskAssignReq>, re
         "task",
         taskId,
         req.scope,
-        ["*", 'partner.*']
+        ["*", 'partners.*']
     );
 
     // Run the assignment workflow (notify partner, await acceptance, await completion)

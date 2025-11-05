@@ -28,9 +28,9 @@ export async function GET(
         // Query all tasks linked to this partner
         const { data: partnerData } = await query.index({
             entity: 'partner',
-            fields: [ 'tasks.*'],
+            fields: [ '*','tasks.*'],
             filters: {
-                id: partnerId    
+                id: partnerId
             }
         });
 

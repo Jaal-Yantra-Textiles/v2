@@ -62,7 +62,7 @@ setupSharedTestSuite(() => {
       Authorization: `Bearer ${authResponse.data.token}`,
     }
 
-    // Create a partner with the authenticated admin
+    // Create a partner with the authenticated user
     const partnerResponse = await api.post(
       "/partners",
       {
@@ -77,9 +77,13 @@ setupSharedTestSuite(() => {
       { headers: partnerHeaders }
     )
 
+    // IMPORTANT: Use the partner ID from the response
+    // This is the actual partner entity that was created
     partnerId = partnerResponse.data.partner.id
+    console.log("Created partner with ID:", partnerId)
 
     // Get fresh token after partner creation
+    // The auth context should now be linked to this partner
     const newAuthResponse = await api.post("/auth/partner/emailpass", {
       email: TEST_PARTNER_EMAIL,
       password: TEST_PARTNER_PASSWORD,
@@ -89,6 +93,8 @@ setupSharedTestSuite(() => {
     partnerHeaders = {
       Authorization: `Bearer ${newAuthResponse.data.token}`,
     }
+    
+    console.log("Partner auth setup complete. Partner ID:", partnerId)
   })
 
   describe("Partner Task Assignment Flow", () => {
@@ -128,6 +134,7 @@ setupSharedTestSuite(() => {
         "/partners/assigned-tasks",
         { headers: partnerHeaders }
       )
+      console.log("Partner list response:", partnerListResponse.data)
       expect(partnerListResponse.status).toBe(200)
       expect(partnerListResponse.data.tasks).toBeDefined()
       expect(partnerListResponse.data.tasks.length).toBeGreaterThanOrEqual(testTasks.length)
@@ -309,8 +316,8 @@ setupSharedTestSuite(() => {
         Authorization: `Bearer ${newWorkflowAuthResponse.data.token}`,
       }
 
-      // 1. Create a task and assign it to partner (this triggers the workflow)
-      console.log("\n1. Creating and assigning task to partner...")
+      // 1. Create a task (without workflow)
+      console.log("\n1. Creating task...")
       const taskResponse = await api.post(
         `/admin/partners/${workflowPartnerId}/tasks`,
         {
@@ -324,10 +331,22 @@ setupSharedTestSuite(() => {
       expect(taskResponse.status).toBe(200)
       expect(taskResponse.data.task).toBeDefined()
       const taskId = taskResponse.data.task.id
-      console.log("Task created and assigned:", taskId)
+      console.log("Task created:", taskId)
 
-      // 2. Partner accepts the task
-      console.log("\n2. Partner accepting task...")
+      // 2. Assign the task to trigger the workflow
+      console.log("\n2. Assigning task to partner (triggers workflow)...")
+      const assignResponse = await api.post(
+        `/admin/partners/${workflowPartnerId}/tasks/${taskId}/assign`,
+        {},
+        adminHeaders
+      )
+
+      expect(assignResponse.status).toBe(200)
+      expect(assignResponse.data.task).toBeDefined()
+      console.log("Task assigned with workflow")
+
+      // 3. Partner accepts the task
+      console.log("\n3. Partner accepting task...")
       const acceptResponse = await api.post(
         `/partners/assigned-tasks/${taskId}/accept`,
         {},
@@ -339,8 +358,8 @@ setupSharedTestSuite(() => {
       expect(acceptResponse.data.task.status).toBe("accepted")
       console.log("Task accepted successfully")
 
-      // 3. Partner completes the task
-      console.log("\n3. Partner completing task...")
+      // 4. Partner completes the task
+      console.log("\n4. Partner completing task...")
       const finishResponse = await api.post(
         `/partners/assigned-tasks/${taskId}/finish`,
         {},
