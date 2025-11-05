@@ -1,3 +1,15 @@
+# [6.25.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.24.0...v6.25.0) (2025-11-05)
+
+
+### Bug Fixes
+
+* **Package:** date-fns ([c56d045](https://github.com/Jaal-Yantra-Textiles/v2/commit/c56d045376eaca039089cf50518300ac0f44a2ec))
+
+
+### Features
+
+* **Partner:** Now can see the tasks ([6e52ee7](https://github.com/Jaal-Yantra-Textiles/v2/commit/6e52ee7d92c279d93e9112aac10cd24629dd0229))
+
 # [6.24.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.23.0...v6.24.0) (2025-11-05)
 
 
