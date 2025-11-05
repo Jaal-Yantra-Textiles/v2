@@ -4,14 +4,12 @@ import { clearAuthCookie, getAuthCookie } from "../../lib/auth-cookie";
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 
-// Global helper: if backend returns 401/403, clear cookie and redirect to login
+// Global helper: if backend returns 401/403, redirect to login
+// Note: We don't clear the cookie here because this function is called during
+// page rendering, and cookies can only be modified in Server Actions or Route Handlers.
+// The auth-layer component will handle clearing the cookie on the client side.
 async function enforceAuthOrRedirect(res: Response) {
   if (res.status === 401 || res.status === 403) {
-    try {
-      await clearAuthCookie();
-    } catch (e) {
-      throw e;
-    }
     redirect("/login");
   }
 }
