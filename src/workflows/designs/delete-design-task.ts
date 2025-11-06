@@ -21,12 +21,12 @@ const validateTaskStep = createStep(
   async (input: DeleteDesignTaskInput, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
 
-    const taskExists = await refetchEntity(
-      "task",
-      input.taskId,
-      container,
-      ["id"]
-    )
+    const taskExists = await refetchEntity({
+      entity: "task",
+      idOrFilter: input.taskId,
+      scope: container,
+      fields: ["id"]
+    })
 
     if (!taskExists) {
       throw new MedusaError(

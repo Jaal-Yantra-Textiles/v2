@@ -30,11 +30,14 @@ export const sendAgreementEmailWorkflow = createWorkflow(
       person_id: input.person_id,
     });
 
+    // Extract email to avoid type depth issues
+    const personEmail = transform({ person }, (data: any) => data.person.email as string);
+
     // Step 2: Create agreement response record for primary signer
     const agreementResponse = createAgreementResponseStep({
-      agreement_id: transform({ input }, (data) => data.input.agreement_id),
+      agreement_id: transform({ input }, (data: any) => data.input.agreement_id),
       person_id: input.person_id,
-      email_sent_to: transform({ person }, (data) => data.person.email as string), // We validated email exists in fetchAgreementDataStep
+      email_sent_to: personEmail, // We validated email exists in fetchAgreementDataStep
     });
 
     // Step 3: Create person-agreement module link for primary signer
@@ -43,15 +46,20 @@ export const sendAgreementEmailWorkflow = createWorkflow(
       agreement_id: input.agreement_id,
     });
 
+    // Extract agreement response ID to avoid type depth issues
+    const agreementResponseId = transform({ agreementResponse }, (data: any) => (data as any).agreementResponse.id);
+    const agreementResponseAccessToken = transform({ agreementResponse }, (data: any) => (data as any).agreementResponse.access_token);
+
     // Step 4: Create person-agreement response module link for primary signer
     const personAgreementResponseLink = linkPersonWithAgreementResponseStep({
       person_id: input.person_id,
-      agreement_response_id: transform({ agreementResponse }, (data) => data.agreementResponse.id),
+      agreement_response_id: agreementResponseId,
     });
 
     // Step 5: Send the email using our email template system to primary signer
     const emailResult = sendNotificationEmailWorkflow.runAsStep({
-      input: transform({ agreement, person, agreementResponse, input }, (data) => {
+      // @ts-ignore - Complex workflow types cause excessive stack depth error
+      input: transform({ agreement, person, input, responseId: agreementResponseId, responseToken: agreementResponseAccessToken }, (data: any) => {
         const templateKey = data.input.template_key || data.agreement.template_key || "agreement-email";
         
         logger.info('Agreement Email Transform - Input data: ' + JSON.stringify({
@@ -80,8 +88,8 @@ export const sendAgreementEmailWorkflow = createWorkflow(
             person_id: data.person.id,
             
             // Response tracking data
-            response_id: data.agreementResponse.id,
-            agreement_url: `${process.env.FRONTEND_URL || 'https://jaalyantra.com'}/agreement/${data.agreementResponse.id}?token=${data.agreementResponse.access_token}`,
+            response_id: data.responseId,
+            agreement_url: `${process.env.FRONTEND_URL || 'https://jaalyantra.com'}/agreement/${data.responseId}?token=${data.responseToken}`,
             
             // Additional template data
             website_url: process.env.FRONTEND_URL || 'https://jaalyantra.com',

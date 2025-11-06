@@ -9,12 +9,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id, taskId } = req.params
   
   // Validate inventory order exists
-  const inventoryOrderExists = await refetchEntity(
-    "inventory_orders",
-    id,
-    req.scope,
-    ["id"]
-  )
+  const inventoryOrderExists = await refetchEntity({
+    entity: "inventory_orders",
+    idOrFilter: id,
+    scope: req.scope,
+    fields: ["id"]
+  })
   
 
   if (!inventoryOrderExists) {
@@ -41,12 +41,12 @@ export const POST = async (req: MedusaRequest<UpdateInventoryOrderTask>, res: Me
   const { id, taskId } = req.params
   
   // Validate inventory order exists
-  const inventoryOrderExists = await refetchEntity(
-    "inventory_orders",
-    id,
-    req.scope,
-    ["id"]
-  )
+  const inventoryOrderExists = await refetchEntity({
+    entity: "inventory_orders",
+    idOrFilter: id,
+    scope: req.scope,
+    fields: ["id"]
+  })
 
   if (!inventoryOrderExists) {
     throw new MedusaError(
@@ -72,12 +72,12 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id, taskId } = req.params
   
   // Validate inventory order exists
-  const inventoryOrderExists = await refetchEntity(
-    "inventory_orders",
-    id,
-    req.scope,
-    ["id"]
-  )
+  const inventoryOrderExists = await refetchEntity({
+    entity: "inventory_orders",
+    idOrFilter: id,
+    scope: req.scope,
+    fields: ["id"]
+  })
 
   if (!inventoryOrderExists) {
     throw new MedusaError(

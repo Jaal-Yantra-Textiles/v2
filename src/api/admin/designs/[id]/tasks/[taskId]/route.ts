@@ -9,12 +9,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id, taskId } = req.params
   
   // Validate design exists
-  const designExists = await refetchEntity(
-    "design",
-    id,
-    req.scope,
-    ["id"]
-  )
+  const designExists = await refetchEntity({
+    entity: "design",
+    idOrFilter: id,
+    scope: req.scope,
+    fields: ["id"]
+  })
   
 
   if (!designExists) {
@@ -41,12 +41,12 @@ export const POST = async (req: MedusaRequest<UpdateDesignTask>, res: MedusaResp
   const { id, taskId } = req.params
   
   // Validate design exists
-  const designExists = await refetchEntity(
-    "design",
-    id,
-    req.scope,
-    ["id"]
-  )
+  const designExists = await refetchEntity({
+    entity: "design",
+    idOrFilter: id,
+    scope: req.scope,
+    fields: ["id"]
+  })
 
   if (!designExists) {
     throw new MedusaError(
@@ -72,12 +72,12 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id, taskId } = req.params
   
   // Validate design exists
-  const designExists = await refetchEntity(
-    "design",
-    id,
-    req.scope,
-    ["id"]
-  )
+  const designExists = await refetchEntity({
+    entity: "design",
+    idOrFilter: id,
+    scope: req.scope,
+    fields: ["id"]
+  })
 
   if (!designExists) {
     throw new MedusaError(

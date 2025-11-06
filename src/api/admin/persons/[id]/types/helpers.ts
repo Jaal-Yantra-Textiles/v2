@@ -9,12 +9,12 @@ export const refetchPersonType = async (
   const ids = Array.isArray(personTypeId) ? personTypeId : [personTypeId];
 
   for (const id of ids) {
-    const exists = await refetchEntity(
-      "person_type",
-      id,
-      container,
-      ["id"]
-    );
+    const exists = await refetchEntity({
+      entity: "person_type",
+      idOrFilter: id,
+      scope: container,
+      fields: ["id"]
+    });
 
     if (!exists) {
       throw new MedusaError(

@@ -10,12 +10,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
 
   // Validate design exists
-  const designExists = await refetchEntity(
-    "design",
-    id,
-    req.scope,
-    ["id"]
-  )
+  const designExists = await refetchEntity({
+    entity: "design",
+    idOrFilter: id,
+    scope: req.scope,
+    fields: ["id"]
+  })
 
   if (!designExists) {
     throw new MedusaError(
@@ -40,12 +40,12 @@ export const POST = async (req: MedusaRequest<AdminPostDesignTasksReqType>, res:
   const { id } = req.params
   
   // Validate design exists
-  const designExists = await refetchEntity(
-    "design",
-    id,
-    req.scope,
-    ["id"],
-  )
+  const designExists = await refetchEntity({
+    entity: "design",
+    idOrFilter: id,
+    scope: req.scope,
+    fields: ["id"]
+  })
 
   if (!designExists) {
     throw new MedusaError(

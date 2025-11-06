@@ -26,7 +26,13 @@ export const createAgreementResponseStep = createStep(
       access_token: accessToken,
     });
 
-    return new StepResponse(agreementResponse, agreementResponse.id);
+    return new StepResponse({
+      id: agreementResponse.id,
+      access_token: agreementResponse.access_token,
+      agreement_id: agreementResponse.agreement_id,
+      email_sent_to: agreementResponse.email_sent_to,
+      status: agreementResponse.status,
+    } as any, agreementResponse.id);
   },
   async (agreementResponseId: string, { container }) => {
     // Rollback: delete the created agreement response

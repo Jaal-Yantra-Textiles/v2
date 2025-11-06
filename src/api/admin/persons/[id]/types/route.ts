@@ -8,12 +8,12 @@ export const POST = async(req: MedusaRequest, res: MedusaResponse) => {
     const { id } = req.params
 
     // Validate person exists
-    const personExist = await refetchEntity(
-        "person",
-        id,
-        req.scope,
-        ["id"]
-    )
+    const personExist = await refetchEntity({
+        entity: "person",
+        idOrFilter: id,
+        scope: req.scope,
+        fields: ["id"]
+    })
 
     if (!personExist) { 
         throw new MedusaError(

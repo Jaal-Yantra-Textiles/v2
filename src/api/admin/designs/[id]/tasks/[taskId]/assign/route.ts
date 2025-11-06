@@ -14,12 +14,12 @@ export const POST = async (req: MedusaRequest<AdminPostDesignTaskAssignReq>, res
         
     })
 
-    const task = await refetchEntity(
-        "task",
-        req.validatedBody.taskId,
-        req.scope,
-        ["*", 'partner.*']
-      )
+    const task = await refetchEntity({
+        entity: "task",
+        idOrFilter: req.validatedBody.taskId,
+        scope: req.scope,
+        fields: ["*", 'partner.*']
+      })
 
     const { transaction } = await runTaskAssignmentWorkflow(req.scope).run({
         input: {

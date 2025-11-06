@@ -30,12 +30,12 @@ export const POST = async (
   res: MedusaResponse,
 ) => {
   const {  ...update } = req.validatedBody
-  const existingPerson = await refetchEntity(
-    "person",
-    req.params.id,
-    req.scope,
-    ["id"]
-  )
+  const existingPerson = await refetchEntity({
+    entity: "person",
+    idOrFilter: req.params.id,
+    scope: req.scope,
+    fields: ["id"]
+  })
 
   /**
    * Check if the person exists with the id or not before calling the workflow.

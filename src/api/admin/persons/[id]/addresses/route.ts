@@ -12,12 +12,12 @@ export const POST = async (
   
   const personId = req.params.id;
   // Check if the person exists in the personID or is validPersonId
-  const existingPerson = await refetchEntity(
-    "person",
-    personId,
-    req.scope,
-    ["id"]
-  );
+  const existingPerson = await refetchEntity({
+    entity: "person",
+    idOrFilter: personId,
+    scope: req.scope,
+    fields: ["id"]
+  });
   
   if (!existingPerson) {
     throw new MedusaError(

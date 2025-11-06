@@ -34,7 +34,12 @@ export const fetchAgreementDataStep = createStep(
 
     return new StepResponse({
       agreement,
-      person,
+      person: {
+        id: person.id,
+        email: person.email,
+        first_name: person.first_name,
+        last_name: person.last_name,
+      } as any,
     });
   }
 );

@@ -23,12 +23,12 @@ export const POST = async (req: MedusaRequest<AdminPostPartnerTaskAssignReq>, re
     });
 
     // Refetch the task with partner data
-    const task = await refetchEntity(
-        "task",
-        taskId,
-        req.scope,
-        ["*", 'partners.*']
-    );
+    const task = await refetchEntity({
+        entity: "task",
+        idOrFilter: taskId,
+        scope: req.scope,
+        fields: ["*", 'partners.*']
+    });
 
     // Run the assignment workflow (notify partner, await acceptance, await completion)
     const { transaction } = await runTaskAssignmentWorkflow(req.scope).run({
