@@ -4,6 +4,7 @@ import TwitterService from "./twitter-service"
 import InstagramService from "./instagram-service"
 import FacebookService from "./facebook-service"
 import LinkedInService from "./linkedin-service"
+import ContentPublishingService from "./content-publishing-service"
 import { OAuth2Token } from "./types"
 
 
@@ -19,7 +20,7 @@ export interface BaseSocialProviderService {
  * Similar in spirit to custom-s3-provider/service.ts
  */
 class SocialProviderService extends MedusaService({}) {
-  private cache_: Record<string, BaseSocialProviderService> = {}
+  private cache_: Record<string, BaseSocialProviderService | ContentPublishingService> = {}
 
   getProvider<T = BaseSocialProviderService>(name: string): T {
     const key = name.toLowerCase()
@@ -37,11 +38,21 @@ class SocialProviderService extends MedusaService({}) {
         case "linkedin":
           this.cache_[key] = new LinkedInService()
           break
+        case "content-publishing":
+          this.cache_[key] = new ContentPublishingService()
+          break
         default:
           throw new Error(`Unsupported provider: ${name}`)
       }
     }
     return this.cache_[key] as unknown as T
+  }
+
+  /**
+   * Get the unified content publishing service
+   */
+  getContentPublisher(): ContentPublishingService {
+    return this.getProvider<ContentPublishingService>("content-publishing")
   }
 
   /* Convenience wrappers removed; callers use provider directly */
