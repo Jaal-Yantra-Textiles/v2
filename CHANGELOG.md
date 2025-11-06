@@ -1,3 +1,10 @@
+## [6.25.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.5...v6.25.6) (2025-11-06)
+
+
+### Bug Fixes
+
+* **Package:** Orm fix package removed ([cd0ec1e](https://github.com/Jaal-Yantra-Textiles/v2/commit/cd0ec1e1cf644ffeccf33ee0691175aa3773fbf0))
+
 ## [6.25.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.4...v6.25.5) (2025-11-06)
 
 
