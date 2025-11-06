@@ -1,3 +1,10 @@
+## [6.25.8](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.7...v6.25.8) (2025-11-06)
+
+
+### Bug Fixes
+
+* **Partner:** Fixing the partner tasks UI and API ([386f622](https://github.com/Jaal-Yantra-Textiles/v2/commit/386f622c57df1d3a70a7aa8f223981c41092e59f))
+
 ## [6.25.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.6...v6.25.7) (2025-11-06)
 
 
