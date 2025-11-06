@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import PartnerTaskLink from "../../../../../links/partner-task";
 import { createTaskWorkflow } from "../../../../../workflows/tasks/create-task";
 import { createTaskAssignmentWorkflow } from "../../../../../workflows/tasks/create-task-assignment";
@@ -48,7 +48,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  */
 export const POST = async (req: MedusaRequest<AdminCreatePartnerTaskReq>, res: MedusaResponse) => {
     const partnerId = req.params.id;
-    console.log("Creating task for partner:", partnerId);
 
     try {
         // Create the task (without assignee_id since we'll link it separately)
@@ -67,12 +66,26 @@ export const POST = async (req: MedusaRequest<AdminCreatePartnerTaskReq>, res: M
                     ? (typeof req.validatedBody.start_date === 'string' 
                         ? new Date(req.validatedBody.start_date) 
                         : req.validatedBody.start_date)
-                    : undefined,
+                    : new Date(), // Default to today if not provided
                 template_names: req.validatedBody.template_names,
                 eventable: req.validatedBody.eventable,
                 notifiable: req.validatedBody.notifiable,
                 message: req.validatedBody.message,
                 metadata: req.validatedBody.metadata,
+                child_tasks: req.validatedBody.child_tasks?.map((childTask: any) => ({
+                    ...childTask,
+                    start_date: childTask.start_date 
+                        ? (typeof childTask.start_date === 'string' 
+                            ? new Date(childTask.start_date) 
+                            : childTask.start_date)
+                        : new Date(), // Default to today if not provided
+                    end_date: childTask.end_date 
+                        ? (typeof childTask.end_date === 'string' 
+                            ? new Date(childTask.end_date) 
+                            : childTask.end_date)
+                        : undefined,
+                })),
+                dependency_type: req.validatedBody.dependency_type,
             }
         });
 
@@ -80,22 +93,29 @@ export const POST = async (req: MedusaRequest<AdminCreatePartnerTaskReq>, res: M
         const task = result.withoutTemplates || result.withTemplates || result.withParent;
 
         if (!task) {
-            throw new Error("Failed to create task");
+            throw new MedusaError(
+                MedusaError.Types.INVALID_DATA,
+                "Failed to create task"
+            );
         }
 
         // Get the task ID based on the result structure
         let taskId: string;
         if (Array.isArray(task)) {
+            // Simple task array
             taskId = task[0]?.id;
+        } else if ('parent' in task && task.parent) {
+            // Parent-child structure - use parent task ID
+            taskId = task.parent.id;
         } else if ('id' in task) {
+            // Single task object
             taskId = task.id;
-        } else if ('children' in task && Array.isArray(task.children)) {
-            taskId = task.children[0]?.id;
         } else {
-            throw new Error("Unable to extract task ID from workflow result");
+            throw new MedusaError(
+                MedusaError.Types.INVALID_DATA,
+                "Unable to extract task ID from workflow result"
+            );
         }
-
-        console.log("Linking task", taskId, "to partner", partnerId);
 
         // Create the partner-task link
         await createTaskAssignmentWorkflow(req.scope).run({
@@ -104,8 +124,6 @@ export const POST = async (req: MedusaRequest<AdminCreatePartnerTaskReq>, res: M
                 partnerId: partnerId
             }
         });
-
-        console.log("Successfully linked task to partner");
 
         return res.json({ 
             task: task

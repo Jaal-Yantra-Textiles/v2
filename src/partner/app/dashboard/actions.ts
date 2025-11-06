@@ -895,12 +895,22 @@ export async function acceptTask(taskId: string) {
   await enforceAuthOrRedirect(res)
   
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || "Failed to accept task")
+    const errorText = await res.text()
+    let errorMessage = "Failed to accept task"
+    
+    try {
+      const errorData = JSON.parse(errorText)
+      errorMessage = errorData.error || errorData.message || errorMessage
+    } catch {
+      errorMessage = errorText || errorMessage
+    }
+    
+    return { error: errorMessage }
   }
   
   revalidatePath("/dashboard/tasks")
-  return await res.json()
+  const data = await res.json()
+  return { data }
 }
 
 export async function finishTask(taskId: string) {
@@ -924,12 +934,22 @@ export async function finishTask(taskId: string) {
   await enforceAuthOrRedirect(res)
   
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || "Failed to finish task")
+    const errorText = await res.text()
+    let errorMessage = "Failed to finish task"
+    
+    try {
+      const errorData = JSON.parse(errorText)
+      errorMessage = errorData.error || errorData.message || errorMessage
+    } catch {
+      errorMessage = errorText || errorMessage
+    }
+    
+    return { error: errorMessage }
   }
   
   revalidatePath("/dashboard/tasks")
-  return await res.json()
+  const data = await res.json()
+  return { data }
 }
 
 export type TaskComment = {
@@ -1001,4 +1021,96 @@ export async function addTaskComment(taskId: string, comment: string) {
   
   revalidatePath("/dashboard/tasks")
   return await res.json()
+}
+
+// Subtask actions
+export type Subtask = {
+  id: string
+  title: string
+  description?: string
+  priority: string
+  status: string
+  created_at: string
+  updated_at: string
+  completed_at?: string
+  metadata?: {
+    order?: number
+    step_type?: string
+  }
+}
+
+export async function getTaskSubtasks(taskId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  try {
+    const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/assigned-tasks/${taskId}/subtasks`, {
+      headers: { 
+        Authorization: `Bearer ${token}` 
+      },
+      cache: "no-store",
+    })
+    
+    await enforceAuthOrRedirect(res)
+    
+    if (!res.ok) {
+      console.error("Failed to fetch subtasks:", await res.text())
+      return { subtasks: [] as Subtask[], count: 0 }
+    }
+    
+    const json = await res.json()
+    return { 
+      subtasks: (json?.subtasks || []) as Subtask[], 
+      count: json?.count || 0 
+    }
+  } catch (e) {
+    throw e
+  }
+}
+
+export async function completeSubtask(taskId: string, subtaskId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(
+    `${MEDUSA_BACKEND_URL}/partners/assigned-tasks/${taskId}/subtasks/${subtaskId}/complete`,
+    {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}` 
+      },
+      cache: "no-store",
+    }
+  )
+  
+  await enforceAuthOrRedirect(res)
+  
+  if (!res.ok) {
+    const errorText = await res.text()
+    let errorMessage = "Failed to complete subtask"
+    
+    try {
+      const errorData = JSON.parse(errorText)
+      errorMessage = errorData.error || errorData.message || errorMessage
+    } catch {
+      errorMessage = errorText || errorMessage
+    }
+    
+    return { error: errorMessage }
+  }
+  
+  revalidatePath("/dashboard/tasks")
+  const data = await res.json()
+  return { data }
 }

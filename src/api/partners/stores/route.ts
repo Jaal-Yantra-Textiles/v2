@@ -2,19 +2,19 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { MedusaError } from "@medusajs/framework/utils"
 import { PartnerCreateStoreReq } from "./validators"
 import { createStoreWithDefaultsWorkflow } from "../../../workflows/stores/create-store-with-defaults"
-import { refetchPartnerForThisAdmin } from "../helpers"
+import { getPartnerFromActorId } from "../helpers"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const adminId = req.auth_context?.actor_id
-  if (!adminId) {
+  const actorId = req.auth_context?.actor_id
+  if (!actorId) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Partner authentication required")
   }
 
-  // Ensure this admin belongs to a partner
-  const partner = await refetchPartnerForThisAdmin(adminId, req.scope)
+  // Ensure this user is authenticated as a partner
+  const partner = await getPartnerFromActorId(actorId, req.scope)
   if (!partner) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "No partner associated with this admin")
   }

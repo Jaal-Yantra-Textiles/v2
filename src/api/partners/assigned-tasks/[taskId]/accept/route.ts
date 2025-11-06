@@ -32,24 +32,31 @@ export async function POST(
             );
         }
 
-        console.log("Accept task - Partner ID:", partner.id, "Actor ID:", actorId, "Task ID:", taskId);
-        
         // Verify the task is assigned to this partner
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
-        const { data: partnerTaskLinks } = await query.index({
+        const { data: taskData } = await query.index({
             entity: 'task',
             fields: ["*","partners.*"],
             filters: {
-               partners: { id: partner.id },
                id: taskId
             }
         });
-        console.log("Partner task links found:", partnerTaskLinks?.length || 0);
-        console.log("Partner task links data:", JSON.stringify(partnerTaskLinks, null, 2));
         
-        if (!partnerTaskLinks || partnerTaskLinks.length === 0) {
+        if (!taskData || taskData.length === 0) {
+            return res.status(404).json({ 
+                message: "Task not found" 
+            });
+        }
+
+        const task = taskData[0] as any;
+        
+        // Check if task is linked to this partner
+        const isLinked = task.partners && Array.isArray(task.partners) && 
+                         task.partners.some((p: any) => p.id === partner.id);
+        
+        if (!isLinked) {
             return res.status(403).json({ 
-                message: "Task not assigned to this partner or does not exist" 
+                message: "Task not assigned to this partner" 
             });
         }
 

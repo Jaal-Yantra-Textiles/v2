@@ -263,9 +263,9 @@ export const CreatePartnerTaskComponent = () => {
         </RouteFocusModal.Header>
 
         <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
-          <div className="flex w-full max-w-[720px] flex-col gap-y-8">
+          <div className="flex w-full max-w-[1000px] flex-col gap-y-8">
             {/* Main Task Section */}
-            <div className="relative rounded-lg border border-ui-border-base bg-ui-bg-base p-6">
+            <div className="relative rounded-lg border border-ui-border-base bg-ui-bg-base p-8">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-x-2">
                   <IconButton
@@ -516,13 +516,20 @@ export const CreatePartnerTaskComponent = () => {
             </div>
 
             {/* Task Steps Section */}
-            <div className="rounded-lg border border-ui-border-base bg-ui-bg-base p-6">
+            <div className="rounded-lg border border-ui-border-base bg-ui-bg-base p-8">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <Heading level="h3">Task Steps</Heading>
                   <Text size="small" className="text-ui-fg-subtle mt-1">
                     Define the individual steps the partner needs to complete
                   </Text>
+                  <div className="mt-3 p-3 bg-ui-bg-subtle rounded-md border border-ui-border-base">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      <strong>Note:</strong> These steps are stored as metadata within the main task. 
+                      Partners can view and track progress on these steps, but they are not separate tasks. 
+                      Step completion is managed through the task metadata.
+                    </Text>
+                  </div>
                 </div>
                 <Button
                   variant="secondary"

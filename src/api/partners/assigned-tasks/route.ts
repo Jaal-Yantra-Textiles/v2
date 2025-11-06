@@ -2,6 +2,8 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import PartnerTaskLink from "../../../links/partner-task";
 import { getPartnerFromActorId } from "../helpers";
+import { TASKS_MODULE } from "../../../modules/tasks";
+import TaskService from "../../../modules/tasks/service";
 
 /**
  * GET /partners/assigned-tasks
@@ -34,10 +36,8 @@ export async function GET(
             );
         }
 
-        console.log("Fetching tasks for partner:", partner.id, "via actor:", actorId);
-        
         // Query all tasks linked to this partner
-        const { data: partnerData } = await query.index({
+        const { data: partnerData } = await query.graph({
             entity: 'partner',
             fields: [ '*','tasks.*'],
             filters: {
@@ -45,18 +45,37 @@ export async function GET(
             }
         });
 
-        console.log("Partner data:", JSON.stringify(partnerData, null, 2));
-
         // Extract the tasks from the partner object
-        const tasks = partnerData && partnerData.length > 0 && partnerData[0].tasks 
-            ? partnerData[0].tasks 
-            : [];
+        let allTaskIds: any[] = [];
+        if (partnerData && partnerData.length > 0) {
+            const partner = partnerData[0];
+            if (Array.isArray(partner.tasks)) {
+                allTaskIds = partner.tasks.map((t: any) => t.id);
+            }
+        }
 
-        console.log("Extracted tasks:", tasks.length);
+        if (allTaskIds.length === 0) {
+            return res.status(200).json({ 
+                tasks: [],
+                count: 0
+            });
+        }
+
+        // Now fetch the tasks with their subtasks using the task service
+        const taskService: TaskService = req.scope.resolve(TASKS_MODULE);
+        
+        const allTasks = await taskService.listTasks(
+            { id: allTaskIds },
+            { relations: ["subtasks"] }
+        );
+
+        // Filter to only show parent tasks (exclude subtasks)
+        // Subtasks have parent_task_id set, parent tasks have it as null
+        const parentTasks = allTasks.filter((task: any) => !task.parent_task_id);
 
         res.status(200).json({ 
-            tasks: tasks,
-            count: tasks.length
+            tasks: parentTasks,
+            count: parentTasks.length
         });
     } catch (error) {
         console.error("Error fetching assigned tasks:", error);

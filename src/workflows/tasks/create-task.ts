@@ -89,9 +89,15 @@ export const createTaskWithParentStep = createStep(
   async (input: CreateTaskWithParentInput, { container }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE);
     
+    console.log("=== Creating task with parent-child relationship ===");
+    console.log("Input:", JSON.stringify(input, null, 2));
+    
     // Create parent task
     const { template_ids, originalInput } = input;
     const { child_tasks, dependency_type, ...parentData } = originalInput;
+    
+    console.log("Parent data:", JSON.stringify(parentData, null, 2));
+    console.log("Child tasks count:", child_tasks?.length || 0);
 
     let parentTask;
     if (template_ids && template_ids.length > 0) {
@@ -103,19 +109,28 @@ export const createTaskWithParentStep = createStep(
       parentTask = await taskService.createTasks(parentData);
     }
 
+    console.log("Parent task created:", Array.isArray(parentTask) ? parentTask[0]?.id : parentTask?.id);
+
     // Create child tasks if any
     const childTasks: Task[] = [];
     if (input.originalInput.child_tasks && input.originalInput.child_tasks.length > 0) {
       await Promise.all(input.originalInput.child_tasks.map(async (childTask: any, index: number) => {
+        const parentTaskId = Array.isArray(parentTask) ? parentTask[0].id : parentTask.id;
+        
         const childTaskData = {
           ...childTask,
           title: childTask.title || `Child Task ${childTasks.length + 1}`,
           start_date: childTask.start_date || new Date(),
           status: childTask.status || "pending",
           priority: childTask.priority || (Array.isArray(parentTask) ? parentTask[0].priority : parentTask.priority) || "medium",
-          parent_task: Array.isArray(parentTask) ? parentTask[0].id : parentTask.id,
+          parent_task_id: parentTaskId,
           dependency_type: input.originalInput.dependency_type
         };
+        
+        console.log(`Creating child task ${index + 1}:`, {
+          title: childTaskData.title,
+          parent_task_id: childTaskData.parent_task_id
+        });
 
         // Use template if available for this child task
         if (input.child_template_ids && input.child_template_ids[index]) {

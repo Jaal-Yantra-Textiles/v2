@@ -6,7 +6,7 @@ import {
   CreatePaymentMethodForPartner,
 } from "../validators"
 import { createPaymentMethodAndLinkWorkflow } from "../../../../../workflows/payment_methods/create-payment-method-and-link"
-import { refetchPartnerForThisAdmin } from "../../../helpers"
+import { getPartnerFromActorId } from "../../../helpers"
 
 // GET /api/partners/:id/payments/methods - List payment methods linked to a partner (self)
 export const GET = async (
@@ -15,12 +15,12 @@ export const GET = async (
 ) => {
   const { id: partner_id } = req.params
 
-  // AuthZ: ensure the current admin belongs to this partner
-  const adminId = req.auth_context?.actor_id
-  if (!adminId) {
+  // AuthZ: ensure the current user is authenticated as this partner
+  const actorId = req.auth_context?.actor_id
+  if (!actorId) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Unauthorized")
   }
-  const partner = await refetchPartnerForThisAdmin(adminId, req.scope)
+  const partner = await getPartnerFromActorId(actorId, req.scope)
   if (!partner || partner.id !== partner_id) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Forbidden: partner mismatch")
   }
@@ -46,12 +46,12 @@ export const POST = async (
 ) => {
   const { id: partner_id } = req.params
 
-  // AuthZ: ensure the current admin belongs to this partner
-  const adminId = req.auth_context?.actor_id
-  if (!adminId) {
+  // AuthZ: ensure the current user is authenticated as this partner
+  const actorId = req.auth_context?.actor_id
+  if (!actorId) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Unauthorized")
   }
-  const partner = await refetchPartnerForThisAdmin(adminId, req.scope)
+  const partner = await getPartnerFromActorId(actorId, req.scope)
   if (!partner || partner.id !== partner_id) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Forbidden: partner mismatch")
   }

@@ -296,6 +296,20 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    {
+      matcher: "/partners/assigned-tasks/:taskId/subtasks",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/assigned-tasks/:taskId/subtasks/:subtaskId/complete",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
 
     {
       matcher: "/partners/stores",

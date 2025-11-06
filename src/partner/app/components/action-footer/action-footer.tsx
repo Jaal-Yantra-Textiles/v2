@@ -9,8 +9,8 @@ export default function ActionFooter({ children }: PropsWithChildren) {
       className="fixed bottom-0 right-0 z-30"
       style={{ left: "var(--sidebar-width, 0px)" }}
     >
-      <div className="mx-auto w-full max-w-6xl px-3 sm:px-4 py-2 sm:py-3">
-        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-stretch sm:justify-end gap-2 sm:gap-3 rounded-md border border-ui-border-base bg-ui-bg-base/90 backdrop-blur px-3 sm:px-4 py-2 sm:py-3 shadow-lg">
+      <div className="mx-auto w-full max-w-6xl px-4 py-2">
+        <div className="flex items-center justify-end gap-2 rounded-md border border-ui-border-base bg-ui-bg-base/90 backdrop-blur px-4 py-2 shadow-lg">
           {children}
         </div>
       </div>

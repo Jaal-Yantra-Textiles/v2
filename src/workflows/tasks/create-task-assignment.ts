@@ -57,7 +57,9 @@ const linkTaskStep = createStep(
                 partner_id: input.partnerId
             }
         })
+        
         await link.create(links)
+        
         return new StepResponse(links)
     },
     async (links: LinkDefinition[], { container }) => {

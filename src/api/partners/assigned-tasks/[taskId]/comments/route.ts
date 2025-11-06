@@ -55,26 +55,55 @@ export async function POST(
             );
         }
 
-        console.log("Adding comment - Partner ID:", partner.id, "Admin ID:", adminId, "Task ID:", taskId);
-        
-        // Verify the task is assigned to this partner
+        // Verify the task is assigned to this partner (or its parent is)
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+        
+        // First, fetch the task to check if it's a subtask
         const { data: taskData } = await query.index({
             entity: 'task',
             fields: ["*", "partners.*"],
             filters: {
-                partners: { id: partner.id },
                 id: taskId
             }
         });
 
         if (!taskData || taskData.length === 0) {
-            return res.status(403).json({ 
-                message: "Task not assigned to this partner or does not exist" 
+            return res.status(404).json({ 
+                message: "Task not found" 
             });
         }
 
-        const task = taskData[0];
+        const task = taskData[0] as any;
+        
+        // Check if this task or its parent is linked to the partner
+        let isAuthorized = false;
+        
+        // Check if task is directly linked to partner
+        if (task.partners && Array.isArray(task.partners) && task.partners.some((p: any) => p.id === partner.id)) {
+            isAuthorized = true;
+        }
+        
+        // If not, check if it's a subtask and its parent is linked to partner
+        if (!isAuthorized && task.parent_task_id) {
+            const { data: parentTaskData } = await query.index({
+                entity: 'task',
+                fields: ["*", "partners.*"],
+                filters: {
+                    id: task.parent_task_id,
+                    partners: { id: partner.id }
+                }
+            });
+            
+            if (parentTaskData && parentTaskData.length > 0) {
+                isAuthorized = true;
+            }
+        }
+        
+        if (!isAuthorized) {
+            return res.status(403).json({ 
+                message: "Task not assigned to this partner" 
+            });
+        }
 
         // Get admin details for author name
         const admin = partner.admins?.find((a) => a && a.id === adminId);
@@ -150,24 +179,55 @@ export async function GET(
             );
         }
 
-        // Verify the task is assigned to this partner
+        // Verify the task is assigned to this partner (or its parent is)
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+        
+        // First, fetch the task to check if it's a subtask
         const { data: taskData } = await query.index({
             entity: 'task',
             fields: ["*", "partners.*"],
             filters: {
-                partners: { id: partner.id },
                 id: taskId
             }
         });
 
         if (!taskData || taskData.length === 0) {
-            return res.status(403).json({ 
-                message: "Task not assigned to this partner or does not exist" 
+            return res.status(404).json({ 
+                message: "Task not found" 
             });
         }
 
-        const task = taskData[0];
+        const task = taskData[0] as any;
+        
+        // Check if this task or its parent is linked to the partner
+        let isAuthorized = false;
+        
+        // Check if task is directly linked to partner
+        if (task.partners && Array.isArray(task.partners) && task.partners.some((p: any) => p.id === partner.id)) {
+            isAuthorized = true;
+        }
+        
+        // If not, check if it's a subtask and its parent is linked to partner
+        if (!isAuthorized && task.parent_task_id) {
+            const { data: parentTaskData } = await query.index({
+                entity: 'task',
+                fields: ["*", "partners.*"],
+                filters: {
+                    id: task.parent_task_id,
+                    partners: { id: partner.id }
+                }
+            });
+            
+            if (parentTaskData && parentTaskData.length > 0) {
+                isAuthorized = true;
+            }
+        }
+        
+        if (!isAuthorized) {
+            return res.status(403).json({ 
+                message: "Task not assigned to this partner" 
+            });
+        }
         const metadata = ((task as any).metadata || {}) as TaskMetadata;
         const comments = metadata.comments || [];
 
