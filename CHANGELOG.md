@@ -1,3 +1,10 @@
+## [6.25.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.4...v6.25.5) (2025-11-06)
+
+
+### Bug Fixes
+
+* **type script:** fixed the typescript error ([3ab722a](https://github.com/Jaal-Yantra-Textiles/v2/commit/3ab722a42b3c393ecb9efaaecbe78c5e5d856637))
+
 ## [6.25.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.3...v6.25.4) (2025-11-05)
 
 
