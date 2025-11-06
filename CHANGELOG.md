@@ -1,3 +1,10 @@
+## [6.25.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.6...v6.25.7) (2025-11-06)
+
+
+### Bug Fixes
+
+* **Package:** ORM Fix code for the pacakge ([5ba3b30](https://github.com/Jaal-Yantra-Textiles/v2/commit/5ba3b30eec843f6d5022245121c4bac6cb7fe0f8))
+
 ## [6.25.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.5...v6.25.6) (2025-11-06)
 
 
