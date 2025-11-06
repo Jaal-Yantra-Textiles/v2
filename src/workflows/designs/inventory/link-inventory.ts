@@ -13,6 +13,7 @@ import {
   createWorkflow
 } from "@medusajs/framework/workflows-sdk"
 import { DESIGN_MODULE } from "../../../modules/designs"
+import DesignService from "../../../modules/designs/service"
 import { MedusaError } from "@medusajs/utils"
 import { LinkDefinition } from "@medusajs/framework/types"
 
@@ -104,7 +105,7 @@ type DelinkDesignInventoryInput = {
 const validateDesignStatus = createStep(
   "validate-design-status",
   async (input: { design_id: string }, { container }) => {
-    const designService = container.resolve(DESIGN_MODULE)
+    const designService: DesignService = container.resolve(DESIGN_MODULE)
     
     const design = await designService.retrieveDesign(input.design_id)
     

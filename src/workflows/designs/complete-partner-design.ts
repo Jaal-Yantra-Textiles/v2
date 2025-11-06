@@ -3,6 +3,7 @@ import { LinkDefinition } from "@medusajs/framework/types"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse, when, transform } from "@medusajs/framework/workflows-sdk"
 import { setDesignStepFailedWorkflow, setDesignStepSuccessWorkflow } from "./design-steps"
 import { DESIGN_MODULE } from "../../modules/designs"
+import DesignService from "../../modules/designs/service"
 import TaskService from "../../modules/tasks/service"
 import { TASKS_MODULE } from "../../modules/tasks"
 
@@ -105,7 +106,7 @@ const adjustInventoryStep = createStep(
 const updateDesignStatusStep = createStep(
   "complete-design-update-status",
   async (input: { designId: string }, { container }) => {
-    const designService = container.resolve(DESIGN_MODULE)
+    const designService: DesignService = container.resolve(DESIGN_MODULE)
     const updated = await designService.updateDesigns({
       id: input.designId,
       status: "Approved" as any,

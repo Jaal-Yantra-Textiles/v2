@@ -3571,15 +3571,6 @@
     fs-extra "11.3.0"
     umzug "3.8.2"
 
-"@mikro-orm/migrations@6.4.3":
-  version "6.4.3"
-  resolved "https://registry.yarnpkg.com/@mikro-orm/migrations/-/migrations-6.4.3.tgz#da4a0aa6078ea3d9388675b43f25605688d1d226"
-  integrity sha512-VrsKq95esUBEMhwp9vVX+YUj2+/cNwb8UZ63HfgaqPo+pYj8r1RBSTboFOE9V0Md0n3ol9b5xByfPPa3qHmL0g==
-  dependencies:
-    "@mikro-orm/knex" "6.4.3"
-    fs-extra "11.2.0"
-    umzug "3.8.2"
-
 "@mikro-orm/postgresql@6.4.16":
   version "6.4.16"
   resolved "https://registry.yarnpkg.com/@mikro-orm/postgresql/-/postgresql-6.4.16.tgz#672865d05a1f5123d5d9ed7f641f26bb3a26ffd2"
@@ -3588,17 +3579,6 @@
     "@mikro-orm/knex" "6.4.16"
     pg "8.16.0"
     postgres-array "3.0.4"
-    postgres-date "2.1.0"
-    postgres-interval "4.0.2"
-
-"@mikro-orm/postgresql@6.4.3":
-  version "6.4.3"
-  resolved "https://registry.yarnpkg.com/@mikro-orm/postgresql/-/postgresql-6.4.3.tgz#4a4a4efe4856ba8ce4f366ca0d1b7aa0df0e7b39"
-  integrity sha512-3cGi1gW6ME3SyuRRiJmSBtzHFa6Kavy6bK9rsSAAfXz+Pso6UBsqvesATbruKxDF7/CLdQlIY3CZZHXksUIrQg==
-  dependencies:
-    "@mikro-orm/knex" "6.4.3"
-    pg "8.13.1"
-    postgres-array "3.0.2"
     postgres-date "2.1.0"
     postgres-interval "4.0.2"
 
@@ -19075,7 +19055,7 @@ perfect-scrollbar@^1.5.5:
   resolved "https://registry.yarnpkg.com/perfect-scrollbar/-/perfect-scrollbar-1.5.6.tgz#f1aead2588ba896435ee41b246812b2080573b7c"
   integrity sha512-rixgxw3SxyJbCaSpo1n35A/fwI1r2rdwMKOTCg/AcG+xOEyZcE8UHVjpZMFCVImzsFoCZeJTT+M/rdEIQYO2nw==
 
-pg-cloudflare@^1.1.1, pg-cloudflare@^1.2.5, pg-cloudflare@^1.2.7:
+pg-cloudflare@^1.2.5, pg-cloudflare@^1.2.7:
   version "1.2.7"
   resolved "https://registry.yarnpkg.com/pg-cloudflare/-/pg-cloudflare-1.2.7.tgz#a1f3d226bab2c45ae75ea54d65ec05ac6cfafbef"
   integrity sha512-YgCtzMH0ptvZJslLM1ffsY4EuGaU0cx4XSdXLRFae8bPP4dS5xL1tNB3k2o/N64cHJpwU7dxKli/nZ2lUa5fLg==
@@ -19112,7 +19092,7 @@ pg-minify@1.8.0:
   resolved "https://registry.yarnpkg.com/pg-minify/-/pg-minify-1.8.0.tgz#c736f762fb987ab21e784554b7724f05397708d1"
   integrity sha512-jO/oJOununpx8DzKgvSsWm61P8JjwXlaxSlbbfTBo1nvSWoo/+I6qZYaSN96jm/KDwa5d+JMQwPGgcP6HXDRow==
 
-pg-pool@^3.10.0, pg-pool@^3.10.1, pg-pool@^3.7.0:
+pg-pool@^3.10.0, pg-pool@^3.10.1:
   version "3.10.1"
   resolved "https://registry.yarnpkg.com/pg-pool/-/pg-pool-3.10.1.tgz#481047c720be2d624792100cac1816f8850d31b2"
   integrity sha512-Tu8jMlcX+9d8+QVzKIvM/uJtp07PKr82IUOYEphaWcoBhIYkoHpLXN3qO59nAI11ripznDsEzEv8nUxBVWajGg==
@@ -19127,12 +19107,12 @@ pg-promise@^11.15.0:
     pg-minify "1.8.0"
     spex "3.4.1"
 
-pg-protocol@*, pg-protocol@^1.10.0, pg-protocol@^1.10.3, pg-protocol@^1.7.0:
+pg-protocol@*, pg-protocol@^1.10.0, pg-protocol@^1.10.3:
   version "1.10.3"
   resolved "https://registry.yarnpkg.com/pg-protocol/-/pg-protocol-1.10.3.tgz#ac9e4778ad3f84d0c5670583bab976ea0a34f69f"
   integrity sha512-6DIBgBQaTKDJyxnXaLiLR8wBpQQcGWuAESkRBX/t6OwA8YsqP+iVSiond2EDy6Y/dsGk8rh/jtax3js5NeV7JQ==
 
-pg-types@2.2.0, pg-types@^2.1.0, pg-types@^2.2.0:
+pg-types@2.2.0, pg-types@^2.2.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/pg-types/-/pg-types-2.2.0.tgz#2d0250d636454f7cfa3b6ae0382fdfa8063254a3"
   integrity sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==
@@ -19142,19 +19122,6 @@ pg-types@2.2.0, pg-types@^2.1.0, pg-types@^2.2.0:
     postgres-bytea "~1.0.0"
     postgres-date "~1.0.4"
     postgres-interval "^1.1.0"
-
-pg@8.13.1:
-  version "8.13.1"
-  resolved "https://registry.yarnpkg.com/pg/-/pg-8.13.1.tgz#6498d8b0a87ff76c2df7a32160309d3168c0c080"
-  integrity sha512-OUir1A0rPNZlX//c7ksiu7crsGZTKSOXJPgtNiHGIlC9H0lO+NC6ZDYksSgBYY/thSWhnSRBv8w1lieNNGATNQ==
-  dependencies:
-    pg-connection-string "^2.7.0"
-    pg-pool "^3.7.0"
-    pg-protocol "^1.7.0"
-    pg-types "^2.1.0"
-    pgpass "1.x"
-  optionalDependencies:
-    pg-cloudflare "^1.1.1"
 
 pg@8.16.0:
   version "8.16.0"
@@ -19182,7 +19149,7 @@ pg@8.16.3, pg@^8.13.0, pg@^8.16.3, pg@^8.3.0:
   optionalDependencies:
     pg-cloudflare "^1.2.7"
 
-pgpass@1.0.5, pgpass@1.x:
+pgpass@1.0.5:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/pgpass/-/pgpass-1.0.5.tgz#9b873e4a564bb10fa7a7dbd55312728d422a223d"
   integrity sha512-FdW9r/jQZhSeohs1Z3sI1yxFQNFvMcnmfuj4WBMUTxOrAyLMaTcE1aAMBiTlbMNaXvBCQuVi0R7hd8udDSP7ug==
@@ -19447,11 +19414,6 @@ postcss@^8.4.38, postcss@^8.4.43, postcss@^8.4.47:
     nanoid "^3.3.11"
     picocolors "^1.1.1"
     source-map-js "^1.2.1"
-
-postgres-array@3.0.2:
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/postgres-array/-/postgres-array-3.0.2.tgz#68d6182cb0f7f152a7e60dc6a6889ed74b0a5f98"
-  integrity sha512-6faShkdFugNQCLwucjPcY5ARoW1SlbnrZjmGl0IrrqewpvxvhSLHimCVzqeuULCbG0fQv7Dtk1yDbG3xv7Veog==
 
 postgres-array@3.0.4:
   version "3.0.4"
