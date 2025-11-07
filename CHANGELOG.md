@@ -1,3 +1,10 @@
+## [6.25.10](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.9...v6.25.10) (2025-11-07)
+
+
+### Bug Fixes
+
+* **Socials:** page_id and auto publish text fix ([578757c](https://github.com/Jaal-Yantra-Textiles/v2/commit/578757c242c3154602ab3de40bd8f0e40bc6553a))
+
 ## [6.25.9](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.8...v6.25.9) (2025-11-06)
 
 ## [6.25.8](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.7...v6.25.8) (2025-11-06)
