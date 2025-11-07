@@ -1,3 +1,11 @@
+## [6.25.11](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.10...v6.25.11) (2025-11-07)
+
+
+### Bug Fixes
+
+* **Socials:** Facebook social media post link bug fix ([e9794a7](https://github.com/Jaal-Yantra-Textiles/v2/commit/e9794a7dc071418bb694ec92a00d3b4b2775ce6d))
+* **Social:** page ID social publishing fix ([e90625d](https://github.com/Jaal-Yantra-Textiles/v2/commit/e90625ddae4cb24ae3e2e7d5c70c5ce2cb1a221c))
+
 ## [6.25.10](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.9...v6.25.10) (2025-11-07)
 
 
