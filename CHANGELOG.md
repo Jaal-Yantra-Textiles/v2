@@ -1,3 +1,11 @@
+## [6.25.12](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.11...v6.25.12) (2025-11-07)
+
+
+### Bug Fixes
+
+* **Social:** page id publishing fix for both ([b01399d](https://github.com/Jaal-Yantra-Textiles/v2/commit/b01399d4d5233a7d78a7fe8a01f49fd8eed0a418))
+* **Socials:** pageID fix ([eb51698](https://github.com/Jaal-Yantra-Textiles/v2/commit/eb5169806bd4c5bc3d0a893ebd7f9137778ab7df))
+
 ## [6.25.11](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.10...v6.25.11) (2025-11-07)
 
 
