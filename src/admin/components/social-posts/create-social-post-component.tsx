@@ -64,6 +64,9 @@ const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
           message: "Facebook page is required",
         })
       }
+    } else if (data.publish_target === "instagram") {
+      // For Instagram-only, page_id is not required
+      // Instagram uses ig_user_id only
     }
     
     // Validate Instagram Account if publishing to Instagram or Both
@@ -611,7 +614,11 @@ export const CreateSocialPostComponent = () => {
                       <Form.Control>
                         <div className="flex items-center gap-x-2">
                           <Switch checked={!!value} onCheckedChange={onChange} />
-                          <Text size="small" className="text-ui-fg-subtle">Publish to both platforms immediately after creation</Text>
+                          <Text size="small" className="text-ui-fg-subtle">
+                            {publishTarget === "both" 
+                              ? "Publish to both platforms immediately after creation"
+                              : "Publish immediately after creation"}
+                          </Text>
                         </div>
                       </Form.Control>
                       <Form.ErrorMessage />
