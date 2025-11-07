@@ -11,8 +11,8 @@ import SocialProviderService from "../../modules/social-provider/service"
 import type { PublishContentInput, PublishResponse } from "../../modules/social-provider/types"
 
 interface PublishToBothPlatformsInput {
-  pageId: string
-  igUserId: string
+  pageId?: string
+  igUserId?: string
   userAccessToken: string
   publishTarget?: "facebook" | "instagram" | "both"
   content: {
@@ -129,7 +129,7 @@ export const publishToBothPlatformsSeriesWorkflow = createWorkflow(
     // Publish to Facebook first
     const facebookResult = publishToFacebookStep({
       platform: "facebook",
-      pageId: input.pageId,
+      pageId: input.pageId || "",
       userAccessToken: input.userAccessToken,
       content: input.content,
     })
@@ -137,8 +137,8 @@ export const publishToBothPlatformsSeriesWorkflow = createWorkflow(
     // Then publish to Instagram
     const instagramResult = publishToInstagramStep({
       platform: "instagram",
-      pageId: input.pageId,
-      igUserId: input.igUserId,
+      pageId: input.pageId || "",
+      igUserId: input.igUserId || "",
       userAccessToken: input.userAccessToken,
       content: input.content,
     })
@@ -161,8 +161,8 @@ export const publishToBothPlatformsUnifiedWorkflow = createWorkflow(
   function (input: WorkflowData<PublishToBothPlatformsInput>) {
     const result = publishToBothPlatformsStep({
       platform: input.publishTarget || "both",
-      pageId: input.pageId,
-      igUserId: input.igUserId,
+      pageId: input.pageId || "",
+      igUserId: input.igUserId || "",
       userAccessToken: input.userAccessToken,
       publishTarget: input.publishTarget,
       content: input.content,

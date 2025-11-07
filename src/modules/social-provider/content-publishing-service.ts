@@ -267,13 +267,6 @@ export default class ContentPublishingService {
    * Validate input before publishing
    */
   private validateInput(input: PublishContentInput): void {
-    if (!input.pageId) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_ARGUMENT,
-        "pageId is required"
-      )
-    }
-
     if (!input.userAccessToken) {
       throw new MedusaError(
         MedusaError.Types.INVALID_ARGUMENT,
@@ -288,6 +281,18 @@ export default class ContentPublishingService {
       )
     }
 
+    // Validate pageId only for Facebook or both platforms
+    if (
+      (input.platform === "facebook" || input.platform === "both") &&
+      !input.pageId
+    ) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_ARGUMENT,
+        "pageId is required when publishing to Facebook"
+      )
+    }
+
+    // Validate igUserId only for Instagram or both platforms
     if (
       (input.platform === "instagram" || input.platform === "both") &&
       !input.igUserId
