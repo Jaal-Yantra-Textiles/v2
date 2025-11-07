@@ -36,11 +36,17 @@ const normalizeInputStep = createStep(
       : []
     const media = Array.isArray(input.media_attachments) ? input.media_attachments : mediaFromUrls
 
+    // Preserve link in metadata for Facebook feed posts
+    const metadata = input.metadata ?? {}
+    if (input.link) {
+      metadata.link = input.link
+    }
+
     return new StepResponse({
       ...input,
       caption,
       media_attachments: media && media.length ? media : null,
-      metadata: input.metadata ?? null,
+      metadata: Object.keys(metadata).length > 0 ? metadata : null,
     })
   }
 )

@@ -155,11 +155,16 @@ const publishStep = createStep(
         const r = await fb.createPagePhotoPost(input.pageId!, { message, image_url: att.url }, input.fbAccessToken!)
         results.push({ kind: "photo", url: att.url, response: r })
       }
+      
+      // Extract link from metadata or media_attachments
+      const linkFromMetadata = input.post.metadata?.link as string | undefined
       const linkAttachment = attachments.find((a) => a && a.type === "link" && a.url) as { url?: string } | undefined
+      const linkUrl = linkFromMetadata || linkAttachment?.url
+      
       if (!imageAttachments.length) {
-        if (linkAttachment?.url || message) {
-          const r = await fb.createPageFeedPost(input.pageId!, { message: message || "", link: linkAttachment?.url }, input.fbAccessToken!)
-          results.push({ kind: "feed", link: linkAttachment?.url, response: r })
+        if (linkUrl || message) {
+          const r = await fb.createPageFeedPost(input.pageId!, { message: message || "", link: linkUrl }, input.fbAccessToken!)
+          results.push({ kind: "feed", link: linkUrl, response: r })
         }
       }
       return new StepResponse(results)
