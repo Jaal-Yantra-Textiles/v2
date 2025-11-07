@@ -27,12 +27,67 @@ const BaseSchema = z.object({
   page_id: z.string().optional(),
   // Instagram target account (stored into metadata.ig_user_id)
   ig_user_id: z.string().optional(),
+  // Publish target for FBINSTA: "facebook", "instagram", or "both"
+  publish_target: z.enum(["facebook", "instagram", "both"]).optional(),
   // Automation
   auto_publish: z.boolean().optional(),
 })
 
 const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
   const platform = (data.platform_name || "").toLowerCase()
+  
+  // FBINSTA validation
+  if (platform === "fbinsta" || platform === "facebook & instagram") {
+    if (!data.publish_target) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["publish_target"],
+        message: "Please select where to publish",
+      })
+      return
+    }
+    if (!data.post_type) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["post_type"],
+        message: "Post type is required",
+      })
+      return
+    }
+    
+    // Validate Facebook Page if publishing to Facebook or Both
+    if (data.publish_target === "facebook" || data.publish_target === "both") {
+      if (!data.page_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["page_id"],
+          message: "Facebook page is required",
+        })
+      }
+    }
+    
+    // Validate Instagram Account if publishing to Instagram or Both
+    if (data.publish_target === "instagram" || data.publish_target === "both") {
+      if (!data.ig_user_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["ig_user_id"],
+          message: "Instagram account is required",
+        })
+      }
+    }
+    
+    const urls = data.media_urls ?? []
+    if (data.post_type === "photo" && urls.length !== 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["media_urls"],
+        message: "Select exactly one image",
+      })
+    }
+    return
+  }
+  
   if (platform === "facebook") {
     if (!data.post_type) {
       ctx.addIssue({
@@ -107,9 +162,12 @@ export const CreateSocialPostComponent = () => {
   // Watch selected platform and post_type to conditionally render fields
   const platformId = useWatch({ control: form.control, name: "platform_id" })
   const postType = useWatch({ control: form.control, name: "post_type" })
+  const publishTarget = useWatch({ control: form.control, name: "publish_target" })
   const selectedPlatform = socialPlatforms.find((p) => p.id === platformId)
-  const isFacebook = (selectedPlatform?.name || "").toLowerCase() === "facebook"
-  const isInstagram = (selectedPlatform?.name || "").toLowerCase() === "instagram"
+  const platformName = (selectedPlatform?.name || "").toLowerCase()
+  const isFacebook = platformName === "facebook"
+  const isInstagram = platformName === "instagram"
+  const isFBINSTA = platformName === "fbinsta" || platformName === "facebook & instagram"
 
   // Facebook pages via reusable hook
   const { socialPlatform } = useSocialPlatform(platformId || "")
@@ -154,6 +212,7 @@ export const CreateSocialPostComponent = () => {
       metadata: {
         ...(data.page_id ? { page_id: data.page_id } : {}),
         ...(data.ig_user_id ? { ig_user_id: data.ig_user_id } : {}),
+        ...(data.publish_target ? { publish_target: data.publish_target } : {}),
         ...(typeof data.auto_publish === "boolean" ? { auto_publish: data.auto_publish } : {}),
       },
     }
@@ -375,6 +434,190 @@ export const CreateSocialPostComponent = () => {
                 <Text size="small" className="text-ui-fg-subtle">
                   This section configures a Facebook Page post. After creating, you can trigger publishing via the admin action.
                 </Text>
+              </div>
+            )}
+
+            {isFBINSTA && (
+              <div className="flex flex-col gap-y-6 rounded-md border p-4">
+                <Heading level="h2">Facebook & Instagram Post</Heading>
+                <Text size="small" className="text-ui-fg-subtle">
+                  Choose where to publish: Facebook only, Instagram only, or both platforms.
+                </Text>
+
+                {/* Publish Target Selection */}
+                <Form.Field
+                  control={form.control}
+                  name="publish_target"
+                  render={({ field: { value, onChange } }) => (
+                    <Form.Item>
+                      <Form.Label>Publish To</Form.Label>
+                      <Form.Control>
+                        <Select value={value} onValueChange={onChange}>
+                          <Select.Trigger>
+                            <Select.Value placeholder="Select platform(s)" />
+                          </Select.Trigger>
+                          <Select.Content>
+                            <Select.Item value="facebook">📘 Facebook Only</Select.Item>
+                            <Select.Item value="instagram">📷 Instagram Only</Select.Item>
+                            <Select.Item value="both">📘 + 📷 Both Platforms</Select.Item>
+                          </Select.Content>
+                        </Select>
+                      </Form.Control>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
+
+                <Form.Field
+                  control={form.control}
+                  name="post_type"
+                  render={({ field: { value, onChange } }) => (
+                    <Form.Item>
+                      <Form.Label>Post Type</Form.Label>
+                      <Form.Control>
+                        <Select value={value} onValueChange={onChange}>
+                          <Select.Trigger>
+                            <Select.Value placeholder="Select post type" />
+                          </Select.Trigger>
+                          <Select.Content>
+                            <Select.Item value="photo">Photo</Select.Item>
+                          </Select.Content>
+                        </Select>
+                      </Form.Control>
+                      <Form.ErrorMessage />
+                      <Text size="small" className="text-ui-fg-subtle mt-1">
+                        Note: Only photo posts are currently supported.
+                      </Text>
+                    </Form.Item>
+                  )}
+                />
+
+                {/* Facebook Page selection - only show if publishing to Facebook or Both */}
+                {(publishTarget === "facebook" || publishTarget === "both") && (
+                  <Form.Field
+                    control={form.control}
+                    name="page_id"
+                    render={({ field: { value, onChange } }) => (
+                      <Form.Item>
+                        <Form.Label>Facebook Page</Form.Label>
+                        <Form.Control>
+                          <Select value={value} onValueChange={onChange} disabled={isPagesLoading}>
+                            <Select.Trigger>
+                              <Select.Value placeholder={isPagesLoading ? "Loading pages..." : "Select page"} />
+                            </Select.Trigger>
+                            <Select.Content>
+                              {pages.map((p) => (
+                                <Select.Item key={p.id} value={p.id}>
+                                  {p.name || p.id}
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select>
+                        </Form.Control>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
+                )}
+
+                {/* Instagram account selection - only show if publishing to Instagram or Both */}
+                {(publishTarget === "instagram" || publishTarget === "both") && (
+                  <Form.Field
+                    control={form.control}
+                    name="ig_user_id"
+                    render={({ field: { value, onChange } }) => (
+                      <Form.Item>
+                        <Form.Label>Instagram Account</Form.Label>
+                        <Form.Control>
+                          <Select value={value} onValueChange={onChange}>
+                            <Select.Trigger>
+                              <Select.Value placeholder="Select IG account" />
+                            </Select.Trigger>
+                            <Select.Content>
+                              {igAccounts.map((acc) => (
+                                <Select.Item key={acc.id} value={acc.id}>
+                                  {acc.username || acc.id}
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select>
+                        </Form.Control>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
+                )}
+
+                {/* Message/Caption */}
+                <Form.Field
+                  control={form.control}
+                  name="message"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <Form.Label>Message/Caption</Form.Label>
+                      <Form.Control>
+                        <Input {...field} placeholder="Write your message (will be used for both platforms)" />
+                      </Form.Control>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
+
+                {/* Media picker for photo posts */}
+                {postType === "photo" && (
+                  <Form.Field
+                    control={form.control}
+                    name="media_urls"
+                    render={({ field: { value, onChange } }) => {
+                      const urls = Array.isArray(value) ? value : []
+                      return (
+                        <Form.Item>
+                          <Form.Label>Media</Form.Label>
+                          <div className="mt-2 flex flex-wrap items-center gap-3">
+                            {urls.map((url, index) => (
+                              <div key={index} className="relative h-20 w-20 overflow-hidden rounded-md border">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={url} alt={`Selected media ${index + 1}`} className="h-full w-full object-cover" />
+                                <div className="absolute top-1 right-1 flex items-center justify-center rounded-full bg-white/50 p-0.5">
+                                  <XMark
+                                    className="text-ui-fg-muted hover:text-ui-fg-subtle cursor-pointer"
+                                    onClick={() => onChange(urls.filter((u) => u !== url))}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                            <RawMaterialMediaModal
+                              onSave={(picked) => {
+                                const next = Array.isArray(picked) ? picked.slice(0, 1) : []
+                                onChange(next)
+                              }}
+                              initialUrls={urls}
+                            />
+                          </div>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )
+                    }}
+                  />
+                )}
+
+                {/* Auto publish toggle */}
+                <Form.Field
+                  control={form.control}
+                  name="auto_publish"
+                  render={({ field: { value, onChange } }) => (
+                    <Form.Item>
+                      <Form.Label>Auto publish</Form.Label>
+                      <Form.Control>
+                        <div className="flex items-center gap-x-2">
+                          <Switch checked={!!value} onCheckedChange={onChange} />
+                          <Text size="small" className="text-ui-fg-subtle">Publish to both platforms immediately after creation</Text>
+                        </div>
+                      </Form.Control>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
               </div>
             )}
 

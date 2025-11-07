@@ -14,6 +14,7 @@ interface PublishToBothPlatformsInput {
   pageId: string
   igUserId: string
   userAccessToken: string
+  publishTarget?: "facebook" | "instagram" | "both"
   content: {
     type: "photo" | "video" | "text" | "reel"
     message?: string
@@ -97,13 +98,16 @@ const publishToInstagramStep = createStep(
  */
 const publishToBothPlatformsStep = createStep(
   "publish-to-both-platforms-unified",
-  async (input: PublishContentInput, { container }) => {
+  async (input: PublishContentInput & { publishTarget?: "facebook" | "instagram" | "both" }, { container }) => {
     const socialProvider = container.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
     const publisher = socialProvider.getContentPublisher()
 
+    // Determine which platform to publish to
+    const targetPlatform = input.publishTarget || "both"
+
     const result = await publisher.publishContent({
       ...input,
-      platform: "both",
+      platform: targetPlatform,
     })
 
     return new StepResponse(result, {
@@ -156,10 +160,11 @@ export const publishToBothPlatformsUnifiedWorkflow = createWorkflow(
   "publish-to-both-platforms-unified",
   function (input: WorkflowData<PublishToBothPlatformsInput>) {
     const result = publishToBothPlatformsStep({
-      platform: "both",
+      platform: input.publishTarget || "both",
       pageId: input.pageId,
       igUserId: input.igUserId,
       userAccessToken: input.userAccessToken,
+      publishTarget: input.publishTarget,
       content: input.content,
     })
 

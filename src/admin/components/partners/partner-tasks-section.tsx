@@ -1,5 +1,5 @@
 import { Badge, Container, Heading, Text, toast } from "@medusajs/ui"
-import { Plus, PlaySolid } from "@medusajs/icons"
+import { Plus, PlaySolid, SquaresPlus } from "@medusajs/icons"
 import { usePartnerTasks } from "../../hooks/api/partner-tasks"
 import { ActionMenu } from "../common/action-menu"
 
@@ -34,6 +34,11 @@ export const PartnerTasksSection = ({ partnerId }: PartnerTasksSectionProps) => 
             groups={[
               {
                 actions: [
+                  {
+                    label: "View Canvas",
+                    icon: <SquaresPlus />,
+                    to: `tasks/view-canvas`,
+                  },
                   {
                     label: "Create Task",
                     icon: <Plus />,

@@ -145,6 +145,41 @@ export const usePublishSocialPost = (): UseMutationResult<
   })
 }
 
+// Publish to both Facebook and Instagram (FBINSTA platform)
+export const usePublishToBothPlatforms = (): UseMutationResult<
+  {
+    success: boolean
+    post: AdminSocialPost
+    results: {
+      facebook?: { platform: string; success: boolean; postId?: string; error?: string }
+      instagram?: { platform: string; success: boolean; postId?: string; permalink?: string; error?: string }
+    }
+  },
+  Error,
+  { post_id: string }
+> => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch(`/admin/socials/publish-both`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success("Published to Facebook & Instagram!")
+      } else {
+        toast.warning("Published with some errors. Check post details.")
+      }
+      queryClient.invalidateQueries({ queryKey: socialPostsQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: socialPostsQueryKeys.all })
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+}
+
 export const useUpdateSocialPost = (
   id: string
 ): UseMutationResult<

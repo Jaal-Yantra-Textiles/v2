@@ -40,12 +40,24 @@ const TwitterIcon = (props: any) => (
   </svg>
 );
 
+const FBINSTAIcon = (props: any) => (
+  <div className="flex items-center gap-2" {...props}>
+    <FacebookIcon className="h-12 w-12" />
+    <span className="text-2xl font-bold text-ui-fg-muted">+</span>
+    <InstagramIcon className="h-12 w-12" />
+  </div>
+);
+
 const SocialIcon = ({ platformName }: { platformName: string }) => {
-  switch (platformName.toLowerCase()) {
+  const name = platformName.toLowerCase();
+  switch (name) {
     case 'instagram':
       return <InstagramIcon />;
     case 'facebook':
       return <FacebookIcon />;
+    case 'fbinsta':
+    case 'facebook & instagram':
+      return <FBINSTAIcon />;
     case 'linkedin':
       return <LinkedInIcon />;
     case 'twitter':
@@ -63,7 +75,12 @@ export const SocialPlatformAccessComponent = () => {
 
   const handleLogin = () => {
     if (!socialPlatform) return;
-    initiateOAuth({ platform: socialPlatform.name.toLowerCase(), id: platformId });
+    // Treat FBINSTA as Facebook for OAuth
+    const platformName = socialPlatform.name.toLowerCase();
+    const oauthPlatform = (platformName === 'fbinsta' || platformName === 'facebook & instagram') 
+      ? 'facebook' 
+      : platformName;
+    initiateOAuth({ platform: oauthPlatform, id: platformId });
   }
 
   if (isLoading) {

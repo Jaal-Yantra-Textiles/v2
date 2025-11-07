@@ -1,9 +1,10 @@
 import { AdminSocialPost } from "../../hooks/api/social-posts"
-import { usePublishSocialPost } from "../../hooks/api/social-posts"
+import { usePublishSocialPost, usePublishToBothPlatforms } from "../../hooks/api/social-posts"
 import { CommonField, CommonSection } from "../common/section-views"
 import { useTranslation } from "react-i18next"
 import dayjs from "dayjs"
 import { PencilSquare, Trash, Newspaper } from "@medusajs/icons"
+import { useSocialPlatform } from "../../hooks/api/social-platforms"
 
 export const SocialPostGeneralSection = ({
   post,
@@ -12,7 +13,24 @@ export const SocialPostGeneralSection = ({
 }) => {
   const { t } = useTranslation()
   const { mutate: publishNow, isPending } = usePublishSocialPost()
+  const { mutate: publishToBoth, isPending: isPublishingBoth } = usePublishToBothPlatforms()
+  
+  // Get platform info to determine if it's FBINSTA
+  const { socialPlatform } = useSocialPlatform(post.platform_id)
+  const platformName = (socialPlatform?.name || "").toLowerCase()
+  const isFBINSTA = platformName === "fbinsta" || platformName === "facebook & instagram"
+  
+  // Get publish target from metadata
+  const publishTarget = (post.metadata as any)?.publish_target as "facebook" | "instagram" | "both" | undefined
 
+  // Determine button label based on publish target
+  const getPublishLabel = () => {
+    if (!isFBINSTA) return t("Publish now")
+    if (publishTarget === "facebook") return t("📘 Publish to Facebook")
+    if (publishTarget === "instagram") return t("📷 Publish to Instagram")
+    if (publishTarget === "both") return t("📘 + 📷 Publish to Both")
+    return t("Publish now")
+  }
 
   const actionGroups = [
     {
@@ -27,10 +45,16 @@ export const SocialPostGeneralSection = ({
     {
       actions: [
         {
-          label: t("Publish now"),
+          label: getPublishLabel(),
           icon: <Newspaper />,
-          onClick: () => publishNow({ post_id: post.id }),
-          disabled: post.status === "posted" || isPending,
+          onClick: () => {
+            if (isFBINSTA) {
+              publishToBoth({ post_id: post.id })
+            } else {
+              publishNow({ post_id: post.id })
+            }
+          },
+          disabled: post.status === "posted" || isPending || isPublishingBoth,
         },
       ],
     },
@@ -54,6 +78,11 @@ export const SocialPostGeneralSection = ({
     },
   ];
 
+  // Extract platform-specific URLs from insights
+  const insights = (post.insights || {}) as Record<string, any>
+  const facebookPostId = insights.facebook_post_id
+  const instagramPermalink = insights.instagram_permalink
+
   const fields: CommonField[] = [
     {
       label: t("fields.name", "Name"),
@@ -72,6 +101,22 @@ export const SocialPostGeneralSection = ({
       value: post.posted_at ? dayjs(post.posted_at).format("YYYY-MM-DD HH:mm") : "-",
     },
   ]
+
+  // Add platform-specific URLs for FBINSTA posts
+  if (isFBINSTA && post.status === "posted") {
+    if (facebookPostId) {
+      fields.push({
+        label: "Facebook Post",
+        value: post.post_url || `https://www.facebook.com/${facebookPostId}`,
+      })
+    }
+    if (instagramPermalink) {
+      fields.push({
+        label: "Instagram Post",
+        value: instagramPermalink,
+      })
+    }
+  }
 
   return (
     <CommonSection

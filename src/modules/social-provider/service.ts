@@ -15,12 +15,17 @@ export interface BaseSocialProviderService {
   // extend with other common methods when needed
 }
 
+// InstagramService uses Facebook tokens, so it doesn't implement OAuth interface
+type SocialProvider = BaseSocialProviderService | ContentPublishingService | InstagramService
+
 /**
  * SocialProviderService – runtime delegator to concrete provider SDK wrappers
- * Similar in spirit to custom-s3-provider/service.ts
+ * 
+ * Note: InstagramService uses Facebook Login for authentication.
+ * Use FacebookService for OAuth, then use InstagramService for Instagram operations.
  */
 class SocialProviderService extends MedusaService({}) {
-  private cache_: Record<string, BaseSocialProviderService | ContentPublishingService> = {}
+  private cache_: Record<string, SocialProvider> = {}
 
   getProvider<T = BaseSocialProviderService>(name: string): T {
     const key = name.toLowerCase()

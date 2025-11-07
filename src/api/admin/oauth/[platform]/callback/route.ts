@@ -54,8 +54,16 @@ export const POST = async (
       const ig = new InstagramService()
       const igAccounts = await ig.getLinkedIgAccounts(tokenData.access_token)
       metadata = { pages, ig_accounts: igAccounts }
+      
+      // Log for debugging
+      console.log(`[OAuth Callback] Fetched ${pages.length} Facebook pages and ${igAccounts.length} Instagram accounts`)
+      if (igAccounts.length === 0) {
+        console.warn("[OAuth Callback] No Instagram accounts found. Check if Instagram Business account is linked to Facebook Page.")
+      }
     } catch (e) {
-      // Non-fatal: continue without metadata cache
+      // Non-fatal: continue without metadata cache, but log the error
+      console.error("[OAuth Callback] Failed to fetch pages/IG accounts:", (e as Error).message)
+      metadata = { pages: [], ig_accounts: [], error: (e as Error).message }
     }
   }
 
