@@ -2,7 +2,7 @@ import { z } from "zod"
 
 export const PublishContentSchema = z.object({
   platform: z.enum(["facebook", "instagram", "both"]),
-  pageId: z.string().min(1, "Page ID is required"),
+  pageId: z.string().optional(),
   igUserId: z.string().optional(),
   userAccessToken: z.string().min(1, "User access token is required"),
   content: z.object({
@@ -14,6 +14,18 @@ export const PublishContentSchema = z.object({
     link: z.string().url().optional(),
   }),
 }).refine(
+  (data) => {
+    // If platform is facebook or both, pageId is required
+    if (data.platform === "facebook" || data.platform === "both") {
+      return !!data.pageId
+    }
+    return true
+  },
+  {
+    message: "Page ID is required when publishing to Facebook",
+    path: ["pageId"],
+  }
+).refine(
   (data) => {
     // If platform is instagram or both, igUserId is required
     if (data.platform === "instagram" || data.platform === "both") {

@@ -61,7 +61,7 @@ export const POST = async (
 
       const { result: workflowResult } = await publishToBothPlatformsSeriesWorkflow(req.scope).run({
         input: {
-          pageId,
+          pageId: pageId!,
           igUserId: igUserId!,
           userAccessToken,
           content,
@@ -77,7 +77,7 @@ export const POST = async (
       // Use unified workflow (both platforms simultaneously)
       const { result: workflowResult } = await publishToBothPlatformsUnifiedWorkflow(req.scope).run({
         input: {
-          pageId,
+          pageId: pageId || "",
           igUserId: igUserId || "",
           userAccessToken,
           content,
