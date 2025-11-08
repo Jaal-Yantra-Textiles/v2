@@ -61,29 +61,33 @@ export default class ContentPublishingService {
 
     const results: PublishResult[] = []
 
-    // Get page access token (works for both platforms)
-    let pageAccessToken: string
-    try {
-      pageAccessToken = await this.facebookService.getPageAccessToken(
-        input.pageId,
-        input.userAccessToken
-      )
-    } catch (error) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        `Failed to get page access token: ${error.message}`
-      )
+    // Get page access token only if publishing to Facebook
+    let pageAccessToken: string | undefined
+    if (input.platform === "facebook" || input.platform === "both") {
+      try {
+        pageAccessToken = await this.facebookService.getPageAccessToken(
+          input.pageId!,
+          input.userAccessToken
+        )
+      } catch (error) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Failed to get page access token: ${error.message}`
+        )
+      }
     }
 
     // Publish to Facebook
     if (input.platform === "facebook" || input.platform === "both") {
-      const fbResult = await this.publishToFacebook(input, pageAccessToken)
+      const fbResult = await this.publishToFacebook(input, pageAccessToken!)
       results.push(fbResult)
     }
 
     // Publish to Instagram
     if (input.platform === "instagram" || input.platform === "both") {
-      const igResult = await this.publishToInstagram(input, pageAccessToken)
+      // For Instagram, use page access token if available (for "both"), otherwise use user token
+      const igToken = pageAccessToken || input.userAccessToken
+      const igResult = await this.publishToInstagram(input, igToken)
       results.push(igResult)
     }
 
