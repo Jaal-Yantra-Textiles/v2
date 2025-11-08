@@ -23,16 +23,16 @@ export const INSTAGRAM_PRESETS = {
 } as const
 
 /**
- * Check if URL is from Cloudflare storage
+ * Check if URL is from Cloudflare storage or supports Cloudflare Image Resizing
  */
 export function isCloudflareUrl(url: string): boolean {
   try {
     const urlObj = new URL(url)
     // Check if it's your Cloudflare domain or R2 bucket
-    // Adjust this based on your actual Cloudflare setup
     return (
       urlObj.hostname.includes("cloudflare") ||
       urlObj.hostname.includes("r2.dev") ||
+      urlObj.hostname.includes("jaalyantra.com") || // Your custom domain
       urlObj.pathname.includes("/cdn-cgi/imagedelivery/")
     )
   } catch {
