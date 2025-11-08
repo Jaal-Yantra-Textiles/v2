@@ -1,3 +1,10 @@
+## [6.25.13](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.12...v6.25.13) (2025-11-08)
+
+
+### Bug Fixes
+
+* **Social:** Instagram acess token ([87d2e2a](https://github.com/Jaal-Yantra-Textiles/v2/commit/87d2e2af11bc09b93e09934d231905de276c38f5))
+
 ## [6.25.12](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.11...v6.25.12) (2025-11-07)
 
 
