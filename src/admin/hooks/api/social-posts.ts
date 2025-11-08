@@ -121,21 +121,33 @@ export const useCreateSocialPost = (): UseMutationResult<
   })
 }
 
-// Trigger publish workflow for a social post
+// Publish a social post to configured platforms
+// Uses the new standardized endpoint: POST /admin/social-posts/:id/publish
 export const usePublishSocialPost = (): UseMutationResult<
-  { post: AdminSocialPost },
+  {
+    success: boolean
+    post: AdminSocialPost
+    results: {
+      facebook?: { platform: string; success: boolean; postId?: string; error?: string }
+      instagram?: { platform: string; success: boolean; postId?: string; permalink?: string; error?: string }
+    }
+  },
   Error,
-  { post_id: string; page_id?: string }
+  { post_id: string; override_page_id?: string; override_ig_user_id?: string }
 > => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload) =>
-      sdk.client.fetch(`/admin/socials/facebook/pages`, {
+    mutationFn: async ({ post_id, override_page_id, override_ig_user_id }) =>
+      sdk.client.fetch(`/admin/social-posts/${post_id}/publish`, {
         method: "POST",
-        body: payload,
+        body: { override_page_id, override_ig_user_id },
       }),
-    onSuccess: () => {
-      toast.success("Publish started")
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success("Post published successfully!")
+      } else {
+        toast.warning("Published with some errors. Check post details.")
+      }
       queryClient.invalidateQueries({ queryKey: socialPostsQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: socialPostsQueryKeys.all })
     },
@@ -145,7 +157,8 @@ export const usePublishSocialPost = (): UseMutationResult<
   })
 }
 
-// Publish to both Facebook and Instagram (FBINSTA platform)
+// @deprecated Use usePublishSocialPost instead
+// Kept for backward compatibility during migration
 export const usePublishToBothPlatforms = (): UseMutationResult<
   {
     success: boolean
@@ -161,13 +174,13 @@ export const usePublishToBothPlatforms = (): UseMutationResult<
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (payload) =>
-      sdk.client.fetch(`/admin/socials/publish-both`, {
+      sdk.client.fetch(`/admin/social-posts/${payload.post_id}/publish`, {
         method: "POST",
-        body: payload,
+        body: {},
       }),
     onSuccess: (data) => {
       if (data.success) {
-        toast.success("Published to Facebook & Instagram!")
+        toast.success("Post published successfully!")
       } else {
         toast.warning("Published with some errors. Check post details.")
       }

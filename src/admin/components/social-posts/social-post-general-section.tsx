@@ -1,5 +1,5 @@
 import { AdminSocialPost } from "../../hooks/api/social-posts"
-import { usePublishSocialPost, usePublishToBothPlatforms } from "../../hooks/api/social-posts"
+import { usePublishSocialPost } from "../../hooks/api/social-posts"
 import { CommonField, CommonSection } from "../common/section-views"
 import { useTranslation } from "react-i18next"
 import dayjs from "dayjs"
@@ -12,8 +12,7 @@ export const SocialPostGeneralSection = ({
   post: AdminSocialPost
 }) => {
   const { t } = useTranslation()
-  const { mutate: publishNow, isPending } = usePublishSocialPost()
-  const { mutate: publishToBoth, isPending: isPublishingBoth } = usePublishToBothPlatforms()
+  const { mutate: publishPost, isPending } = usePublishSocialPost()
   
   // Get platform info to determine if it's FBINSTA
   const { socialPlatform } = useSocialPlatform(post.platform_id)
@@ -48,13 +47,9 @@ export const SocialPostGeneralSection = ({
           label: getPublishLabel(),
           icon: <Newspaper />,
           onClick: () => {
-            if (isFBINSTA) {
-              publishToBoth({ post_id: post.id })
-            } else {
-              publishNow({ post_id: post.id })
-            }
+            publishPost({ post_id: post.id })
           },
-          disabled: post.status === "posted" || isPending || isPublishingBoth,
+          disabled: post.status === "posted" || isPending,
         },
       ],
     },

@@ -95,6 +95,17 @@ export default class InstagramService {
     const resp = await fetch(url, { method: "POST", body })
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}))
+      
+      // Provide helpful error message for aspect ratio issues
+      const errorMsg = err?.error?.message || ""
+      const errorCode = err?.error?.code
+      if (errorCode === 36003 || errorMsg.toLowerCase().includes("aspect ratio")) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Instagram rejected the image due to invalid aspect ratio. Instagram requires images with aspect ratios between 4:5 (portrait) and 1.91:1 (landscape). Please resize your image and try again. Original error: ${errorMsg}`
+        )
+      }
+      
       throw new MedusaError(MedusaError.Types.INVALID_DATA, `IG create container failed: ${resp.status} - ${JSON.stringify(err)}`)
     }
     return (await resp.json()) as { id: string }

@@ -9,6 +9,10 @@ interface PublishByPostIdBody {
   page_id?: string
 }
 
+/**
+ * @deprecated Use POST /admin/social-posts/:id/publish instead
+ * This endpoint will be removed in a future version
+ */
 export const POST = async (
   req: MedusaRequest<PublishByPostIdBody>,
   res: MedusaResponse
@@ -20,6 +24,11 @@ export const POST = async (
     return
   }
 
+  console.warn(
+    "[DEPRECATED] POST /admin/socials/facebook/pages is deprecated. " +
+    "Use POST /admin/social-posts/:id/publish instead."
+  )
+
   const { result, errors } = await publishSocialPostWorkflow(req.scope).run({
     input: { post_id, page_id },
   })
@@ -29,7 +38,10 @@ export const POST = async (
     return
   }
 
-  res.status(200).json({ post: result })
+  res.status(200).json({ 
+    post: result,
+    _deprecated: "This endpoint is deprecated. Use POST /admin/social-posts/:id/publish instead."
+  })
 }
 
 // List managed pages for a platform_id (uses stored user token in platform.api_config)

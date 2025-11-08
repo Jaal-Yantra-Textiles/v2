@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/utils"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"
 import SocialProviderService from "../../../../modules/social-provider/service"
+import type { GetAccountsRequest } from "./validators"
 
 /**
  * GET /admin/socials/accounts
@@ -10,19 +11,15 @@ import SocialProviderService from "../../../../modules/social-provider/service"
  * 
  * Query parameters:
  * - userAccessToken: User access token (required)
+ * 
+ * Note: Query parameter validation is handled by middleware
  */
 export const GET = async (
-  req: MedusaRequest,
+  req: MedusaRequest<GetAccountsRequest>,
   res: MedusaResponse
 ) => {
-  const userAccessToken = req.query.userAccessToken as string
-
-  if (!userAccessToken) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_ARGUMENT,
-      "userAccessToken query parameter is required"
-    )
-  }
+  // Query is already validated by middleware
+  const { userAccessToken } = req.validatedQuery as GetAccountsRequest
 
   try {
     const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService

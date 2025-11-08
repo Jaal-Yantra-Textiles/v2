@@ -90,6 +90,8 @@ import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq } from "./partners/products/validators";
 import { LinkPersonValidator, UnlinkPersonValidator } from "./admin/products/[id]/linkPerson/validators";
 import { GenerateDescriptionValidator } from "./admin/products/[id]/generateDescription/validators";
+import { PublishSocialPostSchema } from "./admin/social-posts/[id]/publish/validators";
+import { GetAccountsSchema } from "./admin/socials/accounts/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -195,6 +197,17 @@ export default defineMiddlewares({
     {
       matcher: "/web/*",
       middlewares: [createCorsMiddleware()],
+    },
+    // Webhooks (no authentication required)
+    {
+      matcher: "/webhooks/social/facebook",
+      method: "GET",
+      middlewares: [], // Verification endpoint
+    },
+    {
+      matcher: "/webhooks/social/facebook",
+      method: "POST",
+      middlewares: [], // Webhook receiver (validates signature internally)
     },
     {
       matcher: "/partners",
@@ -903,6 +916,16 @@ export default defineMiddlewares({
       matcher: "/admin/social-posts",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(listSocialPostsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/social-posts/:id/publish",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(PublishSocialPostSchema))],
+    },
+    {
+      matcher: "/admin/socials/accounts",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(GetAccountsSchema), {})],
     },
     {
       matcher: "/admin/users/:id/suspend",

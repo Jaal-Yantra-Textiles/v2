@@ -1,6 +1,7 @@
 import { MedusaError } from "@medusajs/utils"
 import FacebookService from "./facebook-service"
 import InstagramService from "./instagram-service"
+import { transformForInstagram, transformForFacebook } from "./image-transformer"
 
 export type ContentType = "photo" | "video" | "text" | "reel"
 export type Platform = "facebook" | "instagram" | "both"
@@ -178,10 +179,12 @@ export default class ContentPublishingService {
           if (!input.content.image_url) {
             throw new Error("image_url is required for photo posts")
           }
+          // Transform image to Instagram-compatible aspect ratio (1:1 square)
+          const transformedImageUrl = transformForInstagram(input.content.image_url, "square")
           response = await this.instagramService.publishImage(
             input.igUserId,
             {
-              image_url: input.content.image_url,
+              image_url: transformedImageUrl,
               caption,
             },
             pageAccessToken

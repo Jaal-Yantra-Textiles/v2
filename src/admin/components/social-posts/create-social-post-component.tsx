@@ -727,7 +727,9 @@ export const CreateSocialPostComponent = () => {
                           />
                         </div>
                         <Text size="small" className="text-ui-fg-subtle">
-                          For reels, provide a video URL supported by Instagram. Media library video selection can be added later.
+                          {postType === "reel" 
+                            ? "For reels, provide a video URL supported by Instagram. Media library video selection can be added later."
+                            : "Images are automatically transformed to 1:1 square (1080x1080) for Instagram compatibility using Cloudflare Image Resizing."}
                         </Text>
                         <Form.ErrorMessage />
                       </Form.Item>

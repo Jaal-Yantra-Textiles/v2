@@ -45,7 +45,7 @@ export const GET = async (
     const ig = new InstagramService()
     
     // First, let's check what the raw API returns
-    const url = new URL("https://graph.facebook.com/v18.0/me/accounts")
+    const url = new URL("https://graph.facebook.com/v24.0/me/accounts")
     url.searchParams.set("fields", "id,name,instagram_business_account{id,username}")
     url.searchParams.set("access_token", accessToken)
     
