@@ -1,3 +1,15 @@
+# [6.26.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.13...v6.26.0) (2025-11-08)
+
+
+### Bug Fixes
+
+* **images:** Transformation fix for the url jyt ([7bbb1e5](https://github.com/Jaal-Yantra-Textiles/v2/commit/7bbb1e59fdf347eb69349057eeecf256f4740860))
+
+
+### Features
+
+* **Socials:** Social medias can store returning data from the post ([0ab504c](https://github.com/Jaal-Yantra-Textiles/v2/commit/0ab504c4cb2c6ec17f5edb04c62f16558ecd3af2))
+
 ## [6.25.13](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.12...v6.25.13) (2025-11-08)
 
 
