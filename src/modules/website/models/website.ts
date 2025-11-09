@@ -1,5 +1,8 @@
 import { model } from "@medusajs/framework/utils";
 import Page from "./page";
+import AnalyticsEvent from "../../analytics/models/analytics-event";
+import AnalyticsSession from "../../analytics/models/analytics-session";
+import AnalyticsDailyStats from "../../analytics/models/analytics-daily-stats";
 
 const Website = model.define("website", {
   id: model.id().primaryKey(),

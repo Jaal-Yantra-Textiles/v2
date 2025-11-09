@@ -181,5 +181,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/feedback",
   },
+  {
+    resolve: "./src/modules/analytics",
+  },
 ],
 });

@@ -93,6 +93,7 @@ import { GenerateDescriptionValidator } from "./admin/products/[id]/generateDesc
 import { PublishSocialPostSchema } from "./admin/social-posts/[id]/publish/validators";
 import { GetAccountsSchema } from "./admin/socials/accounts/validators";
 import { FeedbackSchema, UpdateFeedbackSchema } from "./admin/feedbacks/validators";
+import { AnalyticsEventQuerySchema } from "./admin/analytics-events/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -1146,6 +1147,12 @@ export default defineMiddlewares({
       matcher: "/admin/feedbacks",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(FeedbackSchema))],
+    },
+    // Admin Analytics Events routes
+    {
+      matcher: "/admin/analytics-events",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AnalyticsEventQuerySchema), {})],
     },
     {
       matcher: "/admin/feedbacks/:id",
