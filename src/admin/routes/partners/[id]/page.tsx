@@ -7,6 +7,7 @@ import { PartnerGeneralSection } from "../../../components/partners/partner-gene
 import { PartnerAdminsSection } from "../../../components/partners/partner-admins-section"
 import { PartnerPaymentsSection } from "../../../components/partners/partner-payments-section"
 import { PartnerTasksSection } from "../../../components/partners/partner-tasks-section"
+import { PartnerFeedbacksSection } from "../../../components/partners/partner-feedbacks-section"
 import type { AdminPartner } from "../../../hooks/api/partners-admin"
 import { partnerLoader } from "./loader"
 
@@ -37,6 +38,7 @@ const PartnerDetailPage = () => {
           <PartnerGeneralSection partner={partner} />
           <PartnerPaymentsSection partner={partner} />
           <PartnerTasksSection partnerId={partner.id} />
+          <PartnerFeedbacksSection partnerId={partner.id} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
           <PartnerAdminsSection admins={partner.admins || []} />

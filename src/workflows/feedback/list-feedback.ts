@@ -4,8 +4,7 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
-import { FEEDBACK_MODULE } from "../../modules/feedback";
-import FeedbackService from "../../modules/feedback/service";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
 export type ListFeedbackStepInput = {
   filters?: Record<string, any>;
@@ -15,17 +14,45 @@ export type ListFeedbackStepInput = {
     select?: string[];
     relations?: string[];
   };
+  includeLinks?: {
+    partners?: boolean;
+    tasks?: boolean;
+    inventoryOrders?: boolean;
+  };
 };
 
 export const listFeedbackStep = createStep(
   "list-feedback-step",
   async (input: ListFeedbackStepInput, { container }) => {
-    const service: FeedbackService = container.resolve(FEEDBACK_MODULE);
-    const results = await service.listAndCountFeedbacks(
-      input.filters,
-      input.config
-    );
-    return new StepResponse(results);
+    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+
+    // Build fields array based on what links to include
+    const fields = ["*"];
+    
+    if (input.includeLinks?.partners) {
+      fields.push("partner.*");
+    }
+    if (input.includeLinks?.tasks) {
+      fields.push("tasks.*");
+    }
+    if (input.includeLinks?.inventoryOrders) {
+      fields.push("inventory_orders.*");
+    }
+
+    // Query feedbacks with linked entities
+    const { data: feedbacks } = await query.index({
+      entity: "feedback",
+      fields,
+      filters: input.filters || {},
+      pagination: {
+        skip: input.config?.skip || 0,
+        take: input.config?.take || 20,
+      },
+    });
+
+    const count = feedbacks?.length || 0;
+
+    return new StepResponse([feedbacks || [], count]);
   }
 );
 

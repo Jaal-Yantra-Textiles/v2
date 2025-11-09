@@ -1,6 +1,8 @@
 import { Badge, Button, Container, Heading, Input, Label, Select, Switch, Text, toast } from "@medusajs/ui"
+import { ChatBubbleLeftRight } from "@medusajs/icons"
 import { useEffect, useMemo, useState } from "react"
 import { useUpdatePartner } from "../../hooks/api/partners-admin"
+import { ActionMenu } from "../common/action-menu"
 
 export type AdminPartner = {
   id: string
@@ -60,6 +62,19 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
         <div className="flex items-center gap-2">
           <Badge color={status === "active" ? "green" : status === "pending" ? "orange" : "grey"}>{status}</Badge>
           {isVerified ? <Badge color="green">Verified</Badge> : <Badge>Not Verified</Badge>}
+          <ActionMenu
+            groups={[
+              {
+                actions: [
+                  {
+                    label: "Add Feedback",
+                    icon: <ChatBubbleLeftRight />,
+                    to: `/partners/${partner.id}/add-feedback`,
+                  },
+                ],
+              },
+            ]}
+          />
         </div>
       </div>
 

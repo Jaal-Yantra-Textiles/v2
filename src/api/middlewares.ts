@@ -92,6 +92,7 @@ import { LinkPersonValidator, UnlinkPersonValidator } from "./admin/products/[id
 import { GenerateDescriptionValidator } from "./admin/products/[id]/generateDescription/validators";
 import { PublishSocialPostSchema } from "./admin/social-posts/[id]/publish/validators";
 import { GetAccountsSchema } from "./admin/socials/accounts/validators";
+import { FeedbackSchema, UpdateFeedbackSchema } from "./admin/feedbacks/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -1134,6 +1135,63 @@ export default defineMiddlewares({
       matcher: "/admin/users/:id/suspend",
       method: "POST",
       middlewares: [],
+    },
+    // Admin Feedbacks routes
+    {
+      matcher: "/admin/feedbacks",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/feedbacks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(FeedbackSchema))],
+    },
+    {
+      matcher: "/admin/feedbacks/:id",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/feedbacks/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateFeedbackSchema))],
+    },
+    {
+      matcher: "/admin/feedbacks/:id",
+      method: "DELETE",
+      middlewares: [],
+    },
+    // Entity-specific feedback routes
+    {
+      matcher: "/admin/partners/:id/feedbacks",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id/feedbacks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(FeedbackSchema))],
+    },
+    {
+      matcher: "/admin/tasks/:id/feedbacks",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/tasks/:id/feedbacks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(FeedbackSchema))],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/feedbacks",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/feedbacks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(FeedbackSchema))],
     },
   ],
   errorHandler: ((
