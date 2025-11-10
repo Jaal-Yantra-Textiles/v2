@@ -81,12 +81,20 @@ const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
     }
     
     const urls = data.media_urls ?? []
-    if (data.post_type === "photo" && urls.length !== 1) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["media_urls"],
-        message: "Select exactly one image",
-      })
+    if (data.post_type === "photo") {
+      if (urls.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["media_urls"],
+          message: "Select at least one image",
+        })
+      } else if (urls.length > 10) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["media_urls"],
+          message: "Maximum 10 images allowed for carousel",
+        })
+      }
     }
     return
   }
@@ -102,11 +110,11 @@ const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
     }
     if (data.post_type === "photo") {
       const urls = data.media_urls ?? []
-      if (urls.length !== 1) {
+      if (urls.length < 1 || urls.length > 10) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["media_urls"],
-          message: "Select exactly one image",
+          message: "Select between 1 and 10 images",
         })
       }
     }
@@ -131,8 +139,10 @@ const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
     }
     const urls = data.media_urls ?? []
     if (data.post_type === "photo") {
-      if (urls.length !== 1) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["media_urls"], message: "Select exactly one image" })
+      if (urls.length < 1) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["media_urls"], message: "Select at least one image" })
+      } else if (urls.length > 10) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["media_urls"], message: "Maximum 10 images for carousel" })
       }
     }
     if (data.post_type === "reel") {
@@ -420,13 +430,16 @@ export const CreateSocialPostComponent = () => {
                             ))}
                             <RawMaterialMediaModal
                               onSave={(picked) => {
-                                // enforce single image selection for photo posts
-                                const next = Array.isArray(picked) ? picked.slice(0, 1) : []
+                                // Allow multiple images (up to 10 for carousel)
+                                const next = Array.isArray(picked) ? picked.slice(0, 10) : []
                                 onChange(next)
                               }}
                               initialUrls={urls}
                             />
                           </div>
+                          <Text size="small" className="text-ui-fg-subtle mt-2">
+                            Select 1-10 images. Single image = photo post, multiple images = album.
+                          </Text>
                           <Form.ErrorMessage />
                         </Form.Item>
                       )
@@ -591,12 +604,16 @@ export const CreateSocialPostComponent = () => {
                             ))}
                             <RawMaterialMediaModal
                               onSave={(picked) => {
-                                const next = Array.isArray(picked) ? picked.slice(0, 1) : []
+                                // Allow multiple images (up to 10 for carousel)
+                                const next = Array.isArray(picked) ? picked.slice(0, 10) : []
                                 onChange(next)
                               }}
                               initialUrls={urls}
                             />
                           </div>
+                          <Text size="small" className="text-ui-fg-subtle mt-2">
+                            Select 1-10 images. Single image = photo post, multiple images = carousel/album. All images automatically transformed for Instagram.
+                          </Text>
                           <Form.ErrorMessage />
                         </Form.Item>
                       )
@@ -719,8 +736,8 @@ export const CreateSocialPostComponent = () => {
                           ))}
                           <RawMaterialMediaModal
                             onSave={(picked) => {
-                              // enforce exactly one selection for IG for now
-                              const next = Array.isArray(picked) ? picked.slice(0, 1) : []
+                              // Allow multiple images (up to 10 for carousel)
+                              const next = Array.isArray(picked) ? picked.slice(0, 10) : []
                               onChange(next)
                             }}
                             initialUrls={urls}
@@ -729,7 +746,7 @@ export const CreateSocialPostComponent = () => {
                         <Text size="small" className="text-ui-fg-subtle">
                           {postType === "reel" 
                             ? "For reels, provide a video URL supported by Instagram. Media library video selection can be added later."
-                            : "Images are automatically transformed to 1:1 square (1080x1080) for Instagram compatibility using Cloudflare Image Resizing."}
+                            : `Select 1-10 images. Single image = photo post, multiple images = carousel. All images are automatically transformed to 1:1 square (1080x1080) for Instagram compatibility.`}
                         </Text>
                         <Form.ErrorMessage />
                       </Form.Item>
