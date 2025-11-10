@@ -1,3 +1,10 @@
+## [6.27.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.27.0...v6.27.1) (2025-11-10)
+
+
+### Bug Fixes
+
+* **Custom Analytics:** Fixed the api url for the live session tracking ([a9ac421](https://github.com/Jaal-Yantra-Textiles/v2/commit/a9ac421769ed31ff2bf6b5e9534cecf536a1c593))
+
 # [6.27.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.26.0...v6.27.0) (2025-11-10)
 
 
