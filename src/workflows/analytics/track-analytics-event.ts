@@ -5,6 +5,7 @@ import {
   StepResponse,
 } from "@medusajs/framework/workflows-sdk";
 import { ANALYTICS_MODULE } from "../../modules/analytics";
+import { Modules } from "@medusajs/framework/utils";
 
 // Helper to parse user agent
 function parseUserAgent(userAgent: string) {
@@ -84,6 +85,7 @@ const createAnalyticsEventStep = createStep(
   "create-analytics-event",
   async (input: TrackAnalyticsEventInput, { container }) => {
     const analyticsService = container.resolve(ANALYTICS_MODULE) as any;
+    const eventBus = container.resolve(Modules.EVENT_BUS);
 
     // Parse user agent
     const { browser, os, device_type } = parseUserAgent(input.user_agent);
@@ -108,6 +110,12 @@ const createAnalyticsEventStep = createStep(
       country: null, // TODO: Add GeoIP lookup if needed
       metadata: input.metadata || null,
       timestamp: input.timestamp,
+    });
+
+    // Emit event for real-time subscribers
+    await eventBus.emit({
+      name: "analytics_event.created",
+      data: event,
     });
 
     return new StepResponse(event, event.id);

@@ -1,9 +1,5 @@
 import { model } from "@medusajs/framework/utils";
 import Page from "./page";
-import AnalyticsEvent from "../../analytics/models/analytics-event";
-import AnalyticsSession from "../../analytics/models/analytics-session";
-import AnalyticsDailyStats from "../../analytics/models/analytics-daily-stats";
-
 const Website = model.define("website", {
   id: model.id().primaryKey(),
   domain: model.text().unique(),
@@ -18,7 +14,6 @@ const Website = model.define("website", {
   primary_language: model.text().default("en"),
   supported_languages: model.json().nullable(),
   favicon_url: model.text().nullable(),
-  analytics_id: model.text().nullable(),
   metadata: model.json().nullable(),
   
   // Relationship with Pages

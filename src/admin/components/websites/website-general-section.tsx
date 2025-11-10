@@ -1,4 +1,4 @@
-import { PencilSquare } from "@medusajs/icons";
+import { PencilSquare, ChartBar, BoltSolid } from "@medusajs/icons";
 import {
   Container,
   Heading,
@@ -69,12 +69,23 @@ export function WebsiteGeneralSection({ website }: WebsiteGeneralSectionProps) {
           </StatusBadge>
 
           <ActionMenu groups={[{
-              actions: [{
-                label: t("actions.edit"),
-                icon: <PencilSquare />,
-                to: "edit",
-              },],
-             
+              actions: [
+                {
+                  label: "Live Analytics",
+                  icon: <BoltSolid />,
+                  to: "live",
+                },
+                {
+                  label: "Analytics",
+                  icon: <ChartBar />,
+                  to: "analytics",
+                },
+                {
+                  label: t("actions.edit"),
+                  icon: <PencilSquare />,
+                  to: "edit",
+                },
+              ],
           }]} />
         </div>
       </div>

@@ -24,7 +24,8 @@
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
     "predeploy": "medusa db:migrate",
     "generate-ui": "medusa exec ./src/scripts/generate-ui-v2.ts",
-    "resolve:aliases": "tsc --showConfig -p tsconfig.json > tsconfig.resolved.json && tsc-alias -p tsconfig.resolved.json && rimraf tsconfig.resolved.json"
+    "resolve:aliases": "tsc --showConfig -p tsconfig.json > tsconfig.resolved.json && tsc-alias -p tsconfig.resolved.json && rimraf tsconfig.resolved.json",
+    "build:analytics": "node ./src/scripts/build-analytics.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.17",
@@ -146,6 +147,7 @@
     "sass": "^1.89.2",
     "sass-embedded": "^1.89.2",
     "semantic-release": "^23.0.0",
+    "terser": "^5.44.1",
     "ts-node": "^10.9.2",
     "tsc-alias": "^1.8.16",
     "typescript": "^5.6.2",

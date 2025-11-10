@@ -8,7 +8,6 @@ export const websiteSchema = z.object({
   primary_language: z.string().optional(),
   supported_languages: z.record(z.string(), z.string()).optional(),
   favicon_url: z.string().url().optional(),
-  analytics_id: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 
@@ -24,7 +23,6 @@ export const updateWebsiteSchema = z.object({
   primary_language: z.string().optional(),
   supported_languages: z.record(z.string(), z.string()).optional(),
   favicon_url: z.string().url().optional(),
-  analytics_id: z.string().optional(),
   metadata: z.record(z.unknown()).optional().nullish(),
 });
 
