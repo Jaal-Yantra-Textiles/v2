@@ -1,3 +1,11 @@
+## [6.27.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.27.1...v6.27.2) (2025-11-10)
+
+
+### Bug Fixes
+
+* **Websocket:** fixed the websocket slash issue ([91e0be1](https://github.com/Jaal-Yantra-Textiles/v2/commit/91e0be1c0c7d304491afd79d5728d64c8bb8f8ca))
+* **Socials:** Posting instagram and faecbook can multi-select images ([035386e](https://github.com/Jaal-Yantra-Textiles/v2/commit/035386e88e37125cf113bf4ebd150150410ea06e))
+
 ## [6.27.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.27.0...v6.27.1) (2025-11-10)
 
 
