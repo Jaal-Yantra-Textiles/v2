@@ -36,9 +36,12 @@ export const LiveAnalyticsPanel = () => {
   useEffect(() => {
     if (!websiteId) return;
 
+    // Get API base URL from config
+    const apiBaseUrl = import.meta.env.VITE_MEDUSA_BACKEND_URL || (import.meta.env.DEV ? "http://localhost:9000" : "");
+
     // Connect to SSE endpoint
     const eventSource = new EventSource(
-      `http://localhost:9000/admin/analytics/live?website_id=${websiteId}`
+      `${apiBaseUrl}/admin/analytics/live?website_id=${websiteId}`
     );
 
     eventSourceRef.current = eventSource;

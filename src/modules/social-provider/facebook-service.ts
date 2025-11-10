@@ -237,4 +237,92 @@ export default class FacebookService {
     }
     return await resp.json()
   }
+
+  /**
+   * Publish a multi-photo album to a Facebook Page
+   * 
+   * Facebook multi-photo flow:
+   * 1. Upload each photo with published=false to get photo IDs
+   * 2. Create a feed post with attached_media parameter containing all photo IDs
+   * 
+   * @param pageId - Facebook Page ID
+   * @param input - Album data with image URLs and message
+   * @param pageAccessToken - Page access token
+   * @returns Post ID
+   */
+  async createPagePhotoAlbum(
+    pageId: string,
+    input: { message?: string; image_urls: string[] },
+    pageAccessToken: string
+  ) {
+    if (!pageId || !pageAccessToken) {
+      throw new MedusaError(MedusaError.Types.INVALID_ARGUMENT, "FacebookService: missing pageId or pageAccessToken")
+    }
+
+    if (!input.image_urls || input.image_urls.length === 0) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, "At least one image is required for photo album")
+    }
+
+    // Step 1: Upload each photo unpublished to get photo IDs
+    const photoIds: string[] = []
+
+    for (const imageUrl of input.image_urls) {
+      const uploadBody = new URLSearchParams()
+      uploadBody.set("url", imageUrl)
+      uploadBody.set("published", "false") // Don't publish individually
+      uploadBody.set("access_token", pageAccessToken)
+
+      const uploadResp = await fetch(
+        `https://graph.facebook.com/v24.0/${encodeURIComponent(pageId)}/photos`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: uploadBody.toString(),
+        }
+      )
+
+      if (!uploadResp.ok) {
+        const err = await uploadResp.json().catch(() => ({}))
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Facebook photo upload failed: ${uploadResp.status} - ${JSON.stringify(err)}`
+        )
+      }
+
+      const uploadData = (await uploadResp.json()) as { id: string }
+      photoIds.push(uploadData.id)
+    }
+
+    // Step 2: Create feed post with all attached photos
+    const feedBody = new URLSearchParams()
+    if (input.message) {
+      feedBody.set("message", input.message)
+    }
+
+    // Attach all photos using attached_media parameter
+    photoIds.forEach((photoId, index) => {
+      feedBody.append(`attached_media[${index}]`, JSON.stringify({ media_fbid: photoId }))
+    })
+
+    feedBody.set("access_token", pageAccessToken)
+
+    const feedResp = await fetch(
+      `https://graph.facebook.com/v24.0/${encodeURIComponent(pageId)}/feed`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: feedBody.toString(),
+      }
+    )
+
+    if (!feedResp.ok) {
+      const err = await feedResp.json().catch(() => ({}))
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Facebook album post creation failed: ${feedResp.status} - ${JSON.stringify(err)}`
+      )
+    }
+
+    return await feedResp.json()
+  }
 }

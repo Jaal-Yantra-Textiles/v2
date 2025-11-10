@@ -134,6 +134,80 @@ export default class InstagramService {
     return this.publishContainer(igUserId, cont.id, accessToken)
   }
 
+  /**
+   * Publish a carousel post with multiple images (up to 10)
+   * 
+   * Instagram carousel flow:
+   * 1. Create a container for each image
+   * 2. Create a carousel container with all child container IDs
+   * 3. Publish the carousel container
+   * 
+   * @param igUserId - Instagram Business Account ID
+   * @param args - Carousel data with image URLs and caption
+   * @param accessToken - Page access token
+   * @returns Published media ID and permalink
+   */
+  async publishCarousel(
+    igUserId: string, 
+    args: { image_urls: string[]; caption?: string }, 
+    accessToken: string
+  ): Promise<{ id: string; permalink?: string }> {
+    if (!args.image_urls || args.image_urls.length === 0) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, "At least one image is required for carousel")
+    }
+
+    if (args.image_urls.length > 10) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, "Instagram carousels support maximum 10 images")
+    }
+
+    // Step 1: Create a container for each image
+    const childContainerIds: string[] = []
+    
+    for (const imageUrl of args.image_urls) {
+      const container = await this.createContainer(
+        igUserId,
+        { 
+          image_url: imageUrl,
+          // Note: Caption is only on the carousel container, not individual items
+        },
+        accessToken
+      )
+      childContainerIds.push(container.id)
+    }
+
+    // Step 2: Create the carousel container
+    const carouselUrl = `https://graph.facebook.com/v24.0/${encodeURIComponent(igUserId)}/media`
+    const carouselBody = new URLSearchParams()
+    carouselBody.set("media_type", "CAROUSEL")
+    carouselBody.set("children", childContainerIds.join(","))
+    if (args.caption) {
+      carouselBody.set("caption", args.caption)
+    }
+    carouselBody.set("access_token", accessToken)
+
+    const carouselResp = await fetch(carouselUrl, { method: "POST", body: carouselBody })
+    if (!carouselResp.ok) {
+      const err = await carouselResp.json().catch(() => ({}))
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA, 
+        `IG carousel container creation failed: ${carouselResp.status} - ${JSON.stringify(err)}`
+      )
+    }
+
+    const carouselContainer = (await carouselResp.json()) as { id: string }
+
+    // Step 3: Publish the carousel
+    const published = await this.publishContainer(igUserId, carouselContainer.id, accessToken)
+
+    // Get permalink
+    const permalink = await this.getMediaPermalink(published.id, accessToken)
+
+    return {
+      id: published.id,
+      permalink,
+    }
+  }
+
   async getMediaPermalink(mediaId: string, accessToken: string): Promise<string | undefined> {
     const url = new URL(`https://graph.facebook.com/v24.0/${encodeURIComponent(mediaId)}`)
     url.searchParams.set("fields", "permalink")

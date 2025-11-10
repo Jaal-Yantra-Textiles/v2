@@ -3,7 +3,7 @@ import FacebookService from "./facebook-service"
 import InstagramService from "./instagram-service"
 import { transformForInstagram, transformForFacebook } from "./image-transformer"
 
-export type ContentType = "photo" | "video" | "text" | "reel"
+export type ContentType = "photo" | "video" | "text" | "reel" | "carousel"
 export type Platform = "facebook" | "instagram" | "both"
 
 export interface PublishContentInput {
@@ -14,7 +14,8 @@ export interface PublishContentInput {
     type: ContentType
     message?: string
     caption?: string // For Instagram
-    image_url?: string
+    image_url?: string // Single image (for backward compatibility)
+    image_urls?: string[] // Multiple images for carousel/album
     video_url?: string
     link?: string // For Facebook text posts
   }
@@ -123,6 +124,21 @@ export default class ContentPublishingService {
           )
           break
 
+        case "carousel":
+          // For Facebook, carousel = multi-photo album
+          if (!input.content.image_urls || input.content.image_urls.length === 0) {
+            throw new Error("image_urls is required for carousel posts")
+          }
+          response = await this.facebookService.createPagePhotoAlbum(
+            input.pageId,
+            {
+              message: input.content.message,
+              image_urls: input.content.image_urls,
+            },
+            pageAccessToken
+          )
+          break
+
         case "video":
           // Facebook video posts would go here (not yet implemented in FacebookService)
           throw new Error("Video posts not yet implemented for Facebook")
@@ -185,6 +201,24 @@ export default class ContentPublishingService {
             input.igUserId,
             {
               image_url: transformedImageUrl,
+              caption,
+            },
+            pageAccessToken
+          )
+          break
+
+        case "carousel":
+          if (!input.content.image_urls || input.content.image_urls.length === 0) {
+            throw new Error("image_urls is required for carousel posts")
+          }
+          // Transform all images to Instagram-compatible aspect ratio
+          const transformedImageUrls = input.content.image_urls.map(url => 
+            transformForInstagram(url, "square")
+          )
+          response = await this.instagramService.publishCarousel(
+            input.igUserId,
+            {
+              image_urls: transformedImageUrls,
               caption,
             },
             pageAccessToken

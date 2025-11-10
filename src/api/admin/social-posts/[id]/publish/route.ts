@@ -108,16 +108,22 @@ export const POST = async (
     const caption = (post as any).caption || ""
 
     // Determine content type
-    let contentType: "photo" | "video" | "text" | "reel" = "text"
+    let contentType: "photo" | "video" | "text" | "reel" | "carousel" = "text"
     let imageUrl: string | undefined
+    let imageUrls: string[] | undefined
     let videoUrl: string | undefined
 
-    const imageAttachment = mediaAttachments.find((a) => a.type === "image")
+    const imageAttachments = mediaAttachments.filter((a) => a.type === "image")
     const videoAttachment = mediaAttachments.find((a) => a.type === "video")
 
-    if (imageAttachment) {
+    if (imageAttachments.length > 1) {
+      // Multiple images = carousel
+      contentType = "carousel"
+      imageUrls = imageAttachments.map((a) => a.url)
+    } else if (imageAttachments.length === 1) {
+      // Single image = photo
       contentType = "photo"
-      imageUrl = imageAttachment.url
+      imageUrl = imageAttachments[0].url
     } else if (videoAttachment) {
       contentType = "reel"
       videoUrl = videoAttachment.url
@@ -152,6 +158,7 @@ export const POST = async (
           message: caption,
           caption: caption,
           image_url: imageUrl,
+          image_urls: imageUrls,
           video_url: videoUrl,
         },
       },

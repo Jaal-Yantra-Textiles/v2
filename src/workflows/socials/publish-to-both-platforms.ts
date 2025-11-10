@@ -16,10 +16,11 @@ interface PublishToBothPlatformsInput {
   userAccessToken: string
   publishTarget?: "facebook" | "instagram" | "both"
   content: {
-    type: "photo" | "video" | "text" | "reel"
+    type: "photo" | "video" | "text" | "reel" | "carousel"
     message?: string
     caption?: string
     image_url?: string
+    image_urls?: string[]
     video_url?: string
     link?: string
   }

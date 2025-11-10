@@ -43,7 +43,7 @@ export interface TwitterUserToken {
 }
 
 // Content Publishing Types
-export type ContentType = "photo" | "video" | "text" | "reel"
+export type ContentType = "photo" | "video" | "text" | "reel" | "carousel"
 export type Platform = "facebook" | "instagram" | "both"
 
 export interface PublishContentInput {
@@ -55,6 +55,7 @@ export interface PublishContentInput {
     message?: string
     caption?: string
     image_url?: string
+    image_urls?: string[]
     video_url?: string
     link?: string
   }
