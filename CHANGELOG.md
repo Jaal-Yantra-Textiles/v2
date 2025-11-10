@@ -1,3 +1,15 @@
+# [6.27.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.26.0...v6.27.0) (2025-11-10)
+
+
+### Bug Fixes
+
+* **Custom Analytics:** Custom Analytics to replace the plausible script ([78290f6](https://github.com/Jaal-Yantra-Textiles/v2/commit/78290f67da8145dd856419f591c19d521e8834c8))
+
+
+### Features
+
+* **Feedback:** Module feedback for the partnet and inventory order fixed ([4fc2e7d](https://github.com/Jaal-Yantra-Textiles/v2/commit/4fc2e7d06ec79c68e9a84085605ccd0706d3bc06))
+
 # [6.26.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.25.13...v6.26.0) (2025-11-08)
 
 
