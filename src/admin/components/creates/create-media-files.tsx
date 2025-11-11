@@ -3,27 +3,28 @@ import { Button, Heading, Input, Select, Text, toast } from "@medusajs/ui"
 import { FileUpload } from "../common/file-upload"
 import { useListMediaDictionaries } from "../../hooks/api/media-folders/use-list-dictionaries"
 import { RouteFocusModal } from "../modal/route-focus-modal"
-import { UploadManager, UploadItemState } from "../../lib/uploads/upload-manager"
+import { useUploadSingleMedia } from "../../hooks/api/media-folders/use-upload-manager"
+
+interface UploadProgress {
+  id: string
+  name: string
+  progress: number
+  status: "queued" | "uploading" | "completed" | "error"
+  message?: string
+}
 
 export const CreateMediaFilesComponent: React.FC = () => {
   const [pendingFiles, setPendingFiles] = React.useState<{ file: File; url: string }[]>([])
   const [albumIdsText, setAlbumIdsText] = React.useState<string>("")
   const { data: dicts, isLoading: isDictsLoading } = useListMediaDictionaries()
 
-  // Singleton-ish manager per component instance
-  const managerRef = React.useRef<UploadManager>()
-  if (!managerRef.current) {
-    managerRef.current = new UploadManager()
-  }
-
-  // Track live uploads for basic progress rendering
-  const [uploads, setUploads] = React.useState<Record<string, UploadItemState>>({})
-  React.useEffect(() => {
-    const off = managerRef.current!.onUpdate((s) => {
-      setUploads((prev) => ({ ...prev, [s.id]: s }))
-    })
-    return () => off()
-  }, [])
+  // Track live uploads for progress rendering
+  const [uploads, setUploads] = React.useState<Record<string, UploadProgress>>({})
+  
+  // Upload hook with progress callback
+  const uploadMutation = useUploadSingleMedia((progress) => {
+    setUploads((prev) => ({ ...prev, [progress.id]: progress }))
+  })
 
   React.useEffect(() => {
     return () => {
@@ -145,7 +146,7 @@ export const CreateMediaFilesComponent: React.FC = () => {
           </RouteFocusModal.Close>
           <Button
             type="button"
-            disabled={pendingFiles.length === 0}
+            disabled={pendingFiles.length === 0 || uploadMutation.isPending}
             onClick={async () => {
               try {
                 const files = pendingFiles.map((p) => p.file)
@@ -158,23 +159,36 @@ export const CreateMediaFilesComponent: React.FC = () => {
                   .map((s) => s.trim())
                   .filter(Boolean)
 
-                for (const f of files) {
-                  managerRef.current!.enqueue(f, {
-                    existingAlbumIds: existingAlbumIds.length ? existingAlbumIds : undefined,
-                  })
+                toast.success(`Uploading ${files.length} file(s)...`)
+
+                // Upload files sequentially
+                for (const file of files) {
+                  try {
+                    await uploadMutation.mutateAsync({
+                      file,
+                      options: {
+                        existingAlbumIds: existingAlbumIds.length ? existingAlbumIds : undefined,
+                      }
+                    })
+                  } catch (error) {
+                    console.error(`Failed to upload ${file.name}:`, error)
+                    // Continue with other files
+                  }
                 }
-                toast.success(`${files.length} file(s) enqueued. Uploading in background.`)
-                // Cleanup previews and selection; uploads continue in manager
+
+                toast.success(`Successfully uploaded ${files.length} file(s)`)
+                // Cleanup previews and selection
                 pendingFiles.forEach((pf) => URL.revokeObjectURL(pf.url))
                 setPendingFiles([])
                 setAlbumIdsText("")
+                setUploads({}) // Clear upload progress
               } catch (e: any) {
                 const msg = e?.message || e?.response?.data?.message || "Failed to upload files"
                 toast.error(msg)
               }
             }}
           >
-            Upload files
+            {uploadMutation.isPending ? "Uploading..." : "Upload files"}
           </Button>
           <Button
             type="button"
