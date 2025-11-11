@@ -1,3 +1,10 @@
+## [6.28.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.28.0...v6.28.1) (2025-11-11)
+
+
+### Bug Fixes
+
+* **Medias:** User upload manager hook replaced ([b1b41c0](https://github.com/Jaal-Yantra-Textiles/v2/commit/b1b41c0fbc78032f6e45b9898982c7982039ca0a))
+
 # [6.28.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.27.2...v6.28.0) (2025-11-11)
 
 
