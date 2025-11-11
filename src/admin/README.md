@@ -21,11 +21,14 @@ VITE_MEDUSA_BACKEND_URL=http://localhost:9000
 # Use relative path (empty string) to use same domain as admin
 VITE_MEDUSA_BACKEND_URL=
 
-# Or specify full URL
+# Or specify full URL (with or without trailing slash)
 VITE_MEDUSA_BACKEND_URL=https://v3.jaalyantra.com
+VITE_MEDUSA_BACKEND_URL=https://v3.jaalyantra.com/
 ```
 
-**Note:** In production, if not set, the admin will use relative paths (`/admin/...`) which works when the admin is served from the same domain as the API.
+**Note:** 
+- In production, if not set, the admin will use relative paths (`/admin/...`) which works when the admin is served from the same domain as the API.
+- Trailing slashes are automatically removed to prevent double slashes in URLs.
 
 ## Example: Create a Widget
 

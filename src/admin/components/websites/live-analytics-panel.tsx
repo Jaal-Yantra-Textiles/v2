@@ -36,8 +36,9 @@ export const LiveAnalyticsPanel = () => {
   useEffect(() => {
     if (!websiteId) return;
 
-    // Get API base URL from config
-    const apiBaseUrl = import.meta.env.VITE_MEDUSA_BACKEND_URL || (import.meta.env.DEV ? "http://localhost:9000" : "");
+    // Get API base URL from config and remove trailing slash
+    let apiBaseUrl = import.meta.env.VITE_MEDUSA_BACKEND_URL || (import.meta.env.DEV ? "http://localhost:9000" : "");
+    apiBaseUrl = apiBaseUrl.replace(/\/$/, ''); // Remove trailing slash
 
     // Connect to SSE endpoint
     const eventSource = new EventSource(
