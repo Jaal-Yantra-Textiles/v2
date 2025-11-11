@@ -1,5 +1,5 @@
-import { LiveAnalyticsPanel } from "../../../../components/websites/live-analytics-panel";
+import { WebsiteLiveAnalyticsModal } from "../../../../components/websites/website-live-analytics-modal";
 
 export default function LiveAnalyticsPage() {
-  return <LiveAnalyticsPanel />;
+  return <WebsiteLiveAnalyticsModal />;
 }

@@ -1,22 +1,37 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { Button, Heading, Text, Badge, Container } from "@medusajs/ui";
+import { AreaChart, Area, PieChart, Pie, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { 
+  ChartBar,
+  Users,
+  Eye,
+  ArrowPath,
+  ArrowUpRightOnBox,
+  Link,
+  MagnifyingGlass,
+  BuildingStorefront,
+  ChatBubbleLeftRight,
+  Photo,
+  MediaPlay,
+  TriangleRightMini
+} from "@medusajs/icons";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { useWebsiteAnalytics } from "../../hooks/api/analytics";
 
-// Helper function to get icon for referrer source
-function getSourceIcon(source: string): string {
+// Helper function to get icon component for referrer source
+function getSourceIcon(source: string) {
   const lowerSource = source.toLowerCase();
-  if (lowerSource === "direct") return "🔗";
-  if (lowerSource.includes("google")) return "🔍";
-  if (lowerSource.includes("facebook")) return "📘";
-  if (lowerSource.includes("twitter") || lowerSource.includes("x.com")) return "🐦";
-  if (lowerSource.includes("linkedin")) return "💼";
-  if (lowerSource.includes("instagram")) return "📷";
-  if (lowerSource.includes("youtube")) return "▶️";
-  if (lowerSource.includes("reddit")) return "🤖";
-  if (lowerSource.includes("github")) return "🐙";
-  return "🌐"; // Default for other sources
+  if (lowerSource === "direct") return Link;
+  if (lowerSource.includes("google")) return MagnifyingGlass;
+  if (lowerSource.includes("facebook")) return ChatBubbleLeftRight;
+  if (lowerSource.includes("twitter") || lowerSource.includes("x.com")) return ChatBubbleLeftRight;
+  if (lowerSource.includes("linkedin")) return BuildingStorefront;
+  if (lowerSource.includes("instagram")) return Photo;
+  if (lowerSource.includes("youtube")) return MediaPlay;
+  if (lowerSource.includes("reddit")) return ChatBubbleLeftRight;
+  if (lowerSource.includes("github")) return TriangleRightMini;
+  return ArrowUpRightOnBox; // Default for other sources
 }
 
 export const WebsiteAnalyticsModal = () => {
@@ -25,12 +40,68 @@ export const WebsiteAnalyticsModal = () => {
   
   const { data, isLoading, error } = useWebsiteAnalytics(id!, days);
 
+  // Process chart data
+  const { timeSeriesData, sourcesChartData, countriesData } = useMemo(() => {
+    if (!data || !data.recent_events || data.recent_events.length === 0) {
+      return { timeSeriesData: [], sourcesChartData: [], countriesData: [] };
+    }
+
+    // Group events by date for time series
+    const eventsByDate = data.recent_events.reduce((acc: any, event: any) => {
+      const date = new Date(event.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (!acc[date]) {
+        acc[date] = { date, pageviews: 0, visitors: new Set() };
+      }
+      acc[date].pageviews++;
+      if (event.visitor_id) {
+        acc[date].visitors.add(event.visitor_id);
+      }
+      return acc;
+    }, {});
+
+    const timeSeriesData = Object.values(eventsByDate).map((day: any) => ({
+      date: day.date,
+      pageviews: day.pageviews,
+      visitors: day.visitors.size,
+    })).slice(-14); // Last 14 days
+
+    // Group by source for pie chart
+    const sourceGroups = data.recent_events.reduce((acc: any, event: any) => {
+      const source = event.referrer_source || "direct";
+      acc[source] = (acc[source] || 0) + 1;
+      return acc;
+    }, {});
+
+    const sourcesChartData = Object.entries(sourceGroups)
+      .map(([name, value]) => ({ name: name === "direct" ? "Direct" : name, value }))
+      .sort((a: any, b: any) => b.value - a.value)
+      .slice(0, 5);
+
+    // Group by country for map
+    const countryGroups = data.recent_events.reduce((acc: any, event: any) => {
+      const country = event.country || "Unknown";
+      if (country !== "Unknown") {
+        acc[country] = (acc[country] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    const countriesData = Object.entries(countryGroups)
+      .map(([country, visitors]) => ({ country, visitors }))
+      .sort((a: any, b: any) => b.visitors - a.visitors);
+
+    return { timeSeriesData, sourcesChartData, countriesData };
+  }, [data]);
+
+  const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
+
   return (
     <RouteFocusModal>
       <RouteFocusModal.Header>
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-x-3">
-            <Heading>📊 Analytics</Heading>
+            <ChartBar className="text-ui-fg-subtle" />
+            <Heading>Analytics</Heading>
             {data && (
               <Text size="small" className="text-ui-fg-subtle">
                 {data.website.domain}
@@ -70,53 +141,180 @@ export const WebsiteAnalyticsModal = () => {
         {data && (
           <div className="flex flex-col">
             {/* Top Stats Bar */}
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-px bg-ui-border-base border-b border-ui-border-base">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ui-border-base border-b border-ui-border-base">
               <MetricCard
                 label="UNIQUE VISITORS"
                 value={data.stats.unique_visitors.toLocaleString()}
-                trend="+228%"
-                trendUp={true}
+                icon={Users}
               />
               <MetricCard
                 label="TOTAL VISITS"
                 value={data.stats.unique_sessions.toLocaleString()}
-                trend="+100%"
-                trendUp={true}
+                icon={ArrowPath}
               />
               <MetricCard
                 label="TOTAL PAGEVIEWS"
                 value={data.stats.total_pageviews.toLocaleString()}
-                trend="+120%"
-                trendUp={true}
+                icon={Eye}
               />
               <MetricCard
                 label="VIEWS PER VISIT"
                 value={data.stats.unique_sessions > 0
                   ? (data.stats.total_pageviews / data.stats.unique_sessions).toFixed(2)
                   : "0"}
-                trend="+24%"
-                trendUp={true}
-              />
-              <MetricCard
-                label="BOUNCE RATE"
-                value="92%"
-                trend="+7%"
-                trendUp={false}
-              />
-              <MetricCard
-                label="VISIT DURATION"
-                value="30s"
-                trend="+6%"
-                trendUp={true}
+                icon={ChartBar}
               />
             </div>
 
             {/* Main Content */}
-            <div className="p-6 flex flex-col gap-y-6">
+            <div className="p-6 flex flex-col gap-y-8">
+              {/* Charts Section */}
+              {timeSeriesData.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
+                  {/* Visitors Trend Chart */}
+                  <Container className="p-0 overflow-hidden lg:col-span-2 shadow-sm hover:shadow-md transition-shadow duration-200">
+                    <div className="p-4 border-b border-ui-border-base">
+                      <Heading level="h3" className="text-sm font-medium">
+                        Visitors Trend (Last 14 Days)
+                      </Heading>
+                    </div>
+                    <div className="p-4">
+                      <ResponsiveContainer width="100%" height={250}>
+                        <AreaChart data={timeSeriesData}>
+                          <defs>
+                            <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="colorPageviews" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            stroke="#9ca3af"
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }}
+                            stroke="#9ca3af"
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#fff', 
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              fontSize: '12px'
+                            }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '12px' }} />
+                          <Area 
+                            type="monotone" 
+                            dataKey="visitors" 
+                            stroke="#3b82f6" 
+                            fillOpacity={1} 
+                            fill="url(#colorVisitors)"
+                            name="Visitors"
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="pageviews" 
+                            stroke="#8b5cf6" 
+                            fillOpacity={1} 
+                            fill="url(#colorPageviews)"
+                            name="Pageviews"
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Container>
+
+                  {/* Traffic Sources Pie Chart */}
+                  {sourcesChartData.length > 0 && (
+                    <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+                      <div className="p-4 border-b border-ui-border-base">
+                        <Heading level="h3" className="text-sm font-medium">
+                          Traffic Sources
+                        </Heading>
+                      </div>
+                      <div className="p-4 flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie
+                              data={sourcesChartData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {sourcesChartData.map((_entry: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: '#fff', 
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '6px',
+                                fontSize: '12px'
+                              }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </Container>
+                  )}
+                </div>
+              )}
+
+              {/* Geographic Distribution */}
+              {countriesData.length > 0 && (
+                <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 animate-in fade-in duration-700">
+                  <div className="p-4 border-b border-ui-border-base">
+                    <Heading level="h3" className="text-sm font-medium">
+                      🌍 Geographic Distribution
+                    </Heading>
+                  </div>
+                  <div className="p-4">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={countriesData.slice(0, 10)} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis type="number" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                        <YAxis 
+                          dataKey="country" 
+                          type="category" 
+                          width={100}
+                          tick={{ fontSize: 12 }}
+                          stroke="#9ca3af"
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#fff', 
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '12px'
+                          }}
+                        />
+                        <Bar dataKey="visitors" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                          {countriesData.slice(0, 10).map((_entry: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Container>
+              )}
+
               {/* Top Sources and Top Pages */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-700">
                 {/* Top Sources */}
-                <Container className="p-0 overflow-hidden">
+                <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
                   <div className="p-4 border-b border-ui-border-base">
                     <Heading level="h3" className="text-sm font-medium">
                       Top Sources
@@ -141,14 +339,14 @@ export const WebsiteAnalyticsModal = () => {
                           .sort((a: any, b: any) => b.visitors - a.visitors)
                           .slice(0, 10)
                           .map((item: any, idx: number) => {
-                            const icon = getSourceIcon(item.source);
+                            const IconComponent = getSourceIcon(item.source);
                             const displayName = item.source === "direct" ? "Direct / None" : item.source.charAt(0).toUpperCase() + item.source.slice(1);
                             return (
                               <SourceRow 
                                 key={idx} 
                                 source={displayName} 
                                 visitors={item.visitors} 
-                                icon={icon} 
+                                IconComponent={IconComponent} 
                               />
                             );
                           })
@@ -158,7 +356,7 @@ export const WebsiteAnalyticsModal = () => {
                 </Container>
 
                 {/* Top Pages */}
-                <Container className="p-0 overflow-hidden">
+                <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
                   <div className="p-4 border-b border-ui-border-base">
                     <Heading level="h3" className="text-sm font-medium">
                       Top Pages
@@ -192,7 +390,7 @@ export const WebsiteAnalyticsModal = () => {
 
               {/* Recent Events */}
               {data.recent_events.length > 0 && (
-                <Container className="p-0 overflow-hidden">
+                <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 animate-in fade-in duration-1000">
                   <div className="p-4 border-b border-ui-border-base">
                     <Heading level="h3" className="text-sm font-medium">
                       Recent Activity
@@ -250,32 +448,25 @@ export const WebsiteAnalyticsModal = () => {
   );
 };
 
-// Metric Card Component (Plausible-style)
+// Metric Card Component
 function MetricCard({
   label,
   value,
-  trend,
-  trendUp,
+  icon: IconComponent,
 }: {
   label: string;
   value: string;
-  trend: string;
-  trendUp: boolean;
+  icon: React.ComponentType<any>;
 }) {
   return (
-    <div className="bg-ui-bg-base p-4 flex flex-col gap-y-2">
-      <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">
-        {label}
-      </Text>
-      <div className="flex items-baseline gap-x-2">
-        <Text className="text-2xl font-bold">{value}</Text>
-        <Text
-          size="xsmall"
-          className={trendUp ? "text-green-500" : "text-red-500"}
-        >
-          {trend}
+    <div className="bg-ui-bg-base p-5 flex flex-col gap-y-3 transition-all duration-200 hover:bg-ui-bg-subtle-hover">
+      <div className="flex items-center justify-between">
+        <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide font-medium">
+          {label}
         </Text>
+        <IconComponent className="text-ui-fg-muted transition-transform duration-200 hover:scale-110" />
       </div>
+      <Text className="text-3xl font-bold transition-all duration-200">{value}</Text>
     </div>
   );
 }
@@ -284,16 +475,16 @@ function MetricCard({
 function SourceRow({
   source,
   visitors,
-  icon,
+  IconComponent,
 }: {
   source: string;
   visitors: number;
-  icon: string;
+  IconComponent: React.ComponentType<any>;
 }) {
   return (
     <div className="flex items-center justify-between py-2 hover:bg-ui-bg-subtle-hover rounded px-2 -mx-2">
       <div className="flex items-center gap-x-2">
-        <span className="text-base">{icon}</span>
+        <IconComponent className="text-ui-fg-subtle" />
         <Text size="small">{source}</Text>
       </div>
       <Text size="small" className="text-ui-fg-subtle font-medium">
