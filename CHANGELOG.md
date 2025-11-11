@@ -1,3 +1,15 @@
+# [6.28.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.27.2...v6.28.0) (2025-11-11)
+
+
+### Bug Fixes
+
+* **Custom Analytics:** Removed the trailing slash ([9269f6c](https://github.com/Jaal-Yantra-Textiles/v2/commit/9269f6c3eecd61054347dbfd6622d401e3dec872))
+
+
+### Features
+
+* **Custom Analytics:** Polished UI to view analtyical data ([ad12c6e](https://github.com/Jaal-Yantra-Textiles/v2/commit/ad12c6e1e7282e4df7d66275dbe580dc4a05021c))
+
 ## [6.27.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.27.1...v6.27.2) (2025-11-10)
 
 
