@@ -1,3 +1,15 @@
+# [6.30.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.29.0...v6.30.0) (2025-11-12)
+
+
+### Bug Fixes
+
+* **Middlewares:** Fixed the cors header settings ([7bc6323](https://github.com/Jaal-Yantra-Textiles/v2/commit/7bc6323e18b61174243bca55e8c3ea8d31524c40))
+
+
+### Features
+
+* **Github:** Actions for deploying the analytics js ([c0d80cf](https://github.com/Jaal-Yantra-Textiles/v2/commit/c0d80cfbeed9f1f75d5400666bfae2d59abe9845))
+
 # [6.29.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.28.1...v6.29.0) (2025-11-12)
 
 
