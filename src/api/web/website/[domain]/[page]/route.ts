@@ -5,11 +5,6 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse,
 ) => {
-  // Set CORS headers for frontend access
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-  
   const { domain, page } = req.params;
 
   try {
