@@ -11,6 +11,13 @@ export const TrackEventSchema = z.object({
   referrer: z.string().optional(),
   visitor_id: z.string(),
   session_id: z.string(),
+  query_string: z.string().optional(),
+  is_404: z.boolean().optional().default(false),
+  utm_source: z.string().optional(),
+  utm_medium: z.string().optional(),
+  utm_campaign: z.string().optional(),
+  utm_term: z.string().optional(),
+  utm_content: z.string().optional(),
   metadata: z.record(z.any()).optional(),
 });
 

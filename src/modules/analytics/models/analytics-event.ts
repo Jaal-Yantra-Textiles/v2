@@ -28,6 +28,19 @@ const AnalyticsEvent = model.define("analytics_event", {
   // Geographic Data (Country-level only for privacy)
   country: model.text().nullable(),
   
+  // UTM Parameters (Marketing Attribution)
+  utm_source: model.text().nullable(),
+  utm_medium: model.text().nullable(),
+  utm_campaign: model.text().nullable(),
+  utm_term: model.text().nullable(),
+  utm_content: model.text().nullable(),
+  
+  // Query String (Full URL parameters)
+  query_string: model.text().nullable(),
+  
+  // Error Tracking
+  is_404: model.boolean().default(false),
+  
   // Additional Data
   metadata: model.json().nullable(),
   

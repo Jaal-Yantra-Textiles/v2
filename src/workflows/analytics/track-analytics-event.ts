@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { ANALYTICS_MODULE } from "../../modules/analytics";
 import { Modules } from "@medusajs/framework/utils";
+import * as geoip from "geoip-lite";
 
 // Helper to parse user agent
 function parseUserAgent(userAgent: string) {
@@ -66,6 +67,28 @@ function extractReferrerSource(referrer: string | undefined): string | null {
   }
 }
 
+// Helper to get country from IP address
+function getCountryFromIP(ipAddress: string): string | null {
+  if (!ipAddress) return null;
+  
+  try {
+    // Handle X-Forwarded-For header (may contain multiple IPs)
+    const ip = ipAddress.split(',')[0].trim();
+    
+    // Skip private/local IPs
+    if (ip === '::1' || ip === '127.0.0.1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+      return null;
+    }
+    
+    // Lookup IP
+    const geo = geoip.lookup(ip);
+    return geo?.country || null;
+  } catch (error) {
+    console.error('GeoIP lookup error:', error);
+    return null;
+  }
+}
+
 type TrackAnalyticsEventInput = {
   website_id: string;
   event_type: "pageview" | "custom_event";
@@ -77,6 +100,13 @@ type TrackAnalyticsEventInput = {
   user_agent: string;
   ip_address: string;
   timestamp: Date;
+  query_string?: string;
+  is_404?: boolean;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_term?: string;
+  utm_content?: string;
   metadata?: Record<string, any>;
 };
 
@@ -92,6 +122,9 @@ const createAnalyticsEventStep = createStep(
     
     // Extract referrer source
     const referrer_source = extractReferrerSource(input.referrer);
+    
+    // Get country from IP address
+    const country = getCountryFromIP(input.ip_address);
 
     // Create the event
     const event = await analyticsService.createAnalyticsEvents({
@@ -107,7 +140,14 @@ const createAnalyticsEventStep = createStep(
       browser,
       os,
       device_type,
-      country: null, // TODO: Add GeoIP lookup if needed
+      country,
+      query_string: input.query_string || null,
+      is_404: input.is_404 || false,
+      utm_source: input.utm_source || null,
+      utm_medium: input.utm_medium || null,
+      utm_campaign: input.utm_campaign || null,
+      utm_term: input.utm_term || null,
+      utm_content: input.utm_content || null,
       metadata: input.metadata || null,
       timestamp: input.timestamp,
     });
@@ -137,6 +177,7 @@ const updateSessionStep = createStep(
     // Parse user agent for session data
     const { browser, os, device_type } = parseUserAgent(input.user_agent);
     const referrer_source = extractReferrerSource(input.referrer);
+    const country = getCountryFromIP(input.ip_address);
 
     try {
       // Try to find existing session
@@ -169,7 +210,7 @@ const updateSessionStep = createStep(
           is_bounce: true, // Single page visit initially
           referrer: input.referrer || null,
           referrer_source,
-          country: null,
+          country,
           device_type,
           browser,
           os,

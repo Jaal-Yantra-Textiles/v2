@@ -1,0 +1,116 @@
+name: Deploy Analytics Script to CDN
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'assets/analytics.js'
+      - 'src/scripts/build-analytics.js'
+      - '.github/workflows/deploy-analytics.yml'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  deploy-analytics:
+    name: Build and Deploy Analytics Script
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Build analytics script
+        run: yarn build:analytics
+      
+      - name: Get version from package.json
+        id: version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      
+      - name: Upload to Cloudflare R2 using Wrangler
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Install Wrangler globally
+          npm install -g wrangler
+          
+          # Upload analytics.min.js to R2
+          wrangler r2 object put ${{ secrets.R2_BUCKET_NAME }}/analytics.min.js \
+            --file=./assets/analytics.min.js \
+            --content-type="application/javascript" \
+            --cache-control="public, max-age=31536000"
+          
+          echo "✅ Uploaded analytics.min.js to R2 bucket: ${{ secrets.R2_BUCKET_NAME }}"
+      
+      - name: Purge Cloudflare Cache
+        env:
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          # Purge specific file from Cloudflare cache
+          RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/purge_cache" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{"files":["https://automatic.jaalyantra.com/analytics.min.js"]}')
+          
+          # Check if purge was successful
+          if echo "$RESPONSE" | grep -q '"success":true'; then
+            echo "✅ Successfully purged Cloudflare cache"
+          else
+            echo "⚠️ Cache purge response: $RESPONSE"
+            exit 1
+          fi
+      
+      - name: Create deployment summary
+        if: success()
+        run: |
+          echo "## 🚀 Analytics Script Deployed Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**File:** analytics.min.js" >> $GITHUB_STEP_SUMMARY
+          echo "**CDN URL:** https://automatic.jaalyantra.com/analytics.min.js" >> $GITHUB_STEP_SUMMARY
+          echo "**Bucket:** ${{ secrets.R2_BUCKET_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Completed Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Built minified script with Terser" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Uploaded to Cloudflare R2 via Wrangler" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Purged CDN cache" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 What's New:" >> $GITHUB_STEP_SUMMARY
+          echo "- GeoIP location tracking (country-level)" >> $GITHUB_STEP_SUMMARY
+          echo "- UTM parameter tracking (marketing attribution)" >> $GITHUB_STEP_SUMMARY
+          echo "- 404 error detection" >> $GITHUB_STEP_SUMMARY
+          echo "- Query string capture" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📝 Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "Frontend will automatically use the latest version on next page load." >> $GITHUB_STEP_SUMMARY
+          echo "No manual updates required! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🧪 Test the deployment:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "curl -I https://automatic.jaalyantra.com/analytics.min.js" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "## ❌ Analytics Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Common Issues:" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify CLOUDFLARE_API_TOKEN has correct permissions" >> $GITHUB_STEP_SUMMARY
+          echo "- Check CLOUDFLARE_ACCOUNT_ID is correct" >> $GITHUB_STEP_SUMMARY
+          echo "- Ensure R2_BUCKET_NAME exists" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify CLOUDFLARE_ZONE_ID is correct" >> $GITHUB_STEP_SUMMARY

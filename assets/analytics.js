@@ -67,6 +67,40 @@
     return sessionId;
   }
 
+  // Extract UTM parameters from URL
+  function getUTMParams() {
+    const params = new URLSearchParams(window.location.search);
+    const utm = {};
+    
+    const utmParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    utmParams.forEach(function(param) {
+      const value = params.get(param);
+      if (value) {
+        utm[param] = value;
+      }
+    });
+    
+    return Object.keys(utm).length > 0 ? utm : undefined;
+  }
+
+  // Get query string (without leading ?)
+  function getQueryString() {
+    const search = window.location.search;
+    return search ? search.substring(1) : undefined;
+  }
+
+  // Detect 404 errors
+  function is404Page() {
+    // Check common 404 indicators
+    const title = document.title.toLowerCase();
+    const body = document.body ? document.body.textContent.toLowerCase() : '';
+    
+    return title.includes('404') || 
+           title.includes('not found') || 
+           body.includes('page not found') ||
+           body.includes('404 error');
+  }
+
   // Track pageview
   function trackPageview() {
     const data = {
@@ -76,7 +110,15 @@
       referrer: document.referrer || undefined,
       visitor_id: getVisitorId(),
       session_id: getSessionId(),
+      query_string: getQueryString(),
+      is_404: is404Page(),
     };
+
+    // Add UTM parameters if present
+    const utmParams = getUTMParams();
+    if (utmParams) {
+      Object.assign(data, utmParams);
+    }
 
     sendEvent(data);
   }

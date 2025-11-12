@@ -89,6 +89,7 @@
     "file-saver": "^2.0.5",
     "framer-motion": "^12.4.3",
     "fzf": "0.5.2",
+    "geoip-lite": "^1.4.10",
     "handlebars": "^4.7.8",
     "html2canvas-pro": "^1.5.8",
     "js-yaml": "^4.1.0",
