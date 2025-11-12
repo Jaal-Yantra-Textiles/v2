@@ -18,6 +18,7 @@ import {
 } from "@medusajs/icons";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { useWebsiteAnalytics } from "../../hooks/api/analytics";
+import { AnalyticsCountryMap } from "./analytics-country-map";
 
 // Helper function to get icon component for referrer source
 function getSourceIcon(source: string) {
@@ -87,7 +88,7 @@ export const WebsiteAnalyticsModal = () => {
     }, {});
 
     const countriesData = Object.entries(countryGroups)
-      .map(([country, visitors]) => ({ country, visitors }))
+      .map(([country, visitors]) => ({ country, visitors: visitors as number }))
       .sort((a: any, b: any) => b.visitors - a.visitors);
 
     return { timeSeriesData, sourcesChartData, countriesData };
@@ -274,41 +275,56 @@ export const WebsiteAnalyticsModal = () => {
 
               {/* Geographic Distribution */}
               {countriesData.length > 0 && (
-                <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 animate-in fade-in duration-700">
-                  <div className="p-4 border-b border-ui-border-base">
-                    <Heading level="h3" className="text-sm font-medium">
-                      🌍 Geographic Distribution
-                    </Heading>
-                  </div>
-                  <div className="p-4">
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={countriesData.slice(0, 10)} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis type="number" tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                        <YAxis 
-                          dataKey="country" 
-                          type="category" 
-                          width={100}
-                          tick={{ fontSize: 12 }}
-                          stroke="#9ca3af"
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#fff', 
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '6px',
-                            fontSize: '12px'
-                          }}
-                        />
-                        <Bar dataKey="visitors" fill="#3b82f6" radius={[0, 4, 4, 0]}>
-                          {countriesData.slice(0, 10).map((_entry: any, index: number) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Container>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-700">
+                  {/* World Map */}
+                  <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+                    <div className="p-4 border-b border-ui-border-base">
+                      <Heading level="h3" className="text-sm font-medium">
+                        🗺️ Visitor Map
+                      </Heading>
+                    </div>
+                    <div className="p-4">
+                      <AnalyticsCountryMap countriesData={countriesData} />
+                    </div>
+                  </Container>
+
+                  {/* Top Countries Bar Chart */}
+                  <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+                    <div className="p-4 border-b border-ui-border-base">
+                      <Heading level="h3" className="text-sm font-medium">
+                        🌍 Top Countries
+                      </Heading>
+                    </div>
+                    <div className="p-4">
+                      <ResponsiveContainer width="100%" height={400}>
+                        <BarChart data={countriesData.slice(0, 10)} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis type="number" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                          <YAxis 
+                            dataKey="country" 
+                            type="category" 
+                            width={100}
+                            tick={{ fontSize: 12 }}
+                            stroke="#9ca3af"
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#fff', 
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              fontSize: '12px'
+                            }}
+                          />
+                          <Bar dataKey="visitors" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                            {countriesData.slice(0, 10).map((_entry: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Container>
+                </div>
               )}
 
               {/* Top Sources and Top Pages */}
