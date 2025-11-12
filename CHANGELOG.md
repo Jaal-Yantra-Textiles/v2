@@ -1,3 +1,10 @@
+# [6.31.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.30.1...v6.31.0) (2025-11-12)
+
+
+### Features
+
+* **Custom Analytics:** fixed custom analytics inside to show maps ([db375a1](https://github.com/Jaal-Yantra-Textiles/v2/commit/db375a1e305b16127778c6265323e2446116ac39))
+
 ## [6.30.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.30.0...v6.30.1) (2025-11-12)
 
 
