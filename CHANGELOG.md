@@ -1,3 +1,10 @@
+## [6.30.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.30.0...v6.30.1) (2025-11-12)
+
+
+### Bug Fixes
+
+* **actions:** update analytics deployment to use S3-compatible credentials ([0b2bf22](https://github.com/Jaal-Yantra-Textiles/v2/commit/0b2bf228b6089fdfd9504ea2471e37a524aaedc9))
+
 # [6.30.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.29.0...v6.30.0) (2025-11-12)
 
 
