@@ -1,3 +1,10 @@
+# [6.29.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.28.1...v6.29.0) (2025-11-12)
+
+
+### Features
+
+* **Web:** Cors setting for get and options ([c06a878](https://github.com/Jaal-Yantra-Textiles/v2/commit/c06a878d1c2614de2256740da6209f7817c64be7))
+
 ## [6.28.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.28.0...v6.28.1) (2025-11-11)
 
 
