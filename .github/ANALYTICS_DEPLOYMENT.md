@@ -18,34 +18,36 @@ When you push changes to `assets/analytics.js`, GitHub Actions will automaticall
 
 You need to add these secrets to your GitHub repository:
 
-### 1. Cloudflare Account Credentials
+### 1. S3-Compatible R2 Credentials
 
-**CLOUDFLARE_ACCOUNT_ID**
-- Go to Cloudflare Dashboard → R2 (or any page)
-- Find your Account ID on the right sidebar
-- Example: `a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6`
+**S3_ACCESS_KEY_ID**
+- Go to Cloudflare Dashboard → R2 → Manage R2 API Tokens
+- Create a new API token with "Object Read & Write" permissions
+- Copy the Access Key ID
 
-**CLOUDFLARE_API_TOKEN**
-- Go to Cloudflare Dashboard → My Profile → API Tokens
-- Click "Create Token"
-- Use "Edit Cloudflare Workers" template OR create custom token with:
-  - **Account.Cloudflare R2 Storage** - Edit permission
-  - **Zone.Cache Purge** - Purge permission
-- Scope to your specific account and zone
-- Copy the token (shown only once!)
+**S3_SECRET_ACCESS_KEY**
+- Copy the Secret Access Key (shown only once!)
 
-### 2. R2 Bucket Configuration
+**S3_ENDPOINT**
+- Format: `https://<account-id>.r2.cloudflarestorage.com`
+- Find your account ID in Cloudflare Dashboard → R2
+- Example: `https://9719d38e64dffe8fd6982afb3a7b25f6.r2.cloudflarestorage.com`
 
-**R2_BUCKET_NAME**
-- Your R2 bucket name (e.g., `automatic`)
+**S3_BUCKET**
+- Your R2 bucket name (e.g., `automatica`)
 - This is just the bucket name, not a full path
 
-### 3. Cloudflare Zone ID
+### 2. Cloudflare Cache Purge Credentials
 
 **CLOUDFLARE_ZONE_ID**
 - Go to Cloudflare Dashboard → Select your domain (automatic.jaalyantra.com)
 - Find Zone ID on the right sidebar (Overview page)
 - Example: `z1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6`
+
+**CLOUDFLARE_API_TOKEN**
+- Go to Cloudflare Dashboard → My Profile → API Tokens
+- Create token with "Cache Purge" permission for your zone
+- Copy the token (shown only once!)
 
 ---
 
@@ -59,26 +61,34 @@ You need to add these secrets to your GitHub repository:
 4. Add each secret:
 
 ```
-Name: CLOUDFLARE_ACCOUNT_ID
-Value: [your-account-id]
+Name: S3_ACCESS_KEY_ID
+Value: [your-r2-access-key-id]
 
-Name: CLOUDFLARE_API_TOKEN
-Value: [your-api-token]
+Name: S3_SECRET_ACCESS_KEY
+Value: [your-r2-secret-access-key]
 
-Name: R2_BUCKET_NAME
-Value: automatic
+Name: S3_ENDPOINT
+Value: https://[account-id].r2.cloudflarestorage.com
+
+Name: S3_BUCKET
+Value: automatica
 
 Name: CLOUDFLARE_ZONE_ID
 Value: [your-zone-id]
+
+Name: CLOUDFLARE_API_TOKEN
+Value: [your-api-token]
 ```
 
 ### Via GitHub CLI:
 
 ```bash
-gh secret set CLOUDFLARE_ACCOUNT_ID
-gh secret set CLOUDFLARE_API_TOKEN
-gh secret set R2_BUCKET_NAME
+gh secret set S3_ACCESS_KEY_ID
+gh secret set S3_SECRET_ACCESS_KEY
+gh secret set S3_ENDPOINT
+gh secret set S3_BUCKET
 gh secret set CLOUDFLARE_ZONE_ID
+gh secret set CLOUDFLARE_API_TOKEN
 ```
 
 ---
