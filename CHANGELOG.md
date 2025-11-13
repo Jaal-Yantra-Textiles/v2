@@ -1,3 +1,11 @@
+## [6.31.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.31.1...v6.31.2) (2025-11-13)
+
+
+### Bug Fixes
+
+* **Web:** blog route fix with get filters ([517efaf](https://github.com/Jaal-Yantra-Textiles/v2/commit/517efaf7b97ec8e3cb323fa45c3da53037f708d2))
+* **Blogs:** Old array to new format ([2e609ba](https://github.com/Jaal-Yantra-Textiles/v2/commit/2e609ba9fb9ced6033f8e7b73edf74410ebb50bb))
+
 ## [6.31.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.31.0...v6.31.1) (2025-11-13)
 
 
