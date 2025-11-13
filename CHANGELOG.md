@@ -1,3 +1,11 @@
+## [6.31.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.31.0...v6.31.1) (2025-11-13)
+
+
+### Bug Fixes
+
+* **Website Blocks:** Editor fixed to use the JSON editor ([45c4669](https://github.com/Jaal-Yantra-Textiles/v2/commit/45c4669ba9a766e5bf99135f1194336ab1a8a07a))
+* **Blog block:** fixed the blog block ([81303e0](https://github.com/Jaal-Yantra-Textiles/v2/commit/81303e0b048787b830ece71731fab0b25d6f54df))
+
 # [6.31.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.30.1...v6.31.0) (2025-11-12)
 
 
