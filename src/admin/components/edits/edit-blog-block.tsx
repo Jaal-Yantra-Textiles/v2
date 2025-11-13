@@ -83,13 +83,43 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
     }
   }, []);
 
+  // Extract image URL from TipTap JSON content (for SimpleEditor)
+  const extractFirstImageUrlFromJson = useCallback((content: any) => {
+    try {
+      if (!content || typeof content !== 'object') return "";
+      
+      // Check if content has the TipTap structure
+      if (content.type === 'doc' && Array.isArray(content.content)) {
+        // Find the first image node
+        for (const node of content.content) {
+          if (node.type === 'image' && node.attrs && node.attrs.src) {
+            return node.attrs.src;
+          }
+          // Check nested content (e.g., in paragraphs)
+          if (node.content && Array.isArray(node.content)) {
+            for (const childNode of node.content) {
+              if (childNode.type === 'image' && childNode.attrs && childNode.attrs.src) {
+                return childNode.attrs.src;
+              }
+            }
+          }
+        }
+      }
+      return "";
+    } catch (error) {
+      console.error('Error extracting image URL from JSON:', error);
+      return "";
+    }
+  }, []);
+
   const autoSaveContent = useCallback(async (content: any) => {
     // Compare the actual content, not stringified versions
     if (content === lastSavedContentRef.current) {
       return;
     }
 
-    const currentImageUrl = editorInstanceRef.current ? extractFirstImageUrl(editorInstanceRef.current) : firstImageUrl;
+    // Extract image URL from JSON content (SimpleEditor doesn't provide editor instance)
+    const currentImageUrl = extractFirstImageUrlFromJson(content) || firstImageUrl;
 
     try {
       const payload = {
@@ -114,7 +144,7 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
       toast.error("Error saving content", { id: "content-save-error" });
       console.error(error);
     }
-  }, [block.content, updateBlock, firstImageUrl, extractFirstImageUrl]);
+  }, [block.content, updateBlock, firstImageUrl, extractFirstImageUrlFromJson]);
 
   const handleEditorChange = useCallback((content: any) => {
     setEditorContent(content);
@@ -134,7 +164,8 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
 
   const handleSubmit = form.handleSubmit(async (data) => {
     try {
-      const currentImageUrl = editorInstanceRef.current ? extractFirstImageUrl(editorInstanceRef.current) : firstImageUrl;
+      // Extract image URL from JSON content (SimpleEditor doesn't provide editor instance)
+      const currentImageUrl = extractFirstImageUrlFromJson(data.content.text) || firstImageUrl;
 
       const payload = {
         name: block.name,
