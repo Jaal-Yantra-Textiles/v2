@@ -10,10 +10,12 @@ export default function RootLayout(props: { children: React.ReactNode }) {
   return (
     <html lang="en" data-mode="light">
       <head>
-        <script defer data-domain="shop.cicilabel.com" src="https://analytics.jaalyantra.com/js/script.hash.outbound-links.pageview-props.revenue.tagged-events.js"></script>
-        <script dangerouslySetInnerHTML={{
-          __html: 'window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }'
-        }} />
+        {/* JYT Analytics - shop.cicilabel.com */}
+        <script 
+          src="https://automatic.jaalyantra.com/analytics.min.js" 
+          data-website-id="01JNVG9QWJ9Y64FVAPMGEX6HKX"
+          defer
+        />
       </head>
       <body>
         <main className="relative">{props.children}</main>
