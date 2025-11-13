@@ -157,7 +157,11 @@ export const POST = async (
 
     // Build post URLs
     let postUrl = (post as any).post_url
+    
+    // Preserve existing insights data
+    const currentInsights = ((post as any).insights as Record<string, unknown>) || {}
     const insights: Record<string, any> = {
+      ...currentInsights,  // Preserve existing webhook data
       publish_results: publishResults,
       published_at: new Date().toISOString(),
     }

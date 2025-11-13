@@ -22,7 +22,9 @@ export const POST = async (
     return
   }
 
-  const redirectEnvKey = `${platform.toUpperCase()}_REDIRECT_URI`
+  // Normalize "x" to "twitter" for environment variable lookups
+  const envPlatform = platform.toLowerCase() === "x" ? "twitter" : platform
+  const redirectEnvKey = `${envPlatform.toUpperCase()}_REDIRECT_URI`
   const redirectUri = process.env[redirectEnvKey] ?? ""
 
   // Resolve provider service and socials service
@@ -35,8 +37,9 @@ export const POST = async (
 
   // Exchange code for token (provider-specific signatures)
   let tokenData: any
-  if (platform.toLowerCase() === "twitter") {
-    // Twitter uses PKCE state to retrieve verifier internally
+  const platformLower = platform.toLowerCase()
+  if (platformLower === "twitter" || platformLower === "x") {
+    // Twitter/X uses PKCE state to retrieve verifier internally
     tokenData = await provider.exchangeCodeForToken(code, redirectUri, state)
   } else {
     // Facebook/LinkedIn/Instagram commonly: (code, redirectUri)

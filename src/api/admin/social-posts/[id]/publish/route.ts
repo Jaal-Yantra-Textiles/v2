@@ -68,6 +68,8 @@ export const POST = async (
       )
     }
 
+    const platformName = (platform.name || "").toLowerCase()
+
     // Extract credentials from platform api_config
     const apiConfig = (platform.api_config || {}) as Record<string, any>
     const userAccessToken = apiConfig.access_token as string | undefined
@@ -77,6 +79,17 @@ export const POST = async (
         MedusaError.Types.INVALID_DATA,
         "No access token found in platform configuration. Please re-authenticate the platform."
       )
+    }
+
+    // Twitter-specific validation
+    if (platformName === "twitter" || platformName === "x") {
+      const oauth1 = apiConfig.oauth1_credentials
+      if (!oauth1?.access_token || !oauth1?.access_token_secret) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "Twitter requires OAuth 1.0a credentials for media upload. Please re-authenticate."
+        )
+      }
     }
 
     // Extract target accounts from post metadata (with optional overrides)
@@ -146,6 +159,33 @@ export const POST = async (
       )
     }
 
+    // Twitter-specific validation
+    if (platformName === "twitter" || platformName === "x") {
+      // Character limit
+      if (caption && caption.length > 280) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Tweet text exceeds 280 characters (${caption.length} characters)`
+        )
+      }
+
+      // Image limit
+      if (imageAttachments.length > 4) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Twitter supports maximum 4 images per tweet (${imageAttachments.length} provided)`
+        )
+      }
+
+      // Video + images not supported
+      if (videoAttachment && imageAttachments.length > 0) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "Twitter does not support mixing images and videos in the same tweet"
+        )
+      }
+    }
+
     // Run the unified publishing workflow
     const { result } = await publishToBothPlatformsUnifiedWorkflow(req.scope).run({
       input: {
@@ -171,7 +211,11 @@ export const POST = async (
 
     // Build post URLs
     let postUrl = (post as any).post_url
+    
+    // Preserve existing insights data
+    const currentInsights = ((post as any).insights as Record<string, unknown>) || {}
     const insights: Record<string, any> = {
+      ...currentInsights,  // Preserve existing webhook data
       publish_results: publishResults,
       published_at: new Date().toISOString(),
     }

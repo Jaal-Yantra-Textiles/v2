@@ -45,8 +45,10 @@ export const GET = async (
     return
   }
 
-  const redirectEnvKey = `${platform.toUpperCase()}_REDIRECT_URI`
-  const scopeEnvKey = `${platform.toUpperCase()}_SCOPE`
+  // Normalize "x" to "twitter" for environment variable lookups
+  const envPlatform = platform.toLowerCase() === "x" ? "twitter" : platform
+  const redirectEnvKey = `${envPlatform.toUpperCase()}_REDIRECT_URI`
+  const scopeEnvKey = `${envPlatform.toUpperCase()}_SCOPE`
   const redirectUri = process.env[redirectEnvKey] ?? ""
   // IMPORTANT: Do not default to Twitter scopes. Let provider choose defaults.
   const scope = process.env[scopeEnvKey] ?? ""

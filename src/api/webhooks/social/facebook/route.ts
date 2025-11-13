@@ -60,10 +60,10 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   const signature = req.headers["x-hub-signature-256"] as string | undefined
-  const appSecret = process.env.FACEBOOK_APP_SECRET
+  const appSecret = process.env.FACEBOOK_CLIENT_SECRET
 
   if (!appSecret) {
-    console.error("FACEBOOK_APP_SECRET not configured")
+    console.error("FACEBOOK_CLIENT_SECRET not configured")
     return res.status(500).send("Webhook not configured")
   }
 
@@ -174,6 +174,8 @@ async function processInstagramEvents(
           await handleInstagramComment(socials, igUserId, change.value)
         } else if (change.field === "mentions") {
           await handleInstagramMention(socials, igUserId, change.value)
+        } else if (change.field === "media") {
+          await handleInstagramMediaInsights(socials, igUserId, change.value)
         } else {
           console.log("Unhandled Instagram field:", change.field)
         }
@@ -449,6 +451,51 @@ async function handleInstagramMention(
   console.log("Instagram mention:", { igUserId, mediaId, commentId })
 
   // You can implement mention tracking here
+}
+
+/**
+ * Handle Instagram media insights (impressions, reach, engagement)
+ */
+async function handleInstagramMediaInsights(
+  socials: SocialsService,
+  igUserId: string,
+  value: any
+): Promise<void> {
+  const mediaId = value.media_id
+  const insights = value.insights || {}
+
+  console.log("Instagram media insights:", { igUserId, mediaId, insights })
+
+  // Find the social post by Instagram media ID
+  const [post] = await socials.listSocialPosts({
+    insights: {
+      instagram_media_id: mediaId,
+    } as any,
+  })
+
+  if (!post) {
+    console.log("Post not found in database:", mediaId)
+    return
+  }
+
+  // Update post with Instagram insights
+  const currentInsights = (post.insights as Record<string, unknown>) || {}
+  
+  await socials.updateSocialPosts([
+    {
+      selector: { id: post.id },
+      data: {
+        insights: {
+          ...currentInsights,
+          instagram_insights: {
+            ...((currentInsights.instagram_insights as Record<string, unknown>) || {}),
+            ...insights,
+            last_updated: new Date().toISOString(),
+          },
+        },
+      },
+    },
+  ])
 }
 
 // Type definitions

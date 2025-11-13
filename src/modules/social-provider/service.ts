@@ -32,7 +32,13 @@ class SocialProviderService extends MedusaService({}) {
     if (!this.cache_[key]) {
       switch (key) {
         case "twitter":
-          this.cache_[key] = new TwitterService()
+        case "x":
+          // Use "twitter" as the canonical cache key for both "twitter" and "x"
+          const twitterKey = "twitter"
+          if (!this.cache_[twitterKey]) {
+            this.cache_[twitterKey] = new TwitterService()
+          }
+          this.cache_[key] = this.cache_[twitterKey]
           break
         case "instagram":
           this.cache_[key] = new InstagramService()

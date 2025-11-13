@@ -11,6 +11,7 @@ import { SOCIALS_MODULE } from "../../modules/socials"
 import SocialsService from "../../modules/socials/service"
 import FacebookService from "../../modules/social-provider/facebook-service"
 import InstagramService from "../../modules/social-provider/instagram-service"
+import TwitterService from "../../modules/social-provider/twitter-service"
 
 interface PublishPostInput {
   post_id: string
@@ -132,6 +133,38 @@ const resolveTokensStep = createStep(
       return new StepResponse({ providerName, accessToken: userAccessToken })
     }
 
+    if (providerName === "twitter" || providerName === "x") {
+      // Twitter requires both OAuth 2.0 and OAuth 1.0a credentials
+      const oauth1 = (platform as any).api_config?.oauth1_credentials
+      if (!oauth1?.access_token || !oauth1?.access_token_secret) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "Twitter requires OAuth 1.0a credentials for media upload. Please re-authenticate."
+        )
+      }
+
+      const apiKey = process.env.X_API_KEY || process.env.TWITTER_API_KEY
+      const apiSecret = process.env.X_API_SECRET || process.env.TWITTER_API_SECRET
+
+      if (!apiKey || !apiSecret) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "Twitter API credentials not configured. Set X_API_KEY and X_API_SECRET environment variables."
+        )
+      }
+
+      return new StepResponse({
+        providerName,
+        accessToken: userAccessToken,
+        oauth1Credentials: {
+          apiKey,
+          apiSecret,
+          accessToken: oauth1.access_token,
+          accessTokenSecret: oauth1.access_token_secret,
+        },
+      })
+    }
+
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
       `Unsupported provider for this workflow: ${providerName}`
@@ -142,7 +175,21 @@ const resolveTokensStep = createStep(
 const publishStep = createStep(
   "publish-post",
   async (
-    input: { post: LoadedPost; providerName: string; pageId?: string; fbAccessToken?: string; igAccessToken?: string; igUserId?: string }
+    input: { 
+      post: LoadedPost; 
+      providerName: string; 
+      pageId?: string; 
+      fbAccessToken?: string; 
+      igAccessToken?: string; 
+      igUserId?: string;
+      twitterAccessToken?: string;
+      oauth1Credentials?: {
+        apiKey: string;
+        apiSecret: string;
+        accessToken: string;
+        accessTokenSecret: string;
+      };
+    }
   ) => {
     const message = input.post.caption || undefined
     const attachments = (input.post.media_attachments as Record<string, any>[] | undefined) || []
@@ -187,6 +234,52 @@ const publishStep = createStep(
       return new StepResponse(results)
     }
 
+    if (input.providerName === "twitter" || input.providerName === "x") {
+      const twitter = new TwitterService()
+      const results: any[] = []
+
+      // Validate Twitter constraints
+      if (message && message.length > 280) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Tweet text exceeds 280 characters (${message.length})`
+        )
+      }
+
+      const imageAttachments = attachments.filter((a) => a && a.type === "image" && a.url) as { url: string; type: string }[]
+      const videoAttachment = attachments.find((a) => a && a.type === "video" && a.url) as { url: string; type: string } | undefined
+
+      if (imageAttachments.length > 4) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Twitter supports maximum 4 images per tweet (${imageAttachments.length} provided)`
+        )
+      }
+
+      // Publish tweet with media
+      const imageUrls = imageAttachments.map((a) => a.url)
+      const videoUrl = videoAttachment?.url
+
+      const result = await twitter.publishTweetWithMedia(
+        {
+          text: message || "",
+          imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+          videoUrl,
+        },
+        input.twitterAccessToken!,
+        input.oauth1Credentials!
+      )
+
+      results.push({
+        kind: "tweet",
+        tweetId: result.tweetId,
+        tweetUrl: result.tweetUrl,
+        response: result,
+      })
+
+      return new StepResponse(results)
+    }
+
     throw new MedusaError(MedusaError.Types.INVALID_DATA, `Unsupported provider in publish step: ${input.providerName}`)
   }
 )
@@ -201,6 +294,31 @@ const updatePostStep = createStep(
 
     const firstResponse = input.results?.[0]?.response as FbApiResponse | undefined
     const fbId = firstResponse?.id
+    
+    // Determine post URL based on platform
+    let postUrl = input.post.post_url || null
+    const firstResult = input.results?.[0] as any
+    
+    if (firstResult?.kind === "tweet") {
+      // Twitter result
+      postUrl = firstResult.tweetUrl || null
+    } else if (fbId) {
+      // Facebook result
+      postUrl = `https://www.facebook.com/${fbId}`
+    } else if (firstResult?.kind === "ig_image" || firstResult?.kind === "ig_reel") {
+      // Instagram result - keep existing URL or use permalink if available
+      postUrl = firstResult.response?.permalink || postUrl
+    }
+
+    // Build insights object
+    const insights: any = { publish_results: input.results }
+    
+    // Add platform-specific IDs
+    if (firstResult?.kind === "tweet") {
+      insights.twitter_tweet_id = firstResult.tweetId
+    } else if (fbId) {
+      insights.facebook_post_id = fbId
+    }
 
     const [updated] = await socials.updateSocialPosts([
       {
@@ -208,8 +326,8 @@ const updatePostStep = createStep(
         data: {
           status: "posted",
           posted_at: new Date(),
-          post_url: fbId ? `https://www.facebook.com/${fbId}` : input.post.post_url || null,
-          insights: input.results ? { publish_results: input.results } : null,
+          post_url: postUrl,
+          insights,
         },
       },
     ])
@@ -238,6 +356,8 @@ export const publishSocialPostWorkflow = createWorkflow(
       fbAccessToken: transform(tokens, (t) => (t as any).providerName === "facebook" ? (t as any).accessToken : undefined),
       igAccessToken: transform(tokens, (t) => (t as any).providerName === "instagram" ? (t as any).accessToken : undefined),
       igUserId: transform(igUser, (i) => i.igUserId),
+      twitterAccessToken: transform(tokens, (t) => ((t as any).providerName === "twitter" || (t as any).providerName === "x") ? (t as any).accessToken : undefined),
+      oauth1Credentials: transform(tokens, (t) => ((t as any).providerName === "twitter" || (t as any).providerName === "x") ? (t as any).oauth1Credentials : undefined),
     })
 
     const updated = updatePostStep({ post, results })
