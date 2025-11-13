@@ -282,7 +282,10 @@ export const JsonKeyValueEditor = ({
     
     setRows(prevRows => {
       const updatedRows = [...prevRows, newRow];
-      notifyParent(updatedRows);
+      // Don't notify parent immediately when adding a row
+      // The parent will be notified when the user edits the row's key/value
+      // This prevents the modal from closing prematurely
+      // notifyParent(updatedRows);
       return updatedRows;
     });
   };
@@ -389,7 +392,10 @@ export const JsonKeyValueEditor = ({
       // Log the expanded rows for debugging
       console.log('Newly expanded row IDs:', Array.from(newlyExpandedRowIds));
       
-      notifyParent(updatedRows);
+      // Don't notify parent immediately when adding a subrow
+      // The parent will be notified when the user edits the subrow's key/value
+      // This prevents the modal from closing prematurely
+      // notifyParent(updatedRows);
       return updatedRows;
     });
   };

@@ -1,6 +1,7 @@
 import { Button, Heading, IconButton, Input, Text, toast, Tooltip } from "@medusajs/ui";
-import { JsonEditor , monoLightTheme} from 'json-edit-react';
+import { JsonEditor, monoLightTheme, monoDarkTheme } from 'json-edit-react';
 import { Trash, InformationCircleSolid } from "@medusajs/icons";
+import "../common/json-editor-overrides.css";
 import { BlockTemplateSelector } from "../websites/block-template-selector";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +14,7 @@ import { useCreateBlock } from "../../hooks/api/blocks";
 import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { useEffect, useState } from "react";
+import { useDarkMode } from "../../hooks/use-dark-mode";
 import { blockTemplates, BlockType } from "../websites/block-templates";
 
 const blockSchema = z.object({
@@ -47,6 +49,42 @@ export function CreateWebsiteBlocks({ websiteId, pageId }: CreateWebsiteBlocksPr
   const createBlock = useCreateBlock(websiteId, pageId);
   const { handleSuccess } = useRouteModal();
   const [expandedSections, setExpandedSections] = useState<Record<number, boolean>>({});
+  const isDarkMode = useDarkMode();
+
+  // Custom theme with proper background colors and text colors
+  const lightTheme = [
+    monoLightTheme,
+    {
+      styles: {
+        container: {
+          backgroundColor: '#ffffff',
+        },
+        input: {
+          color: '#292929', // Dark text for light background
+        },
+        property: '#292929', // Dark property names
+        string: 'rgb(203, 75, 22)', // Keep original string color
+        number: 'rgb(38, 139, 210)', // Keep original number color
+      },
+    },
+  ];
+
+  const darkTheme = [
+    monoDarkTheme,
+    {
+      styles: {
+        container: {
+          backgroundColor: '#1a1a1a',
+        },
+        input: {
+          color: '#e0e0e0', // Light text for dark background
+        },
+        property: '#e0e0e0', // Light property names
+        string: 'rgb(255, 160, 122)', // Lighter string color for dark mode
+        number: 'rgb(100, 200, 255)', // Lighter number color for dark mode
+      },
+    },
+  ];
 
   const form = useForm<BlockFormValues>({
     resolver: zodResolver(blockSchema),
@@ -106,8 +144,8 @@ export function CreateWebsiteBlocks({ websiteId, pageId }: CreateWebsiteBlocksPr
         className="flex flex-1 flex-col overflow-hidden"
       >
         <RouteFocusModal.Header />
-        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
-          <div className="flex w-full max-w-[720px] flex-col gap-y-8">
+        <RouteFocusModal.Body className="flex flex-1 flex-col overflow-y-auto py-16 px-4 md:px-8">
+          <div className="flex w-full flex-col gap-y-8">
             <div>
               <Heading>Create Blocks</Heading>
               <Text className="text-ui-fg-subtle">
@@ -186,8 +224,7 @@ export function CreateWebsiteBlocks({ websiteId, pageId }: CreateWebsiteBlocksPr
                                         field.onChange(newData);
                                       }
                                     }}
-                                    theme={monoLightTheme}
-                                    //className="w-full h-full"
+                                    theme={isDarkMode ? darkTheme : lightTheme}
                                   />
                                 </div>
                               </Form.Control>
@@ -218,7 +255,7 @@ export function CreateWebsiteBlocks({ websiteId, pageId }: CreateWebsiteBlocksPr
                                         field.onChange(newData);
                                       }
                                     }}
-                                    theme={monoLightTheme}
+                                    theme={isDarkMode ? darkTheme : lightTheme}
                                     className="w-full h-full"
                                   />
                                 </div>
