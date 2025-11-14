@@ -11,7 +11,7 @@ import { useRouteModal } from "../../modal/use-route-modal"
 import { useState, useEffect } from "react"
 import { CategorySearch } from "../../common/category-search"
 import { XMark } from "@medusajs/icons"
-import RawMaterialMediaModal from "../../../routes/inventory/[id]/raw-materials/create/media/page"
+import FileModal from "../../../routes/inventory/[id]/raw-materials/create/media/page"
 
 // No need for explicit type definitions as we're using type assertions
 
@@ -362,7 +362,7 @@ export const RawMaterialForm = () => {
                         </div>
                       </div>
                     ))}
-                    <RawMaterialMediaModal onSave={setMediaUrls} initialUrls={mediaUrls} />
+                    <FileModal onSave={setMediaUrls} initialUrls={mediaUrls} />
                   </div>
                 </div>
                 {/* Additional Information */}

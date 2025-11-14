@@ -23,24 +23,56 @@ export const listAllMediasWorkflow = createWorkflow(
   (input: ListAllMediasInput) => {
     // Derive per-entity filters to avoid querying by non-existent fields
     const foldersRes = listFolderWorkflow.runAsStep({
-      input: transform({ input }, (data) => ({
-        filters: data.input.filters || {},
-        config: data.input.config,
-      })),
+      input: transform({ input }, (data) => {
+        const raw = { ...(data.input.filters || {}) }
+        // Whitelist only fields that exist on Folder
+        const allowedKeys = new Set(["id", "name", "slug", "description", "path", "level", "sort_order", "is_public", "parent_folder_id", "metadata"])
+        const filtered: Record<string, any> = {}
+        for (const [k, v] of Object.entries(raw)) {
+          if (allowedKeys.has(k)) filtered[k] = v
+        }
+        return {
+          filters: filtered,
+          config: data.input.config,
+        }
+      }),
     });
 
     const albumsRes = listAlbumWorkflow.runAsStep({
-      input: transform({ input }, (data) => ({
-        filters: data.input.filters || {},
-        config: data.input.config,
-      })),
+      input: transform({ input }, (data) => {
+        const raw = { ...(data.input.filters || {}) }
+        // Whitelist only fields that exist on Album
+        const allowedKeys = new Set(["id", "name", "description", "slug", "is_public", "sort_order", "type", "metadata", "cover_media_id"])
+        const filtered: Record<string, any> = {}
+        for (const [k, v] of Object.entries(raw)) {
+          if (allowedKeys.has(k)) filtered[k] = v
+        }
+        return {
+          filters: filtered,
+          config: data.input.config,
+        }
+      }),
     });
 
     const mediaFilesRes = listMediaFileWorkflow.runAsStep({
-      input: transform({ input }, (data) => ({
-        filters: data.input.filters || {},
-        config: data.input.config,
-      })),
+      input: transform({ input }, (data) => {
+        const raw = { ...(data.input.filters || {}) }
+        // Whitelist only fields that exist on MediaFile
+        const allowedKeys = new Set([
+          "id", "file_name", "original_name", "file_path", "file_size", "file_hash",
+          "file_type", "mime_type", "extension", "width", "height", "duration",
+          "title", "description", "alt_text", "caption", "folder_path", "tags",
+          "is_public", "metadata", "folder_id", "created_at", "updated_at"
+        ])
+        const filtered: Record<string, any> = {}
+        for (const [k, v] of Object.entries(raw)) {
+          if (allowedKeys.has(k)) filtered[k] = v
+        }
+        return {
+          filters: filtered,
+          config: data.input.config,
+        }
+      }),
     });
 
     const albumMediaRes = listAlbumMediaWorkflow.runAsStep({

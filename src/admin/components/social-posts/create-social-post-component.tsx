@@ -10,7 +10,7 @@ import { KeyboundForm } from "../utilitites/key-bound-form"
 import { Form } from "../common/form"
 import { useRouteModal } from "../modal/use-route-modal"
 import { XMark } from "@medusajs/icons"
-import RawMaterialMediaModal from "../../routes/inventory/[id]/raw-materials/create/media/page"
+import FileModal from "../../routes/inventory/[id]/raw-materials/create/media/page"
 import { useEffect } from "react"
 
 
@@ -428,8 +428,8 @@ export const CreateSocialPostComponent = () => {
                                 </div>
                               </div>
                             ))}
-                            <RawMaterialMediaModal
-                              onSave={(picked) => {
+                            <FileModal
+                              onSave={(picked: string[]) => {
                                 // Allow multiple images (up to 10 for carousel)
                                 const next = Array.isArray(picked) ? picked.slice(0, 10) : []
                                 onChange(next)
@@ -602,8 +602,8 @@ export const CreateSocialPostComponent = () => {
                                 </div>
                               </div>
                             ))}
-                            <RawMaterialMediaModal
-                              onSave={(picked) => {
+                            <FileModal
+                              onSave={(picked: string[]) => {
                                 // Allow multiple images (up to 10 for carousel)
                                 const next = Array.isArray(picked) ? picked.slice(0, 10) : []
                                 onChange(next)
@@ -734,8 +734,8 @@ export const CreateSocialPostComponent = () => {
                               </div>
                             </div>
                           ))}
-                          <RawMaterialMediaModal
-                            onSave={(picked) => {
+                          <FileModal
+                            onSave={(picked: string[]) => {
                               // Allow multiple images (up to 10 for carousel)
                               const next = Array.isArray(picked) ? picked.slice(0, 10) : []
                               onChange(next)

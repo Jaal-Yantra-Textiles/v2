@@ -3,15 +3,15 @@ import { useState } from "react"
 import MediaUpload from "../../../../../../components/forms/raw-material/media-upload"
 import { StackedFocusModal } from "../../../../../../components/modal/stacked-modal/stacked-focused-modal"
 
-interface RawMaterialMediaModalProps {
+interface FileModalProps {
   onSave: (urls: string[]) => void
   initialUrls?: string[]
 }
 
-const RawMaterialMediaModal = ({
+const FileModal = ({
   onSave,
   initialUrls = [],
-}: RawMaterialMediaModalProps) => {
+}: FileModalProps) => {
   const [selectedUrls, setSelectedUrls] = useState<string[]>(initialUrls)
 
   const handleSelect = (url: string) => {
@@ -60,4 +60,4 @@ const RawMaterialMediaModal = ({
   )
 }
 
-export default RawMaterialMediaModal;
+export default FileModal;
