@@ -81,7 +81,7 @@
     "@types/react-json-editor-ajrm": "^2.5.6",
     "@uploadthing/react": "7.1.0",
     "@xyflow/react": "^12.4.4",
-    "ai": "^5.0.12",
+    "ai": "^5.0.52",
     "awilix": "^8.0.1",
     "class-variance-authority": "^0.7.1",
     "csv-parse": "^5.6.0",
