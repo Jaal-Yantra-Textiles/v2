@@ -1,8 +1,11 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { SOCIAL_PROVIDER_MODULE, SocialProviderService } from "../../../../../modules/social-provider"
+import { EXTERNAL_STORES_MODULE, ExternalStoresService } from "../../../../../modules/external_stores"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
+import { ETSYSYNC_MODULE } from "../../../../../modules/etsysync"
 import InstagramService from "../../../../../modules/social-provider/instagram-service"
 import SocialsService from "../../../../../modules/socials/service"
+import EtsysyncService from "../../../../../modules/etsysync/service"
 
 interface CallbackRequestBody {
   id: string
@@ -22,8 +25,68 @@ export const POST = async (
     return
   }
 
+  const platformLower = platform.toLowerCase()
+  
+  // Check if this is an external store platform
+  const externalStorePlatforms = ["etsy", "shopify", "amazon"]
+  if (externalStorePlatforms.includes(platformLower)) {
+    // Handle external store OAuth callback
+    const externalStores = req.scope.resolve(EXTERNAL_STORES_MODULE) as ExternalStoresService
+    const etsysyncService = req.scope.resolve(ETSYSYNC_MODULE) as EtsysyncService
+    
+    const provider = externalStores.getProvider(platformLower)
+    
+    // Get redirect URI from environment
+    const redirectEnvKey = `${platformLower.toUpperCase()}_REDIRECT_URI`
+    const redirectUri = process.env[redirectEnvKey] ?? ""
+    
+    try {
+      // Exchange code for token
+      const tokenData = await provider.exchangeCodeForToken(code, redirectUri)
+      
+      // Fetch shop info
+      const shopInfo = await provider.getShopInfo(tokenData.access_token)
+      
+      // Calculate token expiration
+      const expiresAt = tokenData.expires_in 
+        ? new Date(Date.now() + tokenData.expires_in * 1000)
+        : null
+      
+      // Update etsy_account record
+      const updated = await etsysyncService.updateEtsy_accounts({
+        selector: { id },
+        data: {
+          shop_id: shopInfo.shop_id,
+          shop_name: shopInfo.shop_name,
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token || null,
+          token_expires_at: expiresAt,
+          api_config: {
+            token_type: tokenData.token_type,
+            scope: tokenData.scope,
+            retrieved_at: new Date(tokenData.retrieved_at || Date.now()),
+            shop_info: shopInfo,
+          },
+          is_active: true,
+        },
+      } as any)
+      
+      res.status(200).json({ 
+        success: true,
+        account: updated,
+        shop_info: shopInfo,
+      })
+    } catch (error: any) {
+      console.error(`[OAuth Callback] Failed to process ${platform} callback:`, error.message)
+      res.status(500).json({ message: error.message })
+    }
+    
+    return
+  }
+
+  // Handle social platform OAuth callback (existing logic)
   // Normalize "x" to "twitter" for environment variable lookups
-  const envPlatform = platform.toLowerCase() === "x" ? "twitter" : platform
+  const envPlatform = platformLower === "x" ? "twitter" : platform
   const redirectEnvKey = `${envPlatform.toUpperCase()}_REDIRECT_URI`
   const redirectUri = process.env[redirectEnvKey] ?? ""
 
@@ -33,11 +96,10 @@ export const POST = async (
   ) as SocialProviderService
   const socialsService = req.scope.resolve(SOCIALS_MODULE) as SocialsService
 
-  const provider = socialProvider.getProvider(platform.toLowerCase()) as any
+  const provider = socialProvider.getProvider(platformLower) as any
 
   // Exchange code for token (provider-specific signatures)
   let tokenData: any
-  const platformLower = platform.toLowerCase()
   if (platformLower === "twitter" || platformLower === "x") {
     // Twitter/X uses PKCE state to retrieve verifier internally
     tokenData = await provider.exchangeCodeForToken(code, redirectUri, state)

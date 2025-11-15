@@ -188,6 +188,12 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/analytics",
   },
+  {
+    resolve: "./src/modules/etsysync",
+  },
+  {
+    resolve: "./src/modules/external_stores",
+  },
 ]
 
     // {
