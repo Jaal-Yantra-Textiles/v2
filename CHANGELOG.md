@@ -1,3 +1,11 @@
+# [6.32.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.31.2...v6.32.0) (2025-11-15)
+
+
+### Features
+
+* **Esty:** Product now support etsy sync ([8be1c26](https://github.com/Jaal-Yantra-Textiles/v2/commit/8be1c26c95d60acce85b24ab57bb0eed0d187720))
+* **Media:** Upload now efficiently smoothen out ([4ce8e8e](https://github.com/Jaal-Yantra-Textiles/v2/commit/4ce8e8ef8c86eafd229fb730ecb3d8cda6903985))
+
 ## [6.31.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.31.1...v6.31.2) (2025-11-13)
 
 
