@@ -1,3 +1,10 @@
+## [6.32.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.32.0...v6.32.1) (2025-11-15)
+
+
+### Bug Fixes
+
+* **scripts:** Fixed git scripts one command workflow ([d2b29b2](https://github.com/Jaal-Yantra-Textiles/v2/commit/d2b29b24af37df047b38dfbe935fc55059cbf6f3))
+
 # [6.32.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.31.2...v6.32.0) (2025-11-15)
 
 
