@@ -209,7 +209,8 @@ export default defineMiddlewares({
     {
       matcher: "/webhooks/social/facebook",
       method: "POST",
-      middlewares: [], // Webhook receiver (validates signature internally)
+      middlewares: [],
+      bodyParser: false, // Disable default JSON body parser for this route
     },
     {
       matcher: "/partners",

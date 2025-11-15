@@ -100,17 +100,33 @@ export const SocialPostGeneralSection = ({
   // Add platform-specific URLs for FBINSTA posts
   if (isFBINSTA && post.status === "posted") {
     if (facebookPostId) {
+      const fbUrl = post.post_url || `https://www.facebook.com/${facebookPostId}`
       fields.push({
         label: "Facebook Post",
-        value: post.post_url || `https://www.facebook.com/${facebookPostId}`,
+        link: {
+          href: fbUrl,
+          label: "View on Facebook",
+        },
       })
     }
     if (instagramPermalink) {
       fields.push({
         label: "Instagram Post",
-        value: instagramPermalink,
+        link: {
+          href: instagramPermalink,
+          label: "View on Instagram",
+        },
       })
     }
+  } else if (post.post_url && post.status === "posted") {
+    // For non-FBINSTA posts, show single post URL
+    fields.push({
+      label: "Post URL",
+      link: {
+        href: post.post_url,
+        label: "View Post",
+      },
+    })
   }
 
   return (

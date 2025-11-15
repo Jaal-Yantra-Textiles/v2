@@ -3,13 +3,15 @@ import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { useSocialPost } from "../../../hooks/api/social-posts"
 import { SocialPostGeneralSection } from "../../../components/social-posts/social-post-general-section"
+import { SocialPostInsightsSection } from "../../../components/social-posts/social-post-insights-section"
+import { socialPostLoader } from "./loader"
 
 const SocialPostDetailPage = () => {
   const { id } = useParams()
   const { socialPost: post, isLoading, isError, error } = useSocialPost(id!)
 
   if (isLoading || !post) {
-    return <TwoColumnPageSkeleton mainSections={2} sidebarSections={0} showJSON showMetadata />
+    return <TwoColumnPageSkeleton mainSections={1} sidebarSections={1} showJSON showMetadata />
   }
 
   if (isError) {
@@ -20,10 +22,9 @@ const SocialPostDetailPage = () => {
     <TwoColumnPage data={post} showJSON showMetadata hasOutlet={true}>
       <TwoColumnPage.Main>
         <SocialPostGeneralSection post={post} />
-        {/* Additional main sections placeholder */}
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
-        {/* Sidebar sections placeholder */}
+        <SocialPostInsightsSection post={post} />
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
   )
@@ -37,3 +38,5 @@ export const handle = {
     return id || "Detail"
   },
 }
+
+export const loader = socialPostLoader

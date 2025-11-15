@@ -73,24 +73,38 @@ export const POST = async (
     return res.status(401).send("Unauthorized")
   }
 
-  // Get raw body for signature validation
-  const rawBody = JSON.stringify(req.body)
+  // Read raw body for signature validation
+  let rawBody = '';
+  
+  // Collect raw body chunks
+  await new Promise<void>((resolve, reject) => {
+    req.on('data', (chunk) => {
+      rawBody += chunk.toString('utf8');
+    });
+    req.on('end', () => resolve());
+    req.on('error', (err) => reject(err));
+  });
   
   // Calculate expected signature
   const expectedSignature = crypto
     .createHmac("sha256", appSecret)
-    .update(rawBody)
+    .update(rawBody, 'utf8')
     .digest("hex")
 
   const isValid = `sha256=${expectedSignature}` === signature
 
   if (!isValid) {
-    console.error("Invalid signature")
+    console.error("Invalid signature", {
+      received: signature,
+      expected: `sha256=${expectedSignature}`,
+      bodyLength: rawBody.length,
+      bodyPreview: rawBody.substring(0, 100)
+    })
     return res.status(401).send("Unauthorized")
   }
 
-  // Signature is valid - process the webhook
-  const body = req.body as FacebookWebhookPayload
+  // Signature is valid - parse the body
+  const body = JSON.parse(rawBody) as FacebookWebhookPayload
 
   console.log("Webhook received:", {
     object: body.object,

@@ -28,6 +28,7 @@ export type AdminSocialPost = {
   error_message: string | null
   related_item_type: string | null
   related_item_id: string | null
+  metadata: Record<string, any> | null
   platform_id: string
   created_at: string
   updated_at: string
@@ -50,6 +51,7 @@ export type AdminCreateSocialPostPayload = {
   scheduled_at?: string | null
   media_attachments?: Record<string, any> | null
   notes?: string | null
+  metadata?: Record<string, any> | null
 }
 
 export type AdminUpdateSocialPostPayload = Partial<AdminCreateSocialPostPayload>
