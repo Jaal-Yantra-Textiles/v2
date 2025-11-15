@@ -133,6 +133,21 @@ const resolveTokensStep = createStep(
       return new StepResponse({ providerName, accessToken: userAccessToken })
     }
 
+    if (providerName === "fbinsta" || providerName === "facebook & instagram") {
+      // For FBINSTA, we need both Facebook page token and Instagram user token
+      if (!input.pageId) {
+        throw new MedusaError(MedusaError.Types.INVALID_DATA, "Missing pageId for FBINSTA publish")
+      }
+      const fb = new FacebookService()
+      const pageAccessToken = await fb.getPageAccessToken(input.pageId, userAccessToken)
+      return new StepResponse({ 
+        providerName, 
+        accessToken: pageAccessToken,
+        fbAccessToken: pageAccessToken,
+        igAccessToken: userAccessToken
+      })
+    }
+
     if (providerName === "twitter" || providerName === "x") {
       // Twitter requires both OAuth 2.0 and OAuth 1.0a credentials
       const oauth1 = (platform as any).api_config?.oauth1_credentials
@@ -234,6 +249,34 @@ const publishStep = createStep(
       return new StepResponse(results)
     }
 
+    if (input.providerName === "fbinsta" || input.providerName === "facebook & instagram") {
+      // Publish to both Facebook and Instagram
+      const fb = new FacebookService()
+      const ig = new InstagramService()
+      const results: any[] = []
+      
+      const imageAttachments = attachments.filter((a) => a && a.type === "image" && a.url) as { url: string; type: string }[]
+      const videoAttachments = attachments.filter((a) => a && a.type === "video" && a.url) as { url: string; type: string }[]
+
+      // Publish to Facebook
+      for (const att of imageAttachments) {
+        const r = await fb.createPagePhotoPost(input.pageId!, { message, image_url: att.url }, input.fbAccessToken!)
+        results.push({ kind: "fb_photo", url: att.url, response: r, platform: "facebook" })
+      }
+
+      // Publish to Instagram
+      for (const att of imageAttachments) {
+        const r = await ig.publishImage(input.igUserId!, { image_url: att.url, caption: message }, input.igAccessToken!)
+        results.push({ kind: "ig_image", url: att.url, response: r, platform: "instagram" })
+      }
+      for (const att of videoAttachments) {
+        const r = await ig.publishVideoAsReel(input.igUserId!, { video_url: att.url, caption: message }, input.igAccessToken!)
+        results.push({ kind: "ig_reel", url: att.url, response: r, platform: "instagram" })
+      }
+
+      return new StepResponse(results)
+    }
+
     if (input.providerName === "twitter" || input.providerName === "x") {
       const twitter = new TwitterService()
       const results: any[] = []
@@ -299,9 +342,17 @@ const updatePostStep = createStep(
     let postUrl = input.post.post_url || null
     const firstResult = input.results?.[0] as any
     
+    // Check if this is FBINSTA (multiple results)
+    const fbResult = input.results?.find((r: any) => r.platform === "facebook" || r.kind === "fb_photo")
+    const igResult = input.results?.find((r: any) => r.platform === "instagram" || r.kind === "ig_image" || r.kind === "ig_reel")
+    
     if (firstResult?.kind === "tweet") {
       // Twitter result
       postUrl = firstResult.tweetUrl || null
+    } else if (fbResult && igResult) {
+      // FBINSTA result - prefer Facebook URL
+      const fbPostId = fbResult.response?.id
+      postUrl = fbPostId ? `https://www.facebook.com/${fbPostId}` : postUrl
     } else if (fbId) {
       // Facebook result
       postUrl = `https://www.facebook.com/${fbId}`
@@ -316,8 +367,16 @@ const updatePostStep = createStep(
     // Add platform-specific IDs
     if (firstResult?.kind === "tweet") {
       insights.twitter_tweet_id = firstResult.tweetId
+    } else if (fbResult && igResult) {
+      // FBINSTA - store both IDs
+      insights.facebook_post_id = fbResult.response?.id
+      insights.instagram_media_id = igResult.response?.id
+      insights.instagram_permalink = igResult.response?.permalink
     } else if (fbId) {
       insights.facebook_post_id = fbId
+    } else if (igResult) {
+      insights.instagram_media_id = igResult.response?.id
+      insights.instagram_permalink = igResult.response?.permalink
     }
 
     const [updated] = await socials.updateSocialPosts([
@@ -353,8 +412,18 @@ export const publishSocialPostWorkflow = createWorkflow(
       post,
       providerName,
       pageId: transform(pageInfo, (p) => p.pageId),
-      fbAccessToken: transform(tokens, (t) => (t as any).providerName === "facebook" ? (t as any).accessToken : undefined),
-      igAccessToken: transform(tokens, (t) => (t as any).providerName === "instagram" ? (t as any).accessToken : undefined),
+      fbAccessToken: transform(tokens, (t) => {
+        const pName = (t as any).providerName
+        return (pName === "facebook" || pName === "fbinsta" || pName === "facebook & instagram") 
+          ? ((t as any).fbAccessToken || (t as any).accessToken) 
+          : undefined
+      }),
+      igAccessToken: transform(tokens, (t) => {
+        const pName = (t as any).providerName
+        return (pName === "instagram" || pName === "fbinsta" || pName === "facebook & instagram")
+          ? ((t as any).igAccessToken || (t as any).accessToken)
+          : undefined
+      }),
       igUserId: transform(igUser, (i) => i.igUserId),
       twitterAccessToken: transform(tokens, (t) => ((t as any).providerName === "twitter" || (t as any).providerName === "x") ? (t as any).accessToken : undefined),
       oauth1Credentials: transform(tokens, (t) => ((t as any).providerName === "twitter" || (t as any).providerName === "x") ? (t as any).oauth1Credentials : undefined),
