@@ -1,3 +1,11 @@
+## [6.32.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.32.1...v6.32.2) (2025-11-15)
+
+
+### Bug Fixes
+
+* **workflows:** Fixed the publish both token issue at the fb insta ([0b7bc8b](https://github.com/Jaal-Yantra-Textiles/v2/commit/0b7bc8bc08a9d7d41f35b7c7753ce50f96ad1364))
+* **api:** Signature issue resolved for the socials ([5903d61](https://github.com/Jaal-Yantra-Textiles/v2/commit/5903d61109e3f25655961122d95a5ce8ce842b30))
+
 ## [6.32.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.32.0...v6.32.1) (2025-11-15)
 
 
