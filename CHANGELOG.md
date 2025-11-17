@@ -1,3 +1,10 @@
+## [6.33.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.33.1...v6.33.2) (2025-11-17)
+
+
+### Bug Fixes
+
+* **admin:** fixed the map data returning settings ([1a889a2](https://github.com/Jaal-Yantra-Textiles/v2/commit/1a889a2e7910da488171aa9b96f57619d1c9fa17))
+
 ## [6.33.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.33.0...v6.33.1) (2025-11-17)
 
 
