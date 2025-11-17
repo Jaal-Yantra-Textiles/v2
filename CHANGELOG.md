@@ -1,3 +1,10 @@
+# [6.33.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.32.2...v6.33.0) (2025-11-17)
+
+
+### Features
+
+* **api:** Socials , initial fetch loader, fail try again on socials ([36671e8](https://github.com/Jaal-Yantra-Textiles/v2/commit/36671e813886c7d483e24abb81cc99cdb3ebee5b))
+
 ## [6.32.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.32.1...v6.32.2) (2025-11-15)
 
 
