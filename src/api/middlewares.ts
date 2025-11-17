@@ -60,7 +60,7 @@ import { listPublicPersonsQuerySchema } from "./web/persons/validators";
 import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id]/linkDesign/validators";
 import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partner/validators";
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
-import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreement/validators";
+import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreements/validators";
 import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
@@ -1005,17 +1005,17 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(UpdateEmailTemplateSchema))],
     },
     {
-      matcher: "/admin/agreement",
+      matcher: "/admin/agreements",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(CreateAgreementSchema))],
     },
     {
-      matcher: "/admin/agreement/:id",
+      matcher: "/admin/agreements/:id",
       method: "DELETE",
       middlewares: [],
     },
     {
-      matcher: "/admin/agreement/:id",
+      matcher: "/admin/agreements/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdateAgreementSchema))],
     },

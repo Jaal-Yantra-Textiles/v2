@@ -63,7 +63,7 @@ export const useAgreement = (
     queryKey: agreementQueryKeys.detail(agreementId),
     queryFn: async () =>
       sdk.client.fetch<AdminAgreementResponse>(
-        `/admin/agreement/{agreementId}`.replace('{agreementId}', `${agreementId}`),
+        `/admin/agreements/${agreementId}`,
         {
           method: "GET",
         }
@@ -89,7 +89,7 @@ export const useAgreements = (
     queryKey: agreementQueryKeys.list(query),
     queryFn: async () =>
       sdk.client.fetch<PaginatedResponse<AdminAgreementsResponse>>(
-        `/admin/agreement`,
+        `/admin/agreements`,
         {
           method: "GET",
           query,
@@ -111,7 +111,7 @@ export const useCreateAgreement = (
   return useMutation({
     mutationFn: async (payload) =>
       sdk.client.fetch<AdminAgreementResponse>(
-        `/admin/agreement`,
+        `/admin/agreements`,
         {
           method: "POST",
           body: payload,
@@ -137,7 +137,7 @@ export const useUpdateAgreement = (
   return useMutation({
     mutationFn: async (payload) =>
       sdk.client.fetch<AdminAgreementResponse>(
-        `/admin/agreement/{agreementId}`.replace('{agreementId}', `${agreementId}`),
+        `/admin/agreements/${agreementId}`,
         {
           method: "POST",
           body: payload,
@@ -160,7 +160,7 @@ export const useDeleteAgreement = (
   return useMutation({
     mutationFn: async () =>
       sdk.client.fetch<AdminAgreement>(
-        `/admin/agreement/{agreementId}`.replace('{agreementId}', `${agreementId}`),
+        `/admin/agreements/${agreementId}`,
         {
           method: "DELETE",
         }

@@ -54,7 +54,7 @@ setupSharedTestSuite(() => {
       
       // Create test agreement for this test
       const agreementResponse = await api.post(
-        "/admin/agreement",
+        "/admin/agreements",
         {
           title: "Multi-Signer Agreement",
           content: `
@@ -176,7 +176,7 @@ setupSharedTestSuite(() => {
       
       // Create test agreement for this test
       const agreementResponse = await api.post(
-        "/admin/agreement",
+        "/admin/agreements",
         {
           title: "Single Signer Agreement",
           content: `

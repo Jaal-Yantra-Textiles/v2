@@ -109,7 +109,7 @@ setupSharedTestSuite(() => {
         };
 
         const agreementResponse = await api.post(
-          "/admin/agreement",
+          "/admin/agreements",
           agreementPayload,
           headers
         );
@@ -260,7 +260,7 @@ setupSharedTestSuite(() => {
         };
 
         const agreementResponse = await api.post(
-          "/admin/agreement",
+          "/admin/agreements",
           agreementPayload,
           headers
         );
@@ -373,7 +373,7 @@ setupSharedTestSuite(() => {
         };
 
         const agreementResponse = await api.post(
-          "/admin/agreement",
+          "/admin/agreements",
           agreementPayload,
           headers
         );
@@ -487,7 +487,7 @@ setupSharedTestSuite(() => {
         };
 
         const agreement1Response = await api.post(
-          "/admin/agreement",
+          "/admin/agreements",
           agreement1Payload,
           headers
         );
@@ -504,7 +504,7 @@ setupSharedTestSuite(() => {
         };
 
         const agreement2Response = await api.post(
-          "/admin/agreement",
+          "/admin/agreements",
           agreement2Payload,
           headers
         );
