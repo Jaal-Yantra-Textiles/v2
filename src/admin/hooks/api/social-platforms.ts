@@ -78,13 +78,25 @@ export const useSocialPlatforms = (
   return { ...data, ...rest }
 }
 
-export const useSocialPlatform = (id: string) => {
+export const useSocialPlatform = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<
+      AdminSocialPlatformResponse,
+      Error,
+      AdminSocialPlatformResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
   const { data, ...rest } = useQuery({
     queryKey: socialPlatformsQueryKeys.detail(id),
     queryFn: async () =>
       sdk.client.fetch<AdminSocialPlatformResponse>(
         `/admin/social-platforms/${id}`
       ),
+    ...options,
   })
   return { ...data, ...rest }
 }

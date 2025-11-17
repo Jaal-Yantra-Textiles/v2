@@ -109,16 +109,44 @@ export const POST = async (
   }
 
   // Enrich: if Facebook, fetch managed pages and linked IG accounts to cache in metadata
+  // IMPORTANT: Convert User Access Token to Page Access Token
   let metadata: Record<string, any> | undefined = undefined
+  let pageAccessToken: string | undefined = undefined
+  let selectedPageId: string | undefined = undefined
+  
   if (platform.toLowerCase() === "facebook") {
     try {
       const fb = provider // FacebookService instance
-      const fields = ["id", "about", "category", "global_brand_page_name", "name"]
-      const pages = await fb.listManagedPagesWithFields(tokenData.access_token, fields)
+      const userAccessToken = tokenData.access_token
+      
+      const fields = ["id", "about", "category", "global_brand_page_name", "name", "access_token"]
+      const pages = await fb.listManagedPagesWithFields(userAccessToken, fields)
+      
       // Also fetch linked IG business accounts via Graph
       const ig = new InstagramService()
-      const igAccounts = await ig.getLinkedIgAccounts(tokenData.access_token)
+      const igAccounts = await ig.getLinkedIgAccounts(userAccessToken)
       metadata = { pages, ig_accounts: igAccounts }
+      
+      // CRITICAL: Get Page Access Token for the first page (or selected page)
+      // Page tokens have full permissions to access insights, unlike user tokens
+      if (pages.length > 0) {
+        // Use the first page by default (in production, let user select)
+        selectedPageId = pages[0].id
+        
+        // Get the page access token
+        try {
+          pageAccessToken = await fb.getPageAccessToken(selectedPageId, userAccessToken)
+          console.log(`[OAuth Callback] ✓ Got Page Access Token for page ${selectedPageId}`)
+          console.log(`[OAuth Callback] Token type changed from USER to PAGE`)
+        } catch (error) {
+          console.error(`[OAuth Callback] Failed to get page access token:`, error.message)
+          // Fallback to user token if page token fails
+          pageAccessToken = userAccessToken
+        }
+      } else {
+        console.warn("[OAuth Callback] No pages found! Using user token as fallback.")
+        pageAccessToken = userAccessToken
+      }
       
       // Log for debugging
       console.log(`[OAuth Callback] Fetched ${pages.length} Facebook pages and ${igAccounts.length} Instagram accounts`)
@@ -129,19 +157,26 @@ export const POST = async (
       // Non-fatal: continue without metadata cache, but log the error
       console.error("[OAuth Callback] Failed to fetch pages/IG accounts:", (e as Error).message)
       metadata = { pages: [], ig_accounts: [], error: (e as Error).message }
+      pageAccessToken = tokenData.access_token // Fallback to user token
     }
   }
 
   // Persist on the SocialPlatform record under api_config
+  // Use page access token if available (for Facebook), otherwise use the original token
+  const finalAccessToken = pageAccessToken || tokenData.access_token
+  
   const updated = await socialsService.updateSocialPlatforms({
     selector: { id },
     data: {
       api_config: {
         provider,
-        provider_key: tokenData.access_token, // adjust if you later fetch a user/page id
-        access_token: tokenData.access_token,
+        provider_key: selectedPageId || tokenData.access_token, // Use page ID if available
+        access_token: finalAccessToken, // Store PAGE token, not user token!
+        page_access_token: pageAccessToken, // Keep page token separately
+        user_access_token: platform.toLowerCase() === "facebook" ? tokenData.access_token : undefined, // Keep user token for reference
+        page_id: selectedPageId, // Store selected page ID
         refresh_token: tokenData.refresh_token,
-        token_type: tokenData.token_type,
+        token_type: pageAccessToken ? "PAGE" : tokenData.token_type, // Mark as PAGE token
         scope: tokenData.scope,
         expires_in: tokenData.expires_in,
         retrieved_at: new Date(tokenData.retrieved_at || Date.now()),

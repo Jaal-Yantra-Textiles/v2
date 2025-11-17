@@ -8,6 +8,7 @@ import {
 import { SOCIALS_MODULE } from "../../modules/socials";
 import SocialPostService from "../../modules/socials/service";
 import FacebookService from "../../modules/social-provider/facebook-service";
+import { extractHashtagsMentionsStep } from "./extract-hashtags-mentions";
 
 export type CreateSocialPostStepInput = {
   platform_id: string;
@@ -100,6 +101,14 @@ export const createSocialPostWorkflow = createWorkflow(
     const enriched = resolveDefaultPageStep(normalized)
 
     const result = createSocialPostStep(enriched as any);
+    
+    // Extract hashtags and mentions from caption (async, doesn't block post creation)
+    if (enriched.caption) {
+      extractHashtagsMentionsStep({
+        caption: enriched.caption,
+        platform_name: (input as any).platform_name || "all",
+      })
+    }
     
     // Emit hook so listeners can react to social post creation
     const socialPostCreated = createHook(

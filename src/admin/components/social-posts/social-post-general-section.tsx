@@ -3,8 +3,10 @@ import { usePublishSocialPost } from "../../hooks/api/social-posts"
 import { CommonField, CommonSection } from "../common/section-views"
 import { useTranslation } from "react-i18next"
 import dayjs from "dayjs"
-import { PencilSquare, Trash, Newspaper } from "@medusajs/icons"
+import { PencilSquare, Trash, Newspaper, ArrowPath } from "@medusajs/icons"
 import { useSocialPlatform } from "../../hooks/api/social-platforms"
+import { useSyncPostInsights } from "../../hooks/api/post-insights"
+import { toast } from "@medusajs/ui"
 
 export const SocialPostGeneralSection = ({
   post,
@@ -13,6 +15,7 @@ export const SocialPostGeneralSection = ({
 }) => {
   const { t } = useTranslation()
   const { mutate: publishPost, isPending } = usePublishSocialPost()
+  const { mutate: syncInsights, isPending: isSyncing } = useSyncPostInsights()
   
   // Get platform info to determine if it's FBINSTA
   const { socialPlatform } = useSocialPlatform(post.platform_id)
@@ -29,6 +32,29 @@ export const SocialPostGeneralSection = ({
     if (publishTarget === "instagram") return t("📷 Publish to Instagram")
     if (publishTarget === "both") return t("📘 + 📷 Publish to Both")
     return t("Publish now")
+  }
+
+  // Handler for syncing insights
+  const handleSyncInsights = () => {
+    syncInsights(post.id, {
+      onSuccess: (data: any) => {
+        const insights = data.insights || {}
+        const metrics = [
+          insights.likes && `${insights.likes} likes`,
+          insights.comments && `${insights.comments} comments`,
+          insights.impressions && `${insights.impressions} impressions`,
+        ].filter(Boolean).join(", ")
+
+        toast.success("Insights synced successfully", {
+          description: metrics || "Post insights have been updated",
+        })
+      },
+      onError: (error: any) => {
+        toast.error("Failed to sync insights", {
+          description: error.message || "An error occurred while syncing insights",
+        })
+      },
+    })
   }
 
   const actionGroups = [
@@ -53,6 +79,17 @@ export const SocialPostGeneralSection = ({
         },
       ],
     },
+    // Sync Insights action (only for published posts)
+    ...(post.status === "posted" ? [{
+      actions: [
+        {
+          label: t("Sync Insights"),
+          icon: <ArrowPath />,
+          onClick: handleSyncInsights,
+          disabled: isSyncing,
+        },
+      ],
+    }] : []),
     {
         actions: [
           {

@@ -1,14 +1,19 @@
-import { UIMatch, useParams } from "react-router-dom";
+import { UIMatch, useParams, useLoaderData, LoaderFunctionArgs } from "react-router-dom";
 import { SingleColumnPage } from "../../../../components/pages/single-column-pages";
 import { useSocialPlatform } from "../../../../hooks/api/social-platforms";
 import { SocialPlatformGeneralSection } from "../../../../components/social-platforms/social-platform-general-section"; // Adjusted path
 import { SingleColumnPageSkeleton } from "../../../../components/table/skeleton"; // Assuming this path
 import { useTranslation } from "react-i18next";
+import { socialPlatformLoader } from "./loader";
 
 export default function SocialPlatformDetailPage() {
   const { id } = useParams();
   const { t } = useTranslation();
-  const { socialPlatform: platform, isLoading, isError } = useSocialPlatform(id!); // Renamed for clarity
+  const initialData = useLoaderData() as Awaited<ReturnType<typeof socialPlatformLoader>>;
+  
+  const { socialPlatform: platform, isLoading, isError } = useSocialPlatform(id!, {
+    initialData
+  }); // Renamed for clarity
 
   if (isLoading || (!platform && !isError)) { // Show skeleton if loading or if platform is not yet available but no error
     return <SingleColumnPageSkeleton sections={1} showJSON showMetadata />;
@@ -25,6 +30,10 @@ export default function SocialPlatformDetailPage() {
         {/* Future sections can be added here */}
     </SingleColumnPage>
   );
+}
+
+export async function loader({ params }: LoaderFunctionArgs) {
+  return socialPlatformLoader({ params });
 }
 
 export const handle = {

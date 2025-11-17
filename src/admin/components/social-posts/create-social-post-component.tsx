@@ -12,6 +12,7 @@ import { useRouteModal } from "../modal/use-route-modal"
 import { XMark } from "@medusajs/icons"
 import FileModal from "../../routes/inventory/[id]/raw-materials/create/media/page"
 import { useEffect } from "react"
+import { CaptionInputWithSuggestions } from "./caption-input-with-suggestions"
 
 
 const BaseSchema = z.object({
@@ -377,11 +378,16 @@ export const CreateSocialPostComponent = () => {
                 <Form.Field
                   control={form.control}
                   name="message"
-                  render={({ field }) => (
+                  render={({ field: { value, onChange } }) => (
                     <Form.Item>
                       <Form.Label>Message</Form.Label>
                       <Form.Control>
-                        <Input {...field} placeholder="Say something about this post" />
+                        <CaptionInputWithSuggestions
+                          value={value || ""}
+                          onChange={onChange}
+                          placeholder="Say something about this post... Use # for hashtags and @ for mentions"
+                          platform="facebook"
+                        />
                       </Form.Control>
                       <Form.ErrorMessage />
                     </Form.Item>
@@ -568,11 +574,16 @@ export const CreateSocialPostComponent = () => {
                 <Form.Field
                   control={form.control}
                   name="message"
-                  render={({ field }) => (
+                  render={({ field: { value, onChange } }) => (
                     <Form.Item>
                       <Form.Label>Message/Caption</Form.Label>
                       <Form.Control>
-                        <Input {...field} placeholder="Write your message (will be used for both platforms)" />
+                        <CaptionInputWithSuggestions
+                          value={value || ""}
+                          onChange={onChange}
+                          placeholder="Write your message (will be used for both platforms)... Use # for hashtags and @ for mentions"
+                          platform="all"
+                        />
                       </Form.Control>
                       <Form.ErrorMessage />
                     </Form.Item>
@@ -701,11 +712,16 @@ export const CreateSocialPostComponent = () => {
                 <Form.Field
                   control={form.control}
                   name="message"
-                  render={({ field }) => (
+                  render={({ field: { value, onChange } }) => (
                     <Form.Item>
                       <Form.Label>Caption</Form.Label>
                       <Form.Control>
-                        <Input {...field} placeholder="Write a caption" />
+                        <CaptionInputWithSuggestions
+                          value={value || ""}
+                          onChange={onChange}
+                          placeholder="Write a caption... Use # for hashtags and @ for mentions"
+                          platform="instagram"
+                        />
                       </Form.Control>
                       <Form.ErrorMessage />
                     </Form.Item>

@@ -69,6 +69,25 @@ export const POST = async (
     }
 
     const platformName = (platform.name || "").toLowerCase()
+    const isFBINSTA = platformName === "fbinsta" || platformName === "facebook & instagram"
+
+    // Check for previous publish attempts and detect failures
+    const currentInsights = ((post as any).insights as Record<string, unknown>) || {}
+    const previousResults = (currentInsights.publish_results as any[]) || []
+    
+    // Detect which platforms previously failed
+    const facebookPreviouslyFailed = previousResults.some(
+      (r: any) => r.platform === "facebook" && !r.success
+    )
+    const instagramPreviouslyFailed = previousResults.some(
+      (r: any) => r.platform === "instagram" && !r.success
+    )
+    const facebookPreviouslySucceeded = previousResults.some(
+      (r: any) => r.platform === "facebook" && r.success
+    )
+    const instagramPreviouslySucceeded = previousResults.some(
+      (r: any) => r.platform === "instagram" && r.success
+    )
 
     // Extract credentials from platform api_config
     const apiConfig = (platform.api_config || {}) as Record<string, any>
@@ -96,7 +115,18 @@ export const POST = async (
     const metadata = ((post as any).metadata || {}) as Record<string, any>
     const pageId = override_page_id || (metadata.page_id as string | undefined)
     const igUserId = override_ig_user_id || (metadata.ig_user_id as string | undefined)
-    const publishTarget = (metadata.publish_target as "facebook" | "instagram" | "both") || "both"
+    let publishTarget = (metadata.publish_target as "facebook" | "instagram" | "both") || "both"
+    
+    // Smart retry: If this is a retry and one platform succeeded, only retry the failed one
+    if (isFBINSTA && publishTarget === "both") {
+      if (facebookPreviouslySucceeded && instagramPreviouslyFailed) {
+        publishTarget = "instagram"
+        console.log("🔄 Smart retry: Publishing only to Instagram (Facebook already succeeded)")
+      } else if (instagramPreviouslySucceeded && facebookPreviouslyFailed) {
+        publishTarget = "facebook"
+        console.log("🔄 Smart retry: Publishing only to Facebook (Instagram already succeeded)")
+      }
+    }
 
     // Validate based on publish target
     if ((publishTarget === "facebook" || publishTarget === "both") && !pageId) {
@@ -212,12 +242,28 @@ export const POST = async (
     // Build post URLs
     let postUrl = (post as any).post_url
     
-    // Preserve existing insights data
-    const currentInsights = ((post as any).insights as Record<string, unknown>) || {}
+    // Merge new results with previous results (for retry scenarios)
+    const mergedResults = [...previousResults]
+    
+    // Replace or add new results
+    publishResults.forEach((newResult: any) => {
+      const existingIndex = mergedResults.findIndex(
+        (r: any) => r.platform === newResult.platform
+      )
+      if (existingIndex >= 0) {
+        // Replace previous result for this platform
+        mergedResults[existingIndex] = newResult
+      } else {
+        // Add new result
+        mergedResults.push(newResult)
+      }
+    })
+    
     const insights: Record<string, any> = {
       ...currentInsights,  // Preserve existing webhook data
-      publish_results: publishResults,
+      publish_results: mergedResults,  // Use merged results
       published_at: new Date().toISOString(),
+      last_retry_at: previousResults.length > 0 ? new Date().toISOString() : undefined,
     }
 
     if (facebookResult?.postId) {
@@ -232,32 +278,41 @@ export const POST = async (
       }
     }
 
+    // Determine overall success based on merged results
+    const allPlatformsSucceeded = mergedResults.every((r: any) => r.success)
+    const anyPlatformFailed = mergedResults.some((r: any) => !r.success)
+    
     // Update the post
     const [updatedPost] = await socials.updateSocialPosts([
       {
         selector: { id: postId },
         data: {
-          status: result.allSucceeded ? "posted" : "failed",
-          posted_at: result.allSucceeded ? new Date() : null,
+          status: allPlatformsSucceeded ? "posted" : "failed",
+          posted_at: allPlatformsSucceeded ? new Date() : null,
           post_url: postUrl,
           insights,
-          error_message: result.allSucceeded
-            ? null
-            : publishResults
+          error_message: anyPlatformFailed
+            ? mergedResults
                 .filter((r: any) => !r.success)
                 .map((r: any) => `${r.platform}: ${r.error}`)
-                .join("; "),
+                .join("; ")
+            : null,
         },
       },
     ])
 
     res.status(200).json({
-      success: result.allSucceeded,
+      success: allPlatformsSucceeded,
       post: updatedPost,
       results: {
-        facebook: facebookResult,
-        instagram: instagramResult,
+        facebook: facebookResult || mergedResults.find((r: any) => r.platform === "facebook"),
+        instagram: instagramResult || mergedResults.find((r: any) => r.platform === "instagram"),
       },
+      retry_info: previousResults.length > 0 ? {
+        is_retry: true,
+        previous_attempts: previousResults.length,
+        retried_platform: publishTarget !== "both" ? publishTarget : null,
+      } : undefined,
     })
   } catch (error) {
     throw new MedusaError(

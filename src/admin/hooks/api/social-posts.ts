@@ -90,13 +90,30 @@ export const useSocialPosts = (
   return { ...data, ...rest }
 }
 
-export const useSocialPost = (id: string) => {
+export const useSocialPost = (
+  id: string,
+  query?: Record<string, any>,
+  options?: Omit<
+    UseQueryOptions<
+      AdminSocialPostResponse,
+      Error,
+      AdminSocialPostResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
   const { data, ...rest } = useQuery({
     queryKey: socialPostsQueryKeys.detail(id),
     queryFn: async () =>
       sdk.client.fetch<AdminSocialPostResponse>(
-        `/admin/social-posts/${id}`
+        `/admin/social-posts/${id}`,
+        {
+          method: "GET",
+          query,
+        }
       ),
+    ...options,
   })
   return { ...data, ...rest }
 }

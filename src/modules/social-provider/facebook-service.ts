@@ -192,7 +192,11 @@ export default class FacebookService {
     }
     const body = new URLSearchParams()
     if (input.message) body.set("message", input.message)
-    if (input.image_url) body.set("url", input.image_url)
+    // Encode URL to handle spaces and special characters
+    if (input.image_url) {
+      const encodedUrl = input.image_url.replace(/ /g, '%20')
+      body.set("url", encodedUrl)
+    }
     body.set("access_token", pageAccessToken)
 
     const resp = await fetch(`https://graph.facebook.com/v24.0/${encodeURIComponent(pageId)}/photos`, {
@@ -268,7 +272,9 @@ export default class FacebookService {
 
     for (const imageUrl of input.image_urls) {
       const uploadBody = new URLSearchParams()
-      uploadBody.set("url", imageUrl)
+      // Encode URL to handle spaces and special characters
+      const encodedUrl = imageUrl.replace(/ /g, '%20')
+      uploadBody.set("url", encodedUrl)
       uploadBody.set("published", "false") // Don't publish individually
       uploadBody.set("access_token", pageAccessToken)
 
