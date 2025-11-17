@@ -26,6 +26,10 @@ export interface WebsiteAnalyticsResponse {
     event_name?: string;
     pathname: string;
     timestamp: Date;
+    visitor_id?: string;
+    session_id?: string;
+    referrer_source?: string;
+    country?: string;
   }>;
 }
 

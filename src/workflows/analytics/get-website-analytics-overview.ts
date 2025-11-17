@@ -33,6 +33,10 @@ export type WebsiteAnalyticsOverview = {
     event_name?: string;
     pathname: string;
     timestamp: Date;
+    visitor_id?: string;
+    session_id?: string;
+    referrer_source?: string;
+    country?: string;
   }>;
 };
 
@@ -78,6 +82,10 @@ export const getWebsiteAnalyticsOverviewStep = createStep(
         event_name: e.event_name,
         pathname: e.pathname,
         timestamp: e.timestamp,
+        visitor_id: e.visitor_id,
+        session_id: e.session_id,
+        referrer_source: e.referrer_source,
+        country: e.country,
       }));
 
     const overview: WebsiteAnalyticsOverview = {
