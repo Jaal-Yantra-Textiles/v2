@@ -56,13 +56,14 @@ export const SendToPartnerForm = ({ entityId, entityType, onSuccess }: SendToPar
     return params
   }, [pagination, search, filtering])
 
-  const { partners, isLoading: partnersLoading } = usePartners(queryParams)
+  const { partners, count, isLoading: partnersLoading } = usePartners(queryParams)
 
 
   const isLoading = partnersLoading
 
   // Use partners directly from API since filtering is now handled server-side
   const filteredItems = partners || []
+  const totalCount = count || 0
 
   const handleRowSelect = useCallback((id: string) => {
     setSelectedRows(prev => ({
@@ -103,7 +104,7 @@ export const SendToPartnerForm = ({ entityId, entityType, onSuccess }: SendToPar
     columns: columns,
     data: paginatedItems,
     getRowId: (row) => row.id,
-    rowCount: partners?.length || 0,
+    rowCount: totalCount,
     onRowClick: (_, row) => {
       const rowId = row.id
       handleRowSelect(rowId)
@@ -154,11 +155,12 @@ export const SendToPartnerForm = ({ entityId, entityType, onSuccess }: SendToPar
     }
   }, [isCommandBarOpen])
 
+  // Only count selected partners that are actually valid (exist in current data or were previously loaded)
   const selectedPartnerIds = Object.keys(selectedRows).filter(id => selectedRows[id])
   const selectedCount = selectedPartnerIds.length
 
   const handleSend = useCallback(async () => {
-    if (selectedCount === 0) {
+    if (selectedPartnerIds.length === 0) {
       toast.error("Please select at least one partner")
       return
     }
