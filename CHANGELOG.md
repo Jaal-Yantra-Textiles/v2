@@ -1,3 +1,10 @@
+## [6.33.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.33.0...v6.33.1) (2025-11-17)
+
+
+### Bug Fixes
+
+* **api:** Agreement now renamed to agreements ([dafa4ef](https://github.com/Jaal-Yantra-Textiles/v2/commit/dafa4ef25ccd76e995b7b572296d2b966afb66fe))
+
 # [6.33.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.32.2...v6.33.0) (2025-11-17)
 
 
