@@ -1,3 +1,15 @@
+# [6.34.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.33.2...v6.34.0) (2025-11-18)
+
+
+### Bug Fixes
+
+* **admin:** fixed the admin totalCount ([a909a58](https://github.com/Jaal-Yantra-Textiles/v2/commit/a909a5860b0b592047ec093165475ad151295551))
+
+
+### Features
+
+* **api:** Socials with twitter services online now ([cd62a46](https://github.com/Jaal-Yantra-Textiles/v2/commit/cd62a46a607a3238b25639c221a05b5a44af1377))
+
 ## [6.33.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.33.1...v6.33.2) (2025-11-17)
 
 
