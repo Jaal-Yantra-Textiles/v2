@@ -86,9 +86,21 @@ export const POST = async (
 
   // Handle social platform OAuth callback (existing logic)
   // Normalize "x" to "twitter" for environment variable lookups
-  const envPlatform = platformLower === "x" ? "twitter" : platform
+  const envPlatform = platformLower === "x" ? "twitter" : platformLower
   const redirectEnvKey = `${envPlatform.toUpperCase()}_REDIRECT_URI`
-  const redirectUri = process.env[redirectEnvKey] ?? ""
+  
+  // Check both X_ and TWITTER_ prefixes for X/Twitter platform
+  const redirectUri = platformLower === "x"
+    ? (process.env.X_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI || "")
+    : (process.env[redirectEnvKey] ?? "")
+  
+  console.log(`[OAuth Callback] Platform: ${platform}`)
+  console.log(`[OAuth Callback] Platform Lower: ${platformLower}`)
+  console.log(`[OAuth Callback] Env Platform: ${envPlatform}`)
+  console.log(`[OAuth Callback] Redirect Env Key: ${redirectEnvKey}`)
+  console.log(`[OAuth Callback] Redirect URI from env: ${redirectUri}`)
+  console.log(`[OAuth Callback] Code: ${code}`)
+  console.log(`[OAuth Callback] State: ${state}`)
 
   // Resolve provider service and socials service
   const socialProvider = req.scope.resolve(
@@ -103,6 +115,32 @@ export const POST = async (
   if (platformLower === "twitter" || platformLower === "x") {
     // Twitter/X uses PKCE state to retrieve verifier internally
     tokenData = await provider.exchangeCodeForToken(code, redirectUri, state)
+    
+    console.log(`[OAuth Callback] Token scope: ${tokenData.scope}`)
+    console.log(`[OAuth Callback] Has users.read scope: ${tokenData.scope?.includes('users.read')}`)
+    
+    // Fetch user profile details - only if we have users.read scope
+    if (tokenData.scope?.includes('users.read')) {
+      try {
+        const userProfile = await provider.getUserProfile(tokenData.access_token)
+        console.log(`[OAuth Callback] Twitter user profile:`, userProfile)
+        
+        // Store profile in metadata
+        tokenData.user_profile = {
+          id: userProfile.id,
+          name: userProfile.name,
+          username: userProfile.username,
+          profile_image_url: userProfile.profile_image_url,
+          description: userProfile.description,
+          verified: userProfile.verified,
+        }
+      } catch (error) {
+        console.error(`[OAuth Callback] Failed to fetch Twitter user profile:`, error)
+        // Non-fatal - continue without profile data
+      }
+    } else {
+      console.warn(`[OAuth Callback] Skipping user profile fetch - users.read scope not granted. Current scope: ${tokenData.scope}`)
+    }
   } else {
     // Facebook/LinkedIn/Instagram commonly: (code, redirectUri)
     tokenData = await provider.exchangeCodeForToken(code, redirectUri)
@@ -165,22 +203,28 @@ export const POST = async (
   // Use page access token if available (for Facebook), otherwise use the original token
   const finalAccessToken = pageAccessToken || tokenData.access_token
   
+  // Build metadata - include Twitter user profile if available
+  const finalMetadata = {
+    ...metadata,
+    ...(tokenData.user_profile ? { user_profile: tokenData.user_profile } : {}),
+  }
+  
   const updated = await socialsService.updateSocialPlatforms({
     selector: { id },
     data: {
       api_config: {
         provider,
-        provider_key: selectedPageId || tokenData.access_token, // Use page ID if available
-        access_token: finalAccessToken, // Store PAGE token, not user token!
-        page_access_token: pageAccessToken, // Keep page token separately
+        provider_key: selectedPageId || tokenData.user_profile?.username || tokenData.access_token, // Use page ID, Twitter username, or token
+        access_token: finalAccessToken, // Store PAGE token for FB, or user token for Twitter
+        page_access_token: pageAccessToken, // Keep page token separately (Facebook only)
         user_access_token: platform.toLowerCase() === "facebook" ? tokenData.access_token : undefined, // Keep user token for reference
-        page_id: selectedPageId, // Store selected page ID
+        page_id: selectedPageId, // Store selected page ID (Facebook only)
         refresh_token: tokenData.refresh_token,
         token_type: pageAccessToken ? "PAGE" : tokenData.token_type, // Mark as PAGE token
         scope: tokenData.scope,
         expires_in: tokenData.expires_in,
         retrieved_at: new Date(tokenData.retrieved_at || Date.now()),
-        metadata,
+        metadata: finalMetadata,
       },
     },
   })

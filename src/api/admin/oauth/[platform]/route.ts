@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { SOCIAL_PROVIDER_MODULE, SocialProviderService } from "../../../../modules/social-provider"
 import { EXTERNAL_STORES_MODULE, ExternalStoresService } from "../../../../modules/external_stores"
 import { initiateOauthWorkflow } from "../../../../workflows/socials/initiate-oauth"
+import { SOCIALS_MODULE } from "../../../../modules/socials"
 
 /**
  * GET /admin/oauth/:platform
@@ -82,6 +83,55 @@ export const GET = async (
     }
     try {
       const token = await provider.getAppBearerToken()
+      console.log(`[App-Only OAuth] Got token for ${platform}:`, { token: token.token.substring(0, 20) + '...', expiresAt: token.expiresAt })
+      
+      // For app-only flow, we need to store the credentials in the platform
+      // This is especially important for Twitter which needs both OAuth 2.0 and OAuth 1.0a
+      const platformId = req.query.platform_id as string
+      console.log(`[App-Only OAuth] Platform ID: ${platformId}, Platform: ${platformLower}`)
+      
+      if (platformId && (platformLower === "twitter" || platformLower === "x")) {
+        const socialsService = req.scope.resolve(SOCIALS_MODULE) as any
+        
+        // Get existing platform to preserve OAuth 2.0 user token
+        const [existingPlatform] = await socialsService.listSocialPlatforms({
+          id: platformId
+        })
+        
+        // Store app-level credentials for Twitter
+        const apiKey = process.env.X_API_KEY || process.env.TWITTER_API_KEY
+        const apiSecret = process.env.X_API_SECRET || process.env.TWITTER_API_SECRET
+        
+        console.log(`[App-Only OAuth] Storing credentials for platform ${platformId}`)
+        console.log(`[App-Only OAuth] Has API Key: ${!!apiKey}, Has API Secret: ${!!apiSecret}`)
+        console.log(`[App-Only OAuth] Existing OAuth 2.0 token: ${!!existingPlatform?.api_config?.access_token}`)
+        
+        const updated = await socialsService.updateSocialPlatforms({
+          selector: { id: platformId },
+          data: {
+            api_config: {
+              // Preserve existing OAuth 2.0 user token if it exists
+              ...(existingPlatform?.api_config || {}),
+              // OAuth 2.0 app-only bearer token (for read operations)
+              app_bearer_token: token.token,
+              app_token_expires_at: new Date(token.expiresAt),
+              app_token_retrieved_at: new Date(),
+              // OAuth 1.0a app credentials (for media upload and posting)
+              // These are used to sign requests, not as bearer tokens
+              oauth1_app_credentials: {
+                consumer_key: apiKey,      // Twitter calls it "API Key" but it's the OAuth 1.0a consumer key
+                consumer_secret: apiSecret, // Twitter calls it "API Secret" but it's the OAuth 1.0a consumer secret
+              },
+            },
+          },
+        })
+        
+        console.log(`[App-Only OAuth] ✓ Credentials stored successfully for platform ${platformId}`)
+        console.log(`[App-Only OAuth] Updated platforms:`, updated?.length || 0)
+      } else {
+        console.log(`[App-Only OAuth] Skipping storage - platformId: ${platformId}, platform: ${platformLower}`)
+      }
+      
       res.status(200).json(token)
     } catch (e) {
       res.status(500).json({ message: (e as Error).message })
@@ -93,9 +143,20 @@ export const GET = async (
   const envPlatform = platform.toLowerCase() === "x" ? "twitter" : platform
   const redirectEnvKey = `${envPlatform.toUpperCase()}_REDIRECT_URI`
   const scopeEnvKey = `${envPlatform.toUpperCase()}_SCOPE`
-  const redirectUri = process.env[redirectEnvKey] ?? ""
-  // IMPORTANT: Do not default to Twitter scopes. Let provider choose defaults.
-  const scope = process.env[scopeEnvKey] ?? ""
+  
+  // Check both X_ and TWITTER_ prefixes for X/Twitter platform
+  const redirectUri = platform.toLowerCase() === "x" 
+    ? (process.env.X_REDIRECT_URI || process.env.TWITTER_REDIRECT_URI || "")
+    : (process.env[redirectEnvKey] ?? "")
+  const scope = platform.toLowerCase() === "x"
+    ? (process.env.X_SCOPE || process.env.TWITTER_SCOPE || "")
+    : (process.env[scopeEnvKey] ?? "")
+  
+  console.log(`[OAuth Initiate] Platform: ${platform}`)
+  console.log(`[OAuth Initiate] Env Platform: ${envPlatform}`)
+  console.log(`[OAuth Initiate] Redirect Env Key: ${redirectEnvKey}`)
+  console.log(`[OAuth Initiate] Redirect URI: ${redirectUri}`)
+  console.log(`[OAuth Initiate] Scope: ${scope}`)
 
   const { result, errors } = await initiateOauthWorkflow(req.scope).run({
     input: {

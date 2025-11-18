@@ -1,12 +1,10 @@
+import { CreateSocialPostSteps } from "../../../components/creates/create-social-post-steps"
 import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
-import { CreateSocialPostComponent } from "../../../components/social-posts/create-social-post-component"
 
 const CreateSocialPostModal = () => {
-  return (
-    <RouteFocusModal>
-      <CreateSocialPostComponent />
+  return <RouteFocusModal>
+    <CreateSocialPostSteps />
     </RouteFocusModal>
-  )
 }
 
 export default CreateSocialPostModal

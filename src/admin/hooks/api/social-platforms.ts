@@ -144,8 +144,13 @@ export const useInitiateSocialPlatformOAuth = () => {
   type OAuthResponse = { location: string; state?: string } | { token: string; expiresAt: number }
 
   return useMutation<OAuthResponse, Error, { platform: string; id: string; flow?: string }>({
-    mutationFn: async ({ platform, flow }) => {
-      return sdk.client.fetch<{ location: string; state?: string }>(`/admin/oauth/${platform}${flow ? `?flow=${flow}` : ""}`, {
+    mutationFn: async ({ platform, id, flow }) => {
+      const params = new URLSearchParams()
+      if (flow) params.append("flow", flow)
+      if (id) params.append("platform_id", id)
+      const queryString = params.toString()
+      
+      return sdk.client.fetch<{ location: string; state?: string }>(`/admin/oauth/${platform}${queryString ? `?${queryString}` : ""}`, {
         method: "GET",
         credentials: "include",
       });

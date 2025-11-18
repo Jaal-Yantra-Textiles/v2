@@ -149,34 +149,34 @@ const resolveTokensStep = createStep(
     }
 
     if (providerName === "twitter" || providerName === "x") {
-      // Twitter requires both OAuth 2.0 and OAuth 1.0a credentials
-      const oauth1 = (platform as any).api_config?.oauth1_credentials
-      if (!oauth1?.access_token || !oauth1?.access_token_secret) {
+      // Twitter can use either OAuth 1.0a user credentials OR app-level OAuth 1.0a credentials
+      const apiConfig = (platform as any).api_config
+      const oauth1UserCreds = apiConfig?.oauth1_credentials
+      const oauth1AppCreds = apiConfig?.oauth1_app_credentials || apiConfig?.app_credentials
+      const appBearerToken = apiConfig?.app_bearer_token
+      
+      console.log(`[Resolve Provider Tokens] Twitter/X credentials check:`)
+      console.log(`  - Platform ID: ${(platform as any).id}`)
+      console.log(`  - OAuth 2.0 user token: ${!!userAccessToken}`)
+      console.log(`  - App bearer token: ${!!appBearerToken}`)
+      console.log(`  - OAuth 1.0a app consumer_key/api_key: ${!!(oauth1AppCreds?.consumer_key || oauth1AppCreds?.api_key)}`)
+      console.log(`  - OAuth 1.0a app consumer_secret/api_secret: ${!!(oauth1AppCreds?.consumer_secret || oauth1AppCreds?.api_secret)}`)
+      console.log(`  - OAuth 1.0a user credentials: ${!!oauth1UserCreds?.access_token}`)
+      
+      // For Twitter/X, we need OAuth 2.0 User Context (not app-only)
+      // Media upload requires user context authentication
+      if (!userAccessToken) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
-          "Twitter requires OAuth 1.0a credentials for media upload. Please re-authenticate."
+          "Twitter requires OAuth 2.0 User Context for media upload. Please complete the regular OAuth flow (not app-only)."
         )
       }
-
-      const apiKey = process.env.X_API_KEY || process.env.TWITTER_API_KEY
-      const apiSecret = process.env.X_API_SECRET || process.env.TWITTER_API_SECRET
-
-      if (!apiKey || !apiSecret) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
-          "Twitter API credentials not configured. Set X_API_KEY and X_API_SECRET environment variables."
-        )
-      }
-
+      
+      console.log(`[Resolve Provider Tokens] ✓ Using OAuth 2.0 user token for Twitter`)
+      
       return new StepResponse({
         providerName,
-        accessToken: userAccessToken,
-        oauth1Credentials: {
-          apiKey,
-          apiSecret,
-          accessToken: oauth1.access_token,
-          accessTokenSecret: oauth1.access_token_secret,
-        },
+        accessToken: userAccessToken, // Use user access token, not app bearer token
       })
     }
 
@@ -198,12 +198,6 @@ const publishStep = createStep(
       igAccessToken?: string; 
       igUserId?: string;
       twitterAccessToken?: string;
-      oauth1Credentials?: {
-        apiKey: string;
-        apiSecret: string;
-        accessToken: string;
-        accessTokenSecret: string;
-      };
     }
   ) => {
     const message = input.post.caption || undefined
@@ -299,7 +293,7 @@ const publishStep = createStep(
         )
       }
 
-      // Publish tweet with media
+      // Publish tweet with media using OAuth 2.0
       const imageUrls = imageAttachments.map((a) => a.url)
       const videoUrl = videoAttachment?.url
 
@@ -309,8 +303,7 @@ const publishStep = createStep(
           imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
           videoUrl,
         },
-        input.twitterAccessToken!,
-        input.oauth1Credentials!
+        input.twitterAccessToken!
       )
 
       results.push({
@@ -426,7 +419,6 @@ export const publishSocialPostWorkflow = createWorkflow(
       }),
       igUserId: transform(igUser, (i) => i.igUserId),
       twitterAccessToken: transform(tokens, (t) => ((t as any).providerName === "twitter" || (t as any).providerName === "x") ? (t as any).accessToken : undefined),
-      oauth1Credentials: transform(tokens, (t) => ((t as any).providerName === "twitter" || (t as any).providerName === "x") ? (t as any).oauth1Credentials : undefined),
     })
 
     const updated = updatePostStep({ post, results })

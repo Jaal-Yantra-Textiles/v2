@@ -83,19 +83,25 @@ export default class TwitterService {
   }
 
   /** Build the OAuth2 authorization URL and return verifier/challenge */
-  initiateUserAuth(redirectUri: string, scope: string = "tweet.read tweet.write offline.access") {
+  initiateUserAuth(redirectUri: string, scope: string = "tweet.read tweet.write users.read offline.access") {
     const { codeVerifier, codeChallenge } = this.generatePkcePair();
     const state = crypto.randomBytes(16).toString("hex");
+    console.log(`[Twitter Service] Initiating OAuth with redirect URI: ${redirectUri}`);
     const authUrl = `https://x.com/i/oauth2/authorize?response_type=code&client_id=${this.config.clientId}&redirect_uri=${encodeURIComponent(
       redirectUri
     )}&scope=${encodeURIComponent(scope)}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
     TwitterService.pkceStore.set(state, codeVerifier);
+    console.log(`[Twitter Service] Auth URL: ${authUrl}`);
     return { authUrl, state };
 }
 
 async exchangeCodeForToken(code: string, redirectUri: string, state: string) {
+  console.log(`[Twitter Service] Exchanging code for token`);
+  console.log(`[Twitter Service] Redirect URI: ${redirectUri}`);
+  console.log(`[Twitter Service] State: ${state}`);
   const codeVerifier = TwitterService.pkceStore.get(state);
   if (!codeVerifier) {
+      console.error(`[Twitter Service] No code verifier found for state: ${state}`);
       throw new MedusaError(
           MedusaError.Types.INVALID_ARGUMENT,
           `No code verifier found for state ${state}`
@@ -197,6 +203,29 @@ async refreshAccessToken(refreshToken: string): Promise<OAuth2Token> {
 }
 
   /**
+   * Get authenticated user's profile information
+   * @param accessToken - OAuth 2.0 access token
+   */
+  async getUserProfile(accessToken: string) {
+    const response = await fetch("https://api.x.com/2/users/me?user.fields=id,name,username,profile_image_url,description,verified", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Failed to fetch Twitter user profile: ${response.status} - ${JSON.stringify(error)}`
+      )
+    }
+
+    const data = await response.json()
+    return data.data // Returns { id, name, username, profile_image_url, description, verified }
+  }
+
+  /**
    * Example helper using the SDK – fetch a tweet by id (app-only)
    */
   async getTweet(id: string) {
@@ -205,91 +234,228 @@ async refreshAccessToken(refreshToken: string): Promise<OAuth2Token> {
   }
 
   /**
-   * Upload media using OAuth 1.0a (v1.1 API)
-   * Required for attaching images/videos to tweets
+   * Upload media to Twitter using X API v2
+   * Supports both simple (images) and chunked (videos) uploads
    * 
-   * @param imageUrl - Public URL of the image to upload
-   * @param oauth1Credentials - OAuth 1.0a credentials
-   * @returns media_id_string for use in tweet creation
+   * @param imageUrl - Public URL of the media to upload
+   * @param accessToken - OAuth 2.0 bearer token (user context)
+   * @returns media_id for use in tweet creation
    */
   async uploadMedia(
     imageUrl: string,
-    oauth1Credentials: {
-      apiKey: string
-      apiSecret: string
-      accessToken: string
-      accessTokenSecret: string
-    }
+    accessToken: string
   ): Promise<string> {
-    // Download image from URL
-    const imageResponse = await fetch(imageUrl)
-    if (!imageResponse.ok) {
+    // Download media from URL
+    const mediaResponse = await fetch(imageUrl)
+    if (!mediaResponse.ok) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Failed to download image from ${imageUrl}: ${imageResponse.status}`
+        `Failed to download media from ${imageUrl}: ${mediaResponse.status}`
       )
     }
 
-    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
-    const base64Image = imageBuffer.toString("base64")
+    const mediaBuffer = Buffer.from(await mediaResponse.arrayBuffer())
+    const contentType = mediaResponse.headers.get('content-type') || 'image/jpeg'
+    const isVideo = contentType.startsWith('video/')
+    const totalBytes = mediaBuffer.length
 
-    // Generate OAuth 1.0a signature
-    const oauth = {
-      oauth_consumer_key: oauth1Credentials.apiKey,
-      oauth_token: oauth1Credentials.accessToken,
-      oauth_signature_method: "HMAC-SHA256",
-      oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
-      oauth_nonce: crypto.randomBytes(32).toString("hex"),
-      oauth_version: "1.0",
+    // Determine media category
+    let mediaCategory = 'tweet_image'
+    if (isVideo) {
+      mediaCategory = 'tweet_video'
+    } else if (contentType === 'image/gif') {
+      mediaCategory = 'tweet_gif'
     }
 
-    // Create signature base string
-    const method = "POST"
-    const url = "https://upload.twitter.com/1.1/media/upload.json"
-    const parameterString = Object.keys(oauth)
-      .sort()
-      .map((key) => `${key}=${encodeURIComponent(oauth[key as keyof typeof oauth])}`)
-      .join("&")
+    const MEDIA_ENDPOINT_URL = 'https://api.x.com/2/media/upload'
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      'User-Agent': 'MedusaJS-Social-Publisher',
+    }
 
-    const signatureBaseString = `${method}&${encodeURIComponent(url)}&${encodeURIComponent(parameterString)}`
+    // For images, use simple upload with base64
+    if (!isVideo && totalBytes <= 5 * 1024 * 1024) {
+      // Simple upload for images <= 5MB
+      const base64Media = mediaBuffer.toString('base64')
+      
+      const formData = new URLSearchParams()
+      formData.append('media_data', base64Media)
+      formData.append('media_category', mediaCategory)
 
-    // Create signing key
-    const signingKey = `${encodeURIComponent(oauth1Credentials.apiSecret)}&${encodeURIComponent(oauth1Credentials.accessTokenSecret)}`
+      const uploadResponse = await fetch(MEDIA_ENDPOINT_URL, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Transfer-Encoding': 'base64',
+        },
+        body: formData.toString(),
+      })
 
-    // Generate signature
-    const signature = crypto
-      .createHmac("sha256", signingKey)
-      .update(signatureBaseString)
-      .digest("base64")
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json().catch(() => ({}))
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Media upload failed: ${uploadResponse.status} - ${JSON.stringify(errorData)}`
+        )
+      }
 
-    // Build Authorization header
-    const authHeader = `OAuth ${Object.entries({ ...oauth, oauth_signature: signature })
-      .map(([key, value]) => `${key}="${encodeURIComponent(value)}"`)
-      .join(", ")}`
+      const uploadData = (await uploadResponse.json()) as { data: { id: string } }
+      return uploadData.data.id
+    }
 
-    // Upload media
-    const formData = new URLSearchParams()
-    formData.append("media_data", base64Image)
-
-    const uploadResponse = await fetch(url, {
-      method: "POST",
+    // For videos or large files, use chunked upload (INIT -> APPEND -> FINALIZE)
+    // INIT
+    const initResponse = await fetch(MEDIA_ENDPOINT_URL, {
+      method: 'POST',
       headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/x-www-form-urlencoded",
+        ...headers,
+        'Content-Type': 'application/json',
       },
-      body: formData.toString(),
+      body: JSON.stringify({
+        command: 'INIT',
+        media_type: contentType,
+        total_bytes: totalBytes,
+        media_category: mediaCategory,
+      }),
     })
 
-    if (!uploadResponse.ok) {
-      const errorData = await uploadResponse.json().catch(() => ({}))
+    if (!initResponse.ok) {
+      const errorData = await initResponse.json().catch(() => ({}))
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Media upload failed: ${uploadResponse.status} - ${JSON.stringify(errorData)}`
+        `Media upload INIT failed: ${initResponse.status} - ${JSON.stringify(errorData)}`
       )
     }
 
-    const uploadData = (await uploadResponse.json()) as { media_id_string: string }
-    return uploadData.media_id_string
+    const initData = (await initResponse.json()) as { data: { id: string } }
+    const mediaId = initData.data.id
+
+    // APPEND - Upload in 4MB chunks
+    const chunkSize = 4 * 1024 * 1024
+    let segmentIndex = 0
+    let bytesSent = 0
+
+    while (bytesSent < totalBytes) {
+      const chunk = mediaBuffer.slice(bytesSent, Math.min(bytesSent + chunkSize, totalBytes))
+      
+      const formData = new FormData()
+      formData.append('command', 'APPEND')
+      formData.append('media_id', mediaId)
+      formData.append('segment_index', segmentIndex.toString())
+      formData.append('media', new Blob([chunk], { type: 'application/octet-stream' }), 'chunk')
+
+      const appendResponse = await fetch(MEDIA_ENDPOINT_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'User-Agent': 'MedusaJS-Social-Publisher',
+        },
+        body: formData as any,
+      })
+
+      if (!appendResponse.ok) {
+        const errorData = await appendResponse.json().catch(() => ({}))
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Media upload APPEND failed: ${appendResponse.status} - ${JSON.stringify(errorData)}`
+        )
+      }
+
+      segmentIndex++
+      bytesSent += chunk.length
+    }
+
+    // FINALIZE
+    const finalizeResponse = await fetch(MEDIA_ENDPOINT_URL, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        command: 'FINALIZE',
+        media_id: mediaId,
+      }),
+    })
+
+    if (!finalizeResponse.ok) {
+      const errorData = await finalizeResponse.json().catch(() => ({}))
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Media upload FINALIZE failed: ${finalizeResponse.status} - ${JSON.stringify(errorData)}`
+      )
+    }
+
+    const finalizeData = (await finalizeResponse.json()) as { data: { id: string, processing_info?: any } }
+    
+    // Check if processing is required (for videos)
+    if (finalizeData.data.processing_info) {
+      await this.waitForProcessing(mediaId, accessToken)
+    }
+
+    return mediaId
+  }
+
+  /**
+   * Wait for video processing to complete
+   */
+  private async waitForProcessing(mediaId: string, accessToken: string): Promise<void> {
+    const MEDIA_ENDPOINT_URL = 'https://api.x.com/2/media/upload'
+    const maxAttempts = 60
+    let attempts = 0
+
+    while (attempts < maxAttempts) {
+      const statusResponse = await fetch(MEDIA_ENDPOINT_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'User-Agent': 'MedusaJS-Social-Publisher',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          command: 'STATUS',
+          media_id: mediaId,
+        }),
+      })
+
+      if (!statusResponse.ok) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Media processing status check failed: ${statusResponse.status}`
+        )
+      }
+
+      const statusData = (await statusResponse.json()) as { data: { processing_info?: any } }
+      const processingInfo = statusData.data.processing_info
+
+      if (!processingInfo) {
+        return // Processing complete
+      }
+
+      const state = processingInfo.state
+
+      if (state === 'succeeded') {
+        return
+      }
+
+      if (state === 'failed') {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Media processing failed: ${JSON.stringify(processingInfo)}`
+        )
+      }
+
+      // Wait before checking again
+      const checkAfterSecs = processingInfo.check_after_secs || 5
+      await new Promise(resolve => setTimeout(resolve, checkAfterSecs * 1000))
+      attempts++
+    }
+
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      'Media processing timeout'
+    )
   }
 
   /**
@@ -355,11 +521,11 @@ async refreshAccessToken(refreshToken: string): Promise<OAuth2Token> {
       videoUrl?: string
     },
     oauth2Token: string,
-    oauth1Credentials: {
+    oauth1Credentials?: {
       apiKey: string
       apiSecret: string
-      accessToken: string
-      accessTokenSecret: string
+      accessToken: string | null
+      accessTokenSecret: string | null
     }
   ): Promise<{
     tweetId: string
@@ -367,17 +533,17 @@ async refreshAccessToken(refreshToken: string): Promise<OAuth2Token> {
   }> {
     const mediaIds: string[] = []
 
-    // Upload images if present
+    // Upload images if present (using OAuth 2.0 bearer token)
     if (content.imageUrls && content.imageUrls.length > 0) {
       for (const imageUrl of content.imageUrls) {
-        const mediaId = await this.uploadMedia(imageUrl, oauth1Credentials)
+        const mediaId = await this.uploadMedia(imageUrl, oauth2Token)
         mediaIds.push(mediaId)
       }
     }
 
-    // Upload video if present
+    // Upload video if present (using OAuth 2.0 bearer token)
     if (content.videoUrl) {
-      const mediaId = await this.uploadMedia(content.videoUrl, oauth1Credentials)
+      const mediaId = await this.uploadMedia(content.videoUrl, oauth2Token)
       mediaIds.push(mediaId)
     }
 

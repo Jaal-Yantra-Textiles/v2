@@ -3,6 +3,7 @@ import { MedusaError } from "@medusajs/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 import { publishToBothPlatformsUnifiedWorkflow } from "../../../../../workflows/socials/publish-to-both-platforms"
+import { publishSocialPostWorkflow } from "../../../../../workflows/socials/publish-post"
 import type { PublishSocialPostRequest } from "./validators"
 
 /**
@@ -102,11 +103,18 @@ export const POST = async (
 
     // Twitter-specific validation
     if (platformName === "twitter" || platformName === "x") {
-      const oauth1 = apiConfig.oauth1_credentials
-      if (!oauth1?.access_token || !oauth1?.access_token_secret) {
+      const oauth1UserCreds = apiConfig.oauth1_credentials
+      const oauth1AppCreds = apiConfig.oauth1_app_credentials || apiConfig.app_credentials
+      
+      // Check if we have either OAuth 1.0a user credentials OR app-level OAuth 1.0a credentials
+      const hasUserOAuth1 = oauth1UserCreds?.access_token && oauth1UserCreds?.access_token_secret
+      const hasAppOAuth1 = (oauth1AppCreds?.consumer_key || oauth1AppCreds?.api_key) && 
+                           (oauth1AppCreds?.consumer_secret || oauth1AppCreds?.api_secret)
+      
+      if (!hasUserOAuth1 && !hasAppOAuth1) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
-          "Twitter requires OAuth 1.0a credentials for media upload. Please re-authenticate."
+          "Twitter requires authentication. Please click 'App-only access' button in platform settings or complete OAuth flow."
         )
       }
     }
@@ -128,19 +136,21 @@ export const POST = async (
       }
     }
 
-    // Validate based on publish target
-    if ((publishTarget === "facebook" || publishTarget === "both") && !pageId) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        "No Facebook page_id found in post metadata or provided as override"
-      )
-    }
+    // Validate based on publish target (only for Facebook/Instagram platforms)
+    if (platformName === "facebook" || platformName === "instagram" || isFBINSTA) {
+      if ((publishTarget === "facebook" || publishTarget === "both") && !pageId) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No Facebook page_id found in post metadata or provided as override"
+        )
+      }
 
-    if ((publishTarget === "instagram" || publishTarget === "both") && !igUserId) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        "No Instagram ig_user_id found in post metadata or provided as override"
-      )
+      if ((publishTarget === "instagram" || publishTarget === "both") && !igUserId) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No Instagram ig_user_id found in post metadata or provided as override"
+        )
+      }
     }
 
     // Extract content from post
@@ -216,7 +226,26 @@ export const POST = async (
       }
     }
 
-    // Run the unified publishing workflow
+    // Run the appropriate workflow based on platform
+    if (platformName === "twitter" || platformName === "x") {
+      // Use the Twitter-specific workflow (it handles the post update internally)
+      const { result: twitterPost } = await publishSocialPostWorkflow(req.scope).run({
+        input: {
+          post_id: postId,
+        },
+      })
+      
+      // Twitter workflow returns the updated post directly - return it immediately
+      return res.status(200).json({
+        success: (twitterPost as any).status === "posted",
+        post: twitterPost,
+        results: {
+          twitter: twitterPost,
+        },
+      })
+    }
+    
+    // Facebook/Instagram publishing workflow
     const { result } = await publishToBothPlatformsUnifiedWorkflow(req.scope).run({
       input: {
         pageId: pageId || "",
@@ -238,8 +267,6 @@ export const POST = async (
     const publishResults = result.results || []
     const facebookResult = publishResults.find((r: any) => r.platform === "facebook")
     const instagramResult = publishResults.find((r: any) => r.platform === "instagram")
-
-    // Build post URLs
     let postUrl = (post as any).post_url
     
     // Merge new results with previous results (for retry scenarios)

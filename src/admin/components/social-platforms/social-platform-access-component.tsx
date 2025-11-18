@@ -139,7 +139,7 @@ export const SocialPlatformAccessComponent = () => {
                Log in with {socialPlatform.name}
              </Button>
 
-             {socialPlatform.name.toLowerCase() === "twitter" && (
+             {(socialPlatform.name.toLowerCase() === "twitter" || socialPlatform.name.toLowerCase() === "x") && (
                <Button
                  size="small"
                  variant="secondary"

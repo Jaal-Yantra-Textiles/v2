@@ -183,11 +183,12 @@ export const CreateSocialPostComponent = () => {
   const isInstagram = platformName === "instagram"
   const isFBINSTA = platformName === "fbinsta" || platformName === "facebook & instagram"
 
-  // Facebook pages via reusable hook
-  const { socialPlatform } = useSocialPlatform(platformId || "")
+  // Facebook pages via reusable hook - only fetch for Facebook/FBINSTA platforms
+  const shouldFetchFacebookData = isFacebook || isFBINSTA
+  const { socialPlatform } = useSocialPlatform(shouldFetchFacebookData ? (platformId || "") : "")
   const cachedPages = ((socialPlatform as any)?.api_config?.metadata?.pages || []) as Array<{ id: string; name?: string }>
   const useCache = Array.isArray(cachedPages) && cachedPages.length > 0
-  const { pages: livePages, isLoading: isPagesLoading } = useFacebookPages(useCache ? undefined : platformId)
+  const { pages: livePages, isLoading: isPagesLoading } = useFacebookPages(shouldFetchFacebookData && !useCache ? platformId : undefined)
   const pages = useCache ? cachedPages : livePages
   // Instagram accounts from cached metadata
   const igAccounts = (((socialPlatform as any)?.api_config?.metadata?.ig_accounts || []) as Array<{ id: string; username?: string }>) || []
