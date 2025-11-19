@@ -3,9 +3,11 @@ import { SOCIAL_PROVIDER_MODULE, SocialProviderService } from "../../../../../mo
 import { EXTERNAL_STORES_MODULE, ExternalStoresService } from "../../../../../modules/external_stores"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import { ETSYSYNC_MODULE } from "../../../../../modules/etsysync"
+import { ENCRYPTION_MODULE } from "../../../../../modules/encryption"
 import InstagramService from "../../../../../modules/social-provider/instagram-service"
 import SocialsService from "../../../../../modules/socials/service"
 import EtsysyncService from "../../../../../modules/etsysync/service"
+import EncryptionService from "../../../../../modules/encryption/service"
 
 interface CallbackRequestBody {
   id: string
@@ -33,6 +35,7 @@ export const POST = async (
     // Handle external store OAuth callback
     const externalStores = req.scope.resolve(EXTERNAL_STORES_MODULE) as ExternalStoresService
     const etsysyncService = req.scope.resolve(ETSYSYNC_MODULE) as EtsysyncService
+    const encryptionService = req.scope.resolve(ENCRYPTION_MODULE) as EncryptionService
     
     const provider = externalStores.getProvider(platformLower)
     
@@ -52,16 +55,26 @@ export const POST = async (
         ? new Date(Date.now() + tokenData.expires_in * 1000)
         : null
       
-      // Update etsy_account record
+      // Encrypt sensitive tokens
+      const accessTokenEncrypted = encryptionService.encrypt(tokenData.access_token)
+      const refreshTokenEncrypted = tokenData.refresh_token 
+        ? encryptionService.encrypt(tokenData.refresh_token)
+        : null
+      
+      // Update etsy_account record with encrypted tokens
       const updated = await etsysyncService.updateEtsy_accounts({
         selector: { id },
         data: {
           shop_id: shopInfo.shop_id,
           shop_name: shopInfo.shop_name,
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token || null,
+          access_token: tokenData.access_token, // Keep for backward compatibility (will be removed later)
+          refresh_token: tokenData.refresh_token || null, // Keep for backward compatibility
           token_expires_at: expiresAt,
           api_config: {
+            // Encrypted tokens
+            access_token_encrypted: accessTokenEncrypted,
+            refresh_token_encrypted: refreshTokenEncrypted,
+            // Non-sensitive data
             token_type: tokenData.token_type,
             scope: tokenData.scope,
             retrieved_at: new Date(tokenData.retrieved_at || Date.now()),
@@ -102,11 +115,12 @@ export const POST = async (
   console.log(`[OAuth Callback] Code: ${code}`)
   console.log(`[OAuth Callback] State: ${state}`)
 
-  // Resolve provider service and socials service
+  // Resolve provider service, socials service, and encryption service
   const socialProvider = req.scope.resolve(
     SOCIAL_PROVIDER_MODULE
   ) as SocialProviderService
   const socialsService = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+  const encryptionService = req.scope.resolve(ENCRYPTION_MODULE) as EncryptionService
 
   const provider = socialProvider.getProvider(platformLower) as any
 
@@ -209,17 +223,41 @@ export const POST = async (
     ...(tokenData.user_profile ? { user_profile: tokenData.user_profile } : {}),
   }
   
+  // Encrypt all sensitive tokens
+  const accessTokenEncrypted = encryptionService.encrypt(finalAccessToken)
+  const refreshTokenEncrypted = tokenData.refresh_token 
+    ? encryptionService.encrypt(tokenData.refresh_token)
+    : null
+  const pageAccessTokenEncrypted = pageAccessToken 
+    ? encryptionService.encrypt(pageAccessToken)
+    : null
+  const userAccessTokenEncrypted = platform.toLowerCase() === "facebook" && tokenData.access_token
+    ? encryptionService.encrypt(tokenData.access_token)
+    : null
+  
+  console.log(`[OAuth Callback] ✓ Tokens encrypted successfully`)
+  
   const updated = await socialsService.updateSocialPlatforms({
     selector: { id },
     data: {
       api_config: {
         provider,
-        provider_key: selectedPageId || tokenData.user_profile?.username || tokenData.access_token, // Use page ID, Twitter username, or token
-        access_token: finalAccessToken, // Store PAGE token for FB, or user token for Twitter
-        page_access_token: pageAccessToken, // Keep page token separately (Facebook only)
-        user_access_token: platform.toLowerCase() === "facebook" ? tokenData.access_token : undefined, // Keep user token for reference
-        page_id: selectedPageId, // Store selected page ID (Facebook only)
+        provider_key: selectedPageId || tokenData.user_profile?.username || "default", // Use page ID, Twitter username, or default
+        
+        // Encrypted tokens (NEW - secure storage)
+        access_token_encrypted: accessTokenEncrypted,
+        refresh_token_encrypted: refreshTokenEncrypted,
+        page_access_token_encrypted: pageAccessTokenEncrypted,
+        user_access_token_encrypted: userAccessTokenEncrypted,
+        
+        // Keep plaintext tokens for backward compatibility (will be removed in future)
+        access_token: finalAccessToken,
+        page_access_token: pageAccessToken,
+        user_access_token: platform.toLowerCase() === "facebook" ? tokenData.access_token : undefined,
         refresh_token: tokenData.refresh_token,
+        
+        // Non-sensitive data
+        page_id: selectedPageId, // Store selected page ID (Facebook only)
         token_type: pageAccessToken ? "PAGE" : tokenData.token_type, // Mark as PAGE token
         scope: tokenData.scope,
         expires_in: tokenData.expires_in,

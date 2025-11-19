@@ -9,6 +9,7 @@ import { SOCIALS_MODULE } from "../../modules/socials";
 import SocialPostService from "../../modules/socials/service";
 import FacebookService from "../../modules/social-provider/facebook-service";
 import { extractHashtagsMentionsStep } from "./extract-hashtags-mentions";
+import { decryptAccessToken } from "../../modules/socials/utils/token-helpers";
 
 export type CreateSocialPostStepInput = {
   platform_id: string;
@@ -63,13 +64,20 @@ const resolveDefaultPageStep = createStep(
       if (!currentMeta.page_id) {
         const service: SocialPostService = container.resolve(SOCIALS_MODULE)
         const [platform] = await service.listSocialPlatforms({ id: input.platform_id })
-        const token = (platform as any)?.api_config?.access_token as string | undefined
-        if (token) {
-          const fb = new FacebookService()
-          const pages = await fb.listManagedPages(token)
-          const pageId = pages?.[0]?.id
-          if (pageId) {
-            return new StepResponse({ ...input, metadata: { ...currentMeta, page_id: pageId } })
+        const apiConfig = (platform as any)?.api_config
+        
+        if (apiConfig) {
+          try {
+            // Decrypt access token using helper
+            const token = decryptAccessToken(apiConfig, container)
+            const fb = new FacebookService()
+            const pages = await fb.listManagedPages(token)
+            const pageId = pages?.[0]?.id
+            if (pageId) {
+              return new StepResponse({ ...input, metadata: { ...currentMeta, page_id: pageId } })
+            }
+          } catch (error) {
+            console.warn(`[Resolve Default Page] Failed to decrypt token or fetch pages: ${error.message}`)
           }
         }
       }

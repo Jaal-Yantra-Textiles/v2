@@ -9,14 +9,20 @@ import SocialPlatformService from "../../modules/socials/service";
 import { InferTypeOf } from "@medusajs/framework/types"
 
 import SocialPlatform  from "../../modules/socials/models/SocialPlatform";
+import { emitEventStep } from "@medusajs/medusa/core-flows";
 
 export type SocialPlatform = InferTypeOf<typeof SocialPlatform>
 export type UpdateSocialPlatformStepInput = {
   id: string;
   name?: string;
-  icon_url?: string;
-  base_url?: string;
-  api_config?: Record<string, unknown>;
+  category?: string;
+  auth_type?: string;
+  icon_url?: string | null;
+  base_url?: string | null;
+  description?: string | null;
+  status?: string;
+  api_config?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export const updateSocialPlatformStep = createStep(
@@ -49,6 +55,12 @@ export const updateSocialPlatformWorkflow = createWorkflow(
   "update--social-platform",
   (input: UpdateSocialPlatformWorkflowInput) => {
     const result = updateSocialPlatformStep(input);
+    emitEventStep({
+          eventName: 'social_platform.updated',
+          data: {
+            id: result.id
+          }
+        })
     return new WorkflowResponse(result);
   }
 );

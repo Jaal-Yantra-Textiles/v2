@@ -7,6 +7,8 @@ import { publishToBothPlatformsUnifiedWorkflow } from "../../../../workflows/soc
 /**
  * POST /admin/socials/publish-both
  * 
+ * @deprecated This endpoint is deprecated. Use POST /admin/social-posts/:id/publish instead.
+ * 
  * Publish a social post to both Facebook and Instagram
  * 
  * This endpoint:
@@ -14,11 +16,22 @@ import { publishToBothPlatformsUnifiedWorkflow } from "../../../../workflows/soc
  * 2. Extracts platform credentials and target accounts
  * 3. Publishes to both platforms using ContentPublishingService
  * 4. Updates the post with results
+ * 
+ * **DEPRECATION NOTICE**: This endpoint will be removed in a future version.
+ * Please migrate to the new unified publishing endpoint:
+ * POST /admin/social-posts/:id/publish
  */
 export const POST = async (
   req: MedusaRequest<{ post_id: string }>,
   res: MedusaResponse
 ) => {
+  // Log deprecation warning
+  console.warn(
+    "[DEPRECATED] POST /admin/socials/publish-both is deprecated. " +
+    "Use POST /admin/social-posts/:id/publish instead. " +
+    "This endpoint will be removed in a future version."
+  )
+
   const { post_id } = req.body
 
   if (!post_id) {
@@ -197,12 +210,31 @@ export const POST = async (
       },
     ])
 
+    // Add deprecation header
+    res.setHeader(
+      "Deprecation",
+      "true"
+    )
+    res.setHeader(
+      "Sunset",
+      new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toUTCString() // 90 days from now
+    )
+    res.setHeader(
+      "Link",
+      '</admin/social-posts/:id/publish>; rel="alternate"'
+    )
+
     res.status(200).json({
       success: result.allSucceeded,
       post: updatedPost,
       results: {
         facebook: facebookResult,
         instagram: instagramResult,
+      },
+      _deprecation: {
+        message: "This endpoint is deprecated. Use POST /admin/social-posts/:id/publish instead.",
+        sunset_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        alternative: "POST /admin/social-posts/:id/publish",
       },
     })
   } catch (error) {

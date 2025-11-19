@@ -26,7 +26,7 @@ export const extractHashtagsMentionsStep = createStep(
 
     // Determine platform for storage
     let platform: "facebook" | "instagram" | "twitter" | "all" = "all"
-    const lowerPlatform = platform_name.toLowerCase()
+    const lowerPlatform = (platform_name || "all").toLowerCase()
     
     if (lowerPlatform.includes("facebook") && lowerPlatform.includes("instagram")) {
       // FBINSTA - store for both platforms

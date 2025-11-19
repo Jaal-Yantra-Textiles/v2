@@ -194,6 +194,9 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/external_stores",
   },
+  {
+    resolve: "./src/modules/encryption",
+  },
 ]
 
     // {

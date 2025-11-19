@@ -14,11 +14,43 @@ import { sdk } from "../../lib/config"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
 // Types
+export type ApiCategory = 
+  | "social" 
+  | "payment" 
+  | "shipping" 
+  | "email" 
+  | "sms" 
+  | "analytics" 
+  | "crm" 
+  | "storage" 
+  | "communication" 
+  | "authentication" 
+  | "other"
+
+export type AuthType = 
+  | "oauth2" 
+  | "oauth1" 
+  | "api_key" 
+  | "bearer" 
+  | "basic"
+
+export type PlatformStatus = 
+  | "active" 
+  | "inactive" 
+  | "error" 
+  | "pending"
+
 export type AdminSocialPlatform = {
   id: string
   name: string
-  url: string | null
+  category: ApiCategory
+  auth_type: AuthType
+  icon_url: string | null
+  base_url: string | null
   description: string | null
+  api_config: Record<string, any> | null
+  status: PlatformStatus
+  metadata: Record<string, any> | null
   created_at: string
   updated_at: string
   deleted_at: string | null
@@ -34,14 +66,25 @@ export type AdminSocialPlatformResponse = {
 
 export type AdminCreateSocialPlatformPayload = {
   name: string
-  url?: string
+  category?: ApiCategory
+  auth_type?: AuthType
+  icon_url?: string
+  base_url?: string
   description?: string
+  status?: PlatformStatus
+  metadata?: Record<string, any>
 }
 
 export type AdminUpdateSocialPlatformPayload = {
   name?: string
-  url?: string
+  category?: ApiCategory
+  auth_type?: AuthType
+  icon_url?: string
+  base_url?: string
   description?: string
+  status?: PlatformStatus
+  api_config?: Record<string, any>
+  metadata?: Record<string, any>
 }
 
 export const socialPlatformsQueryKeys = queryKeysFactory<

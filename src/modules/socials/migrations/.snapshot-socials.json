@@ -379,6 +379,26 @@
           "nullable": false,
           "mappedType": "text"
         },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'social'",
+          "mappedType": "text"
+        },
+        "auth_type": {
+          "name": "auth_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'oauth2'",
+          "mappedType": "text"
+        },
         "icon_url": {
           "name": "icon_url",
           "type": "text",
@@ -397,6 +417,15 @@
           "nullable": true,
           "mappedType": "text"
         },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "api_config": {
           "name": "api_config",
           "type": "jsonb",
@@ -405,6 +434,16 @@
           "primary": false,
           "nullable": true,
           "mappedType": "json"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'active'",
+          "mappedType": "text"
         },
         "metadata": {
           "name": "metadata",

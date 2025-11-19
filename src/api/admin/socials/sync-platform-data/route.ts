@@ -1,6 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { syncPlatformHashtagsMentionsWorkflow } from "../../../../workflows/socials/sync-platform-hashtags-mentions"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
+import { decryptAccessToken } from "../../../../modules/socials/utils/token-helpers"
 
 /**
  * POST /admin/socials/sync-platform-data
@@ -29,10 +30,21 @@ export const POST = async (
       return res.status(404).json({ error: "Platform not found" })
     }
 
-    const accessToken = (platform as any)?.api_config?.access_token
+    const apiConfig = (platform as any)?.api_config
     
-    if (!accessToken) {
-      return res.status(400).json({ error: "Platform has no access token" })
+    if (!apiConfig) {
+      return res.status(400).json({ error: "Platform has no api_config" })
+    }
+
+    // Decrypt access token using helper
+    let accessToken: string
+    try {
+      accessToken = decryptAccessToken(apiConfig, req.scope)
+    } catch (error) {
+      return res.status(400).json({ 
+        error: "Failed to decrypt access token",
+        details: error.message 
+      })
     }
 
     // Run sync workflow

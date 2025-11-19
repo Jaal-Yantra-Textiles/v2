@@ -12,6 +12,7 @@ import SocialsService from "../../modules/socials/service"
 import FacebookService from "../../modules/social-provider/facebook-service"
 import InstagramService from "../../modules/social-provider/instagram-service"
 import TwitterService from "../../modules/social-provider/twitter-service"
+import { decryptAccessToken } from "../../modules/socials/utils/token-helpers"
 
 interface PublishPostInput {
   post_id: string
@@ -110,12 +111,23 @@ const resolveTokensStep = createStep(
     }
 
     const providerName = (platform as any).name?.toLowerCase?.() || ""
+    const apiConfig = (platform as any).api_config
 
-    const userAccessToken = (platform as any).api_config?.access_token as string | undefined
-    if (!userAccessToken) {
+    if (!apiConfig) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        "No user access token found in platform api_config"
+        "No api_config found in platform"
+      )
+    }
+
+    // Decrypt access token using helper (supports both encrypted and plaintext)
+    let userAccessToken: string
+    try {
+      userAccessToken = decryptAccessToken(apiConfig, container)
+    } catch (error) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Failed to decrypt access token: ${error.message}`
       )
     }
 

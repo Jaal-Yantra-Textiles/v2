@@ -38,9 +38,117 @@ This document outlines the step-by-step implementation plan for refactoring the 
 
 ## Implementation Steps
 
-### Step 0: Create API Config Schema (Foundation)
+### Step 0: Security Foundation - Token Encryption ⭐ **CRITICAL**
 
-Before implementing workflows, we need to establish the schema foundation for platform configurations.
+Before storing any tokens, implement encryption to protect sensitive data.
+
+#### 0.0 Create Encryption Service
+**File**: `/src/services/encryption-service.ts`
+
+```typescript
+import crypto from "crypto"
+import { MedusaError } from "@medusajs/utils"
+
+interface EncryptedData {
+  encrypted: string      // Base64 encoded encrypted data
+  iv: string            // Base64 encoded initialization vector
+  authTag: string       // Base64 encoded authentication tag
+  keyVersion: number    // For key rotation support
+}
+
+export class EncryptionService {
+  private readonly algorithm = "aes-256-gcm"
+  private readonly keyVersion: number
+  private readonly encryptionKey: Buffer
+
+  constructor() {
+    const keyString = process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY_V1
+    
+    if (!keyString) {
+      throw new Error("ENCRYPTION_KEY not found in environment variables")
+    }
+
+    const keyBuffer = Buffer.from(keyString, "base64")
+    if (keyBuffer.length !== 32) {
+      throw new Error("Invalid encryption key length. Must be 32 bytes for AES-256")
+    }
+
+    this.encryptionKey = keyBuffer
+    this.keyVersion = parseInt(process.env.ENCRYPTION_KEY_VERSION || "1", 10)
+  }
+
+  encrypt(plaintext: string): EncryptedData {
+    const iv = crypto.randomBytes(12)
+    const cipher = crypto.createCipheriv(this.algorithm, this.encryptionKey, iv)
+    
+    let encrypted = cipher.update(plaintext, "utf8", "base64")
+    encrypted += cipher.final("base64")
+    
+    const authTag = cipher.getAuthTag()
+
+    return {
+      encrypted,
+      iv: iv.toString("base64"),
+      authTag: authTag.toString("base64"),
+      keyVersion: this.keyVersion,
+    }
+  }
+
+  decrypt(encryptedData: EncryptedData): string {
+    const key = this.getKeyForVersion(encryptedData.keyVersion)
+    const iv = Buffer.from(encryptedData.iv, "base64")
+    const authTag = Buffer.from(encryptedData.authTag, "base64")
+
+    const decipher = crypto.createDecipheriv(this.algorithm, key, iv)
+    decipher.setAuthTag(authTag)
+
+    let decrypted = decipher.update(encryptedData.encrypted, "base64", "utf8")
+    decrypted += decipher.final("utf8")
+
+    return decrypted
+  }
+
+  private getKeyForVersion(version: number): Buffer {
+    if (version === this.keyVersion) {
+      return this.encryptionKey
+    }
+
+    const oldKeyString = process.env[`ENCRYPTION_KEY_V${version}`]
+    if (!oldKeyString) {
+      throw new Error(`Encryption key version ${version} not found`)
+    }
+
+    return Buffer.from(oldKeyString, "base64")
+  }
+}
+
+// Singleton
+let instance: EncryptionService | null = null
+export function getEncryptionService(): EncryptionService {
+  if (!instance) {
+    instance = new EncryptionService()
+  }
+  return instance
+}
+```
+
+**Generate Encryption Key:**
+```bash
+# Generate a secure 256-bit key
+openssl rand -base64 32
+
+# Add to .env
+ENCRYPTION_KEY=<generated-key>
+ENCRYPTION_KEY_VERSION=1
+```
+
+**See full implementation**: `TOKEN_ENCRYPTION_SERVICE.md`
+
+---
+
+### Step 1: Create API Config Schema (Foundation)
+
+After encryption is in place, establish the schema foundation for platform configurations.
 
 #### 0.1 Create Schema Definitions
 **File**: `/src/schemas/platform-api-config.ts`
@@ -856,12 +964,24 @@ describe("POST /admin/social-posts/:id/publish", () => {
 
 ## Migration Checklist
 
-### Phase 0: Schema Foundation
-- [ ] Create `/src/schemas/platform-api-config.ts` with Zod schemas
-- [ ] Add schema validation to OAuth callback handlers
-- [ ] Test OAuth flow with schema validation
-- [ ] Create migration script to validate existing platform configs
-- [ ] Fix or migrate any invalid existing configs
+### Phase 0: Security & Schema Foundation ⭐ **START HERE**
+- [ ] **Encryption Service**
+  - [ ] Create `/src/services/encryption-service.ts`
+  - [ ] Generate encryption keys for all environments
+  - [ ] Add encryption keys to environment variables
+  - [ ] Add unit tests for encryption/decryption
+  - [ ] Test key rotation support
+- [ ] **Schema Definition**
+  - [ ] Create `/src/schemas/platform-api-config.ts` with encrypted field schemas
+  - [ ] Create helper functions for token encryption/decryption
+  - [ ] Add schema validation to OAuth callback handlers
+  - [ ] Test OAuth flow with encryption + validation
+- [ ] **Data Migration**
+  - [ ] Create migration script to encrypt existing tokens
+  - [ ] Backup database before migration
+  - [ ] Run migration on staging environment
+  - [ ] Verify all platforms work after migration
+  - [ ] Run migration on production
 
 ### Phase 1: Workflow Implementation
 - [ ] Create workflow steps directory structure

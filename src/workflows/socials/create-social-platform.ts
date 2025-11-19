@@ -6,12 +6,18 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { SOCIALS_MODULE } from "../../modules/socials";
 import SocialPlatformService from "../../modules/socials/service";
+import { emitEventStep } from "@medusajs/medusa/core-flows";
 
 export type CreateSocialPlatformStepInput = {
   name: string;
-  icon_url?: string;
-  base_url?: string;
-  api_config?: Record<string, unknown>;
+  category?: string;
+  auth_type?: string;
+  icon_url?: string | null;
+  base_url?: string | null;
+  description?: string | null;
+  status?: string;
+  api_config?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export const createSocialPlatformStep = createStep(
@@ -35,7 +41,14 @@ export type CreateSocialPlatformWorkflowInput = CreateSocialPlatformStepInput;
 export const createSocialPlatformWorkflow = createWorkflow(
   "create--social-platform",
   (input: CreateSocialPlatformWorkflowInput) => {
+    // Create platform - encryption will be handled by subscriber
     const result = createSocialPlatformStep(input);
+    emitEventStep({
+      eventName: 'social_platform.created',
+      data: {
+        id: result.id
+      }
+    })
     return new WorkflowResponse(result);
   }
 );
