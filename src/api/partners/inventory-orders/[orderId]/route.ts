@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
-import { refetchPartnerForThisAdmin } from "../../helpers";
+import { getPartnerFromActorId, refetchPartnerForThisAdmin } from "../../helpers";
 
 export async function GET(
     req: AuthenticatedMedusaRequest,
@@ -12,7 +12,7 @@ export async function GET(
     
     // Get the authenticated partner using the same pattern as details route
     const adminId = req.auth_context?.actor_id;
-    const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope);
+    const partnerAdmin = await getPartnerFromActorId(adminId, req.scope);
     
     if (!partnerAdmin) {
         return res.status(401).json({

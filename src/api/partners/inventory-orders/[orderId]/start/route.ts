@@ -4,7 +4,7 @@ import { updateInventoryOrderWorkflow } from "../../../../../workflows/inventory
 import { ORDER_INVENTORY_MODULE } from "../../../../../modules/inventory_orders";
 import InventoryOrderService from "../../../../../modules/inventory_orders/service";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
-import { refetchPartnerForThisAdmin } from "../../../helpers";
+import { getPartnerFromActorId, refetchPartnerForThisAdmin } from "../../../helpers";
 import { TASKS_MODULE } from "../../../../../modules/tasks";
 import TaskService from "../../../../../modules/tasks/service";
 
@@ -15,8 +15,8 @@ export async function POST(
     const orderId = req.params.orderId;
     
     // Get the authenticated partner using the same pattern as details route
-    const adminId = req.auth_context.actor_id;
-    const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope);
+    const adminId = req.auth_context?.actor_id;
+    const partnerAdmin = await getPartnerFromActorId(adminId, req.scope);
     
     if (!partnerAdmin) {
         return res.status(401).json({

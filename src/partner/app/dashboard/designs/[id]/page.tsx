@@ -85,8 +85,12 @@ export default async function DesignDetailsPage({ params }: PageProps) {
       } else {
         await (await import("../../actions")).partnerCompleteDesign(id)
       }
-    } catch {
-      // fallback to simple complete
+    } catch (error) {
+      // Re-throw redirect errors (Next.js NEXT_REDIRECT)
+      if (error && typeof error === "object" && "digest" in error && String(error.digest).startsWith("NEXT_REDIRECT")) {
+        throw error
+      }
+      // For other errors, fallback to simple complete
       await (await import("../../actions")).partnerCompleteDesign(id)
     }
     redirect(`/dashboard/designs/${id}`)
