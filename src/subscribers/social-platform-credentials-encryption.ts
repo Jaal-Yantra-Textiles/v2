@@ -47,7 +47,7 @@ export default async function socialPlatformCredentialsEncryptionHandler({
         encryptedConfig.access_token_encrypted = encryptionService.encrypt(apiConfig.access_token)
         delete encryptedConfig.access_token // Remove plaintext
         needsUpdate = true
-        console.log(`[Encryption Subscriber] ✓ Encrypted access_token for platform ${platform.name}`)
+        logger.info(`[Encryption Subscriber] ✓ Encrypted access_token for platform ${platform.name}`)
       }
     }
 
@@ -57,7 +57,7 @@ export default async function socialPlatformCredentialsEncryptionHandler({
         encryptedConfig.refresh_token_encrypted = encryptionService.encrypt(apiConfig.refresh_token)
         delete encryptedConfig.refresh_token // Remove plaintext
         needsUpdate = true
-        console.log(`[Encryption Subscriber] ✓ Encrypted refresh_token for platform ${platform.name}`)
+        logger.info(`[Encryption Subscriber] ✓ Encrypted refresh_token for platform ${platform.name}`)
       }
     }
 
@@ -76,7 +76,7 @@ export default async function socialPlatformCredentialsEncryptionHandler({
         }
         delete encryptedConfig.oauth1_credentials // Remove plaintext
         needsUpdate = true
-        console.log(`[Encryption Subscriber] ✓ Encrypted OAuth1 credentials for platform ${platform.name}`)
+        logger.info(`[Encryption Subscriber] ✓ Encrypted OAuth1 credentials for platform ${platform.name}`)
       }
     }
 
@@ -95,7 +95,7 @@ export default async function socialPlatformCredentialsEncryptionHandler({
         }
         delete encryptedConfig.oauth1_app_credentials // Remove plaintext
         needsUpdate = true
-        console.log(`[Encryption Subscriber] ✓ Encrypted OAuth1 app credentials for platform ${platform.name}`)
+        logger.info(`[Encryption Subscriber] ✓ Encrypted OAuth1 app credentials for platform ${platform.name}`)
       }
     }
 
@@ -109,10 +109,10 @@ export default async function socialPlatformCredentialsEncryptionHandler({
           },
         },
       ])
-      console.log(`[Encryption Subscriber] ✅ Platform ${platform.name} credentials encrypted and saved`)
+      logger.info(`[Encryption Subscriber] ✅ Platform ${platform.name} credentials encrypted and saved`)
     }
   } catch (error) {
-    console.error(`[Encryption Subscriber] ❌ Failed to encrypt credentials for platform ${data.id}:`, error)
+    logger.error(`[Encryption Subscriber] ❌ Failed to encrypt credentials for platform ${data.id}:`, error)
     // Don't throw - we don't want to break platform creation/update if encryption fails
     // The platform will still be created, just with plaintext tokens (which will trigger warnings)
   }

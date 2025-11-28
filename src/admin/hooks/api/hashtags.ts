@@ -50,7 +50,8 @@ export const useHashtagSuggestions = (
  */
 export const usePopularHashtags = (
   platform?: "facebook" | "instagram" | "twitter" | "linkedin" | "all",
-  limit: number = 20
+  limit: number = 20,
+  enabled: boolean = true
 ) => {
   return useQuery({
     queryKey: ["hashtags", "popular", platform, limit],
@@ -59,7 +60,7 @@ export const usePopularHashtags = (
         type: "popular",
         limit: limit.toString(),
       }
-      if (platform) {
+      if (platform && platform !== "all") {
         params.platform = platform
       }
       
@@ -68,6 +69,7 @@ export const usePopularHashtags = (
         query: params,
       })
     },
+    enabled,
   })
 }
 

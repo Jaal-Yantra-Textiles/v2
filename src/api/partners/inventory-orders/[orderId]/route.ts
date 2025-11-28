@@ -11,7 +11,7 @@ export async function GET(
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
     
     // Get the authenticated partner using the same pattern as details route
-    const adminId = req.auth_context.actor_id;
+    const adminId = req.auth_context?.actor_id;
     const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope);
     
     if (!partnerAdmin) {

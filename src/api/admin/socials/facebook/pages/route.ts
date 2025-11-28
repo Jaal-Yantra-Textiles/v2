@@ -44,7 +44,11 @@ export const POST = async (
   })
 }
 
-// List managed pages for a platform_id (uses stored user token in platform.api_config)
+/**
+ * @deprecated This endpoint is no longer used. Facebook pages are cached in 
+ * platform.api_config.metadata.pages during OAuth callback. Use that cached data instead.
+ * This endpoint will be removed in a future version.
+ */
 export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
@@ -55,6 +59,11 @@ export const GET = async (
     return
   }
 
+  console.warn(
+    "[DEPRECATED] GET /admin/socials/facebook/pages is deprecated. " +
+    "Use platform.api_config.metadata.pages from the social platform instead."
+  )
+
   const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
   const [platform] = await socials.listSocialPlatforms({ id: platform_id })
   if (!platform) {
@@ -62,7 +71,11 @@ export const GET = async (
     return
   }
 
-  const token = (platform as any).api_config?.access_token as string | undefined
+  // Use user_access_token for listing pages (Page Access Token doesn't have permission)
+  const userAccessToken = (platform as any).api_config?.user_access_token as string | undefined
+  const fallbackToken = (platform as any).api_config?.access_token as string | undefined
+  const token = userAccessToken || fallbackToken
+  
   if (!token) {
     res.status(400).json({ message: "No user access token on platform.api_config" })
     return
@@ -70,5 +83,8 @@ export const GET = async (
 
   const fb = new FacebookService()
   const pages = await fb.listManagedPages(token)
-  res.status(200).json({ pages })
+  res.status(200).json({ 
+    pages,
+    _deprecated: "This endpoint is deprecated. Use platform.api_config.metadata.pages instead."
+  })
 }

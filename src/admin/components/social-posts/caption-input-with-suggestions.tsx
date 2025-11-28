@@ -39,8 +39,13 @@ export const CaptionInputWithSuggestions = ({
     suggestionType === "mention" && currentQuery.length > 0
   )
 
-  // Get popular hashtags for when user types just "#"
-  const { data: popularHashtagsData } = usePopularHashtags(platform, 10)
+  // Get popular hashtags for when user types just "#" (only fetch when needed)
+  const shouldFetchPopular = suggestionType === "hashtag" && currentQuery.length === 0
+  const { data: popularHashtagsData } = usePopularHashtags(
+    platform !== "all" ? platform : undefined,
+    10,
+    shouldFetchPopular
+  )
 
   // Detect if user is typing a hashtag or mention
   useEffect(() => {

@@ -7,7 +7,6 @@ import { RouteFocusModal } from "../modal/route-focus-modal"
 import { KeyboundForm } from "../utilitites/key-bound-form"
 import { useCreateSocialPost } from "../../hooks/api/social-posts"
 import { useSocialPlatforms, useSocialPlatform } from "../../hooks/api/social-platforms"
-import { useFacebookPages } from "../../hooks/api/social-facebook"
 import { CreateSocialPostSchema, CreateSocialPostForm } from "./social-post/types"
 import { SocialPostBasicStep } from "./social-post/basic-step"
 import { SocialPostDesignerStep } from "./social-post/designer-step"
@@ -47,15 +46,17 @@ export const CreateSocialPostSteps = () => {
   const isFacebook = platform === "facebook"
   const isFBINSTA = platform === "fbinsta" || platform === "facebook & instagram"
 
-  // Facebook pages - only fetch for Facebook/FBINSTA platforms
-  const shouldFetchFacebookData = isFacebook || isFBINSTA
-  const { socialPlatform } = useSocialPlatform(shouldFetchFacebookData ? (platformId || "") : "")
-  const cachedPages = ((socialPlatform as any)?.api_config?.metadata?.pages || []) as Array<{ id: string; name?: string }>
-  const useCache = Array.isArray(cachedPages) && cachedPages.length > 0
-  const { pages: livePages, isLoading: isPagesLoading } = useFacebookPages(shouldFetchFacebookData && !useCache ? platformId : undefined)
-  const pages = useCache ? cachedPages : livePages
-  const igAccounts = (((socialPlatform as any)?.api_config?.metadata?.ig_accounts || []) as Array<{ id: string; username?: string }>) || []
+  // Facebook pages - use cached data from OAuth callback (stored in api_config.metadata)
+  const shouldFetchPlatformData = isFacebook || isFBINSTA
+  const { socialPlatform, isLoading: isPlatformLoading } = useSocialPlatform(shouldFetchPlatformData ? (platformId || "") : "")
+  
+  // Extract cached metadata from platform
+  const pages = ((socialPlatform as any)?.api_config?.metadata?.pages || []) as Array<{ id: string; name?: string }>
+  const igAccounts = ((socialPlatform as any)?.api_config?.metadata?.ig_accounts || []) as Array<{ id: string; username?: string }>
   const userProfile = (socialPlatform as any)?.api_config?.metadata?.user_profile
+  
+  // Loading state for pages (only while fetching platform data)
+  const isPagesLoading = shouldFetchPlatformData && isPlatformLoading
 
   // Auto-select single page/IG account
   useEffect(() => {

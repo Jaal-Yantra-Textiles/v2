@@ -12,13 +12,14 @@ import { decryptAccessToken } from "../../../modules/socials/utils/token-helpers
 export const decryptCredentialsStep = createStep(
   "decrypt-credentials",
   async (input: { platform: any; platform_name: string }, { container }) => {
-    const apiConfig = input.platform.api_config || {}
+    const logger = container.resolve("logger")
+    const apiConfig = input.platform.api_config as Record<string, unknown>
 
     // Decrypt access token using helper (supports both encrypted and plaintext)
     let userAccessToken: string
     try {
       userAccessToken = decryptAccessToken(apiConfig, container)
-      console.log(`[Decrypt Credentials] ✓ Access token decrypted successfully`)
+      logger.info(`[Decrypt Credentials] ✓ Access token decrypted successfully`)
     } catch (error) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
@@ -30,8 +31,8 @@ export const decryptCredentialsStep = createStep(
     const credentials: any = { user_access_token: userAccessToken }
 
     if (input.platform_name === "twitter" || input.platform_name === "x") {
-      const oauth1UserCreds = apiConfig.oauth1_credentials
-      const oauth1AppCreds = apiConfig.oauth1_app_credentials || apiConfig.app_credentials
+      const oauth1UserCreds = apiConfig.oauth1_credentials as Record<string, any> | undefined
+      const oauth1AppCreds = (apiConfig.oauth1_app_credentials || apiConfig.app_credentials) as Record<string, any> | undefined
 
       // Validate Twitter credentials
       const hasUserOAuth1 = oauth1UserCreds?.access_token && oauth1UserCreds?.access_token_secret
@@ -47,7 +48,7 @@ export const decryptCredentialsStep = createStep(
 
       credentials.oauth1_user = oauth1UserCreds
       credentials.oauth1_app = oauth1AppCreds
-      console.log(`[Decrypt Credentials] ✓ Twitter OAuth1 credentials validated`)
+      logger.info(`[Decrypt Credentials] ✓ Twitter OAuth1 credentials validated`)
     }
 
     return new StepResponse({ user_access_token: userAccessToken, credentials })

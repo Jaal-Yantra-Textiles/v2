@@ -16,7 +16,7 @@ export default function OAuthCallbackPage() {
 
     if (!code || !state || !id) {
       toast.error("OAuth failed – missing parameters")
-      navigate("/settings/social-platforms")
+      navigate("/settings/external-platforms")
       return
     }
 
@@ -27,11 +27,11 @@ export default function OAuthCallbackPage() {
       })
       .then(() => {
         toast.success("API connected ✔")
-        navigate(`/settings/social-platforms/${id}`)
+        navigate(`/settings/external-platforms/${id}`)
       })
       .catch((e: Error) => {
         toast.error(e.message)
-        navigate(`/settings/social-platforms/${id}`)
+        navigate(`/settings/external-platforms/${id}`)
       })
   }, [navigate])
 

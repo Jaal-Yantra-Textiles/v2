@@ -25,7 +25,11 @@ export default function SocialPlatformDetailPage() {
   }
 
   return (
-    <SingleColumnPage showJSON showMetadata data={platform} hasOutlet={true}>
+    <SingleColumnPage 
+    showJSON 
+    showMetadata 
+    data={platform} 
+    hasOutlet>
         <SocialPlatformGeneralSection platform={platform} />
         {/* Future sections can be added here */}
     </SingleColumnPage>

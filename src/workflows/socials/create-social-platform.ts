@@ -24,9 +24,7 @@ export const createSocialPlatformStep = createStep(
   "create--social-platform-step",
   async (input: CreateSocialPlatformStepInput, { container }) => {
     const service: SocialPlatformService = container.resolve(SOCIALS_MODULE);
-    console.log(input)
     const createdEntities = await service.createSocialPlatforms(input);
-    console.log(createdEntities)
     const platform = Array.isArray(createdEntities) ? createdEntities[0] : createdEntities;
     return new StepResponse(platform, platform?.id);
   },

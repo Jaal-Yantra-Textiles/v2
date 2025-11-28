@@ -29,8 +29,8 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
     if (confirmation) {
       try {
         await deletePlatform();
-        toast.success(t("socialPlatform.toasts.deleted", "Social Platform deleted"));
-        navigate("/settings/social-platforms");
+        toast.success(t("socialPlatform.toasts.deleted", "External Platform deleted"));
+        navigate("/settings/external-platforms");
       } catch (e: any) {
         toast.error(e.message || t("errors.general", "An unexpected error occurred."));
       }
@@ -41,28 +41,28 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
     {
       actions: [
         {
-          label: t("Add Access"),
-          icon: <CommandLineSolid />,
-          to: `access`, // Relative path for editing
+          label: t("actions.edit"),
+          icon: <PencilSquare />,
+          to: `edit`, // Relative path for editing
         },
       ],
     },
     {
-        actions: [
-          {
-            label: t("actions.edit"),
-            icon: <PencilSquare />,
-            to: `Add Access Token`, // Relative path for editing
-          },
-        ],
-      },
+      actions: [
+        {
+          label: t("Add Access"),
+          icon: <CommandLineSolid />,
+          to: `access`, // Relative path for access tokens
+        },
+      ],
+    },
     {
       actions: [
         {
           label: t("actions.delete"),
           icon: <Trash />,
           onClick: handleDelete,
-          variant: "danger", // Assuming CommonSection supports a danger variant for buttons
+          variant: "danger",
         },
       ],
     },
@@ -78,10 +78,30 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
       value: platform.description || "-",
     },
     {
-      label: t("fields.url", "URL"),
-      value: platform.url ? (
-        <a href={platform.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-          {platform.url}
+      label: "Category",
+      value: platform.category || "-",
+    },
+    {
+      label: "Authentication Type",
+      value: platform.auth_type || "-",
+    },
+    {
+      label: "Status",
+      value: platform.status || "-",
+    },
+    {
+      label: "Base URL",
+      value: platform.base_url ? (
+        <a href={platform.base_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+          {platform.base_url}
+        </a>
+      ) : "-",
+    },
+    {
+      label: "Icon URL",
+      value: platform.icon_url ? (
+        <a href={platform.icon_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+          {platform.icon_url}
         </a>
       ) : "-",
     },
