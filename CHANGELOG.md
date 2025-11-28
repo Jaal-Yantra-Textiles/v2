@@ -1,3 +1,11 @@
+# [6.35.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.34.0...v6.35.0) (2025-11-28)
+
+
+### Features
+
+* **api:** Social platform api overhaul ([924347b](https://github.com/Jaal-Yantra-Textiles/v2/commit/924347bff901d7c407cd063ab1161c9b1a1f7841))
+* **api:** Social publishing and partner api fix ([8b3256c](https://github.com/Jaal-Yantra-Textiles/v2/commit/8b3256c2594492199bd856ef80637a0259db20b0))
+
 # [6.34.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.33.2...v6.34.0) (2025-11-18)
 
 
