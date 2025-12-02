@@ -21,7 +21,7 @@ This message appears because **Facebook Login for Business** is designed for B2B
 1. Go to **Facebook Login** → **Settings**
 2. Add your OAuth Redirect URI:
    ```
-   http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
+   http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
    ```
 3. Enable these settings:
    - ✅ Client OAuth Login: Yes

@@ -17,7 +17,7 @@ Go to https://developers.facebook.com/apps/YOUR_FACEBOOK_APP_ID/
 2. Find **Facebook Login**
 3. Click **Set Up**
 4. Configure settings:
-   - Valid OAuth Redirect URIs: `http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback`
+   - Valid OAuth Redirect URIs: `http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback`
    - Client OAuth Login: Yes
    - Web OAuth Login: Yes
 

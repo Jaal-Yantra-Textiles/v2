@@ -45,7 +45,7 @@ export const handle = {
     const { id } = match.params; // Simplified to use ID
     return id || "Detail";
   },
-   // If you intend to have an edit page as a sub-route (e.g., /settings/social-platforms/[id]/edit)
+   // If you intend to have an edit page as a sub-route (e.g., /settings/external-platforms/[id]/edit)
    // you might want to ensure `hasOutlet={true}` on SingleColumnPage.
    // And the edit action in SocialPlatformGeneralSection would navigate to this sub-route.
 };

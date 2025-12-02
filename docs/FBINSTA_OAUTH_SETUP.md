@@ -22,7 +22,7 @@ When you authenticate a platform named "FBINSTA" or "Facebook & Instagram":
 ### Code Changes Made
 
 #### 1. Updated `SocialPlatformAccessComponent`
-**File:** `src/admin/components/social-platforms/social-platform-access-component.tsx`
+**File:** `src/admin/components/social-platforms/social-platform-access-component.tsx` (located in external-platforms route)
 
 **Changes:**
 - Added `FBINSTAIcon` component showing Facebook + Instagram icons
@@ -76,8 +76,8 @@ If you haven't already, set up Facebook OAuth credentials:
 4. Configure OAuth settings:
    - **Valid OAuth Redirect URIs:** 
      ```
-     http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
-     https://yourdomain.com/app/settings/social-platforms/oauth-callback/facebook/callback
+     http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
+     https://yourdomain.com/app/settings/external-platforms/oauth-callback/facebook/callback
      ```
    - **Permissions:** 
      - `pages_show_list`
@@ -90,7 +90,7 @@ If you haven't already, set up Facebook OAuth credentials:
    ```bash
    FACEBOOK_CLIENT_ID=your_app_id
    FACEBOOK_CLIENT_SECRET=your_app_secret
-   FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
+   FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
    FACEBOOK_SCOPE=pages_show_list,pages_manage_posts,pages_read_engagement
    ```
 
@@ -282,6 +282,7 @@ Any other variation won't be recognized.
 ### Frontend
 - `src/admin/components/social-platforms/social-platform-access-component.tsx` - OAuth UI
 - `src/admin/hooks/api/social-platforms.ts` - OAuth hooks
+- Route: `/settings/external-platforms`
 
 ### Backend
 - `src/api/admin/oauth/[platform]/route.ts` - OAuth initiation

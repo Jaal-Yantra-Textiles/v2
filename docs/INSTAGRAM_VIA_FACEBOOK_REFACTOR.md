@@ -252,7 +252,7 @@ FACEBOOK_REDIRECT_URI=xxx
 # Facebook OAuth only (works for Instagram too!)
 FACEBOOK_CLIENT_ID=YOUR_FACEBOOK_APP_ID
 FACEBOOK_CLIENT_SECRET=YOUR_FACEBOOK_APP_SECRET
-FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
+FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
 ```
 
 **No Instagram credentials needed!** 🎉
@@ -327,7 +327,7 @@ const scope = "pages_show_list,pages_manage_posts,pages_read_engagement,instagra
 # Keep these in .env
 FACEBOOK_CLIENT_ID=YOUR_FACEBOOK_APP_ID
 FACEBOOK_CLIENT_SECRET=YOUR_FACEBOOK_APP_SECRET
-FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
+FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
 ```
 
 **Step 3: Re-authenticate FBINSTA Platform**

@@ -193,7 +193,7 @@ Your `.env` file should have:
 # Facebook OAuth for FBINSTA
 FACEBOOK_CLIENT_ID=YOUR_FACEBOOK_APP_ID
 FACEBOOK_CLIENT_SECRET=YOUR_FACEBOOK_APP_SECRET
-FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
+FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
 FACEBOOK_CONFIG_ID=YOUR_CONFIG_ID
 
 # Optional: Override default scope

@@ -121,7 +121,7 @@ Updated documentation with all Instagram permissions:
 # Facebook OAuth (for FBINSTA platform)
 FACEBOOK_CLIENT_ID=your_facebook_app_id
 FACEBOOK_CLIENT_SECRET=your_facebook_app_secret
-FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
+FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
 
 # Default scope includes full Facebook Pages + Instagram permissions:
 # - pages_show_list: List Facebook Pages

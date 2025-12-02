@@ -73,8 +73,8 @@ Now when you authenticate with the **test user account**, Instagram permissions 
    - **Display Name**: Your app name
    - **Valid OAuth Redirect URIs**: 
      ```
-     http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
-     https://yourdomain.com/app/settings/social-platforms/oauth-callback/facebook/callback
+     http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
+     https://yourdomain.com/app/settings/external-platforms/oauth-callback/facebook/callback
      ```
    - **Deauthorize Callback URL**: (optional)
    - **Data Deletion Request URL**: (optional)
@@ -139,7 +139,7 @@ Based on your error, here's what I recommend:
 ```bash
 FACEBOOK_CLIENT_ID=YOUR_FACEBOOK_APP_ID
 FACEBOOK_CLIENT_SECRET=YOUR_FACEBOOK_APP_SECRET
-FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
+FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
 ```
 
 **App Dashboard Settings:**

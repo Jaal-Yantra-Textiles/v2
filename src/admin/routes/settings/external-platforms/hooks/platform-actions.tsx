@@ -15,7 +15,7 @@ export const PlatformActions = ({ platform }: { platform: AdminSocialPlatform })
       </DropdownMenu.Trigger>
       <DropdownMenu.Content>
         <DropdownMenu.Item
-          onClick={() => navigate(`/settings/social-platforms/${platform.id}`)}
+          onClick={() => navigate(`/settings/external-platforms/${platform.id}`)}
         >
           Edit
         </DropdownMenu.Item>

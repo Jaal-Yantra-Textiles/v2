@@ -30,11 +30,11 @@ Our code is already using these correctly!
 1. In **Facebook Login for Business** settings
 2. Add your redirect URI:
    ```
-   http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
+   http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
    ```
 3. For production, also add:
    ```
-   https://yourdomain.com/app/settings/social-platforms/oauth-callback/facebook/callback
+   https://yourdomain.com/app/settings/external-platforms/oauth-callback/facebook/callback
    ```
 
 ### Step 3: Request Permissions
@@ -98,7 +98,7 @@ Check these settings in your app:
 ```bash
 FACEBOOK_CLIENT_ID=YOUR_FACEBOOK_APP_ID
 FACEBOOK_CLIENT_SECRET=YOUR_FACEBOOK_APP_SECRET
-FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/social-platforms/oauth-callback/facebook/callback
+FACEBOOK_REDIRECT_URI=http://localhost:9000/app/settings/external-platforms/oauth-callback/facebook/callback
 ```
 
 ### Facebook App Products
