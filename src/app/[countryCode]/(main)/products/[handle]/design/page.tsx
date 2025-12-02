@@ -1,16 +1,31 @@
 import { listProducts } from "@lib/data/products"
-import DesignEditorForm from "@modules/products/components/design-editor-form"
-import Image from "next/image"
+import DesignEditorWrapper from "@modules/products/components/design-editor/client-wrapper"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { getRegion } from "@lib/data/regions"
 
-export async function generateMetadata({ params }: { params: { handle: string, countryCode: string } }): Promise<Metadata> {
-  const { response } = await listProducts({ queryParams: { handle: params.handle }, countryCode: params.countryCode })
+type PageParams = { handle: string; countryCode: string }
+
+async function getProduct(params: PageParams) {
+  const region = await getRegion(params.countryCode)
+  if (!region) return null
+
+  const { response } = await listProducts({
+    countryCode: params.countryCode,
+    queryParams: { handle: params.handle },
+  })
+  
   const product = response.products[0]
+  console.log("[DesignPage] Product fetched:", product?.id, "thumbnail:", product?.thumbnail)
+  
+  return product || null
+}
+
+export async function generateMetadata({ params }: { params: PageParams }): Promise<Metadata> {
+  const product = await getProduct(params)
 
   if (!product) {
-    notFound()
+    return { title: "Design Not Found" }
   }
 
   return {
@@ -19,23 +34,21 @@ export async function generateMetadata({ params }: { params: { handle: string, c
   }
 }
 
-export default async function DesignPage({ params }: { params: { handle: string, countryCode: string } }) {
-  const region = await getRegion(params.countryCode)
-  if (!region) {
-    notFound()
-  }
-  const product = await listProducts({
-    countryCode: params.countryCode,
-    queryParams: { handle: params.handle },
-  }).then(({ response }) => response.products[0])
+export default async function DesignPage({ params }: { params: PageParams }) {
+  const product = await getProduct(params)
 
   if (!product) {
     notFound()
   }
 
   return (
-    <div className="min-h-screen">
-      <DesignEditorForm product={{ title: product.title, thumbnail: product.thumbnail || undefined }} />
-    </div>
+    <DesignEditorWrapper
+      product={{
+        id: product.id,
+        handle: product.handle,
+        title: product.title,
+        thumbnail: product.thumbnail || undefined,
+      }}
+    />
   )
 }

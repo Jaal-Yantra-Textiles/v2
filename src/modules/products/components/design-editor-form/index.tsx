@@ -4,11 +4,13 @@ import { Button, Text, Label, Input, Select } from "@medusajs/ui"
 import React, { useRef, useState } from "react"
 
 type MoodboardProduct = {
+  id: string
+  handle: string
   title: string
   thumbnail?: string | null
 }
 
-const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
+const DesignEditorForm = ({ product }: { product: MoodboardProduct }) => {
   const [formData, setFormData] = useState({
     customName: "",
     buttonType: "Standard",
@@ -16,14 +18,13 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
     color: "#ff0000",
   })
 
-  const [prompt, setPrompt] = useState("")
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [activeHotspot, setActiveHotspot] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
   const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [scale, setScale] = useState(1)
+  const [isImageLoaded, setIsImageLoaded] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const minScale = 1
   const maxScale = 3
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -56,7 +57,7 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
   const itemInteractionRef = useRef<{ type: 'drag' | 'resize' | 'rotate' | null }>({ type: null })
   const resizeRaf = useRef<number | null>(null)
 
-  const computeContentSize = () => {
+  const computeContentSize = React.useCallback(() => {
     const el = containerRef.current
     const img = imageRef.current
     if (!el || !img) return
@@ -67,18 +68,18 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
     if (!nw || !nh) return
     const fit = Math.min(cw / nw, ch / nh)
     setContentSize({ w: nw * fit, h: nh * fit })
-  }
+    setIsImageLoaded(true)
+  }, [])
 
   React.useEffect(() => {
-    computeContentSize()
     const onResize = () => computeContentSize()
     window.addEventListener("resize", onResize)
     return () => window.removeEventListener("resize", onResize)
-  }, [])
+  }, [computeContentSize])
 
   // Initialize base product image as locked item when available
   React.useEffect(() => {
-    if (!product?.thumbnail || !contentSize.w || !contentSize.h) return
+    if (!product.thumbnail || !contentSize.w || !contentSize.h) return
     setItems((prev) => {
       if (prev.some((i) => i.isBase)) return prev
       const base: MoodItem = {
@@ -94,7 +95,30 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
       }
       return [...prev, base]
     })
-  }, [product?.thumbnail, contentSize.w, contentSize.h])
+  }, [product.thumbnail, contentSize.w, contentSize.h])
+
+  // Save design handler
+  const handleSaveDesign = async () => {
+    setIsSaving(true)
+    try {
+      // TODO: Implement actual save API call
+      // const designData = {
+      //   productId: product.id,
+      //   productHandle: product.handle,
+      //   customName: formData.customName,
+      //   options: formData,
+      //   items: items.filter(i => !i.isBase), // Only save added items, not base
+      // }
+      // await saveDesign(designData)
+      console.log("Design saved:", { product, formData, items })
+      alert("Design saved! (placeholder)")
+    } catch (error) {
+      console.error("Failed to save design:", error)
+      alert("Failed to save design")
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   // Toolbar actions
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -175,9 +199,29 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
 
   return (
     <div className="min-h-screen">
+      {/* Loading state */}
+      {!isImageLoaded && product.thumbnail && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-white">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-indigo-500" />
+            <Text className="text-gray-600">Loading design editor...</Text>
+          </div>
+        </div>
+      )}
+
+      {/* No thumbnail fallback */}
+      {!product.thumbnail && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-white">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <Text weight="plus">No product image available</Text>
+            <Text size="small" className="text-gray-600">This product doesn&apos;t have a thumbnail to customize.</Text>
+          </div>
+        </div>
+      )}
+
       {/* Canvas-only view with hotspots */}
       <div className="min-h-screen w-full">
-        <div ref={containerRef} className="relative h-[100vh] w-full overflow-hidden">
+        <div ref={containerRef} className="relative h-[100vh] w-full overflow-hidden bg-gray-100">
           {/* Content layer: sized to fitted image, centered; zoom/pan applied here only */}
           <div
             className={`absolute left-1/2 top-1/2 touch-none ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
@@ -252,15 +296,31 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
               pinchState.current = null
               try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch {}
             }}
-            onPointerLeave={() => {
-              // If pointer leaves while dragging, stop dragging
-              setIsDragging(false)
-              setDragStart(null)
-              pinchState.current = null
+            onPointerLeave={(e) => {
+              // Only stop dragging if we don't have pointer capture
+              // This prevents accidental drag stops when moving quickly
+              if (!activePointers.current.has(e.pointerId)) {
+                setIsDragging(false)
+                setDragStart(null)
+                pinchState.current = null
+              }
             }}
             onWheel={(e) => {
-              // Only zoom on Ctrl+wheel, and never while interacting with items
-              if (!e.ctrlKey || itemInteractionRef.current.type) {
+              // Don't zoom while interacting with items
+              if (itemInteractionRef.current.type) {
+                return
+              }
+              // Zoom on pinch gesture (trackpad) or Ctrl+wheel
+              // Trackpad pinch sends wheel events with ctrlKey=true
+              // Regular scroll should pan, not zoom
+              const isPinchGesture = e.ctrlKey
+              if (!isPinchGesture) {
+                // Pan with regular scroll
+                const next = clampOffset({
+                  x: offset.x - e.deltaX * 0.5,
+                  y: offset.y - e.deltaY * 0.5,
+                })
+                setOffset(next)
                 return
               }
               e.preventDefault()
@@ -268,7 +328,7 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
               if (!el) return
               const rect = el.getBoundingClientRect()
               const wheel = e.deltaY
-              const zoom = Math.exp(-wheel * 0.001)
+              const zoom = Math.exp(-wheel * 0.002) // Slightly more responsive zoom
               let newScale = Math.min(maxScale, Math.max(minScale, scale * zoom))
               const cx = e.clientX - rect.left - rect.width / 2
               const cy = e.clientY - rect.top - rect.height / 2
@@ -485,8 +545,8 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
             </div>
           )}
 
-          {/* Hotspot markers (move/zoom with image) */}
-          {hotspots.map((h) => (
+          {/* Hotspot markers (positioned relative to content size) */}
+          {isImageLoaded && contentSize.w > 0 && hotspots.map((h) => (
             <button
               key={h.key}
               type="button"
@@ -497,7 +557,10 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
               className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border bg-white/90 px-2 py-1 text-xs shadow hover:bg-white ${
                 activeHotspot === h.key ? "ring-2 ring-indigo-500" : ""
               }`}
-              style={{ left: `${h.x}%`, top: `${h.y}%` }}
+              style={{ 
+                left: `${(h.x / 100) * contentSize.w}px`, 
+                top: `${(h.y / 100) * contentSize.h}px` 
+              }}
               aria-label={`Edit ${h.label}`}
             >
               {h.label}
@@ -505,32 +568,44 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
           ))}
           </div>
 
-          {/* Fixed Name Prompt Overlay (does not move/zoom) */}
+          {/* Fixed Name Prompt Overlay (OUTSIDE content layer to prevent pointer event conflicts) */}
           {!formData.customName && (
-            <div className="pointer-events-auto absolute inset-0 z-30 grid place-items-center bg-white/60 backdrop-blur-sm">
-              <div className="w-full max-w-md rounded-md border bg-white p-4 shadow-lg">
+            <div 
+              className="pointer-events-auto absolute inset-0 z-40 grid place-items-center bg-white/60 backdrop-blur-sm"
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerMove={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+            >
+              <div 
+                className="w-full max-w-md rounded-md border bg-white p-4 shadow-lg"
+                onPointerDown={(e) => e.stopPropagation()}
+              >
                 <div className="mb-2">
                   <Text weight="plus">Name your design</Text>
                   <Text size="small" className="text-gray-600">Give your design a simple, clear name.</Text>
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="designName">Design name</Label>
-                  <Input
+                  <input
                     id="designName"
                     autoFocus
+                    type="text"
                     value={formData.customName}
-                    onChange={(e) => setFormData({ ...formData, customName: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, customName: e.target.value }))}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
                     placeholder="e.g., Summer Breeze Shirt"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <div className="flex justify-end gap-2 pt-1">
                     <Button
                       type="button"
                       variant="secondary"
-                      onClick={() => setFormData({ ...formData, customName: "Untitled Design" })}
+                      onClick={() => setFormData((prev) => ({ ...prev, customName: "Untitled Design" }))}
                     >
                       Skip
                     </Button>
-                    <Button type="button" disabled={!formData.customName.trim()} onClick={() => void 0}>
+                    <Button type="button" disabled={!formData.customName.trim()} onClick={() => setActiveHotspot(null)}>
                       Continue
                     </Button>
                   </div>
@@ -601,7 +676,7 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
           )}
 
           {/* Fixed Toolbar (does not move/zoom) */}
-          <div className="pointer-events-auto absolute left-4 top-4 z-30 flex gap-2 rounded-md border bg-white p-2 shadow">
+          <div className="pointer-events-auto absolute left-4 top-4 z-30 flex flex-wrap gap-2 rounded-md border bg-white p-2 shadow max-w-[calc(100vw-2rem)]">
             <input
               ref={fileInputRef}
               type="file"
@@ -615,10 +690,10 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
             />
             <Button size="small" onClick={() => fileInputRef.current?.click()}>Add Image</Button>
             <Button size="small" variant="secondary" onClick={bringForward} disabled={!selectedId}>
-              Bring Forward
+              Forward
             </Button>
             <Button size="small" variant="secondary" onClick={sendBackward} disabled={!selectedId}>
-              Send Backward
+              Back
             </Button>
             <Button size="small" variant="secondary" onClick={toggleLock} disabled={!selectedId}>
               {(() => {
@@ -628,6 +703,10 @@ const DesignEditorForm = ({ product }: { product?: MoodboardProduct }) => {
             </Button>
             <Button size="small" variant="danger" onClick={deleteItem} disabled={!selectedId}>
               Delete
+            </Button>
+            <div className="w-px bg-gray-200" />
+            <Button size="small" onClick={handleSaveDesign} disabled={isSaving || !formData.customName}>
+              {isSaving ? "Saving..." : "Save Design"}
             </Button>
           </div>
         </div>
