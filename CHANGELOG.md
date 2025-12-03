@@ -1,3 +1,10 @@
+# [6.37.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.36.0...v6.37.0) (2025-12-03)
+
+
+### Features
+
+* **api:** Design page api fix and new feature ([cf0da19](https://github.com/Jaal-Yantra-Textiles/v2/commit/cf0da1997604a8a08682b0f0d159993069a5691b))
+
 # [6.36.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.35.1...v6.36.0) (2025-12-03)
 
 
