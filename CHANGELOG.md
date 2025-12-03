@@ -1,3 +1,15 @@
+# [6.36.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.35.1...v6.36.0) (2025-12-03)
+
+
+### Bug Fixes
+
+* **admin:** Fixed the admin oauth return url in the UI ([628434f](https://github.com/Jaal-Yantra-Textiles/v2/commit/628434fc646fc2eb2b842b7a4894a56e344ee7ee))
+
+
+### Features
+
+* **api:** Raw materials api exposing data to stores ([da0d4b5](https://github.com/Jaal-Yantra-Textiles/v2/commit/da0d4b5027e04d9fb5efa9d09cd0c99913a8f878))
+
 ## [6.35.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.35.0...v6.35.1) (2025-11-28)
 
 
