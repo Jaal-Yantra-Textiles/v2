@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { Stage, Layer, Image as KonvaImage, Transformer, Rect, Text as KonvaText, Group, Circle, Line } from "react-konva"
 import Konva from "konva"
-import { Button, Text, Label, Input } from "@medusajs/ui"
+import { Button, Text, Label, Input, Tooltip, TooltipProvider } from "@medusajs/ui"
 import { 
   Plus, 
   Trash, 
@@ -20,12 +20,44 @@ import {
   XMark,
 } from "@medusajs/icons"
 
-// Types
+import { listRawMaterials, RawMaterial } from "@lib/data/raw-materials"
+
+// Types - RawMaterial imported from @lib/data/raw-materials
+
+type InventoryItem = {
+  id: string
+  raw_materials?: RawMaterial // Single object, not array
+}
+
+type Partner = {
+  id: string
+  name?: string
+  company_name?: string
+  type?: string
+}
+
+type Design = {
+  id: string
+  name?: string
+  description?: string
+  status?: string
+  partners?: Partner[]
+  inventory_items?: InventoryItem[]
+  tasks?: Array<{
+    id: string
+    title?: string
+    status?: string
+  }>
+}
+
 export type DesignProduct = {
   id: string
   handle: string
   title: string
   thumbnail?: string | null
+  description?: string
+  designs?: Design[]
+  metadata?: Record<string, any>
 }
 
 type DesignLayer = {
@@ -41,6 +73,8 @@ type DesignLayer = {
   src?: string // for images
   text?: string // for text
   fontSize?: number
+  fontFamily?: string
+  fontStyle?: string // "normal" | "bold" | "italic" | "bold italic"
   fill?: string
   draggable: boolean
   opacity: number
@@ -211,6 +245,8 @@ function TextLayer({
         x={layer.x}
         y={layer.y}
         fontSize={layer.fontSize || 24}
+        fontFamily={layer.fontFamily || "Arial"}
+        fontStyle={layer.fontStyle || "normal"}
         fill={layer.fill || "#000000"}
         rotation={layer.rotation}
         scaleX={layer.scaleX}
@@ -280,6 +316,14 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
   // Sidebar expanded state - must be before any conditional returns
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   
+  // Material detail modal state
+  const [selectedMaterial, setSelectedMaterial] = useState<RawMaterial | null>(null)
+  
+  // External materials from API
+  const [externalMaterials, setExternalMaterials] = useState<RawMaterial[]>([])
+  const [materialsLoading, setMaterialsLoading] = useState(false)
+  const [materialsError, setMaterialsError] = useState<string | null>(null)
+  
   const [design, setDesign] = useState<DesignState>({
     name: "",
     layers: [],
@@ -329,9 +373,6 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
         const visibleWidth = rect.width
         const visibleHeight = Math.min(rect.height, window.innerHeight - 120)
         
-        console.log('Container dims:', visibleWidth, visibleHeight)
-        console.log('Stage will be:', visibleWidth + CANVAS_EXTEND * 2, visibleHeight + CANVAS_EXTEND * 2)
-        
         setContainerDims({ width: visibleWidth, height: visibleHeight })
         // Stage is larger to allow elements outside visible area
         setStageSize({ 
@@ -345,6 +386,25 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
     setTimeout(updateSize, 100)
     window.addEventListener("resize", updateSize)
     return () => window.removeEventListener("resize", updateSize)
+  }, [])
+
+  // Fetch external materials from store API
+  useEffect(() => {
+    const fetchMaterials = async () => {
+      setMaterialsLoading(true)
+      setMaterialsError(null)
+      try {
+        const { raw_materials } = await listRawMaterials({ limit: 50 })
+        setExternalMaterials(raw_materials)
+      } catch (error) {
+        console.error("Error fetching materials:", error)
+        setMaterialsError(error instanceof Error ? error.message : "Failed to load materials")
+      } finally {
+        setMaterialsLoading(false)
+      }
+    }
+    
+    fetchMaterials()
   }, [])
 
   // Calculate base image dimensions to fit visible container area
@@ -476,6 +536,8 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
       scaleY: 1,
       text: "Your Text",
       fontSize: 32,
+      fontFamily: "Arial",
+      fontStyle: "normal",
       fill: "#000000",
       draggable: true,
       opacity: 1,
@@ -716,7 +778,7 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
   }
 
   return (
-    <div className="flex h-screen bg-white">
+    <div className="flex h-[calc(100vh-64px)] bg-white">
       {/* Name Modal */}
       {showNameModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -776,11 +838,11 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
       />
 
       {/* Main Canvas Area - Now on the left/center */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-h-0">
         {/* Canvas Container - clips the larger stage */}
         <div 
           ref={containerRef} 
-          className="flex-1 overflow-hidden relative"
+          className="flex-1 min-h-0 overflow-hidden relative"
           style={{ 
             cursor: activeTool === "pan" || isPanning ? "grab" : "default",
           }}
@@ -909,14 +971,82 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
 
       {/* Right Sidebar - Compact & Expandable */}
       <div className={`flex flex-col border-l bg-white transition-all duration-200 ${sidebarExpanded ? "w-64" : "w-14"}`}>
-        {/* Toggle Button */}
-        <button
-          onClick={() => setSidebarExpanded(!sidebarExpanded)}
-          className="flex items-center justify-center border-b py-3 hover:bg-gray-50"
-          title={sidebarExpanded ? "Collapse" : "Expand"}
-        >
-          <ArrowsPointingOutMini className={`h-4 w-4 transition-transform ${sidebarExpanded ? "rotate-180" : ""}`} />
-        </button>
+        {/* Toggle Button - Fixed Header */}
+        <div className="flex-shrink-0 border-b">
+          <button
+            onClick={() => setSidebarExpanded(!sidebarExpanded)}
+            className="flex items-center justify-center w-full py-3 hover:bg-gray-50"
+            title={sidebarExpanded ? "Collapse" : "Expand"}
+          >
+            <ArrowsPointingOutMini className={`h-4 w-4 transition-transform ${sidebarExpanded ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+        
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+
+        {/* Product Info - Show when expanded */}
+        {sidebarExpanded && (
+          <div className="border-b p-2">
+            <Text size="small" weight="plus" className="mb-2 px-1 text-gray-500 uppercase tracking-wide text-xs">
+              Product Info
+            </Text>
+            <div className="space-y-2 text-xs">
+              <div className="bg-gray-50 rounded p-2">
+                <Text size="small" weight="plus" className="text-gray-700">{product.title}</Text>
+                {product.description && (
+                  <Text size="small" className="text-gray-500 mt-1 line-clamp-2">{product.description}</Text>
+                )}
+              </div>
+              
+              {/* Designs & Partners */}
+              {product.designs && product.designs.length > 0 && (
+                <div className="space-y-1">
+                  {product.designs.map((design) => (
+                    <div key={design.id} className="bg-blue-50 rounded p-2">
+                      <Text size="small" weight="plus" className="text-blue-700">
+                        {design.name || "Design"}
+                      </Text>
+                      {design.status && (
+                        <span className="text-xs bg-blue-100 text-blue-600 px-1 rounded ml-1">
+                          {design.status}
+                        </span>
+                      )}
+                      
+                      {/* Partners */}
+                      {design.partners && design.partners.length > 0 && (
+                        <div className="mt-1">
+                          <Text size="small" className="text-gray-500">Made by:</Text>
+                          {design.partners.map((partner) => (
+                            <Text key={partner.id} size="small" className="text-gray-700 ml-1">
+                              • {partner.company_name || partner.name || "Partner"}
+                            </Text>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Raw Materials */}
+                      {design.inventory_items && design.inventory_items.length > 0 && (
+                        <div className="mt-1">
+                          <Text size="small" className="text-gray-500">Materials:</Text>
+                          {design.inventory_items
+                            .filter(item => item.raw_materials)
+                            .map(item => (
+                              <Text key={item.id} size="small" className="text-gray-700 ml-1">
+                                • {item.raw_materials?.name || item.raw_materials?.material_type?.name || "Material"}
+                                {item.raw_materials?.color && ` (${item.raw_materials.color})`}
+                              </Text>
+                            ))
+                          }
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Tools - Icon only when collapsed */}
         <div className="border-b p-2">
@@ -972,6 +1102,228 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
             >
               <Plus className="h-4 w-4" />
               {sidebarExpanded && "Text"}
+            </button>
+          </div>
+        </div>
+
+        {/* Materials / Fabrics - Visual swatches from API */}
+        <div className="border-b p-2">
+          {sidebarExpanded && (
+            <Text size="small" weight="plus" className="mb-2 px-1 text-gray-500 uppercase tracking-wide text-xs">
+              Materials
+            </Text>
+          )}
+          
+          {/* Loading state */}
+          {materialsLoading && (
+            <div className="flex items-center justify-center py-4">
+              <Text size="small" className="text-gray-400">Loading materials...</Text>
+            </div>
+          )}
+          
+          {/* Error state */}
+          {materialsError && !materialsLoading && (
+            <div className="text-center py-2">
+              <Text size="small" className="text-red-500 text-xs">{materialsError}</Text>
+            </div>
+          )}
+          
+          {/* Empty state */}
+          {!materialsLoading && !materialsError && externalMaterials.length === 0 && (
+            <div className="text-center py-2">
+              <Text size="small" className="text-gray-400 text-xs">No materials available</Text>
+            </div>
+          )}
+          
+          {/* Materials grid */}
+          {!materialsLoading && externalMaterials.length > 0 && (
+            <TooltipProvider>
+              <div className={`${sidebarExpanded ? "grid grid-cols-3 gap-1" : "flex flex-col gap-1"}`}>
+                {externalMaterials.map((material) => {
+                    const mediaArray = Array.isArray(material.media) ? material.media : []
+                    const thumbnail = mediaArray.find(m => m.isThumbnail)?.url || mediaArray[0]?.url
+                    const bgColor = material.color || '#e5e5e5'
+                    const isSelected = selectedMaterial?.id === material.id
+                    const materialName = material.name || material.material_type?.name || 'Material'
+                    
+                    return (
+                      <Tooltip key={material.id} content={materialName}>
+                        <button
+                          onClick={() => setSelectedMaterial(isSelected ? null : material)}
+                          className={`group relative rounded overflow-hidden border-2 transition-all ${
+                            isSelected 
+                              ? "border-blue-500 ring-2 ring-blue-200" 
+                              : "border-transparent hover:border-gray-300"
+                          }`}
+                        >
+                          {thumbnail ? (
+                            <img 
+                              src={thumbnail} 
+                              alt={materialName} 
+                              className={`${sidebarExpanded ? "w-full h-10" : "w-10 h-10"} object-cover`}
+                            />
+                          ) : (
+                            <div 
+                              className={`${sidebarExpanded ? "w-full h-10" : "w-10 h-10"} flex items-center justify-center`}
+                              style={{ backgroundColor: bgColor }}
+                            >
+                              <span className="text-xs">🧵</span>
+                            </div>
+                          )}
+                        </button>
+                      </Tooltip>
+                    )
+                  })}
+              </div>
+            </TooltipProvider>
+          )}
+          
+          {/* Selected Material Details - shown outside the grid */}
+          {sidebarExpanded && selectedMaterial && !materialsLoading && (
+            <div className="mt-2 bg-gray-50 rounded-lg p-2 space-y-2">
+              {/* Header with close */}
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <Text size="small" weight="plus" className="text-gray-800 truncate">
+                    {selectedMaterial.name || selectedMaterial.material_type?.name || "Material"}
+                  </Text>
+                  {selectedMaterial.material_type?.category && (
+                    <Text size="small" className="text-gray-500 text-xs">
+                      {selectedMaterial.material_type.category}
+                    </Text>
+                  )}
+                </div>
+                <button 
+                  onClick={() => setSelectedMaterial(null)}
+                  className="p-0.5 hover:bg-gray-200 rounded flex-shrink-0"
+                >
+                  <XMark className="h-3.5 w-3.5 text-gray-500" />
+                </button>
+              </div>
+              
+              {/* Preview */}
+              {(() => {
+                const mediaArr = Array.isArray(selectedMaterial.media) ? selectedMaterial.media : []
+                const thumb = mediaArr.find(m => m.isThumbnail)?.url || mediaArr[0]?.url
+                if (thumb) {
+                  return <img src={thumb} alt="" className="w-full h-20 object-cover rounded" />
+                }
+                return (
+                  <div 
+                    className="w-full h-20 rounded flex items-center justify-center"
+                    style={{ backgroundColor: selectedMaterial.color || '#e5e5e5' }}
+                  >
+                    <span className="text-2xl">🧵</span>
+                  </div>
+                )
+              })()}
+              
+              {/* Details */}
+              <div className="space-y-1 text-xs">
+                {selectedMaterial.color && (
+                  <div className="flex items-center gap-1.5">
+                    <div 
+                      className="w-4 h-4 rounded border flex-shrink-0"
+                      style={{ backgroundColor: selectedMaterial.color }}
+                    />
+                    <span className="text-gray-600 truncate">{selectedMaterial.color}</span>
+                  </div>
+                )}
+                {selectedMaterial.composition && (
+                  <div className="text-gray-600">
+                    <span className="text-gray-400">Composition: </span>
+                    {selectedMaterial.composition}
+                  </div>
+                )}
+              </div>
+              
+              {/* Add to Canvas Button */}
+              {(() => {
+                const mediaArr = Array.isArray(selectedMaterial.media) ? selectedMaterial.media : []
+                const firstMediaUrl = mediaArr[0]?.url
+                if (!firstMediaUrl) return null
+                
+                return (
+                  <button
+                    onClick={() => {
+                      const baseDims = getBaseImageDimensions()
+                      const img = new window.Image()
+                      img.crossOrigin = "anonymous"
+                      img.onload = () => {
+                        const scale = Math.min(80 / img.width, 80 / img.height)
+                        const newLayer: DesignLayer = {
+                          id: `layer-${Date.now()}`,
+                          type: "image",
+                          x: baseDims.x + baseDims.width / 2 - (img.width * scale) / 2,
+                          y: baseDims.y + baseDims.height / 2 - (img.height * scale) / 2,
+                          width: img.width * scale,
+                          height: img.height * scale,
+                          rotation: 0,
+                          scaleX: 1,
+                          scaleY: 1,
+                          src: firstMediaUrl,
+                          draggable: true,
+                          opacity: 1,
+                        }
+                        setDesign((prev) => ({
+                          ...prev,
+                          layers: [...prev.layers, newLayer],
+                          selectedId: newLayer.id,
+                        }))
+                        setSelectedMaterial(null)
+                      }
+                      img.src = firstMediaUrl
+                    }}
+                    className="w-full py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                  >
+                    + Add to Canvas
+                  </button>
+                )
+              })()}
+            </div>
+          )}
+        </div>
+
+        {/* AI Tools - Future AI manipulation features */}
+        <div className="border-b p-2">
+          {sidebarExpanded && (
+            <Text size="small" weight="plus" className="mb-2 px-1 text-gray-500 uppercase tracking-wide text-xs">
+              AI Tools
+            </Text>
+          )}
+          <div className={`flex ${sidebarExpanded ? "flex-col gap-1" : "flex-col gap-1"}`}>
+            <button
+              onClick={() => {
+                // TODO: Implement AI background removal
+                alert("AI Background Removal - Coming Soon!")
+              }}
+              className="flex items-center gap-2 rounded-md p-2 text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 transition-colors"
+              title="Remove Background (AI)"
+            >
+              <span className="text-xs">✨</span>
+              {sidebarExpanded && "Remove BG"}
+            </button>
+            <button
+              onClick={() => {
+                // TODO: Implement AI image generation
+                alert("AI Image Generation - Coming Soon!")
+              }}
+              className="flex items-center gap-2 rounded-md p-2 text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 transition-colors"
+              title="Generate Image (AI)"
+            >
+              <span className="text-xs">🎨</span>
+              {sidebarExpanded && "Generate"}
+            </button>
+            <button
+              onClick={() => {
+                // TODO: Implement AI style transfer
+                alert("AI Style Transfer - Coming Soon!")
+              }}
+              className="flex items-center gap-2 rounded-md p-2 text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 transition-colors"
+              title="Style Transfer (AI)"
+            >
+              <span className="text-xs">🖼️</span>
+              {sidebarExpanded && "Style"}
             </button>
           </div>
         </div>
@@ -1105,6 +1457,49 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
                         placeholder="Size"
                       />
                     </div>
+                    <div>
+                      <Label className="text-xs text-gray-500 mb-1 block">Font</Label>
+                      <select
+                        value={layer.fontFamily || "Arial"}
+                        onChange={(e) => updateLayer(layer.id, { fontFamily: e.target.value })}
+                        className="w-full text-sm border rounded px-2 py-1.5"
+                      >
+                        <option value="Arial">Arial</option>
+                        <option value="Helvetica">Helvetica</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Verdana">Verdana</option>
+                        <option value="Courier New">Courier New</option>
+                        <option value="Impact">Impact</option>
+                        <option value="Comic Sans MS">Comic Sans MS</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => updateLayer(layer.id, { 
+                          fontStyle: layer.fontStyle === "bold" || layer.fontStyle === "bold italic" 
+                            ? layer.fontStyle.replace("bold", "").trim() || "normal"
+                            : layer.fontStyle === "italic" ? "bold italic" : "bold"
+                        })}
+                        className={`flex-1 py-1 text-sm border rounded ${
+                          layer.fontStyle?.includes("bold") ? "bg-gray-200 font-bold" : ""
+                        }`}
+                      >
+                        B
+                      </button>
+                      <button
+                        onClick={() => updateLayer(layer.id, { 
+                          fontStyle: layer.fontStyle === "italic" || layer.fontStyle === "bold italic"
+                            ? layer.fontStyle.replace("italic", "").trim() || "normal"
+                            : layer.fontStyle === "bold" ? "bold italic" : "italic"
+                        })}
+                        className={`flex-1 py-1 text-sm border rounded italic ${
+                          layer.fontStyle?.includes("italic") ? "bg-gray-200" : ""
+                        }`}
+                      >
+                        I
+                      </button>
+                    </div>
                   </>
                 )}
                 <div>
@@ -1139,16 +1534,18 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
             </div>
           )
         })()}
+        </div>
+        {/* End Scrollable Content Area */}
 
-        {/* Save Button */}
-        <div className="border-t p-2">
+        {/* Save Button - Fixed Footer */}
+        <div className="flex-shrink-0 border-t p-2 bg-white">
           <Button 
             className={`w-full ${sidebarExpanded ? "" : "p-2"}`} 
             size="small"
             onClick={handleSave} 
             disabled={isSaving}
           >
-            {sidebarExpanded ? (isSaving ? "Saving..." : "Save") : "💾"}
+            {sidebarExpanded ? (isSaving ? "Saving..." : "Save Design") : "💾"}
           </Button>
         </div>
       </div>

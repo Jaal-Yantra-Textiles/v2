@@ -16,7 +16,7 @@ async function getProduct(params: PageParams) {
   })
   
   const product = response.products[0]
-  console.log("[DesignPage] Product fetched:", product?.id, "thumbnail:", product?.thumbnail)
+  console.log("[DesignPage] Product fetched:", product?.id, "thumbnail:", product?.thumbnail, "other details:", product )
   
   return product || null
 }
@@ -48,6 +48,9 @@ export default async function DesignPage({ params }: { params: PageParams }) {
         handle: product.handle,
         title: product.title,
         thumbnail: product.thumbnail || undefined,
+        description: product.description || undefined,
+        designs: (product as any).designs || [],
+        metadata: product.metadata || {},
       }}
     />
   )
