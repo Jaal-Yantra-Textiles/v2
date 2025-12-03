@@ -1,5 +1,3 @@
-// persons/[id]/metadata/page.tsx
-
 import { Navigate, useParams } from "react-router-dom"
 
 export default function RawMaterialIndexPage() {
