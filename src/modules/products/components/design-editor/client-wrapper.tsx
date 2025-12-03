@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import type { DesignProduct } from "./index"
+import type { DesignProduct, CustomerInfo } from "./index"
 
 // Dynamic import to avoid SSR issues with Konva
 const DesignEditor = dynamic(() => import("./index"), {
@@ -13,6 +13,22 @@ const DesignEditor = dynamic(() => import("./index"), {
   ),
 })
 
-export default function DesignEditorWrapper({ product }: { product: DesignProduct }) {
-  return <DesignEditor product={product} />
+interface DesignEditorWrapperProps {
+  product: DesignProduct
+  customer?: CustomerInfo | null
+  countryCode?: string
+}
+
+export default function DesignEditorWrapper({ 
+  product, 
+  customer, 
+  countryCode 
+}: DesignEditorWrapperProps) {
+  return (
+    <DesignEditor 
+      product={product} 
+      customer={customer} 
+      countryCode={countryCode}
+    />
+  )
 }

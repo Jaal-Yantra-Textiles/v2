@@ -21,6 +21,8 @@ import {
 } from "@medusajs/icons"
 
 import { listRawMaterials, RawMaterial } from "@lib/data/raw-materials"
+import { listPartners, Partner as PartnerData } from "@lib/data/partners"
+import { createDesign, CreateDesignInput } from "@lib/data/designs"
 
 // Types - RawMaterial imported from @lib/data/raw-materials
 
@@ -34,6 +36,8 @@ type Partner = {
   name?: string
   company_name?: string
   type?: string
+  logo_url?: string
+  description?: string
 }
 
 type Design = {
@@ -59,6 +63,14 @@ export type DesignProduct = {
   designs?: Design[]
   metadata?: Record<string, any>
 }
+
+export type CustomerInfo = {
+  id: string
+  email: string
+}
+
+// Local storage key for saving design drafts
+const DESIGN_DRAFT_KEY = "design_editor_draft"
 
 type DesignLayer = {
   id: string
@@ -215,27 +227,107 @@ function ImageLayer({
   )
 }
 
-// Text Layer Component
+// Text Layer Component with inline editing
 function TextLayer({
   layer,
   isSelected,
   onSelect,
   onChange,
+  stageRef,
 }: {
   layer: DesignLayer
   isSelected: boolean
   onSelect: () => void
   onChange: (attrs: Partial<DesignLayer>) => void
+  stageRef?: React.RefObject<Konva.Stage | null>
 }) {
   const shapeRef = useRef<Konva.Text>(null)
   const trRef = useRef<Konva.Transformer>(null)
+  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
-    if (isSelected && trRef.current && shapeRef.current) {
+    if (isSelected && trRef.current && shapeRef.current && !isEditing) {
       trRef.current.nodes([shapeRef.current])
       trRef.current.getLayer()?.batchDraw()
     }
-  }, [isSelected])
+  }, [isSelected, isEditing])
+
+  // Handle double-click to edit text
+  const handleDblClick = () => {
+    if (!shapeRef.current || !stageRef?.current) return
+    
+    const textNode = shapeRef.current
+    const stage = stageRef.current
+    const stageBox = stage.container().getBoundingClientRect()
+    
+    // Hide text node and transformer
+    textNode.hide()
+    if (trRef.current) trRef.current.hide()
+    
+    setIsEditing(true)
+    
+    // Get position relative to stage container
+    const textPosition = textNode.absolutePosition()
+    const areaPosition = {
+      x: stageBox.left + textPosition.x * stage.scaleX() + stage.x(),
+      y: stageBox.top + textPosition.y * stage.scaleY() + stage.y(),
+    }
+    
+    // Create textarea
+    const textarea = document.createElement('textarea')
+    document.body.appendChild(textarea)
+    
+    textarea.value = layer.text || ''
+    textarea.style.position = 'fixed'
+    textarea.style.top = `${areaPosition.y}px`
+    textarea.style.left = `${areaPosition.x}px`
+    textarea.style.width = `${Math.max(textNode.width() * stage.scaleX() * textNode.scaleX(), 100)}px`
+    textarea.style.height = `${Math.max(textNode.height() * stage.scaleY() * textNode.scaleY() + 10, 40)}px`
+    textarea.style.fontSize = `${(layer.fontSize || 24) * stage.scaleX()}px`
+    textarea.style.fontFamily = layer.fontFamily || 'Arial'
+    textarea.style.color = layer.fill || '#000000'
+    textarea.style.border = '2px solid #4f46e5'
+    textarea.style.borderRadius = '4px'
+    textarea.style.padding = '4px'
+    textarea.style.margin = '0'
+    textarea.style.overflow = 'hidden'
+    textarea.style.background = 'white'
+    textarea.style.outline = 'none'
+    textarea.style.resize = 'none'
+    textarea.style.lineHeight = '1.2'
+    textarea.style.transformOrigin = 'left top'
+    textarea.style.zIndex = '1000'
+    
+    textarea.focus()
+    textarea.select()
+    
+    const removeTextarea = () => {
+      if (textarea.parentNode) {
+        textarea.parentNode.removeChild(textarea)
+      }
+      textNode.show()
+      if (trRef.current) trRef.current.show()
+      setIsEditing(false)
+    }
+    
+    textarea.addEventListener('keydown', (e) => {
+      // Enter without shift = save
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        onChange({ text: textarea.value })
+        removeTextarea()
+      }
+      // Escape = cancel
+      if (e.key === 'Escape') {
+        removeTextarea()
+      }
+    })
+    
+    textarea.addEventListener('blur', () => {
+      onChange({ text: textarea.value })
+      removeTextarea()
+    })
+  }
 
   return (
     <>
@@ -255,6 +347,8 @@ function TextLayer({
         draggable={layer.draggable}
         onClick={onSelect}
         onTap={onSelect}
+        onDblClick={handleDblClick}
+        onDblTap={handleDblClick}
         onDragEnd={(e) => {
           onChange({
             x: e.target.x(),
@@ -274,7 +368,7 @@ function TextLayer({
           })
         }}
       />
-      {isSelected && (
+      {isSelected && !isEditing && (
         <Transformer
           ref={trRef}
           enabledAnchors={["middle-left", "middle-right"]}
@@ -291,7 +385,13 @@ function TextLayer({
 }
 
 // Main Design Editor Component
-export default function DesignEditor({ product }: { product: DesignProduct }) {
+interface DesignEditorProps {
+  product: DesignProduct
+  customer?: CustomerInfo | null
+  countryCode?: string
+}
+
+export default function DesignEditor({ product, customer, countryCode }: DesignEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -323,6 +423,15 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
   const [externalMaterials, setExternalMaterials] = useState<RawMaterial[]>([])
   const [materialsLoading, setMaterialsLoading] = useState(false)
   const [materialsError, setMaterialsError] = useState<string | null>(null)
+  
+  // Partners from API
+  const [externalPartners, setExternalPartners] = useState<Partner[]>([])
+  const [partnersLoading, setPartnersLoading] = useState(false)
+  const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null)
+  
+  // Modal states for badge details
+  const [showMaterialModal, setShowMaterialModal] = useState(false)
+  const [showPartnerModal, setShowPartnerModal] = useState(false)
   
   const [design, setDesign] = useState<DesignState>({
     name: "",
@@ -405,6 +514,23 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
     }
     
     fetchMaterials()
+  }, [])
+
+  // Fetch partners from store API
+  useEffect(() => {
+    const fetchPartners = async () => {
+      setPartnersLoading(true)
+      try {
+        const { partners } = await listPartners({ limit: 20 })
+        setExternalPartners(partners as Partner[])
+      } catch (error) {
+        console.error("Error fetching partners:", error)
+      } finally {
+        setPartnersLoading(false)
+      }
+    }
+    
+    fetchPartners()
   }, [])
 
   // Calculate base image dimensions to fit visible container area
@@ -522,7 +648,7 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
     img.src = url
   }
 
-  // Add text layer
+  // Add text layer - positioned at top of base image
   const addTextLayer = () => {
     const baseDims = getBaseImageDimensions()
     
@@ -530,7 +656,7 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
       id: `layer-${Date.now()}`,
       type: "text",
       x: baseDims.x + baseDims.width / 2 - 50,
-      y: baseDims.y + baseDims.height / 2,
+      y: baseDims.y + 40, // Position near top of base image with padding
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
@@ -716,27 +842,157 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
     setLastPointerPos(null)
   }, [])
 
+  // Save design draft to local storage
+  const saveDraftToLocalStorage = useCallback(() => {
+    const draft = {
+      productId: product.id,
+      productHandle: product.handle,
+      name: design.name,
+      layers: design.layers,
+      selectedMaterialId: selectedMaterial?.id,
+      selectedPartnerId: selectedPartner?.id,
+      savedAt: new Date().toISOString(),
+    }
+    localStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(draft))
+    return draft
+  }, [product.id, product.handle, design.name, design.layers, selectedMaterial?.id, selectedPartner?.id])
+
+  // Load design draft from local storage
+  const loadDraftFromLocalStorage = useCallback(() => {
+    try {
+      const draftStr = localStorage.getItem(DESIGN_DRAFT_KEY)
+      if (!draftStr) return null
+      
+      const draft = JSON.parse(draftStr)
+      // Only load if it's for the same product
+      if (draft.productId === product.id) {
+        return draft
+      }
+      return null
+    } catch {
+      return null
+    }
+  }, [product.id])
+
+  // Clear draft from local storage
+  const clearDraftFromLocalStorage = useCallback(() => {
+    localStorage.removeItem(DESIGN_DRAFT_KEY)
+  }, [])
+
+  // Load draft on mount if user is logged in and has a draft
+  useEffect(() => {
+    if (customer) {
+      const draft = loadDraftFromLocalStorage()
+      if (draft && draft.layers?.length > 0) {
+        // Ask user if they want to restore the draft
+        const restore = window.confirm(
+          `You have an unsaved design draft from ${new Date(draft.savedAt).toLocaleString()}. Would you like to restore it?`
+        )
+        if (restore) {
+          setDesign(prev => ({
+            ...prev,
+            name: draft.name || prev.name,
+            layers: draft.layers || [],
+          }))
+          setDesignName(draft.name || "")
+          if (draft.name) {
+            setShowNameModal(false)
+          }
+          // Clear the draft after restoring
+          clearDraftFromLocalStorage()
+        } else {
+          clearDraftFromLocalStorage()
+        }
+      }
+    }
+  }, [customer, loadDraftFromLocalStorage, clearDraftFromLocalStorage])
+
   // Save design
   const handleSave = async () => {
+    if (!design.name) {
+      setShowNameModal(true)
+      return
+    }
+    
+    // Check if user is logged in
+    if (!customer) {
+      // Save draft to local storage first
+      saveDraftToLocalStorage()
+      
+      // Redirect to login page with return URL
+      const currentPath = window.location.pathname
+      const loginUrl = `/${countryCode || 'us'}/account`
+      
+      // Use setTimeout to ensure localStorage is saved before redirect
+      setTimeout(() => {
+        window.location.href = loginUrl
+      }, 100)
+      
+      return
+    }
+    
     setIsSaving(true)
     try {
-      // Export canvas as image
-      const dataUrl = stageRef.current?.toDataURL({ pixelRatio: 2 })
-      
-      const designData = {
-        productId: product.id,
-        productHandle: product.handle,
-        name: design.name,
-        layers: design.layers,
-        preview: dataUrl,
+      // Try to export canvas as image (thumbnail)
+      // This may fail due to CORS/tainted canvas issues with external images
+      let dataUrl: string | undefined
+      try {
+        dataUrl = stageRef.current?.toDataURL({ pixelRatio: 2 })
+      } catch (canvasError) {
+        console.warn("Could not export canvas as image (tainted canvas):", canvasError)
+        // Use product thumbnail as fallback
+        dataUrl = product.thumbnail || undefined
       }
       
-      console.log("Saving design:", designData)
-      // TODO: Implement actual save API call
-      alert("Design saved! (placeholder)")
+      // Collect inventory IDs to link
+      // Priority: selected material's inventory > existing product design inventory items
+      let inventoryIds: string[] = []
+      
+      if (selectedMaterial) {
+        // Find the inventory item that has this raw material
+        const materialWithInventory = externalMaterials.find(m => m.id === selectedMaterial.id)
+        if (materialWithInventory && (materialWithInventory as any).inventory_item?.id) {
+          inventoryIds = [(materialWithInventory as any).inventory_item.id]
+        }
+      } else {
+        // Use existing product's design inventory items
+        product.designs?.forEach(d => {
+          d.inventory_items?.forEach(item => {
+            if (item.id && !inventoryIds.includes(item.id)) {
+              inventoryIds.push(item.id)
+            }
+          })
+        })
+      }
+      
+      // Build design input
+      const designInput: CreateDesignInput = {
+        name: design.name,
+        description: `Custom design for ${product.title}`,
+        thumbnail_url: dataUrl,
+        metadata: {
+          layers: design.layers,
+          base_product_id: product.id,
+          base_product_thumbnail: product.thumbnail || undefined,
+          customer_id: customer.id,
+        },
+        inventory_ids: inventoryIds.length > 0 ? inventoryIds : undefined,
+        partner_id: selectedPartner?.id,
+        tags: ["custom", "customer-design", product.handle],
+      }
+      
+      console.log("Saving design:", designInput)
+      
+      const result = await createDesign(designInput)
+      
+      // Clear any draft after successful save
+      clearDraftFromLocalStorage()
+      
+      console.log("Design saved:", result)
+      alert(`Design "${design.name}" saved successfully!`)
     } catch (error) {
       console.error("Failed to save:", error)
-      alert("Failed to save design")
+      alert("Failed to save design. Please try again.")
     } finally {
       setIsSaving(false)
     }
@@ -914,6 +1170,7 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
                       isSelected={design.selectedId === layer.id}
                       onSelect={() => setDesign((prev) => ({ ...prev, selectedId: layer.id }))}
                       onChange={(attrs) => updateLayer(layer.id, attrs)}
+                      stageRef={stageRef}
                     />
                   )
                 }
@@ -921,6 +1178,240 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
               })}
             </Layer>
           </Stage>
+          
+          {/* Selection Badges - Floating next to canvas */}
+          <div className="absolute right-4 top-4 flex flex-col gap-2 z-10">
+            {/* Selected Material Badge */}
+            {selectedMaterial && (
+              <button
+                onClick={() => setShowMaterialModal(true)}
+                className="group flex items-center gap-2 bg-white rounded-full shadow-lg border-2 border-blue-400 px-3 py-2 hover:shadow-xl transition-all hover:scale-105"
+              >
+                {(() => {
+                  const mediaArr = Array.isArray(selectedMaterial.media) ? selectedMaterial.media : []
+                  const thumb = mediaArr.find(m => m.isThumbnail)?.url || mediaArr[0]?.url
+                  return thumb ? (
+                    <img src={thumb} alt="" className="w-8 h-8 rounded-full object-cover border-2 border-blue-300" />
+                  ) : (
+                    <div 
+                      className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-blue-300"
+                      style={{ backgroundColor: selectedMaterial.color || '#e5e5e5' }}
+                    >
+                      <span className="text-sm">🧵</span>
+                    </div>
+                  )
+                })()}
+                <div className="text-left max-w-[120px]">
+                  <div className="text-xs font-medium text-gray-800 truncate">
+                    {selectedMaterial.name || selectedMaterial.material_type?.name || 'Material'}
+                  </div>
+                  <div className="text-xs text-blue-600">Click for details</div>
+                </div>
+              </button>
+            )}
+            
+            {/* Selected Partner Badge */}
+            {selectedPartner && (
+              <button
+                onClick={() => setShowPartnerModal(true)}
+                className="group flex items-center gap-2 bg-white rounded-full shadow-lg border-2 border-green-400 px-3 py-2 hover:shadow-xl transition-all hover:scale-105"
+              >
+                {selectedPartner.logo_url ? (
+                  <img src={selectedPartner.logo_url} alt="" className="w-8 h-8 rounded-full object-cover border-2 border-green-300" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center border-2 border-green-300">
+                    <span className="text-sm">🏭</span>
+                  </div>
+                )}
+                <div className="text-left max-w-[120px]">
+                  <div className="text-xs font-medium text-gray-800 truncate">
+                    {selectedPartner.name || selectedPartner.company_name || 'Partner'}
+                  </div>
+                  <div className="text-xs text-green-600">Click for details</div>
+                </div>
+              </button>
+            )}
+          </div>
+          
+          {/* Material Detail Modal */}
+          {showMaterialModal && selectedMaterial && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowMaterialModal(false)}>
+              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                {/* Modal Header */}
+                <div className="bg-blue-500 text-white px-6 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🧵</span>
+                    <div>
+                      <h3 className="font-semibold text-lg">
+                        {selectedMaterial.name || selectedMaterial.material_type?.name || 'Material'}
+                      </h3>
+                      {selectedMaterial.material_type?.category && (
+                        <p className="text-blue-100 text-sm">{selectedMaterial.material_type.category}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => setShowMaterialModal(false)} className="p-1 hover:bg-blue-600 rounded">
+                    <XMark className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                {/* Modal Body */}
+                <div className="p-6 space-y-4">
+                  {/* Preview Image */}
+                  {(() => {
+                    const mediaArr = Array.isArray(selectedMaterial.media) ? selectedMaterial.media : []
+                    const thumb = mediaArr.find(m => m.isThumbnail)?.url || mediaArr[0]?.url
+                    if (thumb) {
+                      return <img src={thumb} alt="" className="w-full h-48 object-cover rounded-lg" />
+                    }
+                    return (
+                      <div 
+                        className="w-full h-48 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: selectedMaterial.color || '#e5e5e5' }}
+                      >
+                        <span className="text-6xl">🧵</span>
+                      </div>
+                    )
+                  })()}
+                  
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedMaterial.color && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Color</div>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-6 h-6 rounded-full border-2 border-gray-200"
+                            style={{ backgroundColor: selectedMaterial.color }}
+                          />
+                          <span className="text-sm font-medium">{selectedMaterial.color}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedMaterial.composition && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Composition</div>
+                        <span className="text-sm font-medium">{selectedMaterial.composition}</span>
+                      </div>
+                    )}
+                    
+                    {selectedMaterial.material_type?.name && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Type</div>
+                        <span className="text-sm font-medium">{selectedMaterial.material_type.name}</span>
+                      </div>
+                    )}
+                    
+                    {selectedMaterial.material_type?.description && (
+                      <div className="bg-gray-50 rounded-lg p-3 col-span-2">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Description</div>
+                        <span className="text-sm">{selectedMaterial.material_type.description}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Modal Footer */}
+                <div className="border-t px-6 py-4 flex justify-between items-center bg-gray-50">
+                  <button
+                    onClick={() => {
+                      setSelectedMaterial(null)
+                      setShowMaterialModal(false)
+                    }}
+                    className="text-sm text-red-600 hover:text-red-700"
+                  >
+                    Remove Selection
+                  </button>
+                  <Button size="small" onClick={() => setShowMaterialModal(false)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Partner Detail Modal */}
+          {showPartnerModal && selectedPartner && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowPartnerModal(false)}>
+              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                {/* Modal Header */}
+                <div className="bg-green-500 text-white px-6 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {selectedPartner.logo_url ? (
+                      <img src={selectedPartner.logo_url} alt="" className="w-12 h-12 rounded-full object-cover border-2 border-white" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-green-400 flex items-center justify-center border-2 border-white">
+                        <span className="text-2xl">🏭</span>
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-lg">
+                        {selectedPartner.company_name || selectedPartner.name || 'Partner'}
+                      </h3>
+                      {selectedPartner.type && (
+                        <p className="text-green-100 text-sm">{selectedPartner.type}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => setShowPartnerModal(false)} className="p-1 hover:bg-green-600 rounded">
+                    <XMark className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                {/* Modal Body */}
+                <div className="p-6 space-y-4">
+                  {/* Partner Info */}
+                  <div className="space-y-3">
+                    {selectedPartner.name && selectedPartner.company_name && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Contact Name</div>
+                        <span className="text-sm font-medium">{selectedPartner.name}</span>
+                      </div>
+                    )}
+                    
+                    {selectedPartner.description && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">About</div>
+                        <span className="text-sm">{selectedPartner.description}</span>
+                      </div>
+                    )}
+                    
+                    {selectedPartner.type && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Specialization</div>
+                        <span className="inline-block bg-green-100 text-green-700 text-sm px-3 py-1 rounded-full">
+                          {selectedPartner.type}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Production Badge */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                    <div className="text-green-600 text-sm font-medium mb-1">✓ Selected for Production</div>
+                    <div className="text-gray-600 text-xs">This partner will produce your custom design</div>
+                  </div>
+                </div>
+                
+                {/* Modal Footer */}
+                <div className="border-t px-6 py-4 flex justify-between items-center bg-gray-50">
+                  <button
+                    onClick={() => {
+                      setSelectedPartner(null)
+                      setShowPartnerModal(false)
+                    }}
+                    className="text-sm text-red-600 hover:text-red-700"
+                  >
+                    Remove Selection
+                  </button>
+                  <Button size="small" onClick={() => setShowPartnerModal(false)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Bottom Zoom Bar */}
@@ -1328,6 +1819,96 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
           </div>
         </div>
 
+        {/* Partners - Select production partner */}
+        <div className="border-b p-2">
+          {sidebarExpanded && (
+            <Text size="small" weight="plus" className="mb-2 px-1 text-gray-500 uppercase tracking-wide text-xs">
+              Production Partner
+            </Text>
+          )}
+          
+          {/* Loading state */}
+          {partnersLoading && (
+            <div className="flex items-center justify-center py-2">
+              <Text size="small" className="text-gray-400 text-xs">Loading partners...</Text>
+            </div>
+          )}
+          
+          {/* Partners list */}
+          {!partnersLoading && externalPartners.length > 0 && (
+            <TooltipProvider>
+              <div className={`${sidebarExpanded ? "flex flex-col gap-1" : "flex flex-col gap-1"}`}>
+                {externalPartners.slice(0, 5).map((partner) => {
+                  const isSelected = selectedPartner?.id === partner.id
+                  
+                  return (
+                    <Tooltip key={partner.id} content={partner.company_name || partner.name || 'Partner'}>
+                      <button
+                        onClick={() => setSelectedPartner(isSelected ? null : partner)}
+                        className={`flex items-center gap-2 rounded-md p-2 text-xs transition-all ${
+                          isSelected 
+                            ? "bg-green-100 text-green-700 ring-1 ring-green-300" 
+                            : "bg-gray-50 hover:bg-gray-100"
+                        }`}
+                      >
+                        {partner.logo_url ? (
+                          <img 
+                            src={partner.logo_url} 
+                            alt={partner.name || 'Partner'} 
+                            className="w-6 h-6 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                            <span className="text-xs">🏭</span>
+                          </div>
+                        )}
+                        {sidebarExpanded && (
+                          <div className="flex-1 min-w-0 text-left">
+                            <div className="truncate font-medium">
+                              {partner.name || partner.company_name}
+                            </div>
+                            {partner.type && (
+                              <div className="text-gray-500 text-xs truncate">{partner.type}</div>
+                            )}
+                          </div>
+                        )}
+                        {isSelected && sidebarExpanded && (
+                          <span className="text-green-600">✓</span>
+                        )}
+                      </button>
+                    </Tooltip>
+                  )
+                })}
+              </div>
+            </TooltipProvider>
+          )}
+          
+          {/* No partners */}
+          {!partnersLoading && externalPartners.length === 0 && sidebarExpanded && (
+            <Text size="small" className="text-gray-400 text-xs text-center py-2">
+              No partners available
+            </Text>
+          )}
+          
+          {/* Selected partner info */}
+          {sidebarExpanded && selectedPartner && (
+            <div className="mt-2 p-2 bg-green-50 rounded text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-green-700 font-medium">Selected:</span>
+                <button 
+                  onClick={() => setSelectedPartner(null)}
+                  className="text-green-600 hover:text-green-800"
+                >
+                  <XMark className="h-3 w-3" />
+                </button>
+              </div>
+              <div className="text-green-800 mt-1">
+                {selectedPartner.company_name || selectedPartner.name}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Layers */}
         <div className="flex-1 overflow-auto p-2">
           {sidebarExpanded && (
@@ -1344,10 +1925,10 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
               )
             ) : (
               [...design.layers].reverse().map((layer, index) => (
-                <button
+                <div
                   key={layer.id}
                   onClick={() => setDesign(prev => ({ ...prev, selectedId: layer.id }))}
-                  className={`flex items-center gap-2 rounded-md p-2 text-left text-xs transition-colors ${
+                  className={`flex items-center gap-2 rounded-md p-2 text-left text-xs transition-colors cursor-pointer ${
                     design.selectedId === layer.id
                       ? "bg-indigo-100 text-indigo-700"
                       : "hover:bg-gray-100"
@@ -1376,7 +1957,7 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
                   ) : (
                     <span className="w-full text-center">{design.layers.length - index}</span>
                   )}
-                </button>
+                </div>
               ))
             )}
           </div>
@@ -1537,15 +2118,28 @@ export default function DesignEditor({ product }: { product: DesignProduct }) {
         </div>
         {/* End Scrollable Content Area */}
 
-        {/* Save Button - Fixed Footer */}
-        <div className="flex-shrink-0 border-t p-2 bg-white">
+        {/* Login Status & Save Button - Fixed Footer */}
+        <div className="flex-shrink-0 border-t p-2 bg-white space-y-2">
+          {/* Login status indicator */}
+          {sidebarExpanded && (
+            <div className={`text-xs px-2 py-1 rounded ${customer ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"}`}>
+              {customer ? (
+                <span>✓ Logged in as {customer.email}</span>
+              ) : (
+                <span>⚠ Not logged in - design will be saved as draft</span>
+              )}
+            </div>
+          )}
           <Button 
             className={`w-full ${sidebarExpanded ? "" : "p-2"}`} 
             size="small"
             onClick={handleSave} 
             disabled={isSaving}
           >
-            {sidebarExpanded ? (isSaving ? "Saving..." : "Save Design") : "💾"}
+            {sidebarExpanded 
+              ? (isSaving ? "Saving..." : (customer ? "Save Design" : "Save & Login")) 
+              : "💾"
+            }
           </Button>
         </div>
       </div>

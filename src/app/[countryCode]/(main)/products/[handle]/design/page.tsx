@@ -1,4 +1,5 @@
 import { listProducts } from "@lib/data/products"
+import { retrieveCustomer } from "@lib/data/customer"
 import DesignEditorWrapper from "@modules/products/components/design-editor/client-wrapper"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
@@ -36,6 +37,7 @@ export async function generateMetadata({ params }: { params: PageParams }): Prom
 
 export default async function DesignPage({ params }: { params: PageParams }) {
   const product = await getProduct(params)
+  const customer = await retrieveCustomer().catch(() => null)
 
   if (!product) {
     notFound()
@@ -52,6 +54,8 @@ export default async function DesignPage({ params }: { params: PageParams }) {
         designs: (product as any).designs || [],
         metadata: product.metadata || {},
       }}
+      customer={customer ? { id: customer.id, email: customer.email } : null}
+      countryCode={params.countryCode}
     />
   )
 }
