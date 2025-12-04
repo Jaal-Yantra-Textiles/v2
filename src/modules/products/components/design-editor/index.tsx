@@ -1637,8 +1637,34 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
                     const isSelected = selectedMaterial?.id === material.id
                     const materialName = material.name || material.material_type?.name || 'Material'
                     
+                    // Rich tooltip content with image preview
+                    const tooltipContent = (
+                      <div className="flex flex-col gap-1 max-w-[180px]">
+                        {thumbnail && (
+                          <img 
+                            src={thumbnail} 
+                            alt={materialName} 
+                            className="w-full h-24 object-cover rounded"
+                          />
+                        )}
+                        <div className="font-medium text-sm">{materialName}</div>
+                        {material.composition && (
+                          <div className="text-xs text-gray-400">{material.composition}</div>
+                        )}
+                        {material.color && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <div 
+                              className="w-3 h-3 rounded-full border border-gray-300"
+                              style={{ backgroundColor: material.color }}
+                            />
+                            <span className="text-gray-400">{material.color}</span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                    
                     return (
-                      <Tooltip key={material.id} content={materialName}>
+                      <Tooltip key={material.id} content={tooltipContent}>
                         <button
                           onClick={() => setSelectedMaterial(isSelected ? null : material)}
                           className={`group relative rounded overflow-hidden border-2 transition-all ${
@@ -1837,8 +1863,8 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
           {/* Partners list */}
           {!partnersLoading && externalPartners.length > 0 && (
             <TooltipProvider>
-              <div className={`${sidebarExpanded ? "flex flex-col gap-1" : "flex flex-col gap-1"}`}>
-                {externalPartners.slice(0, 5).map((partner) => {
+              <div className={`${sidebarExpanded ? "flex flex-col gap-1 max-h-48 overflow-y-auto" : "flex flex-col gap-1"}`}>
+                {externalPartners.map((partner) => {
                   const isSelected = selectedPartner?.id === partner.id
                   
                   return (
