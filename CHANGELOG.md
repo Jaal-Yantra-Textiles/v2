@@ -1,3 +1,10 @@
+## [6.38.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.38.1...v6.38.2) (2025-12-04)
+
+
+### Bug Fixes
+
+* **admin:** Fixed the people filtering search inside the product ([ee7b663](https://github.com/Jaal-Yantra-Textiles/v2/commit/ee7b663c69632991167c525f3ddd6d8b078520b8))
+
 ## [6.38.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.38.0...v6.38.1) (2025-12-04)
 
 # [6.38.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.37.0...v6.38.0) (2025-12-04)
