@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button, CommandBar, IconButton, Text, clx, toast } from "@medusajs/ui"
@@ -14,6 +14,7 @@ import { mediaFolderDetailQueryKeys } from "../../../../../../hooks/api/media-fo
 import { Trash } from "@medusajs/icons"
 import { UploadItemState } from "../../../../../../lib/uploads/upload-manager"
 import { useFolderUploads } from "../../../../../../hooks/api/use-folder-uploads"
+import { generateThumbnail, getFileIconPlaceholder, ThumbnailResult } from "../../../../../../lib/utils/thumbnail-generator"
 
 const UploadEntrySchema = z.object({
   id: z.string().optional(),
@@ -45,6 +46,10 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
   })
 
   const [selection, setSelection] = useState<Record<number, true>>({})
+  
+  // Shared thumbnail cache to avoid regenerating thumbnails when component re-renders
+  // This significantly reduces memory usage for large file selections
+  const thumbnailCacheRef = useRef<Map<string, ThumbnailResult | null>>(new Map())
 
   // UploadManager integration via hook
   const { uploads, enqueueFiles, pauseAll, resumeAll, manager } = useFolderUploads(folder.id, {
@@ -94,6 +99,16 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
   const handleDelete = () => {
     const indices = Object.keys(selection).map((k) => Number(k))
     const toRemove = Array.from(new Set(indices)).sort((a, b) => b - a)
+    
+    // Clean up thumbnail cache for removed files
+    toRemove.forEach((index) => {
+      const file = form.getValues(`uploads.${index}.file`) as File | undefined
+      if (file) {
+        const key = `${file.name}|${file.size}`
+        thumbnailCacheRef.current.delete(key)
+      }
+    })
+    
     remove(toRemove)
     setSelection({})
   }
@@ -158,6 +173,7 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
                   onPause={(id: string) => manager.pause(id)}
                   onResume={(id: string) => manager.resume(id)}
                   onRetry={(id: string) => manager.retry(id)}
+                  thumbnailCache={thumbnailCacheRef}
                 />
               ))}
             </div>
@@ -179,8 +195,32 @@ export const EditFolderMediaForm = ({ folder }: { folder: AdminMediaFolder }) =>
   )
 }
 
-const UploadPreviewItem = ({ file, selected, onSelectedChange, uploads, onPause, onResume, onRetry }: { file?: File; selected: boolean; onSelectedChange: (v: boolean) => void; uploads: Record<string, UploadItemState>; onPause: (id: string) => void; onResume: (id: string) => void; onRetry: (id: string) => void }) => {
-  const url = useMemo(() => (file ? URL.createObjectURL(file) : ""), [file])
+interface UploadPreviewItemProps {
+  file?: File
+  selected: boolean
+  onSelectedChange: (v: boolean) => void
+  uploads: Record<string, UploadItemState>
+  onPause: (id: string) => void
+  onResume: (id: string) => void
+  onRetry: (id: string) => void
+  // Shared thumbnail cache to avoid regenerating thumbnails
+  thumbnailCache: React.MutableRefObject<Map<string, ThumbnailResult | null>>
+}
+
+const UploadPreviewItem = ({ 
+  file, 
+  selected, 
+  onSelectedChange, 
+  uploads, 
+  onPause, 
+  onResume, 
+  onRetry,
+  thumbnailCache 
+}: UploadPreviewItemProps) => {
+  const [thumbnail, setThumbnail] = useState<string | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const mountedRef = useRef(true)
+
   const uploadKey = useMemo(() => (file ? `${file.name}|${file.size}` : ""), [file])
   const state = uploads[uploadKey]
   const isUploading = !!state && (state.status === "queued" || state.status === "uploading")
@@ -189,10 +229,61 @@ const UploadPreviewItem = ({ file, selected, onSelectedChange, uploads, onPause,
   const isError = state?.status === "error"
   const percent = Math.floor((state?.progress || 0) * 100)
 
+  // Generate thumbnail on mount, using cache to avoid regeneration
+  useEffect(() => {
+    mountedRef.current = true
+    
+    if (!file) {
+      setThumbnail(null)
+      return
+    }
+
+    const key = `${file.name}|${file.size}`
+    
+    // Check cache first
+    if (thumbnailCache.current.has(key)) {
+      const cached = thumbnailCache.current.get(key)
+      setThumbnail(cached?.dataUrl || getFileIconPlaceholder(file))
+      return
+    }
+
+    // Generate thumbnail for image files
+    if (file.type.startsWith("image/")) {
+      setIsGenerating(true)
+      generateThumbnail(file).then((result) => {
+        if (!mountedRef.current) return
+        thumbnailCache.current.set(key, result)
+        setThumbnail(result?.dataUrl || getFileIconPlaceholder(file))
+        setIsGenerating(false)
+      })
+    } else {
+      // Non-image files get a placeholder
+      const placeholder = getFileIconPlaceholder(file)
+      thumbnailCache.current.set(key, null)
+      setThumbnail(placeholder)
+    }
+
+    return () => {
+      mountedRef.current = false
+    }
+  }, [file, thumbnailCache])
+
   return (
     <div className={clx("shadow-elevation-card-rest hover:shadow-elevation-card-hover focus-visible:shadow-borders-focus bg-ui-bg-subtle-hover group relative aspect-square h-auto max-w-full overflow-hidden rounded-lg outline-none", { "shadow-borders-focus": selected })}>
-      {!!url ? (
-        <img src={url} alt="preview" className="size-full object-cover" onClick={() => onSelectedChange(!selected)} />
+      {isGenerating ? (
+        <div className="flex size-full items-center justify-center bg-ui-bg-subtle">
+          <div className="h-6 w-6 rounded-full border-2 border-ui-fg-muted border-t-transparent animate-spin" />
+        </div>
+      ) : thumbnail ? (
+        <img 
+          src={thumbnail} 
+          alt="preview" 
+          className="size-full object-cover cursor-pointer" 
+          onClick={() => onSelectedChange(!selected)}
+          // Prevent browser from caching large decoded images
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
         <div className="flex size-full items-center justify-center text-ui-fg-muted">No preview</div>
       )}

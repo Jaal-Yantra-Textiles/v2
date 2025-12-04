@@ -39,19 +39,41 @@ export async function GET(
     const paginated = inventoryWithRawMaterials.slice(offset, offset + limit);
 
     // Transform response to be more store-friendly
-    const rawMaterials = paginated.map((item: any) => ({
-      id: item.raw_materials?.id,
-      name: item.raw_materials?.name,
-      color: item.raw_materials?.color,
-      composition: item.raw_materials?.composition,
-      media: item.raw_materials?.media || [],
-      material_type: item.raw_materials?.material_type,
-      inventory_item: {
-        id: item.inventory_item?.id,
-        title: item.inventory_item?.title,
-        sku: item.inventory_item?.sku,
-      },
-    }));
+    const rawMaterials = paginated.map((item: any) => {
+      // Transform media from { files: string[] } to Array<{ url: string; isThumbnail?: boolean }>
+      let mediaArray: Array<{ url: string; isThumbnail?: boolean }> = [];
+      const rawMedia = item.raw_materials?.media;
+      
+      if (rawMedia) {
+        if (rawMedia.files && Array.isArray(rawMedia.files)) {
+          // Media stored as { files: string[] }
+          mediaArray = rawMedia.files.map((url: string, index: number) => ({
+            url,
+            isThumbnail: index === 0, // First image is thumbnail
+          }));
+        } else if (Array.isArray(rawMedia)) {
+          // Media already in array format
+          mediaArray = rawMedia.map((m: any, index: number) => ({
+            url: typeof m === 'string' ? m : m.url,
+            isThumbnail: m.isThumbnail ?? index === 0,
+          }));
+        }
+      }
+      
+      return {
+        id: item.raw_materials?.id,
+        name: item.raw_materials?.name,
+        color: item.raw_materials?.color,
+        composition: item.raw_materials?.composition,
+        media: mediaArray,
+        material_type: item.raw_materials?.material_type,
+        inventory_item: {
+          id: item.inventory_item?.id,
+          title: item.inventory_item?.title,
+          sku: item.inventory_item?.sku,
+        },
+      };
+    });
 
     res.status(200).json({
       raw_materials: rawMaterials,
