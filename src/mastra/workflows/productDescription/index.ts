@@ -38,15 +38,36 @@ const generateDescriptionStep = createStep({
         {
           role: "user",
           content: [
-            { type: "text", text: `Generate a compelling product title and description based on the provided image and product details.${hint ? `\nWriter hint: ${hint}` : ""}\nProduct Details: ${JSON.stringify(productData || {}, null, 2)}` },
-            { type: "image_url", imageUrl },
+            { type: "text", text: `Generate a product title and description. You MUST respond with ONLY a JSON object in this exact format, no other text:\n{"title": "your title here", "description": "your description here"}\n\n${hint ? `Writer hint: ${hint}\n` : ""}Product Details: ${JSON.stringify(productData || {}, null, 2)}` },
+            { type: "image_url", imageUrl: { url: imageUrl } },
           ],
         },
-      ],
-      { output: productDescriptionSchema }
+      ]
     );
 
-    return response.object;
+    // Parse JSON from response (handles markdown code blocks)
+    let parsed: { title: string; description: string };
+    const text = response.text.trim();
+    
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // Try extracting JSON from markdown code blocks
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[1].trim());
+      } else {
+        // Try to find JSON object in the text
+        const objectMatch = text.match(/\{[\s\S]*?"title"[\s\S]*?"description"[\s\S]*?\}/);
+        if (objectMatch) {
+          parsed = JSON.parse(objectMatch[0]);
+        } else {
+          throw new Error(`Could not parse JSON from response: ${text.substring(0, 200)}...`);
+        }
+      }
+    }
+
+    return { title: parsed.title, description: parsed.description };
   },
 });
 
