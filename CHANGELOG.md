@@ -1,3 +1,10 @@
+## [6.38.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.38.2...v6.38.3) (2025-12-04)
+
+
+### Bug Fixes
+
+* **Mastra:** fixed the mastra product description image retreival ([0d68437](https://github.com/Jaal-Yantra-Textiles/v2/commit/0d68437d9642b9cae9aff22e47c86a00b08b03dc))
+
 ## [6.38.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.38.1...v6.38.2) (2025-12-04)
 
 
