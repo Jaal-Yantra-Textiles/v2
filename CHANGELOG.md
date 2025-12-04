@@ -1,3 +1,10 @@
+# [6.38.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.37.0...v6.38.0) (2025-12-04)
+
+
+### Features
+
+* **api:** Fixed the image loading to load memory responsive images ([edb0730](https://github.com/Jaal-Yantra-Textiles/v2/commit/edb0730597da4c58c37f296a6d40c4407cd3f751))
+
 # [6.37.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.36.0...v6.37.0) (2025-12-03)
 
 
