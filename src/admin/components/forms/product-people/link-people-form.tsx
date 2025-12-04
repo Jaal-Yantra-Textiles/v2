@@ -1,11 +1,9 @@
-import { Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, CommandBar, toast, Checkbox } from "@medusajs/ui"
+import { Heading, Text, DataTable, useDataTable, DataTablePaginationState, DataTableFilteringState, CommandBar, toast, Checkbox } from "@medusajs/ui"
 import { useParams } from "react-router-dom"
 import { RouteFocusModal } from "../../modal/route-focus-modal"
-import { usePersons, PersonDetails } from "../../../hooks/api/persons"
+import { usePersons } from "../../../hooks/api/persons"
 import { useLinkProductPerson, useProduct } from "../../../hooks/api/products"
 import { useState, useMemo, useEffect } from "react"
-
-const filterHelper = createDataTableFilterHelper<PersonDetails>()
 
 export const LinkPeopleForm = ({ productId: overrideProductId }: { productId?: string }) => {
   const { id } = useParams()
@@ -17,12 +15,14 @@ export const LinkPeopleForm = ({ productId: overrideProductId }: { productId?: s
 
   // Pagination
   const [pagination, setPagination] = useState<DataTablePaginationState>({ pageIndex: 0, pageSize: 10 })
+  const [search, setSearch] = useState("")
 
-  // Fetch people
+  // Fetch people with server-side search
   const { persons = [], count: totalCount = 0, isLoading: personsLoading } = usePersons({
     limit: pagination.pageSize,
     offset: pagination.pageIndex * pagination.pageSize,
-    // Optionally add q for search if we wire it below
+    // Pass search query to API for global filtering
+    ...(search ? { q: search } : {}),
   })
 
   // Fetch current product's direct people to disable already-linked rows
@@ -32,7 +32,6 @@ export const LinkPeopleForm = ({ productId: overrideProductId }: { productId?: s
 
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
-  const [search, setSearch] = useState("")
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
 
   const isLoading = personsLoading || productLoading || isLinking
@@ -42,16 +41,12 @@ export const LinkPeopleForm = ({ productId: overrideProductId }: { productId?: s
     return new Set<string>(arr.map((p: any) => p.id))
   }, [product])
 
-  // Search/filter client-side for now
-  const filteredItems = useMemo(() => {
-    let list = persons.slice()
-    if (search) {
-      const q = search.toLowerCase()
-      list = list.filter((p: any) => (p.name || "").toLowerCase().includes(q) || (p.email || "").toLowerCase().includes(q))
-    }
-    // Simple filtering placeholder (extend as needed)
-    return list
-  }, [persons, search, filtering])
+  // Reset to first page when search changes
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    // Reset to first page when search query changes
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+  }
 
   // Columns
   const columns = [
@@ -98,7 +93,7 @@ export const LinkPeopleForm = ({ productId: overrideProductId }: { productId?: s
 
   const table = useDataTable({
     columns,
-    data: filteredItems as any[],
+    data: persons as any[],
     getRowId: (row) => row.id,
     rowCount: totalCount,
     onRowClick: (_, row) => {
@@ -110,7 +105,7 @@ export const LinkPeopleForm = ({ productId: overrideProductId }: { productId?: s
     isLoading,
     filters: [],
     pagination: { state: pagination, onPaginationChange: setPagination },
-    search: { state: search, onSearchChange: setSearch },
+    search: { state: search, onSearchChange: handleSearchChange },
     filtering: { state: filtering, onFilteringChange: setFiltering },
     rowSelection: {
       state: selectedRows,
