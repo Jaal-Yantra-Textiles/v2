@@ -28,6 +28,8 @@ export type DesignMetadata = {
   layers?: DesignLayer[]
   base_product_id?: string
   base_product_thumbnail?: string
+  customer_id?: string
+  excalidraw?: any // Excalidraw mood board data for designers
   [key: string]: any
 }
 
