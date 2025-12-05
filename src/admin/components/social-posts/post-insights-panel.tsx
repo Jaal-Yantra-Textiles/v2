@@ -1,4 +1,7 @@
-import { CommonSection, CommonField } from "../common/section-views"
+import { ArrowPath } from "@medusajs/icons"
+import { toast } from "@medusajs/ui"
+import { CommonSection, CommonField, ActionGroup } from "../common/section-views"
+import { useSyncPostInsights } from "../../hooks/api/post-insights"
 
 type PostInsightsPanelProps = {
   postId: string
@@ -6,7 +9,33 @@ type PostInsightsPanelProps = {
   status: string
 }
 
-export const PostInsightsPanel = ({ insights, status }: PostInsightsPanelProps) => {
+export const PostInsightsPanel = ({ postId, insights, status }: PostInsightsPanelProps) => {
+  const { mutateAsync: syncInsights, isPending: isSyncing } = useSyncPostInsights()
+
+  const handleSyncInsights = async () => {
+    try {
+      await syncInsights(postId)
+      toast.success("Insights synced successfully")
+    } catch (error) {
+      toast.error("Failed to sync insights", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    }
+  }
+
+  const actionGroups: ActionGroup[] = [
+    {
+      actions: [
+        {
+          icon: <ArrowPath />,
+          label: isSyncing ? "Syncing..." : "Sync Insights",
+          onClick: handleSyncInsights,
+          disabled: isSyncing,
+        },
+      ],
+    },
+  ]
+
   if (status !== "posted") {
     return (
       <CommonSection
@@ -149,6 +178,7 @@ export const PostInsightsPanel = ({ insights, status }: PostInsightsPanelProps) 
       title="Post Insights"
       description="Analytics and engagement data from social platforms"
       fields={fields}
+      actionGroups={actionGroups}
     />
   )
 }
