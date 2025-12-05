@@ -111,7 +111,90 @@ export default class InstagramService {
     return (await resp.json()) as { id: string }
   }
 
+  /**
+   * Check the status of a media container
+   * Status codes: IN_PROGRESS, FINISHED, ERROR, EXPIRED
+   */
+  async checkContainerStatus(
+    containerId: string,
+    accessToken: string
+  ): Promise<{ status_code: string; status?: string }> {
+    const url = new URL(`https://graph.facebook.com/v24.0/${encodeURIComponent(containerId)}`)
+    url.searchParams.set("fields", "status_code,status")
+    url.searchParams.set("access_token", accessToken)
+    
+    const resp = await fetch(url.toString())
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}))
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Failed to check container status: ${resp.status} - ${JSON.stringify(err)}`
+      )
+    }
+    return (await resp.json()) as { status_code: string; status?: string }
+  }
+
+  /**
+   * Wait for a container to be ready for publishing
+   * Polls the container status until it's FINISHED or times out
+   * 
+   * @param containerId - The container ID to check
+   * @param accessToken - Access token
+   * @param maxAttempts - Maximum number of polling attempts (default: 30)
+   * @param delayMs - Delay between attempts in ms (default: 2000 = 2 seconds)
+   */
+  async waitForContainerReady(
+    containerId: string,
+    accessToken: string,
+    maxAttempts: number = 30,
+    delayMs: number = 2000
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const status = await this.checkContainerStatus(containerId, accessToken)
+      
+      console.log(`[Instagram] Container ${containerId} status check ${attempt}/${maxAttempts}: ${status.status_code}`)
+      
+      if (status.status_code === "FINISHED") {
+        return // Ready to publish
+      }
+      
+      if (status.status_code === "ERROR") {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Instagram container processing failed: ${status.status || "Unknown error"}`
+        )
+      }
+      
+      if (status.status_code === "EXPIRED") {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "Instagram container expired before publishing"
+        )
+      }
+      
+      // Still IN_PROGRESS, wait and retry
+      if (attempt < maxAttempts) {
+        await this.delay(delayMs)
+      }
+    }
+    
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Instagram container not ready after ${maxAttempts} attempts (${(maxAttempts * delayMs) / 1000}s). Please try again.`
+    )
+  }
+
+  /**
+   * Helper to create a delay
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
   async publishContainer(igUserId: string, creationId: string, accessToken: string): Promise<{ id: string }> {
+    // Wait for container to be ready before publishing
+    await this.waitForContainerReady(creationId, accessToken)
+    
     const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(igUserId)}/media_publish`
     const body = new URLSearchParams()
     body.set("creation_id", creationId)
