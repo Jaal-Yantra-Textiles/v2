@@ -1,3 +1,12 @@
+## [6.38.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.38.3...v6.38.4) (2025-12-06)
+
+
+### Bug Fixes
+
+* **workflows:** Direct smart retry and tweet , etsy exchange oauth ([c722a74](https://github.com/Jaal-Yantra-Textiles/v2/commit/c722a74266dbac33ff195364404d80667ddac199))
+* **social:** Fixed instgram delay ([a78df83](https://github.com/Jaal-Yantra-Textiles/v2/commit/a78df83b6cbdc6fb5be0601a348f04b15090a2c9))
+* **admin:** Social sync insights ([faf231d](https://github.com/Jaal-Yantra-Textiles/v2/commit/faf231dc6c193290f4871c759a3e7c31262f8dc3))
+
 ## [6.38.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.38.2...v6.38.3) (2025-12-04)
 
 
