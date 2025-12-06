@@ -267,33 +267,46 @@ async refreshAccessToken(refreshToken: string): Promise<OAuth2Token> {
       mediaCategory = 'tweet_gif'
     }
 
+    // X API v2 media upload endpoint
     const MEDIA_ENDPOINT_URL = 'https://api.x.com/2/media/upload'
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-      'User-Agent': 'MedusaJS-Social-Publisher',
-    }
-
-    // For images, use simple upload with base64
+    
+    // For images, use the simple upload with multipart/form-data
+    // X API v2 requires the file to be sent as multipart form data
     if (!isVideo && totalBytes <= 5 * 1024 * 1024) {
-      // Simple upload for images <= 5MB
-      const base64Media = mediaBuffer.toString('base64')
+      // Create a Blob from the buffer for multipart upload
+      const blob = new Blob([mediaBuffer], { type: contentType })
       
-      const formData = new URLSearchParams()
-      formData.append('media_data', base64Media)
+      // Use FormData for multipart/form-data upload
+      const formData = new FormData()
+      
+      // Get filename from URL or use default
+      const urlParts = imageUrl.split('/')
+      const filename = urlParts[urlParts.length - 1] || 'media.jpg'
+      
+      formData.append('media', blob, filename)
       formData.append('media_category', mediaCategory)
+
+      console.log(`[Twitter] Uploading media: ${filename} (${totalBytes} bytes, ${contentType})`)
 
       const uploadResponse = await fetch(MEDIA_ENDPOINT_URL, {
         method: 'POST',
         headers: {
-          ...headers,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Transfer-Encoding': 'base64',
+          Authorization: `Bearer ${accessToken}`,
+          'User-Agent': 'MedusaJS-Social-Publisher',
+          // Note: Don't set Content-Type for FormData - fetch will set it automatically with boundary
         },
-        body: formData.toString(),
+        body: formData,
       })
 
       if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json().catch(() => ({}))
+        const errorText = await uploadResponse.text().catch(() => '')
+        let errorData: any = {}
+        try {
+          errorData = errorText ? JSON.parse(errorText) : {}
+        } catch {
+          errorData = { raw: errorText }
+        }
+        console.error(`[Twitter] Media upload failed: ${uploadResponse.status}`, errorData)
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
           `Media upload failed: ${uploadResponse.status} - ${JSON.stringify(errorData)}`
@@ -301,15 +314,21 @@ async refreshAccessToken(refreshToken: string): Promise<OAuth2Token> {
       }
 
       const uploadData = (await uploadResponse.json()) as { data: { id: string } }
+      console.log(`[Twitter] Media uploaded successfully: ${uploadData.data.id}`)
       return uploadData.data.id
     }
 
     // For videos or large files, use chunked upload (INIT -> APPEND -> FINALIZE)
+    const authHeaders = {
+      Authorization: `Bearer ${accessToken}`,
+      'User-Agent': 'MedusaJS-Social-Publisher',
+    }
+    
     // INIT
     const initResponse = await fetch(MEDIA_ENDPOINT_URL, {
       method: 'POST',
       headers: {
-        ...headers,
+        ...authHeaders,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -370,7 +389,7 @@ async refreshAccessToken(refreshToken: string): Promise<OAuth2Token> {
     const finalizeResponse = await fetch(MEDIA_ENDPOINT_URL, {
       method: 'POST',
       headers: {
-        ...headers,
+        ...authHeaders,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

@@ -39,15 +39,18 @@ Admin UI → View Sync Status → See Etsy URLs
 Add to your `.env` file:
 
 ```bash
-# Etsy OAuth Credentials
+# Etsy OAuth Credentials (PKCE-based, no client secret needed)
 ETSY_CLIENT_ID=your_etsy_keystring_from_app
-ETSY_CLIENT_SECRET=your_etsy_shared_secret
 ETSY_REDIRECT_URI=http://localhost:9000/admin/oauth/etsy/callback
 ETSY_SCOPE=listings_r listings_w shops_r
 
 # Optional: Production URLs
 # ETSY_REDIRECT_URI=https://yourdomain.com/admin/oauth/etsy/callback
 ```
+
+**Note:** Etsy API v3 uses PKCE (Proof Key for Code Exchange) instead of a client secret.
+The `ETSY_CLIENT_SECRET` is NOT required for OAuth - the system automatically generates
+PKCE code_verifier and code_challenge for each authorization request.
 
 ### 2. Database Migrations
 
@@ -64,14 +67,40 @@ This creates:
 
 ### 3. Create Etsy App
 
-1. Go to https://www.etsy.com/developers/your-apps
+1. Go to https://www.etsy.com/developers/register (for new apps) or https://www.etsy.com/developers/your-apps (existing apps)
 2. Click "Create a New App"
 3. Fill in app details:
    - **App Name**: Your app name
-   - **Redirect URI**: `http://localhost:9000/admin/oauth/etsy/callback`
-   - **Scopes**: Select `listings_r`, `listings_w`, `shops_r`
-4. Copy **Keystring** (Client ID) and **Shared Secret** (Client Secret)
-5. Add to `.env` file
+   - **Description**: A description of your app
+   - **Who will be the users?**: Choose appropriate option
+   - **Is your application commercial?**: Select "no" for development
+4. Complete the captcha and click "Read Terms and Create App"
+5. **IMPORTANT: Wait for app approval** - Your API key is NOT active until approved!
+   - Check status under "See API Key Details" in "Manage Your Apps"
+   - Approval may take a few hours to a day
+6. Once approved, copy **Keystring** (Client ID) - this is your `ETSY_CLIENT_ID`
+7. Note: Etsy API v3 does NOT use a client secret for OAuth - it uses **PKCE** instead
+8. Add the **Callback URL** in your Etsy app settings:
+   - Development: `http://localhost:9000/admin/oauth/etsy/callback`
+   - Production: `https://yourdomain.com/admin/oauth/etsy/callback`
+9. Add to `.env` file:
+   ```bash
+   ETSY_CLIENT_ID=your_keystring_here
+   ETSY_REDIRECT_URI=http://localhost:9000/admin/oauth/etsy/callback
+   ETSY_SCOPE=listings_r listings_w shops_r
+   ```
+
+#### Common OAuth Errors
+
+**"The application that is requesting authorization is not recognized"**
+- Your API key hasn't been approved yet - check status in Etsy Developer Dashboard
+- The `client_id` (keystring) is incorrect
+- Missing PKCE parameters (code_challenge, code_challenge_method) - this is handled automatically
+
+**"invalid_grant" during token exchange**
+- Authorization code expired (codes are single-use and expire quickly)
+- code_verifier doesn't match the code_challenge
+- Restart the OAuth flow from the beginning
 
 ---
 

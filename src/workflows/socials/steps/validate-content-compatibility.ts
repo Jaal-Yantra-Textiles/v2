@@ -23,8 +23,15 @@ export const validateContentCompatibilityStep = createStep(
     ig_user_id?: string
   }) => {
     // Instagram doesn't support text-only posts
+    // Only check this for Instagram or FBINSTA platforms
+    const isInstagramPlatform = 
+      input.platform_name === "instagram" || 
+      input.platform_name === "fbinsta" || 
+      input.platform_name === "facebook & instagram"
+    
     if (
       input.content_type === "text" &&
+      isInstagramPlatform &&
       (input.publish_target === "instagram" || input.publish_target === "both")
     ) {
       throw new MedusaError(
@@ -33,8 +40,8 @@ export const validateContentCompatibilityStep = createStep(
       )
     }
 
-    // Video to both platforms not yet supported
-    if (input.content_type === "reel" && input.publish_target === "both") {
+    // Video to both platforms not yet supported (only for FBINSTA)
+    if (input.content_type === "reel" && input.publish_target === "both" && isInstagramPlatform) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         "Video/reel posts to both platforms are not yet supported. Please publish to Instagram separately."

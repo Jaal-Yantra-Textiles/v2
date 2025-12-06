@@ -31,9 +31,18 @@ export const detectSmartRetryStep = createStep(
     )
 
     const metadata = (input.post.metadata || {}) as Record<string, any>
-    let publishTarget = (metadata.publish_target as "facebook" | "instagram" | "both") || "both"
+    
+    // For non-FBINSTA platforms, publish_target should be the platform itself
+    // "both" only applies to Facebook & Instagram combined platforms
+    let publishTarget: string
+    if (input.is_fbinsta) {
+      publishTarget = (metadata.publish_target as "facebook" | "instagram" | "both") || "both"
+    } else {
+      // For Twitter/X, LinkedIn, etc. - use the platform name or a sensible default
+      publishTarget = metadata.publish_target || "single"
+    }
 
-    // Smart retry logic: Only retry failed platforms
+    // Smart retry logic: Only retry failed platforms (only applies to FBINSTA)
     if (input.is_fbinsta && publishTarget === "both") {
       if (facebookSucceeded && instagramFailed) {
         publishTarget = "instagram"

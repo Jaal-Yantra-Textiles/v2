@@ -1,4 +1,5 @@
 import axios from "axios"
+import crypto from "crypto"
 import { StoreProvider, TokenData, ShopInfo, ListingData, ListingResponse } from "./types"
 
 /**
@@ -6,40 +7,102 @@ import { StoreProvider, TokenData, ShopInfo, ListingData, ListingResponse } from
  * 
  * Docs: https://developers.etsy.com/documentation/
  * 
+ * IMPORTANT: Etsy OAuth requires PKCE (Proof Key for Code Exchange)
+ * - code_verifier: Random string (43-128 chars)
+ * - code_challenge: SHA256 hash of code_verifier, base64url encoded
+ * - code_challenge_method: "S256"
+ * 
  * Required environment variables:
  * - ETSY_CLIENT_ID (keystring from Etsy app)
- * - ETSY_CLIENT_SECRET
  * - ETSY_REDIRECT_URI
  * - ETSY_SCOPE (optional, defaults to listings_r listings_w shops_r)
+ * 
+ * Note: ETSY_CLIENT_SECRET is NOT required - Etsy uses PKCE instead
  */
 export default class EtsyService implements StoreProvider {
   name = "etsy"
   
   private clientId: string
-  private clientSecret: string
   private baseUrl = "https://openapi.etsy.com/v3"
   private authUrl = "https://www.etsy.com/oauth/connect"
   private tokenUrl = "https://api.etsy.com/v3/public/oauth/token"
+  
+  // Store code verifiers by state for PKCE flow
+  private codeVerifiers: Map<string, string> = new Map()
 
   constructor() {
     this.clientId = process.env.ETSY_CLIENT_ID || ""
-    this.clientSecret = process.env.ETSY_CLIENT_SECRET || ""
 
-    if (!this.clientId || !this.clientSecret) {
-      console.warn("[EtsyService] Missing ETSY_CLIENT_ID or ETSY_CLIENT_SECRET environment variables")
+    if (!this.clientId) {
+      console.warn("[EtsyService] Missing ETSY_CLIENT_ID environment variable (keystring from Etsy app)")
     }
   }
 
   /**
-   * Generate Etsy OAuth authorization URL.
+   * Generate a cryptographically random code verifier for PKCE.
+   * Must be 43-128 characters, using unreserved URI characters.
+   */
+  private generateCodeVerifier(): string {
+    // Generate 32 random bytes and convert to base64url (43 chars)
+    const buffer = crypto.randomBytes(32)
+    return buffer
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "")
+  }
+
+  /**
+   * Generate code challenge from code verifier using SHA256.
+   * This is the S256 method required by Etsy.
+   */
+  private generateCodeChallenge(codeVerifier: string): string {
+    const hash = crypto.createHash("sha256").update(codeVerifier).digest()
+    return hash
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "")
+  }
+
+  /**
+   * Get the code verifier for a given state.
+   * Used during token exchange.
+   */
+  getCodeVerifier(state: string): string | undefined {
+    return this.codeVerifiers.get(state)
+  }
+
+  /**
+   * Clear the code verifier for a given state.
+   * Should be called after successful token exchange.
+   */
+  clearCodeVerifier(state: string): void {
+    this.codeVerifiers.delete(state)
+  }
+
+  /**
+   * Generate Etsy OAuth authorization URL with PKCE.
    * 
    * @param redirectUri - Callback URL registered in Etsy app
    * @param scope - Space-separated scopes (e.g., "listings_r listings_w shops_r")
    * @param state - CSRF protection state parameter
+   * @returns Authorization URL and code verifier (needed for token exchange)
    */
   async getAuthorizationUrl(redirectUri: string, scope: string, state: string): Promise<string> {
     const defaultScope = "listings_r listings_w shops_r"
     const finalScope = scope || defaultScope
+
+    // Generate PKCE code verifier and challenge
+    const codeVerifier = this.generateCodeVerifier()
+    const codeChallenge = this.generateCodeChallenge(codeVerifier)
+    
+    // Store code verifier for later use in token exchange
+    this.codeVerifiers.set(state, codeVerifier)
+    
+    console.log(`[EtsyService] Generated PKCE for state ${state}:`)
+    console.log(`[EtsyService] Code Verifier: ${codeVerifier.substring(0, 10)}...`)
+    console.log(`[EtsyService] Code Challenge: ${codeChallenge}`)
 
     const params = new URLSearchParams({
       response_type: "code",
@@ -47,18 +110,34 @@ export default class EtsyService implements StoreProvider {
       redirect_uri: redirectUri,
       scope: finalScope,
       state: state,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
     })
 
-    return `${this.authUrl}?${params.toString()}`
+    const authUrl = `${this.authUrl}?${params.toString()}`
+    console.log(`[EtsyService] Authorization URL: ${authUrl}`)
+    
+    return authUrl
   }
 
   /**
    * Exchange authorization code for access token.
+   * PKCE: Must include the code_verifier that corresponds to the code_challenge.
    * 
    * @param code - Authorization code from OAuth callback
    * @param redirectUri - Must match the one used in authorization
+   * @param codeVerifier - PKCE code verifier (required for Etsy)
    */
-  async exchangeCodeForToken(code: string, redirectUri: string): Promise<TokenData> {
+  async exchangeCodeForToken(code: string, redirectUri: string, codeVerifier?: string): Promise<TokenData> {
+    if (!codeVerifier) {
+      throw new Error("code_verifier is required for Etsy OAuth (PKCE)")
+    }
+    
+    console.log(`[EtsyService] Exchanging code for token...`)
+    console.log(`[EtsyService] Code: ${code.substring(0, 10)}...`)
+    console.log(`[EtsyService] Redirect URI: ${redirectUri}`)
+    console.log(`[EtsyService] Code Verifier: ${codeVerifier.substring(0, 10)}...`)
+    
     try {
       const response = await axios.post(
         this.tokenUrl,
@@ -67,6 +146,7 @@ export default class EtsyService implements StoreProvider {
           client_id: this.clientId,
           code: code,
           redirect_uri: redirectUri,
+          code_verifier: codeVerifier,
         }).toString(),
         {
           headers: {
@@ -75,6 +155,8 @@ export default class EtsyService implements StoreProvider {
         }
       )
 
+      console.log(`[EtsyService] Token exchange successful!`)
+      
       return {
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token,

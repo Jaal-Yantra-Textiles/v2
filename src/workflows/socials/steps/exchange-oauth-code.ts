@@ -53,7 +53,25 @@ export const exchangeOAuthCodeStep = createStep(
       const externalStores = container.resolve(EXTERNAL_STORES_MODULE) as ExternalStoresService
       const provider = externalStores.getProvider(platformLower)
       
-      tokenData = await provider.exchangeCodeForToken(input.code, redirectUri)
+      // Etsy requires PKCE - get code_verifier from the provider using state
+      let codeVerifier: string | undefined
+      if (platformLower === "etsy" && input.state) {
+        // The Etsy provider stores code verifiers by state
+        codeVerifier = (provider as any).getCodeVerifier?.(input.state)
+        logger.info(`[Exchange OAuth Code] Etsy PKCE code_verifier retrieved: ${codeVerifier ? 'yes' : 'no'}`)
+        
+        if (!codeVerifier) {
+          throw new Error("Missing code_verifier for Etsy OAuth. The OAuth flow may have expired or the state is invalid.")
+        }
+      }
+      
+      tokenData = await provider.exchangeCodeForToken(input.code, redirectUri, codeVerifier)
+      
+      // Clear the code verifier after successful exchange
+      if (platformLower === "etsy" && input.state) {
+        (provider as any).clearCodeVerifier?.(input.state)
+      }
+      
       logger.info(`[Exchange OAuth Code] External store token retrieved for ${platformLower}`)
     } else {
       // Handle social platform OAuth

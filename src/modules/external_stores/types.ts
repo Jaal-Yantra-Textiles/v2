@@ -7,11 +7,21 @@ export interface StoreProvider {
   
   // OAuth methods
   getAuthorizationUrl(redirectUri: string, scope: string, state: string): Promise<string>
-  exchangeCodeForToken(code: string, redirectUri: string, state?: string): Promise<TokenData>
+  /**
+   * Exchange authorization code for access token.
+   * @param code - Authorization code from OAuth callback
+   * @param redirectUri - Must match the one used in authorization
+   * @param codeVerifier - PKCE code verifier (required for Etsy, optional for others)
+   */
+  exchangeCodeForToken(code: string, redirectUri: string, codeVerifier?: string): Promise<TokenData>
   refreshAccessToken(refreshToken: string): Promise<TokenData>
   
   // Store info
   getShopInfo(accessToken: string): Promise<ShopInfo>
+  
+  // PKCE methods (optional, required for Etsy)
+  getCodeVerifier?(state: string): string | undefined
+  clearCodeVerifier?(state: string): void
 }
 
 export interface TokenData {
