@@ -36,14 +36,36 @@ export const POST = async (
     const insights = (post as any).insights as Record<string, any> || {}
     
     // Try multiple possible locations for platform post IDs
-    let platformPostId = 
-      insights.instagram_media_id || 
-      insights.facebook_post_id ||
-      insights.twitter_tweet_id ||
-      insights.linkedin_post_id ||
-      // Check nested structures
-      insights.instagram_insights?.media_id ||
-      insights.facebook_insights?.post_id
+    // Track which platform the ID came from for proper API routing
+    let platformPostId: string | undefined
+    let detectedPlatformType: "facebook" | "instagram" | "twitter" | "linkedin" | undefined
+    
+    // Check Instagram first (most specific)
+    if (insights.instagram_media_id) {
+      platformPostId = insights.instagram_media_id
+      detectedPlatformType = "instagram"
+    } else if (insights.instagram_insights?.media_id) {
+      platformPostId = insights.instagram_insights.media_id
+      detectedPlatformType = "instagram"
+    }
+    // Then Facebook
+    else if (insights.facebook_post_id) {
+      platformPostId = insights.facebook_post_id
+      detectedPlatformType = "facebook"
+    } else if (insights.facebook_insights?.post_id) {
+      platformPostId = insights.facebook_insights.post_id
+      detectedPlatformType = "facebook"
+    }
+    // Then Twitter
+    else if (insights.twitter_tweet_id) {
+      platformPostId = insights.twitter_tweet_id
+      detectedPlatformType = "twitter"
+    }
+    // Then LinkedIn
+    else if (insights.linkedin_post_id) {
+      platformPostId = insights.linkedin_post_id
+      detectedPlatformType = "linkedin"
+    }
     
     // Check publish_results array format
     if (!platformPostId && Array.isArray(insights.publish_results)) {
@@ -116,17 +138,22 @@ export const POST = async (
       return res.status(400).json({ error: "Platform has no access token" })
     }
 
-    // Determine platform type
-    const platformName = (platform as any).name?.toLowerCase() || "facebook"
-    let platformType: "facebook" | "instagram" | "twitter" | "linkedin" = "facebook"
+    // Determine platform type - prefer detected type from insights, fallback to platform name
+    let platformType: "facebook" | "instagram" | "twitter" | "linkedin" = detectedPlatformType || "facebook"
     
-    if (platformName.includes("instagram")) {
-      platformType = "instagram"
-    } else if (platformName.includes("twitter") || platformName.includes("x")) {
-      platformType = "twitter"
-    } else if (platformName.includes("linkedin")) {
-      platformType = "linkedin"
+    // If no detected type, try to infer from platform name
+    if (!detectedPlatformType) {
+      const platformName = (platform as any).name?.toLowerCase() || "facebook"
+      if (platformName.includes("instagram")) {
+        platformType = "instagram"
+      } else if (platformName.includes("twitter") || platformName.includes("x")) {
+        platformType = "twitter"
+      } else if (platformName.includes("linkedin")) {
+        platformType = "linkedin"
+      }
     }
+    
+    console.log(`[Sync Insights] Using platform type: ${platformType} (detected: ${detectedPlatformType || 'none'})`)
 
     // Sync insights
     const syncedInsights = await insightsService.syncPostInsights(
