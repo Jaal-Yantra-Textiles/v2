@@ -1,3 +1,10 @@
+## [6.39.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.3...v6.39.4) (2025-12-06)
+
+
+### Bug Fixes
+
+* **api:** refresh token mismatch hit sequence fixed ([32cf24b](https://github.com/Jaal-Yantra-Textiles/v2/commit/32cf24b3db97f5f9006d7ddf2aa1c4f3bc4b84b8))
+
 ## [6.39.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.2...v6.39.3) (2025-12-06)
 
 
