@@ -2,7 +2,7 @@ import {
   Container, 
   Heading, 
   Text, 
-  Badge, 
+  StatusBadge, 
   Button,
   toast,
   usePrompt,
@@ -42,7 +42,7 @@ import { useMemo } from "react"
 
 // ============ Helper Functions ============
 
-const getStatusBadgeColor = (status: Campaign["status"]) => {
+const getCampaignStatusColor = (status: Campaign["status"]): "green" | "orange" | "blue" | "red" | "grey" | "purple" => {
   switch (status) {
     case "active": return "green"
     case "paused": return "orange"
@@ -54,7 +54,7 @@ const getStatusBadgeColor = (status: Campaign["status"]) => {
   }
 }
 
-const getItemStatusBadgeColor = (status: CampaignItem["status"]) => {
+const getItemStatusColor = (status: CampaignItem["status"]): "green" | "orange" | "blue" | "red" | "grey" => {
   switch (status) {
     case "published": return "green"
     case "failed": return "red"
@@ -135,9 +135,9 @@ const CampaignGeneralSection = ({
           <div>
             <div className="flex items-center gap-2">
               <Heading>{campaign.name}</Heading>
-              <Badge color={getStatusBadgeColor(campaign.status)}>
+              <StatusBadge color={getCampaignStatusColor(campaign.status)}>
                 {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
-              </Badge>
+              </StatusBadge>
             </div>
           </div>
         </div>
@@ -322,9 +322,9 @@ const CampaignItemsSection = ({ campaign }: CampaignItemsSectionProps) => {
               )}
               
               {/* Status */}
-              <Badge color={getItemStatusBadgeColor(item.status)}>
+              <StatusBadge color={getItemStatusColor(item.status)}>
                 {item.status}
-              </Badge>
+              </StatusBadge>
             </div>
           )
         })

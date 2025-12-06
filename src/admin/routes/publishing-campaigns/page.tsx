@@ -6,7 +6,7 @@ import {
   Heading, 
   Text, 
   useDataTable,
-  Badge,
+  StatusBadge,
   createDataTableFilterHelper,
   DataTableFilteringState,
 } from "@medusajs/ui"
@@ -52,7 +52,7 @@ const buildParamsFromFilters = (
 
 const columnHelper = createColumnHelper<Campaign>()
 
-const getStatusBadgeColor = (status: Campaign["status"]) => {
+const getStatusBadgeColor = (status: Campaign["status"]): "green" | "orange" | "blue" | "red" | "grey" | "purple" => {
   switch (status) {
     case "active":
       return "green"
@@ -126,9 +126,9 @@ const PublishingCampaignsPage = () => {
       cell: ({ getValue }) => {
         const status = getValue()
         return (
-          <Badge color={getStatusBadgeColor(status)}>
+          <StatusBadge color={getStatusBadgeColor(status)}>
             {status.charAt(0).toUpperCase() + status.slice(1)}
-          </Badge>
+          </StatusBadge>
         )
       },
     }),
