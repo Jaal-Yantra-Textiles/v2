@@ -1,3 +1,10 @@
+# [6.39.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.38.4...v6.39.0) (2025-12-06)
+
+
+### Features
+
+* **api:** Publishing social post with configuration ([187f9fa](https://github.com/Jaal-Yantra-Textiles/v2/commit/187f9fab1510099ff59c39148176625e6a68e3d2))
+
 ## [6.38.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.38.3...v6.38.4) (2025-12-06)
 
 
