@@ -1,3 +1,10 @@
+## [6.39.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.2...v6.39.3) (2025-12-06)
+
+
+### Bug Fixes
+
+* **workflows:** X publishing success ([1aa28a7](https://github.com/Jaal-Yantra-Textiles/v2/commit/1aa28a7c197ef6910788704dcaae1b718d99085e))
+
 ## [6.39.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.1...v6.39.2) (2025-12-06)
 
 
