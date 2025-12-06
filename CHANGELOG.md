@@ -1,3 +1,10 @@
+## [6.39.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.0...v6.39.1) (2025-12-06)
+
+
+### Bug Fixes
+
+* **api:** Social Post sync insights ([f8fa41e](https://github.com/Jaal-Yantra-Textiles/v2/commit/f8fa41e8e0a082ffb309767f7482680f930f02ca))
+
 # [6.39.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.38.4...v6.39.0) (2025-12-06)
 
 
