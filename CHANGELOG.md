@@ -1,3 +1,10 @@
+## [6.39.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.1...v6.39.2) (2025-12-06)
+
+
+### Bug Fixes
+
+* **api:** Fixed the publish item failing because of pageID ([4fee8f9](https://github.com/Jaal-Yantra-Textiles/v2/commit/4fee8f9433b79b8a9802ee25a00301f53d9c7732))
+
 ## [6.39.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.0...v6.39.1) (2025-12-06)
 
 
