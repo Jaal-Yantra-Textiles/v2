@@ -13,6 +13,8 @@ import FacebookService from "../../modules/social-provider/facebook-service"
 import InstagramService from "../../modules/social-provider/instagram-service"
 import TwitterService from "../../modules/social-provider/twitter-service"
 import { decryptAccessToken, decryptRefreshToken } from "../../modules/socials/utils/token-helpers"
+import { ENCRYPTION_MODULE } from "../../modules/encryption"
+import EncryptionService from "../../modules/encryption/service"
 
 interface PublishPostInput {
   post_id: string
@@ -200,22 +202,28 @@ const resolveTokensStep = createStep(
         if (refreshToken) {
           try {
             const twitter = new TwitterService()
+            const encryptionService = container.resolve(ENCRYPTION_MODULE) as EncryptionService
             const newTokens = await twitter.refreshAccessToken(refreshToken)
             finalAccessToken = newTokens.access_token
             
-            // Update platform with new tokens
+            // Update platform with new tokens (encrypted)
+            const newAccessToken = newTokens.access_token
+            const newRefreshToken = newTokens.refresh_token || refreshToken
+            
             await socials.updateSocialPlatforms({
               id: platformId,
               api_config: {
                 ...apiConfig,
-                access_token: newTokens.access_token,
-                refresh_token: newTokens.refresh_token || refreshToken,
+                access_token: newAccessToken,
+                refresh_token: newRefreshToken,
+                access_token_encrypted: encryptionService.encrypt(newAccessToken),
+                refresh_token_encrypted: encryptionService.encrypt(newRefreshToken),
                 expires_in: newTokens.expires_in || 7200,
                 retrieved_at: new Date().toISOString(),
               },
             } as any)
             
-            console.log(`[Resolve Provider Tokens] ✓ Token refreshed successfully`)
+            console.log(`[Resolve Provider Tokens] ✓ Token refreshed and encrypted successfully`)
           } catch (refreshError: any) {
             console.error(`[Resolve Provider Tokens] Token refresh failed: ${refreshError.message}`)
             // Continue with existing token, it might still work

@@ -20,9 +20,9 @@ export default class FacebookService {
     if (!this.clientId || !redirectUri) {
       throw new MedusaError(MedusaError.Types.INVALID_ARGUMENT, "FacebookService: missing FACEBOOK_CLIENT_ID or redirect URI");
     }
-    // Default to Facebook Page permissions + Full Instagram permissions
+    // Default to Facebook Page permissions + Full Instagram permissions + Ads permissions
     // Use comma-separated scopes as required by Facebook OAuth
-    const defaultScope = "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,instagram_manage_messages";
+    const defaultScope = "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_ads,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,instagram_manage_messages,ads_read,ads_management,leads_retrieval,business_management";
     const finalScope = (scope && scope.trim().length > 0) ? scope : defaultScope;
     
     const params = new URLSearchParams({
@@ -44,7 +44,7 @@ export default class FacebookService {
     return `https://www.facebook.com/v24.0/dialog/oauth?${params.toString()}`;
   }
 
-  initiateUserAuth(redirectUri: string, scope: string = "pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,instagram_manage_messages") {
+  initiateUserAuth(redirectUri: string, scope: string = "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_ads,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,instagram_manage_messages,ads_read,ads_management,leads_retrieval,business_management") {
     const state = Math.random().toString(36).slice(2)
     const authUrl = this.getAuthUrl(redirectUri, scope, state)
     return { authUrl, state }

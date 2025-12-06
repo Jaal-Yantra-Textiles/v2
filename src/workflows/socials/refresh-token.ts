@@ -12,6 +12,8 @@ import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import SocialsService from "../../modules/socials/service"
 import { OAuth2Token, TwitterOAuth2Token } from "../../modules/social-provider/types"
 import { SOCIALS_MODULE } from "../../modules/socials"
+import { ENCRYPTION_MODULE } from "../../modules/encryption"
+import EncryptionService from "../../modules/encryption/service"
 
 // Define a more precise type for the entity instance
 type SocialPlatform = {
@@ -93,7 +95,7 @@ const refreshTokenStep = createStep(
   }
 )
 
-// Step 3: Update the platform with the new token
+// Step 3: Update the platform with the new token (with encryption)
 const updatePlatformStep = createStep(
   "update-platform-step",
   async (
@@ -101,6 +103,7 @@ const updatePlatformStep = createStep(
     { container }
   ) => {
     const service = container.resolve<SocialsService>(SOCIALS_MODULE)
+    const encryptionService = container.resolve(ENCRYPTION_MODULE) as EncryptionService
     const logger = container.resolve("logger")
 
     // Check if this is a flat structure (X/Twitter) or nested (legacy)
@@ -108,17 +111,38 @@ const updatePlatformStep = createStep(
     
     let api_config: any
     if (isFlat) {
-      // Flat structure - update api_config directly
-      const { _isFlat, ...tokenData } = input.token
-      api_config = tokenData
-      logger.info(`Updating platform with flat token structure`)
+      // Flat structure - update api_config directly with encrypted tokens
+      const { _isFlat, access_token, refresh_token, ...otherData } = input.token
+      
+      api_config = {
+        ...otherData,
+        // Keep plaintext for backward compatibility (will be removed by decryptAccessToken helper)
+        access_token,
+        refresh_token,
+        // Store encrypted versions
+        access_token_encrypted: access_token 
+          ? encryptionService.encrypt(access_token)
+          : input.platform.api_config?.access_token_encrypted,
+        refresh_token_encrypted: refresh_token
+          ? encryptionService.encrypt(refresh_token)
+          : input.platform.api_config?.refresh_token_encrypted,
+      }
+      logger.info(`Updating platform with flat token structure (encrypted)`)
     } else {
       // Nested structure - update token inside api_config
+      const token = input.token
+      if (token?.access_token) {
+        token.access_token_encrypted = encryptionService.encrypt(token.access_token)
+      }
+      if (token?.refresh_token) {
+        token.refresh_token_encrypted = encryptionService.encrypt(token.refresh_token)
+      }
+      
       api_config = {
         ...(input.platform.api_config || {}),
-        token: input.token,
+        token,
       }
-      logger.info(`Updating platform with nested token structure`)
+      logger.info(`Updating platform with nested token structure (encrypted)`)
     }
 
     const [updatedPlatform] = await service.updateSocialPlatforms({

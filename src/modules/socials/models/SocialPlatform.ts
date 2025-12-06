@@ -1,5 +1,7 @@
 import { model } from "@medusajs/framework/utils";
-import SocialPost from "./SocialPost"; // Import the related model
+import SocialPost from "./SocialPost";
+import AdAccount from "./AdAccount";
+import Lead from "./Lead";
 
 /**
  * SocialPlatform (External API Platform)
@@ -37,6 +39,8 @@ const SocialPlatform = model.define("SocialPlatform", {
   
   // Relationships
   posts: model.hasMany(() => SocialPost, { mappedBy: "platform" }),
+  ad_accounts: model.hasMany(() => AdAccount, { mappedBy: "platform" }),
+  leads: model.hasMany(() => Lead, { mappedBy: "platform" }),
 });
 
 export default SocialPlatform;

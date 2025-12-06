@@ -21,6 +21,26 @@ export function decryptAccessToken(
   apiConfig: Record<string, any>,
   container: MedusaContainer
 ): string {
+  // If both encrypted and plaintext exist, we need to determine which is newer
+  // This handles the case where token was refreshed but encryption failed or was skipped
+  if (apiConfig.access_token_encrypted && apiConfig.access_token) {
+    const encryptionService = container.resolve(ENCRYPTION_MODULE) as EncryptionService
+    try {
+      const decryptedToken = encryptionService.decrypt(apiConfig.access_token_encrypted as EncryptedData)
+      // If decrypted token matches plaintext, use it (they're in sync)
+      // If they differ, the plaintext is likely newer (from a refresh that didn't encrypt)
+      if (decryptedToken === apiConfig.access_token) {
+        return decryptedToken
+      } else {
+        console.warn("[Token Helper] Encrypted and plaintext tokens differ. Using plaintext (likely newer from refresh).")
+        return apiConfig.access_token
+      }
+    } catch (e) {
+      console.warn("[Token Helper] Failed to decrypt, using plaintext token")
+      return apiConfig.access_token
+    }
+  }
+  
   // Try encrypted token first (new format)
   if (apiConfig.access_token_encrypted) {
     const encryptionService = container.resolve(ENCRYPTION_MODULE) as EncryptionService

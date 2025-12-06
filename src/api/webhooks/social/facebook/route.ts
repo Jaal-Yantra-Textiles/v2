@@ -1,8 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/utils"
 import crypto from "crypto"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
+import MetaAdsService from "../../../../modules/social-provider/meta-ads-service"
+import { decryptAccessToken } from "../../../../modules/socials/utils/token-helpers"
 
 /**
  * GET /webhooks/social/facebook
@@ -132,7 +133,7 @@ async function processWebhookEvent(
 
   // Handle different object types
   if (payload.object === "page") {
-    await processPageEvents(socials, payload.entry)
+    await processPageEvents(socials, scope, payload.entry)
   } else if (payload.object === "instagram") {
     await processInstagramEvents(socials, payload.entry)
   } else {
@@ -145,6 +146,7 @@ async function processWebhookEvent(
  */
 async function processPageEvents(
   socials: SocialsService,
+  scope: any,
   entries: FacebookWebhookEntry[]
 ): Promise<void> {
   for (const entry of entries) {
@@ -161,6 +163,8 @@ async function processPageEvents(
           await handleComment(socials, pageId, change.value)
         } else if (change.field === "reactions") {
           await handleReaction(socials, pageId, change.value)
+        } else if (change.field === "leadgen") {
+          await handleLeadgenEvent(socials, scope, pageId, change.value)
         } else {
           console.log("Unhandled page field:", change.field)
         }
@@ -449,6 +453,150 @@ async function handleInstagramComment(
       },
     },
   ])
+}
+
+/**
+ * Handle leadgen events (new leads from lead ads)
+ * 
+ * This is triggered when a user submits a lead form.
+ * The webhook only contains the lead ID - we need to fetch full details from API.
+ */
+async function handleLeadgenEvent(
+  socials: SocialsService,
+  scope: any,
+  pageId: string,
+  value: any
+): Promise<void> {
+  const leadgenId = value.leadgen_id
+  const formId = value.form_id
+  const adId = value.ad_id
+  const adgroupId = value.adgroup_id // This is the adset ID
+  const createdTime = value.created_time
+
+  console.log("Leadgen event received:", { 
+    pageId, 
+    leadgenId, 
+    formId, 
+    adId, 
+    adgroupId,
+    createdTime 
+  })
+
+  try {
+    // Find the platform for this page to get access token
+    const platforms = await socials.listSocialPlatforms({})
+    
+    let accessToken: string | null = null
+    let platformId: string | null = null
+    
+    for (const platform of platforms) {
+      const apiConfig = platform.api_config as any
+      if (!apiConfig) continue
+      
+      // Check if this platform has the page
+      const pages = apiConfig.metadata?.pages || []
+      const hasPage = pages.some((p: any) => p.id === pageId)
+      
+      if (hasPage) {
+        // Get access token using the helper
+        try {
+          accessToken = decryptAccessToken(apiConfig, scope)
+          platformId = platform.id
+          break
+        } catch (e) {
+          console.warn(`Failed to get access token for platform ${platform.id}:`, e)
+          continue
+        }
+      }
+    }
+
+    if (!accessToken || !platformId) {
+      console.error("No access token found for page:", pageId)
+      return
+    }
+
+    // Fetch full lead details from Meta API
+    const metaAds = new MetaAdsService()
+    const leadData = await metaAds.getLead(leadgenId, accessToken)
+
+    console.log("Lead data fetched:", {
+      id: leadData.id,
+      fields: leadData.field_data?.length,
+      campaign: leadData.campaign_name,
+      ad: leadData.ad_name,
+    })
+
+    // Extract contact info from field_data
+    const contactInfo = metaAds.extractLeadContactInfo(leadData.field_data || [])
+
+    // Check if lead already exists
+    const existingLeads = await socials.listLeads({
+      meta_lead_id: leadgenId,
+    })
+
+    if (existingLeads.length > 0) {
+      console.log("Lead already exists:", leadgenId)
+      return
+    }
+
+    // Create the lead in our database
+    await socials.createLeads({
+      meta_lead_id: leadgenId,
+      
+      // Contact info
+      email: contactInfo.email || null,
+      phone: contactInfo.phone || null,
+      full_name: contactInfo.full_name || null,
+      first_name: contactInfo.first_name || null,
+      last_name: contactInfo.last_name || null,
+      company_name: contactInfo.company_name || null,
+      job_title: contactInfo.job_title || null,
+      city: contactInfo.city || null,
+      state: contactInfo.state || null,
+      country: contactInfo.country || null,
+      zip_code: contactInfo.zip_code || null,
+      
+      // Form data - convert array to object for JSON storage
+      field_data: leadData.field_data as unknown as Record<string, unknown>,
+      
+      // Source tracking
+      ad_id: leadData.ad_id || adId || null,
+      ad_name: leadData.ad_name || null,
+      adset_id: leadData.adset_id || adgroupId || null,
+      adset_name: leadData.adset_name || null,
+      campaign_id: leadData.campaign_id || null,
+      campaign_name: leadData.campaign_name || null,
+      form_id: leadData.form_id || formId || null,
+      page_id: pageId,
+      source_platform: leadData.platform || "facebook",
+      
+      // Timestamps
+      created_time: new Date(leadData.created_time),
+      
+      // Status
+      status: "new" as const,
+      
+      // Relationships
+      platform_id: platformId,
+      
+      // Metadata
+      metadata: {
+        raw_response: leadData,
+        is_organic: leadData.is_organic,
+        retailer_item_id: leadData.retailer_item_id,
+        webhook_received_at: new Date().toISOString(),
+      },
+    } as any)
+
+    console.log("Lead created successfully:", leadgenId)
+
+    // TODO: Trigger notification workflow (email, Slack, etc.)
+    // TODO: Create Person record if needed
+
+  } catch (error) {
+    console.error("Failed to process leadgen event:", error)
+    throw error
+  }
 }
 
 /**

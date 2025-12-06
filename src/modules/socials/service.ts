@@ -4,6 +4,12 @@ import Sma from "./models/sma";
 import Hashtag from "./models/hashtag";
 import Mention from "./models/mention";
 import PublishingCampaign from "./models/PublishingCampaign";
+import AdAccount from "./models/AdAccount";
+import AdCampaign from "./models/AdCampaign";
+import AdSet from "./models/AdSet";
+import Ad from "./models/Ad";
+import LeadForm from "./models/LeadForm";
+import Lead from "./models/Lead";
 import { MedusaService } from "@medusajs/framework/utils";
 import { extractHashtags, extractMentions } from "./utils/text-extraction";
 
@@ -15,6 +21,13 @@ class SocialsService extends MedusaService({
   Hashtag,
   Mention,
   PublishingCampaign,
+  // Meta Ads models
+  AdAccount,
+  AdCampaign,
+  AdSet,
+  Ad,
+  LeadForm,
+  Lead,
 }) {
   constructor() {
     super(...arguments)
