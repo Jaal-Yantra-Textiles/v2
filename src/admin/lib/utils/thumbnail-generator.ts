@@ -131,6 +131,47 @@ export async function generateThumbnailsBatch(
 }
 
 /**
+ * Get a thumbnail URL from a Cloudflare image URL.
+ * Uses Cloudflare Image Resizing to get a small version.
+ * 
+ * @param imageUrl - Original image URL
+ * @param size - Thumbnail size (default: 100)
+ * @returns Transformed URL for thumbnail, or original if not Cloudflare
+ */
+export function getCloudflareThumbUrl(imageUrl: string | undefined | null, size: number = 100): string | undefined {
+  if (!imageUrl) return undefined
+  
+  try {
+    const url = new URL(imageUrl)
+    
+    // Check if it's a Cloudflare-compatible URL
+    const isCloudflare = (
+      url.hostname.includes("cloudflare") ||
+      url.hostname.includes("r2.dev") ||
+      url.hostname.includes("jaalyantra.com") ||
+      url.pathname.includes("/cdn-cgi/imagedelivery/")
+    )
+    
+    if (!isCloudflare) {
+      return imageUrl
+    }
+    
+    // Already has transformation? Return as-is
+    if (url.pathname.includes("/cdn-cgi/image/")) {
+      return imageUrl
+    }
+    
+    // Add Cloudflare image transformation
+    const transformPath = `/cdn-cgi/image/width=${size},height=${size},fit=cover,quality=70,format=auto`
+    url.pathname = transformPath + url.pathname
+    
+    return url.toString()
+  } catch {
+    return imageUrl
+  }
+}
+
+/**
  * Get a file icon placeholder for non-image files.
  * Returns an SVG data URL representing the file type.
  */

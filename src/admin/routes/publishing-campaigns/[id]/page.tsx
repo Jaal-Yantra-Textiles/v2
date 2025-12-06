@@ -7,6 +7,7 @@ import {
   toast,
   usePrompt,
   Avatar,
+  InlineTip,
 } from "@medusajs/ui"
 import { useParams, useNavigate, useLoaderData, UIMatch } from "react-router-dom"
 import { 
@@ -29,7 +30,6 @@ import {
   XCircleSolid,
   Trash,
   EyeMini,
-  ExclamationCircle,
   CheckCircleSolid,
   ArrowPathMini,
   PencilSquare,
@@ -37,6 +37,7 @@ import {
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { ActionMenu } from "../../../components/common/action-menu"
+import { Thumbnail } from "../../../components/common/thumbnail"
 import { useMemo } from "react"
 
 // ============ Helper Functions ============
@@ -283,17 +284,11 @@ const CampaignItemsSection = ({ campaign }: CampaignItemsSectionProps) => {
               onClick={() => item.social_post_id && navigate(`/social-posts/${item.social_post_id}`)}
             >
               {/* Thumbnail or Index */}
-              {product?.thumbnail ? (
-                <img 
-                  src={product.thumbnail} 
-                  alt={product.title}
-                  className="w-12 h-12 rounded-lg object-cover shrink-0"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-lg bg-ui-bg-subtle flex items-center justify-center text-lg font-semibold shrink-0">
-                  {index + 1}
-                </div>
-              )}
+              <Thumbnail 
+                src={product?.thumbnail} 
+                alt={product?.title}
+                size="large"
+              />
               
               {/* Product Info */}
               <div className="flex-1 min-w-0">
@@ -304,10 +299,11 @@ const CampaignItemsSection = ({ campaign }: CampaignItemsSectionProps) => {
                   {new Date(item.scheduled_at).toLocaleString()}
                 </Text>
                 {item.error_message && (
-                  <Text size="small" className="text-ui-fg-error flex items-center gap-1 mt-1">
-                    <ExclamationCircle className="w-3 h-3" />
-                    {item.error_message}
-                  </Text>
+                  <div className="mt-1">
+                    <InlineTip variant="error" label="Error">
+                      {item.error_message}
+                    </InlineTip>
+                  </div>
                 )}
               </div>
               

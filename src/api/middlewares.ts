@@ -94,6 +94,12 @@ import { PublishSocialPostSchema } from "./admin/social-posts/[id]/publish/valid
 import { GetAccountsSchema } from "./admin/socials/accounts/validators";
 import { FeedbackSchema, UpdateFeedbackSchema } from "./admin/feedbacks/validators";
 import { AnalyticsEventQuerySchema } from "./admin/analytics-events/validators";
+import { 
+  CreatePublishingCampaignSchema, 
+  UpdatePublishingCampaignSchema, 
+  ListPublishingCampaignsQuerySchema,
+  RetryItemSchema,
+} from "./admin/publishing-campaigns/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -929,6 +935,62 @@ export default defineMiddlewares({
       matcher: "/admin/socials/accounts",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(GetAccountsSchema), {})],
+    },
+    // Publishing Campaigns routes
+    {
+      matcher: "/admin/publishing-campaigns",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListPublishingCampaignsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/publishing-campaigns",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreatePublishingCampaignSchema))],
+    },
+    {
+      matcher: "/admin/publishing-campaigns/:id",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/publishing-campaigns/:id",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdatePublishingCampaignSchema))],
+    },
+    {
+      matcher: "/admin/publishing-campaigns/:id",
+      method: "DELETE",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/publishing-campaigns/:id/start",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/publishing-campaigns/:id/pause",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/publishing-campaigns/:id/cancel",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/publishing-campaigns/:id/preview",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/publishing-campaigns/:id/retry-item",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(RetryItemSchema))],
+    },
+    {
+      matcher: "/admin/publishing-campaigns/:id/retry-all",
+      method: "POST",
+      middlewares: [],
     },
     {
       matcher: "/admin/users/:id/suspend",

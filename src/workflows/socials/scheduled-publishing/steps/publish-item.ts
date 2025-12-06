@@ -26,7 +26,15 @@ export const publishItemStep = createStep(
     
     logger.info(`[Campaign] Publishing item ${input.item_index}: ${input.content.product_title}`)
     
-    // Create the social post
+    // Get platform to extract page_id and ig_user_id from api_config
+    const [platform] = await socialsService.listSocialPlatforms({ id: input.platform_id })
+    const apiConfig = (platform as any)?.api_config || {}
+    const pageId = apiConfig.page_id
+    const igUserId = apiConfig.metadata?.ig_accounts?.[0]?.id
+    
+    logger.info(`[Campaign] Platform config - page_id: ${pageId}, ig_user_id: ${igUserId}`)
+    
+    // Create the social post with page_id and ig_user_id in metadata
     const postData = {
       platform_id: input.platform_id,
       name: `${input.campaign_name} - ${input.content.product_title}`,
@@ -41,6 +49,9 @@ export const publishItemStep = createStep(
         campaign_item_index: input.item_index,
         auto_generated: true,
         hashtags: input.content.hashtags,
+        // Include page_id and ig_user_id from platform config
+        page_id: pageId,
+        ig_user_id: igUserId,
       },
     }
     
