@@ -3,6 +3,7 @@ import SocialPlatform from "./models/SocialPlatform";
 import Sma from "./models/sma";
 import Hashtag from "./models/hashtag";
 import Mention from "./models/mention";
+import PublishingCampaign from "./models/PublishingCampaign";
 import { MedusaService } from "@medusajs/framework/utils";
 import { extractHashtags, extractMentions } from "./utils/text-extraction";
 
@@ -13,6 +14,7 @@ class SocialsService extends MedusaService({
   Sma,
   Hashtag,
   Mention,
+  PublishingCampaign,
 }) {
   constructor() {
     super(...arguments)

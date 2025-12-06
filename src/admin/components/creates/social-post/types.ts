@@ -1,5 +1,21 @@
 import { z } from "zod"
 
+// Content rule schema for campaign mode - all fields optional for form flexibility
+export const ContentRuleSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  caption_template: z.string().optional(),
+  description_max_length: z.number().optional(),
+  include_price: z.boolean().optional(),
+  include_design: z.boolean().optional(),
+  hashtag_strategy: z.enum(["from_product", "from_design", "custom", "none"]).optional(),
+  custom_hashtags: z.array(z.string()).optional(),
+  image_selection: z.enum(["thumbnail", "first", "all", "featured"]).optional(),
+  max_images: z.number().optional(),
+}).optional()
+
+export type ContentRule = z.infer<typeof ContentRuleSchema>
+
 export const BaseSchema = z.object({
   name: z.string().min(1, "Name is required"),
   platform_id: z.string().min(1, "Platform is required"),
@@ -17,10 +33,39 @@ export const BaseSchema = z.object({
   publish_target: z.enum(["facebook", "instagram", "both"]).optional(),
   // Automation
   auto_publish: z.boolean().optional(),
+  
+  // Campaign mode fields
+  is_campaign: z.boolean().optional(),
+  product_ids: z.array(z.string()).optional(),
+  interval_hours: z.number().min(1).max(168).optional(),
+  start_at: z.string().optional(),
+  content_rule: ContentRuleSchema.optional(),
+  custom_caption_template: z.string().optional(),
 })
 
 export const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
   const platform = (data.platform_name || "").toLowerCase()
+  
+  // Campaign mode validation
+  if (data.is_campaign) {
+    if (!data.product_ids || data.product_ids.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["product_ids"],
+        message: "Select at least one product for the campaign",
+      })
+    }
+    // interval_hours has a default of 24, only validate if explicitly set to invalid value
+    if (data.interval_hours !== undefined && data.interval_hours < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interval_hours"],
+        message: "Interval must be at least 1 hour",
+      })
+    }
+    // Campaign mode doesn't need single post validations
+    return
+  }
   
   // FBINSTA validation
   if (platform === "fbinsta" || platform === "facebook & instagram") {
