@@ -12,7 +12,7 @@ import SocialsService from "../../modules/socials/service"
 import FacebookService from "../../modules/social-provider/facebook-service"
 import InstagramService from "../../modules/social-provider/instagram-service"
 import TwitterService from "../../modules/social-provider/twitter-service"
-import { decryptAccessToken } from "../../modules/socials/utils/token-helpers"
+import { decryptAccessToken, decryptRefreshToken } from "../../modules/socials/utils/token-helpers"
 
 interface PublishPostInput {
   post_id: string
@@ -184,11 +184,52 @@ const resolveTokensStep = createStep(
         )
       }
       
+      // Check if token is expired and refresh if needed
+      let finalAccessToken = userAccessToken
+      const retrievedAt = apiConfig?.retrieved_at ? new Date(apiConfig.retrieved_at).getTime() : 0
+      const expiresIn = apiConfig?.expires_in || 7200 // Default 2 hours
+      const now = Date.now()
+      const tokenAge = now - retrievedAt
+      const isExpired = tokenAge > (expiresIn * 1000) - 300000 // Refresh 5 min before expiry
+      
+      if (isExpired) {
+        console.log(`[Resolve Provider Tokens] Token expired, attempting refresh...`)
+        // Get refresh token (decrypted if encrypted)
+        const refreshToken = decryptRefreshToken(apiConfig, container)
+        
+        if (refreshToken) {
+          try {
+            const twitter = new TwitterService()
+            const newTokens = await twitter.refreshAccessToken(refreshToken)
+            finalAccessToken = newTokens.access_token
+            
+            // Update platform with new tokens
+            await socials.updateSocialPlatforms({
+              id: platformId,
+              api_config: {
+                ...apiConfig,
+                access_token: newTokens.access_token,
+                refresh_token: newTokens.refresh_token || refreshToken,
+                expires_in: newTokens.expires_in || 7200,
+                retrieved_at: new Date().toISOString(),
+              },
+            } as any)
+            
+            console.log(`[Resolve Provider Tokens] ✓ Token refreshed successfully`)
+          } catch (refreshError: any) {
+            console.error(`[Resolve Provider Tokens] Token refresh failed: ${refreshError.message}`)
+            // Continue with existing token, it might still work
+          }
+        } else {
+          console.log(`[Resolve Provider Tokens] No refresh token available, using existing token`)
+        }
+      }
+      
       console.log(`[Resolve Provider Tokens] ✓ Using OAuth 2.0 user token for Twitter`)
       
       return new StepResponse({
         providerName,
-        accessToken: userAccessToken, // Use user access token, not app bearer token
+        accessToken: finalAccessToken,
       })
     }
 

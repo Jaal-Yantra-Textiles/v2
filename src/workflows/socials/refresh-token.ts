@@ -44,16 +44,24 @@ const findSocialPlatformStep = createStep(
 // Step 2: Refresh the token if needed
 const refreshTokenStep = createStep(
   "refresh-token-step",
-  async (platform: SocialPlatform, { container }) => {
+  async (platform: SocialPlatform, { container }): Promise<StepResponse<any>> => {
     const socialProviderService = container.resolve<SocialProviderService>(
       SOCIAL_PROVIDER_MODULE
     )
+    const logger = container.resolve("logger")
+    const apiConfig = platform.api_config
 
-    const token = platform.api_config?.token
+    // Check for nested token structure (legacy)
+    const nestedToken = apiConfig?.token
+    
+    // Check for flat token structure (X/Twitter OAuth 2.0)
+    const flatRefreshToken = (apiConfig as any)?.refresh_token
+    const isFlat = !nestedToken?.refresh_token && flatRefreshToken
 
-    // If no token or no refresh token, there's nothing to do.
-    if (!token?.refresh_token) {
-      return new StepResponse(token)
+    // If no refresh token in either structure, nothing to do
+    if (!nestedToken?.refresh_token && !flatRefreshToken) {
+      logger.info(`No refresh token found for ${platform.name}, skipping`)
+      return new StepResponse(nestedToken || null)
     }
 
     const provider = socialProviderService.getProvider(platform.name)
@@ -64,11 +72,24 @@ const refreshTokenStep = createStep(
       )
     }
 
-    console.log(`Attempting to refresh token for ${platform.name}...`)
-    const newToken = await provider.refreshAccessToken(token.refresh_token)
+    const refreshToken = isFlat ? flatRefreshToken : nestedToken!.refresh_token
+    logger.info(`Attempting to refresh token for ${platform.name}...`)
+    const newToken = await provider.refreshAccessToken(refreshToken)
 
-    // Return the complete, updated token object
-    return new StepResponse({ ...token, ...newToken, retrieved_at: Date.now() })
+    if (isFlat) {
+      // Return flat structure for X/Twitter
+      return new StepResponse({
+        ...apiConfig,
+        access_token: newToken.access_token,
+        refresh_token: newToken.refresh_token || refreshToken,
+        expires_in: newToken.expires_in || 7200,
+        retrieved_at: new Date().toISOString(),
+        _isFlat: true, // Flag to indicate flat structure
+      })
+    }
+
+    // Return nested structure (legacy)
+    return new StepResponse({ ...nestedToken, ...newToken, retrieved_at: Date.now() })
   }
 )
 
@@ -76,15 +97,28 @@ const refreshTokenStep = createStep(
 const updatePlatformStep = createStep(
   "update-platform-step",
   async (
-    input: { platform: SocialPlatform; token: OAuth2Token },
+    input: { platform: SocialPlatform; token: any },
     { container }
   ) => {
     const service = container.resolve<SocialsService>(SOCIALS_MODULE)
+    const logger = container.resolve("logger")
 
-    // Construct the new api_config by merging the new token
-    const api_config = {
-      ...(input.platform.api_config || {}),
-      token: input.token,
+    // Check if this is a flat structure (X/Twitter) or nested (legacy)
+    const isFlat = input.token?._isFlat
+    
+    let api_config: any
+    if (isFlat) {
+      // Flat structure - update api_config directly
+      const { _isFlat, ...tokenData } = input.token
+      api_config = tokenData
+      logger.info(`Updating platform with flat token structure`)
+    } else {
+      // Nested structure - update token inside api_config
+      api_config = {
+        ...(input.platform.api_config || {}),
+        token: input.token,
+      }
+      logger.info(`Updating platform with nested token structure`)
     }
 
     const [updatedPlatform] = await service.updateSocialPlatforms({
@@ -106,7 +140,7 @@ export const refreshTokenWorkflow = createWorkflow(
 
     const updatedPlatform = updatePlatformStep({
       platform: platform,
-      token: refreshedToken,
+      token: refreshedToken as any,
     })
 
     return new WorkflowResponse(updatedPlatform)

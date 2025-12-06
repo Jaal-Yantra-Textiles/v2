@@ -27,19 +27,22 @@ export const decryptCredentialsStep = createStep(
       )
     }
 
-    // Handle Twitter OAuth1 credentials
+    // Handle Twitter/X credentials (supports both OAuth 1.0a and OAuth 2.0)
     const credentials: any = { user_access_token: userAccessToken }
 
     if (input.platform_name === "twitter" || input.platform_name === "x") {
       const oauth1UserCreds = apiConfig.oauth1_credentials as Record<string, any> | undefined
       const oauth1AppCreds = (apiConfig.oauth1_app_credentials || apiConfig.app_credentials) as Record<string, any> | undefined
 
-      // Validate Twitter credentials
+      // Check for OAuth 1.0a credentials
       const hasUserOAuth1 = oauth1UserCreds?.access_token && oauth1UserCreds?.access_token_secret
       const hasAppOAuth1 = (oauth1AppCreds?.consumer_key || oauth1AppCreds?.api_key) &&
                            (oauth1AppCreds?.consumer_secret || oauth1AppCreds?.api_secret)
 
-      if (!hasUserOAuth1 && !hasAppOAuth1) {
+      // Check for OAuth 2.0 credentials (access_token from the main decryption)
+      const hasOAuth2 = !!userAccessToken && apiConfig.provider === "x"
+
+      if (!hasUserOAuth1 && !hasAppOAuth1 && !hasOAuth2) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
           "Twitter requires authentication. Please complete OAuth flow or enable app-only access."
@@ -48,7 +51,13 @@ export const decryptCredentialsStep = createStep(
 
       credentials.oauth1_user = oauth1UserCreds
       credentials.oauth1_app = oauth1AppCreds
-      logger.info(`[Decrypt Credentials] ✓ Twitter OAuth1 credentials validated`)
+      credentials.oauth2_token = hasOAuth2 ? userAccessToken : undefined
+      
+      if (hasOAuth2) {
+        logger.info(`[Decrypt Credentials] ✓ Twitter/X OAuth 2.0 credentials validated`)
+      } else {
+        logger.info(`[Decrypt Credentials] ✓ Twitter OAuth 1.0a credentials validated`)
+      }
     }
 
     return new StepResponse({ user_access_token: userAccessToken, credentials })
