@@ -1,3 +1,15 @@
+# [7.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.4...v7.0.0) (2025-12-07)
+
+
+### Features
+
+* **api:** Social meta leads now enabled for ads tracking ([bded6c4](https://github.com/Jaal-Yantra-Textiles/v2/commit/bded6c41055f12c01211c643059b6a65757fd809))
+
+
+### BREAKING CHANGES
+
+* **api:**
+
 ## [6.39.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.3...v6.39.4) (2025-12-06)
 
 
