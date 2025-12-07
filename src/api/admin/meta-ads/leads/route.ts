@@ -106,3 +106,28 @@ export const GET = async (
     })
   }
 }
+
+/**
+ * POST /admin/meta-ads/leads
+ * 
+ * Create a lead
+ */
+export const POST = async (
+  req: MedusaRequest,
+  res: MedusaResponse
+) => {
+  try {
+    const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+    const body = req.body as Record<string, any>
+    
+    const lead = await socials.createLeads(body)
+
+    res.json({ lead })
+  } catch (error: any) {
+    console.error("Failed to create lead:", error)
+    res.status(500).json({
+      message: "Failed to create lead",
+      error: error.message,
+    })
+  }
+}

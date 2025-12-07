@@ -246,13 +246,13 @@ const PublishingCampaignsPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Publishing Campaigns",
+  label: "Social Campaigns",
   nested: '/promotions',
   icon: Calendar,
 })
 
 export const handle = {
-  breadcrumb: () => "Publishing Campaigns",
+  breadcrumb: () => "Social Campaigns",
 }
 
 export default PublishingCampaignsPage

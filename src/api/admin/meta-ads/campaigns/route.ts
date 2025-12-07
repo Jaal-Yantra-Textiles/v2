@@ -59,3 +59,28 @@ export const GET = async (
     })
   }
 }
+
+/**
+ * POST /admin/meta-ads/campaigns
+ * 
+ * Create a campaign
+ */
+export const POST = async (
+  req: MedusaRequest,
+  res: MedusaResponse
+) => {
+  try {
+    const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+    const body = req.body as Record<string, any>
+    
+    const campaign = await socials.createAdCampaigns(body)
+
+    res.json({ campaign })
+  } catch (error: any) {
+    console.error("Failed to create campaign:", error)
+    res.status(500).json({
+      message: "Failed to create campaign",
+      error: error.message,
+    })
+  }
+}

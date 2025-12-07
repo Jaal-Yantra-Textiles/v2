@@ -5,13 +5,19 @@ import {
   StatusBadge, 
   Badge,
   Tabs,
+  toast,
 } from "@medusajs/ui"
 import { useParams } from "react-router-dom"
-import { useAdCampaign, AdCampaign } from "../../../../hooks/api/meta-ads"
+import { 
+  useAdCampaign, 
+  AdCampaign, 
+  useUpdateCampaignStatus,
+} from "../../../../hooks/api/meta-ads"
 import { useDefaultStore } from "../../../../hooks/api/stores"
 import { TwoColumnPage } from "../../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../../components/table/skeleton"
-import { ArrowUpRightOnBox } from "@medusajs/icons"
+import { ArrowUpRightOnBox, PlaySolid, PauseSolid } from "@medusajs/icons"
+import { ActionMenu } from "../../../../components/common/action-menu"
 import { useMemo } from "react"
 
 // ============ Helper Functions ============
@@ -63,9 +69,13 @@ const getStatusBadgeColor = (status: string): "green" | "orange" | "red" | "grey
 type CampaignOverviewSectionProps = {
   campaign: AdCampaign & { ad_sets?: any[]; ads?: any[] }
   currencyCode: string
+  onStatusChange?: (status: "ACTIVE" | "PAUSED") => void
+  isUpdatingStatus?: boolean
 }
 
-const CampaignOverviewSection = ({ campaign, currencyCode }: CampaignOverviewSectionProps) => {
+const CampaignOverviewSection = ({ campaign, currencyCode, onStatusChange, isUpdatingStatus }: CampaignOverviewSectionProps) => {
+  const isActive = campaign.status === "ACTIVE"
+  
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -82,6 +92,31 @@ const CampaignOverviewSection = ({ campaign, currencyCode }: CampaignOverviewSec
             </Badge>
           )}
         </div>
+        
+        {/* Actions Menu */}
+        {onStatusChange && (
+          <ActionMenu
+            groups={[
+              {
+                actions: [
+                  isActive
+                    ? {
+                        label: isUpdatingStatus ? "Pausing..." : "Pause Campaign",
+                        icon: <PauseSolid />,
+                        onClick: () => onStatusChange("PAUSED"),
+                        disabled: isUpdatingStatus,
+                      }
+                    : {
+                        label: isUpdatingStatus ? "Resuming..." : "Resume Campaign",
+                        icon: <PlaySolid />,
+                        onClick: () => onStatusChange("ACTIVE"),
+                        disabled: isUpdatingStatus,
+                      },
+                ],
+              },
+            ]}
+          />
+        )}
       </div>
       
       {/* Key Metrics */}
@@ -448,11 +483,26 @@ const CampaignDetailPage = () => {
   
   const { data, isLoading, isError, error } = useAdCampaign(id!)
   const { store } = useDefaultStore()
+  const updateCampaignStatus = useUpdateCampaignStatus()
   
   const defaultCurrency = useMemo(() => {
     const defaultCurrencyObj = store?.supported_currencies?.find(c => c.is_default)
     return defaultCurrencyObj?.currency_code?.toUpperCase() || "USD"
   }, [store])
+
+  const handleStatusChange = (status: "ACTIVE" | "PAUSED") => {
+    updateCampaignStatus.mutate(
+      { id: id!, status },
+      {
+        onSuccess: () => {
+          toast.success(`Campaign ${status === "ACTIVE" ? "resumed" : "paused"} successfully`)
+        },
+        onError: (err: any) => {
+          toast.error(err.message || "Failed to update campaign status")
+        },
+      }
+    )
+  }
 
   if (isLoading) {
     return <TwoColumnPageSkeleton showJSON={false} showMetadata={false} mainSections={3} sidebarSections={2} />
@@ -474,7 +524,12 @@ const CampaignDetailPage = () => {
     <TwoColumnPage data={campaign} showJSON={true} showMetadata={false}>
       {/* Main Content */}
       <TwoColumnPage.Main>
-        <CampaignOverviewSection campaign={campaign} currencyCode={defaultCurrency} />
+        <CampaignOverviewSection 
+          campaign={campaign} 
+          currencyCode={defaultCurrency}
+          onStatusChange={handleStatusChange}
+          isUpdatingStatus={updateCampaignStatus.isPending}
+        />
         
         <Tabs defaultValue="adsets" className="mt-6">
           <Tabs.List>

@@ -3,9 +3,9 @@ import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
 
 /**
- * GET /admin/meta-ads/accounts
+ * GET /admin/meta-ads/ads
  * 
- * List all synced ad accounts
+ * List all ads
  */
 export const GET = async (
   req: MedusaRequest,
@@ -13,28 +13,32 @@ export const GET = async (
 ) => {
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+    const { ad_set_id } = req.query as Record<string, string>
     
-    const accounts = await socials.listAdAccounts({}, {
-      order: { name: "ASC" },
-    })
+    const filters: Record<string, any> = {}
+    if (ad_set_id) {
+      filters.ad_set_id = ad_set_id
+    }
+
+    const ads = await socials.listAds(filters)
 
     res.json({
-      accounts,
-      count: accounts.length,
+      ads,
+      count: ads.length,
     })
   } catch (error: any) {
-    console.error("Failed to list ad accounts:", error)
+    console.error("Failed to list ads:", error)
     res.status(500).json({
-      message: "Failed to list ad accounts",
+      message: "Failed to list ads",
       error: error.message,
     })
   }
 }
 
 /**
- * POST /admin/meta-ads/accounts
+ * POST /admin/meta-ads/ads
  * 
- * Create an ad account
+ * Create an ad
  */
 export const POST = async (
   req: MedusaRequest,
@@ -44,13 +48,13 @@ export const POST = async (
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const body = req.body as Record<string, any>
     
-    const account = await socials.createAdAccounts(body)
+    const ad = await socials.createAds(body)
 
-    res.json({ account })
+    res.json({ ad })
   } catch (error: any) {
-    console.error("Failed to create ad account:", error)
+    console.error("Failed to create ad:", error)
     res.status(500).json({
-      message: "Failed to create ad account",
+      message: "Failed to create ad",
       error: error.message,
     })
   }

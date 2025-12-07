@@ -3,9 +3,9 @@ import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
 
 /**
- * GET /admin/meta-ads/accounts
+ * GET /admin/meta-ads/lead-forms
  * 
- * List all synced ad accounts
+ * List all lead forms
  */
 export const GET = async (
   req: MedusaRequest,
@@ -13,28 +13,32 @@ export const GET = async (
 ) => {
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+    const { platform_id } = req.query as Record<string, string>
     
-    const accounts = await socials.listAdAccounts({}, {
-      order: { name: "ASC" },
-    })
+    const filters: Record<string, any> = {}
+    if (platform_id) {
+      filters.platform_id = platform_id
+    }
+
+    const leadForms = await socials.listLeadForms(filters)
 
     res.json({
-      accounts,
-      count: accounts.length,
+      leadForms,
+      count: leadForms.length,
     })
   } catch (error: any) {
-    console.error("Failed to list ad accounts:", error)
+    console.error("Failed to list lead forms:", error)
     res.status(500).json({
-      message: "Failed to list ad accounts",
+      message: "Failed to list lead forms",
       error: error.message,
     })
   }
 }
 
 /**
- * POST /admin/meta-ads/accounts
+ * POST /admin/meta-ads/lead-forms
  * 
- * Create an ad account
+ * Create a lead form
  */
 export const POST = async (
   req: MedusaRequest,
@@ -44,13 +48,13 @@ export const POST = async (
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const body = req.body as Record<string, any>
     
-    const account = await socials.createAdAccounts(body)
+    const leadForm = await socials.createLeadForms(body)
 
-    res.json({ account })
+    res.json({ leadForm })
   } catch (error: any) {
-    console.error("Failed to create ad account:", error)
+    console.error("Failed to create lead form:", error)
     res.status(500).json({
-      message: "Failed to create ad account",
+      message: "Failed to create lead form",
       error: error.message,
     })
   }

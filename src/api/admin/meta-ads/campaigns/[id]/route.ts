@@ -89,6 +89,14 @@ export const GET = async (
     })
   } catch (error: any) {
     console.error("Failed to get campaign:", error)
+    
+    // Check if it's a not_found error
+    if (error.type === "not_found" || error.message?.includes("was not found")) {
+      return res.status(404).json({
+        message: "Campaign not found",
+      })
+    }
+    
     res.status(500).json({
       message: "Failed to get campaign",
       error: error.message,

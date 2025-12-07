@@ -19,6 +19,7 @@ import {
   useSyncAdAccounts,
   useSyncCampaigns,
   useSyncInsights,
+  useCampaignTotals,
   AdCampaign,
 } from "../../../hooks/api/meta-ads"
 import { useSocialPlatforms } from "../../../hooks/api/social-platforms"
@@ -110,6 +111,7 @@ const CampaignsPage = () => {
   const syncCampaignsMutation = useSyncCampaigns()
   const syncInsightsMutation = useSyncInsights()
   const { store } = useDefaultStore()
+  const { data: totalsData } = useCampaignTotals()
   
   // Get default currency from store
   const defaultCurrency = useMemo(() => {
@@ -317,18 +319,8 @@ const CampaignsPage = () => {
     throw error
   }
 
-  // Calculate totals for summary cards
-  const totals = useMemo(() => {
-    return campaigns.reduce((acc, c) => ({
-      spend: acc.spend + (Number(c.spend) || 0),
-      impressions: acc.impressions + (Number(c.impressions) || 0),
-      clicks: acc.clicks + (Number(c.clicks) || 0),
-      leads: acc.leads + (Number(c.leads) || 0),
-    }), { spend: 0, impressions: 0, clicks: 0, leads: 0 })
-  }, [campaigns])
-
-  const avgCPL = totals.leads > 0 ? totals.spend / totals.leads : 0
-  const avgCTR = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0
+  // Use totals from all campaigns (not just current page)
+  const totals = totalsData || { spend: 0, impressions: 0, clicks: 0, leads: 0, avgCTR: 0, avgCPL: 0 }
 
   return (
     <Container className="divide-y p-0">
@@ -342,88 +334,92 @@ const CampaignsPage = () => {
             </Text>
           </div>
           <div className="flex items-center gap-x-2">
+            {/* Sync Controls - compact inline */}
+            <Select 
+              size="small"
+              value={selectedPlatformId}
+              onValueChange={(value) => {
+                setSelectedPlatformId(value)
+                setSelectedAccountId("")
+              }}
+            >
+              <Select.Trigger className="w-[130px]">
+                <Select.Value placeholder="Platform" />
+              </Select.Trigger>
+              <Select.Content>
+                {metaPlatforms.map((platform) => (
+                  <Select.Item key={platform.id} value={platform.id}>
+                    {platform.name}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+
+            {selectedPlatformId && (
+              <>
+                <Select 
+                  size="small"
+                  value={selectedAccountId}
+                  onValueChange={setSelectedAccountId}
+                >
+                  <Select.Trigger className="w-[140px]">
+                    <Select.Value placeholder="Ad Account" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {adAccounts.length === 0 ? (
+                      <div className="px-3 py-2 text-ui-fg-subtle text-sm">
+                        Click sync first
+                      </div>
+                    ) : (
+                      adAccounts.map((account) => (
+                        <Select.Item key={account.id} value={account.meta_account_id}>
+                          {account.name}
+                        </Select.Item>
+                      ))
+                    )}
+                  </Select.Content>
+                </Select>
+
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={handleSyncAdAccounts}
+                  isLoading={syncAdAccountsMutation.isPending}
+                >
+                  <ArrowPath />
+                </Button>
+              </>
+            )}
+
+            {selectedAccountId && (
+              <>
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={handleSyncCampaigns}
+                  isLoading={syncCampaignsMutation.isPending}
+                  title="Sync Campaigns"
+                >
+                  {!syncCampaignsMutation.isPending && <ArrowPath className="mr-1" />}
+                  Campaigns
+                </Button>
+
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={handleSyncInsights}
+                  isLoading={syncingInsights}
+                  title="Sync Insights"
+                >
+                  {!syncingInsights && <ChartBar className="mr-1" />}
+                  Insights
+                </Button>
+              </>
+            )}
+
             <DataTable.FilterMenu tooltip="Filter campaigns" />
           </div>
         </DataTable.Toolbar>
-
-        {/* Sync Controls */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 w-full px-6 py-4 bg-ui-bg-subtle">
-          <Select 
-            size="small"
-            value={selectedPlatformId}
-            onValueChange={setSelectedPlatformId}
-          >
-            <Select.Trigger className="min-w-[160px]">
-              <Select.Value placeholder="Platform..." />
-            </Select.Trigger>
-            <Select.Content>
-              {metaPlatforms.map((platform) => (
-                <Select.Item key={platform.id} value={platform.id}>
-                  {platform.name}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select>
-
-          <Select 
-            size="small"
-            value={selectedAccountId}
-            onValueChange={setSelectedAccountId}
-          >
-            <Select.Trigger className="min-w-[200px]">
-              <Select.Value placeholder="Ad Account..." />
-            </Select.Trigger>
-            <Select.Content>
-              {adAccounts.length === 0 ? (
-                <div className="px-3 py-2 text-ui-fg-subtle text-sm">
-                  No accounts. Click "Sync Accounts" first.
-                </div>
-              ) : (
-                adAccounts.map((account) => (
-                  <Select.Item key={account.id} value={account.meta_account_id}>
-                    {account.name}
-                  </Select.Item>
-                ))
-              )}
-            </Select.Content>
-          </Select>
-
-          <Button
-            size="small"
-            variant="secondary"
-            className="min-w-[110px]"
-            onClick={handleSyncAdAccounts}
-            isLoading={syncAdAccountsMutation.isPending}
-            disabled={!selectedPlatformId}
-          >
-            {!syncAdAccountsMutation.isPending && <ArrowPath className="mr-1" />}
-            Sync Accounts
-          </Button>
-
-          <Button
-            size="small"
-            variant="secondary"
-            className="min-w-[120px]"
-            onClick={handleSyncCampaigns}
-            isLoading={syncCampaignsMutation.isPending}
-            disabled={!selectedAccountId}
-          >
-            {!syncCampaignsMutation.isPending && <ArrowPath className="mr-1" />}
-            Sync Campaigns
-          </Button>
-
-          <Button
-            size="small"
-            variant="secondary"
-            className="min-w-[100px]"
-            onClick={handleSyncInsights}
-            isLoading={syncingInsights}
-            disabled={!selectedPlatformId || !selectedAccountId}
-          >
-            {!syncingInsights && <ChartBar className="mr-1" />}
-            Sync Insights
-          </Button>
-        </div>
 
         {/* Summary Cards */}
         {campaigns.length > 0 && (
@@ -442,7 +438,7 @@ const CampaignsPage = () => {
             </div>
             <div className="bg-ui-bg-base border border-ui-border-base rounded-lg p-4">
               <Text size="small" className="text-ui-fg-subtle">Avg CTR</Text>
-              <Text className="text-lg font-semibold">{formatPercent(avgCTR)}</Text>
+              <Text className="text-lg font-semibold">{formatPercent(totals.avgCTR)}</Text>
             </div>
             <div className="bg-ui-bg-base border border-ui-border-base rounded-lg p-4">
               <Text size="small" className="text-ui-fg-subtle">Total Leads</Text>
@@ -450,7 +446,7 @@ const CampaignsPage = () => {
             </div>
             <div className="bg-ui-bg-base border border-ui-border-base rounded-lg p-4">
               <Text size="small" className="text-ui-fg-subtle">Avg CPL</Text>
-              <Text className="text-lg font-semibold">{formatCurrency(avgCPL, defaultCurrency.code)}</Text>
+              <Text className="text-lg font-semibold">{formatCurrency(totals.avgCPL, defaultCurrency.code)}</Text>
             </div>
           </div>
         )}

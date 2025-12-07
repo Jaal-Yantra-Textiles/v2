@@ -184,6 +184,11 @@ export interface CreateAdInput {
   status?: "ACTIVE" | "PAUSED"
 }
 
+export interface UpdateAdInput {
+  name?: string
+  status?: "ACTIVE" | "PAUSED"
+}
+
 // ============ SERVICE ============
 
 export default class MetaAdsService {
@@ -637,6 +642,34 @@ export default class MetaAdsService {
       accessToken,
       { method: "POST", body }
     )
+  }
+
+  /**
+   * Update an ad
+   */
+  async updateAd(
+    adId: string,
+    data: UpdateAdInput,
+    accessToken: string
+  ): Promise<{ success: boolean }> {
+    const body: Record<string, any> = {}
+
+    if (data.name) body.name = data.name
+    if (data.status) body.status = data.status
+
+    await this.request(adId, accessToken, { method: "POST", body })
+    return { success: true }
+  }
+
+  /**
+   * Update ad status (pause/resume)
+   */
+  async updateAdStatus(
+    adId: string,
+    status: "ACTIVE" | "PAUSED",
+    accessToken: string
+  ): Promise<{ success: boolean }> {
+    return this.updateAd(adId, { status }, accessToken)
   }
 
   // ============ LEAD FORMS ============

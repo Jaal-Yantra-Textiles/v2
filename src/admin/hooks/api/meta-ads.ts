@@ -304,11 +304,14 @@ export const useAdCampaigns = (params?: ListCampaignsParams) => {
   return useQuery({
     queryKey: metaAdsKeys.campaignsList(params || {}),
     queryFn: async () => {
-      const query: Record<string, string> = {}
-      if (params?.ad_account_id) query.ad_account_id = params.ad_account_id
-      if (params?.status) query.status = params.status
-      if (params?.limit) query.limit = params.limit.toString()
-      if (params?.offset) query.offset = params.offset.toString()
+      const queryParams = new URLSearchParams()
+      if (params?.ad_account_id) queryParams.set("ad_account_id", params.ad_account_id)
+      if (params?.status) queryParams.set("status", params.status)
+      if (params?.limit) queryParams.set("limit", params.limit.toString())
+      if (params?.offset) queryParams.set("offset", params.offset.toString())
+      
+      const queryString = queryParams.toString()
+      const url = queryString ? `/admin/meta-ads/campaigns?${queryString}` : `/admin/meta-ads/campaigns`
       
       const response = await sdk.client.fetch<{
         campaigns: AdCampaign[]
@@ -316,11 +319,74 @@ export const useAdCampaigns = (params?: ListCampaignsParams) => {
         total: number
         limit: number
         offset: number
-      }>(`/admin/meta-ads/campaigns`)
+      }>(url)
       return response
     },
   })
 }
+
+// Types for campaign totals
+export interface CampaignTotals {
+  spend: number
+  impressions: number
+  clicks: number
+  leads: number
+  reach: number
+  conversions: number
+  ctr: number
+  cpc: number
+  cpm: number
+  cpl: number
+  cpa: number
+  campaign_count: number
+  // Aliases for backward compatibility
+  avgCTR: number
+  avgCPL: number
+}
+
+// Hook to get campaign totals from API (calculated server-side)
+export const useCampaignTotals = (params?: { ad_account_id?: string; status?: string }) => {
+  return useQuery({
+    queryKey: [...metaAdsKeys.campaigns(), "totals", params],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams()
+      if (params?.ad_account_id) queryParams.set("ad_account_id", params.ad_account_id)
+      if (params?.status) queryParams.set("status", params.status)
+      
+      const queryString = queryParams.toString()
+      const url = queryString 
+        ? `/admin/meta-ads/campaigns/totals?${queryString}` 
+        : `/admin/meta-ads/campaigns/totals`
+      
+      const response = await sdk.client.fetch<{
+        totals: {
+          spend: number
+          impressions: number
+          clicks: number
+          leads: number
+          reach: number
+          conversions: number
+          ctr: number
+          cpc: number
+          cpm: number
+          cpl: number
+          cpa: number
+          campaign_count: number
+        }
+      }>(url)
+      
+      // Add aliases for backward compatibility
+      return {
+        ...response.totals,
+        avgCTR: response.totals.ctr,
+        avgCPL: response.totals.cpl,
+      } as CampaignTotals
+    },
+  })
+}
+
+// Backward compatibility alias
+export const useAllCampaignsTotals = useCampaignTotals
 
 export const useAdCampaign = (id: string) => {
   return useQuery({
@@ -386,6 +452,69 @@ export const useSyncInsights = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: metaAdsKeys.campaigns() })
       queryClient.invalidateQueries({ queryKey: metaAdsKeys.accounts() })
+    },
+  })
+}
+
+// ============ Status Update Hooks ============
+
+export const useUpdateCampaignStatus = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async (data: { id: string; status: "ACTIVE" | "PAUSED" }) => {
+      const response = await sdk.client.fetch<{
+        message: string
+        campaign: AdCampaign
+      }>(`/admin/meta-ads/campaigns/${data.id}/status`, { 
+        method: "POST", 
+        body: { status: data.status } 
+      })
+      return response
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.campaigns() })
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.campaignDetail(variables.id) })
+    },
+  })
+}
+
+export const useUpdateAdSetStatus = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async (data: { id: string; status: "ACTIVE" | "PAUSED" }) => {
+      const response = await sdk.client.fetch<{
+        message: string
+        adSet: any
+      }>(`/admin/meta-ads/adsets/${data.id}/status`, { 
+        method: "POST", 
+        body: { status: data.status } 
+      })
+      return response
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.campaigns() })
+    },
+  })
+}
+
+export const useUpdateAdStatus = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async (data: { id: string; status: "ACTIVE" | "PAUSED" }) => {
+      const response = await sdk.client.fetch<{
+        message: string
+        ad: any
+      }>(`/admin/meta-ads/ads/${data.id}/status`, { 
+        method: "POST", 
+        body: { status: data.status } 
+      })
+      return response
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.campaigns() })
     },
   })
 }
