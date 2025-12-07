@@ -14,6 +14,7 @@ import { OAuth2Token, TwitterOAuth2Token } from "../../modules/social-provider/t
 import { SOCIALS_MODULE } from "../../modules/socials"
 import { ENCRYPTION_MODULE } from "../../modules/encryption"
 import EncryptionService from "../../modules/encryption/service"
+import { decryptRefreshToken } from "../../modules/socials/utils/token-helpers"
 
 // Define a more precise type for the entity instance
 type SocialPlatform = {
@@ -53,15 +54,36 @@ const refreshTokenStep = createStep(
     const logger = container.resolve("logger")
     const apiConfig = platform.api_config
 
+    if (!apiConfig) {
+      logger.info(`No api_config found for ${platform.name}, skipping`)
+      return new StepResponse(null)
+    }
+
     // Check for nested token structure (legacy)
     const nestedToken = apiConfig?.token
     
-    // Check for flat token structure (X/Twitter OAuth 2.0)
-    const flatRefreshToken = (apiConfig as any)?.refresh_token
-    const isFlat = !nestedToken?.refresh_token && flatRefreshToken
+    // Use the helper to properly decrypt the refresh token
+    // This handles both encrypted (refresh_token_encrypted) and plaintext (refresh_token) formats
+    let refreshToken: string | null = null
+    let isFlat = false
+    
+    // First, try to get refresh token from flat structure (X/Twitter OAuth 2.0)
+    if (!nestedToken?.refresh_token) {
+      refreshToken = decryptRefreshToken(apiConfig, container)
+      isFlat = !!refreshToken
+    } else {
+      // Nested token structure (legacy) - decrypt if encrypted
+      const nestedTokenAny = nestedToken as any
+      if (nestedTokenAny.refresh_token_encrypted) {
+        const encryptionService = container.resolve(ENCRYPTION_MODULE) as EncryptionService
+        refreshToken = encryptionService.decrypt(nestedTokenAny.refresh_token_encrypted)
+      } else {
+        refreshToken = nestedToken.refresh_token
+      }
+    }
 
-    // If no refresh token in either structure, nothing to do
-    if (!nestedToken?.refresh_token && !flatRefreshToken) {
+    // If no refresh token found, nothing to do
+    if (!refreshToken) {
       logger.info(`No refresh token found for ${platform.name}, skipping`)
       return new StepResponse(nestedToken || null)
     }
@@ -74,24 +96,30 @@ const refreshTokenStep = createStep(
       )
     }
 
-    const refreshToken = isFlat ? flatRefreshToken : nestedToken!.refresh_token
     logger.info(`Attempting to refresh token for ${platform.name}...`)
-    const newToken = await provider.refreshAccessToken(refreshToken)
+    
+    try {
+      const newToken = await provider.refreshAccessToken(refreshToken)
+      logger.info(`Successfully refreshed token for ${platform.name}`)
 
-    if (isFlat) {
-      // Return flat structure for X/Twitter
-      return new StepResponse({
-        ...apiConfig,
-        access_token: newToken.access_token,
-        refresh_token: newToken.refresh_token || refreshToken,
-        expires_in: newToken.expires_in || 7200,
-        retrieved_at: new Date().toISOString(),
-        _isFlat: true, // Flag to indicate flat structure
-      })
+      if (isFlat) {
+        // Return flat structure for X/Twitter
+        return new StepResponse({
+          ...apiConfig,
+          access_token: newToken.access_token,
+          refresh_token: newToken.refresh_token || refreshToken,
+          expires_in: newToken.expires_in || 7200,
+          retrieved_at: new Date().toISOString(),
+          _isFlat: true, // Flag to indicate flat structure
+        })
+      }
+
+      // Return nested structure (legacy)
+      return new StepResponse({ ...nestedToken, ...newToken, retrieved_at: Date.now() })
+    } catch (error: any) {
+      logger.error(`Failed to refresh token for ${platform.name}: ${error.message}`)
+      throw error
     }
-
-    // Return nested structure (legacy)
-    return new StepResponse({ ...nestedToken, ...newToken, retrieved_at: Date.now() })
   }
 )
 

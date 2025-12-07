@@ -264,9 +264,15 @@ export class ContentGeneratorService {
   
   /**
    * Format price for display
+   * 
+   * Note: MedusaJS typically stores prices in the smallest currency unit (cents for USD),
+   * but this project stores prices in the base currency unit (dollars).
+   * So we use the amount directly without division.
    */
   private formatPrice(price: { amount: number; currency_code: string }): string {
-    const amount = price.amount / 100 // Assuming cents
+    // Use amount directly - prices are stored in base currency unit (dollars, not cents)
+    const amount = price.amount
+    
     const formatter = new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: price.currency_code.toUpperCase(),
