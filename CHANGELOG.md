@@ -1,3 +1,10 @@
+# [7.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.0.0...v7.1.0) (2025-12-07)
+
+
+### Features
+
+* **api:** Meta Ads Sync in Dashboard ([f6c2a63](https://github.com/Jaal-Yantra-Textiles/v2/commit/f6c2a63d32ac37c7a49ed290c592819fa5c20008))
+
 # [7.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v6.39.4...v7.0.0) (2025-12-07)
 
 
