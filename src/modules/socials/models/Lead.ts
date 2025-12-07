@@ -109,8 +109,8 @@ const Lead = model.define("Lead", {
   synced_to_external_at: model.dateTime().nullable(),
   
   // ============ RELATIONSHIPS ============
-  lead_form: model.belongsTo(() => LeadForm, { mappedBy: "leads" }),
-  platform: model.belongsTo(() => SocialPlatform, { mappedBy: "leads" }),
+  lead_form: model.belongsTo(() => LeadForm, { mappedBy: "leads" }).nullable(),
+  platform: model.belongsTo(() => SocialPlatform, { mappedBy: "leads" }).nullable(),
   
   // ============ METADATA ============
   // Raw data from Meta and any additional info

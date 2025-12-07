@@ -100,6 +100,14 @@ import {
   ListPublishingCampaignsQuerySchema,
   RetryItemSchema,
 } from "./admin/publishing-campaigns/validators";
+import {
+  ListLeadsQuerySchema,
+  UpdateLeadSchema,
+  SyncLeadsSchema,
+  SyncAdAccountsSchema,
+  ListCampaignsQuerySchema,
+  SyncCampaignsSchema,
+} from "./admin/meta-ads/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -1262,6 +1270,52 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders/:id/feedbacks",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(FeedbackSchema))],
+    },
+    // Meta Ads routes
+    {
+      matcher: "/admin/meta-ads/leads",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListLeadsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/meta-ads/leads/:id",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/meta-ads/leads/:id",
+      method: "PATCH",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateLeadSchema))],
+    },
+    {
+      matcher: "/admin/meta-ads/leads/:id",
+      method: "DELETE",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/meta-ads/leads/sync",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SyncLeadsSchema))],
+    },
+    {
+      matcher: "/admin/meta-ads/accounts",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/meta-ads/accounts/sync",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SyncAdAccountsSchema))],
+    },
+    {
+      matcher: "/admin/meta-ads/campaigns",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListCampaignsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/meta-ads/campaigns/sync",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SyncCampaignsSchema))],
     },
   ],
   errorHandler: ((

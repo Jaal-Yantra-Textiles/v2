@@ -61,6 +61,7 @@ export const POST = async (
       skipped: 0,
       errors: 0,
       forms_processed: 0,
+      error_messages: [] as string[],
     }
 
     // Get forms to sync
@@ -156,14 +157,27 @@ export const POST = async (
             results.errors++
           }
         }
-      } catch (error) {
+      } catch (error: any) {
+        const errorMsg = error.message || `Failed to sync leads from form ${formId}`
         console.error(`Failed to sync leads from form ${formId}:`, error)
         results.errors++
+        results.error_messages.push(errorMsg)
       }
     }
 
+    // Return appropriate status based on results
+    if (results.errors > 0 && results.synced === 0) {
+      // All failed
+      return res.status(400).json({
+        message: "Failed to sync leads",
+        results,
+      })
+    }
+
     res.json({
-      message: "Lead sync completed",
+      message: results.errors > 0 
+        ? `Sync completed with ${results.errors} error(s)` 
+        : "Lead sync completed",
       results,
     })
   } catch (error: any) {

@@ -1676,7 +1676,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "mappedType": "text"
         },
         "platform_id": {
@@ -1685,7 +1685,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "mappedType": "text"
         },
         "metadata": {
@@ -1801,6 +1801,7 @@
             "id"
           ],
           "referencedTableName": "public.lead_form",
+          "deleteRule": "set null",
           "updateRule": "cascade"
         },
         "lead_platform_id_foreign": {
@@ -1813,6 +1814,7 @@
             "id"
           ],
           "referencedTableName": "public.social_platform",
+          "deleteRule": "set null",
           "updateRule": "cascade"
         }
       },
