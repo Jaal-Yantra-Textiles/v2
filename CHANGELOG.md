@@ -1,3 +1,10 @@
+# [7.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.1.0...v7.2.0) (2025-12-07)
+
+
+### Features
+
+* **api:** Fixed the meta ads API ([3efd926](https://github.com/Jaal-Yantra-Textiles/v2/commit/3efd926d75ee62cd0f8157d42ae7092f2bbb1ae0))
+
 # [7.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.0.0...v7.1.0) (2025-12-07)
 
 
