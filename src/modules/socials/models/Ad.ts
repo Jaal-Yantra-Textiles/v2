@@ -1,5 +1,6 @@
 import { model } from "@medusajs/framework/utils"
 import AdSet from "./AdSet"
+import AdInsights from "./AdInsights"
 
 /**
  * Ad (Meta Ad)
@@ -60,6 +61,7 @@ const Ad = model.define("Ad", {
   
   // Relationships
   ad_set: model.belongsTo(() => AdSet, { mappedBy: "ads" }),
+  insights: model.hasMany(() => AdInsights, { mappedBy: "ad" }),
   
   // Additional metadata
   metadata: model.json().nullable(),

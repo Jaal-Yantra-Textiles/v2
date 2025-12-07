@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 import AdAccount from "./AdAccount"
 import AdSet from "./AdSet"
+import AdInsights from "./AdInsights"
 
 /**
  * AdCampaign (Meta Ad Campaign)
@@ -76,6 +77,7 @@ const AdCampaign = model.define("AdCampaign", {
   // Relationships
   ad_account: model.belongsTo(() => AdAccount, { mappedBy: "campaigns" }),
   ad_sets: model.hasMany(() => AdSet, { mappedBy: "campaign" }),
+  insights: model.hasMany(() => AdInsights, { mappedBy: "campaign" }),
   
   // Additional metadata
   metadata: model.json().nullable(),

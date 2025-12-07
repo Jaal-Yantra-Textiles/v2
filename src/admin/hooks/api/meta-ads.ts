@@ -322,6 +322,19 @@ export const useAdCampaigns = (params?: ListCampaignsParams) => {
   })
 }
 
+export const useAdCampaign = (id: string) => {
+  return useQuery({
+    queryKey: metaAdsKeys.campaignDetail(id),
+    queryFn: async () => {
+      const response = await sdk.client.fetch<{
+        campaign: AdCampaign
+      }>(`/admin/meta-ads/campaigns/${id}`)
+      return response
+    },
+    enabled: !!id,
+  })
+}
+
 export const useSyncCampaigns = () => {
   const queryClient = useQueryClient()
   
@@ -342,6 +355,37 @@ export const useSyncCampaigns = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: metaAdsKeys.campaigns() })
+    },
+  })
+}
+
+// ============ Insights Hooks ============
+
+export const useSyncInsights = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async (data: {
+      platform_id: string
+      ad_account_id: string
+      level?: "account" | "campaign" | "adset" | "ad"
+      date_preset?: "last_7d" | "last_14d" | "last_30d" | "last_90d" | "maximum"
+      time_increment?: string
+    }) => {
+      const response = await sdk.client.fetch<{
+        message: string
+        results: {
+          synced: number
+          updated: number
+          errors: number
+          error_messages: string[]
+        }
+      }>(`/admin/meta-ads/insights/sync`, { method: "POST", body: data })
+      return response
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.campaigns() })
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.accounts() })
     },
   })
 }

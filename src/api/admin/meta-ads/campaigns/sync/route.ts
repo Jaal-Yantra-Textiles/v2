@@ -29,12 +29,29 @@ export const POST = async (
       })
     }
 
-    // Get ad account
-    const adAccount = await socials.retrieveAdAccount(ad_account_id)
+    // Get ad account - the frontend sends meta_account_id (e.g., act_123456)
+    // We need to look it up by meta_account_id, not internal ID
+    let adAccount: any = null
+    
+    // First try to find by meta_account_id
+    const accounts = await socials.listAdAccounts({
+      meta_account_id: ad_account_id,
+    })
+    
+    if (accounts.length > 0) {
+      adAccount = accounts[0]
+    } else {
+      // Fallback: try as internal ID
+      try {
+        adAccount = await socials.retrieveAdAccount(ad_account_id)
+      } catch (e) {
+        // Not found by internal ID either
+      }
+    }
     
     if (!adAccount) {
       return res.status(404).json({
-        message: "Ad account not found",
+        message: `Ad account not found. Please sync ad accounts first.`,
       })
     }
 
@@ -58,8 +75,12 @@ export const POST = async (
 
     const metaAds = new MetaAdsService()
     const results = {
-      created: 0,
-      updated: 0,
+      campaigns_created: 0,
+      campaigns_updated: 0,
+      adsets_created: 0,
+      adsets_updated: 0,
+      ads_created: 0,
+      ads_updated: 0,
       errors: 0,
     }
 
@@ -105,7 +126,7 @@ export const POST = async (
           start_time: metaCampaign.start_time ? new Date(metaCampaign.start_time) : null,
           stop_time: metaCampaign.stop_time ? new Date(metaCampaign.stop_time) : null,
           last_synced_at: new Date(),
-          ad_account_id: ad_account_id,
+          ad_account_id: adAccount.id, // Use internal ID, not meta_account_id
         }
 
         // Add insights data if available
@@ -123,15 +144,111 @@ export const POST = async (
           campaignData.leads = metaAds.extractLeadCount(insights)
         }
 
+        let internalCampaignId: string
+        
         if (existingCampaigns.length > 0) {
           await socials.updateAdCampaigns([{
             selector: { id: existingCampaigns[0].id },
             data: campaignData,
           }])
-          results.updated++
+          internalCampaignId = existingCampaigns[0].id
+          results.campaigns_updated++
         } else {
-          await socials.createAdCampaigns(campaignData as any)
-          results.created++
+          const created = await socials.createAdCampaigns(campaignData as any)
+          internalCampaignId = (created as any).id
+          results.campaigns_created++
+        }
+
+        // Sync Ad Sets for this campaign
+        try {
+          const metaAdSets = await metaAds.listAdSets(metaCampaign.id, accessToken)
+          console.log(`Found ${metaAdSets.length} ad sets for campaign ${metaCampaign.name}`)
+          
+          for (const metaAdSet of metaAdSets) {
+            try {
+              const existingAdSets = await socials.listAdSets({
+                meta_adset_id: metaAdSet.id,
+              })
+              
+              const adSetData: Record<string, any> = {
+                meta_adset_id: metaAdSet.id,
+                name: metaAdSet.name,
+                status: metaAdSet.status || "PAUSED",
+                effective_status: metaAdSet.effective_status || null,
+                daily_budget: metaAdSet.daily_budget ? parseFloat(metaAdSet.daily_budget) / 100 : null,
+                lifetime_budget: metaAdSet.lifetime_budget ? parseFloat(metaAdSet.lifetime_budget) / 100 : null,
+                bid_amount: metaAdSet.bid_amount ? parseFloat(metaAdSet.bid_amount) / 100 : null,
+                billing_event: metaAdSet.billing_event || null,
+                optimization_goal: metaAdSet.optimization_goal || null,
+                targeting: metaAdSet.targeting || null,
+                start_time: metaAdSet.start_time ? new Date(metaAdSet.start_time) : null,
+                end_time: metaAdSet.end_time ? new Date(metaAdSet.end_time) : null,
+                last_synced_at: new Date(),
+                campaign_id: internalCampaignId,
+              }
+              
+              let internalAdSetId: string
+              
+              if (existingAdSets.length > 0) {
+                await socials.updateAdSets([{
+                  selector: { id: existingAdSets[0].id },
+                  data: adSetData,
+                }])
+                internalAdSetId = existingAdSets[0].id
+                results.adsets_updated++
+              } else {
+                const createdAdSet = await socials.createAdSets(adSetData as any)
+                internalAdSetId = (createdAdSet as any).id
+                results.adsets_created++
+              }
+              
+              // Sync Ads for this ad set
+              try {
+                const metaAdsData = await metaAds.listAds(metaAdSet.id, accessToken)
+                console.log(`Found ${metaAdsData.length} ads for ad set ${metaAdSet.name}`)
+                
+                for (const metaAd of metaAdsData) {
+                  try {
+                    const existingAds = await socials.listAds({
+                      meta_ad_id: metaAd.id,
+                    })
+                    
+                    const adData: Record<string, any> = {
+                      meta_ad_id: metaAd.id,
+                      name: metaAd.name,
+                      status: metaAd.status || "PAUSED",
+                      effective_status: metaAd.effective_status || null,
+                      creative_id: metaAd.creative?.id || null,
+                      preview_url: metaAd.preview_shareable_link || null,
+                      last_synced_at: new Date(),
+                      ad_set_id: internalAdSetId, // Note: model uses ad_set_id not adset_id
+                    }
+                    
+                    if (existingAds.length > 0) {
+                      await socials.updateAds([{
+                        selector: { id: existingAds[0].id },
+                        data: adData,
+                      }])
+                      results.ads_updated++
+                    } else {
+                      await socials.createAds(adData as any)
+                      results.ads_created++
+                    }
+                  } catch (adError) {
+                    console.error(`Failed to sync ad ${metaAd.id}:`, adError)
+                    results.errors++
+                  }
+                }
+              } catch (adsError) {
+                console.error(`Failed to fetch ads for ad set ${metaAdSet.id}:`, adsError)
+              }
+            } catch (adSetError) {
+              console.error(`Failed to sync ad set ${metaAdSet.id}:`, adSetError)
+              results.errors++
+            }
+          }
+        } catch (adSetsError) {
+          console.error(`Failed to fetch ad sets for campaign ${metaCampaign.id}:`, adSetsError)
         }
       } catch (error) {
         console.error(`Failed to sync campaign ${metaCampaign.id}:`, error)
@@ -139,9 +256,16 @@ export const POST = async (
       }
     }
 
+    const totalCreated = results.campaigns_created + results.adsets_created + results.ads_created
+    const totalUpdated = results.campaigns_updated + results.adsets_updated + results.ads_updated
+
     res.json({
-      message: "Campaign sync completed",
-      results,
+      message: `Synced ${results.campaigns_created + results.campaigns_updated} campaigns, ${results.adsets_created + results.adsets_updated} ad sets, ${results.ads_created + results.ads_updated} ads`,
+      results: {
+        created: totalCreated,
+        updated: totalUpdated,
+        ...results,
+      },
     })
   } catch (error: any) {
     console.error("Failed to sync campaigns:", error)

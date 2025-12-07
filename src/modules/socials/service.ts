@@ -10,6 +10,7 @@ import AdSet from "./models/AdSet";
 import Ad from "./models/Ad";
 import LeadForm from "./models/LeadForm";
 import Lead from "./models/Lead";
+import AdInsights from "./models/AdInsights";
 import { MedusaService } from "@medusajs/framework/utils";
 import { extractHashtags, extractMentions } from "./utils/text-extraction";
 
@@ -28,6 +29,7 @@ class SocialsService extends MedusaService({
   Ad,
   LeadForm,
   Lead,
+  AdInsights,
 }) {
   constructor() {
     super(...arguments)

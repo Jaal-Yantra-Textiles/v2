@@ -59,3 +59,12 @@ export const SyncCampaignsSchema = z.object({
   ad_account_id: z.string(),
   include_insights: z.boolean().optional().default(false),
 })
+
+// Sync insights body
+export const SyncInsightsSchema = z.object({
+  platform_id: z.string(),
+  ad_account_id: z.string(),
+  level: z.enum(["account", "campaign", "adset", "ad"]).optional().default("campaign"),
+  date_preset: z.enum(["last_7d", "last_14d", "last_30d", "last_90d", "maximum"]).optional().default("last_30d"),
+  time_increment: z.string().optional().default("1"),
+})

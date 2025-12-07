@@ -2,6 +2,7 @@ import { model } from "@medusajs/framework/utils"
 import SocialPlatform from "./SocialPlatform"
 import AdCampaign from "./AdCampaign"
 import LeadForm from "./LeadForm"
+import AdInsights from "./AdInsights"
 
 /**
  * AdAccount (Meta Ad Account)
@@ -46,6 +47,7 @@ const AdAccount = model.define("AdAccount", {
   platform: model.belongsTo(() => SocialPlatform, { mappedBy: "ad_accounts" }),
   campaigns: model.hasMany(() => AdCampaign, { mappedBy: "ad_account" }),
   lead_forms: model.hasMany(() => LeadForm, { mappedBy: "ad_account" }),
+  insights: model.hasMany(() => AdInsights, { mappedBy: "account" }),
   
   // Additional metadata
   metadata: model.json().nullable(),

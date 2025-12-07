@@ -107,6 +107,7 @@ import {
   SyncAdAccountsSchema,
   ListCampaignsQuerySchema,
   SyncCampaignsSchema,
+  SyncInsightsSchema,
 } from "./admin/meta-ads/validators";
 
 // Utility function to create CORS middleware with configurable options
@@ -1316,6 +1317,11 @@ export default defineMiddlewares({
       matcher: "/admin/meta-ads/campaigns/sync",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(SyncCampaignsSchema))],
+    },
+    {
+      matcher: "/admin/meta-ads/insights/sync",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SyncInsightsSchema))],
     },
   ],
   errorHandler: ((

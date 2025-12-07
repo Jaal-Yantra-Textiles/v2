@@ -2,7 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 import MetaAdsService from "../../../../../modules/social-provider/meta-ads-service"
-import { decryptAccessToken } from "../../../../../modules/socials/utils/token-helpers"
+import { decryptAccessToken, decryptUserAccessToken } from "../../../../../modules/socials/utils/token-helpers"
 
 /**
  * POST /admin/meta-ads/accounts/sync
@@ -44,24 +44,48 @@ export const POST = async (
       })
     }
 
-    // Get access token
-    const accessToken = decryptAccessToken(apiConfig, req.scope)
+    // Get USER access token - required for ad account access
+    // The user token is stored separately from the page token
+    let accessToken = decryptUserAccessToken(apiConfig, req.scope)
+    
+    // Fallback to generic access token if no user token
+    if (!accessToken) {
+      console.log("No user_access_token found, trying generic access_token...")
+      accessToken = decryptAccessToken(apiConfig, req.scope)
+    }
     
     if (!accessToken) {
       return res.status(400).json({
         message: "No access token available",
       })
     }
+    
+    console.log("Using access token for ad accounts sync...")
 
     const metaAds = new MetaAdsService()
     const results = {
       created: 0,
       updated: 0,
       errors: 0,
+      error_messages: [] as string[],
     }
 
-    // Fetch ad accounts from Meta
-    const metaAccounts = await metaAds.listAdAccounts(accessToken)
+    // Fetch ad accounts from Meta using user access token
+    let metaAccounts: any[] = []
+    try {
+      metaAccounts = await metaAds.listAdAccounts(accessToken)
+    } catch (error: any) {
+      // If the token is a page token, we can't access ad accounts directly
+      // The user needs to re-authenticate with ads_management permission
+      if (error.message?.includes("nonexisting field (adaccounts)") || 
+          error.message?.includes("Page")) {
+        return res.status(400).json({
+          message: "Cannot access ad accounts with current token. Please re-authenticate with Facebook to grant ads permissions.",
+          error: "The stored token is a Page token, not a User token. Ad accounts can only be accessed with a User Access Token that has ads_management permission.",
+        })
+      }
+      throw error
+    }
 
     console.log(`Found ${metaAccounts.length} ad accounts from Meta`)
 
