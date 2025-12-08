@@ -14,7 +14,7 @@ import {
 } from "@medusajs/ui"
 import { useLeads, Lead, LeadStatus, useSyncLeads } from "../../../hooks/api/meta-ads"
 import { useSocialPlatforms } from "../../../hooks/api/social-platforms"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams, LoaderFunctionArgs } from "react-router-dom"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { UsersSolid, ArrowPath } from "@medusajs/icons"
 import { useCallback, useMemo, useState } from "react"
@@ -308,6 +308,11 @@ export const config = defineRouteConfig({
 
 export const handle = {
   breadcrumb: () => "Meta Leads",
+}
+
+export async function loader(args: LoaderFunctionArgs) {
+  const { leadsLoader } = await import("./loader")
+  return leadsLoader(args)
 }
 
 export default LeadsPage

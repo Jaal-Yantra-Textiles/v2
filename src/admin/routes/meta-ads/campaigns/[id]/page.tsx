@@ -7,7 +7,7 @@ import {
   Tabs,
   toast,
 } from "@medusajs/ui"
-import { useParams } from "react-router-dom"
+import { useParams, LoaderFunctionArgs, UIMatch } from "react-router-dom"
 import { 
   useAdCampaign, 
   AdCampaign, 
@@ -562,7 +562,14 @@ const CampaignDetailPage = () => {
 }
 
 export const handle = {
-  breadcrumb: () => "Campaign Details",
+  breadcrumb: (match: UIMatch<{ id: string }>) => {
+    return match.params.id || "Campaign"
+  },
+}
+
+export async function loader(args: LoaderFunctionArgs) {
+  const { campaignDetailLoader } = await import("./loader")
+  return campaignDetailLoader(args)
 }
 
 export default CampaignDetailPage

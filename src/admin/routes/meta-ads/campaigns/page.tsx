@@ -24,7 +24,7 @@ import {
 } from "../../../hooks/api/meta-ads"
 import { useSocialPlatforms } from "../../../hooks/api/social-platforms"
 import { useDefaultStore } from "../../../hooks/api/stores"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { LoaderFunctionArgs, useNavigate, useSearchParams } from "react-router-dom"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChartBar, ArrowPath } from "@medusajs/icons"
 import { useCallback, useMemo, useState } from "react"
@@ -466,6 +466,11 @@ export const config = defineRouteConfig({
 
 export const handle = {
   breadcrumb: () => "Ad Campaigns",
+}
+
+export async function loader(args: LoaderFunctionArgs) {
+  const { adsCampaignLoader } = await import("./loader")
+  return adsCampaignLoader(args)
 }
 
 export default CampaignsPage

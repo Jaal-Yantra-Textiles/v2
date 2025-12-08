@@ -12,7 +12,7 @@ import {
   Label,
   Input,
 } from "@medusajs/ui"
-import { useParams, useNavigate, UIMatch } from "react-router-dom"
+import { useParams, useNavigate, UIMatch, LoaderFunctionArgs } from "react-router-dom"
 import { 
   useLead, 
   useUpdateLead,
@@ -455,4 +455,9 @@ export const handle = {
   breadcrumb: (match: UIMatch<{ id: string }>) => {
     return match.params.id || "Lead"
   },
+}
+
+export async function loader(args: LoaderFunctionArgs) {
+  const { leadDetailLoader } = await import("./loader")
+  return leadDetailLoader(args)
 }

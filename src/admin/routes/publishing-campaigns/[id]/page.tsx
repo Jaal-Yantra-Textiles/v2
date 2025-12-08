@@ -9,7 +9,7 @@ import {
   Avatar,
   InlineTip,
 } from "@medusajs/ui"
-import { useParams, useNavigate, useLoaderData, UIMatch } from "react-router-dom"
+import { useParams, useNavigate, useLoaderData, UIMatch, LoaderFunctionArgs } from "react-router-dom"
 import { 
   useCampaign, 
   useStartCampaign, 
@@ -39,6 +39,7 @@ import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { ActionMenu } from "../../../components/common/action-menu"
 import { Thumbnail } from "../../../components/common/thumbnail"
 import { useMemo } from "react"
+import { campaignLoader } from "./loader"
 
 // ============ Helper Functions ============
 
@@ -656,7 +657,9 @@ const CampaignDetailPage = () => {
 
 export default CampaignDetailPage
 
-export { campaignLoader as loader } from "./loader"
+export async function loader({ params }: LoaderFunctionArgs) {
+  return await campaignLoader({ params })
+}
 
 export const handle = {
   breadcrumb: (match: UIMatch<{ id: string }>) => {
