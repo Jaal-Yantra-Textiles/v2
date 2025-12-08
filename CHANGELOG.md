@@ -1,3 +1,11 @@
+# [7.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.2.1...v7.3.0) (2025-12-08)
+
+
+### Features
+
+* **admin:** Fixed the admin layout of visual flow builder ([dfab2f8](https://github.com/Jaal-Yantra-Textiles/v2/commit/dfab2f840a81996f33ca6c618eb30cd9c628061a))
+* **api:** Visual Flow Builder ([383549d](https://github.com/Jaal-Yantra-Textiles/v2/commit/383549d8b9a8a90e6b995585299debcc3c287c84))
+
 ## [7.2.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.2.0...v7.2.1) (2025-12-07)
 
 
