@@ -1,3 +1,10 @@
+## [7.3.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.1...v7.3.2) (2025-12-09)
+
+
+### Bug Fixes
+
+* **api:** Visual flow config and file path change ([4e91071](https://github.com/Jaal-Yantra-Textiles/v2/commit/4e910712c71239cb51542c5066229ac0c8940796))
+
 ## [7.3.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.0...v7.3.1) (2025-12-08)
 
 # [7.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.2.1...v7.3.0) (2025-12-08)
