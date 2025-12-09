@@ -1,6 +1,6 @@
 import { SubscriberArgs, type SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { VISUAL_FLOWS_MODULE } from "../modules/visual-flows"
+import { VISUAL_FLOWS_MODULE } from "../modules/visual_flows"
 import { executeVisualFlowWorkflow } from "../workflows/visual-flows"
 
 /**

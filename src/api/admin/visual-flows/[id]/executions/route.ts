@@ -1,6 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { VISUAL_FLOWS_MODULE } from "../../../../../modules/visual-flows"
-import VisualFlowService from "../../../../../modules/visual-flows/service"
+import { VISUAL_FLOWS_MODULE } from "../../../../../modules/visual_flows"
+import VisualFlowService from "../../../../../modules/visual_flows/service"
 import { z } from "zod"
 
 const listQuerySchema = z.object({

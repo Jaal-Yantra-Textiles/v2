@@ -198,7 +198,7 @@ module.exports = defineConfig({
     resolve: "./src/modules/encryption",
   },
   {
-    resolve: "./src/modules/visual-flows",
+    resolve: "./src/modules/visual_flows",
   },
 ]
 

@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { operationRegistry } from "../../../../modules/visual-flows/operations"
+import { operationRegistry } from "../../../../modules/visual_flows/operations"
 
 /**
  * GET /admin/visual-flows/operations
