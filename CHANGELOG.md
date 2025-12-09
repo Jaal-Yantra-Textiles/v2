@@ -1,3 +1,10 @@
+## [7.3.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.3...v7.3.4) (2025-12-09)
+
+
+### Bug Fixes
+
+* **api:** add execute_code and trigger flow to operation type in DB ([a629a9b](https://github.com/Jaal-Yantra-Textiles/v2/commit/a629a9bb942f379d82d563a8b9129fa43a8b8628))
+
 ## [7.3.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.2...v7.3.3) (2025-12-09)
 
 
