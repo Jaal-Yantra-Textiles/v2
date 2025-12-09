@@ -1,3 +1,10 @@
+## [7.3.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.2...v7.3.3) (2025-12-09)
+
+
+### Bug Fixes
+
+* **Module:** Fixed module resolution in the prod ([4b0a1e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/4b0a1e9359a41a9535064af8cf4fdd059ffe9793))
+
 ## [7.3.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.1...v7.3.2) (2025-12-09)
 
 
