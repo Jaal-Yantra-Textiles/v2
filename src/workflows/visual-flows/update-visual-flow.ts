@@ -32,6 +32,13 @@ const updateFlowCompleteStep = createStep(
     
     const { id, operations, connections, ...flowData } = input
 
+    console.log("[update-flow-step] Input received:", {
+      id,
+      operationsCount: operations?.length || 0,
+      connectionsCount: connections?.length || 0,
+      operations: operations?.map(o => ({ key: o.operation_key, type: o.operation_type })),
+    })
+
     // Update flow basic data
     if (Object.keys(flowData).length > 0) {
       await service.updateVisualFlows({ id, ...flowData })
@@ -41,12 +48,15 @@ const updateFlowCompleteStep = createStep(
     if (operations !== undefined) {
       // Delete existing operations
       const existingOps = await service.listVisualFlowOperations({ flow_id: id } as any)
+      console.log("[update-flow-step] Deleting existing operations:", existingOps.length)
       for (const op of existingOps) {
         await service.deleteVisualFlowOperations(op.id)
       }
 
       // Create new operations
+      console.log("[update-flow-step] Creating new operations:", operations.length)
       for (const op of operations) {
+        console.log("[update-flow-step] Creating operation:", op.operation_key, op.operation_type)
         await service.createVisualFlowOperations({
           flow_id: id,
           operation_key: op.operation_key,

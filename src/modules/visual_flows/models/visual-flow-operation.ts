@@ -23,6 +23,8 @@ export const VisualFlowOperation = model.define("visual_flow_operation", {
     "notification",
     "transform",
     "trigger_workflow",
+    "trigger_flow",
+    "execute_code",
     "sleep",
     "log",
   ]),

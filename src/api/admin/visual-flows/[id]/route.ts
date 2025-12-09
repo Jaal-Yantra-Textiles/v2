@@ -72,6 +72,14 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     
     const data = updateFlowSchema.parse(req.body)
     
+    // Debug logging
+    console.log("[visual-flows PUT] Received update:", {
+      id,
+      operationsCount: data.operations?.length || 0,
+      connectionsCount: data.connections?.length || 0,
+      operations: data.operations?.map(o => ({ key: o.operation_key, type: o.operation_type })),
+    })
+    
     // Use workflow for transactional update with rollback support
     const { result: flow, errors } = await updateVisualFlowWorkflow(req.scope).run({
       input: {

@@ -124,11 +124,20 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [showOperationsPanel, setShowOperationsPanel] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
 
-  // Track changes
+  // Track changes - only after initial render
   useEffect(() => {
-    setHasChanges(true)
-  }, [nodes, edges])
+    if (isInitialized) {
+      setHasChanges(true)
+    }
+  }, [nodes, edges, isInitialized])
+
+  // Mark as initialized after first render
+  useEffect(() => {
+    const timer = setTimeout(() => setIsInitialized(true), 100)
+    return () => clearTimeout(timer)
+  }, [])
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -203,7 +212,8 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
       }))
 
     const connections = edges.map(e => ({
-      id: e.id.startsWith("reactflow") ? undefined : e.id,
+      // Clear ID for new edges (ReactFlow generates IDs starting with "xy-edge__" or "reactflow")
+      id: (e.id.startsWith("reactflow") || e.id.startsWith("xy-edge__")) ? undefined : e.id,
       source_id: e.source,
       source_handle: e.sourceHandle || "default",
       target_id: e.target,
@@ -211,6 +221,14 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
       connection_type: "default" as const,
       label: (e.label as string) || undefined,
     }))
+
+    // Debug logging
+    console.log("[FlowEditor] Saving flow:", {
+      totalNodes: nodes.length,
+      operationNodes: nodes.filter(n => n.type === "operation").length,
+      operations: operations.map(o => ({ key: o.operation_key, type: o.operation_type })),
+      connections: connections.map(c => ({ source: c.source_id, target: c.target_id })),
+    })
 
     // Save operations, connections, and canvas state
     onUpdate({
@@ -292,11 +310,13 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
                 <PlusMini className="mr-1" />
                 Add Operation
               </Button>
-              {hasChanges && (
-                <Button size="small" onClick={handleSave}>
-                  Save Changes
-                </Button>
-              )}
+              <Button 
+                size="small" 
+                variant={hasChanges ? "primary" : "secondary"}
+                onClick={handleSave}
+              >
+                {hasChanges ? "Save Changes*" : "Save"}
+              </Button>
             </div>
           </Panel>
 
