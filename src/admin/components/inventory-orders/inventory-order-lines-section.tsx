@@ -13,7 +13,7 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
 
   // Handle both orderlines (from API) and order_lines (from type)
   const orderLines = (inventoryOrder as any).orderlines || inventoryOrder.order_lines || [];
-
+  console.log(orderLines)
   return (
     <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -58,7 +58,7 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
                 <div className="flex items-center gap-3">
                   <div className="flex flex-1 flex-col overflow-hidden">
                     <span className="text-ui-fg-base font-medium">
-                      {inventoryItem.sku}
+                      {inventoryItem.title}
                     </span>
                     <div className="flex gap-2 mt-2">
                       <Badge size="small" className="text-ui-fg-subtle">Price: ${line.price}</Badge>
