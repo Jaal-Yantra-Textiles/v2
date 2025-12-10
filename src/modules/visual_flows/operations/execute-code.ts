@@ -1,6 +1,154 @@
 import { z } from "zod"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { interpolateVariables } from "./utils"
+import { loadPackage } from "./package-loader"
+
+// Import npm packages to expose in sandbox
+import lodash from "lodash"
+import dayjs from "dayjs"
+import validator from "validator"
+import * as crypto from "crypto"
+
+/**
+ * Blocked packages that should never be loaded (security)
+ */
+const BLOCKED_PACKAGES = new Set([
+  "child_process",
+  "fs",
+  "path",
+  "os",
+  "net",
+  "http",
+  "https",
+  "cluster",
+  "worker_threads",
+  "vm",
+  "repl",
+  "readline",
+  "process",
+  "module",
+  "require",
+])
+
+/**
+ * Built-in sandbox variables that are always available
+ */
+const BUILTIN_SANDBOX_VARS = new Set([
+  // Data access
+  "$input", "$last", "$trigger", "$context",
+  // Console
+  "console",
+  // Built-in JS
+  "JSON", "Date", "Math", "Array", "Object", "String", "Number", "Boolean",
+  "RegExp", "Map", "Set", "Promise", "Error", "TypeError", "ReferenceError",
+  // Utility functions
+  "parseInt", "parseFloat", "isNaN", "isFinite", "encodeURIComponent", 
+  "decodeURIComponent", "btoa", "atob", "setTimeout", "clearTimeout",
+  // Built-in packages
+  "_", "lodash", "dayjs", "uuid", "validator", "crypto", "fetch", "sleep",
+  // JS keywords that look like variables
+  "undefined", "null", "true", "false", "NaN", "Infinity",
+  // Common globals
+  "this", "arguments", "globalThis",
+])
+
+/**
+ * Extract potential variable references from code
+ * Only finds variables that are actually being READ, not defined
+ */
+function extractPotentialVariables(code: string): string[] {
+  // Remove comments and strings
+  let cleaned = code
+    .replace(/\/\/.*$/gm, "") // single line comments
+    .replace(/\/\*[\s\S]*?\*\//g, "") // multi-line comments
+    .replace(/`[\s\S]*?`/g, '""') // template literals -> empty string
+    .replace(/"[^"]*"/g, '""') // double-quoted strings
+    .replace(/'[^']*'/g, '""') // single-quoted strings
+  
+  // Remove object literal keys (word followed by colon, not preceded by ?)
+  // e.g., { processed: true } -> processed should not be flagged
+  cleaned = cleaned.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*:)/g, '$1""$3')
+  
+  // Remove property access (anything after a dot)
+  // e.g., response.data -> data should not be flagged
+  cleaned = cleaned.replace(/\.([a-zA-Z_$][a-zA-Z0-9_$]*)/g, '.""')
+  
+  // Find remaining identifiers
+  const identifierPattern = /(?<![.\w])([a-zA-Z_$][a-zA-Z0-9_$]*)/g
+  const matches = cleaned.match(identifierPattern) || []
+  
+  // Filter out JS keywords
+  const jsKeywords = new Set([
+    "const", "let", "var", "function", "return", "if", "else", "for", "while",
+    "do", "switch", "case", "break", "continue", "try", "catch", "finally",
+    "throw", "new", "typeof", "instanceof", "in", "of", "async", "await",
+    "class", "extends", "super", "import", "export", "default", "from",
+    "yield", "static", "get", "set", "delete", "void", "with", "debugger",
+  ])
+  
+  return [...new Set(matches)].filter(id => !jsKeywords.has(id) && id !== '""')
+}
+
+/**
+ * Validate code for potential issues before execution
+ */
+function validateCode(
+  code: string, 
+  availablePackages: string[]
+): { valid: boolean; errors: string[]; warnings: string[] } {
+  const errors: string[] = []
+  const warnings: string[] = []
+  
+  // Build set of all available variables
+  const availableVars = new Set([
+    ...BUILTIN_SANDBOX_VARS,
+    ...availablePackages.map(p => p.replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "")),
+  ])
+  
+  // Extract variables used in code
+  const usedVars = extractPotentialVariables(code)
+  
+  // Check for undefined variables
+  const potentiallyUndefined: string[] = []
+  for (const varName of usedVars) {
+    if (!availableVars.has(varName)) {
+      // Check if it might be a user-defined variable (declared in code)
+      const declPattern = new RegExp(`(?:const|let|var|function)\\s+${varName}\\b`)
+      if (!declPattern.test(code)) {
+        potentiallyUndefined.push(varName)
+      }
+    }
+  }
+  
+  // Report undefined variables as errors
+  if (potentiallyUndefined.length > 0) {
+    // Group by likely package names (contain underscore or common package patterns)
+    const likelyPackages = potentiallyUndefined.filter(v => 
+      v.includes("_") || 
+      ["axios", "moment", "cheerio", "lodash", "dayjs", "date_fns", "qs", "nanoid"].some(p => 
+        v.toLowerCase().includes(p.replace("-", "_"))
+      )
+    )
+    
+    if (likelyPackages.length > 0) {
+      errors.push(
+        `Undefined package(s): ${likelyPackages.join(", ")}. ` +
+        `Add them to the "NPM Packages" field.`
+      )
+    }
+    
+    const otherUndefined = potentiallyUndefined.filter(v => !likelyPackages.includes(v))
+    if (otherUndefined.length > 0 && otherUndefined.length <= 5) {
+      warnings.push(`Potentially undefined: ${otherUndefined.join(", ")}`)
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  }
+}
 
 /**
  * Execute Code Operation
@@ -33,6 +181,7 @@ export const executeCodeOperation: OperationDefinition = {
   optionsSchema: z.object({
     code: z.string().describe("JavaScript code to execute"),
     timeout: z.number().optional().default(5000).describe("Execution timeout in ms"),
+    packages: z.array(z.string()).optional().describe("Additional npm packages to load (must be whitelisted)"),
   }),
   
   defaultOptions: {
@@ -47,6 +196,7 @@ return {
   data
 }`,
     timeout: 5000,
+    packages: [],
   },
   
   execute: async (options, context: OperationContext): Promise<OperationResult> => {
@@ -56,8 +206,10 @@ return {
     try {
       const code = options.code || ""
       const timeout = options.timeout || 5000
+      const requestedPackages = options.packages || []
       
       console.log("[execute_code] Starting execution with code length:", code.length)
+      console.log("[execute_code] Requested packages:", requestedPackages)
       
       if (!code.trim()) {
         return {
@@ -66,8 +218,62 @@ return {
         }
       }
       
+      // Validate code before execution
+      const validation = validateCode(code, requestedPackages)
+      if (!validation.valid) {
+        return {
+          success: false,
+          error: `Code validation failed:\n${validation.errors.join("\n")}`,
+          data: { 
+            validationErrors: validation.errors,
+            validationWarnings: validation.warnings,
+          },
+        }
+      }
+      
+      // Log warnings if any
+      if (validation.warnings.length > 0) {
+        validation.warnings.forEach(w => logs.push(`[WARN] ${w}`))
+      }
+      
+      // Load requested external packages (from node_modules or auto-install)
+      const externalPackages: Record<string, any> = {}
+      const packageErrors: string[] = []
+      
+      for (const pkgName of requestedPackages) {
+        // Security check - block dangerous packages
+        const baseName = pkgName.split("/")[0].replace("@", "")
+        if (BLOCKED_PACKAGES.has(baseName) || BLOCKED_PACKAGES.has(pkgName)) {
+          return {
+            success: false,
+            error: `Package '${pkgName}' is blocked for security reasons.`,
+          }
+        }
+        
+        try {
+          // Load package (auto-installs if not present)
+          const pkg = await loadPackage(pkgName)
+          // Convert package name to valid JS identifier (e.g., "date-fns" -> "date_fns")
+          const varName = pkgName.replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "")
+          externalPackages[varName] = pkg
+          logs.push(`[INFO] Loaded package: ${pkgName}`)
+        } catch (err: any) {
+          console.warn(`[execute_code] Failed to load package '${pkgName}': ${err.message}`)
+          packageErrors.push(`${pkgName}: ${err.message}`)
+        }
+      }
+      
+      // If any packages failed to load, return error
+      if (packageErrors.length > 0) {
+        return {
+          success: false,
+          error: `Failed to load package(s):\n${packageErrors.join("\n")}`,
+          data: { packageErrors },
+        }
+      }
+      
       // Create a sandboxed execution environment
-      const sandbox = createSandbox(context.dataChain, logs)
+      const sandbox = createSandbox(context.dataChain, logs, externalPackages)
       
       console.log("[execute_code] Sandbox created with $last:", typeof context.dataChain.$last)
       
@@ -104,9 +310,56 @@ return {
 }
 
 /**
+ * Available npm packages in the sandbox
+ * These are exposed to user code for convenience
+ */
+export const AVAILABLE_PACKAGES = {
+  lodash: {
+    name: "lodash",
+    alias: "_",
+    description: "Utility library for arrays, objects, strings",
+    examples: ["_.map(arr, 'name')", "_.groupBy(arr, 'type')", "_.pick(obj, ['a', 'b'])"],
+  },
+  dayjs: {
+    name: "dayjs",
+    alias: "dayjs",
+    description: "Date/time manipulation library",
+    examples: ["dayjs().format('YYYY-MM-DD')", "dayjs(date).add(1, 'day')", "dayjs().diff(other, 'hours')"],
+  },
+  uuid: {
+    name: "uuid",
+    alias: "uuid",
+    description: "Generate and validate UUIDs",
+    examples: ["uuid.v4()", "uuid.validate('...')"],
+  },
+  validator: {
+    name: "validator",
+    alias: "validator",
+    description: "String validation and sanitization",
+    examples: ["validator.isEmail(str)", "validator.isURL(str)", "validator.escape(str)"],
+  },
+  crypto: {
+    name: "crypto",
+    alias: "crypto",
+    description: "Cryptographic utilities (hashing, UUIDs)",
+    examples: ["crypto.sha256(str)", "crypto.md5(str)", "crypto.randomUUID()"],
+  },
+  fetch: {
+    name: "fetch",
+    alias: "fetch",
+    description: "Make HTTP requests (10s timeout)",
+    examples: ["await fetch(url)", "await fetch(url, { method: 'POST', body: JSON.stringify(data) })"],
+  },
+}
+
+/**
  * Create a sandboxed environment for code execution
  */
-function createSandbox(dataChain: Record<string, any>, logs: string[]) {
+function createSandbox(
+  dataChain: Record<string, any>, 
+  logs: string[],
+  externalPackages: Record<string, any> = {}
+) {
   return {
     // Data chain access
     $input: { ...dataChain },
@@ -119,17 +372,35 @@ function createSandbox(dataChain: Record<string, any>, logs: string[]) {
     // Safe console
     console: {
       log: (...args: any[]) => {
-        logs.push(args.map(a => JSON.stringify(a)).join(" "))
+        logs.push(args.map(a => {
+          try {
+            return typeof a === 'string' ? a : JSON.stringify(a)
+          } catch {
+            return String(a)
+          }
+        }).join(" "))
       },
       error: (...args: any[]) => {
-        logs.push(`[ERROR] ${args.map(a => JSON.stringify(a)).join(" ")}`)
+        logs.push(`[ERROR] ${args.map(a => {
+          try {
+            return typeof a === 'string' ? a : JSON.stringify(a)
+          } catch {
+            return String(a)
+          }
+        }).join(" ")}`)
       },
       warn: (...args: any[]) => {
-        logs.push(`[WARN] ${args.map(a => JSON.stringify(a)).join(" ")}`)
+        logs.push(`[WARN] ${args.map(a => {
+          try {
+            return typeof a === 'string' ? a : JSON.stringify(a)
+          } catch {
+            return String(a)
+          }
+        }).join(" ")}`)
       },
     },
     
-    // Safe utilities
+    // Safe built-in utilities
     JSON,
     Date,
     Math,
@@ -150,47 +421,71 @@ function createSandbox(dataChain: Record<string, any>, logs: string[]) {
     isFinite,
     encodeURIComponent,
     decodeURIComponent,
+    btoa: (str: string) => Buffer.from(str).toString('base64'),
+    atob: (str: string) => Buffer.from(str, 'base64').toString('utf-8'),
     
-    // Lodash-like helpers
-    _: {
-      get: (obj: any, path: string, defaultValue?: any) => {
-        const keys = path.split(".")
-        let result = obj
-        for (const key of keys) {
-          if (result == null) return defaultValue
-          result = result[key]
-        }
-        return result ?? defaultValue
+    // ============ NPM PACKAGES ============
+    
+    // Lodash - full library (replaces custom _ helpers)
+    _: lodash,
+    lodash: lodash,
+    
+    // Day.js - date manipulation
+    dayjs: dayjs,
+    
+    // UUID - generate unique IDs (using Node's crypto)
+    uuid: {
+      v4: () => crypto.randomUUID(),
+      validate: (str: string) => {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        return uuidRegex.test(str)
       },
-      pick: (obj: any, keys: string[]) => {
-        const result: any = {}
-        for (const key of keys) {
-          if (key in obj) result[key] = obj[key]
-        }
-        return result
-      },
-      omit: (obj: any, keys: string[]) => {
-        const result = { ...obj }
-        for (const key of keys) {
-          delete result[key]
-        }
-        return result
-      },
-      groupBy: (arr: any[], key: string) => {
-        return arr.reduce((acc, item) => {
-          const k = item[key]
-          if (!acc[k]) acc[k] = []
-          acc[k].push(item)
-          return acc
-        }, {})
-      },
-      uniq: (arr: any[]) => [...new Set(arr)],
-      flatten: (arr: any[]) => arr.flat(),
-      sum: (arr: number[]) => arr.reduce((a, b) => a + b, 0),
-      avg: (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0,
-      min: (arr: number[]) => Math.min(...arr),
-      max: (arr: number[]) => Math.max(...arr),
     },
+    
+    // Validator - string validation
+    validator: validator,
+    
+    // Crypto helpers
+    crypto: {
+      randomUUID: () => crypto.randomUUID(),
+      hash: (algorithm: string, data: string) => {
+        return crypto.createHash(algorithm).update(data).digest('hex')
+      },
+      md5: (data: string) => crypto.createHash('md5').update(data).digest('hex'),
+      sha256: (data: string) => crypto.createHash('sha256').update(data).digest('hex'),
+      hmac: (algorithm: string, key: string, data: string) => {
+        return crypto.createHmac(algorithm, key).update(data).digest('hex')
+      },
+    },
+    
+    // ============ HELPER FUNCTIONS ============
+    
+    // Async fetch wrapper (limited)
+    fetch: async (url: string, options?: RequestInit) => {
+      // Only allow http/https
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        throw new Error('Only http:// and https:// URLs are allowed')
+      }
+      const response = await globalThis.fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(10000), // 10s timeout
+      })
+      return {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        json: () => response.json(),
+        text: () => response.text(),
+      }
+    },
+    
+    // Sleep helper
+    sleep: (ms: number) => new Promise(resolve => setTimeout(resolve, Math.min(ms, 5000))),
+    
+    // ============ EXTERNAL PACKAGES ============
+    // Dynamically loaded packages requested by user
+    ...externalPackages,
   }
 }
 

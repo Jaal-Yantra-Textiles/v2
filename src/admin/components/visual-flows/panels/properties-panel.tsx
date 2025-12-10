@@ -702,6 +702,8 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
         )
 
       case "execute_code":
+        const currentPackages: string[] = options.packages || []
+        
         return (
           <>
             <div>
@@ -710,6 +712,7 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
                 <CodeEditorModal
                   code={options.code || ""}
                   onChange={(code) => updateOption("code", code)}
+                  packages={currentPackages}
                 />
               </div>
               <Textarea
@@ -729,9 +732,60 @@ return {
 }`}
               />
               <Text className="text-xs text-ui-fg-subtle mt-1">
-                Available: <code className="bg-ui-bg-subtle px-1">$last</code>, <code className="bg-ui-bg-subtle px-1">$input</code>, <code className="bg-ui-bg-subtle px-1">$trigger</code>, <code className="bg-ui-bg-subtle px-1">console.log</code>
+                <strong>Built-in:</strong> <code className="bg-ui-bg-subtle px-1">_</code> (lodash), <code className="bg-ui-bg-subtle px-1">dayjs</code>, <code className="bg-ui-bg-subtle px-1">uuid</code>, <code className="bg-ui-bg-subtle px-1">validator</code>, <code className="bg-ui-bg-subtle px-1">crypto</code>, <code className="bg-ui-bg-subtle px-1">fetch</code>
               </Text>
             </div>
+            
+            {/* External Packages */}
+            <div>
+              <Label htmlFor="packages">NPM Packages</Label>
+              <Input
+                id="packages"
+                value={currentPackages.join(", ")}
+                onChange={(e) => {
+                  const value = e.target.value
+                  const packages = value
+                    .split(/[,\s]+/)
+                    .map(p => p.trim())
+                    .filter(p => p.length > 0)
+                  updateOption("packages", packages)
+                }}
+                placeholder="lodash, axios, moment..."
+              />
+              <Text className="text-xs text-ui-fg-subtle mt-1">
+                Enter any npm package name. Packages are auto-installed on first use.
+              </Text>
+              {currentPackages.length > 0 && (
+                <div className="mt-2">
+                  <Text className="text-xs text-ui-fg-muted">
+                    <strong>Will load:</strong>
+                  </Text>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {currentPackages.map((pkg) => (
+                      <span 
+                        key={pkg}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-ui-bg-subtle rounded border border-ui-border-base"
+                      >
+                        {pkg}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateOption("packages", currentPackages.filter(p => p !== pkg))
+                          }}
+                          className="text-ui-fg-muted hover:text-ui-fg-base"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <Text className="text-xs text-ui-fg-muted mt-1">
+                    Access as: {currentPackages.map(p => p.replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "")).join(", ")}
+                  </Text>
+                </div>
+              )}
+            </div>
+            
             <div>
               <Label htmlFor="timeout">Timeout (ms)</Label>
               <Input

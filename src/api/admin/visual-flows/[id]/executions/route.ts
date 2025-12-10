@@ -28,7 +28,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       {
         take: query.limit,
         skip: query.offset,
-        order: { started_at: "DESC" },
+        order: { created_at: "DESC" },
       }
     )
     
