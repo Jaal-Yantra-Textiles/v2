@@ -1,10 +1,14 @@
 import { UseFormReturn } from "react-hook-form";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper";
 import { DataGrid } from "../data-grid/data-grid";
 import { DataGridCurrencyCell, DataGridNumberCell } from "../data-grid/components";
 import { DataGridSelectCell } from "../data-grid/components/data-grid-select-cell";
+import { IconButton, Text, Tooltip } from "@medusajs/ui";
+import { Trash } from "@medusajs/icons";
+import { InventoryItem, RawMaterial } from "../../hooks/api/raw-materials";
+import { MaterialItemModalTrigger } from "../inventory-orders/material-item-modal";
 
 interface InventoryOrderLine {
   inventory_item_id: string;
@@ -19,8 +23,6 @@ interface InventoryOrderLinesGridProps<T> {
   defaultCurrencyCode: string;
   onAddNewRow: () => void;
   onRemoveRow?: (index: number) => void;
-  searchQuery?: string;
-  onSearchChange?: (q: string) => void;
   loading?: boolean;
 }
 
@@ -31,33 +33,43 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
   defaultCurrencyCode,
   onAddNewRow,
   onRemoveRow,
-  searchQuery,
-  onSearchChange,
   loading,
 }: InventoryOrderLinesGridProps<T>) => {
   // Create columns for the data grid using DataGrid helpers
   const columnHelper = createDataGridHelper<InventoryOrderLine, any>();
+  const { setError, clearErrors } = form;
 
-  const highlight = (text: string, query?: string) => {
-    if (!query) return text
-    if (!text) return text
-    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    const escaped = escapeRegExp(query)
-    const re = new RegExp(`(${escaped})`, "ig")
-    const parts = text.split(re)
-    if (parts.length === 1) return text
-    return (
-      <>
-        {parts.map((part, idx) =>
-          part.toLowerCase() === query.toLowerCase() ? (
-            <span key={idx} className="bg-ui-bg-subtle text-ui-fg-base rounded px-0.5">{part}</span>
-          ) : (
-            <span key={idx}>{part}</span>
-          )
-        )}
-      </>
-    )
-  }
+  useEffect(() => {
+    const duplicateIndexes = new Set<number>();
+    const seen = new Map<string, number[]>();
+
+    orderLines.forEach((line, index) => {
+      if (!line.inventory_item_id) {
+        return;
+      }
+      const list = seen.get(line.inventory_item_id) ?? [];
+      list.push(index);
+      seen.set(line.inventory_item_id, list);
+    });
+
+    seen.forEach((indexes) => {
+      if (indexes.length > 1) {
+        indexes.forEach((idx) => duplicateIndexes.add(idx));
+      }
+    });
+
+    orderLines.forEach((_, index) => {
+      const fieldName = `order_lines.${index}.inventory_item_id` as const;
+      if (duplicateIndexes.has(index)) {
+        setError(fieldName, {
+          type: "duplicate",
+          message: "Item already used in another row",
+        });
+      } else {
+        clearErrors(fieldName);
+      }
+    });
+  }, [orderLines, setError, clearErrors]);
 
   // Build options once per inventory change or search query change
   const options = useMemo(() => {
@@ -68,6 +80,22 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       const value = item?.inventory_item_id || inv?.id || item?.id
       return { label: rawLabel, value }
     })
+  }, [inventoryItems])
+
+  const inventoryItemMap = useMemo(() => {
+    const map = new Map<
+      string,
+      (InventoryItem & { raw_materials?: RawMaterial | null }) | null
+    >()
+    inventoryItems.forEach((item: any) => {
+      const inv = (item?.inventory_item ?? item) as InventoryItem | undefined
+      const raw = item?.raw_materials as RawMaterial | undefined
+      const value = item?.inventory_item_id || inv?.id || item?.id
+      if (value) {
+        map.set(value, inv ? { ...inv, raw_materials: raw } : null)
+      }
+    })
+    return map
   }, [inventoryItems])
 
   const columns: ColumnDef<InventoryOrderLine>[] = [
@@ -95,6 +123,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
               disabled: isOptionDisabled(option.value)
             }))}
             loading={loading}
+            searchable
           />
         );
       },
@@ -134,6 +163,49 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       },
       disableHiding: true,
     }),
+    columnHelper.column({
+      id: "actions",
+      name: "Actions",
+      header: "",
+      cell: (context: any) => {
+        if (!onRemoveRow) {
+          return null;
+        }
+
+        const inventoryItemId =
+          orderLines?.[context.row.index]?.inventory_item_id || ""
+        const inventoryItem = inventoryItemId
+          ? inventoryItemMap.get(inventoryItemId) || null
+          : null
+
+        const removeRow = () => {
+          onRemoveRow(context.row.index);
+        };
+
+        const disabled =
+          orderLines.length <= 1 &&
+          !orderLines.some((line) => line.inventory_item_id);
+
+        return (
+          <div className="flex items-center justify-center gap-1.5">
+            <MaterialItemModalTrigger item={inventoryItem} />
+            <Tooltip content="Remove row" side="left">
+              <IconButton
+                type="button"
+                size="small"
+                variant="transparent"
+                className="text-ui-fg-muted hover:text-ui-fg-base"
+                disabled={disabled}
+                onClick={removeRow}
+              >
+                <Trash />
+                <span className="sr-only">Remove row</span>
+              </IconButton>
+            </Tooltip>
+          </div>
+        );
+      },
+    }),
   ];
 
   // Increase widths for a more comfortable layout
@@ -147,6 +219,9 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       }
       if (col.id === "price") {
         return { ...col, size: 220, maxSize: 320 }
+      }
+      if (col.id === "actions") {
+        return { ...col, size: 120, maxSize: 140 }
       }
       return col
     })
@@ -184,6 +259,9 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
         state={form}
         onRemoveRow={onRemoveRow}
       />
+      <Text size="xsmall" className="text-ui-fg-muted mt-2">
+        Tip: use Delete to drop the last line, the eye icon to inspect details, or the trash icon to remove a specific row.
+      </Text>
     </div>
   );
 };

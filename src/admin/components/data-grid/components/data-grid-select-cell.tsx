@@ -1,9 +1,9 @@
-import { Select, clx } from "@medusajs/ui"
+import { Input, Select, clx } from "@medusajs/ui"
 import { Controller } from "react-hook-form"
 import { useDataGridCell, useDataGridCellError } from "../hooks"
 import { DataGridCellProps } from "../types"
 import { DataGridCellContainer } from "./data-grid-cell-container"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useDataGridContext } from "../context"
 
 interface DataGridSelectCellProps<TData, TValue = any>
@@ -11,15 +11,16 @@ interface DataGridSelectCellProps<TData, TValue = any>
   options: { label: React.ReactNode; value: string; disabled?: boolean }[]
   // Optional loading state to render a loading item
   loading?: boolean
-  // If true, will reset external query after select (deferred). Defaults to false to avoid bouncing.
-  resetQueryOnSelect?: boolean
+  searchable?: boolean
+  noResultsLabel?: string
 }
 
 export const DataGridSelectCell = <TData, TValue = any>({
   context,
   options,
   loading = false,
-  resetQueryOnSelect = false,
+  searchable = false,
+  noResultsLabel = "No results",
 }: DataGridSelectCellProps<TData, TValue>) => {
   const { field, control, renderProps } = useDataGridCell({
     context,
@@ -37,6 +38,7 @@ export const DataGridSelectCell = <TData, TValue = any>({
   const [open, setOpen] = useState(false)
   // Cache options to avoid list churn while loading (which can steal focus/close)
   const [displayOptions, setDisplayOptions] = useState(options)
+  const [filterQuery, setFilterQuery] = useState("")
 
   useEffect(() => {
     if (!loading) {
@@ -47,11 +49,25 @@ export const DataGridSelectCell = <TData, TValue = any>({
   // Reset open-related state when closing
   useEffect(() => {
     if (!open) {
-      // no-op currently
+      setFilterQuery("")
     }
   }, [open])
 
   const { setTrapActive } = useDataGridContext()
+
+  const filteredOptions = useMemo(() => {
+    if (!filterQuery.trim()) {
+      return displayOptions
+    }
+
+    const lower = filterQuery.toLowerCase()
+    return displayOptions.filter((option) => {
+      if (typeof option.label === "string") {
+        return option.label.toLowerCase().includes(lower)
+      }
+      return false
+    })
+  }, [displayOptions, filterQuery])
 
   return (
     <Controller
@@ -93,23 +109,39 @@ export const DataGridSelectCell = <TData, TValue = any>({
                  <Select.Value />
                </Select.Trigger>
                <Select.Content>
-                 {loading && (
-                   <Select.Item key="__loading" value="__loading" disabled>
-                     Loading...
-                   </Select.Item>
-                 )}
-                 {displayOptions.map((option) => (
-                   <Select.Item 
-                     key={option.value} 
-                     value={option.value}
-                     disabled={option.disabled}
-                   >
-                     {option.label}
-                   </Select.Item>
-                 ))}
-               </Select.Content>
-             </Select>
-           </DataGridCellContainer>
+                {searchable && (
+                  <div className="border-b border-ui-border-base px-3 py-2">
+                    <Input
+                      size="small"
+                      placeholder="Search"
+                      value={filterQuery}
+                      onChange={(event) => setFilterQuery(event.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                )}
+                {loading && (
+                  <Select.Item key="__loading" value="__loading" disabled>
+                    Loading...
+                  </Select.Item>
+                )}
+                {!loading && filteredOptions.length === 0 && (
+                  <Select.Item key="__no_results" value="__no_results" disabled>
+                    {noResultsLabel}
+                  </Select.Item>
+                )}
+                {filteredOptions.map((option) => (
+                  <Select.Item
+                    key={option.value}
+                    value={option.value}
+                    disabled={option.disabled}
+                  >
+                    {option.label}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </DataGridCellContainer>
         )
       }}
     />
