@@ -29,9 +29,6 @@ export const listSingleInventoryOrderStep = createStep(
       );
     }
     const order = orders[0];
-
-    console.log("Order:", JSON.stringify(order, null, 2));
-
     // Fetch stock location links and merge from/to locations
     const { data: links } = await query.graph({
       entity: (InventoryOrdersStockLocationsLink as any).entryPoint,
@@ -45,9 +42,6 @@ export const listSingleInventoryOrderStep = createStep(
         inventory_orders_id: input.id,
       },
     });
-
-    console.log("Links:", JSON.stringify(links, null, 2));
-
     // Build a map from the already-fetched order.stock_locations for richer objects
     const stockLocById: Record<string, any> = (order?.stock_locations || []).reduce(
       (acc: Record<string, any>, sl: any) => {

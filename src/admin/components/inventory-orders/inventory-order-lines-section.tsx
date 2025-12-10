@@ -13,7 +13,6 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
 
   // Handle both orderlines (from API) and order_lines (from type)
   const orderLines = (inventoryOrder as any).orderlines || inventoryOrder.order_lines || [];
-  console.log(orderLines)
   return (
     <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
