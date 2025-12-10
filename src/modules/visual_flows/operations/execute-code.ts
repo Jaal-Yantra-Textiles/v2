@@ -57,6 +57,8 @@ return {
       const code = options.code || ""
       const timeout = options.timeout || 5000
       
+      console.log("[execute_code] Starting execution with code length:", code.length)
+      
       if (!code.trim()) {
         return {
           success: false,
@@ -67,35 +69,35 @@ return {
       // Create a sandboxed execution environment
       const sandbox = createSandbox(context.dataChain, logs)
       
-      // Wrap code in an async function to support await
-      const wrappedCode = `
-        (async function() {
-          ${code}
-        })()
-      `
+      console.log("[execute_code] Sandbox created with $last:", typeof context.dataChain.$last)
       
-      // Execute with timeout
+      // Execute with timeout (code is wrapped in async function inside runInSandbox)
       const result = await executeWithTimeout(
-        () => runInSandbox(wrappedCode, sandbox),
+        () => runInSandbox(code, sandbox),
         timeout
       )
       
       const duration = Date.now() - startTime
       
+      console.log("[execute_code] Code executed in", duration, "ms")
+      console.log("[execute_code] Result type:", typeof result)
+      console.log("[execute_code] Result value:", JSON.stringify(result)?.slice(0, 200))
+      
+      // If result is undefined, the code didn't return anything
+      // Return the result directly (not wrapped) so it's usable by next operation
+      const outputData = result !== undefined ? result : { _noReturn: true, logs }
+      
       return {
         success: true,
-        data: {
-          result,
-          logs,
-          duration_ms: duration,
-        },
+        data: outputData,
       }
     } catch (error: any) {
+      console.error("[execute_code] Error:", error.message)
       return {
         success: false,
         error: `Code execution failed: ${error.message}`,
         errorStack: error.stack,
-        data: { logs },
+        data: { logs, error: error.message },
       }
     }
   },
@@ -204,14 +206,15 @@ async function runInSandbox(code: string, sandbox: Record<string, any>): Promise
   // Note: This is not a true sandbox, but prevents access to global scope
   const fn = new Function(...paramNames, `
     "use strict";
-    return ${code}
+    return (async function() {
+      ${code}
+    })();
   `)
   
-  // Execute and ensure we always return a Promise
-  const result = fn(...paramValues)
+  // Execute and await the result
+  const result = await fn(...paramValues)
   
-  // If result is a Promise, await it; otherwise return as-is
-  return Promise.resolve(result)
+  return result
 }
 
 /**

@@ -49,6 +49,7 @@
     "@medusajs/medusa": "2.12.1",
     "@medusajs/medusa-oas-cli": "^2.12.1",
     "@medusajs/workflows-sdk": "2.12.1",
+    "@monaco-editor/react": "^4.7.0",
     "@openrouter/ai-sdk-provider": "^1.1.2",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.205.0",

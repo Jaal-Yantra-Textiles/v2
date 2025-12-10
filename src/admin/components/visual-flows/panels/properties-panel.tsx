@@ -3,6 +3,7 @@ import { XMark, Trash } from "@medusajs/icons"
 import { Node } from "@xyflow/react"
 import { useState, useEffect, useMemo } from "react"
 import { useFlowMetadata, EntityMetadata } from "../../../hooks/api/visual-flows"
+import { CodeEditorModal } from "../code-editor-modal"
 
 interface PropertiesPanelProps {
   node: Node
@@ -45,6 +46,12 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
     setOptions(prev => {
       const newOptions = { ...prev, [key]: value }
       setAdvancedJson(JSON.stringify(newOptions, null, 2))
+      // Auto-apply changes to parent
+      onUpdate({
+        label,
+        operationKey,
+        options: newOptions,
+      })
       return newOptions
     })
   }
@@ -493,6 +500,7 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
         )
 
       case "http_request":
+        const showBody = ["POST", "PUT", "PATCH"].includes(options.method || "GET")
         return (
           <>
             <div>
@@ -508,6 +516,7 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
                   <Select.Item value="GET">GET</Select.Item>
                   <Select.Item value="POST">POST</Select.Item>
                   <Select.Item value="PUT">PUT</Select.Item>
+                  <Select.Item value="PATCH">PATCH</Select.Item>
                   <Select.Item value="DELETE">DELETE</Select.Item>
                 </Select.Content>
               </Select>
@@ -519,6 +528,39 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
                 value={options.url || ""}
                 onChange={(e) => updateOption("url", e.target.value)}
                 placeholder="https://api.example.com/endpoint"
+              />
+            </div>
+            {showBody && (
+              <div>
+                <Label htmlFor="body">Request Body (JSON)</Label>
+                <Textarea
+                  id="body"
+                  value={typeof options.body === "string" ? options.body : JSON.stringify(options.body || {}, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      const parsed = JSON.parse(e.target.value)
+                      updateOption("body", parsed)
+                    } catch {
+                      // Keep as string if not valid JSON
+                      updateOption("body", e.target.value)
+                    }
+                  }}
+                  rows={4}
+                  className="font-mono text-xs"
+                  placeholder={'{\n  "key": "{{ $last.value }}"\n}'}
+                />
+                <Text className="text-xs text-ui-fg-subtle mt-1">
+                  Leave empty to auto-send <code className="bg-ui-bg-subtle px-1">$last</code> as body
+                </Text>
+              </div>
+            )}
+            <div>
+              <Label htmlFor="timeout">Timeout (ms)</Label>
+              <Input
+                id="timeout"
+                type="number"
+                value={options.timeout_ms || 30000}
+                onChange={(e) => updateOption("timeout_ms", parseInt(e.target.value) || 30000)}
               />
             </div>
           </>
@@ -663,12 +705,18 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
         return (
           <>
             <div>
-              <Label htmlFor="code">JavaScript Code</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label htmlFor="code">JavaScript Code</Label>
+                <CodeEditorModal
+                  code={options.code || ""}
+                  onChange={(code) => updateOption("code", code)}
+                />
+              </div>
               <Textarea
                 id="code"
                 value={options.code || ""}
                 onChange={(e) => updateOption("code", e.target.value)}
-                rows={12}
+                rows={8}
                 className="font-mono text-xs"
                 placeholder={`// Access previous output with $last
 // Access all data with $input

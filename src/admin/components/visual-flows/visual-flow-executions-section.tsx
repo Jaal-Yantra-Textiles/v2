@@ -270,8 +270,10 @@ const ExecutionDetailDrawer = ({
 }
 
 export const VisualFlowExecutionsSection = ({ flow }: VisualFlowExecutionsSectionProps) => {
-  const { data, isLoading, refetch } = useVisualFlowExecutions(flow.id, { limit: 5 })
+  const [limit, setLimit] = useState(10)
+  const { data, isLoading, refetch } = useVisualFlowExecutions(flow.id, { limit })
   const executions = data?.executions || []
+  const totalCount = data?.count || 0
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
 
   return (
@@ -340,14 +342,14 @@ export const VisualFlowExecutionsSection = ({ flow }: VisualFlowExecutionsSectio
                       </td>
                       <td className="px-4 py-3">
                         <Text size="small" className="text-ui-fg-base">
-                          {execution.started_at 
-                            ? new Date(execution.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                          {(execution.started_at || execution.created_at)
+                            ? new Date(execution.started_at || execution.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                             : "-"}
                         </Text>
                       </td>
                       <td className="px-4 py-3">
                         <Text size="small" className="text-ui-fg-subtle font-mono">
-                          {formatDuration(execution.started_at, execution.completed_at)}
+                          {formatDuration(execution.started_at || execution.created_at, execution.completed_at)}
                         </Text>
                       </td>
                       <td className="px-4 py-3 overflow-hidden">
@@ -366,6 +368,24 @@ export const VisualFlowExecutionsSection = ({ flow }: VisualFlowExecutionsSectio
                   ))}
                 </tbody>
               </table>
+              
+              {/* Load More / Show count */}
+              {executions.length > 0 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-ui-border-base">
+                  <Text size="small" className="text-ui-fg-muted">
+                    Showing {executions.length} of {totalCount} executions
+                  </Text>
+                  {executions.length < totalCount && (
+                    <Button 
+                      variant="transparent" 
+                      size="small"
+                      onClick={() => setLimit(prev => prev + 10)}
+                    >
+                      Load More
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

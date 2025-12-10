@@ -75,6 +75,8 @@ const VisualFlowsPage = () => {
     q: search || undefined,
     ...(filtering.status ? { status: filtering.status as any } : {}),
   })
+
+  console.log(data)
   const deleteFlow = useDeleteVisualFlow()
   const duplicateFlow = useDuplicateVisualFlow()
 

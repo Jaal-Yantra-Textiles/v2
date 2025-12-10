@@ -24,6 +24,7 @@ import { OperationsPanel } from "./panels/operations-panel"
 import { PropertiesPanel } from "./panels/properties-panel"
 import { TriggerNode } from "./nodes/trigger-node"
 import { OperationNode } from "./nodes/operation-node"
+import { StackedModalProvider } from "../modal/stacked-modal/stacked-modal-provider"
 
 // Custom node types
 const nodeTypes: NodeTypes = {
@@ -226,7 +227,11 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
     console.log("[FlowEditor] Saving flow:", {
       totalNodes: nodes.length,
       operationNodes: nodes.filter(n => n.type === "operation").length,
-      operations: operations.map(o => ({ key: o.operation_key, type: o.operation_type })),
+      operations: operations.map(o => ({ 
+        key: o.operation_key, 
+        type: o.operation_type,
+        options: o.options,
+      })),
       connections: connections.map(c => ({ source: c.source_id, target: c.target_id })),
     })
 
@@ -334,13 +339,15 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
       {/* Properties Panel (Right Sidebar) */}
       {selectedNode && (
         <div className="w-80 border-l bg-ui-bg-subtle overflow-y-auto">
-          <PropertiesPanel
-            node={selectedNode}
-            flowId={flow.id}
-            onUpdate={(data: Record<string, any>) => handleNodeUpdate(selectedNode.id, data)}
-            onDelete={() => handleDeleteNode(selectedNode.id)}
-            onClose={() => setSelectedNode(null)}
-          />
+          <StackedModalProvider onOpenChange={() => {}}>
+            <PropertiesPanel
+              node={selectedNode}
+              flowId={flow.id}
+              onUpdate={(data: Record<string, any>) => handleNodeUpdate(selectedNode.id, data)}
+              onDelete={() => handleDeleteNode(selectedNode.id)}
+              onClose={() => setSelectedNode(null)}
+            />
+          </StackedModalProvider>
         </div>
       )}
     </div>

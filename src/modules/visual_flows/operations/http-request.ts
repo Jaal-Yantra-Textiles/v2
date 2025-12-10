@@ -29,7 +29,22 @@ export const httpRequestOperation: OperationDefinition = {
       // Interpolate variables
       const url = interpolateString(options.url, context.dataChain)
       const headers = interpolateVariables(options.headers || {}, context.dataChain)
-      const body = options.body ? interpolateVariables(options.body, context.dataChain) : undefined
+      
+      // Determine body: use explicit body option, or fall back to $last for POST/PUT/PATCH
+      let body: any = undefined
+      if (options.body) {
+        body = interpolateVariables(options.body, context.dataChain)
+      } else if (["POST", "PUT", "PATCH"].includes(options.method) && context.dataChain.$last) {
+        // Auto-pass $last as body for POST/PUT/PATCH if no explicit body
+        body = context.dataChain.$last
+      }
+      
+      console.log("[http_request] Making request:", {
+        method: options.method,
+        url,
+        hasBody: !!body,
+        bodyPreview: body ? JSON.stringify(body).slice(0, 100) : null,
+      })
       
       // Create abort controller for timeout
       const controller = new AbortController()
@@ -48,14 +63,31 @@ export const httpRequestOperation: OperationDefinition = {
         
         clearTimeout(timeoutId)
         
-        // Try to parse response as JSON, fallback to text
+        // Get response text first, then try to parse as JSON
+        const responseText = await response.text()
         let responseData: any
-        const contentType = response.headers.get("content-type")
-        if (contentType?.includes("application/json")) {
-          responseData = await response.json()
+        
+        if (responseText) {
+          const contentType = response.headers.get("content-type")
+          if (contentType?.includes("application/json")) {
+            try {
+              responseData = JSON.parse(responseText)
+            } catch {
+              // JSON parse failed, use text
+              responseData = responseText
+            }
+          } else {
+            responseData = responseText
+          }
         } else {
-          responseData = await response.text()
+          // Empty response
+          responseData = null
         }
+        
+        console.log("[http_request] Response:", {
+          status: response.status,
+          hasData: responseData !== null,
+        })
         
         return {
           success: response.ok,
@@ -79,6 +111,7 @@ export const httpRequestOperation: OperationDefinition = {
         throw fetchError
       }
     } catch (error: any) {
+      console.error("[http_request] Error:", error.message)
       return {
         success: false,
         error: error.message,

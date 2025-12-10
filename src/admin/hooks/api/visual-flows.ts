@@ -101,8 +101,11 @@ export interface VisualFlowExecution {
   data_chain: Record<string, any>
   started_at: string | null
   completed_at: string | null
+  created_at: string
+  updated_at: string
   error: string | null
   triggered_by: string | null
+  metadata?: Record<string, any>
   logs?: VisualFlowExecutionLog[]
 }
 

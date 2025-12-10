@@ -268,11 +268,27 @@ class VisualFlowService extends MedusaService({
       completed_at?: Date
     }
   ) {
-    return this.updateVisualFlowExecutions({
+    const updateData: any = {
       id: executionId,
       status,
       ...updates,
-    })
+    }
+    
+    // Set started_at when transitioning to running
+    if (status === "running") {
+      updateData.started_at = new Date()
+      console.log(`[updateExecutionStatus] Setting started_at for execution ${executionId}:`, updateData.started_at)
+    }
+    
+    // Set completed_at when transitioning to completed/failed/cancelled
+    if (["completed", "failed", "cancelled"].includes(status) && !updates?.completed_at) {
+      updateData.completed_at = new Date()
+      console.log(`[updateExecutionStatus] Setting completed_at for execution ${executionId}:`, updateData.completed_at)
+    }
+    
+    console.log(`[updateExecutionStatus] Updating execution ${executionId} with:`, JSON.stringify(updateData, null, 2))
+    
+    return this.updateVisualFlowExecutions(updateData)
   }
 
   /**
