@@ -1,3 +1,10 @@
+## [7.3.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.5...v7.3.6) (2025-12-10)
+
+
+### Bug Fixes
+
+* **api:** Fixed operations db issues with HTTP req and code editor ([0793223](https://github.com/Jaal-Yantra-Textiles/v2/commit/07932232f332bc09f74ec59633fcbdb3e62f5f9d))
+
 ## [7.3.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.4...v7.3.5) (2025-12-09)
 
 ## [7.3.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.3...v7.3.4) (2025-12-09)
