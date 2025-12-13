@@ -106,9 +106,9 @@ const CoreRouteSection = () => {
 }
 
 const Header = ({ partner }: { partner: PartnerDetails | null }) => {
-  const companyName = partner?.name || "JYT Partner Space"
+  const companyName = partner?.store_name || partner?.name || "JYT Partner Space"
   const companyHandle = partner?.handle
-  const fallback = partner?.name?.[0] || "J"
+  const fallback = partner?.store_name?.[0] || partner?.name?.[0] || "J"
 
   return (
     <div className="flex h-14 items-center justify-between px-3 overflow-visible">
@@ -158,6 +158,7 @@ interface Admin {
 }
 
 interface PartnerDetails {
+  store_name?: string | null
   name: string
   handle: string | null
   admins: Admin[]

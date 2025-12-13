@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Heading, Text, Button, Checkbox } from "@medusajs/ui";
 import { OnboardingModal } from "../onboarding/onboarding-modal";
 
@@ -24,6 +24,33 @@ const ActivityList = [
 
 const Setup = ({ partnerId }: { partnerId: string }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const storageKey = useMemo(() => {
+    return partnerId ? `partner_onboarding_${partnerId}` : null
+  }, [partnerId])
+
+  useEffect(() => {
+    if (!storageKey) {
+      return
+    }
+
+    try {
+      const raw = localStorage.getItem(storageKey)
+      if (!raw) {
+        setIsModalOpen(true)
+        return
+      }
+
+      const parsed = JSON.parse(raw)
+      const completed = Boolean(parsed?.completed)
+      const skipped = Boolean(parsed?.skipped)
+      if (!completed && !skipped) {
+        setIsModalOpen(true)
+      }
+    } catch {
+      setIsModalOpen(true)
+    }
+  }, [storageKey])
 
   return (
     <div className="flex w-full justify-center">

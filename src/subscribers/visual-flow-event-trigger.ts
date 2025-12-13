@@ -90,6 +90,17 @@ export default async function visualFlowEventTriggerHandler({
 export const config: SubscriberConfig = {
   event: [
     // === Core Medusa Events ===
+
+    // Cart events
+    "cart.created",
+    "cart.updated",
+    "cart.region_updated",
+    "cart.customer_transferred",
+
+    // Customer events 
+    "customer.created",
+    "customer.updated",
+    "customer.deleted",
     
     // Order events
     "order.created",

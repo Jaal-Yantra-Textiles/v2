@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Button,
   FocusModal,
@@ -40,11 +40,33 @@ export function OnboardingModal({ partnerId, isOpen, onClose }: OnboardingModalP
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const storageKey = useMemo(() => {
+    return partnerId ? `partner_onboarding_${partnerId}` : null
+  }, [partnerId])
+
+  const persistState = (patch: Record<string, unknown>) => {
+    if (!storageKey) {
+      return
+    }
+    try {
+      const raw = localStorage.getItem(storageKey)
+      const existing = raw ? JSON.parse(raw) : {}
+      localStorage.setItem(storageKey, JSON.stringify({ ...existing, ...patch }))
+    } catch {
+      localStorage.setItem(storageKey, JSON.stringify({ ...patch }))
+    }
+  }
+
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setLogo(e.target.files[0]);
     }
   };
+
+  const handleSkip = () => {
+    persistState({ skipped: true, completed: false, skipped_at: new Date().toISOString() })
+    onClose()
+  }
 
   const handlePersonChange = (index: number, field: keyof Person, value: string) => {
     const updatedPeople = [...people];
@@ -94,6 +116,8 @@ export function OnboardingModal({ partnerId, isOpen, onClose }: OnboardingModalP
       if (!response.ok) {
         throw new Error('Failed to submit onboarding data');
       }
+
+      persistState({ completed: true, skipped: false, completed_at: new Date().toISOString() })
       
       setSuccess(true);
       setTimeout(() => {
@@ -121,7 +145,7 @@ export function OnboardingModal({ partnerId, isOpen, onClose }: OnboardingModalP
   ];
 
   return (
-    <FocusModal open={isOpen} onOpenChange={onClose}>
+    <FocusModal open={isOpen} onOpenChange={(open) => (!open ? onClose() : null)}>
       <FocusModal.Content className="max-w-2xl w-full mx-auto my-8">
         <FocusModal.Header>
           <Heading>Partner Onboarding</Heading>
@@ -216,16 +240,14 @@ export function OnboardingModal({ partnerId, isOpen, onClose }: OnboardingModalP
             </ProgressTabs.Content>
           </FocusModal.Body>
           <FocusModal.Footer>
-            <div className="flex items-center justify-between w-full">
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button variant="secondary" onClick={handleSkip}>
+                Skip
+              </Button>
               {currentStep === 'logo' ? (
-                <>
-                  <Button variant="secondary" onClick={onClose}>
-                    Cancel
-                  </Button>
-                  <Button onClick={() => setCurrentStep('people')}>
-                    Next
-                  </Button>
-                </>
+                <Button onClick={() => setCurrentStep('people')}>
+                  Next
+                </Button>
               ) : (
                 <>
                   <Button variant="secondary" onClick={() => setCurrentStep('logo')}>

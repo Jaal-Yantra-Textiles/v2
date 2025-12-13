@@ -147,7 +147,7 @@ export function CodeEditorModal({
           Open Editor
         </Button>
       </StackedFocusModal.Trigger>
-      <StackedFocusModal.Content className="flex flex-col">
+      <StackedFocusModal.Content className="flex h-[calc(100vh-3rem)] max-h-[calc(100vh-3rem)] flex-col">
         <StackedFocusModal.Header>
           <StackedFocusModal.Title>Edit JavaScript Code</StackedFocusModal.Title>
           <StackedFocusModal.Description>
@@ -169,32 +169,34 @@ export function CodeEditorModal({
           </StackedFocusModal.Description>
         </StackedFocusModal.Header>
 
-        <div className="h-[100vh] overflow-hidden">
-          <Editor
-            height="100%"
-            defaultLanguage="typescript"
-            path="file:///sandbox-code.ts"
-            value={localCode}
-            onChange={(value) => setLocalCode(value || "")}
-            beforeMount={handleEditorWillMount}
-            onValidate={handleEditorValidation}
-            theme="vs-dark"
-            options={{
-              minimap: { enabled: false },
-              fontSize: 14,
-              lineNumbers: "on",
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: 2,
-              wordWrap: "on",
-              padding: { top: 16, bottom: 16 },
-              suggestOnTriggerCharacters: true,
-              quickSuggestions: true,
-              folding: true,
-              bracketPairColorization: { enabled: true },
-            }}
-          />
-        </div>
+        <StackedFocusModal.Body className="flex-1 overflow-hidden px-6 py-4">
+          <div className="h-full overflow-hidden rounded-md border border-ui-border-base">
+            <Editor
+              height="100%"
+              defaultLanguage="typescript"
+              path="file:///sandbox-code.ts"
+              value={localCode}
+              onChange={(value) => setLocalCode(value || "")}
+              beforeMount={handleEditorWillMount}
+              onValidate={handleEditorValidation}
+              theme="vs-dark"
+              options={{
+                minimap: { enabled: false },
+                fontSize: 14,
+                lineNumbers: "on",
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                wordWrap: "on",
+                padding: { top: 16, bottom: 16 },
+                suggestOnTriggerCharacters: true,
+                quickSuggestions: true,
+                folding: true,
+                bracketPairColorization: { enabled: true },
+              }}
+            />
+          </div>
+        </StackedFocusModal.Body>
 
         <StackedFocusModal.Footer>
           <div className="flex w-full flex-col gap-2">

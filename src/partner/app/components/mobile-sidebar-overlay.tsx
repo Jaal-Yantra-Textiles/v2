@@ -13,6 +13,7 @@ type Admin = {
 }
 
 type PartnerDetails = {
+  store_name?: string | null
   name: string
   handle: string | null
   admins: Admin[]

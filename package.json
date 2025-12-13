@@ -1,6 +1,7 @@
 {
   "name": "jyt-commerce-api",
   "version": "7.3.6",
+  "private": true,
   "description": "A starter for Medusa projects extended to be used as a core production modules for textiles.",
   "author": "Medusa (https://medusajs.com) and JYT (https://jaalyantra.in)",
   "license": "MIT",
@@ -11,6 +12,9 @@
     "ecommerce",
     "headless",
     "medusa"
+  ],
+  "workspaces": [
+    "src/partnerUI"
   ],
   "scripts": {
     "build": "medusa build && yarn run resolve:aliases",
@@ -37,6 +41,7 @@
     "@faker-js/faker": "^9.7.0",
     "@floating-ui/react": "^0.27.14",
     "@hookform/resolvers": "^5.0.1",
+    "@hookform/error-message": "^2.0.1",
     "@mastra/core": "^0.0.0-ai-v5-20250801192614",
     "@mastra/loggers": "latest",
     "@mastra/memory": "^0.0.0-ai-v5-20250801192614",

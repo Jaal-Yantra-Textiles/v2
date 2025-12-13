@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { FEEDBACK_MODULE } from "../../modules/feedback";
 import FeedbackService from "../../modules/feedback/service";
+import { emitEventStep } from "@medusajs/medusa/core-flows";
 
 export type CreateFeedbackStepInput = {
   rating: "one" | "two" | "three" | "four" | "five";
@@ -37,6 +38,12 @@ export const createFeedbackWorkflow = createWorkflow(
   "create-feedback",
   (input: CreateFeedbackWorkflowInput) => {
     const result = createFeedbackStep(input);
+    emitEventStep({
+      eventName: 'feedback.feedback.created',
+      data: {
+        id: result.id
+      }
+    })
     return new WorkflowResponse(result);
   }
 );

@@ -227,6 +227,211 @@ export async function getPartnerPayments() {
   return (json?.payments || []) as PartnerPayment[]
 }
 
+// Stores & Products helpers
+export type PartnerCurrency = {
+  code: string
+  symbol?: string | null
+  name?: string | null
+  includes_tax?: boolean | null
+}
+
+export type PartnerStoreSummary = {
+  id: string
+  name: string
+  handle?: string | null
+  default_sales_channel_id?: string | null
+  default_region_id?: string | null
+  default_location_id?: string | null
+  supported_currencies?: Array<{ currency_code: string; is_default?: boolean }>
+  metadata?: Record<string, unknown> | null
+}
+
+export type PartnerStoreProductLink = {
+  sales_channel_id: string
+  product_id: string
+  product?: Record<string, unknown>
+}
+
+type PartnerStoreCreatePayload = {
+  store: {
+    name: string
+    supported_currencies: Array<{ currency_code: string; is_default?: boolean }>
+    metadata?: Record<string, unknown>
+  }
+  sales_channel?: {
+    name?: string
+    description?: string
+  }
+  region: {
+    name: string
+    currency_code: string
+    countries: string[]
+    payment_providers?: string[]
+    metadata?: Record<string, unknown>
+  }
+  location: {
+    name: string
+    address: {
+      address_1: string
+      address_2?: string | null
+      city?: string | null
+      province?: string | null
+      postal_code?: string | null
+      country_code: string
+    }
+    metadata?: Record<string, unknown>
+  }
+}
+
+type PartnerProductCreatePayload = {
+  store_id: string
+  product: Record<string, unknown>
+}
+
+export async function getPartnerCurrencies(params?: { limit?: number; offset?: number }) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+
+  const limit = params?.limit ?? 50
+  const offset = params?.offset ?? 0
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+  const qs = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  })
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/currencies?${qs.toString()}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  await enforceAuthOrRedirect(res)
+
+  if (!res.ok) {
+    console.error("Failed to fetch partner currencies:", await res.text())
+    return { currencies: [] as PartnerCurrency[], count: 0, limit, offset }
+  }
+
+  const json = await res.json()
+  return {
+    currencies: (json?.currencies || []) as PartnerCurrency[],
+    count: json?.count || 0,
+    limit: json?.limit ?? limit,
+    offset: json?.offset ?? offset,
+  }
+}
+
+export async function getPartnerStores() {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/stores`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  await enforceAuthOrRedirect(res)
+
+  if (!res.ok) {
+    console.error("Failed to fetch partner stores:", await res.text())
+    return { partner_id: null as string | null, stores: [] as PartnerStoreSummary[], count: 0 }
+  }
+
+  const json = await res.json()
+  return {
+    partner_id: json?.partner_id ?? null,
+    stores: (json?.stores || []) as PartnerStoreSummary[],
+    count: json?.count || 0,
+  }
+}
+
+export async function createPartnerStore(payload: PartnerStoreCreatePayload) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/stores`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+  await enforceAuthOrRedirect(res)
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to create store")
+  }
+
+  return await res.json()
+}
+
+export async function listPartnerStoreProducts(storeId: string) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/stores/${storeId}/products`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  await enforceAuthOrRedirect(res)
+
+  if (!res.ok) {
+    console.error("Failed to list store products:", await res.text())
+    return { products: [] as PartnerStoreProductLink[], count: 0, store_id: storeId }
+  }
+
+  const json = await res.json()
+  return {
+    partner_id: json?.partner_id ?? null,
+    store_id: json?.store_id ?? storeId,
+    products: (json?.products || []) as PartnerStoreProductLink[],
+    count: json?.count || 0,
+  }
+}
+
+export async function createPartnerProduct(payload: PartnerProductCreatePayload) {
+  const token = await getAuthCookie()
+  if (!token) redirect("/login")
+
+  const MEDUSA_BACKEND_URL =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  const res = await fetch(`${MEDUSA_BACKEND_URL}/partners/products`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+  await enforceAuthOrRedirect(res)
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || "Failed to create product")
+  }
+
+  return await res.json()
+}
+
 export type PartnerPerson = {
   id: string
   first_name?: string | null

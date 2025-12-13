@@ -113,21 +113,37 @@ import {
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
   return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
+    req.scope.resolve<ConfigModule>("configModule")
 
-    const configModule: ConfigModule = req.scope.resolve("configModule");
-    
-    // Merge provided options with default CORS settings
     const defaultOptions = {
       origin: parseCorsOrigins(process.env.WEB_CORS as string),
       credentials: true,
-    };
+    }
 
-   
+    const options = { ...defaultOptions, ...corsOptions }
+    return cors(options)(req, res, next)
+  }
+}
 
-    const options = { ...defaultOptions, ...corsOptions };
-    return cors(options)(req, res, next);
-  };
-};
+const createCorsPartnerMiddleware = (corsOptions?: cors.CorsOptions) => {
+  return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
+    req.scope.resolve<ConfigModule>("configModule")
+
+    const partnerOrigins =
+      process.env.PARTNER_CORS ||
+      process.env.AUTH_CORS ||
+      process.env.ADMIN_CORS ||
+      process.env.WEB_CORS ||
+      ""
+
+    const defaultOptions = {
+      origin: parseCorsOrigins(partnerOrigins),
+      credentials: true,
+    }
+    const options = { ...defaultOptions, ...corsOptions }
+    return cors(options)(req, res, next)
+  }
+}
 
 // Configure multer for small/CSV uploads (memory) - safe small limit
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }})
@@ -228,27 +244,26 @@ export default defineMiddlewares({
       bodyParser: false, // Disable default JSON body parser for this route
     },
     {
-      matcher: "/partners",
-      method: "POST",
+      matcher: "/partners*",
       middlewares: [
-        authenticate("partner", ["session", "bearer"], {
-          allowUnregistered: true,
-        }),
-        validateAndTransformBody(wrapSchema(partnerSchema)),
+        createCorsPartnerMiddleware(),
       ],
     },
     {
       matcher: "/partners/details",
       method: "GET",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
+
     },
 
     {
       matcher: "/partners/update",
       method: "PUT",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(partnerSchema)),
       ],
@@ -258,6 +273,7 @@ export default defineMiddlewares({
       matcher: "/partners/:id",
       method: "POST",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(partnerPeopleSchema)),
       ],
@@ -266,6 +282,7 @@ export default defineMiddlewares({
       matcher: "/partners/:id",
       method: "GET",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -273,6 +290,7 @@ export default defineMiddlewares({
       matcher: "/partners/tasks",
       method: "GET",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -280,6 +298,7 @@ export default defineMiddlewares({
       matcher: "/partners/tasks/:taskId/accept",
       method: "POST",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -287,6 +306,7 @@ export default defineMiddlewares({
       matcher: "/partners/tasks/:taskId/finish",
       method: "POST",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -295,6 +315,7 @@ export default defineMiddlewares({
       matcher: "/partners/assigned-tasks",
       method: "GET",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -302,6 +323,7 @@ export default defineMiddlewares({
       matcher: "/partners/assigned-tasks/:taskId/accept",
       method: "POST",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -309,6 +331,7 @@ export default defineMiddlewares({
       matcher: "/partners/assigned-tasks/:taskId/finish",
       method: "POST",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -317,6 +340,7 @@ export default defineMiddlewares({
       matcher: "/partners/assigned-tasks/:taskId/comments",
       method: "POST",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -324,6 +348,7 @@ export default defineMiddlewares({
       matcher: "/partners/assigned-tasks/:taskId/comments",
       method: "GET",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -331,6 +356,7 @@ export default defineMiddlewares({
       matcher: "/partners/assigned-tasks/:taskId/subtasks",
       method: "GET",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -338,22 +364,40 @@ export default defineMiddlewares({
       matcher: "/partners/assigned-tasks/:taskId/subtasks/:subtaskId/complete",
       method: "POST",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
-
+    {
+      matcher: "/partners/currencies",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ['session', 'bearer'])
+      ]
+    },
     {
       matcher: "/partners/stores",
       method: "POST",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerCreateStoreReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
       ],
     },
     {
       matcher: "/partners/products",
       method: "POST",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerCreateProductReq)),
       ],
@@ -363,6 +407,7 @@ export default defineMiddlewares({
       matcher: "/partners/stores/:id/products",
       method: "GET",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },
@@ -371,6 +416,7 @@ export default defineMiddlewares({
       matcher: "/partners/inventory-orders",
       method: "GET",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformQuery(wrapSchema(listInventoryOrdersQuerySchema), {}),
       ],
@@ -379,6 +425,7 @@ export default defineMiddlewares({
       matcher: "/partners/inventory-orders/:orderId",
       method: "GET",
       middlewares: [
+        createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
     },

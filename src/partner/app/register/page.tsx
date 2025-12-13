@@ -80,6 +80,7 @@ export default function RegisterPage() {
                 <Form.Control>
                   <Input {...field} placeholder="Acme Inc." autoComplete="organization" />
                 </Form.Control>
+                <Form.ErrorMessage />
               </Form.Item>
               )
             }}
@@ -94,6 +95,7 @@ export default function RegisterPage() {
                 <Form.Control>
                   <Input {...field} placeholder="acme-inc" autoComplete="off" />
                 </Form.Control>
+                <Form.ErrorMessage />
               </Form.Item>
               )
             }}
@@ -109,6 +111,7 @@ export default function RegisterPage() {
                   <Form.Control>
                     <Input {...field} placeholder="John" autoComplete="given-name" />
                   </Form.Control>
+                  <Form.ErrorMessage />
                 </Form.Item>
               )
             }}
@@ -123,6 +126,7 @@ export default function RegisterPage() {
                   <Form.Control>
                     <Input {...field} placeholder="Doe" autoComplete="family-name"   />
                   </Form.Control>
+                  <Form.ErrorMessage />
                 </Form.Item>
                 )
               }}
@@ -138,6 +142,7 @@ export default function RegisterPage() {
                 <Form.Control>
                   <Input {...field} placeholder="admin@acme.com" autoComplete="email" />
                 </Form.Control>
+                <Form.ErrorMessage />
               </Form.Item>
             )
             }}
@@ -152,6 +157,7 @@ export default function RegisterPage() {
                 <Form.Control>
                   <Input {...field} type="password" placeholder="********" autoComplete="new-password" />
                 </Form.Control>
+                <Form.ErrorMessage />
               </Form.Item>
             )
             }}
