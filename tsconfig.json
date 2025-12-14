@@ -37,6 +37,7 @@
     "src/mastra",
     "src/mastra/**/*",
     "**/src/mastra/**/*",
+    "apps/**/*",
     "src/partner/**/*",
   ]
 }

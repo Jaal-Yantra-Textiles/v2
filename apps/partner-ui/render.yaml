@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: partner-ui
+    runtime: static
+    buildCommand: yarn build:preview
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

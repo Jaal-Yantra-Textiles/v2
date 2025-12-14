@@ -25,6 +25,16 @@ build
 !.yarn/sdks
 !.yarn/versions
 
+apps/**/node_modules
+apps/**/dist
+apps/**/.env
+apps/**/.yarn/*
+!apps/**/.yarn/patches
+!apps/**/.yarn/plugins
+!apps/**/.yarn/releases
+!apps/**/.yarn/sdks
+!apps/**/.yarn/versions
+
 .medusa
 
 .vscode/
@@ -45,3 +55,4 @@ src/partner/node_modules/*
 src/partner/.DS_Store
 # Local Netlify folder
 .netlify
+.yarn

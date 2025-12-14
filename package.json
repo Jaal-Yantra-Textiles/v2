@@ -13,14 +13,15 @@
     "headless",
     "medusa"
   ],
-  "workspaces": [
-    "src/partnerUI"
-  ],
   "scripts": {
     "build": "medusa build && yarn run resolve:aliases",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "start": "medusa start",
     "dev": "medusa develop",
+    "partner-ui:install": "corepack yarn --cwd ./apps/partner-ui install",
+    "partner-ui:dev": "corepack yarn --cwd ./apps/partner-ui dev",
+    "partner-ui:build": "corepack yarn --cwd ./apps/partner-ui build:preview",
+    "install:all": "yarn install && corepack yarn --cwd ./apps/partner-ui install",
     "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=\"--experimental-vm-modules --max-old-space-size=8192\" jest --silent=false --runInBand --forceExit",
     "test:integration:http:shared": "TEST_TYPE=integration:http NODE_OPTIONS=\"--experimental-vm-modules --max-old-space-size=8192\" jest --silent=false --runInBand --forceExit --config=./integration-tests/jest-shared.config.js",
     "test:integration:http:batched": "node ./scripts/run-batched-tests.js",
