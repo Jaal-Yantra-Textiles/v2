@@ -41,7 +41,7 @@ const PartnerDetailPage = () => {
           <PartnerFeedbacksSection partnerId={partner.id} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
-          <PartnerAdminsSection admins={partner.admins || []} />
+          <PartnerAdminsSection partnerId={partner.id} admins={partner.admins || []} />
         </TwoColumnPage.Sidebar>
       </TwoColumnPage>
     </>

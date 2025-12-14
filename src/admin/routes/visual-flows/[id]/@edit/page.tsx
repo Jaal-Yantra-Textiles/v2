@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom"
-import { RouteFocusModal } from "../../../../components/modal/route-focus-modal"
+import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer"
 import { useVisualFlow, useUpdateVisualFlow } from "../../../../hooks/api/visual-flows"
 import { Button, Heading, Text, Input, Textarea, toast, Select } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
@@ -18,25 +18,20 @@ const editFlowSchema = z.object({
 
 type EditFlowFormValues = z.infer<typeof editFlowSchema>
 
-const EditVisualFlowPage = () => {
-  const { id } = useParams<{ id: string }>()
+type EditVisualFlowDrawerContentProps = {
+  form: ReturnType<typeof useForm<EditFlowFormValues>>
+  mutateAsync: ReturnType<typeof useUpdateVisualFlow>["mutateAsync"]
+  isPending: boolean
+}
+
+const EditVisualFlowDrawerContent = ({
+  form,
+  mutateAsync,
+  isPending,
+}: EditVisualFlowDrawerContentProps) => {
   const { handleSuccess } = useRouteModal()
-  const { data: flow, isLoading } = useVisualFlow(id!)
-  const { mutateAsync, isPending } = useUpdateVisualFlow(id!)
 
-  const form = useForm<EditFlowFormValues>({
-    resolver: zodResolver(editFlowSchema),
-    values: flow ? {
-      name: flow.name,
-      description: flow.description || "",
-      trigger_type: flow.trigger_type,
-      status: flow.status,
-    } : undefined,
-  })
-
-  const { handleSubmit, formState: { errors } } = form
-
-  const onSubmit = handleSubmit(async (data) => {
+  const onSubmit = form.handleSubmit(async (data) => {
     try {
       await mutateAsync(
         {
@@ -60,131 +55,157 @@ const EditVisualFlowPage = () => {
     }
   })
 
+  return (
+    <RouteDrawer.Form form={form}>
+      <KeyboundForm
+        onSubmit={onSubmit}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
+        <RouteDrawer.Header />
+        <RouteDrawer.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
+          <div className="flex w-full max-w-[720px] flex-col gap-y-8">
+            <div>
+              <Heading>Edit Flow</Heading>
+              <Text size="small" className="text-ui-fg-subtle">
+                Update flow settings
+              </Text>
+            </div>
+            
+            <div className="flex flex-col gap-y-4">
+              <Form.Field
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <Form.Item>
+                    <Form.Label>Flow Name</Form.Label>
+                    <Form.Control>
+                      <Input placeholder="Enter flow name" {...field} />
+                    </Form.Control>
+                    {form.formState.errors.name && (
+                      <Form.ErrorMessage>
+                        {form.formState.errors.name.message}
+                      </Form.ErrorMessage>
+                    )}
+                  </Form.Item>
+                )}
+              />
+              
+              <Form.Field
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <Form.Item>
+                    <Form.Label optional>Description</Form.Label>
+                    <Form.Control>
+                      <Textarea
+                        placeholder="Describe what this flow does"
+                        rows={3}
+                        {...field}
+                      />
+                    </Form.Control>
+                  </Form.Item>
+                )}
+              />
+
+              <Form.Field
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <Form.Item>
+                    <Form.Label>Status</Form.Label>
+                    <Form.Control>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <Select.Trigger>
+                          <Select.Value placeholder="Select status" />
+                        </Select.Trigger>
+                        <Select.Content>
+                          <Select.Item value="draft">Draft</Select.Item>
+                          <Select.Item value="active">Active</Select.Item>
+                          <Select.Item value="inactive">Inactive</Select.Item>
+                        </Select.Content>
+                      </Select>
+                    </Form.Control>
+                  </Form.Item>
+                )}
+              />
+
+              <Form.Field
+                control={form.control}
+                name="trigger_type"
+                render={({ field }) => (
+                  <Form.Item>
+                    <Form.Label>Trigger Type</Form.Label>
+                    <Form.Control>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <Select.Trigger>
+                          <Select.Value placeholder="Select trigger type" />
+                        </Select.Trigger>
+                        <Select.Content>
+                          <Select.Item value="manual">Manual</Select.Item>
+                          <Select.Item value="webhook">Webhook</Select.Item>
+                          <Select.Item value="event">Event</Select.Item>
+                          <Select.Item value="schedule">Schedule</Select.Item>
+                          <Select.Item value="another_flow">Another Flow</Select.Item>
+                        </Select.Content>
+                      </Select>
+                    </Form.Control>
+                  </Form.Item>
+                )}
+              />
+            </div>
+          </div>
+        </RouteDrawer.Body>
+        <RouteDrawer.Footer>
+          <div className="flex items-center justify-end gap-x-2">
+            <RouteDrawer.Close asChild>
+              <Button variant="secondary" size="small">
+                Cancel
+              </Button>
+            </RouteDrawer.Close>
+            <Button type="submit" size="small" isLoading={isPending}>
+              Save Changes
+            </Button>
+          </div>
+        </RouteDrawer.Footer>
+      </KeyboundForm>
+    </RouteDrawer.Form>
+  )
+}
+
+const EditVisualFlowPage = () => {
+  const { id } = useParams<{ id: string }>()
+  const { data: flow, isLoading } = useVisualFlow(id!)
+  const { mutateAsync, isPending } = useUpdateVisualFlow(id!)
+
+  const form = useForm<EditFlowFormValues>({
+    resolver: zodResolver(editFlowSchema),
+    values: flow ? {
+      name: flow.name,
+      description: flow.description || "",
+      trigger_type: flow.trigger_type,
+      status: flow.status,
+    } : undefined,
+  })
+
   if (isLoading || !flow) {
     return (
-      <RouteFocusModal>
-        <RouteFocusModal.Header />
-        <RouteFocusModal.Body className="flex items-center justify-center py-16">
+      <RouteDrawer>
+        <RouteDrawer.Header />
+        <RouteDrawer.Body className="flex items-center justify-center py-16">
           <Text className="text-ui-fg-subtle">Loading...</Text>
-        </RouteFocusModal.Body>
-      </RouteFocusModal>
+        </RouteDrawer.Body>
+      </RouteDrawer>
     )
   }
 
   return (
-    <RouteFocusModal>
-      <RouteFocusModal.Form form={form}>
-        <KeyboundForm
-          onSubmit={onSubmit}
-          className="flex flex-1 flex-col overflow-hidden"
-        >
-          <RouteFocusModal.Header />
-          <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
-            <div className="flex w-full max-w-[720px] flex-col gap-y-8">
-              <div>
-                <Heading>Edit Flow</Heading>
-                <Text size="small" className="text-ui-fg-subtle">
-                  Update flow settings
-                </Text>
-              </div>
-              
-              <div className="flex flex-col gap-y-4">
-                <Form.Field
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label>Flow Name</Form.Label>
-                      <Form.Control>
-                        <Input placeholder="Enter flow name" {...field} />
-                      </Form.Control>
-                      {errors.name && (
-                        <Form.ErrorMessage>{errors.name.message}</Form.ErrorMessage>
-                      )}
-                    </Form.Item>
-                  )}
-                />
-                
-                <Form.Field
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label optional>Description</Form.Label>
-                      <Form.Control>
-                        <Textarea 
-                          placeholder="Describe what this flow does" 
-                          rows={3}
-                          {...field}
-                        />
-                      </Form.Control>
-                    </Form.Item>
-                  )}
-                />
-
-                <Form.Field
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label>Status</Form.Label>
-                      <Form.Control>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <Select.Trigger>
-                            <Select.Value placeholder="Select status" />
-                          </Select.Trigger>
-                          <Select.Content>
-                            <Select.Item value="draft">Draft</Select.Item>
-                            <Select.Item value="active">Active</Select.Item>
-                            <Select.Item value="inactive">Inactive</Select.Item>
-                          </Select.Content>
-                        </Select>
-                      </Form.Control>
-                    </Form.Item>
-                  )}
-                />
-
-                <Form.Field
-                  control={form.control}
-                  name="trigger_type"
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label>Trigger Type</Form.Label>
-                      <Form.Control>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <Select.Trigger>
-                            <Select.Value placeholder="Select trigger type" />
-                          </Select.Trigger>
-                          <Select.Content>
-                            <Select.Item value="manual">Manual</Select.Item>
-                            <Select.Item value="webhook">Webhook</Select.Item>
-                            <Select.Item value="event">Event</Select.Item>
-                            <Select.Item value="schedule">Schedule</Select.Item>
-                            <Select.Item value="another_flow">Another Flow</Select.Item>
-                          </Select.Content>
-                        </Select>
-                      </Form.Control>
-                    </Form.Item>
-                  )}
-                />
-              </div>
-            </div>
-          </RouteFocusModal.Body>
-          <RouteFocusModal.Footer>
-            <div className="flex items-center justify-end gap-x-2">
-              <RouteFocusModal.Close asChild>
-                <Button variant="secondary" size="small">
-                  Cancel
-                </Button>
-              </RouteFocusModal.Close>
-              <Button type="submit" size="small" isLoading={isPending}>
-                Save Changes
-              </Button>
-            </div>
-          </RouteFocusModal.Footer>
-        </KeyboundForm>
-      </RouteFocusModal.Form>
-    </RouteFocusModal>
+    <RouteDrawer>
+      <EditVisualFlowDrawerContent
+        form={form}
+        mutateAsync={mutateAsync}
+        isPending={isPending}
+      />
+    </RouteDrawer>
   )
 }
 

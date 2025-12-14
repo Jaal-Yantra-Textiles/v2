@@ -43,15 +43,22 @@ export const PUT = async (
     status?: "active" | "inactive" | "pending"
     is_verified?: boolean
     metadata?: Record<string, any> | null
+    admin_id?: string
+    admin_password?: string
   }>,
   res: MedusaResponse
 ) => {
   const id = req.params.id
 
+  const body = (req.validatedBody || (req.body as any) || {}) as any
+  const { admin_id, admin_password, ...partnerData } = body
+
   const { result, errors } = await updatePartnerWorkflow(req.scope).run({
     input: {
       id,
-      data: req.validatedBody || (req.body as any) || {},
+      admin_id,
+      admin_password,
+      data: partnerData,
     },
   })
 
