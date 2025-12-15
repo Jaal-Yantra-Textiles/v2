@@ -1,7 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError } from "@medusajs/framework/utils"
 import updatePartnerWorkflow from "../../../workflows/partners/update-partner"
-import { getPartnerFromActorId } from "../helpers"
+import { getPartnerFromAuthContext } from "../helpers"
 
 // Update the partner that the current admin belongs to
 export const PUT = async (
@@ -23,7 +23,7 @@ export const PUT = async (
     )
   }
 
-  const partner = await getPartnerFromActorId(actorId, req.scope)
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner?.id) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,

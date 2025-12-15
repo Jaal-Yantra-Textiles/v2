@@ -1,4 +1,4 @@
-import { AuthenticatedMedusaRequest, MedusaRequest, MedusaResponse } from "@medusajs/framework"
+import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import PartnerPaymentMethodsLink from "../../../../../links/partner-payment-methods-link"
 import {
@@ -6,7 +6,7 @@ import {
   CreatePaymentMethodForPartner,
 } from "../validators"
 import { createPaymentMethodAndLinkWorkflow } from "../../../../../workflows/payment_methods/create-payment-method-and-link"
-import { getPartnerFromActorId } from "../../../helpers"
+import { getPartnerFromAuthContext } from "../../../helpers"
 
 // GET /api/partners/:id/payments/methods - List payment methods linked to a partner (self)
 export const GET = async (
@@ -20,7 +20,7 @@ export const GET = async (
   if (!actorId) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Unauthorized")
   }
-  const partner = await getPartnerFromActorId(actorId, req.scope)
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner || partner.id !== partner_id) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Forbidden: partner mismatch")
   }
@@ -51,7 +51,7 @@ export const POST = async (
   if (!actorId) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Unauthorized")
   }
-  const partner = await getPartnerFromActorId(actorId, req.scope)
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner || partner.id !== partner_id) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Forbidden: partner mismatch")
   }

@@ -1,7 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
-import PartnerTaskLink from "../../../links/partner-task";
-import { getPartnerFromActorId } from "../helpers";
+import { getPartnerFromAuthContext } from "../helpers";
 import { TASKS_MODULE } from "../../../modules/tasks";
 import TaskService from "../../../modules/tasks/service";
 
@@ -16,7 +15,6 @@ export async function GET(
 ) {
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
     
-    // Get actor ID from authenticated user (can be partner ID or admin ID)
     const actorId = req.auth_context?.actor_id;
     
     if (!actorId) {
@@ -26,8 +24,7 @@ export async function GET(
     }
 
     try {
-        // Fetch the partner using the helper that handles both auth flows
-        const partner = await getPartnerFromActorId(actorId, req.scope);
+        const partner = await getPartnerFromAuthContext(req.auth_context, req.scope);
         
         if (!partner) {
             throw new MedusaError(

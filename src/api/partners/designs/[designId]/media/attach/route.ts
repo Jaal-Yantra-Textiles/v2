@@ -3,8 +3,9 @@ import { MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/util
 import designPartnersLink from "../../../../../../links/design-partners-link"
 import updateDesignWorkflow from "../../../../../../workflows/designs/update-design"
 import listSingleDesignsWorkflow from "../../../../../../workflows/designs/list-single-design"
-import { refetchPartnerForThisAdmin } from "../../../../helpers"
+import { getPartnerFromAuthContext } from "../../../../helpers"
 import { z } from "zod"
+
 // Payload schema for attaching media to a design
 const partnerAttachMediaSchema = z.object({
   media_files: z
@@ -27,10 +28,12 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   // 1) Partner auth
-  const adminId = req.auth_context?.actor_id
-  const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope)
-  console.log("[partners/designs/:designId/media/attach] auth", { adminId, partnerFound: !!partnerAdmin, partnerId: partnerAdmin?.id })
-  if (!partnerAdmin) {
+  if (!req.auth_context?.actor_id) {
+    return res.status(401).json({ error: "Partner authentication required" })
+  }
+
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  if (!partner) {
     return res.status(401).json({ error: "Partner authentication required" })
   }
 
@@ -44,11 +47,10 @@ export const POST = async (
   const linkResult = await query.graph({
     entity: designPartnersLink.entryPoint,
     fields: ["design.id", "partner.id"],
-    filters: { design_id: designId, partner_id: partnerAdmin.id },
+    filters: { design_id: designId, partner_id: partner.id },
     pagination: { skip: 0, take: 1 },
   })
   const linkData = (linkResult?.data || [])[0]
-  console.log("[partners/designs/:designId/media/attach] linkResult", { designId, partnerId: partnerAdmin.id, linkData })
   if (!linkData || !linkData.design?.id) {
     return res.status(404).json({ error: "Design not found for this partner" })
   }
@@ -59,7 +61,6 @@ export const POST = async (
     throw new MedusaError(MedusaError.Types.INVALID_DATA, parse.error.errors.map(e => e.message).join(", "))
   }
   const { media_files, metadata } = parse.data
-  console.log("[partners/designs/:designId/media/attach] payload", { count: media_files?.length, media_files, metadata })
 
   // Derive thumbnail metadata if any media file marked as thumbnail
   const thumbnail = media_files.find(m => m.isThumbnail)?.url
@@ -109,6 +110,5 @@ export const POST = async (
   const { result: updated } = await listSingleDesignsWorkflow(req.scope).run({
     input: { id: designId, fields: ["*"] },
   })
-  console.log("[partners/designs/:designId/media/attach] updated design", { hasMedia: Array.isArray(updated?.media_files) && updated.media_files.length })
   return res.status(200).json({ message: "Media attached successfully", design: updated })
 }

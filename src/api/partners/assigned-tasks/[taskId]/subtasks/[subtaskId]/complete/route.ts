@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
-import { getPartnerFromActorId } from "../../../../../helpers";
+import { getPartnerFromAuthContext } from "../../../../../helpers";
 import { TASKS_MODULE } from "../../../../../../../modules/tasks";
 import TaskService from "../../../../../../../modules/tasks/service";
 
@@ -22,7 +22,7 @@ export async function POST(
   }
 
   try {
-    const partner = await getPartnerFromActorId(actorId, req.scope);
+    const partner = await getPartnerFromAuthContext(req.auth_context, req.scope);
     
     if (!partner) {
       return res.status(401).json({ 

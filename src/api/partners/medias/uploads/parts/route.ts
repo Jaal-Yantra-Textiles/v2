@@ -3,7 +3,7 @@ import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { UploadPartCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { getS3Client } from "../../../../admin/medias/uploads/s3"
-import { refetchPartnerForThisAdmin } from "../../../helpers"
+import { getPartnerFromAuthContext } from "../../../helpers"
 
 interface PartsBody {
   uploadId: string
@@ -14,9 +14,8 @@ interface PartsBody {
 export const POST = async (req: AuthenticatedMedusaRequest<PartsBody>, res: MedusaResponse) => {
   try {
     // Partner auth
-    const adminId = req.auth_context.actor_id
-    const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope)
-    if (!partnerAdmin) {
+    const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+    if (!partner) {
       return res.status(401).json({ message: "Partner authentication required" })
     }
 

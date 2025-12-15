@@ -4,7 +4,7 @@ import { updateInventoryOrderWorkflow } from "../../../../../workflows/inventory
 import { ORDER_INVENTORY_MODULE } from "../../../../../modules/inventory_orders";
 import InventoryOrderService from "../../../../../modules/inventory_orders/service";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
-import { getPartnerFromActorId, refetchPartnerForThisAdmin } from "../../../helpers";
+import { getPartnerFromAuthContext } from "../../../helpers";
 import { TASKS_MODULE } from "../../../../../modules/tasks";
 import TaskService from "../../../../../modules/tasks/service";
 
@@ -15,10 +15,14 @@ export async function POST(
     const orderId = req.params.orderId;
     
     // Get the authenticated partner using the same pattern as details route
-    const adminId = req.auth_context?.actor_id;
-    const partnerAdmin = await getPartnerFromActorId(adminId, req.scope);
-    
-    if (!partnerAdmin) {
+    if (!req.auth_context?.actor_id) {
+        return res.status(401).json({
+            error: "Partner authentication required"
+        });
+    }
+
+    const partner = await getPartnerFromAuthContext(req.auth_context, req.scope);
+    if (!partner) {
         return res.status(401).json({
             error: "Partner authentication required"
         });
@@ -110,26 +114,18 @@ export async function POST(
     const receivedTaskName = "partner-order-received";
     let tasksToUpdate: any[] = [];
     
-    console.log("Looking for tasks to update with name:", receivedTaskName);
-    console.log("TaskLinks data:", JSON.stringify(taskLinks, null, 2));
-    
     // Extract tasks from the taskLinks result
     for (const orderData of taskLinks) {
         if (orderData.tasks && Array.isArray(orderData.tasks)) {
-            console.log("Found tasks in order:", orderData.tasks.map((t: any) => ({ id: t.id, title: t.title, status: t.status })));
             const receivedTasks = orderData.tasks.filter((task: any) => 
                 task.title === receivedTaskName && task.status !== 'completed'  // ✅ Use task.title instead of task.name
             );
-            console.log("Filtered received tasks:", receivedTasks.map((t: any) => ({ id: t.id, title: t.title, status: t.status })));
             tasksToUpdate.push(...receivedTasks);
         }
     }
     
-    console.log("Total tasks to update:", tasksToUpdate.length);
-    
     if (tasksToUpdate.length > 0) {
         for (const task of tasksToUpdate) {
-            console.log(`Updating task ${task.id} (${task.name}) from ${task.status} to completed`);
             await taskService.updateTasks({
                 id: task.id,
                 status: 'completed',
@@ -139,10 +135,7 @@ export async function POST(
                     completed_by: 'partner'
                 }
             });
-            console.log(`Task ${task.id} updated successfully`);
         }
-    } else {
-        console.log("No tasks found to update - this might be the issue!");
     }
     
     // Signal the workflow that the order has been started

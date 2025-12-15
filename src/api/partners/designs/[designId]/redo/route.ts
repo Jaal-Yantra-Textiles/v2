@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { refetchPartnerForThisAdmin } from "../../../../partners/helpers"
+import { getPartnerFromAuthContext } from "../../../../partners/helpers"
 import { TASKS_MODULE } from "../../../../../modules/tasks"
 import TaskService from "../../../../../modules/tasks/service"
 import { setDesignStepSuccessWorkflow } from "../../../../../workflows/designs/design-steps"
@@ -14,9 +14,8 @@ export async function POST(
   const designId = req.params.designId
 
   // Auth partner
-  const adminId = req.auth_context.actor_id
-  const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope)
-  if (!partnerAdmin) {
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  if (!partner) {
     return res.status(401).json({ error: "Partner authentication required" })
   }
 
@@ -69,7 +68,6 @@ export async function POST(
   }
 
   // Signal success on the redo gate so the main workflow enters the redo sub-workflow
-  console.info(`[DesignWF] redo: setStepSuccess for await-design-redo using tx ${transactionId}`)
   const { errors: stepErrors } = await setDesignStepSuccessWorkflow(req.scope).run({
     input: {
       stepId: "await-design-redo",
@@ -107,7 +105,6 @@ export async function POST(
     }
   } catch (e) {
     // Non-fatal: if templates are missing, continue; redo refinish gate is already open
-    console.warn("[DesignWF] redo child creation skipped:", e)
   }
 
   // Mark the parent redo task as completed so partner_info enters redo phase
@@ -140,7 +137,6 @@ export async function POST(
       }
     }
   } catch (e) {
-    console.warn("[DesignWF] unable to complete redo parent task:", e)
   }
 
   res.status(200).json({

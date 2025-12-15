@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { refetchPartnerForThisAdmin } from "../../helpers"
+import { getPartnerFromAuthContext } from "../../helpers"
 import listSingleDesignsWorkflow from "../../../../workflows/designs/list-single-design"
 import designPartnersLink from "../../../../links/design-partners-link"
 
@@ -12,9 +12,12 @@ export const GET = async (
   const { designId } = req.params
 
   // Partner auth
-  const adminId = req.auth_context?.actor_id
-  const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope)
-  if (!partnerAdmin) {
+  if (!req.auth_context?.actor_id) {
+    return res.status(401).json({ error: "Partner authentication required" })
+  }
+
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  if (!partner) {
     return res.status(401).json({ error: "Partner authentication required" })
   }
 
@@ -28,7 +31,7 @@ export const GET = async (
       "design.tasks.*",
       "partner.*",
     ],
-    filters: { design_id: designId, partner_id: partnerAdmin.id },
+    filters: { design_id: designId, partner_id: partner.id },
     pagination: { skip: 0, take: 1 },
   })
   const linkData = (linkResult?.data || [])[0]
@@ -92,7 +95,7 @@ export const GET = async (
   }
 
   const partner_info = {
-    assigned_partner_id: linkData.partner?.id || partnerAdmin.id,
+    assigned_partner_id: linkData.partner?.id || partner.id,
     partner_status,
     partner_phase,
     partner_started_at,

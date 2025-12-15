@@ -18,7 +18,6 @@ export async function POST(
             }
         }
     })
-    console.log("result", result[0])
     if (errors && errors.length > 0) {    
         console.warn("Error reported at", errors);
         throw errors;

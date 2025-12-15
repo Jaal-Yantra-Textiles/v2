@@ -21,6 +21,7 @@ export const useMoodboard = ({
   const { design } = useDesign(designId, { fields: ["moodboard"] });
 
   const originalStateRef = useRef<any>(null);
+  const didInitializeRef = useRef(false);
   
   const saveExcalidrawStateRef = useRef<() => Promise<void>>(() => Promise.resolve());
   
@@ -35,8 +36,26 @@ export const useMoodboard = ({
   useEffect(() => {
     if (design?.moodboard && !originalStateRef.current) {
       originalStateRef.current = design.moodboard;
+      setHasChanges(false);
     }
   }, [design]);
+
+  const handleChange = useCallback(
+    (elements: readonly any[], appState: any, files: any) => {
+      handleExcalidrawChange(elements, appState, files);
+
+      // Excalidraw fires onChange on initial mount. Ignore that.
+      if (!didInitializeRef.current) {
+        didInitializeRef.current = true;
+        return;
+      }
+
+      // Mark as dirty on any subsequent change. This matches the previous UX where
+      // Save is enabled after edits. (We still do a deeper comparison during save.)
+      setHasChanges(true);
+    },
+    [handleExcalidrawChange]
+  );
 
   const saveExcalidrawState = useCallback(async () => {
     setIsSaving(true);
@@ -207,7 +226,7 @@ export const useMoodboard = ({
     excalidrawAPIRef,
     handleSave,
     handleCloseSave,
-    handleExcalidrawChange,
+    handleExcalidrawChange: handleChange,
     saveExcalidrawState
   };
 };

@@ -2,7 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CompleteMultipartUploadCommand } from "@aws-sdk/client-s3"
 import { getS3Client, getPublicUrl } from "../../../../admin/medias/uploads/s3"
-import { refetchPartnerForThisAdmin } from "../../../helpers"
+import { getPartnerFromAuthContext } from "../../../helpers"
 
 interface CompleteBody {
   uploadId: string
@@ -17,9 +17,8 @@ interface CompleteBody {
 export const POST = async (req: AuthenticatedMedusaRequest<CompleteBody>, res: MedusaResponse) => {
   try {
     // Partner auth
-    const adminId = req.auth_context.actor_id
-    const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope)
-    if (!partnerAdmin) {
+    const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+    if (!partner) {
       return res.status(401).json({ message: "Partner authentication required" })
     }
 

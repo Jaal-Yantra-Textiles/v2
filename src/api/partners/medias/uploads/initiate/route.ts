@@ -3,7 +3,7 @@ import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CreateMultipartUploadCommand } from "@aws-sdk/client-s3"
 import crypto from "crypto"
 import { getS3Client } from "../../../../admin/medias/uploads/s3"
-import { refetchPartnerForThisAdmin } from "../../../helpers"
+import { getPartnerFromAuthContext } from "../../../helpers"
 
 interface InitiateBody {
   name: string
@@ -16,9 +16,8 @@ interface InitiateBody {
 export const POST = async (req: AuthenticatedMedusaRequest<InitiateBody>, res: MedusaResponse) => {
   try {
     // Partner auth
-    const adminId = req.auth_context.actor_id
-    const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope)
-    if (!partnerAdmin) {
+    const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+    if (!partner) {
       return res.status(401).json({ message: "Partner authentication required" })
     }
 

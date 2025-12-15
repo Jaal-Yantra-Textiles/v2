@@ -186,6 +186,9 @@ export const useUploadPartnerDesignMedia = (
         `/partners/designs/${id}/media`,
         {
           method: "POST",
+          // Medusa JS SDK sets default "content-type: application/json".
+          // For multipart, we must delete it and let the browser set the boundary.
+          headers: { "content-type": null } as any,
           body: formData,
         }
       )

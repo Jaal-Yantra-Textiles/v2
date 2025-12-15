@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
-import { refetchPartnerForThisAdmin } from "../../../helpers";
+import { getPartnerFromAuthContext } from "../../../helpers";
 import { TASKS_MODULE } from "../../../../../modules/tasks";
 import TaskService from "../../../../../modules/tasks/service";
 
@@ -28,9 +28,9 @@ export async function POST(
     res: MedusaResponse
 ) {
     const taskId = req.params.taskId;
-    const adminId = req.auth_context?.actor_id;
+    const actorId = req.auth_context?.actor_id;
     
-    if (!adminId) {
+    if (!actorId) {
         return res.status(401).json({ 
             message: "Partner authentication required" 
         });
@@ -45,8 +45,7 @@ export async function POST(
     }
 
     try {
-        // Fetch the partner associated with this admin
-        const partner = await refetchPartnerForThisAdmin(adminId, req.scope);
+        const partner = await getPartnerFromAuthContext(req.auth_context, req.scope);
         
         if (!partner) {
             throw new MedusaError(
@@ -106,10 +105,7 @@ export async function POST(
         }
 
         // Get admin details for author name
-        const admin = partner.admins?.find((a) => a && a.id === adminId);
-        const authorName = admin 
-            ? [admin.first_name, admin.last_name].filter(Boolean).join(" ") || admin.email
-            : "Partner Admin";
+        const authorName = "Partner";
 
         // Prepare new comment
         const newComment: TaskComment = {
@@ -135,8 +131,6 @@ export async function POST(
             }
         });
 
-        console.log("Comment added successfully:", newComment.id);
-
         res.status(200).json({ 
             message: "Comment added successfully",
             comment: newComment,
@@ -160,17 +154,16 @@ export async function GET(
     res: MedusaResponse
 ) {
     const taskId = req.params.taskId;
-    const adminId = req.auth_context?.actor_id;
+    const actorId = req.auth_context?.actor_id;
     
-    if (!adminId) {
+    if (!actorId) {
         return res.status(401).json({ 
             message: "Partner authentication required" 
         });
     }
 
     try {
-        // Fetch the partner associated with this admin
-        const partner = await refetchPartnerForThisAdmin(adminId, req.scope);
+        const partner = await getPartnerFromAuthContext(req.auth_context, req.scope);
         
         if (!partner) {
             throw new MedusaError(

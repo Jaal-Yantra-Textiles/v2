@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { refetchPartnerForThisAdmin } from "../../../../partners/helpers"
+import { getPartnerFromAuthContext } from "../../../../partners/helpers"
 import { updateDesignWorkflow } from "../../../../../workflows/designs/update-design"
 import { TASKS_MODULE } from "../../../../../modules/tasks"
 import TaskService from "../../../../../modules/tasks/service"
@@ -13,9 +13,8 @@ export async function POST(
   const designId = req.params.designId
 
   // Auth partner
-  const adminId = req.auth_context.actor_id
-  const partnerAdmin = await refetchPartnerForThisAdmin(adminId, req.scope)
-  if (!partnerAdmin) {
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  if (!partner) {
     return res.status(401).json({ error: "Partner authentication required" })
   }
 

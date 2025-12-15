@@ -3,8 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";
 import { setStepSuccessWorkflow } from "../../../../../workflows/tasks/task-engine/task-steps";
 import { Status } from "../../../../../workflows/tasks/create-task";
-import PartnerTaskLink from "../../../../../links/partner-task";
-import { getPartnerFromActorId } from "../../../helpers";
+import { getPartnerFromAuthContext } from "../../../helpers";
 import { TASKS_MODULE } from "../../../../../modules/tasks";
 import TaskService from "../../../../../modules/tasks/service";
 
@@ -27,8 +26,7 @@ export async function POST(
     }
 
     try {
-        // Fetch the partner using the helper that handles both auth flows
-        const partner = await getPartnerFromActorId(actorId, req.scope);
+        const partner = await getPartnerFromAuthContext(req.auth_context, req.scope);
         
         if (!partner) {
             throw new MedusaError(
@@ -36,8 +34,6 @@ export async function POST(
                 "No partner associated with this admin"
             );
         }
-
-        console.log("Finish task - Partner ID:", partner.id, "Actor ID:", actorId, "Task ID:", taskId);
 
         // Verify the task is assigned to this partner
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
@@ -72,8 +68,6 @@ export async function POST(
 
             workflowConfig.steps = updatedSteps;
             metadata.workflow_config = workflowConfig;
-
-            console.log(`Marking ${steps.length} steps as completed`);
         }
 
         // Update task status to completed and update steps
@@ -111,7 +105,6 @@ export async function POST(
                 updatedTask: result[0]
             }
         }).catch((error) => {
-            console.log("No active workflow to signal (this is OK for standalone tasks):", error.message);
             // Don't throw - task is already updated
             // This is expected for standalone tasks without workflows
         });

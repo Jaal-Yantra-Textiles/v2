@@ -3,8 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";
 import { setStepSuccessWorkflow } from "../../../../../workflows/tasks/task-engine/task-steps";
 import { Status } from "../../../../../workflows/tasks/create-task";
-import PartnerTaskLink from "../../../../../links/partner-task";
-import { getPartnerFromActorId } from "../../../helpers";
+import { getPartnerFromAuthContext } from "../../../helpers";
 
 /**
  * POST /partners/assigned-tasks/[taskId]/accept
@@ -23,7 +22,7 @@ export async function POST(
 
     try {
         // Fetch the partner associated with this admin
-        const partner = await getPartnerFromActorId(actorId, req.scope);
+        const partner = await getPartnerFromAuthContext(req.auth_context, req.scope);
         
         if (!partner) {
             throw new MedusaError(
@@ -86,7 +85,6 @@ export async function POST(
                 updatedTask: result[0]
             }
         }).catch((error) => {
-            console.log("No active workflow to signal (this is OK for standalone tasks):", error.message);
             // Don't throw - task is already updated
             // This is expected for standalone tasks without workflows
         });

@@ -40,7 +40,10 @@ export function DesignMoodboardSection() {
             <Button
               variant="primary"
               size="base"
-              onClick={handleSave}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSave();
+              }}
               disabled={isSaving || !hasChanges}
             >
               {isSaving ? "Saving..." : hasChanges ? "Save Changes" : "No Changes"}

@@ -2,18 +2,17 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { MedusaError, ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PartnerCreateProductReq } from "./validators"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerFromActorId } from "../helpers"
+import { getPartnerFromAuthContext } from "../helpers"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const actorId = req.auth_context?.actor_id
-  if (!actorId) {
+  if (!req.auth_context?.actor_id) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Partner authentication required")
   }
 
-  const partner = await getPartnerFromActorId(actorId, req.scope)
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "No partner associated with this admin")
   }

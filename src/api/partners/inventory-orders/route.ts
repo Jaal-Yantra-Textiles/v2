@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
-import { getPartnerFromActorId } from "../helpers";
+import { getPartnerFromAuthContext } from "../helpers";
 import { ListInventoryOrdersQuery } from "./validators";
 import InventoryOrderPartnerLink from "../../../links/partner-inventory-order"
 
@@ -15,30 +15,23 @@ export async function GET(
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
         
         // Get the authenticated partner from auth context
-        // Note: actor_id can be either the partner ID (new auth) or admin ID (old auth)
         const actorId = req.auth_context?.actor_id;
         
         if (!actorId) {
-            console.error("[Inventory Orders] No actor ID in auth context");
             return res.status(401).json({
                 error: "Partner authentication required - no actor ID"
             });
         }
-        
-        console.log("[Inventory Orders] Actor ID from auth:", actorId);
-        
-        // Get partner using the helper that handles both auth flows
-        const partner = await getPartnerFromActorId(actorId, req.scope);
+
+        const partner = await getPartnerFromAuthContext(req.auth_context, req.scope);
         
         if (!partner) {
-            console.error("[Inventory Orders] No partner found for actor:", actorId);
             return res.status(401).json({
                 error: "Partner authentication required - no partner found"
             });
         }
         
         const partnerId = partner.id;
-        console.log("[Inventory Orders] Partner found:", partnerId);
         
         // Build filters for orders assigned to this partner
         // Note: Cannot filter on linked module properties (inventory_orders.status)

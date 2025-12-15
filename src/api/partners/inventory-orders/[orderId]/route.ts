@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
-import { getPartnerFromActorId, refetchPartnerForThisAdmin } from "../../helpers";
+import { getPartnerFromAuthContext } from "../../helpers";
 
 export async function GET(
     req: AuthenticatedMedusaRequest,
@@ -11,10 +11,14 @@ export async function GET(
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
     
     // Get the authenticated partner using the same pattern as details route
-    const adminId = req.auth_context?.actor_id;
-    const partnerAdmin = await getPartnerFromActorId(adminId, req.scope);
-    
-    if (!partnerAdmin) {
+    if (!req.auth_context?.actor_id) {
+        return res.status(401).json({
+            error: "Partner authentication required"
+        });
+    }
+
+    const partner = await getPartnerFromAuthContext(req.auth_context, req.scope);
+    if (!partner) {
         return res.status(401).json({
             error: "Partner authentication required"
         });
@@ -44,16 +48,14 @@ export async function GET(
     }
     
     const order = orders[0];
-    console.log("Order:", JSON.stringify(order, null, 2));
     // Check if this order is assigned to the authenticated partner
     const assignedPartner = order.partner;
-    if (!assignedPartner || assignedPartner.id !== partnerAdmin.id) {
+    if (!assignedPartner || assignedPartner.id !== partner.id) {
         throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Inventory order ${orderId} is not assigned to your partner account`)
     }
     
     // Extract partner workflow status from tasks instead of metadata
     const partnerTasks = order.tasks || [];
-    console.log("Partner tasks:", JSON.stringify(partnerTasks, null, 2));
     // Identify workflow tasks by title or template_name convention
     const workflowTasks = (partnerTasks || []).filter((task: any) => {
         if (!task) return false;
@@ -67,7 +69,6 @@ export async function GET(
     let partnerStartedAt: string | null = null;
     let partnerCompletedAt: string | null = null;
     let adminNotes: string | null = null;
-    console.log("Workflow tasks:", JSON.stringify(workflowTasks, null, 2));
     if (workflowTasks.length > 0) {
         const getName = (t: any) => (String(t?.title || t?.metadata?.template_name || '')).toLowerCase();
         const sentTask = workflowTasks.find((t: any) => getName(t).includes('sent') && t.status === 'completed');
@@ -77,9 +78,6 @@ export async function GET(
    
     if (order.metadata && order.metadata.assignment_notes) {
         adminNotes = String(order.metadata.assignment_notes);
-        console.log("Found admin notes in order metadata:", adminNotes);
-    } else {
-        console.log("No assignment_notes found in order metadata");
     }
     
        
@@ -144,11 +142,6 @@ export async function GET(
         created_at: order.created_at,
         updated_at: order.updated_at
     };
-    
-    console.log("Final partnerOrderView structure:", JSON.stringify({
-        admin_notes: partnerOrderView.admin_notes,
-        partner_info: partnerOrderView.partner_info
-    }, null, 2));
     
     res.status(200).json({
         inventoryOrder: partnerOrderView

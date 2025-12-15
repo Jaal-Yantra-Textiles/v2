@@ -1,10 +1,15 @@
 import inject from "@medusajs/admin-vite-plugin"
 import react from "@vitejs/plugin-react"
+import { createRequire } from "node:module"
+import { resolve as pathResolve } from "node:path"
 import { defineConfig, loadEnv } from "vite"
 import inspect from "vite-plugin-inspect"
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  const require = createRequire(import.meta.url)
+  const repoRoot = pathResolve(process.cwd(), "..", "..")
+
   const env = loadEnv(mode, process.cwd())
 
   const BASE = env.VITE_MEDUSA_BASE || "/"
@@ -29,6 +34,15 @@ export default defineConfig(({ mode }) => {
         sources,
       }),
     ],
+    resolve: {
+      // Alias only exact module IDs. A plain string key ("react") also matches
+      // subpath imports like "react/jsx-dev-runtime" and breaks Vite's resolution.
+      alias: [
+        { find: /^react$/, replacement: require.resolve("react") },
+        { find: /^react-dom$/, replacement: require.resolve("react-dom") },
+      ],
+      dedupe: ["react", "react-dom"],
+    },
     define: {
       __BASE__: JSON.stringify(BASE),
       __BACKEND_URL__: JSON.stringify(BACKEND_URL),
@@ -38,6 +52,9 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       open: true,
+      fs: {
+        allow: [repoRoot],
+      },
     },
   }
 })
