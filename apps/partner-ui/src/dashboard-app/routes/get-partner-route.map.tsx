@@ -67,6 +67,10 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () => import("../../routes/designs/design-complete"),
                     },
                     {
+                      path: "media-preview",
+                      lazy: () => import("../../routes/designs/design-media-preview"),
+                    },
+                    {
                       path: "media",
                       lazy: () => import("../../routes/designs/design-media"),
                     },

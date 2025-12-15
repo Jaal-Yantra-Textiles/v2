@@ -88,19 +88,24 @@ export async function POST(
                 entity: 'task',
                 fields: ["*", "partners.*"],
                 filters: {
-                    id: task.parent_task_id,
-                    partners: { id: partner.id }
+                    id: task.parent_task_id
                 }
             });
             
-            if (parentTaskData && parentTaskData.length > 0) {
-                isAuthorized = true;
+            const parentTask = parentTaskData?.[0] as any
+
+            if (
+                parentTask?.partners &&
+                Array.isArray(parentTask.partners) &&
+                parentTask.partners.some((p: any) => p.id === partner.id)
+            ) {
+                isAuthorized = true
             }
         }
         
         if (!isAuthorized) {
-            return res.status(403).json({ 
-                message: "Task not assigned to this partner" 
+            return res.status(404).json({ 
+                message: "Task not found" 
             });
         }
 
@@ -206,19 +211,24 @@ export async function GET(
                 entity: 'task',
                 fields: ["*", "partners.*"],
                 filters: {
-                    id: task.parent_task_id,
-                    partners: { id: partner.id }
+                    id: task.parent_task_id
                 }
             });
             
-            if (parentTaskData && parentTaskData.length > 0) {
-                isAuthorized = true;
+            const parentTask = parentTaskData?.[0] as any
+
+            if (
+                parentTask?.partners &&
+                Array.isArray(parentTask.partners) &&
+                parentTask.partners.some((p: any) => p.id === partner.id)
+            ) {
+                isAuthorized = true
             }
         }
         
         if (!isAuthorized) {
-            return res.status(403).json({ 
-                message: "Task not assigned to this partner" 
+            return res.status(404).json({ 
+                message: "Task not found" 
             });
         }
         const metadata = ((task as any).metadata || {}) as TaskMetadata;

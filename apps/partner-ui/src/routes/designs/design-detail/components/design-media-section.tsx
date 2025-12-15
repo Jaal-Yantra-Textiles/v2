@@ -26,7 +26,8 @@ export const DesignMediaSection = ({ design }: DesignMediaSectionProps) => {
             return (
               <Link
                 key={media.id || String(index)}
-                to="media"
+                to="media-preview"
+                state={{ curr: index }}
                 className="shadow-elevation-card-rest hover:shadow-elevation-card-hover transition-fg group relative aspect-square size-full cursor-pointer overflow-hidden rounded-[8px]"
               >
                 <img
