@@ -1,3 +1,35 @@
+# [8.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.6...v8.0.0) (2025-12-15)
+
+
+### Bug Fixes
+
+* **api:** Code exection with NPM packages ([30d56fb](https://github.com/Jaal-Yantra-Textiles/v2/commit/30d56fbdac98722a6de863a0ddd1ad9e31d23c8a))
+* **api:** Comments api now shows 404 instead of 403 ([21f6f10](https://github.com/Jaal-Yantra-Textiles/v2/commit/21f6f10acfbb213f2f39c26d673edd32db450c82))
+* **api:** Fixed password update ([abb8e1e](https://github.com/Jaal-Yantra-Textiles/v2/commit/abb8e1e8387e2b0d30ff285bfa7c0c6e73fe1917))
+* **admin:** Fixed the inventory line to show title ([ae3d3ba](https://github.com/Jaal-Yantra-Textiles/v2/commit/ae3d3ba8fd25f968de1dda50902c9eed06dff77a))
+* **api:** Fixed the issue at the testing ([04853e3](https://github.com/Jaal-Yantra-Textiles/v2/commit/04853e31088a0a423b74e46538e23f9c999ccbf1))
+* **api:** Fixed the route settings api and build issue ([1378607](https://github.com/Jaal-Yantra-Textiles/v2/commit/137860777231a8aac30c8e837ebcfe609d64c6c3))
+* **api:** Removed fallback + legacy helpers from the partners api ([d88d82b](https://github.com/Jaal-Yantra-Textiles/v2/commit/d88d82bec1ecbf7d2338e17310146efafe925d53))
+* **api:** Routine code change ([020be62](https://github.com/Jaal-Yantra-Textiles/v2/commit/020be628e8799473fb8417c1ac3d794da8335285))
+* **api:** visual flow and media route ([0066ca0](https://github.com/Jaal-Yantra-Textiles/v2/commit/0066ca0bbbe36d0ba19b06e4aa861771e6f06f09))
+
+
+### Code Refactoring
+
+* **admin:** Fixed the material item modal ([29e8eb2](https://github.com/Jaal-Yantra-Textiles/v2/commit/29e8eb24da7618a373999986231451d55556b753))
+
+
+### Features
+
+* **api:** Metadata fix returning appropriate entities ([f5bff14](https://github.com/Jaal-Yantra-Textiles/v2/commit/f5bff149b5deedcd9806cd760d4c84240cbb5b1e))
+* **PartnerUI:** new partner UI as apps ([37e6bb9](https://github.com/Jaal-Yantra-Textiles/v2/commit/37e6bb9257848bdb1bee045d691c7848f0e96456))
+* **api:** Partner Ui as apps ([962ff44](https://github.com/Jaal-Yantra-Textiles/v2/commit/962ff441b7e60e1df06fd92a78982bee331035b8))
+
+
+### BREAKING CHANGES
+
+* **admin:**
+
 ## [7.3.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.5...v7.3.6) (2025-12-10)
 
 
