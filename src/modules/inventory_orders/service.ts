@@ -32,6 +32,14 @@ class InventoryOrderService extends MedusaService({
     super(...arguments)
   }
 
+  async listInventoryOrderLines(...args) {
+    return this.listOrderLines(...args)
+  }
+
+  async listAndCountInventoryOrderLines(...args) {
+    return this.listAndCountOrderLines(...args)
+  }
+
   
   async createInvWithLines(inventory_order: CreateInventoryOrder, order_lines: CreateOrderLine[]) {
     // Input validation

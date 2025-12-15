@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { WorkflowManager } from "@medusajs/orchestration"
-import { DmlEntity } from "@medusajs/utils"
+import { DmlEntity, camelToSnakeCase, pluralize } from "@medusajs/utils"
 
 /**
  * GET /admin/visual-flows/metadata
@@ -224,11 +224,18 @@ function getEntityNameFromModule(moduleName: string): string {
 async function getQueryableEntities(container: any, modules: ModuleInfo[]): Promise<EntityMetadata[]> {
   const entities: EntityMetadata[] = []
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   
   // Process all modules and verify queryability
   for (const mod of modules) {
     const modelEntityNames = mod.type === "custom" ? getModelEntityNamesFromModule(container, mod.name) : []
     const entityNamesToProbe = modelEntityNames.length > 0 ? modelEntityNames : [mod.entityName]
+
+    if (process.env.VISUAL_FLOWS_METADATA_DEBUG === "true" && modelEntityNames.length > 0) {
+      logger.info(
+        `[visual-flows/metadata] module=${mod.name} models(sample)=${modelEntityNames.slice(0, 30).join(", ")}`
+      )
+    }
 
     for (const entityName of entityNamesToProbe) {
       let queryable = false
@@ -298,7 +305,14 @@ function getModelEntityNamesFromModule(container: any, moduleName: string): stri
     const entityNames = Object.values(modelObjects)
       .map((config: any) => {
         if (DmlEntity.isDmlEntity(config) && typeof config.name === "string") {
-          return config.name
+          // Remote Query alias names are generated from the entity name by converting
+          // to snake_case + pluralizing.
+          // Examples:
+          // - Ad -> ads
+          // - AnalyticsEvent -> analytics_events
+          // - analytics_event -> analytics_events
+          const snake = camelToSnakeCase(config.name).toLowerCase()
+          return pluralize(snake)
         }
 
         return undefined

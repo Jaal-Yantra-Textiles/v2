@@ -27,6 +27,14 @@ class PersonService extends MedusaService({
     return this.listContactDetails(...args)
   }
 
+  async listPersonTags(...args) {
+    return this.listTags(...args)
+  }
+
+  async listAndCountPersonTags(...args) {
+    return this.listAndCountTags(...args)
+  }
+
 
 }
 
