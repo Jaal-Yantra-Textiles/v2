@@ -387,6 +387,7 @@ export interface EntityMetadata {
   type: "core" | "custom"
   description: string
   queryable: boolean
+  queryError?: string
   moduleName?: string
   fields?: FieldMetadata[]
 }

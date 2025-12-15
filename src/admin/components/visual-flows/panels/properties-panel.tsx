@@ -34,6 +34,22 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
   const entityFields = selectedEntity?.fields || []
   const filterableFields = entityFields.filter((f: any) => f.filterable)
 
+  const queryableCustomEntities = useMemo(() => {
+    return entities.filter((e: EntityMetadata) => e.type === "custom" && e.queryable)
+  }, [entities])
+
+  const queryableCoreEntities = useMemo(() => {
+    return entities.filter((e: EntityMetadata) => e.type === "core" && e.queryable)
+  }, [entities])
+
+  const nonQueryableCustomEntities = useMemo(() => {
+    return entities.filter((e: EntityMetadata) => e.type === "custom" && !e.queryable)
+  }, [entities])
+
+  const nonQueryableCoreEntities = useMemo(() => {
+    return entities.filter((e: EntityMetadata) => e.type === "core" && !e.queryable)
+  }, [entities])
+
   useEffect(() => {
     setLabel(String(node.data.label || ""))
     setOperationKey(String(node.data.operationKey || ""))
@@ -113,24 +129,61 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
                 <Select.Content>
                   {entities.length > 0 ? (
                     <>
-                      {/* Custom entities first - only queryable ones */}
-                      {entities.filter((e: EntityMetadata) => e.type === "custom" && e.queryable).length > 0 && (
+                      {/* Custom entities first */}
+                      {queryableCustomEntities.length > 0 && (
                         <Select.Group>
                           <Text className="px-2 py-1 text-xs text-ui-fg-muted">Custom Modules</Text>
-                          {entities.filter((e: EntityMetadata) => e.type === "custom" && e.queryable).map((entity: EntityMetadata) => (
+                          {queryableCustomEntities.map((entity: EntityMetadata) => (
                             <Select.Item key={entity.name} value={entity.name}>
                               <span>{entity.name}</span>
                             </Select.Item>
                           ))}
                         </Select.Group>
                       )}
-                      {/* Core entities - only queryable ones */}
-                      {entities.filter((e: EntityMetadata) => e.type === "core" && e.queryable).length > 0 && (
+                      {/* Core entities */}
+                      {queryableCoreEntities.length > 0 && (
                         <Select.Group>
                           <Text className="px-2 py-1 text-xs text-ui-fg-muted">Core Entities</Text>
-                          {entities.filter((e: EntityMetadata) => e.type === "core" && e.queryable).map((entity: EntityMetadata) => (
+                          {queryableCoreEntities.map((entity: EntityMetadata) => (
                             <Select.Item key={entity.name} value={entity.name}>
                               {entity.name}
+                            </Select.Item>
+                          ))}
+                        </Select.Group>
+                      )}
+
+                      {/* Non-queryable entities (disabled) */}
+                      {nonQueryableCustomEntities.length > 0 && (
+                        <Select.Group>
+                          <Text className="px-2 py-1 text-xs text-ui-fg-muted">Custom Modules (Not queryable)</Text>
+                          {nonQueryableCustomEntities.map((entity: EntityMetadata) => (
+                            <Select.Item key={entity.name} value={entity.name} disabled>
+                              <div className="flex flex-col">
+                                <span className="opacity-60">{entity.name}</span>
+                                {entity.queryError && (
+                                  <span className="text-xs text-ui-fg-subtle opacity-60 truncate">
+                                    {entity.queryError}
+                                  </span>
+                                )}
+                              </div>
+                            </Select.Item>
+                          ))}
+                        </Select.Group>
+                      )}
+
+                      {nonQueryableCoreEntities.length > 0 && (
+                        <Select.Group>
+                          <Text className="px-2 py-1 text-xs text-ui-fg-muted">Core Entities (Not queryable)</Text>
+                          {nonQueryableCoreEntities.map((entity: EntityMetadata) => (
+                            <Select.Item key={entity.name} value={entity.name} disabled>
+                              <div className="flex flex-col">
+                                <span className="opacity-60">{entity.name}</span>
+                                {entity.queryError && (
+                                  <span className="text-xs text-ui-fg-subtle opacity-60 truncate">
+                                    {entity.queryError}
+                                  </span>
+                                )}
+                              </div>
                             </Select.Item>
                           ))}
                         </Select.Group>
@@ -145,6 +198,56 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
                 <Text className="text-xs text-ui-fg-subtle mt-1">
                   {selectedEntity.description}
                 </Text>
+              )}
+              {options.entity && selectedEntity && !selectedEntity.queryable && (
+                <Text className="text-xs text-ui-tag-red-text mt-1">
+                  This entity is registered but not queryable via <code className="bg-ui-bg-subtle px-1">query.graph</code>.
+                  {selectedEntity.queryError ? ` ${selectedEntity.queryError}` : ""}
+                </Text>
+              )}
+
+              {(nonQueryableCustomEntities.length > 0 || nonQueryableCoreEntities.length > 0) && (
+                <div className="mt-3 rounded border border-ui-border-base bg-ui-bg-subtle px-3 py-2">
+                  <Text className="text-xs text-ui-fg-subtle">
+                    Registered entities not available for read operations
+                  </Text>
+                  <div className="mt-2 space-y-2">
+                    {nonQueryableCustomEntities.length > 0 && (
+                      <div>
+                        <Text className="text-xs text-ui-fg-muted">Custom</Text>
+                        <div className="mt-1 space-y-1">
+                          {nonQueryableCustomEntities.map((e) => (
+                            <div key={e.name} className="flex items-start gap-2">
+                              <Badge size="2xsmall" color="grey">
+                                {e.name}
+                              </Badge>
+                              <Text className="text-xs text-ui-fg-subtle line-clamp-2">
+                                {e.queryError || "Not queryable via query.graph"}
+                              </Text>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {nonQueryableCoreEntities.length > 0 && (
+                      <div>
+                        <Text className="text-xs text-ui-fg-muted">Core</Text>
+                        <div className="mt-1 space-y-1">
+                          {nonQueryableCoreEntities.map((e) => (
+                            <div key={e.name} className="flex items-start gap-2">
+                              <Badge size="2xsmall" color="grey">
+                                {e.name}
+                              </Badge>
+                              <Text className="text-xs text-ui-fg-subtle line-clamp-2">
+                                {e.queryError || "Not queryable via query.graph"}
+                              </Text>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
 

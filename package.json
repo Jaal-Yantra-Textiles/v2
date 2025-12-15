@@ -2,6 +2,9 @@
   "name": "jyt-commerce-api",
   "version": "7.3.6",
   "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "description": "A starter for Medusa projects extended to be used as a core production modules for textiles.",
   "author": "Medusa (https://medusajs.com) and JYT (https://jaalyantra.in)",
   "license": "MIT",
@@ -18,10 +21,8 @@
     "seed": "medusa exec ./src/scripts/seed.ts",
     "start": "medusa start",
     "dev": "medusa develop",
-    "partner-ui:install": "corepack yarn --cwd ./apps/partner-ui install",
-    "partner-ui:dev": "corepack yarn --cwd ./apps/partner-ui dev",
-    "partner-ui:build": "corepack yarn --cwd ./apps/partner-ui build:preview",
-    "install:all": "yarn install && corepack yarn --cwd ./apps/partner-ui install",
+    "partner-ui:dev": "corepack enable && yarn workspace @jyt/partner-ui dev",
+    "partner-ui:build": "corepack enable && yarn workspace @jyt/partner-ui build:preview",
     "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=\"--experimental-vm-modules --max-old-space-size=8192\" jest --silent=false --runInBand --forceExit",
     "test:integration:http:shared": "TEST_TYPE=integration:http NODE_OPTIONS=\"--experimental-vm-modules --max-old-space-size=8192\" jest --silent=false --runInBand --forceExit --config=./integration-tests/jest-shared.config.js",
     "test:integration:http:batched": "node ./scripts/run-batched-tests.js",
@@ -48,13 +49,13 @@
     "@mastra/memory": "^0.0.0-ai-v5-20250801192614",
     "@mastra/pg": "^0.14.0",
     "@mastra/rag": "^1.2.2",
-    "@medusajs/admin-sdk": "^2.12.1",
-    "@medusajs/cli": "2.12.1",
-    "@medusajs/framework": "2.12.1",
-    "@medusajs/index": "^2.12.1",
-    "@medusajs/medusa": "2.12.1",
-    "@medusajs/medusa-oas-cli": "^2.12.1",
-    "@medusajs/workflows-sdk": "2.12.1",
+    "@medusajs/admin-sdk": "^2.12.2",
+    "@medusajs/cli": "2.12.2",
+    "@medusajs/framework": "2.12.2",
+    "@medusajs/index": "^2.12.2",
+    "@medusajs/medusa": "2.12.2",
+    "@medusajs/medusa-oas-cli": "^2.12.2",
+    "@medusajs/workflows-sdk": "2.12.2",
     "@monaco-editor/react": "^4.7.0",
     "@openrouter/ai-sdk-provider": "^1.1.2",
     "@opentelemetry/api": "^1.9.0",
@@ -142,7 +143,7 @@
     "validator": "^13.15.23"
   },
   "devDependencies": {
-    "@medusajs/test-utils": "2.12.1",
+    "@medusajs/test-utils": "2.12.2",
     "@mikro-orm/cli": "6.4.16",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^11.1.0",
@@ -180,6 +181,5 @@
   },
   "engines": {
     "node": ">=20"
-  },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  }
 }

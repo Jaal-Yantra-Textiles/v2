@@ -187,36 +187,48 @@ async function getQueryableEntities(container: any, modules: ModuleInfo[]): Prom
   
   // Process all modules and verify queryability
   for (const mod of modules) {
-    let queryable = false
-    let fields: FieldMetadata[] = []
-    
-    try {
-      // Attempt a query to verify the entity is queryable and get sample data
-      const result = await query.graph({
-        entity: mod.entityName,
-        fields: ["*"],
-        pagination: { take: 1 },
-      })
-      queryable = true
-      
-      // Extract field names from the result
-      if (result.data && result.data.length > 0) {
-        const sampleRecord = result.data[0]
-        fields = extractFieldsFromRecord(sampleRecord)
+    const modelEntityNames = mod.type === "custom" ? getModelEntityNamesFromModule(container, mod.name) : []
+    const entityNamesToProbe = modelEntityNames.length > 0 ? modelEntityNames : [mod.entityName]
+
+    for (const entityName of entityNamesToProbe) {
+      let queryable = false
+      let queryError: string | undefined
+      let fields: FieldMetadata[] = []
+
+      try {
+        // Attempt a query to verify the entity is queryable and get sample data
+        const result = await query.graph({
+          entity: entityName,
+          fields: ["*"],
+          pagination: { take: 1 },
+        })
+        queryable = true
+        queryError = undefined
+
+        // Extract field names from the result
+        if (result.data && result.data.length > 0) {
+          const sampleRecord = result.data[0]
+          fields = extractFieldsFromRecord(sampleRecord)
+        }
+      } catch (e: any) {
+        // Entity might not be queryable via graph - that's okay
+        queryable = false
+        queryError = e?.message || "Entity is not queryable via query.graph"
       }
-    } catch {
-      // Entity might not be queryable via graph - that's okay
-      queryable = false
+
+      entities.push({
+        name: entityName,
+        type: mod.type,
+        description:
+          modelEntityNames.length > 0
+            ? `${mod.description} (model: ${entityName})`
+            : mod.description,
+        queryable,
+        queryError: queryable ? undefined : queryError,
+        moduleName: mod.name,
+        fields: fields.length > 0 ? fields : undefined,
+      })
     }
-    
-    entities.push({
-      name: mod.entityName,
-      type: mod.type,
-      description: mod.description,
-      queryable,
-      moduleName: mod.name,
-      fields: fields.length > 0 ? fields : undefined,
-    })
   }
   
   // Sort: queryable first, then by type (custom before core), then alphabetically
@@ -227,6 +239,29 @@ async function getQueryableEntities(container: any, modules: ModuleInfo[]): Prom
   })
   
   return entities
+}
+
+function getModelEntityNamesFromModule(container: any, moduleName: string): string[] {
+  try {
+    const service = container.resolve(moduleName) as any
+    if (!service || !service.constructor) {
+      return []
+    }
+
+    const modelObjectsSymbol = Symbol.for("MedusaServiceModelObjectsSymbol")
+    const modelObjects = (service.constructor as any)[modelObjectsSymbol] as Record<string, any> | undefined
+    if (!modelObjects || typeof modelObjects !== "object") {
+      return []
+    }
+
+    const entityNames = Object.values(modelObjects)
+      .map((m: any) => (typeof m?.name === "string" ? m.name : undefined))
+      .filter((n: any): n is string => !!n)
+
+    return Array.from(new Set(entityNames))
+  } catch {
+    return []
+  }
 }
 
 /**
@@ -498,6 +533,7 @@ interface EntityMetadata {
   type: "core" | "custom"
   description: string
   queryable: boolean
+  queryError?: string
   moduleName?: string // The container registration name
   fields?: FieldMetadata[]
 }
