@@ -56,7 +56,7 @@ export const POST = async (
       const payload = {
         filename: f.originalname,
         mimeType: f.mimetype,
-        content: f.buffer?.toString("binary"),
+        content: f.buffer?.toString("base64"),
         access: "public" as const,
       }
       if (!payload.content) {

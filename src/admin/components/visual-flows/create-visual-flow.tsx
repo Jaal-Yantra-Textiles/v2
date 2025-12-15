@@ -9,13 +9,72 @@ import { useRouteModal } from "../modal/use-route-modal"
 import { Form } from "../common/form"
 
 // Define the schema for visual flow creation
-const visualFlowSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
-  trigger_type: z.enum(["manual", "webhook", "event", "schedule", "another_flow"]),
-  event_type: z.string().optional(),
-  cron_expression: z.string().optional(),
-})
+const visualFlowSchema = z
+  .object({
+    name: z.string().min(1, "Name is required"),
+    description: z.string().optional(),
+    trigger_type: z.enum(["manual", "webhook", "event", "schedule", "another_flow"]),
+    event_type: z.string().optional(),
+    schedule_mode: z.enum(["daily_time", "every_n_hours", "cron"]).optional(),
+    schedule_time: z.string().optional(),
+    schedule_every_hours: z.coerce.number().int().min(1).max(24).optional(),
+    schedule_cron: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.trigger_type !== "schedule") {
+      return
+    }
+
+    if (!data.schedule_mode) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Schedule type is required",
+        path: ["schedule_mode"],
+      })
+      return
+    }
+
+    if (data.schedule_mode === "daily_time") {
+      if (!data.schedule_time) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Time is required",
+          path: ["schedule_time"],
+        })
+      }
+    }
+
+    if (data.schedule_mode === "every_n_hours") {
+      if (data.schedule_every_hours === undefined || Number.isNaN(data.schedule_every_hours)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Hours interval is required",
+          path: ["schedule_every_hours"],
+        })
+      }
+    }
+
+    if (data.schedule_mode === "cron") {
+      if (!data.schedule_cron) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Cron expression is required",
+          path: ["schedule_cron"],
+        })
+        return
+      }
+
+      const cron = data.schedule_cron.trim()
+      const isValidCron = /^(\S+\s+){4}\S+$/.test(cron)
+      if (!isValidCron) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Cron expression must have 5 parts",
+          path: ["schedule_cron"],
+        })
+      }
+    }
+  })
 
 type VisualFlowFormValues = z.infer<typeof visualFlowSchema>
 
@@ -41,7 +100,10 @@ export function CreateVisualFlow() {
       description: "",
       trigger_type: "manual",
       event_type: "",
-      cron_expression: "",
+      schedule_mode: "daily_time",
+      schedule_time: "",
+      schedule_every_hours: undefined,
+      schedule_cron: "",
     },
   })
 
@@ -52,6 +114,7 @@ export function CreateVisualFlow() {
   } = form
 
   const triggerType = watch("trigger_type")
+  const scheduleMode = watch("schedule_mode")
 
   // Form submission handler
   const onSubmit = handleSubmit(async (data) => {
@@ -60,8 +123,36 @@ export function CreateVisualFlow() {
       let trigger_config: Record<string, any> = {}
       if (data.trigger_type === "event" && data.event_type) {
         trigger_config = { event_type: data.event_type }
-      } else if (data.trigger_type === "schedule" && data.cron_expression) {
-        trigger_config = { cron: data.cron_expression }
+      } else if (data.trigger_type === "schedule") {
+        if (data.schedule_mode === "daily_time" && data.schedule_time) {
+          const [hourStr, minuteStr] = data.schedule_time.split(":")
+          const hour = Number(hourStr)
+          const minute = Number(minuteStr)
+
+          if (
+            Number.isNaN(hour) ||
+            Number.isNaN(minute) ||
+            hour < 0 ||
+            hour > 23 ||
+            minute < 0 ||
+            minute > 59
+          ) {
+            throw new Error("Invalid schedule time")
+          }
+
+          trigger_config = { cron: `${minute} ${hour} * * *` }
+        }
+
+        if (
+          data.schedule_mode === "every_n_hours" &&
+          data.schedule_every_hours !== undefined
+        ) {
+          trigger_config = { cron: `0 */${data.schedule_every_hours} * * *` }
+        }
+
+        if (data.schedule_mode === "cron" && data.schedule_cron) {
+          trigger_config = { cron: data.schedule_cron.trim() }
+        }
       }
       
       await mutateAsync(
@@ -247,29 +338,116 @@ export function CreateVisualFlow() {
                 />
               )}
 
-              {/* Cron Expression field - shown when trigger_type is "schedule" */}
+              {/* Schedule Time field - shown when trigger_type is "schedule" */}
               {triggerType === "schedule" && (
-                <Form.Field
-                  control={form.control}
-                  name="cron_expression"
-                  render={({ field }) => {
-                    return (
-                      <Form.Item>
-                        <Form.Label>Cron Expression</Form.Label>
-                        <Form.Control>
-                          <Input 
-                            placeholder="0 9 * * *" 
-                            className="font-mono"
-                            {...field}
-                          />
-                        </Form.Control>
-                        <Form.Hint>
-                          Examples: "0 9 * * *" (daily at 9am), "0 */6 * * *" (every 6 hours)
-                        </Form.Hint>
-                      </Form.Item>
-                    )
-                  }}
-                />
+                <div className="flex flex-col gap-y-4">
+                  <Form.Field
+                    control={form.control}
+                    name="schedule_mode"
+                    render={({ field }) => {
+                      return (
+                        <Form.Item>
+                          <Form.Label>Schedule</Form.Label>
+                          <Form.Control>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <Select.Trigger>
+                                <Select.Value placeholder="Select schedule..." />
+                              </Select.Trigger>
+                              <Select.Content>
+                                <Select.Item value="daily_time">Daily at a time</Select.Item>
+                                <Select.Item value="every_n_hours">Every N hours</Select.Item>
+                                <Select.Item value="cron">Advanced (cron)</Select.Item>
+                              </Select.Content>
+                            </Select>
+                          </Form.Control>
+                          {errors.schedule_mode && (
+                            <Form.ErrorMessage>{errors.schedule_mode.message}</Form.ErrorMessage>
+                          )}
+                        </Form.Item>
+                      )
+                    }}
+                  />
+
+                  {scheduleMode === "daily_time" && (
+                    <Form.Field
+                      control={form.control}
+                      name="schedule_time"
+                      render={({ field }) => {
+                        return (
+                          <Form.Item>
+                            <Form.Label>Time</Form.Label>
+                            <Form.Control>
+                              <Input type="time" {...field} />
+                            </Form.Control>
+                            {errors.schedule_time && (
+                              <Form.ErrorMessage>{errors.schedule_time.message}</Form.ErrorMessage>
+                            )}
+                            <Form.Hint>Runs daily at the selected time.</Form.Hint>
+                          </Form.Item>
+                        )
+                      }}
+                    />
+                  )}
+
+                  {scheduleMode === "every_n_hours" && (
+                    <Form.Field
+                      control={form.control}
+                      name="schedule_every_hours"
+                      render={({ field }) => {
+                        return (
+                          <Form.Item>
+                            <Form.Label>Every (hours)</Form.Label>
+                            <Form.Control>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={24}
+                                step={1}
+                                value={(field.value as any) ?? ""}
+                                onChange={(e) => field.onChange(e.target.value)}
+                              />
+                            </Form.Control>
+                            {errors.schedule_every_hours && (
+                              <Form.ErrorMessage>
+                                {errors.schedule_every_hours.message as any}
+                              </Form.ErrorMessage>
+                            )}
+                            <Form.Hint>
+                              Example: 2 means every 2 hours (cron: "0 */2 * * *").
+                            </Form.Hint>
+                          </Form.Item>
+                        )
+                      }}
+                    />
+                  )}
+
+                  {scheduleMode === "cron" && (
+                    <Form.Field
+                      control={form.control}
+                      name="schedule_cron"
+                      render={({ field }) => {
+                        return (
+                          <Form.Item>
+                            <Form.Label>Cron Expression</Form.Label>
+                            <Form.Control>
+                              <Input
+                                placeholder="0 */6 * * *"
+                                className="font-mono"
+                                {...field}
+                              />
+                            </Form.Control>
+                            {errors.schedule_cron && (
+                              <Form.ErrorMessage>{errors.schedule_cron.message}</Form.ErrorMessage>
+                            )}
+                            <Form.Hint>
+                              Examples: "0 9 * * *" (daily at 9am), "0 */6 * * *" (every 6 hours)
+                            </Form.Hint>
+                          </Form.Item>
+                        )
+                      }}
+                    />
+                  )}
+                </div>
               )}
             </div>
           </div>
