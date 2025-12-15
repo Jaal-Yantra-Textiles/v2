@@ -1,4 +1,4 @@
-import { Button, Heading, Input, Text, toast } from "@medusajs/ui"
+import { Button, DatePicker, Heading, Input, Text, toast } from "@medusajs/ui"
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
 
@@ -60,23 +60,68 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
 
   const orderLines = (inventoryOrder?.order_lines || []) as Array<Record<string, any>>
 
+  const remainingByLineId = useMemo(() => {
+    const map = new Map<string, number>()
+
+    for (const l of orderLines) {
+      const id = String(l?.id)
+      const requested = Number(l?.quantity) || 0
+      const fulfilled = Array.isArray(l?.line_fulfillments)
+        ? l.line_fulfillments.reduce(
+            (sum: number, f: any) => sum + (Number(f?.quantity_delta) || 0),
+            0
+          )
+        : 0
+
+      map.set(id, Math.max(0, requested - fulfilled))
+    }
+
+    return map
+  }, [orderLines])
+
   const initialLines = useMemo<LineDraft[]>(() => {
     return orderLines.map((l) => ({
       order_line_id: String(l.id),
-      quantity: Number(l.quantity ?? 0),
+      quantity: remainingByLineId.get(String(l.id)) ?? 0,
     }))
-  }, [orderLines])
+  }, [orderLines, remainingByLineId])
 
   const [lines, setLines] = useState<LineDraft[]>([])
   const [notes, setNotes] = useState<string>("")
-  const [deliveryDate, setDeliveryDate] = useState<string>("")
+  const [deliveryDate, setDeliveryDate] = useState<Date | null>(null)
   const [trackingNumber, setTrackingNumber] = useState<string>("")
+
+  const formatDate = (date: Date) => {
+    const yyyy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, "0")
+    const dd = String(date.getDate()).padStart(2, "0")
+    return `${yyyy}-${mm}-${dd}`
+  }
 
   useEffect(() => {
     if (initialLines.length) {
       setLines(initialLines)
     }
   }, [initialLines])
+
+  const overDeliveredLines = useMemo(() => {
+    return (lines || []).filter((l) => {
+      const remaining = remainingByLineId.get(String(l.order_line_id)) ?? 0
+      return Number(l.quantity || 0) > remaining
+    })
+  }, [lines, remainingByLineId])
+
+  const hasOverDelivery = overDeliveredLines.length > 0
+
+  const isFullDelivery = useMemo(() => {
+    if (!lines.length) {
+      return false
+    }
+    return lines.every((l) => {
+      const remaining = remainingByLineId.get(String(l.order_line_id)) ?? 0
+      return Number(l.quantity || 0) === remaining
+    })
+  }, [lines, remainingByLineId])
 
   if (isError) {
     throw error
@@ -88,15 +133,36 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
       return
     }
 
+    if (hasOverDelivery) {
+      toast.error(
+        `Invalid quantities: ${overDeliveredLines.length} line(s) exceed the remaining quantity.`
+      )
+      return
+    }
+
+    if (!isFullDelivery && !notes.trim()) {
+      toast.error("Add notes when completing with partial delivery.")
+      return
+    }
+
+    const trimmedLines = lines
+      .map((l) => ({
+        order_line_id: l.order_line_id,
+        quantity: Number(l.quantity || 0),
+      }))
+      .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0)
+
+    if (!trimmedLines.length) {
+      toast.error("Please provide at least one line with quantity greater than 0.")
+      return
+    }
+
     await completeOrder(
       {
         notes: notes || undefined,
-        deliveryDate: deliveryDate || undefined,
+        deliveryDate: deliveryDate ? formatDate(deliveryDate) : undefined,
         trackingNumber: trackingNumber || undefined,
-        lines: lines.map((l) => ({
-          order_line_id: l.order_line_id,
-          quantity: l.quantity,
-        })),
+        lines: trimmedLines,
       },
       {
         onSuccess: () => {
@@ -129,10 +195,10 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
               <Text size="xsmall" className="text-ui-fg-subtle">
                 Delivery date
               </Text>
-              <Input
+              <DatePicker
+                granularity="day"
                 value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-                placeholder="YYYY-MM-DD"
+                onChange={setDeliveryDate}
               />
             </div>
             <div>
@@ -148,6 +214,11 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
 
           <div className="mt-6">
             <Heading level="h2">Lines</Heading>
+            {!isFullDelivery && (
+              <Text size="small" className="text-ui-fg-subtle">
+                Partial delivery detected. Add notes or set quantities to match remaining.
+              </Text>
+            )}
             <div className="mt-4 flex flex-col gap-y-3">
               {isPending ? (
                 <Text size="small" className="text-ui-fg-subtle">
@@ -166,6 +237,8 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
                     line?.inventory_item_id ||
                     line?.id
 
+                  const remaining = remainingByLineId.get(String(line.id)) ?? 0
+
                   return (
                     <div
                       key={String(line.id)}
@@ -183,12 +256,18 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
                         <Text size="xsmall" className="text-ui-fg-subtle">
                           Quantity
                         </Text>
+                        <Text size="xsmall" className="text-ui-fg-subtle">
+                          Remaining: {String(remaining)}
+                        </Text>
                         <Input
                           type="number"
                           min={0}
+                          step="any"
+                          max={remaining}
                           value={current?.quantity ?? 0}
                           onChange={(e) => {
-                            const qty = Number(e.target.value || 0)
+                            const raw = Number(e.target.value || 0)
+                            const qty = Math.max(0, Math.min(raw, remaining))
                             setLines((prev) => {
                               const next = [...prev]
                               next[idx] = {
@@ -216,7 +295,12 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
               Cancel
             </Button>
           </RouteFocusModal.Close>
-          <Button size="small" isLoading={isCompleting} onClick={handleComplete}>
+          <Button
+            size="small"
+            isLoading={isCompleting}
+            disabled={hasOverDelivery}
+            onClick={handleComplete}
+          >
             Complete
           </Button>
         </div>
