@@ -36,12 +36,11 @@ export async function GET(
         // Query all tasks linked to this partner
         const { data: partnerData } = await query.graph({
             entity: 'partner',
-            fields: [ '*','tasks.*'],
+            fields: [ '*','tasks.*', 'tasks.outgoing.*', 'tasks.incoming.*', 'tasks.subtasks.*'],
             filters: {
                 id: partner.id
             }
         });
-
         // Extract the tasks from the partner object
         let allTaskIds: any[] = [];
         if (partnerData && partnerData.length > 0) {
@@ -63,7 +62,7 @@ export async function GET(
         
         const allTasks = await taskService.listTasks(
             { id: allTaskIds },
-            { relations: ["subtasks"] }
+            { relations: ["subtasks", "outgoing", "incoming"] }
         );
 
         // Filter to only show parent tasks (exclude subtasks)

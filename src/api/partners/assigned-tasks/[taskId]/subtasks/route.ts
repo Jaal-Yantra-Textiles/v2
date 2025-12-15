@@ -63,7 +63,7 @@ export async function GET(
     
     // Fetch parent task with subtasks
     const parentTask = await taskService.retrieveTask(taskId, {
-      relations: ["subtasks"],
+      relations: ["subtasks", "outgoing", "incoming"],
     });
 
     if (!parentTask) {

@@ -320,6 +320,14 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/assigned-tasks/:taskId",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/assigned-tasks/:taskId/accept",
       method: "POST",
       middlewares: [

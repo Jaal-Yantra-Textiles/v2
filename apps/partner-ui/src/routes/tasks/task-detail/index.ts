@@ -1,1 +1,1 @@
-export { TaskDetail as Component } from "./task-detail.tsx"
+export { TaskDetail as Component } from "./task-detail"

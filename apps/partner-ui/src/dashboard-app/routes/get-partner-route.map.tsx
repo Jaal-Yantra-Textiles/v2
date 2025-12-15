@@ -136,6 +136,10 @@ export function getPartnerRouteMap(): RouteObject[] {
                   lazy: () => import("../../routes/tasks/task-detail"),
                   children: [
                     {
+                      path: "subtasks/:subtaskId",
+                      lazy: () => import("../../routes/tasks/task-subtask"),
+                    },
+                    {
                       path: "accept",
                       lazy: () => import("../../routes/tasks/task-accept"),
                     },
