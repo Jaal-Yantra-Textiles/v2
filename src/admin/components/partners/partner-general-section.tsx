@@ -61,7 +61,7 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
         </div>
         <div className="flex items-center gap-2">
           <Badge color={status === "active" ? "green" : status === "pending" ? "orange" : "grey"}>{status}</Badge>
-          {isVerified ? <Badge color="green">Verified</Badge> : <Badge>Not Verified</Badge>}
+          {isVerified ? <Badge color="green">Verified</Badge> : <Badge>Verified</Badge>}
           <ActionMenu
             groups={[
               {

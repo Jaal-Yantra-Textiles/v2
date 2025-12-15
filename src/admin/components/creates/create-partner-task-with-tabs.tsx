@@ -297,11 +297,12 @@ export const CreatePartnerTaskComponent = () => {
         >
           <RouteFocusModal.Header>
             <div className="-my-2 w-full border-l">
-              <ProgressTabs.List className="flex w-full items-center justify-start">
+              <ProgressTabs.List className="flex w-full items-center justify-start overflow-x-auto whitespace-nowrap">
                 <ProgressTabs.Trigger 
                   value={Tab.DETAILS} 
                   status={tabState.details} 
                   onClick={() => handleTabChange(Tab.DETAILS)}
+                  className="flex-shrink-0"
                 >
                   Task Details
                 </ProgressTabs.Trigger>
@@ -310,6 +311,7 @@ export const CreatePartnerTaskComponent = () => {
                   status={tabState.workflow} 
                   onClick={() => handleTabChange(Tab.WORKFLOW)}
                   disabled={tabState.details !== 'completed' && tabState.workflow === 'not-started'}
+                  className="flex-shrink-0"
                 >
                   Workflow Config
                 </ProgressTabs.Trigger>
@@ -318,6 +320,7 @@ export const CreatePartnerTaskComponent = () => {
                   status={tabState.steps} 
                   onClick={() => handleTabChange(Tab.STEPS)}
                   disabled={(tabState.details !== 'completed' || tabState.workflow !== 'completed') && tabState.steps === 'not-started'}
+                  className="flex-shrink-0"
                 >
                   Task Steps
                 </ProgressTabs.Trigger>
@@ -327,8 +330,8 @@ export const CreatePartnerTaskComponent = () => {
 
           <RouteFocusModal.Body className="size-full overflow-hidden">
             {/* Tab 1: Task Details */}
-            <ProgressTabs.Content value={Tab.DETAILS} className="h-full">
-              <div className="flex h-full flex-col gap-y-8 p-8">
+            <ProgressTabs.Content value={Tab.DETAILS} className="h-full overflow-hidden">
+              <div className="flex h-full flex-col gap-y-8 overflow-y-auto px-4 py-6 sm:p-8">
                 <div className="flex items-center justify-between border-b pb-4">
                   <Heading className="text-xl">Main Task Information</Heading>
                 </div>
@@ -491,8 +494,8 @@ export const CreatePartnerTaskComponent = () => {
             </ProgressTabs.Content>
 
             {/* Tab 2: Workflow Configuration */}
-            <ProgressTabs.Content value={Tab.WORKFLOW} className="h-full">
-              <div className="flex h-full flex-col gap-y-8 p-8">
+            <ProgressTabs.Content value={Tab.WORKFLOW} className="h-full overflow-hidden">
+              <div className="flex h-full flex-col gap-y-8 overflow-y-auto px-4 py-6 sm:p-8">
                 <div className="flex items-center justify-between border-b pb-4">
                   <Heading className="text-xl">Workflow Configuration</Heading>
                 </div>
@@ -553,8 +556,8 @@ export const CreatePartnerTaskComponent = () => {
             </ProgressTabs.Content>
 
             {/* Tab 3: Task Steps */}
-            <ProgressTabs.Content value={Tab.STEPS} className="h-full">
-              <div className="flex h-full flex-col gap-y-8 p-8">
+            <ProgressTabs.Content value={Tab.STEPS} className="h-full overflow-hidden">
+              <div className="flex h-full flex-col gap-y-6 overflow-hidden px-4 py-6 sm:p-8">
                 <div className="flex items-center justify-between border-b pb-4">
                   <div>
                     <Heading className="text-xl">Task Steps</Heading>

@@ -6,7 +6,6 @@ import {
   Heading,
   Text,
   toast,
-  usePrompt,
   Input,
   Select,
   Textarea,
@@ -142,7 +141,7 @@ export const CreateDesignTaskComponent = () => {
           </div>
         </RouteFocusModal.Header>
 
-        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-16">
+        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
           <div className="flex w-full max-w-[720px] flex-col gap-y-8">
             {/* Main Task Section */}
             <div className="relative rounded-lg border border-ui-border-base bg-ui-bg-base p-6">
@@ -178,7 +177,7 @@ export const CreateDesignTaskComponent = () => {
                 }`}
               >
                 <div className="">
-                  <div className="flex flex-col gap-y-6 max-w-3xl mx-auto px-4">
+                  <div className="mx-auto flex max-w-3xl flex-col gap-y-6">
                     <div className="space-y-6">
                       <Form.Field
                         control={form.control}
@@ -294,20 +293,20 @@ export const CreateDesignTaskComponent = () => {
 
             {/* Child Tasks Section */}
             {fields.length > 0 && (
-              <div className="relative flex flex-col gap-y-6 pl-8">
+              <div className="relative flex flex-col gap-y-6 pl-0 sm:pl-8">
                 {/* Vertical connector from main task */}
-                <div className="absolute -top-8 left-8 h-full w-0.5 border-l-2 border-dashed border-ui-border-base" />
+                <div className="absolute -top-8 left-8 hidden h-full w-0.5 border-l-2 border-dashed border-ui-border-base sm:block" />
 
                 {fields.map((field, index) => (
                   <div
                     key={field.id}
-                    className="relative ml-8"
+                    className="relative ml-0 sm:ml-8"
                   >
                     {/* Horizontal connector to child task */}
-                    <div className="absolute -left-8 top-4 h-0.5 w-8 border-t-2 border-dashed border-ui-border-base" />
+                    <div className="absolute -left-8 top-4 hidden h-0.5 w-8 border-t-2 border-dashed border-ui-border-base sm:block" />
                     
                     {/* Circle connector */}
-                    <div className="absolute -left-9 top-3 h-3 w-3 rounded-full border-2 border-ui-border-base bg-ui-bg-base" />
+                    <div className="absolute -left-9 top-3 hidden h-3 w-3 rounded-full border-2 border-ui-border-base bg-ui-bg-base sm:block" />
                     
                     <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 shadow-sm">
                       <div className="flex items-start justify-between">

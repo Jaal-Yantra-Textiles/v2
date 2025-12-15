@@ -36,12 +36,12 @@ const PartnerDetailPage = () => {
       <TwoColumnPage data={partner} hasOutlet={true} showJSON showMetadata>
         <TwoColumnPage.Main>
           <PartnerGeneralSection partner={partner} />
-          <PartnerPaymentsSection partner={partner} />
           <PartnerTasksSection partnerId={partner.id} />
-          <PartnerFeedbacksSection partnerId={partner.id} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
           <PartnerAdminsSection partnerId={partner.id} admins={partner.admins || []} />
+          <PartnerPaymentsSection partner={partner} />
+          <PartnerFeedbacksSection partnerId={partner.id} />
         </TwoColumnPage.Sidebar>
       </TwoColumnPage>
     </>

@@ -32,9 +32,9 @@ const ViewPartnerTaskCanvas = () => {
   return (
     <RouteFocusModal>
       <RouteFocusModal.Header>
-        <div className="flex items-center gap-x-2">
+        <div className="flex flex-col gap-y-1 sm:flex-row sm:items-center sm:gap-x-2">
           <Text size="large" weight="plus">
-            {partner.name} - Task Canvas
+            <span className="break-words">{partner.name} - Task Canvas</span>
           </Text>
         </div>
       </RouteFocusModal.Header>
