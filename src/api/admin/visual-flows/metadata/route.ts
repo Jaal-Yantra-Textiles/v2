@@ -249,14 +249,21 @@ function getModelEntityNamesFromModule(container: any, moduleName: string): stri
     }
 
     const modelObjectsSymbol = Symbol.for("MedusaServiceModelObjectsSymbol")
-    const modelObjects = (service.constructor as any)[modelObjectsSymbol] as Record<string, any> | undefined
+    const modelObjects = ((service.constructor as any)[modelObjectsSymbol] ||
+      (service as any)[modelObjectsSymbol]) as Record<string, any> | undefined
     if (!modelObjects || typeof modelObjects !== "object") {
       return []
     }
 
-    const entityNames = Object.values(modelObjects)
-      .map((m: any) => (typeof m?.name === "string" ? m.name : undefined))
-      .filter((n: any): n is string => !!n)
+    const entityNames = Object.entries(modelObjects)
+      .map(([key, config]: [string, any]) => {
+        if (typeof config?.name === "string") {
+          return config.name
+        }
+
+        return key
+      })
+      .filter((n: any): n is string => typeof n === "string" && n.length > 0)
 
     return Array.from(new Set(entityNames))
   } catch {
