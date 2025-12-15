@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { WorkflowManager } from "@medusajs/orchestration"
+import { DmlEntity } from "@medusajs/utils"
 
 /**
  * GET /admin/visual-flows/metadata
@@ -14,9 +15,37 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     // Get all registered services from the Awilix container
     const registeredModules = getRegisteredModulesFromContainer(req.scope)
+
+    if (process.env.VISUAL_FLOWS_METADATA_DEBUG === "true") {
+      const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+      const registrations = (req.scope as any)?.registrations || {}
+      const registrationKeys = Object.keys(registrations)
+
+      logger.info(
+        `[visual-flows/metadata] registrations=${registrationKeys.length} modules=${registeredModules.length}`
+      )
+      logger.info(
+        `[visual-flows/metadata] modules(sample)=${registeredModules
+          .slice(0, 50)
+          .map((m) => `${m.name}->${m.entityName}`)
+          .join(", ")}`
+      )
+    }
     
     // Get queryable entities (modules that can be used with query.graph)
     const entities = await getQueryableEntities(req.scope, registeredModules)
+
+    if (process.env.VISUAL_FLOWS_METADATA_DEBUG === "true") {
+      const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+      logger.info(`[visual-flows/metadata] entities=${entities.length}`)
+      logger.info(
+        `[visual-flows/metadata] nonQueryable(sample)=${entities
+          .filter((e) => !e.queryable)
+          .slice(0, 50)
+          .map((e) => `${e.name}(${e.moduleName})=${e.queryError || "unknown"}`)
+          .join(" | ")}`
+      )
+    }
     
     // Get registered workflows
     const workflows = getRegisteredWorkflowsFromContainer(req.scope)
@@ -112,6 +141,17 @@ function getRegisteredModulesFromContainer(container: any): ModuleInfo[] {
   for (const key of Object.keys(registrations)) {
     // Skip framework services
     if (skipServices.has(key)) {
+      continue
+    }
+
+    // Only consider module-like registrations for custom modules.
+    // Awilix container also holds many service/model registrations like "Ad", "Agreement",
+    // "AnalyticsEvent", etc. These are not Remote Query entities and will fail query.graph
+    // with "Service with alias ... was not found".
+    if (/[A-Z]/.test(key)) {
+      continue
+    }
+    if (!/^[a-z0-9_]+$/.test(key)) {
       continue
     }
     
@@ -255,13 +295,13 @@ function getModelEntityNamesFromModule(container: any, moduleName: string): stri
       return []
     }
 
-    const entityNames = Object.entries(modelObjects)
-      .map(([key, config]: [string, any]) => {
-        if (typeof config?.name === "string") {
+    const entityNames = Object.values(modelObjects)
+      .map((config: any) => {
+        if (DmlEntity.isDmlEntity(config) && typeof config.name === "string") {
           return config.name
         }
 
-        return key
+        return undefined
       })
       .filter((n: any): n is string => typeof n === "string" && n.length > 0)
 
