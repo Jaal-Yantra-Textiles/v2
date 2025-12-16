@@ -1,3 +1,10 @@
+# [8.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.0.2...v8.1.0) (2025-12-16)
+
+
+### Features
+
+* **api:** AI general chat UI and API fix ([930a530](https://github.com/Jaal-Yantra-Textiles/v2/commit/930a53048f9f6536ffe3aa34ea7bcac7e9916463))
+
 ## [8.0.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.0.1...v8.0.2) (2025-12-16)
 
 
