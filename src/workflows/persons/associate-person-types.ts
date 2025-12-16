@@ -8,6 +8,7 @@ import {
 import { PERSON_MODULE } from "../../modules/person"
 import { PERSON_TYPE_MODULE } from "../../modules/persontype"
 import { LinkDefinition } from "@medusajs/framework/types"
+import type { Link } from "@medusajs/modules-sdk"
 
 type AssociatePersonTypesInput = {
   personId: string
@@ -17,7 +18,7 @@ type AssociatePersonTypesInput = {
 const prepareLinkDefinitionsStep = createStep(
   "prepare-link-definitions",
   async (input: AssociatePersonTypesInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const links:  LinkDefinition[] = []
 
     // Create a separate link for each type ID
@@ -40,7 +41,7 @@ const prepareLinkDefinitionsStep = createStep(
   }, 
   async (links, { container }) => {
     if (!links?.length) return
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     
     // Rollback each link individually
     for (const link of links) {

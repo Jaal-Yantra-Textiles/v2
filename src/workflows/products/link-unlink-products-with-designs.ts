@@ -20,6 +20,8 @@ import { DESIGN_MODULE } from "../../modules/designs"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { Modules } from "@medusajs/framework/utils"
 import DesignService from "../../modules/designs/service"
+import type { IProductModuleService } from "@medusajs/types"
+import type { Link } from "@medusajs/modules-sdk"
 
 // Input types for the workflows
 type LinkProductDesignInput = {
@@ -54,7 +56,7 @@ export const validateProductDesignExistenceStep = createStep(
   "validate-product-design-existence-step",
   async (input: ValidateProductDesignExistenceInput, { container }) => {
     const designService: DesignService = container.resolve(DESIGN_MODULE)
-    const productService = container.resolve(Modules.PRODUCT)
+    const productService = container.resolve(Modules.PRODUCT) as IProductModuleService
 
     // Check if design exists
     try {
@@ -99,7 +101,7 @@ export const validateMultipleProductsDesignExistenceStep = createStep(
   "validate-multiple-products-design-existence-step",
   async (input: ValidateMultipleProductsDesignExistenceInput, { container }) => {
     const designService: DesignService = container.resolve(DESIGN_MODULE)
-    const productService = container.resolve(Modules.PRODUCT)
+    const productService = container.resolve(Modules.PRODUCT) as IProductModuleService
 
     // Check if design exists
     try {
@@ -145,7 +147,7 @@ export const validateMultipleProductsDesignExistenceStep = createStep(
 export const createProductDesignLinkStep = createStep(
   "create-product-design-link-step",
   async (input: LinkProductDesignInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const links: LinkDefinition[] = []
 
     links.push({
@@ -162,7 +164,7 @@ export const createProductDesignLinkStep = createStep(
   },
   async (input: { productId: string; designId: string }, { container }) => {
     // Compensation: remove the link if the step needs to be rolled back
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     await remoteLink.dismiss([
       {
         [Modules.PRODUCT]: {
@@ -182,7 +184,7 @@ export const createProductDesignLinkStep = createStep(
 export const removeProductDesignLinkStep = createStep(
   "remove-product-design-link-step",
   async (input: UnlinkProductDesignInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
     await remoteLink.dismiss([
       {
@@ -205,7 +207,7 @@ export const removeProductDesignLinkStep = createStep(
 export const createMultipleProductDesignLinksStep = createStep(
   "create-multiple-product-design-links-step",
   async (input: LinkMultipleProductsDesignInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const links: LinkDefinition[] = []
 
     for (const productId of input.productIds) {
@@ -224,7 +226,7 @@ export const createMultipleProductDesignLinksStep = createStep(
   },
   async (input: { productIds: string[]; designId: string }, { container }) => {
     // Compensation: remove all the links if the step needs to be rolled back
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const linksToRemove = input.productIds.map((productId) => ({
       [Modules.PRODUCT]: {
         product_id: productId,

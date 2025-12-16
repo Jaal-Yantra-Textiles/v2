@@ -12,6 +12,8 @@ const AWAIT_TIMEOUT_SECONDS = (() => {
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse, transform, when } from "@medusajs/framework/workflows-sdk"
 import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
+import type { IEventBusModuleService, RemoteQueryFunction } from "@medusajs/types"
+import type { Link } from "@medusajs/modules-sdk"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { PARTNER_MODULE } from "../../modules/partner"
 import InventoryOrderService from "../../modules/inventory_orders/service"
@@ -30,7 +32,7 @@ type SendInventoryOrderToPartnerInput = {
 const validateInventoryOrderStep = createStep(
     "validate-inventory-order",
     async (input: SendInventoryOrderToPartnerInput, { container }) => {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         
         const { data: orders } = await query.graph({
             entity: "inventory_orders",
@@ -58,7 +60,7 @@ const validateInventoryOrderStep = createStep(
 const checkExistingPartnerAssignmentStep = createStep(
     "check-existing-partner-assignment",
     async (input: { orderId: string }, { container }) => {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         const { data } = await query.graph({
             entity: "inventory_orders",
             fields: ["id", "tasks.*"],
@@ -85,7 +87,7 @@ const setExistingTasksTransactionIdsStep = createStep(
     "set-existing-task-transaction-ids",
     async (input: { orderId: string }, { container, context }) => {
         const taskService: TaskService = container.resolve(TASKS_MODULE)
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         const workflowTransactionId = context.transactionId
 
         const { data } = await query.graph({
@@ -111,7 +113,7 @@ const setExistingTasksTransactionIdsStep = createStep(
 const validatePartnerStep = createStep(
     "validate-partner",
     async (input: SendInventoryOrderToPartnerInput, { container }) => {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         
         const { data: partners } = await query.graph({
             entity: "partners",
@@ -150,7 +152,7 @@ const updateInventoryOrderStep = createStep(
 const linkInventoryOrderWithPartnerStep = createStep(
     "link-inventory-order-with-partner",
     async (input: {inventoryOrderId: string, partnerId: string}, { container }) => {
-        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
         const links: LinkDefinition[] = [{
             [PARTNER_MODULE]: {
@@ -173,12 +175,12 @@ const linkInventoryOrderWithPartnerStep = createStep(
         if (!links || links.length === 0) {
             return
         }
-        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
         await remoteLink.dismiss(links)
 
         // Emit an admin-feed style event so history is visible even when link is rolled back
         try {
-            const eventService = container.resolve(Modules.EVENT_BUS)
+            const eventService = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
             const link = (links || [])[0] as any
             const inventoryOrderId = link?.[ORDER_INVENTORY_MODULE]?.inventory_orders_id
             const partnerId = link?.[PARTNER_MODULE]?.partner_id
@@ -202,7 +204,7 @@ const notifyPartnerStep = createStep(
         name: 'notify-partner-inventory-order',
     },
     async (input: {input: SendInventoryOrderToPartnerInput, order: any}, { container }) => {
-        const eventService = container.resolve(Modules.EVENT_BUS)
+        const eventService = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
         
         // Emit event for partner notification
         eventService.emit({

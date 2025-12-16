@@ -2,6 +2,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { TASKS_MODULE } from "../../modules/tasks"
 import TaskService from "../../modules/tasks/service"
+import type { IEventBusModuleService, Logger } from "@medusajs/types"
 
 type AssignTaskWorkFlowInput = {
     taskId: string,
@@ -14,9 +15,9 @@ const notifyPartnerStep = createStep(
         async: true,
    },
     async (input: {input: AssignTaskWorkFlowInput, task: any}, { container }) => {
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+        const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
         logger.info("Notifying partner...")
-        const eventService = container.resolve(Modules.EVENT_BUS)
+        const eventService = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
         if (input.task.eventable){
             logger.info("Partner notified...")
             eventService.emit({
@@ -38,7 +39,7 @@ const awaitTaskClaim = createStep(
         maxRetries: 2
     },
     async (_, { container }) => {
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+        const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
         logger.info("Awaiting task claim...")
     }
 )
@@ -52,7 +53,7 @@ const awaitTaskFinish = createStep(
         maxRetries: 2
     },
     async (_, { container }) => {
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+        const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
         logger.info("Awaiting task finish...")
     }
 )

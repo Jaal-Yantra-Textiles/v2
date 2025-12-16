@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import { PARTNER_MODULE } from "../../modules/partner"
 import PartnerService from "../../modules/partner/service"
 import Scrypt from "scrypt-kdf"
+import type { IAuthModuleService, RemoteQueryFunction } from "@medusajs/types"
 
 export type UpdatePartnerInput = {
   id: string
@@ -21,7 +22,7 @@ export type UpdatePartnerInput = {
 export const updatePartnerStep = createStep(
   "update-partner",
   async (input: UpdatePartnerInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
 
     // Fetch current partner for existence check and rollback snapshot
@@ -72,8 +73,8 @@ export const updatePartnerStep = createStep(
        return new StepResponse(null)
      }
 
-     const query = container.resolve(ContainerRegistrationKeys.QUERY)
-     const authModule = container.resolve(Modules.AUTH)
+     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
+     const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
 
      const { data } = await query.graph({
        entity: "partners",
@@ -144,7 +145,7 @@ export const updatePartnerStep = createStep(
    },
    async (rollbackData, { container }) => {
      if (!rollbackData?.provider_identity_id) return
-     const authModule = container.resolve(Modules.AUTH)
+     const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
      await authModule.updateProviderIdentities({
        id: rollbackData.provider_identity_id,
        provider_metadata: rollbackData.previous_provider_metadata,

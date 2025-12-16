@@ -1,11 +1,10 @@
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { LinkDefinition } from "@medusajs/framework/types"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse, when, transform } from "@medusajs/framework/workflows-sdk"
-import { setDesignStepFailedWorkflow, setDesignStepSuccessWorkflow } from "./design-steps"
 import { DESIGN_MODULE } from "../../modules/designs"
 import DesignService from "../../modules/designs/service"
 import TaskService from "../../modules/tasks/service"
 import { TASKS_MODULE } from "../../modules/tasks"
+import { IInventoryService } from "@medusajs/types"
 
 export type ConsumptionInput = {
   inventory_item_id: string
@@ -21,7 +20,7 @@ export type CompletePartnerDesignInput = {
 const validateAndFetchDesignStep = createStep(
   "complete-design-validate-and-fetch",
   async (input: CompletePartnerDesignInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data } = await query.graph({
       entity: "designs",
       fields: [
@@ -97,7 +96,7 @@ const adjustInventoryStep = createStep(
     if (!Array.isArray(input.adjustments) || !input.adjustments.length) {
       return new StepResponse({ count: 0 })
     }
-    const inventoryService = container.resolve(Modules.INVENTORY)
+    const inventoryService:IInventoryService = container.resolve(Modules.INVENTORY)
     await inventoryService.adjustInventory(input.adjustments)
     return new StepResponse({ count: input.adjustments.length })
   }

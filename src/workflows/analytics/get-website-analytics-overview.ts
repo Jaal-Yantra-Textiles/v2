@@ -43,7 +43,7 @@ export type WebsiteAnalyticsOverview = {
 export const getWebsiteAnalyticsOverviewStep = createStep(
   "get-website-analytics-overview-step",
   async (input: GetWebsiteAnalyticsOverviewInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY);
     const days = input.days || 30;
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 

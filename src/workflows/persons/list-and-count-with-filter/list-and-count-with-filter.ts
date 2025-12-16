@@ -1,5 +1,6 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk";
+import type { RemoteQueryFunction } from "@medusajs/types";
 
 export type ListAndCountPersonsWithFilterWorkFlowInput = {
     filters: Record<string, any>
@@ -17,7 +18,7 @@ export type ListAndCountPersonsWithFilterWorkFlowInput = {
 const listAndCountPersonsWithFilterStep = createStep(
     "list-and-count-persons-with-filter-step",
     async (input: ListAndCountPersonsWithFilterWorkFlowInput, { container }) => {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         // Let Medusa handle the search through searchable fields
         const { filters } = input
         // Ensure pagination respects the limit

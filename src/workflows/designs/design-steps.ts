@@ -3,13 +3,10 @@ import {
   Modules,
   TransactionHandlerType,
 } from "@medusajs/framework/utils"
-import { DESIGN_MODULE } from "../../modules/designs"
-import DesignService from "../../modules/designs/service"
-import { TASKS_MODULE as TASKS_MODULE_KEY } from "../../modules/tasks"
-import TaskService from "../../modules/tasks/service"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
 import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 import { sendDesignToPartnerWorkflow } from "./send-to-partner"
+import { IWorkflowEngineService } from "@medusajs/framework/types"
 
 const TASKS_MODULE = "tasksModuleService"
 
@@ -22,9 +19,9 @@ type SetDesignStepSuccessInput = {
 export const setDesignStepSuccessStep = createStep(
   "set-design-step-success",
   async function ({ stepId, updatedDesign, workflowId }: SetDesignStepSuccessInput, { container }) {
-    const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
+    const engineService:IWorkflowEngineService = container.resolve(Modules.WORKFLOW_ENGINE)
     // Get the workflow transaction ID from associated tasks instead of design metadata
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     // Find tasks linked to this design that have a transaction ID
     const taskLinksResult = await query.graph({
@@ -111,10 +108,10 @@ type SetDesignStepFailedInput = {
 export const setDesignStepFailedStep = createStep(
   "set-design-step-failed",
   async function ({ stepId, updatedDesign, error, workflowId }: SetDesignStepFailedInput, { container }) {
-    const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
+    const engineService:IWorkflowEngineService = container.resolve(Modules.WORKFLOW_ENGINE)
 
     // Get the workflow transaction ID from associated tasks instead of metadata
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     const taskLinksResult = await query.graph({
       entity: "designs",
@@ -168,7 +165,7 @@ export const setDesignStepFailedStep = createStep(
 export const cancelWorkflowTransactionStep = createStep(
   "cancel-workflow-transaction",
   async (input: { transactionId: string, updatedDesign: any }, { container }) => {
-    const engineService = container.resolve(Modules.WORKFLOW_ENGINE)
+    const engineService:IWorkflowEngineService = container.resolve(Modules.WORKFLOW_ENGINE)
     try {
       await engineService.cancel(sendDesignToPartnerWorkflow.getName(), 
         {

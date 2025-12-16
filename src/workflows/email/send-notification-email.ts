@@ -1,8 +1,14 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse, transform } from "@medusajs/framework/workflows-sdk"
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { EMAIL_TEMPLATES_MODULE } from "../../modules/email_templates"
 import EmailTemplatesService from "../../modules/email_templates/service"
 import * as Handlebars from "handlebars"
+import type {
+  ICustomerModuleService,
+  IFulfillmentModuleService,
+  INotificationModuleService,
+  IOrderModuleService,
+} from "@medusajs/types"
 
 interface SendNotificationEmailInput {
   to: string
@@ -78,7 +84,7 @@ export const fetchEmailTemplateStep = createStep(
 export const sendNotificationEmailStep = createStep(
   "send-notification-email",
   async (input: SendNotificationEmailInput & { templateData?: ProcessedEmailTemplateData | null }, { container }) => {
-    const notificationService = container.resolve(Modules.NOTIFICATION)
+    const notificationService = container.resolve(Modules.NOTIFICATION) as INotificationModuleService
     console.log('Send notification input:', input)
     console.log('Template data received:', input.templateData)
     
@@ -138,7 +144,7 @@ export const sendOrderConfirmationWorkflow = createWorkflow(
     const retrieveOrderStep = createStep(
       "retrieve-order",
       async ({ orderId }: { orderId: string }, { container }) => {
-        const orderService = container.resolve(Modules.ORDER)
+        const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
         const order = await orderService.retrieveOrder(orderId, {
           relations: ["customer", "items"],
         })
@@ -166,7 +172,7 @@ export const sendWelcomeEmailWorkflow = createWorkflow(
     const retrieveCustomerStep = createStep(
       "retrieve-customer",
       async ({ customerId }: { customerId: string }, { container }) => {
-        const customerService = container.resolve(Modules.CUSTOMER)
+        const customerService = container.resolve(Modules.CUSTOMER) as ICustomerModuleService
         const customer = await customerService.retrieveCustomer(customerId)
         return new StepResponse(customer)
       }
@@ -226,8 +232,8 @@ export const sendOrderFulfillmentEmail = createWorkflow(
     const retrieveOrderDataStep = createStep(
       "retrieve-order-fulfillment-data",
       async ({ order_id, fulfillment_id }: { order_id: string; fulfillment_id: string }, { container }) => {
-        const orderService = container.resolve(Modules.ORDER)
-        const fulfillmentService = container.resolve(Modules.FULFILLMENT)
+        const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
+        const fulfillmentService = container.resolve(Modules.FULFILLMENT) as IFulfillmentModuleService
         
         // Retrieve order with shipping address
         const order = await orderService.retrieveOrder(order_id, {

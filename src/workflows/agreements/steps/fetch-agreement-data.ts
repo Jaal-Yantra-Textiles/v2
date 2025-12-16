@@ -1,10 +1,13 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import type { RemoteQueryFunction } from "@medusajs/types"
+
+type Query = Omit<RemoteQueryFunction, symbol>
 
 export const fetchAgreementDataStep = createStep(
   "fetch-agreement-data",
   async (input: { agreement_id: string; person_id: string }, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Query;
     
     // Fetch agreement and person data using query
     const { data: agreements } = await query.graph({

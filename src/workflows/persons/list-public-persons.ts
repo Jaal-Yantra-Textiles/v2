@@ -1,5 +1,6 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk";
+import type { RemoteQueryFunction } from "@medusajs/types";
 
 
 export type ListPublicPersonsWorkflowInput = {
@@ -17,7 +18,7 @@ export type ListPublicPersonsWorkflowInput = {
 const listPublicPersonsStep = createStep(
     "list-public-persons-step",
     async (input: ListPublicPersonsWorkflowInput, { container }) => {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         const { filters, pagination } = input
         console.log(input)
         const fields = [

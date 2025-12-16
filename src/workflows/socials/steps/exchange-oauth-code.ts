@@ -4,6 +4,7 @@ import { EXTERNAL_STORES_MODULE } from "../../../modules/external_stores"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import SocialProviderService from "../../../modules/social-provider/service"
 import ExternalStoresService from "../../../modules/external_stores/service"
+import type { Logger } from "@medusajs/types"
 
 export type ExchangeOAuthCodeInput = {
   platform: string
@@ -25,7 +26,7 @@ export type TokenData = {
 export const exchangeOAuthCodeStep = createStep(
   "exchange-oauth-code-step",
   async (input: ExchangeOAuthCodeInput, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
     const platformLower = input.platform.toLowerCase()
     
     logger.info(`[Exchange OAuth Code] Platform: ${input.platform}`)

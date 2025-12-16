@@ -11,6 +11,7 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import PartnerService from "../../modules/partner/service"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { randomBytes } from "crypto"
+import type { IAuthModuleService } from "@medusajs/types"
 
 export type CreatePartnerAdminWorkflowInput = {
     partner: {
@@ -114,7 +115,7 @@ const registerPartnerAdminAuthStep = createStep(
         // Hash the exact password we will return to caller
         const hashed = await Scrypt.kdf(Buffer.from(plainPassword), hashConfig)
 
-        const authModule = container.resolve(Modules.AUTH)
+        const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
         const reg = await authModule.createAuthIdentities({
             provider_identities: [
                 {

@@ -1,5 +1,6 @@
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
+import type { RemoteQueryFunction } from "@medusajs/types"
 
 export type ListStoreProductsInput = {
   partnerId: string
@@ -15,7 +16,7 @@ export type StoreProductLink = {
 const listStoreProductsStep = createStep(
   "list-store-products-step",
   async (input: ListStoreProductsInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
 
     // Verify partner has the store, and get default sales channel id
     const { data: partners } = await query.graph({

@@ -1,5 +1,6 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import type { RemoteQueryFunction } from "@medusajs/types"
 
 export type ListSinglePartnerInput = {
   id: string
@@ -9,7 +10,7 @@ export type ListSinglePartnerInput = {
 export const listSinglePartnerStep = createStep(
   "list-single-partner",
   async (input: ListSinglePartnerInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     // Normalize fields: accept array or comma-joined strings, trim, filter empties, dedupe
     const raw = Array.isArray(input.fields)
       ? input.fields

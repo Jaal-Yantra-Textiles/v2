@@ -1,6 +1,7 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import InventoryOrdersStockLocationsLink from "../../links/inventory-orders-stock-locations";
+import type { RemoteQueryFunction } from "@medusajs/types";
 
 export type ListSingleInventoryOrderStepInput = {
   id: string;
@@ -14,7 +15,7 @@ export const listSingleInventoryOrderStep = createStep(
     if (!input.fields.includes("*")) {
       input.fields.push("*");
     }
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>;
     const { data: orders } = await query.graph({
       entity: "inventory_orders",
       fields: input.fields || ["*", "partner.*"],

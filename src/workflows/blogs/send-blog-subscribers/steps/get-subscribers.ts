@@ -14,9 +14,8 @@ export const getSubscribersStepId = "get-subscribers"
 export const getSubscribersStep = createStep(
   getSubscribersStepId,
   async (_, { container }) => {
-    console.log("Fetching subscribers (persons with email addresses)")
       // Use the query mechanism similar to list-and-count-with-filter workflow
-      const query = container.resolve(ContainerRegistrationKeys.QUERY)
+      const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
       
       // Query for persons with email addresses
       const { data: persons } = await query.graph({
@@ -45,10 +44,7 @@ export const getSubscribersStep = createStep(
         }
       }
       
-      const result = Array.from(uniqueSubscribers.values())
-      
-      console.log(`Found ${result.length} subscribers with valid email addresses`)
-      
+      const result = Array.from(uniqueSubscribers.values()) 
       return new StepResponse(result)
     }
 )

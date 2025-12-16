@@ -7,6 +7,8 @@ import {
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../modules/socials"
 import { ContentGeneratorService } from "../../../modules/socials/services/content-generator-service"
+import SocialsService from "../../../modules/socials/service"
+import type { Logger, RemoteQueryFunction } from "@medusajs/types"
 import { 
   ContentRule, 
   CampaignPreview,
@@ -46,9 +48,9 @@ export interface PreviewCampaignInput {
 const generateAllPreviewsStep = createStep(
   "generate-all-previews",
   async (input: PreviewCampaignInput, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
-    const socialsService = container.resolve(SOCIALS_MODULE)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
+    const socialsService = container.resolve(SOCIALS_MODULE) as SocialsService
     
     logger.info(`[Campaign Preview] Generating preview for ${input.product_ids.length} products`)
     

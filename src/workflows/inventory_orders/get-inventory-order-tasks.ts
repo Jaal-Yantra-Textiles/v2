@@ -10,6 +10,7 @@ import { TASKS_MODULE } from "../../modules/tasks"
 import { MedusaError } from "@medusajs/utils"
 import InventoryOrderService from "../../modules/inventory_orders/service"
 import inventoryOrdersTasks from "../../links/inventory-orders-tasks"
+import type { RemoteQueryFunction } from "@medusajs/types"
 
 type GetInventoryOrderTasksInput = {
   inventoryOrderId: string
@@ -38,7 +39,7 @@ export const validateInventoryOrderStep = createStep(
 export const getInventoryOrderTasksStep = createStep(
   "get-inventory-order-tasks-step",
   async (input: GetInventoryOrderTasksInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     
     // Prepare fields configuration with proper prefixing
     // If no fields specified, include task.* to get all task data

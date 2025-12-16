@@ -12,6 +12,8 @@ import { LinkDefinition } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import PersonService from "../../modules/person/service"
 import { PERSON_MODULE } from "../../modules/person"
+import type { IProductModuleService } from "@medusajs/types"
+import type { Link } from "@medusajs/modules-sdk"
 
 // Inputs
 export type LinkProductPersonInput = {
@@ -28,7 +30,7 @@ export type UnlinkProductPersonInput = {
 export const validateProductPersonExistenceStep = createStep(
   "validate-product-person-existence-step",
   async (input: LinkProductPersonInput, { container }) => {
-    const productService = container.resolve(Modules.PRODUCT)
+    const productService = container.resolve(Modules.PRODUCT) as IProductModuleService
     const personService: PersonService = container.resolve(PERSON_MODULE)
 
     // Validate product
@@ -70,7 +72,7 @@ export const validateProductPersonExistenceStep = createStep(
 export const createProductPersonLinkStep = createStep(
   "create-product-person-link-step",
   async (input: LinkProductPersonInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const links: LinkDefinition[] = [
       {
         [Modules.PRODUCT]: { product_id: input.productId },
@@ -82,7 +84,7 @@ export const createProductPersonLinkStep = createStep(
     return new StepResponse(createdLinks, { productId: input.productId, personId: input.personId })
   },
   async (input: { productId: string; personId: string }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     await remoteLink.dismiss([
       {
         [Modules.PRODUCT]: { product_id: input.productId },
@@ -95,7 +97,7 @@ export const createProductPersonLinkStep = createStep(
 export const removeProductPersonLinkStep = createStep(
   "remove-product-person-link-step",
   async (input: UnlinkProductPersonInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     await remoteLink.dismiss([
       {
         [Modules.PRODUCT]: { product_id: input.productId },

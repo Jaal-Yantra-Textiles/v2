@@ -3,6 +3,7 @@ import { SOCIAL_PROVIDER_MODULE } from "../../../modules/social-provider"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import SocialProviderService from "../../../modules/social-provider/service"
 import InstagramService from "../../../modules/social-provider/instagram-service"
+import type { Logger } from "@medusajs/types"
 import { TokenData } from "./exchange-oauth-code"
 
 export type FetchPlatformMetadataInput = {
@@ -24,7 +25,7 @@ export type PlatformMetadata = {
 export const fetchPlatformMetadataStep = createStep(
   "fetch-platform-metadata-step",
   async (input: FetchPlatformMetadataInput, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
     const platformLower = input.platform.toLowerCase()
     
     logger.info(`[Fetch Platform Metadata] Platform: ${input.platform}`)

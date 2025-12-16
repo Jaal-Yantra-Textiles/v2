@@ -12,6 +12,7 @@ import PersonService from "../../../../modules/person/service"
 import PersonTypeService from "../../../../modules/persontype/service"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { LinkDefinition } from "@medusajs/framework/types"
+import type { Link } from "@medusajs/modules-sdk"
 
 export const batchPersonsWorkflowId = "batch-persons"
 /**
@@ -246,7 +247,7 @@ export const batchPersonsStep = createStep(
           }
           
           // Use the link service for person types
-          const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+          const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
           const links: LinkDefinition[] = [];
           
           for (const typeData of personData.person_types) {
@@ -387,7 +388,7 @@ export const batchPersonsStep = createStep(
 
         if (personData.person_types?.length) {
           // Use the link service for person types as shown in associate-person-types workflow
-          const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+          const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
           
           // We'll create new links without trying to fetch existing ones
           // The existing links will be overwritten by the new ones

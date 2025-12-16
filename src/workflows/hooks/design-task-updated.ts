@@ -5,6 +5,7 @@ import { TASKS_MODULE } from "../../modules/tasks";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { InferTypeOf } from "@medusajs/framework/types"
 import TaskModel from "../../modules/tasks/models/task";
+import type { RemoteQueryFunction } from "@medusajs/types";
 
 // Use the inferred type from the Task model
 export type Task = InferTypeOf<typeof TaskModel>
@@ -21,7 +22,7 @@ updateDesignTaskWorkflow.hooks.designTaskUpdated(
     try {
       // Get the task service to fetch all tasks for this design
       const taskService = container.resolve(TASKS_MODULE);
-      const query = container.resolve(ContainerRegistrationKeys.QUERY)
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
       // Get all tasks for this design
       // const tasks = await taskService.listTasks({
       //   id: taskID,

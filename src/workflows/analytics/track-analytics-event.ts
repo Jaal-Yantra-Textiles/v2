@@ -7,6 +7,7 @@ import {
 import { ANALYTICS_MODULE } from "../../modules/analytics";
 import { Modules } from "@medusajs/framework/utils";
 import * as geoip from "geoip-lite";
+import { IEventBusService } from "@medusajs/types";
 
 // Helper to parse user agent
 function parseUserAgent(userAgent: string) {
@@ -115,7 +116,7 @@ const createAnalyticsEventStep = createStep(
   "create-analytics-event",
   async (input: TrackAnalyticsEventInput, { container }) => {
     const analyticsService = container.resolve(ANALYTICS_MODULE) as any;
-    const eventBus = container.resolve(Modules.EVENT_BUS);
+    const eventBus:IEventBusService = container.resolve(Modules.EVENT_BUS);
 
     // Parse user agent
     const { browser, os, device_type } = parseUserAgent(input.user_agent);

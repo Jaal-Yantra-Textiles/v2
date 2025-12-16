@@ -171,7 +171,7 @@ const createInventoryLevelsStep = createStep(
     let stockLocationId = input.defaults?.inventory?.stock_location_id
     if (!stockLocationId) {
       try {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
         const { data } = await query.graph({ entity: "stock_location", fields: ["id"] })
         stockLocationId = Array.isArray(data) && data.length ? data[0].id : undefined
       } catch (e) {

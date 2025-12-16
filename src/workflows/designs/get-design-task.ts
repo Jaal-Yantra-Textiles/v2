@@ -18,7 +18,7 @@ type GetDesignTaskInput = {
 const getDesignTaskStep = createStep(
   "get-design-task",
   async (input: GetDesignTaskInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     const taskExists = await refetchEntity({
       entity: "task",

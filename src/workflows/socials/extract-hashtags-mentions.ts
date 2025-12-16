@@ -1,6 +1,7 @@
 import { createStep, StepResponse, createWorkflow, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { SOCIALS_MODULE } from "../../modules/socials"
 import SocialsService from "../../modules/socials/service"
+import type { Logger } from "@medusajs/types"
 
 type ExtractHashtagsMentionsInput = {
   caption: string
@@ -14,7 +15,7 @@ export const extractHashtagsMentionsStep = createStep(
   "extract-hashtags-mentions",
   async (input: ExtractHashtagsMentionsInput, { container }) => {
     const socials = container.resolve(SOCIALS_MODULE) as SocialsService
-    const logger = container.resolve("logger")
+    const logger = container.resolve("logger") as Logger
 
     const { caption, platform_name } = input
 
@@ -67,7 +68,7 @@ export const extractHashtagsMentionsStep = createStep(
         hashtags,
         mentions,
       })
-    } catch (error) {
+    } catch (error: any) {
       logger.error(`[Extract Hashtags/Mentions] ❌ Extraction failed:`, error)
       // Return empty arrays on error - don't fail the workflow
       return new StepResponse({

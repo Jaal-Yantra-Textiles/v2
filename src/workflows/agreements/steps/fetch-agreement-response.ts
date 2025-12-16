@@ -3,7 +3,8 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
 import AgreementsService from "../../../modules/agreements/service";
 import PersonAgreementLink  from "../../../links/person-agreements";
-
+import { RemoteQueryFunction } from "@medusajs/types";
+type Query = Omit<RemoteQueryFunction, symbol>
 export const fetchAgreementResponseStep = createStep(
   "fetch-agreement-response",
   async (
@@ -14,7 +15,7 @@ export const fetchAgreementResponseStep = createStep(
     { container }
   ) => {
     const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Query;
 
     try {
       // Fetch the agreement response with agreement relation

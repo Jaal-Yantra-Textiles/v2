@@ -1,5 +1,6 @@
 import { createStep } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import type { Logger } from "@medusajs/types"
 
 /**
  * Await Next Publish Step (Async/Long-Running)
@@ -24,7 +25,7 @@ export const awaitNextPublishStep = createStep(
     maxRetries: 1,
   },
   async (input: { item_index: number; scheduled_at: string }, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
     
     logger.info(`[Campaign] Waiting for publish time...`)
     logger.info(`[Campaign] Item index: ${input.item_index}`)

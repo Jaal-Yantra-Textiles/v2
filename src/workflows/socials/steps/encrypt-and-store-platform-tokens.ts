@@ -6,6 +6,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import SocialsService from "../../../modules/socials/service"
 import EtsysyncService from "../../../modules/etsysync/service"
 import EncryptionService from "../../../modules/encryption/service"
+import type { Logger } from "@medusajs/types"
 import { TokenData } from "./exchange-oauth-code"
 import { PlatformMetadata } from "./fetch-platform-metadata"
 import { SOCIAL_PROVIDER_MODULE } from "../../../modules/social-provider"
@@ -20,7 +21,7 @@ export type EncryptAndStorePlatformTokensInput = {
 export const encryptAndStorePlatformTokensStep = createStep(
   "encrypt-and-store-platform-tokens-step",
   async (input: EncryptAndStorePlatformTokensInput, { container }): Promise<StepResponse<any>> => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
     const encryptionService = container.resolve(ENCRYPTION_MODULE) as EncryptionService
     const platformLower = input.platform.toLowerCase()
     

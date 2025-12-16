@@ -10,6 +10,7 @@ import { TASKS_MODULE } from "../../modules/tasks"
 import designTasksLink from "../../links/design-tasks-link"
 import TaskService from "../../modules/tasks/service"
 import { refetchEntity } from "@medusajs/framework"
+import type { RemoteQueryFunction } from "@medusajs/types"
 
 
 enum Status {
@@ -45,7 +46,7 @@ type UpdateDesignTaskInput = {
 const validateTaskStep = createStep(
   "validate-task",
   async (input: UpdateDesignTaskInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const taskExists = await refetchEntity({
       entity: "task",
       idOrFilter: input.taskId,

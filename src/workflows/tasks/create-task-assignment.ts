@@ -14,6 +14,7 @@ import PartnerService from "../../modules/partner/service"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { LinkDefinition } from "@medusajs/framework/types"
+import type { Link } from "@medusajs/modules-sdk"
 
 
 type AssignTaskWorkFlowInput = {
@@ -42,7 +43,7 @@ const validateParnter = createStep(
 const linkTaskStep = createStep(
     "link-task",
     async (input: AssignTaskWorkFlowInput, { container }) => {
-        const link = container.resolve(ContainerRegistrationKeys.LINK)
+        const link = container.resolve(ContainerRegistrationKeys.LINK) as Link
         const links: LinkDefinition[] = []
 
         links.push({
@@ -63,7 +64,7 @@ const linkTaskStep = createStep(
         return new StepResponse(links)
     },
     async (links: LinkDefinition[], { container }) => {
-        const link = container.resolve(ContainerRegistrationKeys.LINK)
+        const link = container.resolve(ContainerRegistrationKeys.LINK) as Link
         await link.dismiss(links)
     }
 )

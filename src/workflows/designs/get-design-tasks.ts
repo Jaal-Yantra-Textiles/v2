@@ -14,7 +14,7 @@ type GetDesignTasksInput = {
 const getDesignTasksStep = createStep(
   "get-design-tasks",
   async (input: GetDesignTasksInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
     
     const { data: tasks } = await query.graph({
       entity: "design",

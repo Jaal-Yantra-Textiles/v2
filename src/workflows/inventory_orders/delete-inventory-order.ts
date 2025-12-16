@@ -6,6 +6,8 @@ import {
   WorkflowResponse,
   transform,
 } from "@medusajs/framework/workflows-sdk"
+import type { RemoteQueryFunction } from "@medusajs/types";
+import type { Link } from "@medusajs/modules-sdk";
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { InferTypeOf } from "@medusajs/framework/types"
@@ -23,7 +25,7 @@ export const fetchInventoryOrderStep = createStep(
   "fetch-inventory-order-step",
   async (input: DeleteInventoryOrderInput, { container }) => {
     const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>;
     
     // Fetch the inventory order with its order lines and stock location
     const { data: inventoryOrder } = await query.graph({
@@ -49,7 +51,7 @@ export const dismissInventoryItemLinksStep = createStep(
   async (input: { 
     inventoryOrder: any;
   }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
     
     // Only proceed if there are order lines with inventory items
     if (!input.inventoryOrder.orderlines || input.inventoryOrder.orderlines.length === 0) {
@@ -80,7 +82,7 @@ export const dismissStockLocationLinkStep = createStep(
   async (input: { 
     inventoryOrder: any;
   }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
     
     // Only proceed if there's a stock location
     if (!input.inventoryOrder.stock_locations || input.inventoryOrder.stock_locations.length === 0) {

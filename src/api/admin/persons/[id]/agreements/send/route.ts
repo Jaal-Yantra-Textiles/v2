@@ -24,6 +24,10 @@ export const POST = async (
       }
     });
 
+    const statsUpdated = Array.isArray(result.stats_updated)
+      ? result.stats_updated
+      : [result.stats_updated];
+
     res.status(200).json({
       message: "Agreement sent successfully to all signers",
       agreement_id,
@@ -31,7 +35,7 @@ export const POST = async (
       agreement_responses: result.agreement_responses,
       person_agreement_links: result.person_agreement_links,
       email_results: result.email_results,
-      stats_updated: result.stats_updated
+      stats_updated: statsUpdated
     });
   } else {
     // Use single signer workflow for backward compatibility
@@ -43,6 +47,10 @@ export const POST = async (
       }
     });
 
+    const statsUpdated = Array.isArray(result.stats_updated)
+      ? result.stats_updated
+      : [result.stats_updated];
+
     res.status(200).json({
       message: "Agreement sent successfully",
       person_id,
@@ -50,7 +58,7 @@ export const POST = async (
       agreement_response: result.agreement_response,
       person_agreement_link: result.person_agreement_link,
       email_result: result.email_result,
-      stats_updated: result.stats_updated
+      stats_updated: statsUpdated
     });
   }
 };

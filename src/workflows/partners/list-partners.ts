@@ -5,6 +5,7 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import type { RemoteQueryFunction } from "@medusajs/types"
 import Partner from "../../modules/partner/models/partner"
 import { InferTypeOf } from "@medusajs/framework/types"
 export type Partners = InferTypeOf<typeof Partner>
@@ -18,7 +19,7 @@ type ListPartnersInput = {
 export const listPartnersStep = createStep(
   "list-partners",
   async (input: ListPartnersInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     
     const { data, metadata } = await query.graph({
       entity: 'partners',

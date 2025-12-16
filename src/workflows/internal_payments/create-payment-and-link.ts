@@ -9,6 +9,7 @@ import {
   ContainerRegistrationKeys,
 } from "@medusajs/framework/utils"
 import { LinkDefinition } from "@medusajs/framework/types"
+import type { Link } from "@medusajs/modules-sdk"
 import { INTERNAL_PAYMENTS_MODULE } from "../../modules/internal_payments"
 import { PERSON_MODULE } from "../../modules/person"
 import { PARTNER_MODULE } from "../../modules/partner"
@@ -46,7 +47,7 @@ export const linkPaymentToPersonsStep = createStep(
     input: { payment_id: string; person_ids: string[] },
     { container }
   ) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
     const links: LinkDefinition[] = input.person_ids.map((person_id) => ({
       [PERSON_MODULE]: {
@@ -70,7 +71,7 @@ export const linkPaymentToPersonsStep = createStep(
   },
   async (rollbackLinks: LinkDefinition[], { container }) => {
     if (!rollbackLinks?.length) return
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     await remoteLink.dismiss(rollbackLinks)
   }
 )
@@ -81,7 +82,7 @@ export const linkPaymentToPartnersStep = createStep(
     input: { payment_id: string; partner_ids: string[] },
     { container }
   ) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
     const links: LinkDefinition[] = input.partner_ids.map((partner_id) => ({
       [PARTNER_MODULE]: {
@@ -105,7 +106,7 @@ export const linkPaymentToPartnersStep = createStep(
   },
   async (rollbackLinks: LinkDefinition[], { container }) => {
     if (!rollbackLinks?.length) return
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     await remoteLink.dismiss(rollbackLinks)
   }
 )

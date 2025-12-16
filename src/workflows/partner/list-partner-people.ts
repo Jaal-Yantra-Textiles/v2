@@ -1,5 +1,6 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
+import type { RemoteQueryFunction } from "@medusajs/types"
 
 
 type ListPartnerPeopleWorkFlowInput = {
@@ -9,7 +10,7 @@ type ListPartnerPeopleWorkFlowInput = {
 const listPeopleOfPartnerStep = createStep(
     "list-partner-people",
     async(input: ListPartnerPeopleWorkFlowInput, { container }) => {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         const { data: peopleOfPartner } = await query.graph({
             entity: 'partners',
             fields: ['*','people.*', 'people.id'],

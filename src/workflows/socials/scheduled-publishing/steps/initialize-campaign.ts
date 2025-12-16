@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import { ScheduledPublishingInput, CampaignWorkflowState } from "../types"
 import { CampaignItem } from "../../../../modules/socials/types/publishing-automation"
+import SocialsService from "../../../../modules/socials/service"
+import type { Logger } from "@medusajs/types"
 
 /**
  * Initialize Campaign Step
@@ -13,8 +15,8 @@ import { CampaignItem } from "../../../../modules/socials/types/publishing-autom
 export const initializeCampaignStep = createStep(
   "initialize-campaign",
   async (input: ScheduledPublishingInput, { container, context }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    const socialsService = container.resolve(SOCIALS_MODULE)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
+    const socialsService = container.resolve(SOCIALS_MODULE) as SocialsService
     
     logger.info(`[Campaign] Initializing campaign: ${input.name}`)
     logger.info(`[Campaign] Products: ${input.product_ids.length}, Platform: ${input.platform_id}`)

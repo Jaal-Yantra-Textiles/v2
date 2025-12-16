@@ -5,7 +5,7 @@ import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@med
 export const listDesignInventoryStep = createStep(
     'list-design-inventory',
     async (input: ListDesignInventoryWorkFlowInput, { container }) => {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
         const { data } = await query.graph({
             entity: 'designs',
             fields: ['inventory_items.*'],

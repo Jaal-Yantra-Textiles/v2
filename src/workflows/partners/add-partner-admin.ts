@@ -1,5 +1,6 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import type { RemoteQueryFunction } from "@medusajs/types"
 import { PARTNER_MODULE } from "../../modules/partner"
 import PartnerService from "../../modules/partner/service"
 
@@ -18,7 +19,7 @@ export type AddPartnerAdminInput = {
 export const addPartnerAdminStep = createStep(
   "add-partner-admin",
   async (input: AddPartnerAdminInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
 
     // Ensure partner exists

@@ -1,5 +1,6 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import type { Link } from "@medusajs/modules-sdk"
 import { ETSYSYNC_MODULE } from "../../../modules/etsysync"
 
 export type CreateProductEtsyLinksInput = {
@@ -14,7 +15,7 @@ export type CreateProductEtsyLinksInput = {
 export const createProductEtsyLinksStep = createStep(
   "create-product-etsy-links-step",
   async (input: CreateProductEtsyLinksInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
     const linksToCreate = input.product_ids.map((product_id) => ({
       [Modules.PRODUCT]: {
@@ -43,7 +44,7 @@ export const createProductEtsyLinksStep = createStep(
   async (compensationData, { container }) => {
     if (!compensationData) return
 
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
     // Dismiss the links we created
     const linksToDismiss = compensationData.product_ids.map((product_id) => ({

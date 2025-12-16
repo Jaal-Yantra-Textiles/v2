@@ -57,7 +57,7 @@ export const determineTaskDataStep = createStep(
 export const createDesignTaskLinksStep = createStep(
   "create-design-task-links-step",
   async (input: { tasks: any[], designId: string }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = []
     for (const task of input.tasks) {
       links.push({

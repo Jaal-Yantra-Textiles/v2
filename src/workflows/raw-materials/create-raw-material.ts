@@ -8,6 +8,7 @@ import {
 import { RAW_MATERIAL_MODULE } from "../../modules/raw_material"
 import { LinkDefinition } from "@medusajs/framework/types"
 import RawMaterialService from "../../modules/raw_material/service"
+import type { Link } from "@medusajs/modules-sdk"
 
 type CreateRawMaterialInput = {
   inventoryId: string
@@ -110,7 +111,7 @@ const createRawMaterialData = createStep(
 const createRawMaterialLink = createStep(
   "create-raw-material-link",
   async (input: { inventoryId: string, rawMaterialId: string }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const links: LinkDefinition[] = []
 
     links.push({
@@ -129,7 +130,7 @@ const createRawMaterialLink = createStep(
     return new StepResponse(links)
   },
   async (links: LinkDefinition[], { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     await remoteLink.dismiss(links)
   }
 )

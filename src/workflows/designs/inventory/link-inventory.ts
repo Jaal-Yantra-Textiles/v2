@@ -15,7 +15,7 @@ import {
 import { DESIGN_MODULE } from "../../../modules/designs"
 import DesignService from "../../../modules/designs/service"
 import { MedusaError } from "@medusajs/utils"
-import { LinkDefinition } from "@medusajs/framework/types"
+import { IInventoryService, LinkDefinition } from "@medusajs/framework/types"
 
 type LinkDesignInventoryInput = {
   design_id: string
@@ -25,7 +25,7 @@ type LinkDesignInventoryInput = {
 const validateInventoryItems = createStep(
   "validate-inventory-items",
   async (input: { inventory_ids: string[] }, { container }) => {
-    const inventoryService = container.resolve(`${Modules.INVENTORY}`)
+    const inventoryService:IInventoryService = container.resolve(`${Modules.INVENTORY}`)
     
     // Validate all inventory items exist
     const inventoryItems = await Promise.all(
@@ -48,7 +48,7 @@ const validateInventoryItems = createStep(
 const createDesignInventoryLinks = createStep(
   "create-design-inventory-links",
   async (input: { design_id: string; inventory_ids: string[] }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = []
    input.inventory_ids.map(inventoryId => (
     links.push({
@@ -67,7 +67,7 @@ const createDesignInventoryLinks = createStep(
     return new StepResponse(links)
   },
   async (links: LinkDefinition[], { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK)
     await remoteLink.dismiss(links)
   }
 )
@@ -141,7 +141,7 @@ const validateDesignStatus = createStep(
 const dismissDesignInventoryLinks = createStep(
   "dismiss-design-inventory-links",
   async (input: { design_id: string; inventory_ids: string[] }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK)
     
     // Build links to dismiss
     const links: LinkDefinition[] = input.inventory_ids.map(inventoryId => ({
@@ -161,7 +161,7 @@ const dismissDesignInventoryLinks = createStep(
     // Rollback: re-create the links if de-linking fails
     if (!rollbackData) return
     
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = rollbackData.inventory_ids.map(inventoryId => ({
       [DESIGN_MODULE]: {
         design_id: rollbackData.design_id

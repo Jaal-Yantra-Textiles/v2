@@ -10,6 +10,7 @@ import { LinkDefinition } from "@medusajs/framework/types"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { PERSON_MODULE } from "../../modules/person"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import type { Link } from "@medusajs/modules-sdk"
 
 import createPersoninBatchWorkflow, { CreatePersonWorkFlowInput } from "../persons/create-people-batch"
 
@@ -28,7 +29,7 @@ const prepareLinkDefinitionsStep = createStep(
         { container }
     ) => {
 
-        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
         const links: LinkDefinition[] = []
 
         // Create a link definition for each person
@@ -51,7 +52,7 @@ const prepareLinkDefinitionsStep = createStep(
         return new StepResponse(links)
     },
     async (links: LinkDefinition[], { container }) => {
-        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
         await remoteLink.dismiss(links)
     }
 )

@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MedusaError } from "@medusajs/utils"
+import type { RemoteQueryFunction } from "@medusajs/types"
 import InventoryOrderTaskLink from "../../links/inventory-orders-tasks"
 import { TASKS_MODULE } from "../../modules/tasks"
 import TaskService from "../../modules/tasks/service"
@@ -24,7 +25,7 @@ type UpdateInventoryOrderTaskInput = {
 export const updateInventoryOrderTaskStep = createStep(
   "update-inventory-order-task",
   async (input: UpdateInventoryOrderTaskInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     
     // First verify the task exists and belongs to the inventory order
     const { data } = await query.graph({

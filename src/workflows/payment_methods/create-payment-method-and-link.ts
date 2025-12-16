@@ -5,6 +5,7 @@ import { INTERNAL_PAYMENTS_MODULE } from "../../modules/internal_payments"
 import InternalPaymentService from "../../modules/internal_payments/service"
 import { PERSON_MODULE } from "../../modules/person"
 import { PARTNER_MODULE } from "../../modules/partner"
+import type { Link } from "@medusajs/modules-sdk"
 
 export type CreatePaymentMethodInput = {
   type: "bank_account" | "cash_account" | "digital_wallet"
@@ -45,7 +46,7 @@ const linkPaymentMethodStep = createStep(
     input: { payment_method_id: string; person_id?: string; partner_id?: string },
     { container }
   ) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const links: LinkDefinition[] = []
 
     if (input.person_id) {
@@ -71,7 +72,7 @@ const linkPaymentMethodStep = createStep(
   },
   async (links: LinkDefinition[], { container }) => {
     if (!links?.length) return
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     await remoteLink.dismiss(links)
   }
 )

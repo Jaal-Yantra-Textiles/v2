@@ -7,7 +7,7 @@ import { PERSON_MODULE } from "../../../modules/person";
 export const linkPersonWithAgreementStep = createStep(
   "link-person-with-agreement",
   async (input: { person_id: string; agreement_id: string }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK);
     
     const links: LinkDefinition[] = [];
     links.push({
@@ -28,7 +28,7 @@ export const linkPersonWithAgreementStep = createStep(
   },
   async (rollbackData: { person_id: string; agreement_id: string }, { container }) => {
     // Rollback: remove the person-agreement link
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK);
     
     await remoteLink.dismiss([
       {

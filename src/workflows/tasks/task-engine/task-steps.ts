@@ -4,6 +4,7 @@ import {
   } from "@medusajs/framework/utils"
   import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { runTaskAssignmentWorkflow } from "../run-task-assignment";
+import type { IWorkflowEngineService } from "@medusajs/types";
 
   
   type SetStepSuccessStepInput = {
@@ -19,7 +20,7 @@ import { runTaskAssignmentWorkflow } from "../run-task-assignment";
     ) {
       const engineService = container.resolve(
         Modules.WORKFLOW_ENGINE
-      )
+      ) as IWorkflowEngineService
       await engineService.setStepSuccess({
         idempotencyKey: {
           action: TransactionHandlerType.INVOKE,
@@ -46,7 +47,7 @@ import { runTaskAssignmentWorkflow } from "../run-task-assignment";
     ) {
       const engineService = container.resolve(
         Modules.WORKFLOW_ENGINE
-      )
+      ) as IWorkflowEngineService
 
       await engineService.setStepFailure({
         idempotencyKey: {

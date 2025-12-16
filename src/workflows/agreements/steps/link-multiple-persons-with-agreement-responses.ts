@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { LinkDefinition } from "@medusajs/framework/types";
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
 import { PERSON_MODULE } from "../../../modules/person";
+import { Link } from "@medusajs/framework/modules-sdk";
 
 export type LinkMultiplePersonsWithAgreementResponsesInput = {
   agreement_response_ids: string[];
@@ -12,7 +13,7 @@ export type LinkMultiplePersonsWithAgreementResponsesInput = {
 export const linkMultiplePersonsWithAgreementResponsesStep = createStep(
   "link-multiple-persons-with-agreement-responses",
   async (input: LinkMultiplePersonsWithAgreementResponsesInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK);
     
     // Create links for all persons with their corresponding agreement responses
     const links: LinkDefinition[] = [];
@@ -42,7 +43,7 @@ export const linkMultiplePersonsWithAgreementResponsesStep = createStep(
   },
   async (rollbackData: LinkDefinition[], { container }) => {
     // Rollback: remove all person-agreement response links
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK);
     
     try {
       await remoteLink.dismiss(rollbackData);

@@ -2,6 +2,7 @@ import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { SubscriberBatch, EmailSendingResult, SendingSummary } from "../types"
 import { Modules } from "@medusajs/framework/utils"
 import { convertTipTapToHtml } from "../utils/tiptap-to-html"
+import { INotificationModuleService } from "@medusajs/types"
 
 export const processAllBatchesStepId = "process-all-batches"
 
@@ -15,23 +16,19 @@ export const processAllBatchesStepId = "process-all-batches"
 export const processAllBatchesStep = createStep(
   processAllBatchesStepId,
   async (batches: SubscriberBatch[], { container }) => {
-    console.log(`Processing ${batches.length} batches of subscribers`)
     
     const allResults: EmailSendingResult[] = []
     
     // Process each batch sequentially
     for (const batch of batches) {
       const { subscribers, blogData, emailConfig } = batch
-      
-      console.log(`Processing batch with ${subscribers.length} subscribers`)
-      
+
       // Use the notification module
-      const notificationModuleService = container.resolve(Modules.NOTIFICATION)
+      const notificationModuleService:INotificationModuleService = container.resolve(Modules.NOTIFICATION)
       
       // Process each subscriber in the batch
       for (const subscriber of subscribers) {
         try {
-          console.log(`Sending email to ${subscriber.email} (${subscriber.id})`)
           
           // Convert TipTap content to HTML
           let htmlContent = ''
@@ -43,7 +40,6 @@ export const processAllBatchesStep = createStep(
             if (typeof content === 'object') {
               // If content is already a parsed object
               htmlContent = convertTipTapToHtml(content)
-              console.log('Converted TipTap object to HTML')
             } else if (typeof content === 'string') {
               // If content is a JSON string
               if (content.includes('"type":"doc"') || content.startsWith('{')) {
@@ -51,24 +47,19 @@ export const processAllBatchesStep = createStep(
                   // Try to parse the JSON string
                   const parsedContent = JSON.parse(content)
                   htmlContent = convertTipTapToHtml(parsedContent)
-                  console.log('Converted TipTap JSON string to HTML')
                 } catch (parseError) {
                   // If parsing fails, try to convert the string directly
                   htmlContent = convertTipTapToHtml(content)
-                  console.log('Converted TipTap string to HTML (fallback)')
                 }
               } else {
                 // If it's plain text, use it as is
                 htmlContent = content
-                console.log('Using plain text content')
               }
             } else {
               // Fallback for any other content type
               htmlContent = String(content || '')
-              console.log('Using fallback string conversion for content')
             }
           } catch (contentError) {
-            console.warn(`Failed to convert content to HTML: ${contentError.message}`)
             // Fall back to a safe default
             htmlContent = String(blogData.content || 'No content available')
           }
@@ -115,11 +106,6 @@ export const processAllBatchesStep = createStep(
             }
           }
           
-          // Log the complete email data for SendGrid template testing
-          console.log('\n\n==== SENDGRID TEMPLATE DATA ====');
-          console.log(JSON.stringify(emailData, null, 2));
-          console.log('==== END SENDGRID TEMPLATE DATA ====\n\n');
-          
           // Send email using notification module
           await notificationModuleService.createNotifications({
             to: subscriber.email,
@@ -135,11 +121,8 @@ export const processAllBatchesStep = createStep(
             email: subscriber.email
           })
           
-          console.log(`Successfully sent email to ${subscriber.email}`)
         } catch (error) {
-          console.error(`Failed to send email to ${subscriber.email}: ${error.message}`)
           
-          // Record failed send but continue with next subscriber
           allResults.push({
             success: false,
             subscriber_id: subscriber.id,
@@ -177,8 +160,6 @@ export const processAllBatchesStep = createStep(
       failedList,
       sentAt: new Date().toISOString()
     }
-    
-    console.log(`All batches processed. Total: ${summary.totalSubscribers}, Success: ${summary.sentCount}, Failed: ${summary.failedCount}`)
     
     // Return a single summary object, not an array
     return new StepResponse(summary)

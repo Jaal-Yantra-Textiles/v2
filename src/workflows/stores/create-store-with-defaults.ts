@@ -13,6 +13,8 @@ import {
   updateStoresWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import type { RemoteQueryFunction } from "@medusajs/types"
+import type { Link } from "@medusajs/modules-sdk"
 import { PARTNER_MODULE } from "../../modules/partner"
 
 // Orchestrates creation of a store with its default region, sales channel, and stock location
@@ -102,7 +104,7 @@ const createRegionStep = createStep<CreateStoreWithDefaultsInput["region"], any,
   "create-region-step",
   async (input: CreateStoreWithDefaultsInput["region"], { container }) => {
     // Reuse an existing region if any requested country already belongs to one
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const existingRegionsRes = await query.graph({
       entity: "region",
       fields: ["id", "currency_code", "countries.*"],
@@ -208,7 +210,7 @@ const linkPartnerToStoreStep = createStep(
     input: { partner_id: string; store_id: string },
     { container }
   ) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const links = [
       {
         [PARTNER_MODULE]: { partner_id: input.partner_id },

@@ -2,6 +2,7 @@ import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@med
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils";
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
+import type { Link } from "@medusajs/modules-sdk";
 
 
 // Types
@@ -78,7 +79,7 @@ export const updateOrderLinesStep = createStep(
   "update-inventory-orderlines-step",
   async (input: { order_id: string; order_lines: UpdateInventoryOrderLineInput[] }, { container }) => {
     const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
     // Fetch current orderlines
     const currentOrder = await inventoryOrderService.retrieveInventoryOrder(input.order_id, { relations: ["orderlines"] });
     const currentOrderlines = currentOrder.orderlines || [];
@@ -143,7 +144,7 @@ export const updateOrderLinesStep = createStep(
   // Compensation: restore all original orderlines (delete new, restore old and relink)
   async (compensationData: { originalOrderlines: any[]; order_id: string }, { container }) => {
     const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
     // Remove all current orderlines
     const currentOrder = await inventoryOrderService.retrieveInventoryOrder(compensationData.order_id, { relations: ["orderlines"] });
     for (const line of currentOrder.orderlines || []) {

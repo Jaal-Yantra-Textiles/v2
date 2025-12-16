@@ -4,6 +4,7 @@ import { PERSON_MODULE } from "../../modules/person";
 import { InferTypeOf } from "@medusajs/framework/types";
 import PersonAddress  from "../../modules/person/models/person_address"
 import PersonService from "../../modules/person/service";
+import type { RemoteQueryFunction } from "@medusajs/types";
 export type PersonAddress = InferTypeOf<typeof PersonAddress>
 
 interface GeocodeAddressWorkflowInput {
@@ -20,7 +21,7 @@ interface AddressStepOutput {
 const getAddressStep = createStep(
   "get-address-step",
   async (input: GeocodeAddressWorkflowInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const result = await query.graph({
       entity: "person_address",
       fields: ["id", "postal_code", "country", "latitude", "longitude"],

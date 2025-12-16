@@ -12,6 +12,8 @@ import { transform } from "@medusajs/framework/workflows-sdk";
 import { InferTypeOf } from "@medusajs/framework/types"
 import InventoryOrder from "../../modules/inventory_orders/models/order";
 import InventoryOrderService from "../../modules/inventory_orders/service";
+import type { Link } from "@medusajs/modules-sdk";
+import type { IInventoryService } from "@medusajs/types";
 export type InventoryOrder = InferTypeOf<typeof InventoryOrder>;
 
 // --- Interfaces for API Input ---
@@ -41,7 +43,7 @@ export interface CreateInventoryOrderInput {
 export const validateInventoryStep = createStep(
   "validate-inventory-step",
   async (input: CreateInventoryOrderInput, { container }) => {
-    const inventoryService = container.resolve(Modules.INVENTORY);
+    const inventoryService = container.resolve(Modules.INVENTORY) as IInventoryService;
     const missingItems: string[] = [];
     for (const line of input.order_lines) {
       try {
@@ -90,7 +92,7 @@ export const linkInventoryItemsWithLinesStep = createStep(
     input: { order_id: string; orderline_ids: string[]; inventory_item_ids: string[] },
     { container }
   ) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
     const links: LinkDefinition[] = input.orderline_ids.map((orderlineId, idx) => ({
       [ORDER_INVENTORY_MODULE]: {
         inventory_order_line_id: orderlineId,
@@ -112,7 +114,7 @@ export const linkInventoryItemsWithLinesStep = createStep(
 export const linkInventoryOrderWithStockLocation = createStep(
   "link-inventory-order-with-stock-location",
   async (input: { order_id: string; stock_location_id: string }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
     const links: LinkDefinition[] = [];
     links.push({
       [ORDER_INVENTORY_MODULE]: {
@@ -142,7 +144,7 @@ export const linkInventoryOrderWithFromStockLocation = createStep(
     input: { order_id: string; from_stock_location_id: string },
     { container }
   ) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK);
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
     const links: LinkDefinition[] = [];
     links.push({
       [ORDER_INVENTORY_MODULE]: {

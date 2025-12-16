@@ -7,7 +7,7 @@ export const updateAgreementStatsStep = createStep(
   "update-agreement-stats",
   async (input: { agreement_id: string }, { container }) => {
     const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY);
 
     // Get current agreement
     const { data: agreements } = await query.graph({

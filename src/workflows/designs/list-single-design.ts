@@ -18,8 +18,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
     async (input: ListDesignsStepInput, { container }) => {
       const designService: DesignService = container.resolve(DESIGN_MODULE);
       input.fields.push('*')
-      console.log(input.fields)
-      const query = container.resolve(ContainerRegistrationKeys.QUERY)
+      const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
       const {data: design} = await query.graph({
         entity: 'designs',
         fields: input.fields || ['*'],

@@ -6,6 +6,7 @@ import {
 import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
 import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 import { sendInventoryOrderToPartnerWorkflow } from "./send-to-partner";
+import type { IWorkflowEngineService, RemoteQueryFunction } from "@medusajs/types";
 
 const TASKS_MODULE = "tasksModuleService"
 
@@ -23,10 +24,10 @@ export const setInventoryOrderStepSuccessStep = createStep(
         console.log("setInventoryOrderStepSuccessStep", updatedOrder)
         const engineService = container.resolve(
             Modules.WORKFLOW_ENGINE
-        )
+        ) as IWorkflowEngineService
         
         // Get the workflow transaction ID from associated tasks instead of order metadata
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         
         // Find tasks linked to this inventory order that have a transaction ID
         const taskLinksResult = await query.graph({
@@ -99,11 +100,11 @@ export const setInventoryOrderStepFailedStep = createStep(
     ) {
         const engineService = container.resolve(
             Modules.WORKFLOW_ENGINE
-        )
+        ) as IWorkflowEngineService
         const taskService = container.resolve(TASKS_MODULE)
         
         // Get the workflow transaction ID from associated tasks instead of order metadata
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         
         // Find tasks linked to this inventory order that have a transaction ID
         const taskLinksResult = await query.graph({

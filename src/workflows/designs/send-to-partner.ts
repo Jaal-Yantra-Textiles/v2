@@ -8,6 +8,8 @@ import { createTasksFromTemplatesWorkflow } from "./create-tasks-from-templates"
 import { TASKS_MODULE } from "../../modules/tasks"
 import TaskService from "../../modules/tasks/service"
 import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
+import type { IEventBusModuleService, Logger, RemoteQueryFunction } from "@medusajs/types"
+import type { Link } from "@medusajs/modules-sdk"
 
 // Configurable await timeouts (seconds) with sane defaults
 
@@ -35,7 +37,7 @@ type SendDesignToPartnerInput = {
 const validateDesignStep = createStep(
   "validate-design",
   async (input: SendDesignToPartnerInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
 
     const { data } = await query.graph({
       entity: "designs",
@@ -57,7 +59,7 @@ const validateDesignStep = createStep(
 const validatePartnerStep = createStep(
   "validate-partner-for-design",
   async (input: SendDesignToPartnerInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
 
     const { data } = await query.graph({
       entity: "partners",
@@ -78,7 +80,7 @@ const validatePartnerStep = createStep(
 const linkDesignWithPartnerStep = createStep(
   "link-design-with-partner",
   async (input: { designId: string; partnerId: string }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
     const links: LinkDefinition[] = [
       {
@@ -101,7 +103,7 @@ const linkDesignWithPartnerStep = createStep(
   },
   async (links: LinkDefinition[], { container }) => {
     if (!links || links.length === 0) return
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     await remoteLink.dismiss(links)
   }
 )
@@ -190,10 +192,10 @@ const notifyPartnerStep = createStep(
     // make synchronous to avoid racing with external signaling
   },
   async (input: { input: SendDesignToPartnerInput; design: any }, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
     logger.info("Notifying partner about design assignment...")
 
-    const eventService = container.resolve(Modules.EVENT_BUS)
+    const eventService = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
     eventService.emit({
       name: "design_assigned_to_partner",
       data: {
@@ -253,7 +255,7 @@ export const awaitDesignRefinish = createStep(
 const prepareRedoStep = createStep(
   "prepare-redo",
   async (input: { designId: string }, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
     const designService: DesignService = container.resolve(DESIGN_MODULE)
     const updated = await designService.updateDesigns({
       id: input.designId,
@@ -268,9 +270,9 @@ const prepareRedoStep = createStep(
 const revertFinishTasksStep = createStep(
   "revert-finish-tasks",
   async (input: { designId: string }, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
     const taskService: TaskService = container.resolve(TASKS_MODULE)
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
 
     const taskLinksResult = await query.graph({
       entity: "designs",
@@ -305,7 +307,7 @@ const revertFinishTasksStep = createStep(
 const findRedoParentTaskStep = createStep(
   "find-redo-parent-task",
   async (input: { designId: string }, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const { data } = await query.graph({
       entity: "designs",
       fields: ["id", "tasks.*"],
@@ -332,7 +334,7 @@ const createRedoSubtasksStep = createStep(
     { container }
   ) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE)
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
 
     if (!input.parentTaskId) {
       logger.warn("[DesignWF] create-redo-subtasks: No redo parent task found; skipping subtask creation")
@@ -402,7 +404,7 @@ const createRedoSubtasksStep = createStep(
 const linkRedoSubtasksToDesignStep = createStep(
   "link-redo-subtasks-to-design",
   async (input: { designId: string; tasks: any[] }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const links: LinkDefinition[] = []
     const tasks = input.tasks || []
     for (const t of tasks) {
@@ -423,7 +425,7 @@ const tagRedoSubtasksTransactionIdStep = createStep(
   "tag-redo-subtasks-transaction-id",
   async (input: { tasks: any[] }, { container, context }) => {
     const taskService: TaskService = container.resolve(TASKS_MODULE)
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
     const workflowTransactionId = context.transactionId
 
     const tasks = input.tasks || []
@@ -470,7 +472,7 @@ export const sendDesignToPartnerWorkflow = createWorkflow(
     const checkExistingTasksStep = createStep(
       "check-existing-design-partner-assignment",
       async (i: { designId: string }, { container }) => {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         const { data } = await query.graph({ entity: "designs", fields: ["id", "tasks.*"], filters: { id: i.designId } })
         const nodes = data || []
         let hasAssignment = false
@@ -510,7 +512,7 @@ export const sendDesignToPartnerWorkflow = createWorkflow(
       "set-existing-design-task-transaction-ids",
       async (i: { designId: string }, { container, context }) => {
         const taskService: TaskService = container.resolve(TASKS_MODULE)
-        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
         const workflowTransactionId = context.transactionId
         const { data } = await query.graph({ entity: "designs", fields: ["id", "tasks.*"], filters: { id: i.designId } })
         const nodes = data || []

@@ -1,5 +1,7 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse, when, transform } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+import type { RemoteQueryFunction } from "@medusajs/types";
+import type { Link } from "@medusajs/modules-sdk";
 import { TASKS_MODULE } from "../../modules/tasks";
 import { createTasksFromTemplatesWorkflow } from "./create-tasks-from-templates";
 import { updateInventoryOrderWorkflow } from "./update-inventory-order";
@@ -65,7 +67,7 @@ export const resolveExistingLevelsStep = createStep(
     input: { levels: Array<{ location_id: string; inventory_item_id: string; stocked_quantity: number }> },
     { container }
   ) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const levels = input.levels || []
     const existing: Array<{ id: string; location_id: string; inventory_item_id: string; stocked_quantity: number }> = []
     for (const lv of levels) {
@@ -141,7 +143,7 @@ const createFulfillmentEntriesStep = createStep(
     { container, context }
   ) => {
     const service: Fullfilled_ordersService = container.resolve(FULLFILLED_ORDERS_MODULE) as any
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
     const createdIds: string[] = []
     for (const p of (input.payloads || [])) {
@@ -180,7 +182,7 @@ const createFulfillmentEntriesStep = createStep(
 const validateAndFetchOrderStep = createStep(
   "partner-complete-validate-and-fetch-order",
   async (input: PartnerCompleteInventoryOrderInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
 
     const { data: orders } = await query.graph({
       entity: "inventory_orders",
@@ -306,7 +308,7 @@ const completeTaskAndSignalIfFulfilledStep = createStep(
     }
 
     const taskService: TaskService = container.resolve(TASKS_MODULE)
-    const queryService = container.resolve(ContainerRegistrationKeys.QUERY)
+    const queryService = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
 
     // Get tasks linked to this inventory order
     const shippedTaskLinksResult = await queryService.graph({

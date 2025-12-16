@@ -5,6 +5,7 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import type { RemoteQueryFunction } from "@medusajs/types";
 
 export type ListFeedbackStepInput = {
   filters?: Record<string, any>;
@@ -24,7 +25,7 @@ export type ListFeedbackStepInput = {
 export const listFeedbackStep = createStep(
   "list-feedback-step",
   async (input: ListFeedbackStepInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>;
 
     // Build fields array based on what links to include
     const fields = ["*"];

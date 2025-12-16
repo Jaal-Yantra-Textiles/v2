@@ -43,7 +43,7 @@ const validatePartnersStep = createStep(
 const createDesignPartnerLinksStep = createStep(
   "create-design-partner-links-step",
   async (input: LinkDesignPartnerInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = input.partner_ids.map(partnerId => ({
       [DESIGN_MODULE]: {
         design_id: input.design_id
@@ -60,7 +60,7 @@ const createDesignPartnerLinksStep = createStep(
     if (!links) {
       return
     }
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK)
     await remoteLink.dismiss(links)
   }
 )

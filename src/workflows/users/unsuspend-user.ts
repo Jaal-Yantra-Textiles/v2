@@ -1,13 +1,12 @@
 import { MedusaError, Modules } from "@medusajs/framework/utils";
-import { setAuthAppMetadataStep } from "@medusajs/medusa/core-flows";
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/workflows-sdk";
-import { AuthIdentityDTO, ProviderIdentityDTO, UserDTO } from "@medusajs/types";
+import type { IAuthModuleService, IUserModuleService, AuthIdentityDTO, UserDTO } from "@medusajs/types";
 
 // Step 1: Find user and check if they are suspended
 export const findUserToUnsuspendStep = createStep(
     "find-user-to-unsuspend-step",
     async (input: { userId: string }, { container }) => {
-        const userModule = container.resolve(Modules.USER);
+        const userModule = container.resolve(Modules.USER) as IUserModuleService;
         const user = await userModule.retrieveUser(input.userId);
 
         if (!user.metadata?.suspended) {
@@ -21,7 +20,7 @@ export const findUserToUnsuspendStep = createStep(
 export const findSuspendedAuthIdentityStep = createStep(
     "find-suspended-auth-identity-step",
     async (user: UserDTO, { container }) => {
-        const authModule = container.resolve(Modules.AUTH);
+        const authModule = container.resolve(Modules.AUTH) as IAuthModuleService;
         
         // For suspended users, provider identities are deleted, so we need to find auth identities directly
         // Look for auth identities with suspended metadata containing the user's email
@@ -57,7 +56,7 @@ export const findSuspendedAuthIdentityStep = createStep(
 export const recreateProviderIdentityStep = createStep(
     "recreate-provider-identity-step",
     async (authIdentity: AuthIdentityDTO, { container }) => {
-        const authModule = container.resolve(Modules.AUTH);
+        const authModule = container.resolve(Modules.AUTH) as IAuthModuleService;
         
         // Get the suspended provider data
         const suspendedProviderData = authIdentity.app_metadata?.suspended_provider_data as any;
@@ -103,7 +102,7 @@ export const recreateProviderIdentityStep = createStep(
         // Rollback: delete recreated provider identity and restore suspension metadata
         if (!rollbackData) return;
         
-        const authModule = container.resolve(Modules.AUTH);
+        const authModule = container.resolve(Modules.AUTH) as IAuthModuleService;
         
         // Delete the recreated provider identity
         await authModule.deleteProviderIdentities([rollbackData.providerIdentityId]);
@@ -120,7 +119,7 @@ export const recreateProviderIdentityStep = createStep(
 export const updateUserAfterUnsuspendStep = createStep(
     "update-user-after-unsuspend-step",
     async (userId: string, { container }) => {
-        const userModule = container.resolve(Modules.USER);
+        const userModule = container.resolve(Modules.USER) as IUserModuleService;
         
         // Get current user to preserve other metadata
         const currentUser = await userModule.retrieveUser(userId);
@@ -143,7 +142,7 @@ export const updateUserAfterUnsuspendStep = createStep(
         // Rollback: restore previous user metadata
         if (!rollbackData) return;
         
-        const userModule = container.resolve(Modules.USER);
+        const userModule = container.resolve(Modules.USER) as IUserModuleService;
         await userModule.updateUsers({
             id: rollbackData.userId,
             metadata: rollbackData.previousMetadata

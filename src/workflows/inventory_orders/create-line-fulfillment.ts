@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders"
 import type { LinkDefinition } from "@medusajs/framework/types"
+import type { Link } from "@medusajs/modules-sdk"
 
 // Input type for creating a line fulfillment entry
 export type CreateLineFulfillmentInput = {
@@ -69,7 +70,7 @@ export const linkFulfillmentToOrderStep = createStep(
     input: { entryId: string; orderId: string; orderLineId: string },
     { container }
   ) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
     const links: LinkDefinition[] = [
       {

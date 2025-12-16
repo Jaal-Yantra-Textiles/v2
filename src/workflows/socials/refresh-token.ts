@@ -15,6 +15,7 @@ import { SOCIALS_MODULE } from "../../modules/socials"
 import { ENCRYPTION_MODULE } from "../../modules/encryption"
 import EncryptionService from "../../modules/encryption/service"
 import { decryptRefreshToken } from "../../modules/socials/utils/token-helpers"
+import type { Logger } from "@medusajs/types"
 
 // Define a more precise type for the entity instance
 type SocialPlatform = {
@@ -51,7 +52,7 @@ const refreshTokenStep = createStep(
     const socialProviderService = container.resolve<SocialProviderService>(
       SOCIAL_PROVIDER_MODULE
     )
-    const logger = container.resolve("logger")
+    const logger = container.resolve("logger") as Logger
     const apiConfig = platform.api_config
 
     if (!apiConfig) {
@@ -132,7 +133,7 @@ const updatePlatformStep = createStep(
   ) => {
     const service = container.resolve<SocialsService>(SOCIALS_MODULE)
     const encryptionService = container.resolve(ENCRYPTION_MODULE) as EncryptionService
-    const logger = container.resolve("logger")
+    const logger = container.resolve("logger") as Logger
 
     // Check if this is a flat structure (X/Twitter) or nested (legacy)
     const isFlat = input.token?._isFlat

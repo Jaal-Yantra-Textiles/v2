@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MedusaError } from "@medusajs/utils"
+import type { RemoteQueryFunction } from "@medusajs/types"
 import InventoryOrderTaskLink from "../../links/inventory-orders-tasks"
 
 type GetInventoryOrderTaskInput = {
@@ -17,7 +18,7 @@ type GetInventoryOrderTaskInput = {
 export const getInventoryOrderTaskStep = createStep(
   "get-inventory-order-task",
   async (input: GetInventoryOrderTaskInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     
     const { data } = await query.graph({
       entity: InventoryOrderTaskLink.entryPoint,

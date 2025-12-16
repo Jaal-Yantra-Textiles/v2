@@ -1,6 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
-
+import { RemoteQueryFunction } from "@medusajs/types";
+type Query = Omit<RemoteQueryFunction, symbol>
 export type FetchMultiplePersonsDataInput = {
   person_ids: string[];
 };
@@ -8,7 +9,7 @@ export type FetchMultiplePersonsDataInput = {
 export const fetchMultiplePersonsDataStep = createStep(
   "fetch-multiple-persons-data",
   async (input: FetchMultiplePersonsDataInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Query;
     
     // Fetch persons data using query
     const { data: persons } = await query.graph({

@@ -1,6 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/workflows-sdk"
 import { MedusaError } from "@medusajs/utils"
 import { decryptAccessToken } from "../../../modules/socials/utils/token-helpers"
+import type { Logger } from "@medusajs/types"
 
 /**
  * Step 3: Decrypt Credentials
@@ -12,7 +13,7 @@ import { decryptAccessToken } from "../../../modules/socials/utils/token-helpers
 export const decryptCredentialsStep = createStep(
   "decrypt-credentials",
   async (input: { platform: any; platform_name: string }, { container }) => {
-    const logger = container.resolve("logger")
+    const logger = container.resolve("logger") as Logger
     const apiConfig = input.platform.api_config as Record<string, unknown>
 
     // Decrypt access token using helper (supports both encrypted and plaintext)
@@ -20,7 +21,7 @@ export const decryptCredentialsStep = createStep(
     try {
       userAccessToken = decryptAccessToken(apiConfig, container)
       logger.info(`[Decrypt Credentials] ✓ Access token decrypted successfully`)
-    } catch (error) {
+    } catch (error: any) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         `Failed to decrypt access token: ${error.message}`

@@ -5,6 +5,7 @@ import {
     WorkflowResponse,
   } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+import type { RemoteQueryFunction } from "@medusajs/types";
   
   export type ListPersonStepInput = {
     id: string;
@@ -16,7 +17,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
     async (input: ListPersonStepInput, { container }) => {;
       input.fields.push('*')
       input.fields.push('person_types.*')
-      const query = container.resolve(ContainerRegistrationKeys.QUERY)
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
       const {data: person} = await query.graph({
         entity: 'person',
         fields: input.fields || ['*'],

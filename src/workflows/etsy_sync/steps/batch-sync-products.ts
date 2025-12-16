@@ -1,5 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import type { RemoteQueryFunction } from "@medusajs/types"
+import type { Link } from "@medusajs/modules-sdk"
 import { ETSYSYNC_MODULE } from "../../../modules/etsysync"
 import { EXTERNAL_STORES_MODULE } from "../../../modules/external_stores"
 import EtsysyncService from "../../../modules/etsysync/service"
@@ -29,10 +31,10 @@ export type BatchSyncProductsInput = {
 export const batchSyncProductsStep = createStep(
   "batch-sync-products-step",
   async (input: BatchSyncProductsInput, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const etsysyncService: EtsysyncService = container.resolve(ETSYSYNC_MODULE)
     const externalStores: ExternalStoresService = container.resolve(EXTERNAL_STORES_MODULE)
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
 
     let syncedCount = 0
     let failedCount = 0

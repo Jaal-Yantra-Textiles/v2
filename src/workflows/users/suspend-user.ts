@@ -1,11 +1,11 @@
 import { MedusaError, Modules } from "@medusajs/framework/utils";
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/workflows-sdk";
-import { UserDTO } from "@medusajs/types";
+import type { IAuthModuleService, IUserModuleService, UserDTO } from "@medusajs/types";
 
 export const listAuthIdentitiesStep = createStep(
     "list-auth-identities-step",
     async (user: UserDTO, { container }) => {
-        const authModule = container.resolve(Modules.AUTH)
+        const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
         
         // Query provider identities using user email (entity_id is the email in MedusaJS v2)
         const providerIdentities = await authModule.listProviderIdentities({
@@ -38,7 +38,7 @@ export const listAuthIdentitiesStep = createStep(
 export const listUserStep = createStep(
     "list-user-step",
     async (input: { userId: string }, { container }) => {
-        const userModule = container.resolve(Modules.USER)
+        const userModule = container.resolve(Modules.USER) as IUserModuleService
         const user: UserDTO = await userModule.retrieveUser(input.userId)
         
         // Check if user is already suspended in user metadata
@@ -54,7 +54,7 @@ export const listUserStep = createStep(
 export const updateUserMetaDataStep = createStep(
     "update-user-metadata-step",
     async (userId: string, { container }) => {
-        const userModule = container.resolve(Modules.USER)
+        const userModule = container.resolve(Modules.USER) as IUserModuleService
         
         // Update user metadata to mark as suspended
         const user = await userModule.updateUsers({
@@ -74,7 +74,7 @@ export const updateUserMetaDataStep = createStep(
         // Rollback: remove suspension from user metadata
         if (!rollbackData) return
         
-        const userModule = container.resolve(Modules.USER)
+        const userModule = container.resolve(Modules.USER) as IUserModuleService
         await userModule.updateUsers({
             id: rollbackData.userId,
             metadata: rollbackData.previousMetadata
@@ -86,7 +86,7 @@ export const updateUserMetaDataStep = createStep(
 export const suspendByDeletingProviderIdentityStep = createStep(
     "suspend-by-deleting-provider-identity-step",
     async (input: { providerIdentityId: string, userId: string }, { container }) => {
-        const authModule = container.resolve(Modules.AUTH)
+        const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
         
         // Get the provider identity to preserve its data
         const providerIdentity = await authModule.retrieveProviderIdentity(input.providerIdentityId)
@@ -140,7 +140,7 @@ export const suspendByDeletingProviderIdentityStep = createStep(
         // Rollback: recreate the provider identity and restore auth metadata
         if (!rollbackData) return
         
-        const authModule = container.resolve(Modules.AUTH)
+        const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
         
         // Recreate the provider identity
         await authModule.createProviderIdentities([{

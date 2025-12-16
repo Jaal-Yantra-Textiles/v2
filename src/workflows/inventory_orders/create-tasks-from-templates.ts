@@ -15,6 +15,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MedusaError } from "@medusajs/utils"
 import InventoryOrderService from "../../modules/inventory_orders/service"
 import TaskService from "../../modules/tasks/service"
+import type { Link } from "@medusajs/modules-sdk"
 
 // Extend the validator type with inventoryOrderId
 type CreateTasksInput = AdminPostInventoryOrderTasksReqType & {
@@ -125,7 +126,7 @@ export const determineTaskDataStep = createStep(
 export const createInventoryOrderTaskLinksStep = createStep(
   "create-inventory-order-task-links-step",
   async (input: { tasks: any[], inventoryOrderId: string }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const links: LinkDefinition[] = []
     for (const task of input.tasks) {
       links.push({

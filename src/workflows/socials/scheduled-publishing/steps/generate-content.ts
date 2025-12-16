@@ -2,6 +2,7 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { ContentRule, GeneratedContent } from "../../../../modules/socials/types/publishing-automation"
 import { ContentGeneratorService } from "../../../../modules/socials/services/content-generator-service"
+import type { Logger } from "@medusajs/types"
 
 /**
  * Generate Content Step
@@ -19,7 +20,7 @@ export const generateContentStep = createStep(
     },
     { container }
   ) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
     
     logger.info(`[Campaign] Generating content for: ${input.product.title}`)
     

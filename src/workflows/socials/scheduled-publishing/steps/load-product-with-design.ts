@@ -1,5 +1,6 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import type { Logger, RemoteQueryFunction } from "@medusajs/types"
 
 /**
  * Load Product with Design Step
@@ -9,8 +10,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 export const loadProductWithDesignStep = createStep(
   "load-product-with-design",
   async (input: { product_id: string }, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     
     logger.info(`[Campaign] Loading product: ${input.product_id}`)
     

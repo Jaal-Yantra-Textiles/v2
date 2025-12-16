@@ -19,7 +19,7 @@ type DeleteDesignTaskInput = {
 const validateTaskStep = createStep(
   "validate-task",
   async (input: DeleteDesignTaskInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     const taskExists = await refetchEntity({
       entity: "task",
@@ -50,7 +50,7 @@ const validateTaskStep = createStep(
 const dismissLinkStep = createStep(
   "dismiss-link",
   async (input: DeleteDesignTaskInput, { container }) => {
-    const link = container.resolve(ContainerRegistrationKeys.LINK)
+    const link:any = container.resolve(ContainerRegistrationKeys.LINK)
     
     await link.dismiss({
       [DESIGN_MODULE]: {

@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import { GeneratedContent } from "../../../../modules/socials/types/publishing-automation"
 import { publishSocialPostUnifiedWorkflow } from "../../publish-social-post-unified"
+import SocialsService from "../../../../modules/socials/service"
+import type { Logger } from "@medusajs/types"
 
 /**
  * Publish Item Step
@@ -21,8 +23,8 @@ export const publishItemStep = createStep(
     },
     { container }
   ) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    const socialsService = container.resolve(SOCIALS_MODULE)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
+    const socialsService = container.resolve(SOCIALS_MODULE) as SocialsService
     
     logger.info(`[Campaign] Publishing item ${input.item_index}: ${input.content.product_title}`)
     
