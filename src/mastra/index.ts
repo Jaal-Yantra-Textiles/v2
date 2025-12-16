@@ -5,6 +5,7 @@ import designValidationWorkflow from './workflows/designValidator';
 import productDescriptionWorkflow from './workflows/productDescription';
 import { imageExtractionWorkflow } from './workflows/imageExtraction';
 import { generalChatWorkflow } from "./workflows/generalChat";
+import { visualFlowCodegenWorkflow } from "./workflows/visualFlowCodegen";
 
 export const mastra = new Mastra({
     workflows: {
@@ -13,5 +14,11 @@ export const mastra = new Mastra({
         productDescriptionWorkflow,
         imageExtractionWorkflow,
         generalChatWorkflow,
+        visualFlowCodegenWorkflow,
+    },
+    observability: {
+        default: {
+            enabled: false,
+        },
     },
 })

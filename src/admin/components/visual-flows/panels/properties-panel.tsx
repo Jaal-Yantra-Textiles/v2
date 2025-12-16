@@ -1,19 +1,21 @@
 import { Text, Heading, IconButton, Button, Input, Label, Textarea, Select, Checkbox, Badge } from "@medusajs/ui"
 import { XMark, Trash } from "@medusajs/icons"
-import { Node } from "@xyflow/react"
+import { Edge, Node } from "@xyflow/react"
 import { useState, useEffect, useMemo } from "react"
 import { useFlowMetadata, EntityMetadata } from "../../../hooks/api/visual-flows"
 import { CodeEditorModal } from "../code-editor-modal"
 
 interface PropertiesPanelProps {
   node: Node
+  allNodes?: Node[]
+  edges?: Edge[]
   flowId?: string
   onUpdate: (data: Record<string, any>) => void
   onDelete: () => void
   onClose: () => void
 }
 
-export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: PropertiesPanelProps) {
+export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpdate, onDelete, onClose }: PropertiesPanelProps) {
   const { data: metadata, isLoading: metadataLoading } = useFlowMetadata()
   const [label, setLabel] = useState(String(node.data.label || ""))
   const [operationKey, setOperationKey] = useState(String(node.data.operationKey || ""))
@@ -49,6 +51,66 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
   const nonQueryableCoreEntities = useMemo(() => {
     return entities.filter((e: EntityMetadata) => e.type === "core" && !e.queryable)
   }, [entities])
+
+  const upstreamNodeIds = useMemo(() => {
+    const incoming = new Map<string, Set<string>>()
+    for (const e of edges) {
+      const target = String((e as any)?.target || "")
+      const source = String((e as any)?.source || "")
+      if (!target || !source) continue
+      if (!incoming.has(target)) {
+        incoming.set(target, new Set())
+      }
+      incoming.get(target)!.add(source)
+    }
+
+    const visited = new Set<string>()
+    const queue: string[] = [String(node.id)]
+    while (queue.length) {
+      const current = queue.shift()!
+      const parents = incoming.get(current)
+      if (!parents) continue
+      for (const p of parents) {
+        if (visited.has(p)) continue
+        visited.add(p)
+        queue.push(p)
+      }
+    }
+
+    return visited
+  }, [edges, node.id])
+
+  const availableOperationKeys = useMemo(() => {
+    const nodeById = new Map<string, Node>()
+    for (const n of allNodes) {
+      if (!n) continue
+      nodeById.set(String(n.id), n)
+    }
+
+    const keys = new Set<string>()
+    for (const id of upstreamNodeIds) {
+      const n = nodeById.get(String(id))
+      if (!n) continue
+      if (n.type !== "operation") continue
+      const k = String((n as any).data?.operationKey || "").trim()
+      if (k) keys.add(k)
+    }
+
+    return Array.from(keys)
+  }, [allNodes, upstreamNodeIds])
+
+  const variableSuggestions = useMemo(() => {
+    const out: Array<{ label: string; value: string }> = []
+    out.push({ label: "$last", value: "{{ $last }}" })
+    out.push({ label: "$input", value: "{{ $input }}" })
+    out.push({ label: "$trigger", value: "{{ $trigger }}" })
+    for (const k of availableOperationKeys) {
+      out.push({ label: `${k}`, value: `{{ ${k} }}` })
+      out.push({ label: `${k}.items`, value: `{{ ${k}.items }}` })
+      out.push({ label: `${k}.records`, value: `{{ ${k}.records }}` })
+    }
+    return out
+  }, [availableOperationKeys])
 
   useEffect(() => {
     setLabel(String(node.data.label || ""))
@@ -816,6 +878,11 @@ export function PropertiesPanel({ node, flowId, onUpdate, onDelete, onClose }: P
                   code={options.code || ""}
                   onChange={(code) => updateOption("code", code)}
                   packages={currentPackages}
+                  onPackagesChange={(packages) => updateOption("packages", packages)}
+                  flowId={flowId}
+                  operationKey={operationKey}
+                  availableOperationKeys={availableOperationKeys}
+                  variableSuggestions={variableSuggestions}
                 />
               </div>
               <Textarea
@@ -896,6 +963,101 @@ return {
                 type="number"
                 value={options.timeout || 5000}
                 onChange={(e) => updateOption("timeout", parseInt(e.target.value) || 5000)}
+              />
+            </div>
+          </>
+        )
+
+      case "bulk_update_data":
+        const itemsRaw = options.items
+        const itemsAsString =
+          typeof itemsRaw === "string"
+            ? itemsRaw
+            : JSON.stringify(itemsRaw || [], null, 2)
+
+        const selectedVar = (() => {
+          if (typeof itemsRaw !== "string") return ""
+          const m = itemsRaw.match(/^\{\{\s*([^}]+)\s*\}\}$/)
+          return m?.[1] ? `{{ ${m[1].trim()} }}` : ""
+        })()
+
+        return (
+          <>
+            <div>
+              <Label htmlFor="module">Module *</Label>
+              <Input
+                id="module"
+                value={options.module || ""}
+                onChange={(e) => updateOption("module", e.target.value)}
+                placeholder="product"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="collection">Collection *</Label>
+              <Input
+                id="collection"
+                value={options.collection || ""}
+                onChange={(e) => updateOption("collection", e.target.value)}
+                placeholder="products"
+              />
+            </div>
+
+            <div>
+              <Label>Items source</Label>
+              <Select
+                value={selectedVar || undefined}
+                onValueChange={(v) => {
+                  updateOption("items", v)
+                }}
+              >
+                <Select.Trigger>
+                  <Select.Value placeholder="Select a previous output…" />
+                </Select.Trigger>
+                <Select.Content className="max-h-64 overflow-y-auto">
+                  {variableSuggestions.map((it) => (
+                    <Select.Item key={it.value} value={it.value}>
+                      {it.label}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="items">Items (JSON or {"{{ variable }}"})</Label>
+              <Textarea
+                id="items"
+                value={itemsAsString}
+                onChange={(e) => {
+                  const val = e.target.value
+                  try {
+                    updateOption("items", JSON.parse(val))
+                  } catch {
+                    updateOption("items", val)
+                  }
+                }}
+                rows={8}
+                className="font-mono text-xs"
+                placeholder="{{ build_updates.items }}"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={options.continue_on_error !== false}
+                onCheckedChange={(checked) => updateOption("continue_on_error", Boolean(checked))}
+              />
+              <Text className="text-xs text-ui-fg-subtle">Continue on error</Text>
+            </div>
+
+            <div>
+              <Label htmlFor="max_items">Max items</Label>
+              <Input
+                id="max_items"
+                type="number"
+                value={options.max_items || 200}
+                onChange={(e) => updateOption("max_items", parseInt(e.target.value) || 200)}
               />
             </div>
           </>

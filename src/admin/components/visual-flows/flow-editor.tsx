@@ -342,6 +342,8 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
           <StackedModalProvider onOpenChange={() => {}}>
             <PropertiesPanel
               node={selectedNode}
+              allNodes={nodes}
+              edges={edges}
               flowId={flow.id}
               onUpdate={(data: Record<string, any>) => handleNodeUpdate(selectedNode.id, data)}
               onDelete={() => handleDeleteNode(selectedNode.id)}

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react"
 import Editor, { Monaco } from "@monaco-editor/react"
-import { Button, Text } from "@medusajs/ui"
+import { Button, Text, Input, Label, Textarea, Checkbox } from "@medusajs/ui"
 import { PencilSquare, ExclamationCircle, CheckCircle } from "@medusajs/icons"
 import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal"
+import { useVisualFlowCodegen } from "../../hooks/api/ai"
 
 /**
  * Generate TypeScript declarations for sandbox globals
@@ -45,6 +46,11 @@ interface CodeEditorModalProps {
   code: string
   onChange: (code: string) => void
   packages?: string[]
+  onPackagesChange?: (packages: string[]) => void
+  flowId?: string
+  operationKey?: string
+  availableOperationKeys?: string[]
+  variableSuggestions?: Array<{ label: string; value: string }>
   modalId?: string
 }
 
@@ -52,11 +58,26 @@ export function CodeEditorModal({
   code,
   onChange,
   packages = [],
+  onPackagesChange,
+  flowId,
+  operationKey,
+  availableOperationKeys = [],
+  variableSuggestions = [],
   modalId = "code-editor-modal",
 }: CodeEditorModalProps) {
   const [localCode, setLocalCode] = useState(code)
   const [errors, setErrors] = useState<string[]>([])
   const [monacoInstance, setMonacoInstance] = useState<Monaco | null>(null)
+
+  const visualFlowCodegen = useVisualFlowCodegen()
+  const [aiPrompt, setAiPrompt] = useState("")
+  const [aiDesiredOutputKeys, setAiDesiredOutputKeys] = useState("")
+  const [aiAllowExternalPackages, setAiAllowExternalPackages] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [aiMessages, setAiMessages] = useState<
+    Array<{ role: "user" | "assistant"; content: string }>
+  >([])
+  const [aiLastResult, setAiLastResult] = useState<any | null>(null)
   
   // Configure Monaco when it mounts
   const handleEditorWillMount = useCallback((monaco: Monaco) => {
@@ -138,6 +159,19 @@ export function CodeEditorModal({
   }, [code])
   
   const isValid = errors.length === 0
+  const canGenerate = aiPrompt.trim().length > 0 && !visualFlowCodegen.isPending
+
+  const applyAiResult = () => {
+    if (!aiLastResult) {
+      return
+    }
+    if (typeof aiLastResult.code === "string") {
+      setLocalCode(aiLastResult.code)
+    }
+    if (Array.isArray(aiLastResult.packages) && onPackagesChange) {
+      onPackagesChange(aiLastResult.packages)
+    }
+  }
 
   return (
     <StackedFocusModal id={modalId}>
@@ -170,31 +204,179 @@ export function CodeEditorModal({
         </StackedFocusModal.Header>
 
         <StackedFocusModal.Body className="flex-1 overflow-hidden px-6 py-4">
-          <div className="h-full overflow-hidden rounded-md border border-ui-border-base">
-            <Editor
-              height="100%"
-              defaultLanguage="typescript"
-              path="file:///sandbox-code.ts"
-              value={localCode}
-              onChange={(value) => setLocalCode(value || "")}
-              beforeMount={handleEditorWillMount}
-              onValidate={handleEditorValidation}
-              theme="vs-dark"
-              options={{
-                minimap: { enabled: false },
-                fontSize: 14,
-                lineNumbers: "on",
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-                tabSize: 2,
-                wordWrap: "on",
-                padding: { top: 16, bottom: 16 },
-                suggestOnTriggerCharacters: true,
-                quickSuggestions: true,
-                folding: true,
-                bracketPairColorization: { enabled: true },
-              }}
-            />
+          <div className="flex h-full overflow-hidden rounded-md border border-ui-border-base">
+            <div className="flex-1 overflow-hidden">
+              <Editor
+                height="100%"
+                defaultLanguage="typescript"
+                path="file:///sandbox-code.ts"
+                value={localCode}
+                onChange={(value) => setLocalCode(value || "")}
+                beforeMount={handleEditorWillMount}
+                onValidate={handleEditorValidation}
+                theme="vs-dark"
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  lineNumbers: "on",
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  tabSize: 2,
+                  wordWrap: "on",
+                  padding: { top: 16, bottom: 16 },
+                  suggestOnTriggerCharacters: true,
+                  quickSuggestions: true,
+                  folding: true,
+                  bracketPairColorization: { enabled: true },
+                }}
+              />
+            </div>
+
+            <div className="w-96 border-l border-ui-border-base bg-ui-bg-subtle p-3 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <Text weight="plus" className="text-sm">
+                  AI Assist
+                </Text>
+                <Button
+                  size="small"
+                  variant="secondary"
+                  type="button"
+                  isLoading={visualFlowCodegen.isPending}
+                  disabled={!canGenerate}
+                  onClick={async () => {
+                    try {
+                      setAiError(null)
+                      const desired = aiDesiredOutputKeys
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+
+                      setAiMessages((prev) => [
+                        ...prev,
+                        { role: "user", content: aiPrompt.trim() },
+                      ])
+
+                      const resp = await visualFlowCodegen.mutateAsync({
+                        prompt: aiPrompt.trim(),
+                        desiredOutputKeys: desired.length ? desired : undefined,
+                        allowExternalPackages: aiAllowExternalPackages,
+                        resourceId: flowId
+                          ? `ai:visual-flow-codegen:${flowId}`
+                          : "ai:visual-flow-codegen",
+                        context: {
+                          operationType: "execute_code",
+                          operationKey,
+                          availableOperationKeys,
+                          variableSuggestions,
+                        },
+                      } as any)
+
+                      const result: any = (resp as any)?.result || {}
+                      setAiLastResult(result)
+                      setAiMessages((prev) => [
+                        ...prev,
+                        {
+                          role: "assistant",
+                          content:
+                            typeof result?.code === "string"
+                              ? result.code
+                              : "(no code returned)",
+                        },
+                      ])
+                    } catch (e: any) {
+                      setAiError(e?.message || "Failed to generate code")
+                    }
+                  }}
+                >
+                  Generate
+                </Button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto rounded border border-ui-border-base bg-ui-bg-base p-2">
+                {aiMessages.length === 0 ? (
+                  <Text className="text-xs text-ui-fg-subtle">
+                    Write a prompt and click Generate. You can then Apply the
+                    result into the editor.
+                  </Text>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {aiMessages.map((m, idx) => (
+                      <div
+                        key={idx}
+                        className={
+                          m.role === "user"
+                            ? "self-end max-w-[90%] rounded bg-ui-bg-subtle p-2"
+                            : "self-start max-w-[90%] rounded bg-ui-bg-subtle-hover p-2"
+                        }
+                      >
+                        <Text className="text-[11px] text-ui-fg-subtle">
+                          {m.role === "user" ? "You" : "AI"}
+                        </Text>
+                        <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-ui-fg-base font-mono">
+                          {m.content}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div>
+                  <Label htmlFor={`${modalId}-ai-prompt`}>Prompt</Label>
+                  <Textarea
+                    id={`${modalId}-ai-prompt`}
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    rows={3}
+                    placeholder="Describe what you want this node to do..."
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor={`${modalId}-ai-output-keys`}>
+                    Desired output keys (comma-separated)
+                  </Label>
+                  <Input
+                    id={`${modalId}-ai-output-keys`}
+                    value={aiDesiredOutputKeys}
+                    onChange={(e) => setAiDesiredOutputKeys(e.target.value)}
+                    placeholder="items, count, byHandle"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={aiAllowExternalPackages}
+                    onCheckedChange={(checked) =>
+                      setAiAllowExternalPackages(Boolean(checked))
+                    }
+                  />
+                  <Text className="text-xs text-ui-fg-subtle">
+                    Allow external packages
+                  </Text>
+                </div>
+
+                {aiError && (
+                  <Text className="text-xs text-ui-fg-error">{aiError}</Text>
+                )}
+
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    type="button"
+                    disabled={!aiLastResult}
+                    onClick={applyAiResult}
+                  >
+                    Apply
+                  </Button>
+                  <Text className="text-xs text-ui-fg-subtle">
+                    Will replace editor content
+                  </Text>
+                </div>
+              </div>
+            </div>
           </div>
         </StackedFocusModal.Body>
 

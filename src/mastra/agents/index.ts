@@ -51,6 +51,20 @@ export const productDescriptionAgent = new Agent({
 });
 
 
+export const visualFlowCodegenAgent = new Agent({
+  model: openrouter("mistralai/devstral-2512:free"),
+  name: "visual-flow-codegen-agent",
+  instructions:
+    "You generate JavaScript code snippets for a Visual Flow execute_code node. " +
+    "You must return ONLY valid JSON with keys: code, packages, outputKeys, notes. " +
+    "The code should be safe, deterministic, and use only the sandbox globals ($last, $input, $trigger, $context, _, dayjs, uuid, validator, crypto, fetch). " +
+    "Prefer using $last for previous node output and $input for multi-node access. " +
+    "Avoid network calls unless explicitly requested. " +
+    "Never include markdown or explanation outside JSON.",
+  memory,
+})
+
+
 
 // Agent specialized for extracting structured item lists from images (receipts, labels, manifests)
 export const imageExtractionAgent = new Agent({

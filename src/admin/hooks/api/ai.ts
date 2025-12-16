@@ -66,6 +66,37 @@ export const useGeneralChat = (
 }
 
 // -------------------------------------------------
+// Visual Flow Codegen (execute_code AI assist)
+// -------------------------------------------------
+export type VisualFlowCodegenPayload = {
+  prompt: string
+  context?: Record<string, any>
+  desiredOutputKeys?: string[]
+  allowExternalPackages?: boolean
+  threadId?: string
+  resourceId?: string
+}
+
+export type VisualFlowCodegenResponse<T = any> = {
+  result: T
+}
+
+export const useVisualFlowCodegen = (
+  options?: UseMutationOptions<VisualFlowCodegenResponse, FetchError, VisualFlowCodegenPayload>
+) => {
+  return useMutation({
+    mutationFn: async (payload: VisualFlowCodegenPayload) => {
+      const response = (await sdk.client.fetch(`/admin/ai/visual-flow-codegen`, {
+        method: "POST",
+        body: payload,
+      })) as VisualFlowCodegenResponse
+      return response
+    },
+    ...options,
+  })
+}
+
+// -------------------------------------------------
 // General Chat Streaming (SSE)
 // -------------------------------------------------
 function sanitizeLLMText(input: string) {

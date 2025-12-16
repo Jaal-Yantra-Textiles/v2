@@ -50,12 +50,20 @@ export const updateDataOperation: OperationDefinition = {
         }
       }
       
-      // MedusaJS update pattern: { selector, data } or { id, ...data }
-      const updatePayload = selector.id 
-        ? { id: selector.id, ...data }
-        : { selector, data }
-      
-      const result = await service[methodName](updatePayload)
+      let result: any
+      if (selector?.id) {
+        try {
+          result = await service[methodName](selector.id, data)
+        } catch (e) {
+          result = await service[methodName]({ id: selector.id, ...data })
+        }
+      } else {
+        try {
+          result = await service[methodName](selector, data)
+        } catch (e) {
+          result = await service[methodName]({ selector, data })
+        }
+      }
       
       return {
         success: true,
