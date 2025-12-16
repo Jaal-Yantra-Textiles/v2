@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import Editor, { Monaco } from "@monaco-editor/react"
 import { Button, Text, Input, Label, Textarea, Checkbox } from "@medusajs/ui"
-import { PencilSquare, ExclamationCircle, CheckCircle } from "@medusajs/icons"
+import { PencilSquare, ExclamationCircle, CheckCircle, Spinner } from "@medusajs/icons"
 import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal"
 import { useVisualFlowCodegen } from "../../hooks/api/ai"
 
@@ -293,7 +293,14 @@ export function CodeEditorModal({
               </div>
 
               <div className="flex-1 overflow-y-auto rounded border border-ui-border-base bg-ui-bg-base p-2">
-                {aiMessages.length === 0 ? (
+                {visualFlowCodegen.isPending && aiMessages.length === 0 ? (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <div className="flex items-center gap-2">
+                      <Spinner className="animate-spin" />
+                      <Text className="text-xs text-ui-fg-subtle">Generating…</Text>
+                    </div>
+                  </div>
+                ) : aiMessages.length === 0 ? (
                   <Text className="text-xs text-ui-fg-subtle">
                     Write a prompt and click Generate. You can then Apply the
                     result into the editor.
@@ -314,6 +321,9 @@ export function CodeEditorModal({
                         </Text>
                         <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-ui-fg-base font-mono">
                           {m.content}
+                          {visualFlowCodegen.isPending && idx === aiMessages.length - 1 && m.role === "user" ? (
+                            <Spinner className="inline-block ml-1 align-middle animate-spin" />
+                          ) : null}
                         </pre>
                       </div>
                     ))}
