@@ -4,6 +4,12 @@ import { embedMany } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { PgVector } from "@mastra/pg"
 
+function embeddingsEnabled(): boolean {
+  // Default OFF to avoid quota issues. Opt-in explicitly.
+  if (process.env.MASTRA_DISABLE_EMBEDDINGS === "true") return false
+  return process.env.MASTRA_ENABLE_EMBEDDINGS === "true" && !!process.env.OPENAI_API_KEY
+}
+
 function sanitizeIndexName(name: string): string {
   let n = String(name || "").toLowerCase()
   n = n.replace(/[^a-z0-9_]/g, "_")
@@ -192,6 +198,12 @@ function buildEndpointDoc(ep: { method: string; path: string; summary?: string; 
 
 export async function ingestAdminCatalog(force = false) {
   if (!force && Date.now() - lastIngestAt < INGEST_TTL_MS) return { status: "cached" }
+
+  if (!embeddingsEnabled()) {
+    try { console.log("[RAG] ingest skipped: embeddings disabled") } catch {}
+    return { status: "skipped_embeddings" }
+  }
+
   const json = await fetchCatalogJson()
   const endpoints = extractEndpoints(json)
   if (!endpoints.length) return { status: "no_endpoints" }
@@ -310,6 +322,13 @@ export async function queryAdminEndpoints(query: string, method?: string, topK =
     try { console.log(`[RAG][query] lexical hit`, { count: lexical.length, first: lexical[0] }) } catch {}
     return lexical
   }
+
+  // If embeddings are disabled/unavailable, do not attempt vector search.
+  if (!embeddingsEnabled()) {
+    try { console.log(`[RAG][query] embeddings disabled; returning lexical-only (empty)`)} catch {}
+    return []
+  }
+
   const { embeddings } = await embedMany({
     model: openai.embedding("text-embedding-3-small"),
     values: [boosted],
@@ -410,7 +429,7 @@ async function lexicalQueryAdminEndpoints(query: string, method?: string, topK =
     const pathCanonical = ensureAdminPath(ep.path)
     const hay = `${ep.method} ${pathCanonical} ${ep.summary || ""} ${ep.description || ""} ${ep.request_schema || ""} ${ep.response_schema || ""}`.toLowerCase()
     for (const t of stemmed) {
-      if (!t) continue
+      if (!t || t.length < 3) continue
       if (hay.includes(t)) s += 1
     }
     // Boost if tokens appear in path segments

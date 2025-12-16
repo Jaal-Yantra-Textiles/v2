@@ -240,6 +240,24 @@ function inferToolCallsFromMessage(message: string): Array<{ name: string; argum
   return calls
 }
 
+function shouldPlanToolCallsFromMessage(message: string): boolean {
+  const msg = String(message || "").toLowerCase().trim()
+  if (!msg) return false
+
+  if (/\b(get|post|put|patch|delete)\s+\/(?:admin|store)\//i.test(msg)) return true
+  if (msg.includes("/admin/") || msg.includes("/store/")) return true
+
+  const compact = msg.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
+  if (/^(hi|hey|hello|yo|sup|hey there|hi there|hello there)$/.test(compact)) return false
+  if (/^(how are you|how r you|hru|what s up|whats up|good morning|good afternoon|good evening)$/.test(compact)) return false
+
+  const action = /\b(list|show|get|fetch|find|search|create|add|make|new|update|edit|modify|change|set|patch|delete|remove|archive|cancel|refund|fulfill|ship|mark)\b/.test(compact)
+  if (!action) return false
+  if (compact.split(" ").length <= 2) return false
+
+  return true
+}
+
 // Dispatcher to "activate" tools. For now, we standardize to return a planned Admin API request
 // using official Admin API paths so the UI can infer required inputs from the OpenAPI catalog.
 // The UI will execute via sdk.client.fetch.
@@ -520,28 +538,38 @@ const chatGenerate = createStep({
     let text = ""
     let newThreadId: string | undefined
     try {
-      const prompt = `${system}\n\nUser: ${String(inputData.message || "")}`
-      const runtimeAgent = generalChatAgent
-      console.log("runtimeAgent", runtimeAgent)
-      const gen = await runtimeAgent.generate(prompt, {
-        memory: {
-          // If threadId is provided, continue it; otherwise the agent will create one
-          thread: threadId,
-          resource: resourceId,
-        },
-      })
-      console.log("gen", gen)
-      text = (gen as any)?.text || ""
-      newThreadId = (gen as any)?.threadId
-      // If the model returned nothing, leave text empty; do not echo the user input
+      const precomputed = (apiCtx as any)?.precomputed_reply
+      if (typeof precomputed === "string" && precomputed.trim()) {
+        text = precomputed
+        newThreadId = threadId
+      } else {
+        const prompt = `${system}\n\nUser: ${String(inputData.message || "")}`
+        const runtimeAgent = generalChatAgent
+        console.log("runtimeAgent", runtimeAgent)
+        const gen = await runtimeAgent.generate(prompt, {
+          memory: {
+            // If threadId is provided, continue it; otherwise the agent will create one
+            thread: threadId,
+            resource: resourceId,
+          },
+        })
+        console.log("gen", gen)
+        text = (gen as any)?.text || ""
+        newThreadId = (gen as any)?.threadId
+        // If the model returned nothing, leave text empty; do not echo the user input
+      }
     } catch (err) {
       // Fallback: keep empty to avoid echoing user input
       console.error("generalChat chat-generate error", (err as any)?.message || err)
       text = ""
     }
 
+    const allowPlanning = shouldPlanToolCallsFromMessage(inputData.message)
+
     // Step 1: Parse toolCalls from model output (JSON block or fenced)
     let toolCalls: Array<{ name: string; arguments: Record<string, any> }> = []
+    let toolCallsFromModel = false
+    let toolCallsFromUser = false
     try {
       // 1) Try fenced ```json blocks
       const fenceMatch = text.match(/```json[\s\S]*?```/)
@@ -550,6 +578,7 @@ const chatGenerate = createStep({
         const parsed = JSON.parse(jsonStr)
         if (parsed && Array.isArray(parsed.toolCalls)) {
           toolCalls = parsed.toolCalls
+          toolCallsFromModel = toolCalls.length > 0
         }
       }
 
@@ -559,6 +588,7 @@ const chatGenerate = createStep({
           const parsedText = JSON.parse(text)
           if (parsedText && Array.isArray(parsedText.toolCalls)) {
             toolCalls = parsedText.toolCalls
+            toolCallsFromModel = toolCalls.length > 0
           }
         } catch {}
       }
@@ -575,6 +605,7 @@ const chatGenerate = createStep({
             const parsedLoose = JSON.parse(objStr)
             if (parsedLoose && Array.isArray(parsedLoose.toolCalls)) {
               toolCalls = parsedLoose.toolCalls
+              toolCallsFromModel = toolCalls.length > 0
             }
           } catch {}
         }
@@ -594,6 +625,7 @@ const chatGenerate = createStep({
           const parsed = JSON.parse(jsonStr)
           if (parsed && Array.isArray(parsed.toolCalls)) {
             toolCalls = parsed.toolCalls
+            toolCallsFromUser = toolCalls.length > 0
           }
         }
         // 2) Plain JSON
@@ -602,16 +634,19 @@ const chatGenerate = createStep({
             const parsedMsg = JSON.parse(msg)
             if (parsedMsg && Array.isArray(parsedMsg.toolCalls)) {
               toolCalls = parsedMsg.toolCalls
+              toolCallsFromUser = toolCalls.length > 0
             }
           } catch {}
         }
       }
     } catch {}
 
-    // Step 2b: If user explicitly asked for a tool in the message OR the reply mentions the tool, infer tool calls
+    // Step 2b: infer tool calls.
+    // - Always allow explicit METHOD /admin/... patterns from the user message.
+    // - Only infer from the model reply when the user intent indicates an action.
     if (!toolCalls?.length) {
       const inferredFromUser = inferToolCallsFromMessage(inputData.message)
-      const inferredFromReply = inferToolCallsFromMessage(text)
+      const inferredFromReply = allowPlanning ? inferToolCallsFromMessage(text) : []
       const combined = [...inferredFromUser, ...inferredFromReply]
       if (combined.length) {
         // de-dup by name
@@ -620,8 +655,14 @@ const chatGenerate = createStep({
       }
     }
 
+    // If tool calls came from the model, only accept them when the user intent indicates an action.
+    // This prevents greetings like "hi" from producing admin_api_request plans.
+    if (toolCalls?.length && toolCallsFromModel && !toolCallsFromUser && !allowPlanning) {
+      toolCalls = []
+    }
+
     // If still no toolCalls, try RAG to propose an endpoint based on the user's message
-    if (!toolCalls?.length) {
+    if (!toolCalls?.length && shouldPlanToolCallsFromMessage(inputData.message)) {
       try {
         const msg = String(inputData.message || "").toLowerCase().trim()
         let rag: any[] = []
@@ -815,7 +856,12 @@ async function getAllowedEndpoints(apiCtx?: { source?: string; allowedEndpoints?
   }
 
   // Resolve URL (allow env or apiCtx). Ensure absolute URL when provided path is relative.
-  const rawUrl = process.env.ADMIN_OPENAPI_CATALOG_URL || (isProbablyUrl(apiCtx?.source) ? String(apiCtx?.source) : String(apiCtx?.source || ""))
+  const rawUrl =
+    process.env.ADMIN_OPENAPI_CATALOG_URL ||
+    (isProbablyUrl(apiCtx?.source)
+      ? String(apiCtx?.source)
+      : String(apiCtx?.source || "")) ||
+    "/admin/ai/openapi/catalog"
   function toAbsolute(u: string): string {
     if (!u) return ""
     if (/^https?:\/\//i.test(u)) return u

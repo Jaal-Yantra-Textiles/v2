@@ -36,6 +36,118 @@ export const useImageExtraction = (
   })
 }
 
+export type ChatThread = {
+  id: string
+  resourceId: string
+  title?: string
+  createdAt?: string
+  updatedAt?: string
+  metadata?: Record<string, unknown>
+}
+
+export type ListChatThreadsPayload = {
+  resourceId: string
+  page?: number
+  perPage?: number
+}
+
+export type ListChatThreadsResponse = {
+  threads: ChatThread[]
+  page: number
+  perPage: number
+  total: number
+}
+
+export const useChatThreads = (
+  options?: UseMutationOptions<ListChatThreadsResponse, FetchError, ListChatThreadsPayload>
+) => {
+  return useMutation({
+    mutationFn: async (payload: ListChatThreadsPayload) => {
+      const params = new URLSearchParams()
+      params.set("resourceId", payload.resourceId)
+      if (payload.page !== undefined) params.set("page", String(payload.page))
+      if (payload.perPage !== undefined) params.set("perPage", String(payload.perPage))
+
+      const response = (await sdk.client.fetch(
+        `/admin/ai/chat/threads?${params.toString()}`,
+        { method: "GET" }
+      )) as ListChatThreadsResponse
+      return response
+    },
+    ...options,
+  })
+}
+
+export type CreateChatThreadPayload = {
+  resourceId: string
+  threadId?: string
+  title?: string
+  metadata?: Record<string, unknown>
+}
+
+export type CreateChatThreadResponse = {
+  thread: ChatThread
+}
+
+export const useCreateChatThread = (
+  options?: UseMutationOptions<CreateChatThreadResponse, FetchError, CreateChatThreadPayload>
+) => {
+  return useMutation({
+    mutationFn: async (payload: CreateChatThreadPayload) => {
+      const response = (await sdk.client.fetch(`/admin/ai/chat/threads`, {
+        method: "POST",
+        body: payload,
+      })) as CreateChatThreadResponse
+      return response
+    },
+    ...options,
+  })
+}
+
+export type GetChatThreadPayload = {
+  threadId: string
+  resourceId?: string
+  page?: number
+  perPage?: number
+}
+
+export type ChatUiMessage = {
+  id?: string
+  role?: string
+  content?: any
+  createdAt?: string
+  metadata?: Record<string, unknown>
+}
+
+export type GetChatThreadResponse = {
+  thread: ChatThread
+  uiMessages: ChatUiMessage[]
+  messages: any[]
+  page: number
+  perPage: number
+}
+
+export const useChatThread = (
+  options?: UseMutationOptions<GetChatThreadResponse, FetchError, GetChatThreadPayload>
+) => {
+  return useMutation({
+    mutationFn: async (payload: GetChatThreadPayload) => {
+      const params = new URLSearchParams()
+      if (payload.resourceId) params.set("resourceId", payload.resourceId)
+      if (payload.page !== undefined) params.set("page", String(payload.page))
+      if (payload.perPage !== undefined) params.set("perPage", String(payload.perPage))
+
+      const qs = params.toString()
+      const response = (await sdk.client.fetch(
+        `/admin/ai/chat/threads/${encodeURIComponent(payload.threadId)}${qs ? `?${qs}` : ""}`,
+        { method: "GET" }
+      )) as GetChatThreadResponse
+      return response
+    },
+    ...options,
+  })
+}
+
 // -------------------------------------------------
 // General Chat (non-streaming)
 // -------------------------------------------------
@@ -229,33 +341,6 @@ export const useGeneralChatStream = () => {
           }
         }
 
-        // Fallback: if server didn't parse toolCalls but reply text contains a JSON block, parse it here
-        if ((!toolCalls || toolCalls.length === 0) && typeof result?.reply === "string") {
-          const text: string = result.reply
-          // Try fenced ```json
-          let jsonStr: string | undefined
-          const fenceMatch = text.match(/```json[\s\S]*?```/)
-          if (fenceMatch) {
-            jsonStr = fenceMatch[0].replace(/```json|```/g, "").trim()
-          } else {
-            // Try loose 'json\n{...}' pattern or first {...}
-            const idx = text.indexOf("{")
-            if (idx !== -1) {
-              const possible = text.slice(idx)
-              const last = possible.lastIndexOf("}")
-              jsonStr = last !== -1 ? possible.slice(0, last + 1) : possible
-            }
-          }
-          if (jsonStr) {
-            try {
-              const parsed = JSON.parse(jsonStr)
-              if (parsed && Array.isArray(parsed.toolCalls)) {
-                toolCalls = parsed.toolCalls
-              }
-            } catch {}
-          }
-        }
-
         if (toolCalls.length || activations.length || planned.length) {
           setState((s) => ({
             ...s,
@@ -266,6 +351,32 @@ export const useGeneralChatStream = () => {
             },
           }))
         }
+      } catch {
+        // ignore parse errors
+      }
+    })
+
+    // Preferred: server emits final, normalized structured output
+    es.addEventListener("result", (e: MessageEvent) => {
+      try {
+        const out = JSON.parse(e.data || "{}")
+        const toolCalls: ToolCall[] = Array.isArray(out?.toolCalls) ? out.toolCalls : []
+        const activations: Activation[] = Array.isArray(out?.activations)
+          ? out.activations
+          : []
+
+        const planned: Array<{ tool: string; request: PlannedRequest }> = []
+        for (const a of activations) {
+          const req = a?.result?.request
+          if (req && (req.path || req.openapi?.path)) {
+            planned.push({ tool: a.name, request: req })
+          }
+        }
+
+        setState((s) => ({
+          ...s,
+          actions: { toolCalls, activations, planned },
+        }))
       } catch {
         // ignore parse errors
       }

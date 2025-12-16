@@ -80,7 +80,7 @@ export const imageExtractionAgent = new Agent({
 // General chat agent for conversational tasks (text-only)
 export const generalChatAgent = new Agent({
   name: "general-chat-agent",
-  model: openrouter("deepseek/deepseek-chat-v3-0324:free"),
+  model: openrouter("nex-agi/deepseek-v3.1-nex-n1:free"),
   instructions:
     "You are a concise, helpful assistant for a textile commerce platform. " +
     "Answer briefly and propose actions when appropriate.",

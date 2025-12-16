@@ -3,13 +3,24 @@ import { Button, Heading, Input, Text, Textarea, Select } from "@medusajs/ui"
 import { Spinner } from "@medusajs/icons"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal"
-import { useGeneralChat, useGeneralChatStream } from "../../hooks/api/ai"
+import {
+  useChatThread,
+  useChatThreads,
+  useCreateChatThread,
+  useGeneralChat,
+  useGeneralChatStream,
+} from "../../hooks/api/ai"
 import { useAdminApiExecutor, useRemoteAdminApiCatalog, AdminEndpoint } from "../../hooks/api/admin-catalog"
 import { sdk } from "../../lib/config"
+import { InlineTip } from "../common/inline-tip"
+import { DataTableRoot } from "../table/data-table-root"
+import { ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 
 export type ChatMessage = {
   role: "user" | "assistant"
   content: string
+  kind?: "text" | "planned" | "executed" | "summary"
+  data?: any
 }
 
 export type GeneralChatProps = {
@@ -144,7 +155,22 @@ const AdminApiModal: React.FC<{
 export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) => {
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [input, setInput] = React.useState("")
-  const [threadId] = React.useState<string>(() => (typeof crypto !== "undefined" && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`))
+  const createLocalId = React.useCallback(() => {
+    return typeof crypto !== "undefined" && (crypto as any).randomUUID
+      ? (crypto as any).randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }, [])
+
+  const [activeResourceId, setActiveResourceId] = React.useState<string>(
+    entity ? `ai:general-chat:${entity}` : "ai:general-chat"
+  )
+  const [activeThreadId, setActiveThreadId] = React.useState<string | null>(null)
+  const [threadPickerResource, setThreadPickerResource] = React.useState<string>(
+    entity ? `ai:general-chat:${entity}` : "ai:general-chat"
+  )
+  const [availableThreads, setAvailableThreads] = React.useState<any[]>([])
+  const [selectedThreadId, setSelectedThreadId] = React.useState<string>("")
+
   const [useStreaming, setUseStreaming] = React.useState<boolean>(true)
   const [autoRunTools, setAutoRunTools] = React.useState<boolean>(false)
   const [apiSearch, setApiSearch] = React.useState<string>("")
@@ -155,6 +181,8 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
   const [bodyJson, setBodyJson] = React.useState<string>("{}")
   const [catalogSource, setCatalogSource] = React.useState<string>("static")
   const executedPlannedRef = React.useRef<Set<string>>(new Set())
+  const executedRequestsRef = React.useRef<Set<string>>(new Set())
+  const inFlightRequestsRef = React.useRef<Set<string>>(new Set())
 
   // Planned actions for non-streaming responses
   const [manualPlanned, setManualPlanned] = React.useState<any[]>([])
@@ -203,8 +231,95 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
   const chat = useGeneralChat()
   const stream = useGeneralChatStream()
   const apiExec = useAdminApiExecutor()
+  const threadsApi = useChatThreads()
+  const threadApi = useChatThread()
+  const createThreadApi = useCreateChatThread()
 
   const canSend = input.trim().length > 0 && !chat.isPending && !stream.state.isStreaming
+
+  const uiMessageToText = React.useCallback((content: any): string => {
+    if (typeof content === "string") return content
+    if (content == null) return ""
+    // Mastra uiMessages often come as array parts or structured objects
+    if (Array.isArray(content)) {
+      const parts = content
+        .map((p) => {
+          if (typeof p === "string") return p
+          if (p && typeof p === "object") {
+            if (typeof (p as any).text === "string") return (p as any).text
+            if (typeof (p as any).content === "string") return (p as any).content
+          }
+          return ""
+        })
+        .filter(Boolean)
+      if (parts.length) return parts.join("")
+    }
+    if (typeof content === "object") {
+      if (typeof (content as any).text === "string") return (content as any).text
+      if (typeof (content as any).content === "string") return (content as any).content
+    }
+    try {
+      return JSON.stringify(content, null, 2)
+    } catch {
+      return String(content)
+    }
+  }, [])
+
+  const hydrateFromThread = React.useCallback(
+    async (threadId: string, resourceId?: string) => {
+      const rid = resourceId || threadPickerResource
+      const resp = await threadApi.mutateAsync({ threadId, resourceId: rid, page: 0, perPage: 200 })
+      const ui = Array.isArray((resp as any)?.uiMessages) ? (resp as any).uiMessages : []
+      const mapped: ChatMessage[] = ui
+        .map((m: any) => {
+          const role = m?.role === "user" || m?.role === "assistant" ? m.role : undefined
+          if (!role) return null
+          return {
+            role,
+            content: uiMessageToText(m?.content),
+          } as ChatMessage
+        })
+        .filter(Boolean) as ChatMessage[]
+
+      setActiveResourceId(String((resp as any)?.thread?.resourceId || rid))
+      setActiveThreadId(threadId)
+      setMessages(mapped)
+      setInput("")
+      // Clear planned actions from previous thread in UI
+      setManualPlanned([])
+      executedPlannedRef.current.clear()
+    },
+    [threadApi, threadPickerResource, uiMessageToText]
+  )
+
+  const loadThreads = React.useCallback(async () => {
+    const rid = threadPickerResource.trim()
+    if (!rid) return
+    const resp = await threadsApi.mutateAsync({ resourceId: rid, page: 0, perPage: 50 })
+    const threads = Array.isArray((resp as any)?.threads) ? (resp as any).threads : []
+    setAvailableThreads(threads)
+    if (!selectedThreadId && threads.length) {
+      setSelectedThreadId(String(threads[0]?.id || ""))
+    }
+  }, [threadsApi, threadPickerResource, selectedThreadId])
+
+  const startNewChat = React.useCallback(async () => {
+    const rid = threadPickerResource.trim() || "ai:general-chat"
+    // Prefer server-side thread creation when memory is available
+    let tid: string | null = null
+    try {
+      const created = await createThreadApi.mutateAsync({ resourceId: rid })
+      tid = String((created as any)?.thread?.id || "")
+    } catch {
+      tid = createLocalId()
+    }
+    setActiveResourceId(rid)
+    setActiveThreadId(tid || createLocalId())
+    setMessages([])
+    setInput("")
+    setManualPlanned([])
+    executedPlannedRef.current.clear()
+  }, [createThreadApi, createLocalId, threadPickerResource])
 
   // Fetch remote OpenAPI-backed catalog with fallback
   React.useEffect(() => {
@@ -216,6 +331,115 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
   }, [apiSearch])
 
   const selected = React.useMemo(() => catalog.find((c) => c.id === selectedEndpointId), [catalog, selectedEndpointId])
+
+  const stableStringify = React.useCallback((value: any): string => {
+    try {
+      const seen = new WeakSet()
+      const sort = (v: any): any => {
+        if (v === null || v === undefined) return v
+        if (typeof v !== "object") return v
+        if (seen.has(v)) return "[Circular]"
+        seen.add(v)
+        if (Array.isArray(v)) return v.map(sort)
+        const out: Record<string, any> = {}
+        for (const k of Object.keys(v).sort()) {
+          out[k] = sort(v[k])
+        }
+        return out
+      }
+      return JSON.stringify(sort(value))
+    } catch {
+      try {
+        return JSON.stringify(value)
+      } catch {
+        return String(value)
+      }
+    }
+  }, [])
+
+  const makeRequestKey = React.useCallback((req: any) => {
+    const method = String(req?.method || req?.openapi?.method || "").toUpperCase()
+    const path = String(req?.path || req?.openapi?.path || "")
+    const body = req?.body ?? req?.openapi?.body
+    const query = req?.query
+    const pathParams = req?.pathParams
+    return `${method}:${path}:${stableStringify({ pathParams, query, body })}`
+  }, [stableStringify])
+
+  const extractListPreview = React.useCallback((payload: any): { key: string; rows: any[]; count?: number } | null => {
+    try {
+      if (!payload || typeof payload !== "object") return null
+      const obj = payload as Record<string, any>
+      const ignore = new Set(["count", "offset", "limit", "take", "skip", "page", "pageSize", "total", "items", "data"])
+      const entries = Object.entries(obj)
+      const arrEntry = entries.find(([k, v]) => !ignore.has(k) && Array.isArray(v))
+      if (arrEntry) {
+        const [key, rows] = arrEntry
+        return { key, rows: rows as any[], count: typeof obj.count === "number" ? obj.count : undefined }
+      }
+      // Fallback: if payload itself is an array
+      if (Array.isArray(payload)) return { key: "items", rows: payload as any[] }
+      return null
+    } catch {
+      return null
+    }
+  }, [])
+
+  const buildPreviewColumns = React.useCallback((rows: any[]): ColumnDef<any, any>[] => {
+    const first = rows?.find((r) => r && typeof r === "object" && !Array.isArray(r)) || {}
+    const keys = Object.keys(first)
+    const preferred = ["title", "name", "handle", "sku", "status", "id", "created_at", "updated_at"]
+    const chosen: string[] = []
+    for (const k of preferred) {
+      if (keys.includes(k) && !chosen.includes(k)) chosen.push(k)
+      if (chosen.length >= 6) break
+    }
+    for (const k of keys) {
+      if (!chosen.includes(k)) chosen.push(k)
+      if (chosen.length >= 6) break
+    }
+    return chosen.map((k) => ({
+      accessorKey: k,
+      header: k.replace(/_/g, " "),
+      cell: ({ getValue }) => {
+        const v = getValue() as any
+        if (v == null) return ""
+        if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return String(v)
+        return JSON.stringify(v)
+      },
+    }))
+  }, [])
+
+  const PreviewTable: React.FC<{ data: any; title: string }> = ({ data, title }) => {
+    const preview = extractListPreview(data)
+    if (!preview?.rows?.length) return null
+    const rows = preview.rows.slice(0, 10)
+    const columns = buildPreviewColumns(rows)
+    const table = useReactTable({
+      data: rows,
+      columns,
+      getCoreRowModel: getCoreRowModel(),
+      initialState: { pagination: { pageIndex: 0, pageSize: rows.length } },
+    })
+
+    return (
+      <div className="mt-3 border border-ui-border-base rounded-lg overflow-hidden">
+        <div className="px-3 py-2 border-b border-ui-border-base">
+          <Text className="text-ui-fg-subtle text-small">{title}</Text>
+        </div>
+        <div className="max-h-[260px] overflow-auto">
+          <DataTableRoot
+            table={table as any}
+            columns={columns as any}
+            count={preview.count ?? preview.rows.length}
+            pagination={false}
+            noHeader={false}
+            layout="fit"
+          />
+        </div>
+      </div>
+    )
+  }
 
   function buildBodySkeleton(schema: any): any {
     if (!schema) return {}
@@ -308,6 +532,11 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
   }, [selected])
 
   const runPlanned = async (tool: string, req: { method: string; path: string; body?: any }) => {
+    const key = makeRequestKey(req)
+    if (executedRequestsRef.current.has(key) || inFlightRequestsRef.current.has(key)) {
+      return
+    }
+    inFlightRequestsRef.current.add(key)
     try {
       const method = (req.method || "POST").toUpperCase()
       const init: any = { method }
@@ -328,21 +557,31 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
       const json = res as any
       const ok = true
       setLastExecutedResponse(json)
+      executedRequestsRef.current.add(key)
       setMessages((m) => [
         ...m,
         {
           role: "assistant",
+          kind: ok ? "executed" : "text",
           content: ok
-            ? `Action executed (${method} ${req.path}). Use "View JSON" to see the full result.`
+            ? ""
             : `Failed to execute ${tool}. ${json?.message || ""}`,
+          data: ok ? { tool, request: { method, path: req.path, body: init.body } } : undefined,
         },
         // Immediate local summary so the user doesn't have to wait for the model step
-        { role: "assistant", content: `Summary of latest API result:\n${summarizeDataHeuristic(json)}` },
+        {
+          role: "assistant",
+          kind: "summary",
+          content: summarizeDataHeuristic(json),
+          data: { tool, request: { method, path: req.path, body: init.body }, response: json },
+        },
       ])
     } catch (e: any) {
       setMessages(() => [
         { role: "assistant", content: `Error executing ${tool}: ${e?.message || e}` },
       ])
+    } finally {
+      inFlightRequestsRef.current.delete(key)
     }
   }
 
@@ -351,22 +590,28 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
     if (!autoRunTools) return
     const planned = stream.state.actions?.planned || []
     for (const p of planned) {
-      const key = `${p.tool}:${JSON.stringify(p.request)}`
+      const key = makeRequestKey(p.request)
       if (executedPlannedRef.current.has(key)) continue
       executedPlannedRef.current.add(key)
       runPlanned(p.tool, p.request as any)
     }
-  }, [autoRunTools, stream.state.actions?.planned])
+  }, [autoRunTools, stream.state.actions?.planned, makeRequestKey])
 
   // NOTE: Previously we auto-opened the API panel when a planned request arrived.
   // Per UX request, we now keep it hidden unless explicitly toggled by the user.
 
   const handleRunApi = async () => {
     if (!selected) return
+    const tool = "admin_api_manual"
     try {
       const pathParams = JSON.parse(pathParamsJson || "{}")
       const query = JSON.parse(queryJson || "{}")
       const body = JSON.parse(bodyJson || "{}")
+      const key = makeRequestKey({ method: selected.method, path: selected.path, pathParams, query, body })
+      if (executedRequestsRef.current.has(key) || inFlightRequestsRef.current.has(key)) {
+        return
+      }
+      inFlightRequestsRef.current.add(key)
       // Debug: log outgoing Admin API request
       try {
         console.log("[AI][handleRunApi] →", {
@@ -385,16 +630,35 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
         body,
       })
       setLastExecutedResponse(resp)
+      executedRequestsRef.current.add(key)
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: `Action executed (${selected.method} ${selected.path}). Use "View JSON" to see the full result.` },
-        { role: "assistant", content: `Summary of latest API result:\n${summarizeDataHeuristic(resp)}` },
+        {
+          role: "assistant",
+          kind: "executed",
+          content: "",
+          data: { tool, request: { method: selected.method, path: selected.path, pathParams, query, body } },
+        },
+        {
+          role: "assistant",
+          kind: "summary",
+          content: summarizeDataHeuristic(resp),
+          data: { tool, request: { method: selected.method, path: selected.path, pathParams, query, body }, response: resp },
+        },
       ])
     } catch (e: any) {
       setMessages((m) => [
         ...m,
         { role: "assistant", content: `API error: ${e?.message || e}` },
       ])
+    } finally {
+      try {
+        const pathParams = JSON.parse(pathParamsJson || "{}")
+        const query = JSON.parse(queryJson || "{}")
+        const body = JSON.parse(bodyJson || "{}")
+        const key = makeRequestKey({ method: selected.method, path: selected.path, pathParams, query, body })
+        inFlightRequestsRef.current.delete(key)
+      } catch {}
     }
   }
 
@@ -402,12 +666,26 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
     if (!canSend) return
     const content = input.trim()
     setInput("")
+    // Ensure a thread exists; if this is the first message, start a new chat
+    const threadId = activeThreadId || createLocalId()
+    const resourceId =
+      activeResourceId ||
+      threadPickerResource ||
+      (entity ? `ai:general-chat:${entity}` : "ai:general-chat")
+
+    if (!activeThreadId) {
+      setActiveThreadId(threadId)
+    }
+    if (!activeResourceId) {
+      setActiveResourceId(resourceId)
+    }
+
     setMessages((m) => [...m, { role: "user", content }])
 
     const basePayload = {
       message: content,
       threadId,
-      resourceId: entity ? `ai:general-chat:${entity}` : "ai:general-chat",
+      resourceId,
       context: {
         entity: entity || undefined,
         entity_id: entityId || undefined,
@@ -437,6 +715,10 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
       try {
         const resp = await chat.mutateAsync(basePayload as any)
         const reply = resp?.result?.reply || ""
+        const nextThreadId = (resp as any)?.result?.threadId
+        const nextResourceId = (resp as any)?.result?.resourceId
+        if (nextThreadId && typeof nextThreadId === "string") setActiveThreadId(nextThreadId)
+        if (nextResourceId && typeof nextResourceId === "string") setActiveResourceId(nextResourceId)
         setMessages((m) => [...m, { role: "assistant", content: reply }])
         // Extract planned actions from non-streaming response
         const acts = Array.isArray((resp as any)?.result?.activations) ? (resp as any).result.activations : []
@@ -534,108 +816,229 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
       </RouteFocusModal.Header>
 
       <RouteFocusModal.Body className="flex h-full flex-col overflow-hidden">
-        {/* Scrollable content: messages + previews + planned actions */}
-        <div className="flex-1 overflow-y-auto px-4 py-2">
-          <div className="flex flex-col gap-y-3">
-            {messages.map((m, i) => (
-              <div key={i} className={`max-w-[80%] rounded-md px-3 py-2 ${bubbleClass(m.role)}`}>
-                <Text className="text-ui-fg-subtle text-small block mb-1">{m.role === "user" ? "You" : "Assistant"}</Text>
-                <div className="whitespace-pre-wrap break-words">
-                  {m.content}
-                  {stream.state.isStreaming && i === messages.length - 1 && m.role === "assistant" && !m.content ? (
-                    <Spinner className="inline-block ml-1 align-middle" />
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* Removed separate Last action result panel; results are posted as chat messages */}
-        {(stream.state.actions?.planned?.length || manualPlanned.length) ? (
-          <div className="mt-4 border border-dashed border-ui-border-base rounded-md p-3">
-            <Text className="text-ui-fg-subtle text-small block mb-2">Planned actions</Text>
-            <div className="flex flex-wrap gap-2">
-              {(stream.state.actions?.planned?.length ? stream.state.actions.planned : manualPlanned).map((p: any, idx: number) => (
-                <Button
-                  key={`${p.tool}-${idx}`}
-                  variant="secondary"
-                  size="small"
-                  type="button"
-                  onClick={() => validateAndRun(p.tool, (p as any).request)}
-                  disabled={
-                    stream.state.isStreaming ||
-                    !(p as any)?.request?.openapi?.method ||
-                    !(p as any)?.request?.openapi?.path
-                  }
-                >
-                  Run {p.tool}
-                </Button>
-              ))}
-            </div>
+        {/* Scrollable content: either thread picker or messages */}
+        {!activeThreadId && messages.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center px-4 py-8">
+            <div className="w-full max-w-[640px] border border-ui-border-base rounded-lg p-4 bg-ui-bg-base">
+              <Heading level="h2">Start a chat</Heading>
+              <Text className="text-ui-fg-subtle text-small mt-1">
+                Select a previous thread (by resource) or create a new chat.
+              </Text>
 
-            {/* Secondary actions if present on planned entries */}
-            {(stream.state.actions?.planned || manualPlanned).some((p: any) => p.secondary) ? (
-              <div className="mt-3">
-                <Text className="text-ui-fg-subtle text-small block mb-2">Secondary actions</Text>
-                <div className="flex flex-wrap gap-2">
-                  {(stream.state.actions?.planned || manualPlanned).flatMap((p: any, i: number) =>
-                    p.secondary ? (
+              <div className="mt-4 grid grid-cols-1 gap-3">
+                <div>
+                  <Text className="text-ui-fg-subtle text-small">Resource ID</Text>
+                  <Input
+                    value={threadPickerResource}
+                    onChange={(e) => setThreadPickerResource(e.target.value)}
+                    placeholder="ai:general-chat or ai:general-chat:design"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    isLoading={threadsApi.isPending}
+                    onClick={loadThreads}
+                  >
+                    Load chats
+                  </Button>
+                  <Button
+                    type="button"
+                    isLoading={createThreadApi.isPending}
+                    onClick={startNewChat}
+                  >
+                    New chat
+                  </Button>
+                </div>
+
+                {availableThreads.length ? (
+                  <div className="mt-2">
+                    <Text className="text-ui-fg-subtle text-small mb-1">Existing threads</Text>
+                    <Select value={selectedThreadId} onValueChange={setSelectedThreadId}>
+                      <Select.Trigger>
+                        <Select.Value placeholder="Select a thread…" />
+                      </Select.Trigger>
+                      <Select.Content>
+                        {availableThreads.map((t: any) => (
+                          <Select.Item key={String(t.id)} value={String(t.id)}>
+                            {t.title ? `${t.title} · ` : ""}{String(t.id)}
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select>
+                    <div className="mt-2">
                       <Button
-                        key={`secondary-${p.tool}-${i}`}
+                        variant="secondary"
+                        type="button"
+                        isLoading={threadApi.isPending}
+                        disabled={!selectedThreadId}
+                        onClick={() => hydrateFromThread(selectedThreadId, threadPickerResource)}
+                      >
+                        Open selected
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <InlineTip label="Tip">
+                  You can also just type a message below and hit Send — a new thread will be created automatically.
+                </InlineTip>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="w-full max-w-[920px] mx-auto">
+              <div className="flex flex-col gap-y-3">
+                {messages.map((m, i) => (
+                  <div key={i} className={`max-w-[80%] rounded-md px-3 py-2 ${bubbleClass(m.role)}`}>
+                    <Text className="text-ui-fg-subtle text-small block mb-1">{m.role === "user" ? "You" : "Assistant"}</Text>
+                    <div className="whitespace-pre-wrap break-words">
+                      {m.role === "assistant" && m.kind === "executed" ? (
+                        <div>
+                          <InlineTip label="Executed">
+                            <div className="space-y-2">
+                              <div>
+                                {`Tool: ${String(m.data?.tool || "")} · Action executed (${String(m.data?.request?.method || "").toUpperCase()} ${String(m.data?.request?.path || "")}). Use "View JSON" to see the full result.`}
+                              </div>
+                              <pre className="text-xs whitespace-pre-wrap break-words bg-ui-bg-subtle p-2 rounded">{JSON.stringify(m.data?.request ?? {}, null, 2)}</pre>
+                            </div>
+                          </InlineTip>
+                        </div>
+                      ) : m.role === "assistant" && m.kind === "summary" ? (
+                        <div>
+                          <InlineTip label="Summary of latest API result">
+                            <span className="whitespace-pre-wrap">{m.content}</span>
+                          </InlineTip>
+                          <PreviewTable data={m.data?.response} title="Preview" />
+                        </div>
+                      ) : (
+                        m.content
+                      )}
+                      {stream.state.isStreaming && i === messages.length - 1 && m.role === "assistant" && !m.content ? (
+                        <Spinner className="inline-block ml-1 align-middle" />
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {(stream.state.actions?.planned?.length || manualPlanned.length) ? (
+                <div className="mt-4 border border-dashed border-ui-border-base rounded-md p-3 bg-ui-bg-base">
+                  <Text className="text-ui-fg-subtle text-small block mb-2">Planned actions</Text>
+                  <div className="flex flex-wrap gap-2">
+                    {(stream.state.actions?.planned?.length ? stream.state.actions.planned : manualPlanned).map((p: any, idx: number) => (
+                      <Button
+                        key={`${p.tool}-${idx}`}
                         variant="secondary"
                         size="small"
                         type="button"
-                        onClick={() => validateAndRun(p.tool, p.secondary)}
-                        disabled={stream.state.isStreaming}
+                        onClick={() => validateAndRun(p.tool, (p as any).request)}
+                        disabled={
+                          stream.state.isStreaming ||
+                          !(p as any)?.request?.openapi?.method ||
+                          !(p as any)?.request?.openapi?.path
+                        }
                       >
-                        Run {p.tool} (secondary)
+                        Run {p.tool}
                       </Button>
-                    ) : []
-                  )}
-                </div>
-              </div>
-            ) : null}
+                    ))}
+                  </div>
 
-            {/* Next steps if provided (planner sequences) */}
-            {(stream.state.actions?.planned || manualPlanned).some((p: any) => Array.isArray(p.next) && p.next.length) ? (
-              <div className="mt-3">
-                <Text className="text-ui-fg-subtle text-small block mb-2">Next steps</Text>
-                <div className="flex flex-wrap gap-2">
-                  {(stream.state.actions?.planned || manualPlanned).flatMap((p: any, i: number) =>
-                    Array.isArray(p.next) ?
-                      p.next.map((n: any, j: number) => (
-                        <Button
-                          key={`next-${p.tool}-${i}-${j}`}
-                          variant="secondary"
-                          size="small"
-                          type="button"
-                          onClick={() => validateAndRun(p.tool, n)}
-                          disabled={stream.state.isStreaming}
-                        >
-                          Next: {(n?.openapi?.method || n?.method || "").toUpperCase()} {n?.openapi?.path || n?.path || ""}
-                        </Button>
-                      )) : []
-                  )}
+                  {/* Secondary actions if present on planned entries */}
+                  {(stream.state.actions?.planned || manualPlanned).some((p: any) => p.secondary) ? (
+                    <div className="mt-3">
+                      <Text className="text-ui-fg-subtle text-small block mb-2">Secondary actions</Text>
+                      <div className="flex flex-wrap gap-2">
+                        {(stream.state.actions?.planned || manualPlanned).flatMap((p: any, i: number) =>
+                          p.secondary ? (
+                            <Button
+                              key={`secondary-${p.tool}-${i}`}
+                              variant="secondary"
+                              size="small"
+                              type="button"
+                              onClick={() => validateAndRun(p.tool, p.secondary)}
+                              disabled={stream.state.isStreaming}
+                            >
+                              Run {p.tool} (secondary)
+                            </Button>
+                          ) : []
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Next steps if provided (planner sequences) */}
+                  {(stream.state.actions?.planned || manualPlanned).some((p: any) => Array.isArray(p.next) && p.next.length) ? (
+                    <div className="mt-3">
+                      <Text className="text-ui-fg-subtle text-small block mb-2">Next steps</Text>
+                      <div className="flex flex-wrap gap-2">
+                        {(stream.state.actions?.planned || manualPlanned).flatMap((p: any, i: number) =>
+                          Array.isArray(p.next) ?
+                            p.next.map((n: any, j: number) => (
+                              <Button
+                                key={`next-${p.tool}-${i}-${j}`}
+                                variant="secondary"
+                                size="small"
+                                type="button"
+                                onClick={() => validateAndRun(p.tool, n)}
+                                disabled={stream.state.isStreaming}
+                              >
+                                Next: {(n?.openapi?.method || n?.method || "").toUpperCase()} {n?.openapi?.path || n?.path || ""}
+                              </Button>
+                            )) : []
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
-        ) : null}
-        </div>
+        )}
 
-        <div className="border-t border-ui-border-base p-4">
-          <div className="flex flex-col gap-2">
-            <Textarea
-              rows={3}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type a message..."
-              disabled={chat.isPending || stream.state.isStreaming}
-            />
-            <div className="flex items-center justify-end gap-2">
-              {stream.state.isStreaming && (
-                <Button variant="secondary" type="button" onClick={() => stream.stop()}>Stop</Button>
-              )}
-              <Button type="button" isLoading={chat.isPending} disabled={!canSend} onClick={send}>Send</Button>
+        <div className="p-4">
+          <div className="flex justify-center">
+            <div
+              className={
+                "group w-full max-w-[620px] transition-all duration-300 ease-out " +
+                "focus-within:max-w-[920px] focus-within:shadow-lg focus-within:ring-2 focus-within:ring-ui-tag-neutral-icon focus-within:scale-[1.01] " +
+                "rounded-2xl border border-ui-border-base bg-ui-bg-base shadow-sm"
+              }
+            >
+              <div className="p-3">
+                <Textarea
+                  rows={1}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your message..."
+                  disabled={chat.isPending || stream.state.isStreaming}
+                  className={
+                    "resize-none border-none bg-transparent p-0 outline-none focus:outline-none focus:ring-0 " +
+                    "min-h-[44px] group-focus-within:min-h-[92px] transition-all duration-300 ease-out"
+                  }
+                />
+
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  {!activeThreadId && !messages.length && (
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      isLoading={createThreadApi.isPending}
+                      onClick={startNewChat}
+                      size="small"
+                    >
+                      New chat
+                    </Button>
+                  )}
+                  {stream.state.isStreaming && (
+                    <Button variant="secondary" type="button" onClick={() => stream.stop()} size="small">Stop</Button>
+                  )}
+                  <Button type="button" isLoading={chat.isPending} disabled={!canSend} onClick={send} size="small">Send</Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

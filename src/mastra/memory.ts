@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { Memory } from "@mastra/memory";
 import { PostgresStore, PgVector } from "@mastra/pg";
-import { openai } from "@ai-sdk/openai";
+import { google } from "@ai-sdk/google-v5";
 
 // Centralized Mastra Memory configuration using Postgres + pgvector
 // Uses DATABASE_URL or MEDUSA_DB_URL for connection
@@ -14,23 +14,43 @@ try {
     process.env.MEDUSA_DB_URL ||
     undefined
 
+  const embeddingsEnabled =
+    process.env.MASTRA_ENABLE_EMBEDDINGS === "true" &&
+    !!process.env.GOOGLE_GENERATIVE_AI_API_KEY
+
+  const embeddingsDisabled =
+    process.env.MASTRA_DISABLE_EMBEDDINGS === "true" ||
+    !embeddingsEnabled
+
   if (connectionString) {
-    memory = new Memory({
-      storage: new PostgresStore({ connectionString }),
-      vector: new PgVector({ connectionString }),
-      embedder: openai.textEmbeddingModel("text-embedding-3-small"),
-      options: {
-        workingMemory: { enabled: true },
-        lastMessages: 10,
-        // Enable semantic recall with v2-compatible embeddings
-        semanticRecall: {
-          topK: 3,
-          messageRange: { before: 2, after: 1 },
+    if (embeddingsDisabled) {
+      memory = new Memory({
+        storage: new PostgresStore({ connectionString }),
+        options: {
+          workingMemory: { enabled: true },
+          lastMessages: 10,
         },
-      },
-    })
-    // eslint-disable-next-line no-console
-    console.log("[mastra:memory] Initialized Postgres-backed memory with PgVector + OpenAI embeddings (AI SDK v5)")
+      })
+      // eslint-disable-next-line no-console
+      console.log("[mastra:memory] Initialized Postgres-backed memory (embeddings disabled)")
+    } else {
+      memory = new Memory({
+        storage: new PostgresStore({ connectionString }),
+        vector: new PgVector({ connectionString }),
+        embedder: google.textEmbeddingModel("gemini-embedding-001"),
+        options: {
+          workingMemory: { enabled: true },
+          lastMessages: 10,
+          // Enable semantic recall with v2-compatible embeddings
+          semanticRecall: {
+            topK: 3,
+            messageRange: { before: 2, after: 1 },
+          },
+        },
+      })
+      // eslint-disable-next-line no-console
+      console.log("[mastra:memory] Initialized Postgres-backed memory with PgVector + Gemini embeddings (AI SDK v5)")
+    }
   } else {
     // eslint-disable-next-line no-console
     console.log("[mastra:memory] No DATABASE_URL/MEDUSA_DB_URL found; memory disabled")
