@@ -1,3 +1,11 @@
+## [8.0.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.0.1...v8.0.2) (2025-12-16)
+
+
+### Bug Fixes
+
+* **admin:** Code editor modal fix ([f13df56](https://github.com/Jaal-Yantra-Textiles/v2/commit/f13df5602a9cbb14736b754f72b539793fc704c4))
+* **api:** Mastra agent lib update ([0413706](https://github.com/Jaal-Yantra-Textiles/v2/commit/041370618a1184b0fb7d1d162349c9eddabefee5))
+
 ## [8.0.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.0.0...v8.0.1) (2025-12-16)
 
 # [8.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v7.3.6...v8.0.0) (2025-12-15)
