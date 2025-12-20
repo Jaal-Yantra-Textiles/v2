@@ -179,7 +179,7 @@ function shouldPlanToolCallsFromMessage(message: string): boolean {
   const msg = String(message || "").toLowerCase().trim()
   if (!msg) return false
   const compact = msg.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
-  const action = /\b(list|show|get|fetch|find|search|create|add|make|new|update|edit|modify|change|set|patch|delete|remove|archive|cancel|refund|fulfill|ship|mark)\b/.test(
+  const action = /\b(list|show|get|fetch|find|search|load|pull|create|add|make|new|update|edit|modify|change|set|patch|delete|remove|archive|cancel|refund|fulfill|ship|mark)\b/.test(
     compact
   )
   if (!action) return false
@@ -190,7 +190,7 @@ function shouldPlanToolCallsFromMessage(message: string): boolean {
 function looksLikeListAllQuery(message: string): boolean {
   const m = String(message || "").toLowerCase()
   if (!m.trim()) return false
-  return /\b(list|show|get|fetch)\b/.test(m) && /\b(all|everything)\b/.test(m)
+  return /\b(list|show|get|fetch|load|pull)\b/.test(m) && /\b(all|everything)\b/.test(m)
 }
 
 function userExplicitlyRequestedWrite(message: string): boolean {
@@ -482,7 +482,7 @@ const runAi = createStep({
         content: [
           `Tool result: ${method0} ${path0}`,
           `Status: ${execRes0.status}`,
-          `JSON: ${safeToText(execRes0.data, MAX_TOOL_RESULT_CHARS)}`,
+          `JSON: ${buildObservationPreview(execRes0.data)}`,
         ].join("\n"),
       })
       convo.push({
@@ -525,12 +525,13 @@ const runAi = createStep({
             content: [
               `Tool result: ${fallback.method} ${fallback.path}`,
               `Status: ${execRes.status}`,
-              `JSON: ${safeToText(execRes.data, MAX_TOOL_RESULT_CHARS)}`,
+              `JSON: ${buildObservationPreview(execRes.data)}`,
             ].join("\n"),
           })
           convo.push({
             role: "user",
-            content: "Using the tool results above, answer the user's question in a helpful admin-friendly summary.",
+            content:
+              "Using the tool results above, answer the user's question. If the result contains a list of entities (e.g. products/orders/customers), include the total count if available and list up to 10 items explicitly (id + title/name/handle). If there are more than 10, list the first 10 and say how many more. Keep it concise.",
           })
           continue
         }
@@ -602,7 +603,7 @@ const runAi = createStep({
           content: [
             `Tool result: ${method} ${path}`,
             `Status: ${execRes.status}`,
-            `JSON: ${safeToText(execRes.data, MAX_TOOL_RESULT_CHARS)}`,
+            `JSON: ${buildObservationPreview(execRes.data)}`,
           ].join("\n"),
         })
       }
@@ -610,7 +611,7 @@ const runAi = createStep({
       convo.push({
         role: "user",
         content:
-          "Using the tool results above, answer the user's question. If you need more data, call admin_api_request again.",
+          "Using the tool results above, answer the user's question. If the result contains a list of entities (e.g. products/orders/customers), include the total count if available and list up to 10 items explicitly (id + title/name/handle). If there are more than 10, list the first 10 and say how many more. If you need more data, call admin_api_request again.",
       })
     }
 

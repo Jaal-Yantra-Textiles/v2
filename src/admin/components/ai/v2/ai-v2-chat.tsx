@@ -18,6 +18,7 @@ import { MarkdownMessage } from "./components/markdown-message"
 import { StepTimeline } from "./components/step-timeline"
 import { WriteConfirmCard } from "./components/write-confirm-card"
 import { SuspendedWorkflowSelector } from "../chat/suspended-workflow-selector"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/collapsible"
 
 type UiMessage = {
   id: string
@@ -78,6 +79,9 @@ export const AiV2Chat: React.FC = () => {
   const [selectedThreadId, setSelectedThreadId] = React.useState<string>("")
 
   const [lastSteps, setLastSteps] = React.useState<AiV2Step[] | undefined>(undefined)
+
+  const [runDetailsOpen, setRunDetailsOpen] = React.useState(false)
+  const [composerFocused, setComposerFocused] = React.useState(false)
 
   const bottomRef = React.useRef<HTMLDivElement>(null)
 
@@ -628,91 +632,6 @@ export const AiV2Chat: React.FC = () => {
         ) : (
           <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
             <div className="mx-auto flex h-full w-full max-w-[1200px] flex-col overflow-hidden">
-              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div className="w-full sm:max-w-[520px]">
-                  <Text className="text-ui-fg-subtle text-small">Resource ID</Text>
-                  <Input
-                    value={threadPickerResource}
-                    onChange={(e) => setThreadPickerResource(e.target.value)}
-                    placeholder="ai:v2 or ai:v2:product"
-                    disabled={chat.isPending || stream.state.isStreaming}
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    size="small"
-                    isLoading={threadsApi.isPending}
-                    onClick={loadThreads}
-                    disabled={chat.isPending || stream.state.isStreaming}
-                  >
-                    Load chats
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    size="small"
-                    isLoading={createThreadApi.isPending}
-                    onClick={startNewChat}
-                    disabled={chat.isPending || stream.state.isStreaming}
-                  >
-                    New chat
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    size="small"
-                    onClick={() => {
-                      stream.stop()
-                      setRunStatus("idle")
-                      setActiveThreadId(null)
-                      setActiveResourceId(null)
-                      setAvailableThreads([])
-                      setSelectedThreadId("")
-                      setMessages([])
-                      setLastSteps(undefined)
-                      setRunId(null)
-                      setSuspended(null)
-                      setFeedbackSubmittedForRunId(null)
-                    }}
-                    disabled={chat.isPending || stream.state.isStreaming}
-                  >
-                    Change thread
-                  </Button>
-                </div>
-              </div>
-
-              {availableThreads.length ? (
-                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <div className="w-full sm:max-w-[520px]">
-                    <Select value={selectedThreadId} onValueChange={setSelectedThreadId}>
-                      <Select.Trigger>
-                        <Select.Value placeholder="Select a thread…" />
-                      </Select.Trigger>
-                      <Select.Content>
-                        {availableThreads.map((t: any) => (
-                          <Select.Item key={String(t.id)} value={String(t.id)}>
-                            {t.title ? `${t.title} · ` : ""}{String(t.id)}
-                          </Select.Item>
-                        ))}
-                      </Select.Content>
-                    </Select>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    size="small"
-                    isLoading={threadApi.isPending}
-                    disabled={!selectedThreadId || chat.isPending || stream.state.isStreaming}
-                    onClick={() => hydrateFromThread(selectedThreadId, threadPickerResource)}
-                  >
-                    Open selected
-                  </Button>
-                </div>
-              ) : null}
-
               <div className="flex-1 overflow-y-auto pr-1">
                 <div className="flex flex-col gap-y-3 pb-6">
                   {messages.length === 0 && (chat.isPending || stream.state.isStreaming || stream.state.active) ? (
@@ -777,75 +696,94 @@ export const AiV2Chat: React.FC = () => {
                     </div>
                   ) : null}
 
-                  <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-start">
-                    <div className="w-full sm:w-[420px]">
-                      <StepTimeline steps={lastSteps} hideEmpty={messages.length > 0} />
-                    </div>
+                  {((Array.isArray(lastSteps) && lastSteps.length > 0) || (runId && runStatus === "completed")) ? (
+                    <Collapsible open={runDetailsOpen} onOpenChange={setRunDetailsOpen}>
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-ui-border-base bg-ui-bg-base px-3 py-2">
+                        <Text className="text-ui-fg-subtle text-small">Run details</Text>
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-ui-fg-subtle text-small underline underline-offset-4"
+                          >
+                            {runDetailsOpen ? "Hide" : "Show"}
+                          </button>
+                        </CollapsibleTrigger>
+                      </div>
+                      <CollapsibleContent>
+                        <div className="mt-2 flex w-full flex-col gap-3 sm:flex-row sm:items-start">
+                          <div className="w-full sm:w-[420px]">
+                            <StepTimeline steps={lastSteps} hideEmpty={messages.length > 0} />
+                          </div>
 
-                    {runId && runStatus === "completed" ? (
-                      <div className={`w-full sm:w-[420px] rounded-md border border-ui-border-base bg-ui-bg-base px-3 py-2 ${bubbleClass("assistant")}`}>
-                        <div className="flex items-center justify-between gap-3">
-                          <Text className="text-ui-fg-subtle text-small">Feedback</Text>
-                          {feedbackSubmittedForRunId === runId ? (
-                            <Text className="text-ui-fg-subtle text-small">Submitted</Text>
+                          {runId && runStatus === "completed" ? (
+                            <div
+                              className={`w-full sm:w-[420px] rounded-md border border-ui-border-base bg-ui-bg-base px-3 py-2 ${bubbleClass("assistant")}`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <Text className="text-ui-fg-subtle text-small">Feedback</Text>
+                                {feedbackSubmittedForRunId === runId ? (
+                                  <Text className="text-ui-fg-subtle text-small">Submitted</Text>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {([
+                                  { value: "one", label: "1" },
+                                  { value: "two", label: "2" },
+                                  { value: "three", label: "3" },
+                                  { value: "four", label: "4" },
+                                  { value: "five", label: "5" },
+                                ] as const).map((opt) => (
+                                  <Button
+                                    key={opt.value}
+                                    type="button"
+                                    size="small"
+                                    variant={feedbackRating === opt.value ? "primary" : "secondary"}
+                                    onClick={() => setFeedbackRating(opt.value)}
+                                    disabled={!canSubmitFeedback || feedback.isPending}
+                                  >
+                                    {opt.label}
+                                  </Button>
+                                ))}
+                              </div>
+
+                              <div className="mt-2">
+                                <Textarea
+                                  rows={2}
+                                  value={feedbackComment}
+                                  onChange={(e) => setFeedbackComment(e.target.value)}
+                                  placeholder="Optional comment"
+                                  disabled={!canSubmitFeedback || feedback.isPending}
+                                />
+                              </div>
+
+                              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <Input
+                                  value={feedbackSubmittedBy}
+                                  onChange={(e) => {
+                                    setFeedbackSubmittedByTouched(true)
+                                    setFeedbackSubmittedBy(e.target.value)
+                                  }}
+                                  placeholder="Submitted by"
+                                  disabled={!canSubmitFeedback || feedback.isPending}
+                                />
+
+                                <Button
+                                  type="button"
+                                  size="small"
+                                  onClick={submitFeedback}
+                                  isLoading={feedback.isPending}
+                                  disabled={!canSubmitFeedback}
+                                >
+                                  Submit
+                                </Button>
+                              </div>
+                            </div>
                           ) : null}
                         </div>
-
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {([
-                            { value: "one", label: "1" },
-                            { value: "two", label: "2" },
-                            { value: "three", label: "3" },
-                            { value: "four", label: "4" },
-                            { value: "five", label: "5" },
-                          ] as const).map((opt) => (
-                            <Button
-                              key={opt.value}
-                              type="button"
-                              size="small"
-                              variant={feedbackRating === opt.value ? "primary" : "secondary"}
-                              onClick={() => setFeedbackRating(opt.value)}
-                              disabled={!canSubmitFeedback || feedback.isPending}
-                            >
-                              {opt.label}
-                            </Button>
-                          ))}
-                        </div>
-
-                        <div className="mt-2">
-                          <Textarea
-                            rows={2}
-                            value={feedbackComment}
-                            onChange={(e) => setFeedbackComment(e.target.value)}
-                            placeholder="Optional comment"
-                            disabled={!canSubmitFeedback || feedback.isPending}
-                          />
-                        </div>
-
-                        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <Input
-                            value={feedbackSubmittedBy}
-                            onChange={(e) => {
-                              setFeedbackSubmittedByTouched(true)
-                              setFeedbackSubmittedBy(e.target.value)
-                            }}
-                            placeholder="Submitted by"
-                            disabled={!canSubmitFeedback || feedback.isPending}
-                          />
-
-                          <Button
-                            type="button"
-                            size="small"
-                            onClick={submitFeedback}
-                            isLoading={feedback.isPending}
-                            disabled={!canSubmitFeedback}
-                          >
-                            Submit
-                          </Button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ) : null}
 
                   {stream.state.error ? (
                     <div className={`max-w-[85%] rounded-md px-3 py-2 ${bubbleClass("assistant")}`}>
@@ -859,35 +797,137 @@ export const AiV2Chat: React.FC = () => {
               </div>
 
               <div className="mt-auto border-t border-ui-border-base bg-ui-bg-base">
-                <div className="px-3 py-3">
-                  <div className="group w-full max-w-[900px] rounded-2xl border border-ui-border-base bg-ui-bg-base shadow-sm">
-                    <div className="p-3">
-                      <Textarea
-                        rows={1}
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask something… e.g. list all products, update partner name…"
-                        disabled={chat.isPending || stream.state.isStreaming}
-                        className="resize-none border-none bg-transparent p-0 outline-none focus:outline-none focus:ring-0 min-h-[44px]"
-                      />
+                <div className="mx-auto w-full max-w-[1200px] px-3 py-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[360px_1fr] sm:items-end">
+                    <div className="flex flex-col gap-2">
+                      <div>
+                        <Text className="text-ui-fg-subtle text-small">Resource ID</Text>
+                        <Input
+                          value={threadPickerResource}
+                          onChange={(e) => setThreadPickerResource(e.target.value)}
+                          placeholder="ai:v2 or ai:v2:product"
+                          disabled={chat.isPending || stream.state.isStreaming}
+                        />
+                      </div>
 
-                      <div className="mt-2 flex items-center justify-end gap-2">
-                        {stream.state.isStreaming ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          size="small"
+                          isLoading={threadsApi.isPending}
+                          onClick={loadThreads}
+                          disabled={chat.isPending || stream.state.isStreaming}
+                        >
+                          Load chats
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          size="small"
+                          isLoading={createThreadApi.isPending}
+                          onClick={startNewChat}
+                          disabled={chat.isPending || stream.state.isStreaming}
+                        >
+                          New chat
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          size="small"
+                          onClick={() => {
+                            stream.stop()
+                            setRunStatus("idle")
+                            setActiveThreadId(null)
+                            setActiveResourceId(null)
+                            setAvailableThreads([])
+                            setSelectedThreadId("")
+                            setMessages([])
+                            setLastSteps(undefined)
+                            setRunId(null)
+                            setSuspended(null)
+                            setFeedbackSubmittedForRunId(null)
+                          }}
+                          disabled={chat.isPending || stream.state.isStreaming}
+                        >
+                          Change thread
+                        </Button>
+                      </div>
+
+                      {availableThreads.length ? (
+                        <div className="flex flex-col gap-2">
+                          <Select value={selectedThreadId} onValueChange={setSelectedThreadId}>
+                            <Select.Trigger>
+                              <Select.Value placeholder="Select a thread…" />
+                            </Select.Trigger>
+                            <Select.Content>
+                              {availableThreads.map((t: any) => (
+                                <Select.Item key={String(t.id)} value={String(t.id)}>
+                                  {t.title ? `${t.title} · ` : ""}
+                                  {String(t.id)}
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select>
                           <Button
                             variant="secondary"
                             type="button"
-                            onClick={() => {
-                              stream.stop()
-                              setRunStatus("idle")
-                            }}
                             size="small"
+                            isLoading={threadApi.isPending}
+                            disabled={!selectedThreadId || chat.isPending || stream.state.isStreaming}
+                            onClick={() => hydrateFromThread(selectedThreadId, threadPickerResource)}
                           >
-                            Stop
+                            Open selected
                           </Button>
-                        ) : null}
-                        <Button type="button" isLoading={chat.isPending} disabled={!canSend} onClick={send} size="small">
-                          Send
-                        </Button>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="flex w-full sm:justify-center">
+                      <div
+                        className={`group w-full max-w-[900px] rounded-2xl border border-ui-border-base bg-ui-bg-base ${
+                          composerFocused ? "shadow-sm" : ""
+                        }`}
+                      >
+                        <div className={composerFocused ? "p-3" : "p-2"}>
+                          <Textarea
+                            rows={1}
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onFocus={() => setComposerFocused(true)}
+                            onBlur={() => setComposerFocused(false)}
+                            placeholder="Ask something… e.g. list all products, update partner name…"
+                            disabled={chat.isPending || stream.state.isStreaming}
+                            className={`resize-none border-none bg-transparent p-0 outline-none focus:outline-none focus:ring-0 ${
+                              composerFocused ? "min-h-[64px]" : "min-h-[36px]"
+                            }`}
+                          />
+
+                          <div className="mt-2 flex items-center justify-end gap-2">
+                            {stream.state.isStreaming ? (
+                              <Button
+                                variant="secondary"
+                                type="button"
+                                onClick={() => {
+                                  stream.stop()
+                                  setRunStatus("idle")
+                                }}
+                                size="small"
+                              >
+                                Stop
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              isLoading={chat.isPending}
+                              disabled={!canSend}
+                              onClick={send}
+                              size="small"
+                            >
+                              Send
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
