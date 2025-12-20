@@ -17,6 +17,21 @@ const usersQueryKeys = {
   me: () => [USERS_QUERY_KEY, "me"],
 }
 
+export const useMe = (
+  options?: Omit<
+    UseQueryOptions<HttpTypes.AdminUserResponse, FetchError, HttpTypes.AdminUserResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: () => sdk.admin.user.me() as any,
+    queryKey: usersQueryKeys.me(),
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
 export const useUsers = (
     query?: HttpTypes.AdminUserListParams,
     options?: Omit<

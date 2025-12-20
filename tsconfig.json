@@ -19,14 +19,16 @@
     "checkJs": false,
     "strictNullChecks": true,
     "paths": {
-      "@/*": ["./src/admin/*"]
+      "@/*": [
+        "./src/admin/*"
+      ]
     }
   },
   "ts-node": {
     "swc": true
   },
   "include": [
-    "**/*", 
+    "**/*",
     ".medusa/types/*",
   ],
   "exclude": [

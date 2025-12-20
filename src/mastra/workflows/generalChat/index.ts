@@ -1,8 +1,22 @@
 // @ts-nocheck - Ignore all TypeScript errors in this file
 import { createWorkflow, createStep } from "@mastra/core/workflows"
-import { z } from "zod/v4"
+import { z } from "zod"
+import { v4 as uuidv4 } from "uuid"
 import { generalChatAgent } from "../../agents" // dedicated chat agent
 import { ingestAdminCatalog, queryAdminEndpoints, queryAdminEndpointsFiltered } from "../../rag/adminCatalog"
+import { CATALOG_CACHE_CONFIG } from "../../config/cache"
+import { memory } from "../../memory"
+import { ToolCallParser } from "./parsers/toolCallParser"
+import { multiStepApiRequestWorkflow } from "../multiStepApiRequest"
+import { runStorage } from "../../run-storage"
+
+// Constants
+const MAX_TEXT_LENGTH = 900
+const MAX_OPERATIONS = 6
+const RAG_TOP_K = 6
+const RAG_FALLBACK_TOP_K = 5
+const MAX_TOOL_LOOPS = 4
+const MAX_TOOL_RESULT_CHARS = 1800
 
 export type GeneralChatInput = {
   message: string
@@ -11,14 +25,71 @@ export type GeneralChatInput = {
   context?: Record<string, any>
 }
 
+function sanitizeAssistantText(text: string): string {
+  try {
+    if (!text) return ""
+    // Remove fenced json tool-call blocks from the final answer
+    return String(text).replace(/```json[\s\S]*?```/g, "").trim()
+  } catch {
+    return String(text || "")
+  }
+}
+
+function safeToText(v: any, max = MAX_TEXT_LENGTH): string {
+  try {
+    if (v == null) return ""
+    const s = typeof v === "string" ? v : JSON.stringify(v, null, 2)
+    return s.length > max ? s.slice(0, max) + "…" : s
+  } catch {
+    try {
+      const s = String(v)
+      return s.length > max ? s.slice(0, max) + "…" : s
+    } catch {
+      return ""
+    }
+  }
+}
+
+function formatOperationChunks(ops: any[], maxOps = MAX_OPERATIONS): string {
+  if (!Array.isArray(ops) || !ops.length) return ""
+  const lines: string[] = []
+  const slice = ops.slice(0, maxOps)
+  for (let i = 0; i < slice.length; i++) {
+    const op = slice[i] || {}
+    const method = String(op.method || "").toUpperCase()
+    const path = String(op.path || "")
+    const summary = safeToText(op.summary || op.description || "", 240)
+
+    // Explicitly format query params to guide the agent
+    let queryParamsInfo = ""
+    if (Array.isArray(op.params)) {
+      const qp = op.params.filter((p: any) => p.in === "query").map((p: any) => p.name)
+      if (qp.length) {
+        queryParamsInfo = `Query Params: ${qp.join(", ")}`
+      }
+    }
+
+    const req = safeToText(op.request_schema, 900)
+    const res = safeToText(op.response_schema, 900)
+    const parts = [
+      `${i + 1}) ${method} ${path}`,
+      summary ? `Summary: ${summary}` : undefined,
+      queryParamsInfo || undefined,
+      req ? `Request schema: ${req}` : undefined,
+      res ? `Response schema: ${res}` : undefined,
+    ].filter(Boolean) as string[]
+    lines.push(parts.join("\n"))
+  }
+  return lines.join("\n\n")
+}
+
 // Simple dependency planner: for certain endpoints, suggest prerequisite list calls
 async function planDependencies(
   method: string,
   path: string,
   body: any,
   apiCtx?: { source?: string; allowedEndpoints?: Array<{ method: string; path: string }>; selectedEndpointId?: string }
-): Promise<{ next?: Array<{ method: string; path: string; body?: any; openapi?: { method: string; path: string } }>; secondary?: any; notes?: string[] }>
-{
+): Promise<{ next?: Array<{ method: string; path: string; body?: any; openapi?: { method: string; path: string } }>; secondary?: any; notes?: string[] }> {
   const out: { next?: Array<{ method: string; path: string; body?: any; openapi?: { method: string; path: string } }>; secondary?: any; notes?: string[] } = {}
   const notes: string[] = []
   // Generic, schema-free rules:
@@ -237,6 +308,47 @@ function inferToolCallsFromMessage(message: string): Array<{ name: string; argum
     }
   }
 
+  // Handle XML-style tool calls: <tool_call><function=name>...</function></tool_call>
+  // We make the outer <tool_call> optional and just look for the function block to be robust.
+  const xmlPattern = /<function=([^>]+)>([\s\S]*?)<\/function>/g
+  let match
+  while ((match = xmlPattern.exec(message)) !== null) {
+    const name = match[1]
+    const paramsBlock = match[2]
+    const args: Record<string, any> = {}
+
+    const paramPattern = /<parameter=([^>]+)>([\s\S]*?)<\/parameter>/g
+    let pMatch
+    while ((pMatch = paramPattern.exec(paramsBlock)) !== null) {
+      const key = pMatch[1].trim()
+      let val = pMatch[2].trim()
+      // Try parsing JSON values (for objects/arrays)
+      try {
+        // Convert single quotes to double quotes for JSON parsing if it looks like JSON
+        if ((val.startsWith("{") || val.startsWith("[")) && val.includes("'")) {
+          val = val.replace(/'/g, '"')
+        }
+        args[key] = JSON.parse(val)
+      } catch {
+        args[key] = val
+      }
+    }
+    calls.push({ name, arguments: args })
+  }
+
+  // Handle JSON block tool calls
+  try {
+    const jsonBlock = message.match(/```json\s*({[\s\S]*?})\s*```/);
+    if (jsonBlock) {
+      const parsed = JSON.parse(jsonBlock[1]);
+      if (parsed.toolCalls) {
+        parsed.toolCalls.forEach((tc: any) => {
+          calls.push({ name: tc.name, arguments: tc.arguments });
+        });
+      }
+    }
+  } catch { }
+
   return calls
 }
 
@@ -257,6 +369,8 @@ function shouldPlanToolCallsFromMessage(message: string): boolean {
 
   return true
 }
+
+// Removed extractDesignName - no longer used after entity extraction step was added
 
 // Dispatcher to "activate" tools. For now, we standardize to return a planned Admin API request
 // using official Admin API paths so the UI can infer required inputs from the OpenAPI catalog.
@@ -285,9 +399,9 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
           const key = (e: any) => `${e.method} ${e.path}`
           const seen = new Set(suggestions.map(key))
           for (const m of mapped) { if (!seen.has(key(m))) { suggestions.push(m); seen.add(key(m)) } }
-        } catch (e) { try { console.warn("[AI][catalog][RAG] suggest fallback error", (e as any)?.message || e) } catch {} }
+        } catch (e) { try { console.warn("[AI][catalog][RAG] suggest fallback error", (e as any)?.message || e) } catch { } }
       }
-      try { console.log("[AI][catalog] suggestions", { query, method, count: suggestions.length }) } catch {}
+      try { console.log("[AI][catalog] suggestions", { query, method, count: suggestions.length }) } catch { }
       return {
         status: "suggestions",
         tool: name,
@@ -299,6 +413,15 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
       // Generic pass-through; validate against allowedEndpoints if provided
       const method = (args?.openapi?.method || args?.method || "POST").toUpperCase()
       let path = args?.openapi?.path || args?.path || "/admin"
+
+      // Critical cleanup: The LLM frequently plans GET requests with filter params in 'body'.
+      // Normalize this by moving body content to query for GET requests.
+      if (args?.body && typeof args.body === "object" && method === "GET") {
+        args.query = { ...(args.query || {}), ...args.body }
+        args.body = undefined
+        // Also ensure any tool call args are updated if we need to reflect this back
+      }
+
       // Interpolate path parameters generically from args.path_params/params/body
       try {
         const replacePathParams = (p: string, map: Record<string, any>) => {
@@ -328,7 +451,7 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
         for (const m of candidateMaps) {
           path = replacePathParams(path, m)
         }
-      } catch {}
+      } catch { }
       path = normalizePath(path)
       // Resolve allowed endpoints via CatalogIndex
       const index = await getCatalogIndex(apiCtx)
@@ -337,7 +460,7 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
       if (!isAllowed) {
         const alias = normalizePathAliases(path)
         if (alias.path !== path && index.has(method, alias.path)) {
-          try { console.log("[AI][catalog] alias(normalize existing) →", { from: path, to: alias.path, q: alias.extractedQ }) } catch {}
+          try { console.log("[AI][catalog] alias(normalize existing) →", { from: path, to: alias.path, q: alias.extractedQ }) } catch { }
           path = alias.path
           if (method === "GET" && !args?.body && alias.extractedQ) {
             args = { ...args, body: { limit: 50, q: alias.extractedQ } }
@@ -349,7 +472,7 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
       if (index.size === 0) {
         const alias = normalizePathAliases(path)
         if (alias.path !== path) {
-          try { console.log("[AI][catalog] alias(normalize) →", { from: path, to: alias.path, q: alias.extractedQ }) } catch {}
+          try { console.log("[AI][catalog] alias(normalize) →", { from: path, to: alias.path, q: alias.extractedQ }) } catch { }
           path = alias.path
           // For GET calls, if no body provided but we extracted a query hint, attach it
           if (method === "GET" && !args?.body && alias.extractedQ) {
@@ -362,7 +485,7 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
         // Try a simple path normalization (underscores -> hyphens) as a final alias attempt
         const aliased = index.normalizePath(path)
         if (aliased !== path && index.has(method, aliased)) {
-          try { console.log("[AI][catalog] alias match", { from: path, to: aliased }) } catch {}
+          try { console.log("[AI][catalog] alias match", { from: path, to: aliased }) } catch { }
           path = aliased
           isAllowed = true
         }
@@ -375,17 +498,42 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
               // Prefer the first RAG candidate that exists in catalog index
               const preferred = rag.find((c: any) => index.has(method, index.normalizePath(c.path))) || rag[0]
               const corrected = index.normalizePath(preferred.path)
+
+              // Helper to check if correction introduces new parameters
+              const hasNewParams = (orig: string, fix: string) => {
+                const oParams = (orig.match(/\{[^}]+\}/g) || []).length + (orig.match(/:[a-zA-Z0-9_]+/g) || []).length
+                const fParams = (fix.match(/\{[^}]+\}/g) || []).length + (fix.match(/:[a-zA-Z0-9_]+/g) || []).length
+                return fParams > oParams
+              }
+
               if (index.has(method, corrected)) {
-                try { console.log("[AI][catalog][RAG] corrected path", { from: path, to: corrected, method, score: preferred?.score }) } catch {}
-                path = corrected
-                isAllowed = true
+                // If correction adds params (e.g. /websites -> /websites/{id}/analytics), it's likely a hallucination mismatch. Reject it.
+                if (hasNewParams(path, corrected)) {
+                  try { console.log("[AI][catalog][RAG] rejected correction (new params)", { from: path, to: corrected }) } catch { }
+                  // Allow the original path to pass through, even if not in catalog. It might be a valid endpoint missing from index.
+                  isAllowed = true
+                }
+                // ALSO reject if the correction strips a specific ID segment (e.g. /designs/01... -> /designs)
+                // This happens when RAG matches the list endpoint instead of the detail endpoint
+                else if (path.split('/').length > corrected.split('/').length) {
+                  try { console.log("[AI][catalog][RAG] rejected correction (truncation)", { from: path, to: corrected }) } catch { }
+                  isAllowed = true
+                }
+                else {
+                  try { console.log("[AI][catalog][RAG] corrected path", { from: path, to: corrected, method, score: preferred?.score }) } catch { }
+                  path = corrected
+                  isAllowed = true
+                }
               } else {
-                try { console.log("[AI][catalog][RAG] candidate not in catalog", { candidate: corrected, method, score: preferred?.score }) } catch {}
+                try { console.log("[AI][catalog][RAG] candidate not in catalog", { candidate: corrected, method, score: preferred?.score }) } catch { }
+                // If we found nothing in catalog, default to allowing the original path. 
+                // Better to try 404 than guaranteed wrong endpoint.
+                isAllowed = true
               }
             } else {
-              try { console.log("[AI][catalog][RAG] no candidates for", { method, path }) } catch {}
+              try { console.log("[AI][catalog][RAG] no candidates for", { method, path }) } catch { }
             }
-          } catch (e) { try { console.warn("[AI][catalog][RAG] refine(existing-index) error", (e as any)?.message || e) } catch {} }
+          } catch (e) { try { console.warn("[AI][catalog][RAG] refine(existing-index) error", (e as any)?.message || e) } catch { } }
         }
       }
 
@@ -393,7 +541,7 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
       if (!index.size || isAllowed || index.has(method, path)) {
         // Attach dependency plan if applicable
         let dep: any = {}
-        try { dep = await planDependencies(method, path, args?.body, apiCtx) } catch {}
+        try { dep = await planDependencies(method, path, args?.body, apiCtx) } catch { }
         return {
           status: "planned",
           tool: name,
@@ -402,6 +550,7 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
             method,
             path,
             body: args?.body,
+            query: args?.query,
             openapi: { method, path },
           },
           ...(dep?.next ? { next: dep.next } : {}),
@@ -432,7 +581,7 @@ async function executeTool(name: string, args: Record<string, any>, apiCtx?: {
           status: "planned",
           tool: name,
           args,
-          request: { method, path, body: args?.body, openapi: { method, path } },
+          request: { method, path, body: args?.body, query: args?.query, openapi: { method, path } },
         }
       }
       return { status: "unknown_tool", tool: name, args }
@@ -465,6 +614,9 @@ const outputSchema = z.object({
   activations: z.array(activationSchema).optional(),
   threadId: z.string().optional(),
   resourceId: z.string().optional(),
+  suspended: z.boolean().optional(),
+  suspendPayload: z.any().optional(),
+  runId: z.string().optional(),
 })
 
 // Step 0: Initialize/prime API catalog cache so later steps can validate quickly
@@ -475,7 +627,7 @@ const initApiCatalog = createStep({
   outputSchema: inputSchema,
   execute: async ({ inputData }) => {
     try {
-      try { console.log("[generalChat] init-api-catalog:start") } catch {}
+      try { console.log("[generalChat] init-api-catalog:start") } catch { }
       const apiCtx = (inputData?.context as any)?.api_context || {}
       // Prime the cache (no-op if already fresh)
       try { await getAllowedEndpoints(apiCtx) } catch (e) { console.warn("[generalChat] getAllowedEndpoints error", (e as any)?.message || e) }
@@ -483,324 +635,808 @@ const initApiCatalog = createStep({
       // Kick off RAG ingestion without blocking the step
       try {
         void ingestAdminCatalog(false).then((res) => {
-          try { console.log("[generalChat] RAG ingest (async) done", res) } catch {}
+          try { console.log("[generalChat] RAG ingest (async) done", res) } catch { }
         }).catch((e) => {
-          try { console.warn("[generalChat] RAG ingest (async) error", (e as any)?.message || e) } catch {}
+          try { console.warn("[generalChat] RAG ingest (async) error", (e as any)?.message || e) } catch { }
         })
       } catch (e) {
-        try { console.warn("[generalChat] RAG ingest launch error", (e as any)?.message || e) } catch {}
+        try { console.warn("[generalChat] RAG ingest launch error", (e as any)?.message || e) } catch { }
       }
     } catch (e) {
       // Non-fatal: continue even if catalog fetch fails
       console.warn("[generalChat] init-api-catalog failed", (e as any)?.message || e)
     }
     // pass-through original input to next step
-    try { console.log("[generalChat] init-api-catalog:end") } catch {}
+    try { console.log("[generalChat] init-api-catalog:end") } catch { }
     return inputData
   },
 })
 
-// Step: generate reply, parse/infer tool calls, execute tool activations
-const chatGenerate = createStep({
-  id: "chat-generate",
-  inputSchema,
-  outputSchema,
-  execute: async ({ inputData, mastra }) => {
-    const threadId = inputData.threadId
-    const resourceId = inputData.resourceId || "ai:general-chat"
+const entitySchema = z.object({
+  intent: z.string().optional(),
+  resource: z.string().optional(),
+  id: z.string().optional(),
+  name: z.string().optional(),
+  filters: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+})
 
-    const apiCtx = (inputData?.context as any)?.api_context || {}
-    // If the UI has executed an API request and provided JSON back, summarize it.
-    let executedSummary: string | undefined
-    const executed = apiCtx?.executed_response ?? apiCtx?.response ?? apiCtx?.data
-    if (executed !== undefined) {
-      try {
-        executedSummary = await summarizeApiResult(generalChatAgent, executed, threadId, resourceId)
-        try { console.log("[generalChat] executed summary generated") } catch {}
-      } catch (e) {
-        try { console.warn("[generalChat] executed summary error", (e as any)?.message || e) } catch {}
-        executedSummary = summarizeDataHeuristic(executed)
+const extractionSchema = z.object({
+  extracted: entitySchema.optional(),
+})
+
+// Union schema for steps content
+const augmentedInputSchema = inputSchema.merge(extractionSchema)
+
+const routeSchema = z.object({
+  mode: z.enum(["recipe", "hitl", "tool", "rag", "chat"]).default("chat"),
+  reason: z.string().optional(),
+})
+
+const routedInputSchema = augmentedInputSchema.merge(
+  z.object({
+    route: routeSchema.optional(),
+  })
+)
+
+const routeIntent = createStep({
+  id: "route-intent",
+  inputSchema: augmentedInputSchema,
+  outputSchema: routedInputSchema,
+  execute: async ({ inputData }) => {
+    const rawMsg = String(inputData.message || "")
+    const msg = rawMsg.toLowerCase()
+    const extracted = (inputData as any)?.extracted
+    const allowPlanning = shouldPlanToolCallsFromMessage(rawMsg)
+
+    const isDesignQuery = /\bdesigns?\b/i.test(rawMsg)
+    const wantsApproved = isDesignQuery && /\bapproved\b/i.test(rawMsg)
+    const wantsRecent = isDesignQuery && /\b(recent|recently|latest|newest)\b/i.test(rawMsg)
+    if (wantsApproved || wantsRecent) {
+      const out = {
+        ...inputData,
+        route: { mode: "recipe" as const, reason: wantsApproved ? "designs_approved" : "designs_recent" },
       }
+      try { console.log("[generalChat] route-intent", out.route) } catch { }
+      return out
     }
-    const system = [
-      "You are a general-purpose AI assistant for a textile commerce platform.",
-      "Maintain short, precise answers.",
-      "If the user asks to take an action, propose an appropriate admin_api_request instead of claiming the action was done.",
-      "Respond with normal text, and if tools are proposed, also include a JSON block with an array under key toolCalls: [{ name, arguments }].",
-      "Tools and expected argument schemas:",
-      "- admin_api_request: { method: 'GET'|'POST'|'PUT'|'PATCH'|'DELETE', path: string, body?: any }",
-      "- suggest_admin_endpoints: { query?: string, method?: string }",
-      "Prefer GET for listing entities, POST for creation, PATCH for partial updates, PUT for full updates, DELETE for removal.",
-      "For admin_api_request, use canonical paths like /admin/products, /admin/inventory-items, etc. If unsure, suggest_admin_endpoints first.",
-    ].join("\n")
 
-    // Use the dedicated chat agent and ensure memory context is passed so threads are persisted
-    let text = ""
-    let newThreadId: string | undefined
+    const ordersMentioned = /\borders?\b/i.test(rawMsg) || String(extracted?.resource || "").toLowerCase().includes("order")
+    const hasOrdersForName = /\borders?\b\s+(?:for|of)\s+\S+/i.test(rawMsg)
+    const productsBoughtPattern = /\bwhat\s+products?\b[\s\S]*\b(bought|purchased)\b/i.test(rawMsg)
+
+    if (ordersMentioned && (hasOrdersForName || productsBoughtPattern)) {
+      const out = { ...inputData, route: { mode: "hitl" as const, reason: "orders_by_customer" } }
+      try { console.log("[generalChat] route-intent", out.route) } catch { }
+      return out
+    }
+
+    if (ordersMentioned && allowPlanning) {
+      const out = { ...inputData, route: { mode: "tool" as const, reason: "orders_generic" } }
+      try { console.log("[generalChat] route-intent", out.route) } catch { }
+      return out
+    }
+
+    if (allowPlanning) {
+      const out = { ...inputData, route: { mode: "tool" as const, reason: "planning_enabled" } }
+      try { console.log("[generalChat] route-intent", out.route) } catch { }
+      return out
+    }
+
+    const out = { ...inputData, route: { mode: "chat" as const, reason: "planning_disabled" } }
+    try { console.log("[generalChat] route-intent", out.route) } catch { }
+    return out
+  },
+})
+
+// Step: Extract entities using a focused prompt
+const extractEntities = createStep({
+  id: "extract-entities",
+  inputSchema: augmentedInputSchema,
+  outputSchema: augmentedInputSchema,
+  execute: async ({ inputData }) => {
     try {
-      const precomputed = (apiCtx as any)?.precomputed_reply
-      if (typeof precomputed === "string" && precomputed.trim()) {
-        text = precomputed
-        newThreadId = threadId
-      } else {
-        const prompt = `${system}\n\nUser: ${String(inputData.message || "")}`
-        const runtimeAgent = generalChatAgent
-        console.log("runtimeAgent", runtimeAgent)
-        const gen = await runtimeAgent.generate(prompt, {
-          memory: {
-            // If threadId is provided, continue it; otherwise the agent will create one
-            thread: threadId,
-            resource: resourceId,
-          },
-        })
-        console.log("gen", gen)
-        text = (gen as any)?.text || ""
-        newThreadId = (gen as any)?.threadId
-        // If the model returned nothing, leave text empty; do not echo the user input
+      const msg = String(inputData.message || "").trim()
+      if (!msg) return inputData
+
+      // Only extract if it looks like a command
+      if (!shouldPlanToolCallsFromMessage(msg)) return inputData
+
+      const prompt = `
+      Extract entities from the user message. Return JSON only.
+      
+      Message: "${msg}"
+      
+      Output Schema:
+      {
+        "intent": "list" | "create" | "update" | "delete" | "unknown",
+        "resource": "products" | "designs" | "inventory" | etc (singular or plural),
+        "id": string (if specific ID mentioned),
+        "name": string (if specific name mentioned, e.g. "Summer Collection"),
+        "filters": { ...other filters like limit, offset, q }
       }
-    } catch (err) {
-      // Fallback: keep empty to avoid echoing user input
-      console.error("generalChat chat-generate error", (err as any)?.message || err)
-      text = ""
-    }
+      
+      Rules:
+      - If user says "by ID 123", set "id": "123".
+      - Look specifically for Medusa IDs (starting with "01...", mixed case alphanumeric). these are ALWAYS IDs.
+      - "fetch details", "get details", "show me" suggests intent "get" (if ID present) or "list" (if no ID).
+      - If user says "named Summer Collection", set "name": "Summer Collection".
+      - Strip conversational fillers ("by the name of", "named", "called").
+      - If "name" is found, also add it to "filters.q".
+      `
 
-    const allowPlanning = shouldPlanToolCallsFromMessage(inputData.message)
-
-    // Step 1: Parse toolCalls from model output (JSON block or fenced)
-    let toolCalls: Array<{ name: string; arguments: Record<string, any> }> = []
-    let toolCallsFromModel = false
-    let toolCallsFromUser = false
-    try {
-      // 1) Try fenced ```json blocks
-      const fenceMatch = text.match(/```json[\s\S]*?```/)
-      const jsonStr = fenceMatch ? fenceMatch[0].replace(/```json|```/g, "").trim() : undefined
-      if (jsonStr) {
-        const parsed = JSON.parse(jsonStr)
-        if (parsed && Array.isArray(parsed.toolCalls)) {
-          toolCalls = parsed.toolCalls
-          toolCallsFromModel = toolCalls.length > 0
-        }
-      }
-
-      // 2) Try plain JSON if entire text is JSON
-      if (!toolCalls.length) {
-        try {
-          const parsedText = JSON.parse(text)
-          if (parsedText && Array.isArray(parsedText.toolCalls)) {
-            toolCalls = parsedText.toolCalls
-            toolCallsFromModel = toolCalls.length > 0
-          }
-        } catch {}
-      }
-
-      // 3) Try loose 'json\n{ ... }' pattern (no fences)
-      if (!toolCalls.length) {
-        const idx = text.indexOf("{")
-        if (idx !== -1) {
-          const possible = text.slice(idx)
-          // Heuristic: grab until last closing brace
-          const last = possible.lastIndexOf("}")
-          const objStr = last !== -1 ? possible.slice(0, last + 1) : possible
-          try {
-            const parsedLoose = JSON.parse(objStr)
-            if (parsedLoose && Array.isArray(parsedLoose.toolCalls)) {
-              toolCalls = parsedLoose.toolCalls
-              toolCallsFromModel = toolCalls.length > 0
-            }
-          } catch {}
-        }
-      }
-    } catch (_) {
-      // ignore parse errors, treat as plain reply
-    }
-
-    // Step 2a: Try to parse toolCalls directly from the USER message (when users paste a JSON block)
-    try {
-      if (!toolCalls.length) {
-        const msg = String(inputData.message || "")
-        // 1) Fenced json in user message
-        const fence = msg.match(/```json[\s\S]*?```/)
-        const jsonStr = fence ? fence[0].replace(/```json|```/g, "").trim() : undefined
-        if (jsonStr) {
-          const parsed = JSON.parse(jsonStr)
-          if (parsed && Array.isArray(parsed.toolCalls)) {
-            toolCalls = parsed.toolCalls
-            toolCallsFromUser = toolCalls.length > 0
-          }
-        }
-        // 2) Plain JSON
-        if (!toolCalls.length) {
-          try {
-            const parsedMsg = JSON.parse(msg)
-            if (parsedMsg && Array.isArray(parsedMsg.toolCalls)) {
-              toolCalls = parsedMsg.toolCalls
-              toolCallsFromUser = toolCalls.length > 0
-            }
-          } catch {}
-        }
-      }
-    } catch {}
-
-    // Step 2b: infer tool calls.
-    // - Always allow explicit METHOD /admin/... patterns from the user message.
-    // - Only infer from the model reply when the user intent indicates an action.
-    if (!toolCalls?.length) {
-      const inferredFromUser = inferToolCallsFromMessage(inputData.message)
-      const inferredFromReply = allowPlanning ? inferToolCallsFromMessage(text) : []
-      const combined = [...inferredFromUser, ...inferredFromReply]
-      if (combined.length) {
-        // de-dup by name
-        const seen = new Set<string>()
-        toolCalls = combined.filter((c) => (seen.has(c.name) ? false : (seen.add(c.name), true)))
-      }
-    }
-
-    // If tool calls came from the model, only accept them when the user intent indicates an action.
-    // This prevents greetings like "hi" from producing admin_api_request plans.
-    if (toolCalls?.length && toolCallsFromModel && !toolCallsFromUser && !allowPlanning) {
-      toolCalls = []
-    }
-
-    // If still no toolCalls, try RAG to propose an endpoint based on the user's message
-    if (!toolCalls?.length && shouldPlanToolCallsFromMessage(inputData.message)) {
-      try {
-        const msg = String(inputData.message || "").toLowerCase().trim()
-        let rag: any[] = []
-        // Use metadata filtering for clearer selection when intent is obvious (e.g., products)
-        if (/\bproducts?\b/.test(msg)) {
-          // Keep RAG in the loop but filter by path metadata to ensure we get product-related endpoints
-          rag = await queryAdminEndpointsFiltered(String(inputData.message || "").trim(), {
-            topK: 5,
-            // do not force method; let RAG rank, but constrain to product paths
-            pathIncludes: "products",
-          })
-        }
-        // Fallback to generic RAG if no filtered results
-        if (!Array.isArray(rag) || !rag.length) {
-          rag = await queryAdminEndpoints(String(inputData.message || "").trim(), undefined, 5)
-        }
-        try { console.log("[AI][catalog][RAG] fallback", { count: rag?.length || 0, first: rag?.[0] }) } catch {}
-        if (Array.isArray(rag) && rag.length) {
-          const top = rag[0]
-          // Extract IDs from the user's message to populate path params
-          const rawMsg = String(inputData.message || "")
-          const idMap: Record<string, any> = {}
-          try {
-            const prodMatch = rawMsg.match(/\bprod_[A-Za-z0-9]+\b/)
-            if (prodMatch) {
-              idMap.id = prodMatch[0]
-              idMap.product_id = prodMatch[0]
-            }
-            const anyIdMatch = rawMsg.match(/\b(?:[a-z]{3,5})_[A-Za-z0-9]+\b/)
-            if (!prodMatch && anyIdMatch) {
-              idMap.id = anyIdMatch[0]
-            }
-          } catch {}
-          const args: any = { method: top.method, path: top.path, openapi: { method: top.method, path: top.path } }
-          if (Object.keys(idMap).length) args.path_params = idMap
-          toolCalls = [
-            {
-              name: "admin_api_request",
-              arguments: args,
-            },
-          ]
-        }
-      } catch (e) {
-        try { console.warn("[AI][catalog][RAG] fallback error", ((e as any)?.message || e)) } catch {}
-      }
-    }
-
-    // Step 3 (Tool-as-step): If any toolCalls present, activate them now via dispatcher
-    let activations: Array<{ name: string; arguments: Record<string, any>; result: any }> = []
-    if (toolCalls?.length) {
-      for (let i = 0; i < toolCalls.length; i++) {
-        const call = toolCalls[i]
-        const result = await executeTool(call.name, call.arguments || {}, apiCtx)
-        activations.push({ name: call.name, arguments: call.arguments || {}, result })
-        // Sync corrected request back into toolCalls so UI sees the final, valid plan
-        try {
-          if (call.name === "admin_api_request" && result?.request) {
-            const correctedMethod = result.request?.openapi?.method || result.request?.method
-            const correctedPath = result.request?.openapi?.path || result.request?.path
-            if (correctedMethod || correctedPath) {
-              const prevArgs = call.arguments || {}
-              const prevOpenapi = prevArgs.openapi || {}
-              toolCalls[i] = {
-                ...call,
-                arguments: {
-                  ...prevArgs,
-                  method: correctedMethod || prevArgs.method,
-                  path: correctedPath || prevArgs.path,
-                  openapi: {
-                    ...prevOpenapi,
-                    method: correctedMethod || prevOpenapi.method,
-                    path: correctedPath || prevOpenapi.path,
-                  },
-                },
-              }
-            }
-          }
-        } catch (e) {
-          try { console.warn("[generalChat] toolCalls sync error", (e as any)?.message || e) } catch {}
-        }
-      }
-    }
-
-    // Post-process the human-readable reply to reflect any alias/normalization corrections
-    // Example: model said "/inventory/items" but executeTool corrected to "/admin/inventory-items"
-    let replyText = text
-    try {
-      if (toolCalls?.length && activations?.length) {
-        for (let i = 0; i < toolCalls.length; i++) {
-          const call = toolCalls[i]
-          const act = activations[i]
-          if (!call || !act) continue
-          if (call.name === "admin_api_request") {
-            const originalPath: string | undefined = (call.arguments as any)?.openapi?.path || (call.arguments as any)?.path
-            const correctedPath: string | undefined = act?.result?.request?.openapi?.path || act?.result?.request?.path
-            if (originalPath && correctedPath && originalPath !== correctedPath) {
-              // Replace occurrences in the reply for better UX and add a short note
-              const safeOrig = originalPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-              replyText = replyText.replace(new RegExp(safeOrig, "g"), correctedPath)
-              replyText += `\n\nNote: Corrected endpoint path to ${correctedPath} based on the API catalog.`
-            }
-          }
-        }
+      const gen = await generalChatAgent.generate(prompt, {
+        output: entitySchema,
+      })
+      const extracted = (gen as any)?.object as any
+      if (extracted) {
+        console.log("[extract-entities] extracted", extracted)
+        return { ...inputData, extracted }
       }
     } catch (e) {
-      try { console.warn("[generalChat] reply correction error", (e as any)?.message || e) } catch {}
+      console.warn("[extract-entities] error", (e as any)?.message || e)
     }
+    return inputData
+  }
+})
 
-    // If we have valid activations, prefer a canonical summary over any misleading model text
-    try {
-      const firstAdmin = activations.find((a) => a?.name === "admin_api_request" && a?.result?.request)
-      if (firstAdmin?.result?.request) {
-        const req = firstAdmin.result.request
-        const m = (req?.openapi?.method || req?.method || "").toUpperCase()
-        const p = req?.openapi?.path || req?.path || ""
-        const b = req?.body
-        const bodyStr = b ? JSON.stringify(b, null, 2) : undefined
-        replyText = [
-          `Proposed admin_api_request: ${m} ${p}`,
-          bodyStr ? `Body:\n${bodyStr}` : undefined,
-          `Note: This is a planned request. Execution happens client-side.`,
-        ].filter(Boolean).join("\n\n")
+// Helper to execute API calls server-side (Read-Only Safety enforced in ReAct loop)
+async function executeServerSide(
+  request: { method: string; path: string; query?: any; body?: any },
+  authHeaders?: { authorization?: string; cookie?: string }
+) {
+  const backendUrl = process.env.MEDUSA_BACKEND_URL || process.env.URL || "http://localhost:9000"
+
+  // Construct URL with query params
+  const url = new URL(`${backendUrl}${request.path}`)
+  if (request.query) {
+    Object.entries(request.query).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        url.searchParams.append(k, String(v))
       }
-    } catch (e) {
-      try { console.warn("[generalChat] reply canonicalization error", (e as any)?.message || e) } catch {}
-    }
+    })
+  }
 
-    // If we have a summary of an executed API response from the UI, include it in the final reply
-    if (executedSummary) {
-      replyText = [replyText, `\nSummary of latest API result:\n${executedSummary}`].filter(Boolean).join("\n\n")
+  const method = request.method.toUpperCase()
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  }
+
+  if (authHeaders?.authorization) headers["Authorization"] = authHeaders.authorization
+  if (authHeaders?.cookie) headers["Cookie"] = authHeaders.cookie
+
+  const init: RequestInit = {
+    method,
+    headers,
+  }
+
+  if (request.body && method !== 'GET' && method !== 'HEAD') {
+    init.body = JSON.stringify(request.body)
+  }
+
+  try {
+    const res = await fetch(url.toString(), init)
+
+    // Parse response
+    let data
+    const text = await res.text()
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = text
     }
 
     return {
-      reply: replyText,
-      toolCalls,
+      status: res.status,
+      ok: res.ok,
+      data,
+    }
+  } catch (error) {
+    return {
+      status: 500,
+      ok: false,
+      error: (error as Error).message
+    }
+  }
+}
+
+// Step: generate reply, parse/infer tool calls, execute tool activations
+const chatGenerate = createStep({
+  id: "chat-generate",
+  inputSchema: routedInputSchema,
+  outputSchema,
+  execute: async ({ inputData }) => {
+    const threadId = inputData.threadId
+    const resourceId = inputData.resourceId || "ai:general-chat"
+    const apiCtx = (inputData?.context as any)?.api_context || {}
+    const allowPlanning = shouldPlanToolCallsFromMessage(inputData.message)
+    const contextAuth = (inputData?.context as any)?.auth_headers
+    const routedMode = (inputData as any)?.route?.mode as ("recipe" | "hitl" | "tool" | "rag" | "chat" | undefined)
+    let mode: "recipe" | "hitl" | "tool" | "rag" | "chat" = routedMode || (allowPlanning ? "tool" : "chat")
+    const debug =
+      process.env.AI_DEBUG === "true" ||
+      process.env.AI_CHAT_DEBUG === "true" ||
+      Boolean((inputData?.context as any)?.debug)
+
+    if (debug) {
+      try {
+        console.log("[generalChat][debug] start", {
+          threadId,
+          resourceId,
+          routedMode,
+          mode,
+          allowPlanning,
+          hasAuth: Boolean(contextAuth?.authorization || contextAuth?.cookie),
+          msg: String(inputData.message || "").slice(0, 240),
+        })
+      } catch { }
+    }
+
+    // -------------------------------------------------
+    // Recipes (deterministic fast-paths)
+    // -------------------------------------------------
+    // These bypass LLM tool planning for common, high-value list queries.
+    const rawMsg = String(inputData.message || "")
+    const msg = rawMsg.toLowerCase()
+    const isDesignQuery = /\bdesigns?\b/i.test(rawMsg)
+    const wantsApproved = isDesignQuery && /\bapproved\b/i.test(rawMsg)
+    const wantsRecent = isDesignQuery && /\b(recent|recently|latest|newest)\b/i.test(rawMsg)
+    const extractedResource = String((inputData as any)?.extracted?.resource || "").toLowerCase()
+    const isPartnerQuery = /\bpartners?\b/i.test(rawMsg) || extractedResource.includes("partner")
+    const wantsPartnerList =
+      isPartnerQuery && /\b(list|all|show|get|fetch)\b/i.test(rawMsg) && !/\bfeedbacks?\b/i.test(rawMsg)
+
+    if (mode === "recipe" && (wantsApproved || wantsRecent)) {
+      const query: Record<string, any> = {
+        limit: 20,
+        order: "-created_at",
+      }
+      if (wantsApproved) {
+        // Design status enum includes "Approved" in this project.
+        query.status = "Approved"
+      }
+
+      const request = {
+        method: "GET",
+        path: "/admin/designs",
+        query,
+      }
+
+      const execRes = await executeServerSide(request as any, contextAuth)
+      const reply = await summarizeApiResult(generalChatAgent, execRes.data, threadId, resourceId)
+
+      if (debug) {
+        try {
+          console.log("[generalChat][debug] recipe", {
+            request,
+            status: execRes?.status,
+            ok: execRes?.ok,
+          })
+        } catch { }
+      }
+
+      return {
+        reply,
+        toolCalls: [],
+        activations: [
+          {
+            name: "admin_api_request",
+            arguments: { ...request, openapi: { method: "GET", path: "/admin/designs" } },
+            result: {
+              status: "executed",
+              tool: "admin_api_request",
+              request: { ...request, openapi: { method: "GET", path: "/admin/designs" } },
+              response: execRes,
+            },
+          },
+        ],
+        threadId,
+        resourceId,
+      }
+    }
+
+    // HITL INTEGRATION: use when the request requires disambiguation (e.g. customer name)
+    // - analytics/website/domain: multi-step ID resolution
+    // - orders of/for <name>: resolve customer, suspend if multiple, then fetch orders via customer_id
+    const shouldUseHitl = mode === "hitl"
+    if (shouldUseHitl) {
+      try {
+        const externalRunId = uuidv4()
+        const hitlRun = await multiStepApiRequestWorkflow.createRunAsync({
+          runId: externalRunId,
+        })
+        const hitlResult = await hitlRun.start({
+          inputData: {
+            message: inputData.message,
+            threadId,
+            context: inputData.context,
+          },
+        })
+
+        if (debug) {
+          try {
+            const status = (hitlResult as any)?.status
+            const suspended = (hitlResult as any)?.suspended
+            const detectOut =
+              (hitlResult as any)?.steps?.["detect-multi-step"]?.output ||
+              (hitlResult as any)?.steps?.["detect-multi-step"] ||
+              undefined
+            console.log("[generalChat][debug] hitl", {
+              runId: (hitlRun as any)?.runId,
+              status,
+              suspended: Array.isArray(suspended) ? suspended.map((s: any) => s?.stepId || s) : suspended,
+              detectOut,
+              stepKeys: Object.keys(((hitlResult as any)?.steps || {}) as any),
+            })
+          } catch { }
+        }
+
+        const detectOut =
+          (hitlResult as any)?.steps?.["detect-multi-step"]?.output ||
+          (hitlResult as any)?.steps?.["detect-multi-step"] ||
+          undefined
+
+        const hitlTraceActivation = {
+          name: "hitl_attempt",
+          arguments: {},
+          result: {
+            status: "executed",
+            runId: externalRunId,
+            detect: detectOut,
+            workflowStatus: (hitlResult as any)?.status,
+          },
+        }
+        const needsDisambiguation =
+          Boolean((hitlResult as any)?.output?.needsDisambiguation) ||
+          Boolean(detectOut?.needsDisambiguation)
+
+        if (debug) {
+          try {
+            console.log("[generalChat][debug] hitl needsDisambiguation", {
+              needsDisambiguation,
+              top: (hitlResult as any)?.output?.needsDisambiguation,
+              detect: detectOut?.needsDisambiguation,
+            })
+          } catch { }
+        }
+
+        // If HITL workflow detected a multi-step scenario
+        if (needsDisambiguation) {
+          if ((hitlResult as any).status === "suspended") {
+            try {
+              runStorage.set(externalRunId, hitlRun)
+            } catch { }
+
+            const rawSuspended = (hitlResult as any).suspended?.[0]
+            const suspendStepId =
+              typeof rawSuspended === "string"
+                ? rawSuspended
+                : Array.isArray(rawSuspended)
+                  ? rawSuspended[0]
+                  : (rawSuspended as any)?.stepId
+
+            const suspendPayload = suspendStepId
+              ? (hitlResult as any)?.steps?.[suspendStepId]?.suspendPayload
+              : null
+
+            if (debug) {
+              try {
+                console.log("[generalChat][debug] hitl suspended", {
+                  rawSuspended,
+                  suspendStepId,
+                  suspendPayload,
+                })
+              } catch { }
+            }
+
+            return {
+              reply: suspendPayload?.reason || "Please select an option:",
+              toolCalls: [],
+              activations: [hitlTraceActivation],
+              threadId,
+              resourceId,
+              suspended: true,
+              suspendPayload,
+              runId: externalRunId,
+            }
+          }
+
+          const finalOut =
+            (hitlResult as any)?.steps?.["execute-final-api"]?.output ||
+            (hitlResult as any)?.output ||
+            (hitlResult as any)?.result
+
+          const result = (finalOut as any)?.result
+          const meta = (finalOut as any)?.meta
+          const hitlError = (finalOut as any)?.error
+
+          if (debug) {
+            try {
+              console.log("[generalChat][debug] hitl final", {
+                hasResult: Boolean(result),
+                resultKeys: result && typeof result === "object" ? Object.keys(result) : undefined,
+                meta,
+              })
+            } catch { }
+          }
+
+          if (!result) {
+            const selectedLabel = meta?.selectedDisplay || meta?.selectedId
+            const identifier = detectOut?.identifier
+            const reply = hitlError
+              ? (identifier
+                  ? `No customers found matching "${identifier}".`
+                  : `Unable to complete the request: ${String(hitlError)}`)
+              : (selectedLabel
+                  ? `No orders found for ${selectedLabel}.`
+                  : "No data found.")
+
+            return {
+              reply,
+              toolCalls: [],
+              activations: [hitlTraceActivation, { name: "multi_step_result", arguments: {}, result: { data: undefined, meta, error: hitlError } }],
+              threadId,
+              resourceId,
+            }
+          }
+
+          if (result) {
+            const dataToSummarize = result
+
+            const wantsProductsBought = /\bwhat\s+products?\b[\s\S]*\b(bought|purchased)\b/i.test(String(inputData.message || ""))
+
+            // If the final API returned an empty list, provide a more specific message.
+            // Common Medusa list shape: { <resource>: [], count: 0, ... }
+            const maybeCount = (dataToSummarize as any)?.count
+            const maybeOrders = (dataToSummarize as any)?.orders
+            const isEmptyList =
+              (typeof maybeCount === "number" && maybeCount === 0) ||
+              (Array.isArray(maybeOrders) && maybeOrders.length === 0)
+
+            const selectedLabel =
+              meta?.selectedDisplay || meta?.selectedId
+
+            const activations: any[] = [
+              hitlTraceActivation,
+              { name: "multi_step_result", arguments: {}, result: { data: dataToSummarize, meta } },
+            ]
+
+            try {
+              const targetEndpoint = String(meta?.targetEndpoint || "")
+              const targetMethod = String(meta?.targetMethod || "GET").toUpperCase()
+              const selectedId = String(meta?.selectedId || "")
+              const linkQueryKey = meta?.linkQueryKey ? String(meta.linkQueryKey) : undefined
+              if (targetEndpoint && targetMethod) {
+                const path = targetEndpoint.includes("{id}") && selectedId
+                  ? targetEndpoint.replace("{id}", selectedId)
+                  : targetEndpoint
+                const query = linkQueryKey && selectedId ? { [linkQueryKey]: selectedId } : undefined
+                const request = { method: targetMethod, path, query }
+                activations.unshift({
+                  name: "admin_api_request",
+                  arguments: { ...request, openapi: { method: targetMethod, path: targetEndpoint } },
+                  result: {
+                    status: "executed",
+                    tool: "admin_api_request",
+                    request: { ...request, openapi: { method: targetMethod, path: targetEndpoint } },
+                    response: { status: 200, ok: true, data: dataToSummarize },
+                  },
+                })
+              }
+            } catch { }
+
+            if (!isEmptyList && wantsProductsBought && Array.isArray(maybeOrders) && maybeOrders.length) {
+              const productCounts = new Map<string, number>()
+              const orderIds = maybeOrders
+                .map((o: any) => String(o?.id || "").trim())
+                .filter(Boolean)
+                .slice(0, 5)
+
+              for (const orderId of orderIds) {
+                const request = { method: "GET", path: `/admin/orders/${orderId}` }
+                const execRes = await executeServerSide(request as any, contextAuth)
+                activations.push({
+                  name: "admin_api_request",
+                  arguments: { ...request, openapi: { method: "GET", path: "/admin/orders/{id}" } },
+                  result: { status: "executed", tool: "admin_api_request", request, response: execRes },
+                })
+
+                const orderObj = (execRes as any)?.data?.order || (execRes as any)?.data
+                const items =
+                  (orderObj as any)?.items ||
+                  (orderObj as any)?.line_items ||
+                  (orderObj as any)?.lineItems ||
+                  []
+
+                if (Array.isArray(items)) {
+                  for (const it of items.slice(0, 50)) {
+                    const title =
+                      String(
+                        it?.title ||
+                        it?.product_title ||
+                        it?.variant_title ||
+                        it?.variant?.title ||
+                        it?.product?.title ||
+                        ""
+                      ).trim()
+                    if (!title) continue
+                    const qty = Number(it?.quantity ?? it?.qty ?? 1) || 1
+                    productCounts.set(title, (productCounts.get(title) || 0) + qty)
+                  }
+                }
+              }
+
+              const top = Array.from(productCounts.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 20)
+                .map(([t, q]) => `${t} (x${q})`)
+
+              const reply = selectedLabel
+                ? `Products purchased by ${selectedLabel}:\n${top.length ? top.join("\n") : "No line items found in fetched orders."}`
+                : `Products purchased:\n${top.length ? top.join("\n") : "No line items found in fetched orders."}`
+
+              return {
+                reply,
+                toolCalls: [],
+                activations,
+                threadId,
+                resourceId,
+              }
+            }
+
+            const reply = (isEmptyList && selectedLabel)
+              ? `No orders found for ${selectedLabel}.`
+              : await summarizeApiResult(
+                  generalChatAgent,
+                  dataToSummarize,
+                  threadId,
+                  resourceId
+                )
+
+            return {
+              reply,
+              toolCalls: [],
+              activations,
+              threadId,
+              resourceId,
+            }
+          }
+        }
+      } catch (e) {
+        try { console.log("[generalChat] HITL check skipped or failed:", (e as any)?.message) } catch { }
+        if (debug) {
+          try { console.log("[generalChat][debug] hitl error", { message: (e as any)?.message || e }) } catch { }
+        }
+        // If HITL fails, fall back to tool mode when planning is allowed.
+        mode = allowPlanning ? "tool" : "chat"
+      }
+    }
+
+    if (mode === "chat") {
+      const gen = await generalChatAgent.generate([
+        { role: "system", content: "You are a helpful assistant for a textile commerce admin." },
+        { role: "user", content: String(inputData.message || "") },
+      ], {
+        memory: { thread: threadId, resource: resourceId },
+      })
+      const text = (gen as any)?.text || ""
+
+      if (debug) {
+        try { console.log("[generalChat][debug] chat gen", { text: String(text).slice(0, 800) }) } catch { }
+      }
+      return {
+        reply: sanitizeAssistantText(text),
+        toolCalls: [],
+        activations: [],
+        threadId,
+        resourceId,
+      }
+    }
+
+    // Retrieve system instructions
+    let opsBlock = ""
+    if (allowPlanning && mode !== "chat") {
+      try {
+        const msg = String(inputData.message || "").trim()
+        // Safely access memory with fallback
+        const ops = await queryAdminEndpoints(msg, undefined, RAG_TOP_K, { threadId, memory })
+        const rendered = formatOperationChunks(ops, MAX_OPERATIONS)
+        if (debug) {
+          try {
+            console.log("[generalChat][debug] rag ops", {
+              count: Array.isArray(ops) ? ops.length : 0,
+              hasRendered: Boolean(rendered),
+            })
+          } catch { }
+        }
+        if (rendered) {
+          opsBlock = [
+            "Available operations (choose only from these):",
+            rendered,
+            "Rules:",
+            "- Use ONLY method/path pairs from the list above.",
+            "- Always use canonical /admin/... paths (never /api/...).",
+          ].join("\n")
+        }
+      } catch (e) { }
+    }
+
+    // Simplified System Prompt
+    const systemPrompt = [
+      "You are a general-purpose AI assistant for a textile commerce platform.",
+      "You have access to the following Admin API operations (RAG Context):",
+      opsBlock || "No specific API operations found.",
+      "",
+      "Rules:",
+      "1. Answer the user's question directly.",
+      "2. If the user asks for data retrieval, you may call tools to fetch the data.",
+      "3. You can call tools multiple times (multi-step), using earlier tool results to decide the next call.",
+      "4. Only use read-only requests (GET) unless the user explicitly asks to create/update/delete.",
+      "5. For GET requests, put query params in 'query' (not in 'body').",
+      "6. If you need the user to disambiguate (e.g. multiple customers named Sarah), ask a short follow-up question.",
+      "",
+      "Examples:",
+      "- User: 'List me all orders of Sarah and what products she bought'",
+      "  Step 1: Call GET /admin/customers?q=Sarah (find the right customer)",
+      "  Step 2: If multiple customers match, ask the user which one.",
+      "  Step 3: Call GET /admin/orders?customer_id=<customer_id> (fetch orders)",
+      "  Step 4: From the order JSON, extract line items and summarize products purchased.",
+      "",
+      "Tool call format (return ONLY this JSON block when calling tools):",
+      "```json\n{\"toolCalls\":[{\"name\":\"admin_api_request\",\"arguments\":{\"method\":\"GET\",\"path\":\"/admin/orders\",\"query\":{\"limit\":20}}}]}\n```",
+      "",
+      "",
+      inputData.extracted ? `Context: ${JSON.stringify(inputData.extracted)}` : undefined,
+    ].filter(Boolean).join("\n")
+
+    const parser = new ToolCallParser()
+    const convo: Array<{ role: string; content: string }> = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: String(inputData.message || "") },
+    ]
+
+    const activations: any[] = []
+
+    if (mode !== "tool") {
+      const gen = await generalChatAgent.generate(convo, {
+        memory: { thread: threadId, resource: resourceId },
+      })
+      const rawText = (gen as any)?.text || ""
+
+      if (debug) {
+        try {
+          console.log("[generalChat][debug] non-tool gen", {
+            mode,
+            text: String(rawText).slice(0, 1200),
+          })
+        } catch { }
+      }
+      return {
+        reply: sanitizeAssistantText(rawText),
+        toolCalls: [],
+        activations,
+        threadId,
+        resourceId,
+      }
+    }
+
+    // Tool-execution loop (server-side, GET-only)
+    for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
+      const gen = await generalChatAgent.generate(convo, {
+        memory: { thread: threadId, resource: resourceId },
+      })
+      const rawText = (gen as any)?.text || ""
+
+      if (debug) {
+        try { console.log("[generalChat][debug] tool-loop gen", { i, text: String(rawText).slice(0, 1200) }) } catch { }
+      }
+
+      const parsedCalls = parser.parse(rawText)
+      const toolCalls = parsedCalls?.length ? parsedCalls : inferToolCallsFromMessage(rawText)
+
+      if (debug) {
+        try {
+          console.log("[generalChat][debug] tool-loop parsed", {
+            i,
+            parsedCount: parsedCalls?.length || 0,
+            inferredCount: toolCalls?.length || 0,
+            first: toolCalls?.[0],
+          })
+        } catch { }
+      }
+
+      if (!toolCalls.length) {
+        return {
+          reply: sanitizeAssistantText(rawText),
+          toolCalls: [],
+          activations,
+          threadId,
+          resourceId,
+        }
+      }
+
+      // Execute tool calls sequentially. Only auto-execute GET admin_api_request.
+      let executedAny = false
+      for (const tc of toolCalls) {
+        const name = String((tc as any)?.name || "")
+        const args = ((tc as any)?.arguments || {}) as Record<string, any>
+        const activation = await executeTool(name, args, apiCtx)
+
+        // If it's a planned GET request, execute server-side with the current admin auth context.
+        if (
+          name === "admin_api_request" &&
+          activation?.status === "planned" &&
+          String(activation?.request?.method || "").toUpperCase() === "GET"
+        ) {
+          const request = activation.request
+
+          if (debug) {
+            try { console.log("[generalChat][debug] exec", { i, request }) } catch { }
+          }
+          const execRes = await executeServerSide(
+            {
+              method: request.method,
+              path: request.path,
+              query: request.query,
+              body: request.body,
+            },
+            contextAuth
+          )
+
+          if (debug) {
+            try { console.log("[generalChat][debug] exec result", { i, status: execRes?.status, ok: execRes?.ok }) } catch { }
+          }
+
+          const executed = {
+            ...activation,
+            status: "executed",
+            response: execRes,
+          }
+
+          activations.push({ name, arguments: args, result: executed })
+          executedAny = true
+
+          const toolText = [
+            `Tool result: ${request.method} ${request.path}`,
+            `Status: ${execRes.status}`,
+            `JSON: ${safeToText(execRes.data, MAX_TOOL_RESULT_CHARS)}`,
+          ].join("\n")
+          convo.push({ role: "assistant", content: toolText })
+        } else {
+          // Not executed; still return as an activation for UI visibility
+          activations.push({ name, arguments: args, result: activation })
+        }
+      }
+
+      if (!executedAny) {
+        // We got tool calls but didn't execute (non-GET or unknown). Return the assistant text as-is.
+        return {
+          reply: sanitizeAssistantText(rawText),
+          toolCalls,
+          activations,
+          threadId,
+          resourceId,
+        }
+      }
+
+      // After executing tools, ask the agent for the final answer in next loop iteration
+      convo.push({
+        role: "user",
+        content: "Using the tool results above, answer the user's original question. If you need more data, call admin_api_request again."
+      })
+    }
+
+    // Fallback if we hit loop limit
+    const finalGen = await generalChatAgent.generate(convo, {
+      memory: { thread: threadId, resource: resourceId },
+    })
+    const finalText = (finalGen as any)?.text || ""
+
+    return {
+      reply: sanitizeAssistantText(finalText),
+      toolCalls: [],
       activations,
-      threadId: inputData.threadId,
-      resourceId: inputData.resourceId,
+      threadId,
+      resourceId,
     }
   },
 })
@@ -811,6 +1447,8 @@ export const generalChatWorkflow = createWorkflow({
   outputSchema,
 })
   .then(initApiCatalog)
+  .then(extractEntities)
+  .then(routeIntent)
   .then(chatGenerate)
   .commit()
 
@@ -819,19 +1457,19 @@ export const generalChatWorkflow = createWorkflow({
 // ===== Catalog utilities (server-side, lazy, cached) =====
 type Endpoint = { method: string; path: string }
 let catalogCache: { ts: number; items: Endpoint[] } | null = null
-const CATALOG_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const CATALOG_TTL_MS = CATALOG_CACHE_CONFIG.TTL_MS
 
 async function getAllowedEndpoints(apiCtx?: { source?: string; allowedEndpoints?: Endpoint[] }): Promise<Endpoint[]> {
   // 1) If caller already provided small allowlist, use it
   const provided = apiCtx?.allowedEndpoints
   if (provided && provided.length) {
-    try { console.log("[AI][catalog] using provided allowlist", { count: provided.length }) } catch {}
+    try { console.log("[AI][catalog] using provided allowlist", { count: provided.length }) } catch { }
     return normalizeEndpoints(provided)
   }
 
   // Cache first
   if (catalogCache && Date.now() - catalogCache.ts < CATALOG_TTL_MS) {
-    try { console.log("[AI][catalog] cache hit", { ttlMs: CATALOG_TTL_MS, count: catalogCache.items.length }) } catch {}
+    try { console.log("[AI][catalog] cache hit", { ttlMs: CATALOG_TTL_MS, count: catalogCache.items.length }) } catch { }
     return catalogCache.items
   }
 
@@ -841,59 +1479,65 @@ async function getAllowedEndpoints(apiCtx?: { source?: string; allowedEndpoints?
   const token = process.env.ADMIN_OPENAPI_CATALOG_TOKEN
   if (headerOverride) {
     headers["Authorization"] = headerOverride
-    try { console.log("[AI][catalog] auth header: override") } catch {}
+    try { console.log("[AI][catalog] auth header: override") } catch { }
   } else if (token) {
     // Accept either already prefixed or raw token per docs (Basic base64("<token>:")).
     const trimmed = String(token).trim()
-    if (/^Basic\s+/i.test(trimmed)) {
+    if (/^(Bearer|Basic)\s+/i.test(trimmed)) {
       headers["Authorization"] = trimmed
-      try { console.log("[AI][catalog] auth header: provided Basic") } catch {}
+      try { console.log("[AI][catalog] auth header: provided") } catch { }
     } else {
       const basic = `Basic ${Buffer.from(`${trimmed}:`).toString("base64")}`
       headers["Authorization"] = basic
-      try { console.log("[AI][catalog] auth header: built Basic from token") } catch {}
+      try { console.log("[AI][catalog] auth header: built Basic from token") } catch { }
     }
   }
 
   // Resolve URL (allow env or apiCtx). Ensure absolute URL when provided path is relative.
   const rawUrl =
-    process.env.ADMIN_OPENAPI_CATALOG_URL ||
+    String(process.env.ADMIN_OPENAPI_CATALOG_URL || "").trim() ||
     (isProbablyUrl(apiCtx?.source)
       ? String(apiCtx?.source)
       : String(apiCtx?.source || "")) ||
     "/admin/ai/openapi/catalog"
   function toAbsolute(u: string): string {
-    if (!u) return ""
-    if (/^https?:\/\//i.test(u)) return u
+    const uu = String(u || "").trim()
+    if (!uu) return ""
+    if (/^https?:\/\//i.test(uu)) return uu
     // relative path → prefix with base
     const base = process.env.ADMIN_OPENAPI_BASE_URL || process.env.MEDUSA_BACKEND_URL || process.env.URL || ""
     if (!base) return ""
-    return `${base.replace(/\/$/, "")}/${u.replace(/^\//, "")}`
+    return `${base.replace(/\/$/, "")}/${uu.replace(/^\//, "")}`
   }
+  // Bypass fetch in test environment to avoid port issues
+  if (process.env.NODE_ENV === "test" || process.env.MASTRA_BYPASS === "true") {
+    return [{ method: "GET", path: "/admin/products" }]
+  }
+
   const url = toAbsolute(rawUrl)
   if (!url) {
-    try { console.warn("[AI][catalog] no valid catalog URL", { rawUrl, env: { ADMIN_OPENAPI_CATALOG_URL: Boolean(process.env.ADMIN_OPENAPI_CATALOG_URL), ADMIN_OPENAPI_BASE_URL: Boolean(process.env.ADMIN_OPENAPI_BASE_URL), MEDUSA_BACKEND_URL: Boolean(process.env.MEDUSA_BACKEND_URL), URL: Boolean(process.env.URL) } }) } catch {}
+    try { console.warn("[AI][catalog] no valid catalog URL", { rawUrl, env: { ADMIN_OPENAPI_CATALOG_URL: Boolean(process.env.ADMIN_OPENAPI_CATALOG_URL), ADMIN_OPENAPI_BASE_URL: Boolean(process.env.ADMIN_OPENAPI_BASE_URL), MEDUSA_BACKEND_URL: Boolean(process.env.MEDUSA_BACKEND_URL), URL: Boolean(process.env.URL) } }) } catch { }
     return []
   }
   try {
-    try { console.log("[AI][catalog] fetching", { url, withAuth: Boolean(token) }) } catch {}
+    try { console.log("[AI][catalog] fetching", { url, withAuth: Boolean(token) }) } catch { }
     const r = await f(url, { headers })
-    try { console.log("[AI][catalog] response", { status: r.status }) } catch {}
+    try { console.log("[AI][catalog] response", { status: r.status }) } catch { }
     if (!r.ok) {
-      try { console.warn("[AI][catalog] non-OK status", { status: r.status }) } catch {}
+      try { console.warn("[AI][catalog] non-OK status", { status: r.status }) } catch { }
       return []
     }
     const data = await r.json()
     // Expect either an array of endpoints or a full spec with paths
     const items = extractEndpointsFromCatalog(data)
     if (!items.length) {
-      try { console.warn("[AI][catalog] zero endpoints from catalog; top-level keys", Object.keys(data || {})) } catch {}
+      try { console.warn("[AI][catalog] zero endpoints from catalog; top-level keys", Object.keys(data || {})) } catch { }
     }
     catalogCache = { ts: Date.now(), items }
-    try { console.log("[AI][catalog] loaded", { count: items.length }) } catch {}
+    try { console.log("[AI][catalog] loaded", { count: items.length }) } catch { }
     return items
   } catch {
-    try { console.error("[AI][catalog] fetch error") } catch {}
+    try { console.error("[AI][catalog] fetch error") } catch { }
     return []
   }
 }
@@ -906,7 +1550,7 @@ function isProbablyUrl(s?: string) {
 function extractEndpointsFromCatalog(data: any): Endpoint[] {
   // If already list of { method, path }
   if (Array.isArray(data) && data.length && data[0]?.method && data[0]?.path) {
-    try { console.log("[AI][catalog] parse: root array endpoints", { count: data.length }) } catch {}
+    try { console.log("[AI][catalog] parse: root array endpoints", { count: data.length }) } catch { }
     return normalizeEndpoints(data as Endpoint[])
   }
 
@@ -921,7 +1565,7 @@ function extractEndpointsFromCatalog(data: any): Endpoint[] {
   ].find((arr) => Array.isArray(arr) && arr.length && arr[0] && (arr[0].method || arr[0].verb) && (arr[0].path || arr[0].url))
   if (candidates) {
     const mapped = (candidates as any[]).map((e) => ({ method: String(e.method || e.verb || "").toUpperCase(), path: String(e.path || e.url || "") }))
-    try { console.log("[AI][catalog] parse: array wrapper endpoints", { count: mapped.length }) } catch {}
+    try { console.log("[AI][catalog] parse: array wrapper endpoints", { count: mapped.length }) } catch { }
     return normalizeEndpoints(mapped)
   }
 
@@ -946,7 +1590,7 @@ function extractEndpointsFromCatalog(data: any): Endpoint[] {
         }
       }
     }
-    try { console.log("[AI][catalog] parse: openapi paths", { count: items.length }) } catch {}
+    try { console.log("[AI][catalog] parse: openapi paths", { count: items.length }) } catch { }
   }
   return normalizeEndpoints(items)
 }
@@ -998,7 +1642,7 @@ function normalizePath(path: string): string {
 async function getCatalogIndex(apiCtx?: { source?: string; allowedEndpoints?: Endpoint[] }): Promise<CatalogIndex> {
   // Cache hit
   if (catalogIndexCache && Date.now() - catalogIndexCache.ts < CATALOG_TTL_MS) {
-    try { console.log("[AI][catalog] index cache hit") } catch {}
+    try { console.log("[AI][catalog] index cache hit") } catch { }
     return catalogIndexCache.index
   }
 
@@ -1020,6 +1664,6 @@ async function getCatalogIndex(apiCtx?: { source?: string; allowedEndpoints?: En
   }
 
   catalogIndexCache = { ts: Date.now(), index }
-  try { console.log("[AI][catalog] index built", { size: index.size }) } catch {}
+  try { console.log("[AI][catalog] index built", { size: index.size }) } catch { }
   return index
 }

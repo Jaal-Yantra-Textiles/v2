@@ -1,6 +1,6 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { MedusaError } from "@medusajs/framework/utils"
-import { mastra } from "../../mastra"
+import { mastra, mastraStorageInit } from "../../mastra"
 import { queryAdminEndpoints } from "../../mastra/rag/adminCatalog"
 
 export type GeneralChatInput = {
@@ -31,6 +31,8 @@ const runMastraGeneralChat = createStep(
   "general-chat:run-mastra",
   async (input: GeneralChatInput) => {
     try {
+      await mastraStorageInit
+
       // Initialize and run using the same reliable pattern as image-extraction
       const run = await mastra.getWorkflow("generalChatWorkflow").createRunAsync()
       const result = await run.start({ inputData: {
@@ -45,6 +47,9 @@ const runMastraGeneralChat = createStep(
         ?? ""
       const toolCalls = (result as any)?.toolCalls
         ?? (result as any)?.steps?.run?.output?.toolCalls
+        ?? []
+      const activations = (result as any)?.activations
+        ?? (result as any)?.steps?.run?.output?.activations
         ?? []
       const threadId = (result as any)?.threadId
         ?? (result as any)?.steps?.run?.output?.threadId
@@ -68,7 +73,7 @@ const runMastraGeneralChat = createStep(
         throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "chat-generate error Provider returned empty reply")
       }
 
-      return new StepResponse({ reply, toolCalls, threadId, resourceId, message: input.message } as any)
+      return new StepResponse({ reply, toolCalls, activations, threadId, resourceId, message: input.message } as any)
     } catch (e: any) {
       // Propagate error so API/stream can surface it to UI
       throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `chat-generate error ${e?.message || e}`)
@@ -107,7 +112,7 @@ const augmentToolCallsWithRag = createStep(
 const executeToolCalls = createStep(
   "general-chat:execute-tools",
   async (input: GeneralChatResult) => {
-    return new StepResponse({ ...input, activations: [] })
+    return new StepResponse({ ...input, activations: input.activations || [] })
   }
 )
 

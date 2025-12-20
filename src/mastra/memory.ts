@@ -7,6 +7,7 @@ import { google } from "@ai-sdk/google-v5";
 // Uses DATABASE_URL or MEDUSA_DB_URL for connection
 
 let memory: any | undefined
+let sharedStorage: any | undefined
 
 try {
   const connectionString =
@@ -23,9 +24,10 @@ try {
     !embeddingsEnabled
 
   if (connectionString) {
+    sharedStorage = new PostgresStore({ connectionString })
     if (embeddingsDisabled) {
       memory = new Memory({
-        storage: new PostgresStore({ connectionString }),
+        storage: sharedStorage,
         options: {
           workingMemory: { enabled: true },
           lastMessages: 10,
@@ -35,9 +37,9 @@ try {
       console.log("[mastra:memory] Initialized Postgres-backed memory (embeddings disabled)")
     } else {
       memory = new Memory({
-        storage: new PostgresStore({ connectionString }),
+        storage: sharedStorage,
         vector: new PgVector({ connectionString }),
-        embedder: google.textEmbeddingModel("gemini-embedding-001"),
+        embedder: google.textEmbeddingModel("text-embedding-004", { outputDimensionality: 768 }),
         options: {
           workingMemory: { enabled: true },
           lastMessages: 10,
@@ -59,6 +61,7 @@ try {
   // eslint-disable-next-line no-console
   console.warn("[mastra:memory] Failed to initialize memory:", (e as any)?.message)
   memory = undefined
+  sharedStorage = undefined
 }
 
-export { memory }
+export { memory, sharedStorage }

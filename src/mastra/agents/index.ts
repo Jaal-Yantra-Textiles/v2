@@ -3,6 +3,7 @@ import { openai } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { createAnswerRelevancyScorer, createPromptAlignmentScorerLLM } from "@mastra/evals/scorers/llm";
 import { memory } from "../memory";
 
 export const seoAgent = new Agent({
@@ -41,6 +42,16 @@ export const designAgent = new Agent({
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
+
+const scorerSampleRate = (() => {
+  const rateRaw = Number(process.env.MASTRA_SCORING_SAMPLE_RATE ?? "0.1")
+  if (!Number.isFinite(rateRaw)) {
+    return 0.1
+  }
+  return Math.max(0, Math.min(1, rateRaw))
+})()
+
+const judgeModel = openrouter("mistralai/devstral-2512:free") as any
 
 // Create an agent
 export const productDescriptionAgent = new Agent({
@@ -84,6 +95,16 @@ export const generalChatAgent = new Agent({
   instructions:
     "You are a concise, helpful assistant for a textile commerce platform. " +
     "Answer briefly and propose actions when appropriate.",
+  scorers: {
+    answerRelevancy: {
+      scorer: createAnswerRelevancyScorer({ model: judgeModel }),
+      sampling: { type: "ratio", rate: scorerSampleRate },
+    },
+    promptAlignment: {
+      scorer: createPromptAlignmentScorerLLM({ model: judgeModel }),
+      sampling: { type: "ratio", rate: scorerSampleRate },
+    },
+  },
   memory,
 })
 

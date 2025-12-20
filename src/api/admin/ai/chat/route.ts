@@ -41,7 +41,13 @@ export const POST = async (
         message: body.message,
         threadId: body.threadId,
         resourceId: body.resourceId,
-        context: body.context,
+        context: {
+          ...body.context,
+          auth_headers: {
+            authorization: req.headers.authorization,
+            cookie: req.headers.cookie,
+          }
+        },
       },
     })
 

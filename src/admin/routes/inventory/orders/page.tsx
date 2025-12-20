@@ -219,7 +219,7 @@ const InventoryOrdersPage = () => {
               <Button
                 size="small"
                 variant="secondary"
-                onClick={() => navigate("/chats?entity=inventory_order")}
+                onClick={() => navigate("/chats-v2?entity=inventory_order")}
               >
                 CreateAI
               </Button>

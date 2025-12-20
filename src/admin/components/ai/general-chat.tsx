@@ -12,6 +12,7 @@ import {
 } from "../../hooks/api/ai"
 import { useAdminApiExecutor, useRemoteAdminApiCatalog, AdminEndpoint } from "../../hooks/api/admin-catalog"
 import { sdk } from "../../lib/config"
+import { SuspendedWorkflowSelector } from "./chat/suspended-workflow-selector"
 import { InlineTip } from "../common/inline-tip"
 import { DataTableRoot } from "../table/data-table-root"
 import { ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
@@ -32,6 +33,143 @@ const bubbleClass = (role: ChatMessage["role"]) =>
   role === "user"
     ? "ml-auto bg-ui-bg-base border border-ui-border-base"
     : "mr-auto bg-ui-bg-subtle"
+
+const escapeHtml = (input: string) =>
+  String(input)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+
+const renderInlineMarkdown = (escaped: string) => {
+  // escaped is already HTML-escaped; safe to inject tags below
+  let s = escaped
+  // inline code
+  s = s.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-ui-bg-base text-xs">$1</code>')
+  // bold
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold">$1</strong>')
+  // italic (avoid matching bold)
+  s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em class="italic">$2</em>')
+  // links
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a class="underline" href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+  return s
+}
+
+const renderMarkdownToHtml = (md: string) => {
+  const src = String(md || "")
+  const lines = src.split(/\r?\n/)
+
+  let out = ""
+  let inCode = false
+  let codeBuffer: string[] = []
+  let listType: "ul" | "ol" | null = null
+
+  const closeList = () => {
+    if (!listType) return
+    out += listType === "ul" ? "</ul>" : "</ol>"
+    listType = null
+  }
+
+  const flushCode = () => {
+    const code = escapeHtml(codeBuffer.join("\n"))
+    out += `<pre class="mt-2 mb-2 overflow-auto rounded bg-ui-bg-base p-2 text-xs"><code>${code}</code></pre>`
+    codeBuffer = []
+  }
+
+  for (const rawLine of lines) {
+    const line = String(rawLine)
+
+    // Code fences
+    if (line.trim().startsWith("```")) {
+      if (!inCode) {
+        closeList()
+        inCode = true
+      } else {
+        inCode = false
+        flushCode()
+      }
+      continue
+    }
+
+    if (inCode) {
+      codeBuffer.push(line)
+      continue
+    }
+
+    // Horizontal rule
+    if (/^\s*---\s*$/.test(line)) {
+      closeList()
+      out += '<hr class="my-3 border-ui-border-base" />'
+      continue
+    }
+
+    // Headings
+    const h = line.match(/^(#{1,6})\s+(.*)$/)
+    if (h) {
+      closeList()
+      const level = Math.min(6, h[1].length)
+      const text = renderInlineMarkdown(escapeHtml(h[2] || ""))
+      const cls =
+        level === 1
+          ? "text-lg font-semibold mt-2"
+          : level === 2
+            ? "text-base font-semibold mt-2"
+            : "text-sm font-semibold mt-2"
+      out += `<h${level} class="${cls}">${text}</h${level}>`
+      continue
+    }
+
+    // Unordered list
+    const ul = line.match(/^\s*[-*]\s+(.*)$/)
+    if (ul) {
+      const item = renderInlineMarkdown(escapeHtml(ul[1] || ""))
+      if (listType !== "ul") {
+        closeList()
+        listType = "ul"
+        out += '<ul class="mt-2 mb-2 list-disc pl-5 space-y-1">'
+      }
+      out += `<li>${item}</li>`
+      continue
+    }
+
+    // Ordered list
+    const ol = line.match(/^\s*(\d+)\.\s+(.*)$/)
+    if (ol) {
+      const item = renderInlineMarkdown(escapeHtml(ol[2] || ""))
+      if (listType !== "ol") {
+        closeList()
+        listType = "ol"
+        out += '<ol class="mt-2 mb-2 list-decimal pl-5 space-y-1">'
+      }
+      out += `<li>${item}</li>`
+      continue
+    }
+
+    // Blank line => break paragraph/list
+    if (!line.trim()) {
+      closeList()
+      out += '<div class="h-2"></div>'
+      continue
+    }
+
+    closeList()
+    out += `<p class="text-sm leading-6">${renderInlineMarkdown(escapeHtml(line))}</p>`
+  }
+
+  if (inCode && codeBuffer.length) {
+    inCode = false
+    flushCode()
+  }
+  closeList()
+
+  return out
+}
+
+const MarkdownMessage: React.FC<{ value: string }> = ({ value }) => {
+  const html = React.useMemo(() => renderMarkdownToHtml(value), [value])
+  return <div className="break-words" dangerouslySetInnerHTML={{ __html: html }} />
+}
 
 const AdminApiModal: React.FC<{
   catalog: AdminEndpoint[]
@@ -70,91 +208,103 @@ const AdminApiModal: React.FC<{
   onRun,
   isRunning,
 }) => {
-  return (
-    <StackedFocusModal id="admin-api-modal">
-      <StackedFocusModal.Trigger asChild>
-        <Button size="small" variant="secondary" type="button">APIs</Button>
-      </StackedFocusModal.Trigger>
-      <StackedFocusModal.Content className="flex flex-col">
-        <StackedFocusModal.Header>
-          <StackedFocusModal.Title>Admin API Catalog ({catalogSource})</StackedFocusModal.Title>
-        </StackedFocusModal.Header>
-        <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[70vh] overflow-y-auto">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <div className="w-64">
-                <Input placeholder="Search endpoints" value={apiSearch} onChange={(e) => setApiSearch(e.target.value)} />
+    return (
+      <StackedFocusModal id="admin-api-modal">
+        <StackedFocusModal.Trigger asChild>
+          <Button size="small" variant="secondary" type="button">APIs</Button>
+        </StackedFocusModal.Trigger>
+        <StackedFocusModal.Content className="flex flex-col">
+          <StackedFocusModal.Header>
+            <StackedFocusModal.Title>Admin API Catalog ({catalogSource})</StackedFocusModal.Title>
+          </StackedFocusModal.Header>
+          <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[70vh] overflow-y-auto">
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <div className="w-64">
+                  <Input placeholder="Search endpoints" value={apiSearch} onChange={(e) => setApiSearch(e.target.value)} />
+                </div>
+              </div>
+              <div className="mb-2">
+                <Select value={selectedEndpointId} onValueChange={setSelectedEndpointId}>
+                  <Select.Trigger>
+                    <Select.Value placeholder="Select an endpoint…" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {catalog.map((ep) => (
+                      <Select.Item key={ep.id} value={ep.id}>
+                        {ep.method} {ep.path} · {ep.summary}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              </div>
+              {selected && (
+                <div className="text-xs text-ui-fg-subtle space-y-1">
+                  <div><b>Method:</b> {selected.method}</div>
+                  <div><b>Path:</b> {selected.path}</div>
+                  <div><b>Tags:</b> {(selected.tags || []).join(", ")}</div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div>
+                <Text className="text-ui-fg-subtle text-small">Path Params</Text>
+                <Textarea rows={4} value={pathParamsJson} onChange={(e) => setPathParamsJson(e.target.value)} />
+              </div>
+              <div>
+                <Text className="text-ui-fg-subtle text-small">Query</Text>
+                <Textarea rows={4} value={queryJson} onChange={(e) => setQueryJson(e.target.value)} />
+              </div>
+              <div>
+                <Text className="text-ui-fg-subtle text-small">Body</Text>
+                <Textarea rows={6} value={bodyJson} onChange={(e) => setBodyJson(e.target.value)} />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-ui-fg-subtle text-small">
+                  <input type="checkbox" checked={showJson} onChange={(e) => setShowJson(e.target.checked)} />
+                  See JSON
+                </label>
+                <Button
+                  size="small"
+                  type="button"
+                  disabled={!selected || isRunning}
+                  isLoading={isRunning}
+                  onClick={onRun}
+                >
+                  Run API
+                </Button>
               </div>
             </div>
-            <div className="mb-2">
-              <Select value={selectedEndpointId} onValueChange={setSelectedEndpointId}>
-                <Select.Trigger>
-                  <Select.Value placeholder="Select an endpoint…" />
-                </Select.Trigger>
-                <Select.Content>
-                  {catalog.map((ep) => (
-                    <Select.Item key={ep.id} value={ep.id}>
-                      {ep.method} {ep.path} · {ep.summary}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-            </div>
-            {selected && (
-              <div className="text-xs text-ui-fg-subtle space-y-1">
-                <div><b>Method:</b> {selected.method}</div>
-                <div><b>Path:</b> {selected.path}</div>
-                <div><b>Tags:</b> {(selected.tags || []).join(", ")}</div>
-              </div>
-            )}
           </div>
-          <div className="space-y-2">
-            <div>
-              <Text className="text-ui-fg-subtle text-small">Path Params</Text>
-              <Textarea rows={4} value={pathParamsJson} onChange={(e) => setPathParamsJson(e.target.value)} />
+          <StackedFocusModal.Footer>
+            <div className="flex w-full items-center justify-end gap-x-2">
+              <StackedFocusModal.Close asChild>
+                <Button variant="secondary">Close</Button>
+              </StackedFocusModal.Close>
             </div>
-            <div>
-              <Text className="text-ui-fg-subtle text-small">Query</Text>
-              <Textarea rows={4} value={queryJson} onChange={(e) => setQueryJson(e.target.value)} />
-            </div>
-            <div>
-              <Text className="text-ui-fg-subtle text-small">Body</Text>
-              <Textarea rows={6} value={bodyJson} onChange={(e) => setBodyJson(e.target.value)} />
-            </div>
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-ui-fg-subtle text-small">
-                <input type="checkbox" checked={showJson} onChange={(e) => setShowJson(e.target.checked)} />
-                See JSON
-              </label>
-              <Button
-                size="small"
-                type="button"
-                disabled={!selected || isRunning}
-                isLoading={isRunning}
-                onClick={onRun}
-              >
-                Run API
-              </Button>
-            </div>
-          </div>
-        </div>
-        <StackedFocusModal.Footer>
-          <div className="flex w-full items-center justify-end gap-x-2">
-            <StackedFocusModal.Close asChild>
-              <Button variant="secondary">Close</Button>
-            </StackedFocusModal.Close>
-          </div>
-        </StackedFocusModal.Footer>
-      </StackedFocusModal.Content>
-    </StackedFocusModal>
-  )
-}
+          </StackedFocusModal.Footer>
+        </StackedFocusModal.Content>
+      </StackedFocusModal>
+    )
+  }
 
 // Use Medusa UI Spinner as typing indicator during streaming
 
 export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) => {
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [input, setInput] = React.useState("")
+  const [isResuming, setIsResuming] = React.useState<boolean>(false)
+  const [resumeStep, setResumeStep] = React.useState<string | undefined>(undefined)
+
+  // HITL: Suspended workflow state
+  const [suspendedWorkflow, setSuspendedWorkflow] = React.useState<{
+    runId: string
+    reason: string
+    options: Array<{ id: string; display: string }>
+    actions?: Array<{ id: string; label: string }>
+    totalCount?: number
+  } | null>(null)
+
   const createLocalId = React.useCallback(() => {
     return typeof crypto !== "undefined" && (crypto as any).randomUUID
       ? (crypto as any).randomUUID()
@@ -173,6 +323,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
 
   const [useStreaming, setUseStreaming] = React.useState<boolean>(true)
   const [autoRunTools, setAutoRunTools] = React.useState<boolean>(false)
+  const [debugLogs, setDebugLogs] = React.useState<boolean>(false)
   const [apiSearch, setApiSearch] = React.useState<string>("")
   const [catalog, setCatalog] = React.useState<AdminEndpoint[]>([])
   const [selectedEndpointId, setSelectedEndpointId] = React.useState<string>("")
@@ -186,6 +337,8 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
 
   // Planned actions for non-streaming responses
   const [manualPlanned, setManualPlanned] = React.useState<any[]>([])
+
+  const bottomRef = React.useRef<HTMLDivElement>(null)
 
   // Results are shown inline as chat messages now; no separate preview panel
   const [showJson, setShowJson] = React.useState<boolean>(false) // still used by AdminApiModal
@@ -235,9 +388,100 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
   const threadApi = useChatThread()
   const createThreadApi = useCreateChatThread()
 
+  // Auto-scroll to bottom
+  React.useEffect(() => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [messages, stream.state.activeStep, suspendedWorkflow])
+
   const canSend = input.trim().length > 0 && !chat.isPending && !stream.state.isStreaming
 
+  // Sync stream suspended state to local state
+  React.useEffect(() => {
+    if (stream.state.suspended) {
+      setSuspendedWorkflow(stream.state.suspended)
+    }
+  }, [stream.state.suspended])
+
+  const handleResumeWorkflow = async (selectedId: string, type: "option" | "action" = "option") => {
+    if (!suspendedWorkflow) return
+
+    // The stream closes on suspend (no 'end' event), so clear its UI state before resuming via POST
+    try {
+      stream.stop()
+    } catch { }
+
+    setSuspendedWorkflow(null) // Hide immediately
+
+    // Add optimistic user message for selection
+    const selectionLabel = type === "action"
+      ? suspendedWorkflow.actions?.find(a => a.id === selectedId)?.label
+      : suspendedWorkflow.options.find(o => o.id === selectedId)?.display
+
+    if (selectionLabel) {
+      setMessages(m => [...m, { role: "user", content: `Selected: ${selectionLabel}` }])
+    }
+
+    try {
+      setIsResuming(true)
+      setResumeStep("Resuming workflow...")
+
+      const resp = await fetch(`/admin/ai/workflows/${suspendedWorkflow.runId}/resume`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          step: "confirm-selection",
+          resumeData: {
+            selectedId: type === "option" ? selectedId : "",
+            action: type === "action" ? selectedId : undefined,
+            confirmed: true,
+          },
+        }),
+      })
+
+      const response = (await resp.json()) as any
+
+      // Add result to chat
+      if (response.status === "completed") {
+        setMessages(m => [...m, {
+          role: "assistant",
+          kind: "summary",
+          content: typeof response.reply === "string" && response.reply.trim().length
+            ? response.reply
+            : summarizeDataHeuristic(response.result),
+          data: { response: response.result, tip: response.tip },
+        }, {
+          role: "assistant",
+          content: "What would you like to do next?\n- Load more orders for this customer\n- Fetch orders for another customer\n- View details of a specific order",
+        }])
+      } else if (response.status === "suspended") {
+        // Handle re-suspension (e.g., multi-turn)
+        setSuspendedWorkflow({
+          runId: response.runId,
+          reason: response.suspendPayload.reason,
+          options: response.suspendPayload.options,
+          actions: response.suspendPayload.actions,
+          totalCount: response.suspendPayload.totalCount,
+        })
+      }
+    } catch (error: any) {
+      console.error("Resume failed:", error)
+      setMessages(m => [...m, {
+        role: "assistant",
+        content: `Failed to resume workflow: ${error?.message || "Unknown error"}`
+      }])
+    } finally {
+      setIsResuming(false)
+      setResumeStep(undefined)
+    }
+  }
+
   const uiMessageToText = React.useCallback((content: any): string => {
+    // ... existing uiMessageToText implementation
     if (typeof content === "string") return content
     if (content == null) return ""
     // Mastra uiMessages often come as array parts or structured objects
@@ -323,7 +567,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
 
   // Fetch remote OpenAPI-backed catalog with fallback
   React.useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       const { items, source } = await useRemoteAdminApiCatalog(apiSearch)
       setCatalog(items)
       setCatalogSource(source)
@@ -485,7 +729,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
         correctedPath = hyphenated
         try {
           console.log("[AI][planned] auto-corrected path", { from: path, to: correctedPath })
-        } catch {}
+        } catch { }
         setMessages((m) => [
           ...m,
           { role: "assistant", content: `Adjusted endpoint to ${method} ${correctedPath} (normalized)` },
@@ -493,7 +737,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
       }
     }
     if (!match) {
-      try { console.warn("[AI][planned] No catalog match", { method, path }) } catch {}
+      try { console.warn("[AI][planned] No catalog match", { method, path }) } catch { }
       setMessages((m) => [
         ...m,
         {
@@ -505,7 +749,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
     }
     try {
       console.log("[AI][planned] click →", { tool, method, path: correctedPath, body: reqLike?.body, args: (reqLike as any)?.args })
-    } catch {}
+    } catch { }
     runPlanned(tool, { method, path: correctedPath, body: reqLike?.body })
   }
 
@@ -552,7 +796,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
           path: req.path,
           body: init.body,
         })
-      } catch {}
+      } catch { }
       const res = await sdk.client.fetch(req.path, init)
       const json = res as any
       const ok = true
@@ -621,7 +865,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
           query,
           body,
         })
-      } catch {}
+      } catch { }
       const resp = await apiExec.mutateAsync({
         method: selected.method as any,
         path: selected.path,
@@ -658,7 +902,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
         const body = JSON.parse(bodyJson || "{}")
         const key = makeRequestKey({ method: selected.method, path: selected.path, pathParams, query, body })
         inFlightRequestsRef.current.delete(key)
-      } catch {}
+      } catch { }
     }
   }
 
@@ -690,6 +934,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
         entity: entity || undefined,
         entity_id: entityId || undefined,
         ui: "admin",
+        debug: debugLogs,
         api_context: {
           source: catalogSource,
           selectedEndpointId: selectedEndpointId || undefined,
@@ -791,6 +1036,17 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
                 onChange={(e) => setAutoRunTools(e.target.checked)}
               />
               Auto-run tools
+            </label>
+            <label className="flex items-center gap-2 text-ui-fg-subtle text-small">
+              <input
+                type="checkbox"
+                checked={debugLogs}
+                onChange={(e) => {
+                  if (stream.state.isStreaming) return
+                  setDebugLogs(e.target.checked)
+                }}
+              />
+              Debug
             </label>
             <AdminApiModal
               catalog={catalog}
@@ -910,12 +1166,18 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
                       ) : m.role === "assistant" && m.kind === "summary" ? (
                         <div>
                           <InlineTip label="Summary of latest API result">
-                            <span className="whitespace-pre-wrap">{m.content}</span>
+                            <span className="whitespace-pre-wrap">
+                              {typeof (m as any)?.data?.tip === "string" && (m as any).data.tip.trim().length
+                                ? (m as any).data.tip
+                                : "Orders fetched"}
+                            </span>
                           </InlineTip>
-                          <PreviewTable data={m.data?.response} title="Preview" />
+                          <div className="mt-2">
+                            <MarkdownMessage value={m.content} />
+                          </div>
                         </div>
                       ) : (
-                        m.content
+                        m.role === "assistant" ? <MarkdownMessage value={m.content} /> : m.content
                       )}
                       {stream.state.isStreaming && i === messages.length - 1 && m.role === "assistant" && !m.content ? (
                         <Spinner className="inline-block ml-1 align-middle" />
@@ -925,7 +1187,10 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
                 ))}
               </div>
 
-              {(stream.state.actions?.planned?.length || manualPlanned.length) ? (
+              {(stream.state.actions?.planned?.length ||
+                manualPlanned.length ||
+                (Array.isArray(stream.state.actions?.activations) &&
+                  stream.state.actions.activations.some((a: any) => a?.result?.status === "executed" && a?.result?.request))) ? (
                 <div className="mt-4 border border-dashed border-ui-border-base rounded-md p-3 bg-ui-bg-base">
                   <Text className="text-ui-fg-subtle text-small block mb-2">Planned actions</Text>
                   <div className="flex flex-wrap gap-2">
@@ -938,14 +1203,34 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
                         onClick={() => validateAndRun(p.tool, (p as any).request)}
                         disabled={
                           stream.state.isStreaming ||
-                          !(p as any)?.request?.openapi?.method ||
-                          !(p as any)?.request?.openapi?.path
+                          !((p as any)?.request?.openapi?.method || (p as any)?.request?.method) ||
+                          !((p as any)?.request?.openapi?.path || (p as any)?.request?.path)
                         }
                       >
-                        Run {p.tool}
+                        Run {(p as any)?.request?.openapi?.method?.toUpperCase() || (p as any)?.request?.method?.toUpperCase() || "ACTION"} {(p as any)?.request?.openapi?.path || (p as any)?.request?.path || ""}
                       </Button>
                     ))}
                   </div>
+
+                  {Array.isArray(stream.state.actions?.activations) && stream.state.actions.activations.some((a: any) => a?.result?.status === "executed" && a?.result?.request) ? (
+                    <div className="mt-3">
+                      <Text className="text-ui-fg-subtle text-small block mb-2">Executed actions</Text>
+                      <div className="flex flex-wrap gap-2">
+                        {stream.state.actions.activations
+                          .filter((a: any) => a?.result?.status === "executed" && a?.result?.request)
+                          .map((a: any, idx: number) => (
+                            <Button
+                              key={`exec-${idx}`}
+                              variant="transparent"
+                              type="button"
+                              onClick={() => validateAndRun(a?.name || "admin_api_request", a?.result?.request)}
+                            >
+                              {String(a?.result?.request?.method || a?.result?.request?.openapi?.method || "GET").toUpperCase()} {a?.result?.request?.path || a?.result?.request?.openapi?.path}
+                            </Button>
+                          ))}
+                      </div>
+                    </div>
+                  ) : null}
 
                   {/* Secondary actions if present on planned entries */}
                   {(stream.state.actions?.planned || manualPlanned).some((p: any) => p.secondary) ? (
@@ -995,6 +1280,35 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
                   ) : null}
                 </div>
               ) : null}
+
+
+              {/* Suspended Workflow UI */}
+              {suspendedWorkflow && (
+                <div className="flex w-full mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="mr-auto w-full max-w-[85%]">
+                    <SuspendedWorkflowSelector
+                      reason={suspendedWorkflow.reason}
+                      options={suspendedWorkflow.options}
+                      actions={suspendedWorkflow.actions}
+                      onSelect={handleResumeWorkflow}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Typing Indicator */}
+              {(chat.isPending || stream.state.isStreaming || stream.state.activeStep || isResuming) && (
+                <div className={`flex w-full mb-6 ${bubbleClass("assistant")}`}>
+                  <div className="flex items-center gap-2 px-4 py-3 rounded-2xl rounded-tl-none bg-ui-bg-subtle text-ui-fg-subtle">
+                    <Spinner className="animate-spin" />
+                    <span className="text-small">
+                      {resumeStep || stream.state.activeStep || "Thinking..."}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div ref={bottomRef} />
             </div>
           </div>
         )}
@@ -1042,7 +1356,7 @@ export const GeneralChat: React.FC<GeneralChatProps> = ({ entity, entityId }) =>
             </div>
           </div>
         </div>
-      </RouteFocusModal.Body>
+      </RouteFocusModal.Body >
 
       <RouteFocusModal.Footer>
         <div className="flex items-center justify-end gap-x-2">

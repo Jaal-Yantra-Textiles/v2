@@ -72,6 +72,9 @@ import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]
 import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSchema } from "./admin/payments/persons/[id]/methods/validators";
 import { ListPaymentMethodsByPartnerQuerySchema, CreatePaymentMethodForPartnerSchema } from "./admin/payments/partners/[id]/methods/validators";
 import { AdminGeneralChatReq, AdminGeneralChatStreamQuery } from "./admin/ai/chat/validators";
+import { AdminRagSearchQuery } from "./admin/ai/rag/search/validators";
+import { AdminAiV2ChatReq, AdminAiV2ChatStreamQuery } from "./admin/ai/v2/chat/validators";
+import { AdminAiV2ResumeReq } from "./admin/ai/v2/runs/[runId]/resume/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
 import { AdminCreatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
@@ -633,11 +636,40 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformQuery(wrapSchema(AdminGeneralChatStreamQuery), {})],
     },
 
-    // Create media folder
     {
-      matcher: "/admin/medias/folder",
+      matcher: "/admin/ai/rag/search",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminRagSearchQuery), {})],
+    },
+
+    {
+      matcher: "/admin/ai/v2/chat",
       method: "POST",
-      middlewares: [validateAndTransformBody(wrapSchema(folderSchema))],
+      middlewares: [validateAndTransformBody(wrapSchema(AdminAiV2ChatReq))],
+    },
+    {
+      matcher: "/admin/ai/v2/chat/stream",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminAiV2ChatStreamQuery), {})],
+    },
+
+    {
+      matcher: "/admin/ai/v2/runs/:runId/resume",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminAiV2ResumeReq))],
+    },
+
+    {
+      matcher: "/admin/ai/v2/runs/:runId/feedback",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(FeedbackSchema))],
+    },
+
+    // Admin Feedback routes
+    {
+      matcher: "/admin/feedbacks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(FeedbackSchema))],
     },
 
     // Folder-scoped media uploads

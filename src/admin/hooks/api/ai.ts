@@ -156,6 +156,7 @@ export type GeneralChatPayload = {
   threadId?: string
   resourceId?: string
   context?: Record<string, any>
+  lastApiResponse?: any
 }
 
 export type GeneralChatResponse<T = any> = {
@@ -221,18 +222,26 @@ function sanitizeLLMText(input: string) {
   return text
 }
 
+type ToolCall = { name: string; arguments: Record<string, any> }
+type PlannedRequest = { method: string; path: string; body?: any; openapi?: { method: string; path: string } }
+type Activation = { name: string; arguments: Record<string, any>; result?: any }
+type ChatActions = { toolCalls: ToolCall[]; activations: Activation[]; planned: Array<{ tool: string; request: PlannedRequest }> }
+
 type ChatStreamState = {
   isStreaming: boolean
   chunks: string[]
   error: string | null
   typed: string
   actions: ChatActions
+  activeStep?: string
+  suspended?: {
+    runId: string
+    reason: string
+    options: Array<{ id: string; display: string }>
+    actions?: Array<{ id: string; label: string }> // New field for actions like "View all"
+    totalCount?: number // New field for total count
+  }
 }
-
-type ToolCall = { name: string; arguments: Record<string, any> }
-type PlannedRequest = { method: string; path: string; body?: any; openapi?: { method: string; path: string } }
-type Activation = { name: string; arguments: Record<string, any>; result?: any }
-type ChatActions = { toolCalls: ToolCall[]; activations: Activation[]; planned: Array<{ tool: string; request: PlannedRequest }> }
 
 export const useGeneralChatStream = () => {
   const [state, setState] = useState<ChatStreamState>({
@@ -241,6 +250,8 @@ export const useGeneralChatStream = () => {
     error: null,
     typed: "",
     actions: { toolCalls: [], activations: [], planned: [] },
+    activeStep: undefined,
+    suspended: undefined,
   })
   const esRef = useRef<EventSource | null>(null)
 
@@ -255,7 +266,7 @@ export const useGeneralChatStream = () => {
       esRef.current.close()
       esRef.current = null
     }
-    setState((s) => ({ ...s, isStreaming: false }))
+    setState((s) => ({ ...s, isStreaming: false, activeStep: undefined, suspended: undefined }))
     if (animatorRef.current) {
       window.clearTimeout(animatorRef.current)
       animatorRef.current = null
@@ -294,6 +305,8 @@ export const useGeneralChatStream = () => {
       error: null,
       typed: "",
       actions: { toolCalls: [], activations: [], planned: [] },
+      activeStep: "Starting workflow...",
+      suspended: undefined,
     })
 
     // Medusa route path (no Next.js /api prefix)
@@ -308,6 +321,105 @@ export const useGeneralChatStream = () => {
       ensureAnimator()
     }
 
+    // Listen for step updates
+    es.addEventListener("workflow-step-start", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data)
+        const name = data?.stepName || data?.id || "Processing..."
+        setState(s => ({ ...s, activeStep: `Running step: ${name}` }))
+      } catch { }
+    })
+
+    es.addEventListener("workflow-step-result", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data)
+        const out = data?.output || {}
+
+        if (out?.suspended === true && out?.runId && out?.suspendPayload) {
+          setState((s) => ({
+            ...s,
+            suspended: {
+              runId: String(out.runId),
+              reason: String(out.suspendPayload?.reason || "Please select an option:"),
+              options: Array.isArray(out.suspendPayload?.options) ? out.suspendPayload.options : [],
+              actions: Array.isArray(out.suspendPayload?.actions) ? out.suspendPayload.actions : undefined,
+              totalCount: typeof out.suspendPayload?.totalCount === "number" ? out.suspendPayload.totalCount : undefined,
+            },
+            activeStep: "Waiting for user input...",
+            isStreaming: false,
+          }))
+          try {
+            es.close()
+          } catch { }
+          if (esRef.current === es) {
+            esRef.current = null
+          }
+          return
+        }
+
+        const toolCalls: ToolCall[] = Array.isArray(out?.toolCalls) ? out.toolCalls : []
+        const activations: Activation[] = Array.isArray(out?.activations) ? out.activations : []
+
+        const planned: Array<{ tool: string; request: PlannedRequest }> = []
+
+        for (const tc of toolCalls) {
+          if (tc.name === "admin_api_request" && tc.arguments) {
+            planned.push({ tool: tc.name, request: tc.arguments as PlannedRequest })
+          }
+        }
+
+        for (const a of activations) {
+          const req = a?.result?.request
+          if (req && (req.path || req.openapi?.path)) {
+            planned.push({ tool: a.name, request: req })
+          }
+        }
+
+        if (toolCalls.length || activations.length || planned.length) {
+          setState((s) => ({
+            ...s,
+            actions: {
+              toolCalls,
+              activations,
+              planned,
+            },
+          }))
+        }
+      } catch {
+        // ignore parse errors
+      }
+    })
+
+    es.addEventListener("workflow-finish", () => {
+      setState(s => ({ ...s, activeStep: undefined }))
+    })
+
+    // HITL: Listen for suspended workflow events
+    es.addEventListener("workflow:suspended", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data)
+        const { runId, suspendPayload } = data
+        if (runId && suspendPayload) {
+          setState((s) => ({
+            ...s,
+            suspended: {
+              runId,
+              reason: suspendPayload.reason,
+              options: suspendPayload.options,
+              actions: suspendPayload.actions,
+              totalCount: suspendPayload.totalCount,
+            },
+            activeStep: "Waiting for user input...",
+            isStreaming: false, // Stop streaming state (but keep connection if needed, though usually suspend closes connection)
+          }))
+          // Close event source since we are suspended
+          es.close()
+        }
+      } catch (err) {
+        console.error("Error parsing suspended event", err)
+      }
+    })
+
     es.addEventListener("chunk", (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data)
@@ -315,7 +427,7 @@ export const useGeneralChatStream = () => {
         const str = String(text)
         gotAnyChunksRef.current = true
         // Keep legacy chunks for compatibility
-        setState((s) => ({ ...s, chunks: [...s.chunks, str] }))
+        setState((s) => ({ ...s, activeStep: "Generating response...", chunks: [...s.chunks, str] }))
         pushText(str)
       } catch {
         // ignore parse errors
@@ -323,8 +435,8 @@ export const useGeneralChatStream = () => {
     })
 
     // Optional: show status, not text
-    es.addEventListener("start", () => {})
-    es.addEventListener("step-start", () => {})
+    es.addEventListener("start", () => { })
+    es.addEventListener("step-start", () => { })
     es.addEventListener("step-result", (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data)
@@ -332,8 +444,17 @@ export const useGeneralChatStream = () => {
         let toolCalls: ToolCall[] = Array.isArray(result?.toolCalls) ? result.toolCalls : []
         const activations: Activation[] = Array.isArray(result?.activations) ? result.activations : []
 
-        // Extract planned requests from activations (our workflow returns result.request for planned tools)
+        // Extract planned requests from BOTH toolCalls (pending) and activations (executed returning request plan)
         const planned: Array<{ tool: string; request: PlannedRequest }> = []
+
+        // 1. Pending tool calls are planned actions
+        for (const tc of toolCalls) {
+          if (tc.name === "admin_api_request" && tc.arguments) {
+            planned.push({ tool: tc.name, request: tc.arguments as PlannedRequest })
+          }
+        }
+
+        // 2. Activations might return a "request" object (legacy pattern or server-side planning)
         for (const a of activations) {
           const req = a?.result?.request
           if (req && (req.path || req.openapi?.path)) {
@@ -360,12 +481,44 @@ export const useGeneralChatStream = () => {
     es.addEventListener("result", (e: MessageEvent) => {
       try {
         const out = JSON.parse(e.data || "{}")
+
+        if (out?.suspended === true && out?.runId && out?.suspendPayload) {
+          setState((s) => ({
+            ...s,
+            suspended: {
+              runId: String(out.runId),
+              reason: String(out.suspendPayload?.reason || "Please select an option:"),
+              options: Array.isArray(out.suspendPayload?.options) ? out.suspendPayload.options : [],
+              actions: Array.isArray(out.suspendPayload?.actions) ? out.suspendPayload.actions : undefined,
+              totalCount: typeof out.suspendPayload?.totalCount === "number" ? out.suspendPayload.totalCount : undefined,
+            },
+            activeStep: "Waiting for user input...",
+            isStreaming: false,
+          }))
+          try {
+            es.close()
+          } catch { }
+          if (esRef.current === es) {
+            esRef.current = null
+          }
+          return
+        }
+
         const toolCalls: ToolCall[] = Array.isArray(out?.toolCalls) ? out.toolCalls : []
         const activations: Activation[] = Array.isArray(out?.activations)
           ? out.activations
           : []
 
         const planned: Array<{ tool: string; request: PlannedRequest }> = []
+
+        // 1. Pending tool calls are planned actions
+        for (const tc of toolCalls) {
+          if (tc.name === "admin_api_request" && tc.arguments) {
+            planned.push({ tool: tc.name, request: tc.arguments as PlannedRequest })
+          }
+        }
+
+        // 2. Activations check
         for (const a of activations) {
           const req = a?.result?.request
           if (req && (req.path || req.openapi?.path)) {
@@ -412,7 +565,14 @@ export const useGeneralChatStream = () => {
       if (!gotAnyChunksRef.current && summaryTextRef.current) {
         pushText(summaryTextRef.current)
       }
-      stop()
+
+      try {
+        es.close()
+      } catch { }
+      if (esRef.current === es) {
+        esRef.current = null
+      }
+      setState((s) => ({ ...s, isStreaming: false, activeStep: undefined }))
     })
   }
 

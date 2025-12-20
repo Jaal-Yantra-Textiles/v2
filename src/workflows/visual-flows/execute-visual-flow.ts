@@ -173,7 +173,10 @@ const executeOperationsStep = createStep(
       target_id: edge.target,
       source_handle: edge.sourceHandle || "default",
       target_handle: edge.targetHandle || "default",
-      connection_type: "default",
+      connection_type:
+        edge.sourceHandle === "success" || edge.sourceHandle === "failure"
+          ? edge.sourceHandle
+          : "default",
     }))
     
     // Convert map to array for operations

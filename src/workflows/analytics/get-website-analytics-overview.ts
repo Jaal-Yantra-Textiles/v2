@@ -1,5 +1,5 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 
 /**
  * Get Website Analytics Overview
@@ -43,7 +43,7 @@ export type WebsiteAnalyticsOverview = {
 export const getWebsiteAnalyticsOverviewStep = createStep(
   "get-website-analytics-overview-step",
   async (input: GetWebsiteAnalyticsOverviewInput, { container }) => {
-    const query:any = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY);
     const days = input.days || 30;
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
@@ -55,7 +55,7 @@ export const getWebsiteAnalyticsOverviewStep = createStep(
     });
 
     if (!websites || websites.length === 0) {
-      throw new Error(`Website not found: ${input.website_id}`);
+      throw new MedusaError(MedusaError.Types.NOT_FOUND, `Website not found: ${input.website_id}`);
     }
 
     const website = websites[0] as any;

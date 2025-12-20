@@ -1,8 +1,16 @@
 import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi"
 import { z } from "zod"
+import * as fs from "fs"
+import * as path from "path"
 import "./zod-openapi-extend"
 
+let cachedRegistry: OpenAPIRegistry | null = null
+
 export const buildRegistry = () => {
+  if (cachedRegistry) {
+    return cachedRegistry
+  }
+
   // Diagnostics: verify Zod is extended
   const zodHasOpenApi = typeof (z as any)?.ZodType?.prototype?.openapi === "function"
   console.log("[openapi] Zod has openapi on prototype:", zodHasOpenApi)
@@ -81,11 +89,29 @@ export const buildRegistry = () => {
 
   // Query schemas (avoid preprocess/effects/refinements)
   const ReadDesignsQueryOpenAPISchema = z.object({
-    fields: z.string().optional(),
-    filters: z.object({}).optional(),
-    sort: z.array(z.string()).optional(),
-    limit: z.number().openapi({ format: "int32" }).optional(),
     offset: z.number().openapi({ format: "int32" }).optional(),
+    limit: z.number().openapi({ format: "int32" }).optional(),
+    name: z.string().optional(),
+    design_type: z.enum(["Original", "Derivative", "Custom", "Collaboration"]).optional(),
+    status: z
+      .enum([
+        "Conceptual",
+        "In_Development",
+        "Technical_Review",
+        "Sample_Production",
+        "Revision",
+        "Approved",
+        "Rejected",
+        "On_Hold",
+        "Commerce_Ready",
+      ])
+      .optional(),
+    priority: z.enum(["Low", "Medium", "High", "Urgent"]).optional(),
+    tags: z.array(z.string()).optional(),
+  })
+
+  const GetDesignQueryOpenAPISchema = z.object({
+    fields: z.string().optional(),
   })
 
   const ListPersonsQueryOpenAPISchema = z.object({
@@ -103,6 +129,8 @@ export const buildRegistry = () => {
 
   const registry = new OpenAPIRegistry()
 
+  const registeredPathKeys = new Set<string>()
+
   const tryRegister = (name: string, schema: any) => {
     try {
       registry.register(name, schema)
@@ -115,6 +143,11 @@ export const buildRegistry = () => {
 
   const tryRegisterPath = (path: any) => {
     try {
+      const key = `${String(path?.method || "").toLowerCase()} ${String(path?.path || "")}`
+      if (registeredPathKeys.has(key)) {
+        return
+      }
+      registeredPathKeys.add(key)
       registry.registerPath(path)
       console.log(`[openapi] registered path: ${path.path}`)
     } catch (e) {
@@ -134,6 +167,7 @@ export const buildRegistry = () => {
   tryRegister("Design", DesignOpenAPISchema)
   tryRegister("ReadDesignsQuery", ReadDesignsQueryOpenAPISchema)
   tryRegister("UpdateDesign", UpdateDesignOpenAPISchema)
+  tryRegister("GetDesignQuery", GetDesignQueryOpenAPISchema)
 
   tryRegister("Person", PersonOpenAPISchema)
   tryRegister("ListPersonsQuery", ListPersonsQueryOpenAPISchema)
@@ -155,8 +189,10 @@ export const buildRegistry = () => {
         content: {
           "application/json": {
             schema: z.object({
-              items: z.array(DesignOpenAPISchema),
-              count: z.number(),
+              designs: z.array(DesignOpenAPISchema),
+              count: z.number().optional(),
+              offset: z.number().optional(),
+              limit: z.number().optional(),
             }),
           },
         },
@@ -180,7 +216,7 @@ export const buildRegistry = () => {
       },
     },
     responses: {
-      200: {
+      201: {
         description: "Created design",
         content: {
           "application/json": {
@@ -192,13 +228,43 @@ export const buildRegistry = () => {
   })
 
   tryRegisterPath({
-    method: "patch",
+    method: "get",
+    path: "/admin/designs/{id}",
+    tags: ["Designs"],
+    summary: "Get design",
+    security: [{ bearerAuth: [] }],
+    request: {
+      params: z.object({
+        id: z
+          .string()
+          .openapi({ param: { name: "id", in: "path", required: true } }),
+      }),
+      query: GetDesignQueryOpenAPISchema,
+    },
+    responses: {
+      200: {
+        description: "Design",
+        content: {
+          "application/json": {
+            schema: z.object({ design: DesignOpenAPISchema }),
+          },
+        },
+      },
+    },
+  })
+
+  tryRegisterPath({
+    method: "put",
     path: "/admin/designs/{id}",
     tags: ["Designs"],
     summary: "Update design",
     security: [{ bearerAuth: [] }],
     request: {
-      params: z.object({ id: z.string() }),
+      params: z.object({
+        id: z
+          .string()
+          .openapi({ param: { name: "id", in: "path", required: true } }),
+      }),
       body: {
         content: {
           "application/json": {
@@ -218,6 +284,179 @@ export const buildRegistry = () => {
       },
     },
   })
+
+  tryRegisterPath({
+    method: "delete",
+    path: "/admin/designs/{id}",
+    tags: ["Designs"],
+    summary: "Delete design",
+    security: [{ bearerAuth: [] }],
+    request: {
+      params: z.object({
+        id: z
+          .string()
+          .openapi({ param: { name: "id", in: "path", required: true } }),
+      }),
+    },
+    responses: {
+      200: {
+        description: "Deleted design",
+        content: {
+          "application/json": {
+            schema: z.any(),
+          },
+        },
+      },
+      201: {
+        description: "Deleted design",
+        content: {
+          "application/json": {
+            schema: z.any(),
+          },
+        },
+      },
+    },
+  })
+
+  const autoRegister = () => {
+    const tryRoots = [
+      path.join(process.cwd(), "src", "api", "admin"),
+      path.join(process.cwd(), "dist", "api", "admin"),
+    ]
+
+    const root = tryRoots.find((p) => {
+      try {
+        return fs.existsSync(p) && fs.statSync(p).isDirectory()
+      } catch {
+        return false
+      }
+    })
+
+    if (!root) return
+
+    const routeFiles: string[] = []
+    const walk = (dir: string) => {
+      let entries: fs.Dirent[] = []
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+      for (const ent of entries) {
+        const full = path.join(dir, ent.name)
+        if (ent.isDirectory()) {
+          walk(full)
+          continue
+        }
+        if (ent.isFile() && ent.name === "route.ts") {
+          routeFiles.push(full)
+        }
+      }
+    }
+    walk(root)
+
+    const toOpenApiPath = (rel: string) => {
+      const noFile = rel.replace(/\/route\.ts$/, "")
+      const segs = noFile.split("/").filter(Boolean)
+      const mapped = segs.map((s) => {
+        const m = s.match(/^\[(.+)\]$/)
+        if (!m) return s
+        return `{${m[1]}}`
+      })
+      return `/admin/${mapped.join("/")}`
+    }
+
+    const extractParams = (p: string) => {
+      const re = /\{([^}]+)\}/g
+      const out: string[] = []
+      let m: RegExpExecArray | null
+      while ((m = re.exec(p))) {
+        if (m[1]) out.push(m[1])
+      }
+      return out
+    }
+
+    const toPathParamsSchema = (paramsList: string[]) => {
+      if (!paramsList.length) return undefined
+      const shape = Object.fromEntries(
+        paramsList.map((k) => [
+          k,
+          z.string().openapi({ param: { name: k, in: "path", required: true } }),
+        ])
+      )
+      return z.object(shape)
+    }
+
+    for (const file of routeFiles) {
+      // Avoid documenting AI/OpenAPI endpoints inside the custom API doc itself
+      const rel = path.relative(root, file).replace(/\\/g, "/")
+      if (rel.startsWith("ai/openapi/") || rel.startsWith("ai/chat/") || rel.startsWith("ai/image-extraction/")) {
+        continue
+      }
+
+      let src = ""
+      try {
+        src = fs.readFileSync(file, "utf8")
+      } catch {
+        continue
+      }
+
+      const methods = new Set<string>()
+      for (const m of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
+        const re = new RegExp(`export\\s+const\\s+${m}\\b`)
+        if (re.test(src)) methods.add(m)
+      }
+      if (!methods.size) continue
+
+      const pth = toOpenApiPath(rel)
+      const paramsList = extractParams(pth)
+      const paramsSchema = toPathParamsSchema(paramsList)
+
+      const tag = rel.split("/")[0] ? String(rel.split("/")[0]) : "Custom"
+      const tags = [tag.charAt(0).toUpperCase() + tag.slice(1)]
+
+      for (const m of methods) {
+        const lower = m.toLowerCase()
+        const def: any = {
+          method: lower,
+          path: pth,
+          tags,
+          summary: `Auto: ${m} ${pth}`,
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: "OK", content: { "application/json": { schema: z.any() } } },
+          },
+        }
+        if (paramsSchema) {
+          def.request = def.request || {}
+          def.request.params = paramsSchema
+        }
+        if (m === "GET") {
+          // def.request = def.request || {}
+          // def.request.query = z.object({}).passthrough().optional()
+        } else {
+          def.request = def.request || {}
+          def.request.body = {
+            content: {
+              "application/json": { schema: z.any() },
+            },
+          }
+        }
+        try {
+          console.log(`[openapi][auto] registering ${m} ${pth} from ${rel}`)
+          tryRegisterPath(def)
+        } catch (e) {
+          console.error(`[openapi][auto] failed to register ${m} ${pth} from ${rel}`, e)
+        }
+      }
+    }
+  }
+
+  try {
+    autoRegister()
+  } catch (e) {
+    console.warn("[openapi] autoRegister failed", (e as any)?.message || e)
+  }
 
   // --- Paths: Persons ---
   tryRegisterPath({
@@ -260,7 +499,7 @@ export const buildRegistry = () => {
       },
     },
     responses: {
-      200: {
+      201: {
         description: "Created person",
         content: {
           "application/json": {
@@ -271,5 +510,6 @@ export const buildRegistry = () => {
     },
   })
 
+  cachedRegistry = registry
   return registry
 }

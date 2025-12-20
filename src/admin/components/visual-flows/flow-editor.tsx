@@ -49,16 +49,45 @@ function flowToReactFlow(flow: VisualFlow): { nodes: Node[]; edges: Edge[] } {
       data: n.data,
     }))
 
-    const edges: Edge[] = (flow.canvas_state.edges || []).map((e: any) => ({
-      id: e.id,
-      source: e.source,
-      sourceHandle: e.sourceHandle || "default",
-      target: e.target,
-      targetHandle: e.targetHandle || "default",
-      type: "smoothstep",
-      animated: true,
-      style: { stroke: "#6366f1" },
-    }))
+    const edges: Edge[] = (flow.canvas_state.edges || []).map((e: any) => {
+      // Backward compatibility: older canvas_state edges may not include handle info.
+      // When possible, enrich them from persisted connections.
+      const matchingConn = (flow.connections || []).find((c) => {
+        if (c.source_id !== e.source || c.target_id !== e.target) {
+          return false
+        }
+
+        if (e.sourceHandle && c.source_handle !== e.sourceHandle) {
+          return false
+        }
+
+        if (e.targetHandle && c.target_handle !== e.targetHandle) {
+          return false
+        }
+
+        return true
+      })
+
+      const sourceHandle = e.sourceHandle || matchingConn?.source_handle || "default"
+      const targetHandle = e.targetHandle || matchingConn?.target_handle || "default"
+
+      const connectionType =
+        matchingConn?.connection_type ||
+        (sourceHandle === "success" || sourceHandle === "failure" ? sourceHandle : "default")
+
+      return {
+        id: e.id,
+        source: e.source,
+        sourceHandle,
+        target: e.target,
+        targetHandle,
+        type: "smoothstep",
+        animated: connectionType === "success",
+        style: {
+          stroke: connectionType === "failure" ? "#ef4444" : "#6366f1",
+        },
+      }
+    })
 
     return { nodes, edges }
   }
@@ -219,7 +248,9 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
       source_handle: e.sourceHandle || "default",
       target_id: e.target,
       target_handle: e.targetHandle || "default",
-      connection_type: "default" as const,
+      connection_type: ((e.sourceHandle === "success" || e.sourceHandle === "failure")
+        ? e.sourceHandle
+        : "default") as "success" | "failure" | "default",
       label: (e.label as string) || undefined,
     }))
 
@@ -241,7 +272,13 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
       connections,
       canvas_state: {
         nodes: nodes.map(n => ({ id: n.id, position: n.position, data: n.data })),
-        edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target })),
+        edges: edges.map(e => ({
+          id: e.id,
+          source: e.source,
+          sourceHandle: e.sourceHandle || "default",
+          target: e.target,
+          targetHandle: e.targetHandle || "default",
+        })),
         viewport: { x: 0, y: 0, zoom: 1 },
       },
     })

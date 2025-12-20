@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "zod"
 import { memory } from "../../../../../../mastra/memory"
+import crypto from "crypto"
 
 const ThreadQuery = z.object({
   resourceId: z.string().min(1).optional(),
@@ -43,6 +44,87 @@ const normalizeThread = (t: any): ThreadOut => {
   }
 }
 
+const AppendMessagesBody = z.object({
+  resourceId: z.string().min(1).optional(),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]).optional(),
+        content: z.any().optional(),
+        metadata: z.record(z.unknown()).optional(),
+        createdAt: z.string().optional(),
+      })
+    )
+    .min(1),
+})
+
+type AppendMessagesBodyType = z.infer<typeof AppendMessagesBody>
+
+export const POST = async (req: MedusaRequest<AppendMessagesBodyType>, res: MedusaResponse) => {
+  try {
+    const threadId = String((req as any)?.params?.threadId || "")
+    if (!threadId) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, "threadId is required")
+    }
+
+    const parsed = AppendMessagesBody.safeParse((req as any).validatedBody || req.body || {})
+    if (!parsed.success) {
+      const message = parsed.error.errors.map((e) => e.message).join(", ")
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, message || "Invalid request body")
+    }
+
+    if (!memory) {
+      return res.status(503).json({ message: "Mastra memory is not configured" })
+    }
+
+    let resourceId = parsed.data.resourceId
+    if (!resourceId) {
+      try {
+        const thread = await (memory as any).getThreadById?.({ threadId })
+        resourceId = thread?.resourceId || thread?.resource_id
+      } catch {}
+    }
+    if (!resourceId) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, "resourceId is required")
+    }
+
+    const msgs = parsed.data.messages.map((m) => {
+      const createdAt = m.createdAt ? new Date(m.createdAt) : new Date()
+      const role = m.role || "assistant"
+      let text = ""
+      try {
+        text = typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      } catch {
+        text = String(m.content ?? "")
+      }
+      return {
+        id: crypto.randomUUID(),
+        role,
+        createdAt,
+        threadId,
+        resourceId,
+        type: "text",
+        content: {
+          format: 2,
+          parts: [{ type: "text", text }],
+          metadata: m.metadata,
+        },
+      }
+    })
+
+    await (memory as any).saveMessages({ messages: msgs, format: "v2" })
+
+    return res.status(201).json({ saved: msgs.length })
+  } catch (e) {
+    const err = e as Error
+    if (e instanceof MedusaError) {
+      const status = e.type === MedusaError.Types.INVALID_DATA ? 400 : e.type === MedusaError.Types.NOT_FOUND ? 404 : 500
+      return res.status(status).json({ message: err.message })
+    }
+    return res.status(500).json({ message: err.message || "Unexpected error" })
+  }
+}
+
 type UiMessageOut = {
   id?: string
   role?: string
@@ -59,7 +141,7 @@ const normalizeUiMessage = (m: any): UiMessageOut => {
     role: typeof m?.role === "string" ? m.role : undefined,
     content: m?.content,
     createdAt,
-    metadata: (m?.metadata ?? m?.meta) as Record<string, unknown> | undefined,
+    metadata: (m?.metadata ?? m?.meta ?? m?.content?.metadata) as Record<string, unknown> | undefined,
   }
 }
 

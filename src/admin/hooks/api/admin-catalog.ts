@@ -9,11 +9,17 @@ export type AdminEndpoint = {
   path: string
   summary: string
   tags?: string[]
+  description?: string
+  operationId?: string
   pathParams?: string[]
   queryParams?: string[]
   queryParamsSchema?: Array<{ name: string; required?: boolean; schema?: any; description?: string }>
   requestBodyRequired?: boolean
   requestBodySchema?: any
+  responseBodySchema?: any
+  responseCodes?: string[]
+  security?: any
+  authenticated?: boolean
 }
 
 // Curated starter catalog. Expand as needed from https://docs.medusajs.com/api/admin
