@@ -1,3 +1,10 @@
+## [8.2.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.2.0...v8.2.1) (2025-12-20)
+
+
+### Bug Fixes
+
+* **admin:** The module resolver error fixed ([a79fd99](https://github.com/Jaal-Yantra-Textiles/v2/commit/a79fd990c03ba4522c288de0d71764df407a7319))
+
 # [8.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.1.0...v8.2.0) (2025-12-20)
 
 
