@@ -626,24 +626,115 @@ export const AiV2Chat: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-hidden px-4 py-4">
-            <div className="mx-auto grid h-full w-full max-w-[1200px] grid-cols-1 gap-4">
-              <div className="overflow-hidden">
-                <div className="h-full overflow-y-auto pr-1">
-                  <div className="flex flex-col gap-y-3 pb-6">
-                    {messages.map((m) => (
-                      <div
-                        key={m.id}
-                        className={`max-w-[85%] rounded-md px-3 py-2 ${bubbleClass(m.role)} animate-in fade-in slide-in-from-bottom-1 duration-200`}
-                      >
-                        <Text className="text-ui-fg-subtle text-small block mb-1">
-                          {m.role === "user" ? "You" : "Assistant"}
-                        </Text>
-                        <div className="whitespace-pre-wrap break-words">
-                          {m.role === "assistant" ? <MarkdownMessage value={m.content} /> : m.content}
-                        </div>
+          <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
+            <div className="mx-auto flex h-full w-full max-w-[1200px] flex-col overflow-hidden">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div className="w-full sm:max-w-[520px]">
+                  <Text className="text-ui-fg-subtle text-small">Resource ID</Text>
+                  <Input
+                    value={threadPickerResource}
+                    onChange={(e) => setThreadPickerResource(e.target.value)}
+                    placeholder="ai:v2 or ai:v2:product"
+                    disabled={chat.isPending || stream.state.isStreaming}
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    size="small"
+                    isLoading={threadsApi.isPending}
+                    onClick={loadThreads}
+                    disabled={chat.isPending || stream.state.isStreaming}
+                  >
+                    Load chats
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    size="small"
+                    isLoading={createThreadApi.isPending}
+                    onClick={startNewChat}
+                    disabled={chat.isPending || stream.state.isStreaming}
+                  >
+                    New chat
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    size="small"
+                    onClick={() => {
+                      stream.stop()
+                      setRunStatus("idle")
+                      setActiveThreadId(null)
+                      setActiveResourceId(null)
+                      setAvailableThreads([])
+                      setSelectedThreadId("")
+                      setMessages([])
+                      setLastSteps(undefined)
+                      setRunId(null)
+                      setSuspended(null)
+                      setFeedbackSubmittedForRunId(null)
+                    }}
+                    disabled={chat.isPending || stream.state.isStreaming}
+                  >
+                    Change thread
+                  </Button>
+                </div>
+              </div>
+
+              {availableThreads.length ? (
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="w-full sm:max-w-[520px]">
+                    <Select value={selectedThreadId} onValueChange={setSelectedThreadId}>
+                      <Select.Trigger>
+                        <Select.Value placeholder="Select a thread…" />
+                      </Select.Trigger>
+                      <Select.Content>
+                        {availableThreads.map((t: any) => (
+                          <Select.Item key={String(t.id)} value={String(t.id)}>
+                            {t.title ? `${t.title} · ` : ""}{String(t.id)}
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    size="small"
+                    isLoading={threadApi.isPending}
+                    disabled={!selectedThreadId || chat.isPending || stream.state.isStreaming}
+                    onClick={() => hydrateFromThread(selectedThreadId, threadPickerResource)}
+                  >
+                    Open selected
+                  </Button>
+                </div>
+              ) : null}
+
+              <div className="flex-1 overflow-y-auto pr-1">
+                <div className="flex flex-col gap-y-3 pb-6">
+                  {messages.length === 0 && (chat.isPending || stream.state.isStreaming || stream.state.active) ? (
+                    <div className="flex w-full items-center justify-center gap-2 py-10 text-ui-fg-subtle">
+                      <Spinner className="animate-spin" />
+                      <span className="text-small">{stream.state.active || "Thinking..."}</span>
+                    </div>
+                  ) : null}
+
+                  {messages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`max-w-[85%] rounded-md px-3 py-2 ${bubbleClass(m.role)} animate-in fade-in slide-in-from-bottom-1 duration-200`}
+                    >
+                      <Text className="text-ui-fg-subtle text-small block mb-1">
+                        {m.role === "user" ? "You" : "Assistant"}
+                      </Text>
+                      <div className="whitespace-pre-wrap break-words">
+                        {m.role === "assistant" ? <MarkdownMessage value={m.content} /> : m.content}
                       </div>
-                    ))}
+                    </div>
+                  ))}
 
                   {stream.state.isStreaming && stream.state.liveText ? (
                     <div className={`max-w-[85%] rounded-md px-3 py-2 ${bubbleClass("assistant")} animate-in fade-in slide-in-from-bottom-1 duration-200`}>
@@ -677,7 +768,7 @@ export const AiV2Chat: React.FC = () => {
                     </div>
                   ) : null}
 
-                  {(chat.isPending || stream.state.isStreaming || stream.state.active) ? (
+                  {(chat.isPending || stream.state.isStreaming || stream.state.active) && messages.length ? (
                     <div className={`flex w-full ${bubbleClass("assistant")}`}>
                       <div className="flex items-center gap-2 px-4 py-3 rounded-2xl rounded-tl-none bg-ui-bg-subtle text-ui-fg-subtle">
                         <Spinner className="animate-spin" />
@@ -755,6 +846,7 @@ export const AiV2Chat: React.FC = () => {
                       </div>
                     ) : null}
                   </div>
+
                   {stream.state.error ? (
                     <div className={`max-w-[85%] rounded-md px-3 py-2 ${bubbleClass("assistant")}`}>
                       <Text className="text-ui-fg-subtle text-small">Error</Text>
@@ -767,7 +859,7 @@ export const AiV2Chat: React.FC = () => {
               </div>
 
               <div className="mt-auto border-t border-ui-border-base bg-ui-bg-base">
-                <div className="mx-auto w-full max-w-[1200px] px-3 py-3">
+                <div className="px-3 py-3">
                   <div className="group w-full max-w-[900px] rounded-2xl border border-ui-border-base bg-ui-bg-base shadow-sm">
                     <div className="p-3">
                       <Textarea
@@ -801,7 +893,6 @@ export const AiV2Chat: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
             </div>
           </div>
         )}

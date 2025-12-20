@@ -196,5 +196,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/visual_flows",
   },
+  {
+    resolve: "./src/modules/aivtwo",
+  },
 ],
 });
