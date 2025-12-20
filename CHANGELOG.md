@@ -1,3 +1,10 @@
+# [8.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.1.0...v8.2.0) (2025-12-20)
+
+
+### Features
+
+* **api:** Ai v2 ([533f65d](https://github.com/Jaal-Yantra-Textiles/v2/commit/533f65da64c8df78de062c5fa7bee3386973adc4))
+
 # [8.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.0.2...v8.1.0) (2025-12-16)
 
 
