@@ -1,3 +1,10 @@
+## [8.2.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.2.1...v8.2.2) (2025-12-20)
+
+
+### Bug Fixes
+
+* **admin:** Fixed the ai v2 dictionary ([957bf5d](https://github.com/Jaal-Yantra-Textiles/v2/commit/957bf5d35502bf5cb84618c6d529dee528273c99))
+
 ## [8.2.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.2.0...v8.2.1) (2025-12-20)
 
 
