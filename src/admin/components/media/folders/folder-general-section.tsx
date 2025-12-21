@@ -91,7 +91,7 @@ export const FolderGeneralSection = ({ folder }: FolderGeneralSectionProps) => {
       const res = await shareMutation.mutateAsync();
       const token = res.share_token;
       const baseUrl = shareBase || (typeof window !== "undefined" ? window.location.origin : "");
-      const url = `${baseUrl}/apps/media-gallery/?folder=${folder.id}&token=${token}`;
+      const url = `${baseUrl}/?folder=${folder.id}&token=${token}`;
 
       toast.success(t("media.folders.share.enabled"), {
         description: t("media.folders.share.linkReady"),
