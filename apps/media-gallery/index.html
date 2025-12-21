@@ -42,12 +42,20 @@
               class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-600 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
             />
           </div>
-          <button
-            id="copy-btn"
-            class="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-slate-800"
-          >
-            Copy Link
-          </button>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <button
+              id="copy-btn"
+              class="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-slate-800"
+            >
+              Copy Link
+            </button>
+            <button
+              id="download-all-btn"
+              class="rounded-2xl border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 shadow hover:-translate-y-0.5 hover:bg-slate-50"
+            >
+              Download All
+            </button>
+          </div>
         </div>
       </section>
 
@@ -79,6 +87,8 @@
       const galleryEl = document.getElementById('gallery')
       const emptyEl = document.getElementById('empty')
       const folderNameEl = document.getElementById('folder-name')
+      const downloadAllBtn = document.getElementById('download-all-btn')
+      let currentFiles = []
 
       const fullShareUrl = `${window.location.origin}${window.location.pathname}?folder=${folderId || ''}&token=${token || ''}`
       shareUrlInput.value = fullShareUrl
@@ -119,6 +129,32 @@
 
       const apiBaseUrl = resolveApiBaseUrl().replace(/\/$/, '')
 
+      async function triggerDownload(url, filename) {
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = filename || ''
+        anchor.target = '_blank'
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+      }
+
+      downloadAllBtn.addEventListener('click', async () => {
+        if (!currentFiles.length) {
+          downloadAllBtn.textContent = 'No files'
+          setTimeout(() => (downloadAllBtn.textContent = 'Download All'), 1500)
+          return
+        }
+
+        downloadAllBtn.textContent = 'Downloading…'
+        for (const file of currentFiles) {
+          triggerDownload(file.file_path, file.original_name || file.file_name || 'media')
+          await new Promise((resolve) => setTimeout(resolve, 200))
+        }
+        downloadAllBtn.textContent = 'Done!'
+        setTimeout(() => (downloadAllBtn.textContent = 'Download All'), 1500)
+      })
+
       async function fetchFolder() {
         if (!folderId || !token) {
           statusEl.textContent = 'Add ?folder=FOLDER_ID&token=SHARE_TOKEN to the URL to view media.'
@@ -133,6 +169,7 @@
             throw new Error('Request failed with status ' + response.status)
           }
           const data = await response.json()
+          currentFiles = data.media_files || []
           folderNameEl.textContent = data.folder?.name || 'Media Gallery'
           statusEl.textContent = data.folder?.description || 'Public media folder'
 
@@ -174,9 +211,30 @@
             meta.className = 'text-sm text-slate-500'
             meta.textContent = file.caption || file.mime_type || 'Image'
 
+            const actions = document.createElement('div')
+            actions.className = 'flex flex-wrap gap-2 pt-2 text-sm'
+
+            const viewLink = document.createElement('a')
+            viewLink.href = file.file_path
+            viewLink.target = '_blank'
+            viewLink.rel = 'noreferrer noopener'
+            viewLink.className = 'rounded-xl border border-slate-200 px-3 py-1 font-medium text-slate-600 transition hover:bg-slate-50'
+            viewLink.textContent = 'View'
+
+            const downloadLink = document.createElement('button')
+            downloadLink.className = 'rounded-xl bg-slate-900 px-3 py-1 font-medium text-white transition hover:bg-slate-800'
+            downloadLink.textContent = 'Download'
+            downloadLink.addEventListener('click', () =>
+              triggerDownload(file.file_path, file.original_name || file.file_name || 'media'),
+            )
+
+            actions.appendChild(viewLink)
+            actions.appendChild(downloadLink)
+
             card.appendChild(imgWrap)
             card.appendChild(title)
             card.appendChild(meta)
+            card.appendChild(actions)
             galleryEl.appendChild(card)
           })
         } catch (error) {
