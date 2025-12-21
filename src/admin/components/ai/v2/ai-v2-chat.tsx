@@ -1,6 +1,6 @@
 import React from "react"
-import { Button, Heading, Input, StatusBadge, Text, Textarea, Select } from "@medusajs/ui"
-import { Spinner } from "@medusajs/icons"
+import { Button, Heading, Input, StatusBadge, Text, DropdownMenu, IconButton } from "@medusajs/ui"
+import { BarsArrowDown } from "@medusajs/icons"
 import { RouteFocusModal } from "../../modal/route-focus-modal"
 import { useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
@@ -10,40 +10,23 @@ import {
   useAiV2Resume,
   useAiV2RunFeedback,
   type AiV2Step,
-  type AiV2WorkflowOutput,
 } from "../../../hooks/api/ai-v2"
 import { useMe } from "../../../hooks/api/users"
-import { useChatThread, useChatThreads, useCreateChatThread } from "../../../hooks/api/ai"
-import { MarkdownMessage } from "./components/markdown-message"
-import { StepTimeline } from "./components/step-timeline"
-import { WriteConfirmCard } from "./components/write-confirm-card"
-import { SuspendedWorkflowSelector } from "../chat/suspended-workflow-selector"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/collapsible"
-
-type UiMessage = {
-  id: string
-  role: "user" | "assistant"
-  content: string
-}
-
-const bubbleClass = (role: UiMessage["role"]) =>
-  role === "user"
-    ? "ml-auto bg-ui-bg-base border border-ui-border-base"
-    : "mr-auto bg-ui-bg-subtle"
-
-const createLocalId = () => {
-  return typeof crypto !== "undefined" && (crypto as any).randomUUID
-    ? (crypto as any).randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
+import { ChatComposer } from "./components/chat-composer"
+import { StartChatPanel } from "./components/start-chat-panel"
+import { ThreadSelect } from "./components/thread-select"
+import { MessageList } from "./components/message-list"
+import { RunDetailsPanel } from "./components/run-details-panel"
+import { useAiV2ThreadControls } from "./hooks/use-ai-v2-thread-controls"
+import { useAiV2StreamSync } from "./hooks/use-ai-v2-stream-sync"
+import { createLocalId } from "./utils/message"
+import type { UiMessage, AiV2RunStatus } from "./types"
 
 const inferSuspendKind = (payload: any): "write" | "select" => {
   if (payload?.requires_confirmation) return "write"
   if (payload?.request) return "write"
   return "select"
 }
-
-type AiV2RunStatus = "idle" | "running" | "suspended" | "completed" | "error"
 
 const runStatusColor = (status: AiV2RunStatus): "green" | "orange" | "red" | "grey" => {
   if (status === "running") return "orange"
@@ -70,30 +53,11 @@ export const AiV2Chat: React.FC = () => {
   const [input, setInput] = React.useState("")
   const [useStreaming, setUseStreaming] = React.useState(true)
 
-  const [activeThreadId, setActiveThreadId] = React.useState<string | null>(null)
-  const [activeResourceId, setActiveResourceId] = React.useState<string | null>(null)
-  const [threadPickerResource, setThreadPickerResource] = React.useState<string>(
-    entity ? `ai:v2:${entity}` : "ai:v2"
-  )
-  const [availableThreads, setAvailableThreads] = React.useState<any[]>([])
-  const [selectedThreadId, setSelectedThreadId] = React.useState<string>("")
+  const defaultResourceId = entity ? `ai:v2:${entity}` : "ai:v2"
 
   const [lastSteps, setLastSteps] = React.useState<AiV2Step[] | undefined>(undefined)
-
   const [runDetailsOpen, setRunDetailsOpen] = React.useState(false)
-  const [composerFocused, setComposerFocused] = React.useState(false)
-
   const bottomRef = React.useRef<HTMLDivElement>(null)
-
-  const chat = useAiV2Chat()
-  const stream = useAiV2ChatStream()
-  const resume = useAiV2Resume()
-  const feedback = useAiV2RunFeedback()
-  const me = useMe()
-
-  const threadsApi = useChatThreads()
-  const threadApi = useChatThread()
-  const createThreadApi = useCreateChatThread()
 
   const [runId, setRunId] = React.useState<string | null>(null)
   const [runStatus, setRunStatus] = React.useState<AiV2RunStatus>("idle")
@@ -109,78 +73,62 @@ export const AiV2Chat: React.FC = () => {
     payload: any
   } | null>(null)
 
-  React.useEffect(() => {
-    if (stream.state.final) {
-      const out = stream.state.final as AiV2WorkflowOutput
-      if (out?.reply) {
-        setMessages((m) => [...m, { id: createLocalId(), role: "assistant", content: out.reply || "" }])
-      }
-      if (Array.isArray(out?.steps)) setLastSteps(out.steps)
+  const chat = useAiV2Chat()
+  const stream = useAiV2ChatStream()
+  const resume = useAiV2Resume()
+  const feedback = useAiV2RunFeedback()
+  const me = useMe()
 
-      if (out?.threadId && typeof out.threadId === "string") {
-        setActiveThreadId(out.threadId)
-      }
-      if (out?.resourceId && typeof out.resourceId === "string") {
-        setActiveResourceId(out.resourceId)
-        setThreadPickerResource(out.resourceId)
-      }
-    }
-  }, [stream.state.final])
+  const {
+    threadPickerResource,
+    setThreadPickerResource,
+    availableThreads,
+    selectedThreadId,
+    setSelectedThreadId,
+    activeThreadId,
+    setActiveThreadId,
+    activeResourceId,
+    setActiveResourceId,
+    hydrateFromThread,
+    loadThreads,
+    startNewChat,
+    resetThreadContext,
+    threadApi,
+    threadsApi,
+    createThreadApi,
+  } = useAiV2ThreadControls({
+    defaultResourceId,
+    entity,
+    onMessagesReset: (msgs) => setMessages(msgs),
+    onInputReset: () => setInput(""),
+    setLastSteps,
+    setRunId,
+    setRunStatus,
+    setSuspended,
+    setFeedbackSubmittedForRunId,
+    stopStreaming: () => stream.stop(),
+  })
 
-  React.useEffect(() => {
-    if (stream.state.runId) setRunId(stream.state.runId)
-  }, [stream.state.runId])
+  const openSelectedThread = React.useCallback(() => {
+    if (!selectedThreadId) return
+    hydrateFromThread(selectedThreadId, threadPickerResource)
+  }, [selectedThreadId, hydrateFromThread, threadPickerResource])
 
-  React.useEffect(() => {
-    if (stream.state.isStreaming || stream.state.active) {
-      setRunStatus("running")
-    }
-  }, [stream.state.isStreaming, stream.state.active])
-
-  React.useEffect(() => {
-    if (stream.state.final) setRunStatus("completed")
-  }, [stream.state.final])
-
-  React.useEffect(() => {
-    if (stream.state.error) setRunStatus("error")
-  }, [stream.state.error])
-
-  React.useEffect(() => {
-    if (stream.state.isStreaming) return
-    if (stream.state.active) return
-    if (stream.state.error) return
-    if (stream.state.final) return
-    if (suspended) return
-    if (chat.isPending) return
-    if (runStatus === "running") setRunStatus("idle")
-  }, [
-    stream.state.isStreaming,
-    stream.state.active,
-    stream.state.error,
-    stream.state.final,
+  useAiV2StreamSync({
+    stream,
+    chatIsPending: chat.isPending,
     suspended,
-    chat.isPending,
-    runStatus,
-  ])
-
-  React.useEffect(() => {
-    if (!bottomRef.current) return
-    bottomRef.current.scrollIntoView({ behavior: "smooth" })
-  }, [messages.length, suspended?.runId, stream.state.isStreaming, stream.state.active, stream.state.liveText])
-
-  React.useEffect(() => {
-    if (Array.isArray(stream.state.steps) && stream.state.steps.length) {
-      setLastSteps(stream.state.steps)
-    }
-  }, [stream.state.steps])
-
-  React.useEffect(() => {
-    if (stream.state.suspended) {
-      setSuspended({ runId: stream.state.suspended.runId, payload: stream.state.suspended.suspendPayload })
-      if (stream.state.suspended.runId) setRunId(stream.state.suspended.runId)
-      setRunStatus("suspended")
-    }
-  }, [stream.state.suspended])
+    setSuspended,
+    setMessages,
+    setLastSteps,
+    setActiveThreadId,
+    setActiveResourceId,
+    setThreadPickerResource,
+    setRunId,
+    setRunStatus,
+    bottomRef,
+    messageCount: messages.length,
+  })
 
   React.useEffect(() => {
     if (!runId) return
@@ -188,101 +136,6 @@ export const AiV2Chat: React.FC = () => {
     setFeedbackComment("")
     setFeedbackSubmittedForRunId(null)
   }, [runId])
-
-  const uiMessageToText = React.useCallback((content: any): string => {
-    if (typeof content === "string") return content
-    if (content == null) return ""
-    if (Array.isArray(content)) {
-      const parts = content
-        .map((p) => {
-          if (typeof p === "string") return p
-          if (p && typeof p === "object") {
-            if (typeof (p as any).text === "string") return (p as any).text
-            if (typeof (p as any).content === "string") return (p as any).content
-          }
-          return ""
-        })
-        .filter(Boolean)
-      if (parts.length) return parts.join("")
-    }
-    if (typeof content === "object") {
-      if (typeof (content as any).text === "string") return (content as any).text
-      if (typeof (content as any).content === "string") return (content as any).content
-      if (typeof (content as any).message === "string") return (content as any).message
-    }
-    try {
-      return JSON.stringify(content, null, 2)
-    } catch {
-      return String(content)
-    }
-  }, [])
-
-  const hydrateFromThread = React.useCallback(
-    async (nextThreadId: string, resourceId?: string) => {
-      const rid = (resourceId || threadPickerResource || "ai:v2").trim()
-      if (!nextThreadId) return
-
-      const resp = await threadApi.mutateAsync({ threadId: nextThreadId, resourceId: rid, page: 0, perPage: 200 })
-      const ui = Array.isArray((resp as any)?.uiMessages) ? (resp as any).uiMessages : []
-      const mapped: UiMessage[] = ui
-        .map((m: any) => {
-          const role = m?.role === "user" || m?.role === "assistant" ? m.role : undefined
-          if (!role) return null
-          return {
-            id: typeof m?.id === "string" && m.id ? m.id : createLocalId(),
-            role,
-            content: uiMessageToText(m?.content),
-          } as UiMessage
-        })
-        .filter(Boolean) as UiMessage[]
-
-      const threadResource = String((resp as any)?.thread?.resourceId || rid)
-      setActiveResourceId(threadResource)
-      setThreadPickerResource(threadResource)
-      setActiveThreadId(nextThreadId)
-      setMessages(mapped)
-      setInput("")
-
-      setLastSteps(undefined)
-      setRunId(null)
-      setRunStatus("idle")
-      setSuspended(null)
-      setFeedbackSubmittedForRunId(null)
-    },
-    [threadApi, threadPickerResource, uiMessageToText]
-  )
-
-  const loadThreads = React.useCallback(async () => {
-    const rid = threadPickerResource.trim()
-    if (!rid) return
-    const resp = await threadsApi.mutateAsync({ resourceId: rid, page: 0, perPage: 50 })
-    const threads = Array.isArray((resp as any)?.threads) ? (resp as any).threads : []
-    setAvailableThreads(threads)
-    if (!selectedThreadId && threads.length) {
-      setSelectedThreadId(String(threads[0]?.id || ""))
-    }
-  }, [threadsApi, threadPickerResource, selectedThreadId])
-
-  const startNewChat = React.useCallback(async () => {
-    const rid = threadPickerResource.trim() || (entity ? `ai:v2:${entity}` : "ai:v2")
-    let tid: string | null = null
-    try {
-      const created = await createThreadApi.mutateAsync({ resourceId: rid })
-      tid = String((created as any)?.thread?.id || "")
-    } catch {
-      tid = createLocalId()
-    }
-
-    setActiveResourceId(rid)
-    setActiveThreadId(tid || createLocalId())
-    setMessages([])
-    setInput("")
-    setLastSteps(undefined)
-    setRunId(null)
-    setRunStatus("idle")
-    setSuspended(null)
-    setFeedbackSubmittedForRunId(null)
-  }, [createThreadApi, entity, threadPickerResource])
 
   React.useEffect(() => {
     if (feedbackSubmittedByTouched) return
@@ -366,6 +219,13 @@ export const AiV2Chat: React.FC = () => {
     } catch (e: any) {
       setMessages((m) => [...m, { id: createLocalId(), role: "assistant", content: e?.message || "Unexpected error" }])
       setRunStatus("error")
+    }
+  }
+
+  const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      send()
     }
   }
 
@@ -521,430 +381,140 @@ export const AiV2Chat: React.FC = () => {
 
       <RouteFocusModal.Body className="flex h-full flex-col overflow-hidden">
         {!activeThreadId && messages.length === 0 ? (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 flex items-center justify-center px-4 py-8">
-              <div className="w-full max-w-[640px] border border-ui-border-base rounded-lg p-4 bg-ui-bg-base">
-                <Heading level="h2">Start a chat</Heading>
-                <Text className="text-ui-fg-subtle text-small mt-1">
-                  Select a previous thread (by resource) or create a new chat.
-                </Text>
-
-                <div className="mt-4 grid grid-cols-1 gap-3">
-                  <div>
-                    <Text className="text-ui-fg-subtle text-small">Resource ID</Text>
-                    <Input
-                      value={threadPickerResource}
-                      onChange={(e) => setThreadPickerResource(e.target.value)}
-                      placeholder="ai:v2 or ai:v2:product"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="secondary"
-                      type="button"
-                      isLoading={threadsApi.isPending}
-                      onClick={loadThreads}
-                    >
-                      Load chats
-                    </Button>
-                    <Button
-                      type="button"
-                      isLoading={createThreadApi.isPending}
-                      onClick={startNewChat}
-                    >
-                      New chat
-                    </Button>
-                  </div>
-
-                  {availableThreads.length ? (
-                    <div className="mt-2">
-                      <Text className="text-ui-fg-subtle text-small mb-1">Existing threads</Text>
-                      <Select value={selectedThreadId} onValueChange={setSelectedThreadId}>
-                        <Select.Trigger>
-                          <Select.Value placeholder="Select a thread…" />
-                        </Select.Trigger>
-                        <Select.Content>
-                          {availableThreads.map((t: any) => (
-                            <Select.Item key={String(t.id)} value={String(t.id)}>
-                              {t.title ? `${t.title} · ` : ""}{String(t.id)}
-                            </Select.Item>
-                          ))}
-                        </Select.Content>
-                      </Select>
-                      <div className="mt-2">
-                        <Button
-                          variant="secondary"
-                          type="button"
-                          isLoading={threadApi.isPending}
-                          disabled={!selectedThreadId}
-                          onClick={() => hydrateFromThread(selectedThreadId, threadPickerResource)}
-                        >
-                          Open selected
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <Text className="text-ui-fg-subtle text-small">
-                    You can also just type a message below and hit Send — a new thread will be created automatically.
-                  </Text>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-auto border-t border-ui-border-base bg-ui-bg-base">
-              <div className="mx-auto w-full max-w-[1200px] px-3 py-3">
-                <div className="group w-full max-w-[900px] rounded-2xl border border-ui-border-base bg-ui-bg-base shadow-sm">
-                  <div className="p-3">
-                    <Textarea
-                      rows={1}
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      placeholder="Ask something… e.g. list all products, update partner name…"
-                      disabled={chat.isPending || stream.state.isStreaming}
-                      className="resize-none border-none bg-transparent p-0 outline-none focus:outline-none focus:ring-0 min-h-[44px]"
-                    />
-
-                    <div className="mt-2 flex items-center justify-end gap-2">
-                      {stream.state.isStreaming ? (
-                        <Button
-                          variant="secondary"
-                          type="button"
-                          onClick={() => {
-                            stream.stop()
-                            setRunStatus("idle")
-                          }}
-                          size="small"
-                        >
-                          Stop
-                        </Button>
-                      ) : null}
-                      <Button type="button" isLoading={chat.isPending} disabled={!canSend} onClick={send} size="small">
-                        Send
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <StartChatPanel
+            threadPickerResource={threadPickerResource}
+            onResourceChange={setThreadPickerResource}
+            onLoadThreads={loadThreads}
+            onStartNewChat={startNewChat}
+            availableThreads={availableThreads}
+            selectedThreadId={selectedThreadId}
+            onSelectThread={setSelectedThreadId}
+            onOpenThread={openSelectedThread}
+            loadThreadsLoading={threadsApi.isPending}
+            createThreadLoading={createThreadApi.isPending}
+            openThreadLoading={threadApi.isPending}
+          />
         ) : (
           <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
             <div className="mx-auto flex h-full w-full max-w-[1200px] flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto pr-1">
-                <div className="flex flex-col gap-y-3 pb-6">
-                  {messages.length === 0 && (chat.isPending || stream.state.isStreaming || stream.state.active) ? (
-                    <div className="flex w-full items-center justify-center gap-2 py-10 text-ui-fg-subtle">
-                      <Spinner className="animate-spin" />
-                      <span className="text-small">{stream.state.active || "Thinking..."}</span>
-                    </div>
-                  ) : null}
+              <MessageList
+                messages={messages}
+                streamState={stream.state}
+                chatIsPending={chat.isPending}
+                suspended={suspended}
+                suspendedKind={suspendedKind}
+                acceptWrite={handleConfirmWrite}
+                cancelWrite={handleCancelWrite}
+                selectOption={handleSelect}
+                resumeIsPending={resume.isPending}
+                bottomRef={bottomRef}
+              />
 
-                  {messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`max-w-[85%] rounded-md px-3 py-2 ${bubbleClass(m.role)} animate-in fade-in slide-in-from-bottom-1 duration-200`}
-                    >
-                      <Text className="text-ui-fg-subtle text-small block mb-1">
-                        {m.role === "user" ? "You" : "Assistant"}
-                      </Text>
-                      <div className="whitespace-pre-wrap break-words">
-                        {m.role === "assistant" ? <MarkdownMessage value={m.content} /> : m.content}
-                      </div>
-                    </div>
-                  ))}
-
-                  {stream.state.isStreaming && stream.state.liveText ? (
-                    <div className={`max-w-[85%] rounded-md px-3 py-2 ${bubbleClass("assistant")} animate-in fade-in slide-in-from-bottom-1 duration-200`}>
-                      <Text className="text-ui-fg-subtle text-small block mb-1">Assistant (draft)</Text>
-                      <div className="whitespace-pre-wrap break-words">
-                        <MarkdownMessage value={stream.state.liveText} />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {suspended && suspendedKind === "write" ? (
-                    <div className="max-w-[92%]">
-                      <WriteConfirmCard
-                        payload={suspended.payload}
-                        isLoading={resume.isPending}
-                        onConfirm={handleConfirmWrite}
-                        onCancel={handleCancelWrite}
-                      />
-                    </div>
-                  ) : null}
-
-                  {suspended && suspendedKind === "select" ? (
-                    <div className="max-w-[92%]">
-                      <SuspendedWorkflowSelector
-                        reason={String(suspended.payload?.reason || "Please select an option")}
-                        options={Array.isArray(suspended.payload?.options) ? suspended.payload.options : []}
-                        actions={Array.isArray(suspended.payload?.actions) ? suspended.payload.actions : undefined}
-                        onSelect={handleSelect}
-                        isLoading={resume.isPending}
-                      />
-                    </div>
-                  ) : null}
-
-                  {(chat.isPending || stream.state.isStreaming || stream.state.active) && messages.length ? (
-                    <div className={`flex w-full ${bubbleClass("assistant")}`}>
-                      <div className="flex items-center gap-2 px-4 py-3 rounded-2xl rounded-tl-none bg-ui-bg-subtle text-ui-fg-subtle">
-                        <Spinner className="animate-spin" />
-                        <span className="text-small">{stream.state.active || "Thinking..."}</span>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {((Array.isArray(lastSteps) && lastSteps.length > 0) || (runId && runStatus === "completed")) ? (
-                    <Collapsible open={runDetailsOpen} onOpenChange={setRunDetailsOpen}>
-                      <div className="flex items-center justify-between gap-3 rounded-md border border-ui-border-base bg-ui-bg-base px-3 py-2">
-                        <Text className="text-ui-fg-subtle text-small">Run details</Text>
-                        <CollapsibleTrigger asChild>
-                          <button
-                            type="button"
-                            className="text-ui-fg-subtle text-small underline underline-offset-4"
-                          >
-                            {runDetailsOpen ? "Hide" : "Show"}
-                          </button>
-                        </CollapsibleTrigger>
-                      </div>
-                      <CollapsibleContent>
-                        <div className="mt-2 flex w-full flex-col gap-3 sm:flex-row sm:items-start">
-                          <div className="w-full sm:w-[420px]">
-                            <StepTimeline steps={lastSteps} hideEmpty={messages.length > 0} />
-                          </div>
-
-                          {runId && runStatus === "completed" ? (
-                            <div
-                              className={`w-full sm:w-[420px] rounded-md border border-ui-border-base bg-ui-bg-base px-3 py-2 ${bubbleClass("assistant")}`}
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <Text className="text-ui-fg-subtle text-small">Feedback</Text>
-                                {feedbackSubmittedForRunId === runId ? (
-                                  <Text className="text-ui-fg-subtle text-small">Submitted</Text>
-                                ) : null}
-                              </div>
-
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {([
-                                  { value: "one", label: "1" },
-                                  { value: "two", label: "2" },
-                                  { value: "three", label: "3" },
-                                  { value: "four", label: "4" },
-                                  { value: "five", label: "5" },
-                                ] as const).map((opt) => (
-                                  <Button
-                                    key={opt.value}
-                                    type="button"
-                                    size="small"
-                                    variant={feedbackRating === opt.value ? "primary" : "secondary"}
-                                    onClick={() => setFeedbackRating(opt.value)}
-                                    disabled={!canSubmitFeedback || feedback.isPending}
-                                  >
-                                    {opt.label}
-                                  </Button>
-                                ))}
-                              </div>
-
-                              <div className="mt-2">
-                                <Textarea
-                                  rows={2}
-                                  value={feedbackComment}
-                                  onChange={(e) => setFeedbackComment(e.target.value)}
-                                  placeholder="Optional comment"
-                                  disabled={!canSubmitFeedback || feedback.isPending}
-                                />
-                              </div>
-
-                              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                <Input
-                                  value={feedbackSubmittedBy}
-                                  onChange={(e) => {
-                                    setFeedbackSubmittedByTouched(true)
-                                    setFeedbackSubmittedBy(e.target.value)
-                                  }}
-                                  placeholder="Submitted by"
-                                  disabled={!canSubmitFeedback || feedback.isPending}
-                                />
-
-                                <Button
-                                  type="button"
-                                  size="small"
-                                  onClick={submitFeedback}
-                                  isLoading={feedback.isPending}
-                                  disabled={!canSubmitFeedback}
-                                >
-                                  Submit
-                                </Button>
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  ) : null}
-
-                  {stream.state.error ? (
-                    <div className={`max-w-[85%] rounded-md px-3 py-2 ${bubbleClass("assistant")}`}>
-                      <Text className="text-ui-fg-subtle text-small">Error</Text>
-                      <div className="whitespace-pre-wrap break-words">{String(stream.state.error)}</div>
-                    </div>
-                  ) : null}
-
-                  <div ref={bottomRef} />
-                </div>
-              </div>
-
-              <div className="mt-auto border-t border-ui-border-base bg-ui-bg-base">
-                <div className="mx-auto w-full max-w-[1200px] px-3 py-2">
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[360px_1fr] sm:items-end">
-                    <div className="flex flex-col gap-2">
-                      <div>
-                        <Text className="text-ui-fg-subtle text-small">Resource ID</Text>
-                        <Input
-                          value={threadPickerResource}
-                          onChange={(e) => setThreadPickerResource(e.target.value)}
-                          placeholder="ai:v2 or ai:v2:product"
-                          disabled={chat.isPending || stream.state.isStreaming}
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          variant="secondary"
-                          type="button"
-                          size="small"
-                          isLoading={threadsApi.isPending}
-                          onClick={loadThreads}
-                          disabled={chat.isPending || stream.state.isStreaming}
-                        >
-                          Load chats
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          type="button"
-                          size="small"
-                          isLoading={createThreadApi.isPending}
-                          onClick={startNewChat}
-                          disabled={chat.isPending || stream.state.isStreaming}
-                        >
-                          New chat
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          type="button"
-                          size="small"
-                          onClick={() => {
-                            stream.stop()
-                            setRunStatus("idle")
-                            setActiveThreadId(null)
-                            setActiveResourceId(null)
-                            setAvailableThreads([])
-                            setSelectedThreadId("")
-                            setMessages([])
-                            setLastSteps(undefined)
-                            setRunId(null)
-                            setSuspended(null)
-                            setFeedbackSubmittedForRunId(null)
-                          }}
-                          disabled={chat.isPending || stream.state.isStreaming}
-                        >
-                          Change thread
-                        </Button>
-                      </div>
-
-                      {availableThreads.length ? (
-                        <div className="flex flex-col gap-2">
-                          <Select value={selectedThreadId} onValueChange={setSelectedThreadId}>
-                            <Select.Trigger>
-                              <Select.Value placeholder="Select a thread…" />
-                            </Select.Trigger>
-                            <Select.Content>
-                              {availableThreads.map((t: any) => (
-                                <Select.Item key={String(t.id)} value={String(t.id)}>
-                                  {t.title ? `${t.title} · ` : ""}
-                                  {String(t.id)}
-                                </Select.Item>
-                              ))}
-                            </Select.Content>
-                          </Select>
-                          <Button
-                            variant="secondary"
-                            type="button"
-                            size="small"
-                            isLoading={threadApi.isPending}
-                            disabled={!selectedThreadId || chat.isPending || stream.state.isStreaming}
-                            onClick={() => hydrateFromThread(selectedThreadId, threadPickerResource)}
-                          >
-                            Open selected
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="flex w-full sm:justify-center">
-                      <div
-                        className={`group w-full max-w-[900px] rounded-2xl border border-ui-border-base bg-ui-bg-base ${
-                          composerFocused ? "shadow-sm" : ""
-                        }`}
-                      >
-                        <div className={composerFocused ? "p-3" : "p-2"}>
-                          <Textarea
-                            rows={1}
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onFocus={() => setComposerFocused(true)}
-                            onBlur={() => setComposerFocused(false)}
-                            placeholder="Ask something… e.g. list all products, update partner name…"
-                            disabled={chat.isPending || stream.state.isStreaming}
-                            className={`resize-none border-none bg-transparent p-0 outline-none focus:outline-none focus:ring-0 ${
-                              composerFocused ? "min-h-[64px]" : "min-h-[36px]"
-                            }`}
-                          />
-
-                          <div className="mt-2 flex items-center justify-end gap-2">
-                            {stream.state.isStreaming ? (
-                              <Button
-                                variant="secondary"
-                                type="button"
-                                onClick={() => {
-                                  stream.stop()
-                                  setRunStatus("idle")
-                                }}
-                                size="small"
-                              >
-                                Stop
-                              </Button>
-                            ) : null}
-                            <Button
-                              type="button"
-                              isLoading={chat.isPending}
-                              disabled={!canSend}
-                              onClick={send}
-                              size="small"
-                            >
-                              Send
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <RunDetailsPanel
+                open={runDetailsOpen}
+                onOpenChange={setRunDetailsOpen}
+                lastSteps={lastSteps}
+                hideEmptySteps={messages.length > 0}
+                runId={runId}
+                runStatus={runStatus}
+                feedbackRating={feedbackRating}
+                onFeedbackRatingChange={(rating) => setFeedbackRating(rating)}
+                feedbackComment={feedbackComment}
+                onFeedbackCommentChange={setFeedbackComment}
+                feedbackSubmittedBy={feedbackSubmittedBy}
+                onFeedbackSubmittedByChange={(value) => {
+                  setFeedbackSubmittedByTouched(true)
+                  setFeedbackSubmittedBy(value)
+                }}
+                canSubmitFeedback={canSubmitFeedback}
+                submitFeedback={submitFeedback}
+                feedbackPending={feedback.isPending}
+                feedbackSubmittedForRunId={feedbackSubmittedForRunId}
+              />
             </div>
           </div>
         )}
+        <div className="bg-ui-bg-base px-4 pb-6">
+          {availableThreads.length ? (
+            <div className="mx-auto mb-4 w-full max-w-[420px]">
+              <ThreadSelect
+                availableThreads={availableThreads}
+                selectedThreadId={selectedThreadId}
+                onSelect={setSelectedThreadId}
+                onOpenSelected={openSelectedThread}
+                isLoading={threadApi.isPending}
+                areActionsDisabled={chat.isPending || stream.state.isStreaming}
+                buttonFullWidth
+              />
+            </div>
+          ) : null}
+
+          <div className="mx-auto w-full max-w-[900px]">
+            <ChatComposer
+              value={input}
+              onChange={setInput}
+              disabled={chat.isPending || stream.state.isStreaming}
+              canSend={canSend}
+              isStreaming={stream.state.isStreaming}
+              onStop={() => {
+                stream.stop()
+                setRunStatus("idle")
+              }}
+              onSend={send}
+              onKeyDown={handleComposerKeyDown}
+            />
+          </div>
+        </div>
       </RouteFocusModal.Body>
 
       <RouteFocusModal.Footer>
-        <div className="flex items-center justify-end gap-x-2">
-          <RouteFocusModal.Close asChild>
-            <Button variant="secondary" type="button">
-              Close
-            </Button>
-          </RouteFocusModal.Close>
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <Text className="text-ui-fg-subtle text-small">Resource ID</Text>
+            <Input
+              size="small"
+              className="w-[220px]"
+              value={threadPickerResource}
+              onChange={(e) => setThreadPickerResource(e.target.value)}
+              placeholder="ai:v2 or ai:v2:product"
+              disabled={chat.isPending || stream.state.isStreaming}
+            />
+            <DropdownMenu>
+              <DropdownMenu.Trigger asChild>
+                <IconButton size="small" variant="transparent" disabled={chat.isPending || stream.state.isStreaming}>
+                  <BarsArrowDown />
+                </IconButton>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content align="start" sideOffset={4}>
+                <DropdownMenu.Item
+                  disabled={chat.isPending || stream.state.isStreaming}
+                  onClick={loadThreads}
+                >
+                  Load chats
+                </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  disabled={chat.isPending || stream.state.isStreaming}
+                  onClick={startNewChat}
+                >
+                  New chat
+                </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  disabled={chat.isPending || stream.state.isStreaming}
+                  onClick={resetThreadContext}
+                >
+                  Change thread
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu>
+          </div>
+
+          <div className="flex items-center justify-end gap-x-2">
+            <RouteFocusModal.Close asChild>
+              <Button variant="secondary" type="button">
+                Close
+              </Button>
+            </RouteFocusModal.Close>
+          </div>
         </div>
       </RouteFocusModal.Footer>
     </>
