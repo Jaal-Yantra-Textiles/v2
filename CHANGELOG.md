@@ -1,3 +1,10 @@
+# [8.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.2.3...v8.3.0) (2025-12-21)
+
+
+### Features
+
+* **admin:** Product views on the UI ([18ffd9d](https://github.com/Jaal-Yantra-Textiles/v2/commit/18ffd9dee024c0a7038959fd3e9e232a833d95d1))
+
 ## [8.2.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.2.2...v8.2.3) (2025-12-21)
 
 ## [8.2.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.2.1...v8.2.2) (2025-12-20)
