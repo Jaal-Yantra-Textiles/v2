@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en" class="bg-slate-100">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Media Gallery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ["Space Grotesk", "Inter", "ui-sans-serif", "system-ui"],
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
+    <main class="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 lg:px-6">
+      <header class="rounded-3xl bg-white/80 p-6 shadow-xl ring-1 ring-slate-200 backdrop-blur">
+        <p class="text-sm uppercase tracking-[0.25em] text-slate-400">Jaali media</p>
+        <h1 id="folder-name" class="font-display text-4xl font-semibold text-slate-900">Media Gallery</h1>
+        <p id="status" class="mt-2 text-base text-slate-500">
+          Provide a folder ID and token in the URL query (?folder=FOLDER_ID&token=SHARE_TOKEN).
+        </p>
+      </header>
+
+      <section class="rounded-3xl bg-white/90 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div class="flex flex-1 flex-col">
+            <label class="text-sm font-semibold text-slate-600">Shareable URL</label>
+            <input
+              id="share-url"
+              readonly
+              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-600 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            />
+          </div>
+          <button
+            id="copy-btn"
+            class="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-slate-800"
+          >
+            Copy Link
+          </button>
+        </div>
+      </section>
+
+      <section
+        id="gallery"
+        class="grid gap-6 rounded-3xl bg-white/80 p-6 shadow-xl ring-1 ring-slate-200 backdrop-blur sm:grid-cols-2 lg:grid-cols-3"
+      ></section>
+      <div
+        id="empty"
+        class="rounded-3xl border border-dashed border-slate-200 bg-white/70 p-12 text-center text-slate-400 shadow-lg backdrop-blur"
+        hidden
+      >
+        No media files were found for this folder.
+      </div>
+
+      <footer class="pb-8 text-center text-sm text-slate-400">
+        Public gallery powered by the Jaali media service.
+      </footer>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(window.location.search)
+      const folderId = params.get('folder')
+      const token = params.get('token')
+      const baseUrl = window.location.origin
+      const shareUrlInput = document.getElementById('share-url')
+      const copyBtn = document.getElementById('copy-btn')
+      const statusEl = document.getElementById('status')
+      const galleryEl = document.getElementById('gallery')
+      const emptyEl = document.getElementById('empty')
+      const folderNameEl = document.getElementById('folder-name')
+
+      const fullShareUrl = `${window.location.origin}${window.location.pathname}?folder=${folderId || ''}&token=${token || ''}`
+      shareUrlInput.value = fullShareUrl
+
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(shareUrlInput.value)
+          copyBtn.textContent = 'Copied!'
+          setTimeout(() => (copyBtn.textContent = 'Copy Link'), 1800)
+        } catch (err) {
+          console.error('Failed to copy link', err)
+          copyBtn.textContent = 'Copy failed'
+          setTimeout(() => (copyBtn.textContent = 'Copy Link'), 1800)
+        }
+      })
+
+      async function fetchFolder() {
+        if (!folderId || !token) {
+          statusEl.textContent = 'Add ?folder=FOLDER_ID&token=SHARE_TOKEN to the URL to view media.'
+          emptyEl.hidden = false
+          return
+        }
+
+        statusEl.textContent = 'Loading gallery…'
+        try {
+          const response = await fetch(`/api/web/media/folder/${folderId}?token=${token}`)
+          if (!response.ok) {
+            throw new Error('Request failed with status ' + response.status)
+          }
+          const data = await response.json()
+          folderNameEl.textContent = data.folder?.name || 'Media Gallery'
+          statusEl.textContent = data.folder?.description || 'Public media folder'
+
+          if (!data.media_files?.length) {
+            emptyEl.hidden = false
+            galleryEl.innerHTML = ''
+            return
+          }
+
+          emptyEl.hidden = true
+          galleryEl.innerHTML = ''
+
+          data.media_files.forEach((file) => {
+            const card = document.createElement('article')
+            card.className =
+              'group flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white/90 p-4 shadow-lg shadow-slate-200/80 transition hover:-translate-y-1 hover:shadow-2xl'
+
+            const imgWrap = document.createElement('div')
+            imgWrap.className = 'relative overflow-hidden rounded-2xl'
+
+            const img = document.createElement('img')
+            img.src = file.file_path
+            img.alt = file.alt_text || file.original_name || 'Media image'
+            img.className = 'h-56 w-full object-cover transition duration-300 group-hover:scale-105'
+
+            const chip = document.createElement('span')
+            chip.className =
+              'absolute left-3 top-3 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow'
+            chip.textContent = file.file_type || 'image'
+
+            imgWrap.appendChild(img)
+            imgWrap.appendChild(chip)
+
+            const title = document.createElement('h3')
+            title.className = 'font-semibold text-slate-900'
+            title.textContent = file.original_name || file.file_name
+
+            const meta = document.createElement('p')
+            meta.className = 'text-sm text-slate-500'
+            meta.textContent = file.caption || file.mime_type || 'Image'
+
+            card.appendChild(imgWrap)
+            card.appendChild(title)
+            card.appendChild(meta)
+            galleryEl.appendChild(card)
+          })
+        } catch (error) {
+          console.error('Failed to load folder', error)
+          statusEl.textContent = error.message || 'Failed to load gallery'
+          emptyEl.hidden = false
+          galleryEl.innerHTML = ''
+        }
+      }
+
+      fetchFolder()
+    </script>
+  </body>
+</html>

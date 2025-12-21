@@ -9,8 +9,14 @@ import FolderService from "../../modules/media/service";
 
 export type UpdateFolderStepInput = {
   id: string;
-  // TODO: Define optional properties for updating a Folder from your model
-  // Example: name?: string;
+  name?: string;
+  description?: string | null;
+  path?: string;
+  level?: number;
+  sort_order?: number;
+  is_public?: boolean;
+  metadata?: Record<string, any> | null;
+  parent_folder_id?: string | null;
 };
 
 export const updateFolderStep = createStep(

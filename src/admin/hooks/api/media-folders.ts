@@ -4,6 +4,7 @@ import { QueryKey, UseQueryOptions, UseMutationOptions, useQuery, useMutation, u
 import { sdk } from "../../lib/config";
 import { mediasQueryKeys } from "./media-folders/use-medias";
 import { queryKeysFactory } from "../../lib/query-key-factory";
+import { mediaFolderDetailQueryKeys } from "./media-folders/use-media-folder-detail";
 
 export interface MediaFile {
   id: string;
@@ -149,6 +150,51 @@ export const useCreateMediaFolder = (
     ...options,
   });
 };
+
+type ShareFolderResponse = {
+  folder: AdminMediaFolder
+  share_token: string
+}
+
+export const useShareMediaFolder = (
+  id: string,
+  options?: UseMutationOptions<ShareFolderResponse, Error, void>
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      return sdk.client.fetch<ShareFolderResponse>(`/admin/medias/folder/${id}/share`, {
+        method: "POST",
+      })
+    },
+    onSuccess: (data, variables, ctx) => {
+      queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, ctx)
+    },
+    ...options,
+  })
+}
+
+export const useUnshareMediaFolder = (
+  id: string,
+  options?: UseMutationOptions<{ folder: AdminMediaFolder }, Error, void>
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      return sdk.client.fetch<{ folder: AdminMediaFolder }>(`/admin/medias/folder/${id}/share`, {
+        method: "DELETE",
+      })
+    },
+    onSuccess: (data, variables, ctx) => {
+      queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, ctx)
+    },
+    ...options,
+  })
+}
 
 export const useDeleteMediaFolder = (
   id: string,
