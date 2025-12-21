@@ -6,6 +6,10 @@
     <title>Media Gallery</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+      // Optional: host can set window.MEDIA_API_BASE_URL or <meta name="media-api-base" content="https://api.example.com">
+      window.MEDIA_API_BASE_URL = window.MEDIA_API_BASE_URL || undefined
+    </script>
+    <script>
       tailwind.config = {
         theme: {
           extend: {
@@ -90,6 +94,30 @@
         }
       })
 
+      function resolveApiBaseUrl() {
+        const globalValue =
+          window.GALLERY_API_BASE_URL ||
+          window.MEDIA_API_BASE_URL ||
+          (window.__ENV && window.__ENV.MEDIA_API_BASE_URL)
+        if (globalValue) {
+          return globalValue
+        }
+
+        const meta = document.querySelector('meta[name="media-api-base"]')
+        if (meta?.content) {
+          return meta.content
+        }
+
+        const htmlData = document.documentElement?.dataset?.mediaApiBase
+        if (htmlData) {
+          return htmlData
+        }
+
+        return window.location.origin
+      }
+
+      const apiBaseUrl = resolveApiBaseUrl().replace(/\/$/, '')
+
       async function fetchFolder() {
         if (!folderId || !token) {
           statusEl.textContent = 'Add ?folder=FOLDER_ID&token=SHARE_TOKEN to the URL to view media.'
@@ -99,7 +127,7 @@
 
         statusEl.textContent = 'Loading gallery…'
         try {
-          const response = await fetch(`/api/web/media/folder/${folderId}?token=${token}`)
+          const response = await fetch(`${apiBaseUrl}/web/media/folder/${folderId}?token=${token}`)
           if (!response.ok) {
             throw new Error('Request failed with status ' + response.status)
           }
