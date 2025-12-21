@@ -129,6 +129,32 @@
 
       const apiBaseUrl = resolveApiBaseUrl().replace(/\/$/, '')
 
+      function buildCloudflareThumb(url, width = 480, height = 320) {
+        if (!url) return ''
+        try {
+          const parsed = new URL(url)
+          const supportsCf =
+            parsed.hostname.includes('cloudflare') ||
+            parsed.hostname.includes('r2.dev') ||
+            parsed.hostname.includes('jaalyantra.com') ||
+            parsed.pathname.includes('/cdn-cgi/imagedelivery/')
+
+          if (!supportsCf) {
+            return url
+          }
+
+          if (parsed.pathname.includes('/cdn-cgi/image/')) {
+            return url
+          }
+
+          const transformPath = `/cdn-cgi/image/width=${width},height=${height},fit=cover,quality=70,format=auto`
+          parsed.pathname = `${transformPath}${parsed.pathname}`
+          return parsed.toString()
+        } catch {
+          return url
+        }
+      }
+
       async function triggerDownload(url, filename) {
         const anchor = document.createElement('a')
         anchor.href = url
@@ -191,7 +217,8 @@
             imgWrap.className = 'relative overflow-hidden rounded-2xl'
 
             const img = document.createElement('img')
-            img.src = file.file_path
+            img.src = buildCloudflareThumb(file.file_path, 512, 360)
+            img.loading = 'lazy'
             img.alt = file.alt_text || file.original_name || 'Media image'
             img.className = 'h-56 w-full object-cover transition duration-300 group-hover:scale-105'
 
