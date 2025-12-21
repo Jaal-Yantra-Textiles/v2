@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Editor, { Monaco } from "@monaco-editor/react"
 import { Button, Text, Input, Label, Textarea, Checkbox } from "@medusajs/ui"
 import { PencilSquare, ExclamationCircle, CheckCircle, Spinner } from "@medusajs/icons"
@@ -68,6 +68,8 @@ export function CodeEditorModal({
   const [localCode, setLocalCode] = useState(code)
   const [errors, setErrors] = useState<string[]>([])
   const [monacoInstance, setMonacoInstance] = useState<Monaco | null>(null)
+  const validationTimeoutRef = useRef<number | null>(null)
+  const lastErrorsKeyRef = useRef<string>("")
 
   const visualFlowCodegen = useVisualFlowCodegen()
   const [aiPrompt, setAiPrompt] = useState("")
@@ -133,16 +135,37 @@ export function CodeEditorModal({
     /Consider adding.*export/i,
   ]
   
+  const handleCodeChange = useCallback((value?: string) => {
+    setLocalCode(value || "")
+  }, [])
+
   // Get errors from Monaco markers
   const handleEditorValidation = useCallback((markers: { message: string; severity: number }[]) => {
-    // Filter to only errors (severity 8) and warnings (severity 4)
-    // Also filter out sandbox-specific false positives
-    const errorMessages = markers
-      .filter(m => m.severity >= 4)
-      .filter(m => !IGNORED_ERROR_PATTERNS.some(pattern => pattern.test(m.message)))
-      .map(m => m.message)
-      .slice(0, 5) // Limit to 5 errors
-    setErrors(errorMessages)
+    if (validationTimeoutRef.current) {
+      window.clearTimeout(validationTimeoutRef.current)
+    }
+
+    validationTimeoutRef.current = window.setTimeout(() => {
+      const errorMessages = markers
+        .filter((m) => m.severity >= 4)
+        .filter((m) => !IGNORED_ERROR_PATTERNS.some((pattern) => pattern.test(m.message)))
+        .map((m) => m.message)
+        .slice(0, 5)
+
+      const key = JSON.stringify(errorMessages)
+      if (key !== lastErrorsKeyRef.current) {
+        lastErrorsKeyRef.current = key
+        setErrors(errorMessages)
+      }
+    }, 250)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (validationTimeoutRef.current) {
+        window.clearTimeout(validationTimeoutRef.current)
+      }
+    }
   }, [])
 
   const handleOpen = () => {
@@ -211,7 +234,7 @@ export function CodeEditorModal({
                 defaultLanguage="typescript"
                 path="file:///sandbox-code.ts"
                 value={localCode}
-                onChange={(value) => setLocalCode(value || "")}
+                onChange={handleCodeChange}
                 beforeMount={handleEditorWillMount}
                 onValidate={handleEditorValidation}
                 theme="vs-dark"

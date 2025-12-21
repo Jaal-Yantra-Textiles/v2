@@ -23,6 +23,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [advancedJson, setAdvancedJson] = useState("")
   const [jsonError, setJsonError] = useState<string | null>(null)
+  const [conditionExpressionError, setConditionExpressionError] = useState<string | null>(null)
 
   // Get entities from metadata
   const entities = metadata?.entities || []
@@ -118,7 +119,73 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
     setOptions(node.data.options || {})
     setAdvancedJson(JSON.stringify(node.data.options || {}, null, 2))
     setJsonError(null)
+    setConditionExpressionError(null)
   }, [node.id, node.data])
+
+  const parseConditionExpressionToFilterRule = (raw: string): {
+    filterRule?: Record<string, any>
+    error?: string
+  } => {
+    const trimmed = String(raw || "").trim()
+    if (!trimmed) {
+      return { filterRule: {} }
+    }
+
+    const withoutMustache = trimmed.replace(/^\{\{\s*|\s*\}\}$/g, "").trim()
+    const match = withoutMustache.match(/^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/)
+    if (!match) {
+      return {
+        error:
+          "Unsupported expression. Use a simple comparison like $last.count > 0 or {{ $last.count }} > 0.",
+      }
+    }
+
+    const stripMustache = (value: string) => {
+      const v = value.trim()
+      const m = v.match(/^\{\{\s*([^}]+)\s*\}\}$/)
+      return m ? m[1].trim() : v
+    }
+
+    const left = stripMustache(match[1])
+    const operator = match[2]
+    const rightRaw = stripMustache(match[3])
+
+    const operatorMap: Record<string, string> = {
+      "==": "_eq",
+      "!=": "_neq",
+      ">": "_gt",
+      ">=": "_gte",
+      "<": "_lt",
+      "<=": "_lte",
+    }
+
+    const op = operatorMap[operator]
+    if (!op) {
+      return { error: `Unsupported operator: ${operator}` }
+    }
+
+    let expected: any = rightRaw
+    if (/^(true|false)$/i.test(rightRaw)) {
+      expected = rightRaw.toLowerCase() === "true"
+    } else if (/^null$/i.test(rightRaw)) {
+      expected = null
+    } else if (/^[-+]?\d+(\.\d+)?$/.test(rightRaw)) {
+      expected = Number(rightRaw)
+    } else if (
+      (rightRaw.startsWith("\"") && rightRaw.endsWith("\"")) ||
+      (rightRaw.startsWith("'") && rightRaw.endsWith("'"))
+    ) {
+      expected = rightRaw.slice(1, -1)
+    }
+
+    return {
+      filterRule: {
+        [left]: {
+          [op]: expected,
+        },
+      },
+    }
+  }
 
   const updateOption = (key: string, value: any) => {
     setOptions(prev => {
@@ -323,12 +390,28 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
                       <Checkbox
                         checked={(options.fields || []).includes(field.name)}
                         onCheckedChange={(checked) => {
-                          const currentFields = options.fields || []
-                          if (checked) {
-                            updateOption("fields", [...currentFields, field.name])
-                          } else {
-                            updateOption("fields", currentFields.filter((f: string) => f !== field.name))
-                          }
+                          const isChecked = Boolean(checked)
+
+                          setOptions((prev) => {
+                            const currentFields = Array.isArray(prev.fields) ? prev.fields : []
+                            const nextFields = isChecked
+                              ? Array.from(new Set([...currentFields, field.name]))
+                              : currentFields.filter((f: string) => f !== field.name)
+
+                            const newOptions = {
+                              ...prev,
+                              fields: nextFields.length ? nextFields : undefined,
+                            }
+
+                            setAdvancedJson(JSON.stringify(newOptions, null, 2))
+                            onUpdate({
+                              label,
+                              operationKey,
+                              options: newOptions,
+                            })
+
+                            return newOptions
+                          })
                         }}
                       />
                       <span>{field.name}</span>
@@ -655,11 +738,30 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
             <Input
               id="expression"
               value={options.expression || ""}
-              onChange={(e) => updateOption("expression", e.target.value)}
-              placeholder="e.g., {{ $last.count }} > 0"
+              onChange={(e) => {
+                const expression = e.target.value
+                updateOption("expression", expression)
+
+                const parsed = parseConditionExpressionToFilterRule(expression)
+                if (parsed.error) {
+                  setConditionExpressionError(parsed.error)
+                  return
+                }
+
+                setConditionExpressionError(null)
+                if (parsed.filterRule) {
+                  updateOption("filter_rule", parsed.filterRule)
+                }
+              }}
+              placeholder="e.g., $last.count > 0"
             />
+            {conditionExpressionError && (
+              <Text className="text-xs text-ui-fg-error mt-1">
+                {conditionExpressionError}
+              </Text>
+            )}
             <Text className="text-xs text-ui-fg-subtle mt-1">
-              Expression that evaluates to true/false
+              Saved as <code className="bg-ui-bg-subtle px-1">filter_rule</code> for runtime branching
             </Text>
           </div>
         )

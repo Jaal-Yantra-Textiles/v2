@@ -3,9 +3,9 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { v4 as uuidv4 } from "uuid"
 import { mastra, mastraStorageInit } from "../../../../../mastra"
 import { runStorage } from "../../../../../mastra/run-storage"
-import { AI_V2_MODULE } from "../../../../../modules/aivtwo"
 import type AiV2Service from "../../../../../modules/aivtwo/service"
 import { AdminAiV2ChatReq, AdminAiV2ChatReqType } from "./validators"
+import { AI_VTWO_MODULE } from "../../../../../modules/aivtwo"
 
 export const POST = async (req: MedusaRequest<AdminAiV2ChatReqType>, res: MedusaResponse) => {
   let runId = ""
@@ -30,7 +30,7 @@ export const POST = async (req: MedusaRequest<AdminAiV2ChatReqType>, res: Medusa
     runId = uuidv4()
     const run = await (wf as any).createRunAsync({ runId })
 
-    const aiV2Service: AiV2Service = req.scope.resolve(AI_V2_MODULE)
+    const aiV2Service: AiV2Service = req.scope.resolve(AI_VTWO_MODULE)
 
     try {
       const existing = (await (aiV2Service as any).listAiV2Runs({ run_id: runId }))?.[0]
@@ -127,7 +127,7 @@ export const POST = async (req: MedusaRequest<AdminAiV2ChatReqType>, res: Medusa
     })
   } catch (e: any) {
     try {
-      const aiV2Service: AiV2Service = req.scope.resolve(AI_V2_MODULE)
+      const aiV2Service: AiV2Service = req.scope.resolve(AI_VTWO_MODULE)
       if (runId) {
         const existing = (await (aiV2Service as any).listAiV2Runs({ run_id: runId }))?.[0]
         if (existing?.id) {

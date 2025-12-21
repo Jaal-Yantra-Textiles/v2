@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { mastraStorageInit } from "../../../../../../../mastra"
 import { runStorage } from "../../../../../../../mastra/run-storage"
-import { AI_V2_MODULE } from "../../../../../../../modules/aivtwo"
+import { AI_VTWO_MODULE } from "../../../../../../../modules/aivtwo"
 import type AiV2Service from "../../../../../../../modules/aivtwo/service"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -23,7 +23,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.status(404).json({ message: "Run not found or expired" })
     }
 
-    const aiV2Service: AiV2Service = req.scope.resolve(AI_V2_MODULE)
+    const aiV2Service: AiV2Service = req.scope.resolve(AI_VTWO_MODULE)
 
     try {
       const existing = (await (aiV2Service as any).listAiV2Runs({ run_id: runId }))?.[0]
@@ -108,7 +108,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     })
   } catch (error: any) {
     try {
-      const aiV2Service: AiV2Service = req.scope.resolve(AI_V2_MODULE)
+      const aiV2Service: AiV2Service = req.scope.resolve(AI_VTWO_MODULE)
       const existing = (await (aiV2Service as any).listAiV2Runs({ run_id: runId }))?.[0]
       if (existing?.id) {
         await (aiV2Service as any).updateAiV2Runs({
