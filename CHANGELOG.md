@@ -1,3 +1,19 @@
+# [8.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.3.0...v8.4.0) (2025-12-21)
+
+
+### Bug Fixes
+
+* **Media Gallery:** Fixed media download support ([73a741b](https://github.com/Jaal-Yantra-Textiles/v2/commit/73a741be815b700c48e2b4412b1551d3e2e5bacd))
+* **Media Gallery:** Fixed meta tags ([9f75b53](https://github.com/Jaal-Yantra-Textiles/v2/commit/9f75b538aa3a7de1447b6358cc8fab71cc3ef105))
+* **admin:** Fixed the copy URL path ([3be4d46](https://github.com/Jaal-Yantra-Textiles/v2/commit/3be4d46f3bd635794b90fdcb15c594c352d8cbe0))
+* **Media Gallery:** Fixed the env var ([7acba66](https://github.com/Jaal-Yantra-Textiles/v2/commit/7acba66cdab37aaf55e9fac882c1603a3f754cd6))
+* **Media Gallery:** Fixed the mov support ([95133bd](https://github.com/Jaal-Yantra-Textiles/v2/commit/95133bdc34e51122e0da12c9cc1e0999ad549c84))
+
+
+### Features
+
+* **api:** Media gallery on public support ([dccad45](https://github.com/Jaal-Yantra-Textiles/v2/commit/dccad45a5ac59d0db7c51b491fafe10cc70babb3))
+
 # [8.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.2.3...v8.3.0) (2025-12-21)
 
 
