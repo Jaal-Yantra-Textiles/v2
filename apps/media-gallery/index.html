@@ -129,6 +129,15 @@
 
       const apiBaseUrl = resolveApiBaseUrl().replace(/\/$/, '')
 
+      function isVideoFile(file) {
+        const mime = (file?.mime_type || file?.file_type || '').toLowerCase()
+        if (mime.includes('video')) {
+          return true
+        }
+        const name = (file?.file_name || file?.original_name || '').toLowerCase()
+        return name.endsWith('.mp4') || name.endsWith('.mov') || name.endsWith('.m4v') || name.endsWith('.webm')
+      }
+
       function buildCloudflareThumb(url, width = 480, height = 320) {
         if (!url) return ''
         try {
@@ -209,6 +218,7 @@
           galleryEl.innerHTML = ''
 
           data.media_files.forEach((file) => {
+            const isVideo = isVideoFile(file)
             const card = document.createElement('article')
             card.className =
               'group flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white/90 p-4 shadow-lg shadow-slate-200/80 transition hover:-translate-y-1 hover:shadow-2xl'
@@ -216,18 +226,29 @@
             const imgWrap = document.createElement('div')
             imgWrap.className = 'relative overflow-hidden rounded-2xl'
 
-            const img = document.createElement('img')
-            img.src = buildCloudflareThumb(file.file_path, 512, 360)
-            img.loading = 'lazy'
-            img.alt = file.alt_text || file.original_name || 'Media image'
-            img.className = 'h-56 w-full object-cover transition duration-300 group-hover:scale-105'
+            if (isVideo) {
+              const video = document.createElement('video')
+              video.src = file.file_path
+              video.controls = true
+              video.muted = true
+              video.playsInline = true
+              video.preload = 'metadata'
+              video.poster = buildCloudflareThumb(file.preview_image_url || file.file_path, 512, 360)
+              video.className = 'h-56 w-full rounded-2xl object-cover'
+              imgWrap.appendChild(video)
+            } else {
+              const img = document.createElement('img')
+              img.src = buildCloudflareThumb(file.file_path, 512, 360)
+              img.loading = 'lazy'
+              img.alt = file.alt_text || file.original_name || 'Media image'
+              img.className = 'h-56 w-full object-cover transition duration-300 group-hover:scale-105'
+              imgWrap.appendChild(img)
+            }
 
             const chip = document.createElement('span')
             chip.className =
               'absolute left-3 top-3 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow'
-            chip.textContent = file.file_type || 'image'
-
-            imgWrap.appendChild(img)
+            chip.textContent = isVideo ? 'video' : file.file_type || 'image'
             imgWrap.appendChild(chip)
 
             const title = document.createElement('h3')
