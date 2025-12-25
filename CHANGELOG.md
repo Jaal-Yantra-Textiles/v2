@@ -1,3 +1,10 @@
+## [8.4.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.4.0...v8.4.1) (2025-12-25)
+
+
+### Bug Fixes
+
+* **admin:** Implemented blob-based downloading in apps/media-gallery/index.html, so “Download All” and per-item downloads fetch each file ([cc51009](https://github.com/Jaal-Yantra-Textiles/v2/commit/cc51009d0e1d5e5f3ba777871f642ad8ecd186e5))
+
 # [8.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.3.0...v8.4.0) (2025-12-21)
 
 
