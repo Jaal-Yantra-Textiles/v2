@@ -52,7 +52,7 @@ export const FolderGeneralSection = ({ folder }: FolderGeneralSectionProps) => {
     if (!shareToken || !shareBase) {
       return null;
     }
-    return `${shareBase}/apps/media-gallery/?folder=${folder.id}&token=${shareToken}`;
+    return `${shareBase}/?folder=${folder.id}&token=${shareToken}`;
   }, [folder.id, shareBase, shareToken]);
 
   const handleDelete = async () => {

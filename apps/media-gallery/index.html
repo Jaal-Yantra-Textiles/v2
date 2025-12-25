@@ -164,14 +164,36 @@
         }
       }
 
-      async function triggerDownload(url, filename) {
-        const anchor = document.createElement('a')
-        anchor.href = url
-        anchor.download = filename || ''
-        anchor.target = '_blank'
-        document.body.appendChild(anchor)
-        anchor.click()
-        anchor.remove()
+      async function triggerDownload(file) {
+        const url = file?.file_path
+        const filename = file?.original_name || file?.file_name || 'media'
+        if (!url) {
+          return
+        }
+
+        try {
+          const response = await fetch(url, { mode: 'cors' })
+          if (!response.ok) {
+            throw new Error('Failed to fetch file')
+          }
+          const blob = await response.blob()
+          const blobUrl = URL.createObjectURL(blob)
+          const anchor = document.createElement('a')
+          anchor.href = blobUrl
+          anchor.download = filename
+          document.body.appendChild(anchor)
+          anchor.click()
+          anchor.remove()
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+        } catch (err) {
+          console.error('Blob download failed, falling back to direct download', err)
+          const fallback = document.createElement('a')
+          fallback.href = url
+          fallback.download = filename
+          document.body.appendChild(fallback)
+          fallback.click()
+          fallback.remove()
+        }
       }
 
       downloadAllBtn.addEventListener('click', async () => {
@@ -183,7 +205,7 @@
 
         downloadAllBtn.textContent = 'Downloading…'
         for (const file of currentFiles) {
-          triggerDownload(file.file_path, file.original_name || file.file_name || 'media')
+          await triggerDownload(file)
           await new Promise((resolve) => setTimeout(resolve, 200))
         }
         downloadAllBtn.textContent = 'Done!'
@@ -272,9 +294,7 @@
             const downloadLink = document.createElement('button')
             downloadLink.className = 'rounded-xl bg-slate-900 px-3 py-1 font-medium text-white transition hover:bg-slate-800'
             downloadLink.textContent = 'Download'
-            downloadLink.addEventListener('click', () =>
-              triggerDownload(file.file_path, file.original_name || file.file_name || 'media'),
-            )
+            downloadLink.addEventListener('click', () => triggerDownload(file))
 
             actions.appendChild(viewLink)
             actions.appendChild(downloadLink)
