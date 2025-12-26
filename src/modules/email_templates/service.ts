@@ -1,6 +1,5 @@
 import { MedusaService, MedusaError } from "@medusajs/framework/utils";
 import EmailTemplate from "./models/email-template";
-import { logger } from "@medusajs/framework";
 
 class EmailTemplatesService extends MedusaService({
   EmailTemplate,
