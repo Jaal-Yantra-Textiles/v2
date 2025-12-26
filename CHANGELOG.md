@@ -1,3 +1,10 @@
+## [8.4.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.4.1...v8.4.2) (2025-12-26)
+
+
+### Bug Fixes
+
+* **workflows:** The notification payload now includes the normalized tracking_numbers/tracking_links, Handlebars pre-rendered HTML with the helpers (dates, money, etc.), and all the shipment/order context we expect. ([3ce1767](https://github.com/Jaal-Yantra-Textiles/v2/commit/3ce1767363408c4831cb528e74caa4a64a6aca1b))
+
 ## [8.4.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.4.0...v8.4.1) (2025-12-25)
 
 
