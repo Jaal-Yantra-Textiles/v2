@@ -1,3 +1,10 @@
+# [8.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.4.2...v8.5.0) (2025-12-27)
+
+
+### Features
+
+* **api:** Admin API for the persons making dynamic calls to the resources registry ([cbb54e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/cbb54e94544bfd1e5f887c54968f8c0a546b2094))
+
 ## [8.4.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.4.1...v8.4.2) (2025-12-26)
 
 
