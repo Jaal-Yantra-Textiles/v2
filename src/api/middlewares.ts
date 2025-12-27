@@ -14,18 +14,46 @@ import path from "path";
 import { ConfigModule } from "@medusajs/framework/types";
 import { parseCorsOrigins } from "@medusajs/framework/utils";
 import cors from "cors";
+import * as z from "zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
+import { getPersonResourceDefinition } from "./admin/persons/resources/registry";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody
 const wrapSchema = <T extends z.ZodType>(schema: T) => {
   return z.preprocess((obj) => obj, schema) as any;
 };
 
+const buildPersonResourceValidator =
+  (type: "create" | "update") =>
+  (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
+    const resourceKey = req.params?.resource;
+
+    if (!resourceKey) {
+      return next();
+    }
+
+    const definition = getPersonResourceDefinition(resourceKey);
+
+    if (!definition) {
+      return next();
+    }
+
+    const schema = definition.validators?.[type];
+
+    if (!schema) {
+      return next();
+    }
+
+    return validateAndTransformBody(wrapSchema(schema))(req, res, next);
+  };
+
+const validatePersonResourceCreate = buildPersonResourceValidator("create");
+const validatePersonResourceUpdate = buildPersonResourceValidator("update");
+
 import { personTypeSchema, updatePersonTypeSchema } from "./admin/persontypes/validators";
 import { addressSchema } from "./admin/persons/[id]/addresses/validators";
 import { contactSchema } from "./admin/persons/[id]/contacts/validators";
 import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
-import * as z from "zod";
 import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
 import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
@@ -563,6 +591,16 @@ export default defineMiddlewares({
       matcher: "/admin/persons/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdatePersonSchema))],
+    },
+    {
+      matcher: "/admin/persons/:id/resources/:resource",
+      method: "POST",
+      middlewares: [validatePersonResourceCreate],
+    },
+    {
+      matcher: "/admin/persons/:id/resources/:resource/:resourceId",
+      method: "PATCH",
+      middlewares: [validatePersonResourceUpdate],
     },
     {
       matcher: "/admin/persons/:id/addresses",

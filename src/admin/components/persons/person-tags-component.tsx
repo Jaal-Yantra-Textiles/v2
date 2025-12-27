@@ -1,28 +1,81 @@
-import { Badge, Container, Heading, Text, Button, Tooltip, Input, toast, CommandBar } from "@medusajs/ui";
-import { useTranslation } from "react-i18next";
-import { PencilSquare, XMarkMini } from "@medusajs/icons";
-import { ActionMenu } from "../common/action-menu";
-import { Tag } from "../../hooks/api/personandtype";
-import { useAddTagsToPerson, useDeletePersonTag } from "../../hooks/api/person-tags";
-import { useState, KeyboardEvent } from "react";
+import {
+  Badge,
+  Button,
+  CommandBar,
+  Container,
+  Heading,
+  Input,
+  Text,
+  Tooltip,
+  toast,
+} from "@medusajs/ui"
+import { useTranslation } from "react-i18next"
+import { PencilSquare, XMarkMini } from "@medusajs/icons"
+import { ActionMenu } from "../common/action-menu"
+import { AdminPerson, Tag } from "../../hooks/api/personandtype"
+import {
+  useAddTagsToPerson,
+  useDeletePersonTag,
+  usePersonTags,
+} from "../../hooks/api/person-tags"
+import { useState, KeyboardEvent, useEffect, useMemo } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { PERSON_RESOURCE_META } from "../../hooks/api/person-resource-meta"
+import { personsQueryKeys } from "../../hooks/api/persons"
 
 interface PersonTagsComponentProps {
-  person: {
-    id: string;
-    tags: Tag[];
-    [key: string]: any;
-  };
+  personId: string
+  initialTags?: Tag[]
 }
 
-export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
-  const { t } = useTranslation();
-  const [tagInput, setTagInput] = useState("");
-  const [pendingTags, setPendingTags] = useState<string[]>([]);
-  const [tagsSelected, setTagsSelected] = useState(false);
-  
-  // Use person.tags directly instead of fetching
-  const { mutateAsync: addTags } = useAddTagsToPerson(person.id);
-  const { mutateAsync: deleteTag } = useDeletePersonTag(person.id);
+export const PersonTagsComponent = ({
+  personId,
+  initialTags,
+}: PersonTagsComponentProps) => {
+  const { t } = useTranslation()
+  const [tagInput, setTagInput] = useState("")
+  const [pendingTags, setPendingTags] = useState<string[]>([])
+  const [tagsSelected, setTagsSelected] = useState(false)
+  const queryClient = useQueryClient()
+  const tagsListQueryKey = useMemo(
+    () =>
+      [
+        "persons",
+        "resources",
+        PERSON_RESOURCE_META.tags.pathSegment,
+        personId,
+        "list",
+        { query: {} },
+      ] as const,
+    [personId],
+  )
+
+  useEffect(() => {
+    if (initialTags === undefined) {
+      return
+    }
+
+    queryClient.setQueryData(tagsListQueryKey, (prev: Record<string, any> | undefined) => ({
+      ...(prev ?? {}),
+      [PERSON_RESOURCE_META.tags.listKey]: initialTags,
+      count: initialTags.length,
+    }))
+  }, [initialTags, queryClient, tagsListQueryKey])
+  const { tags = [] } = usePersonTags(
+    personId,
+    undefined,
+    initialTags !== undefined
+      ? {
+          initialData: {
+            [PERSON_RESOURCE_META.tags.listKey]: initialTags,
+            count: initialTags.length,
+          },
+        }
+      : undefined,
+  )
+
+  const addTags = useAddTagsToPerson(personId)
+  const deleteTag = useDeletePersonTag(personId)
   
 
 
@@ -58,7 +111,7 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
 
   // Focus the tag input and add current tag if any
   const handleAddTag = () => {
-    const inputElement = document.getElementById('tag-input') as HTMLInputElement;
+    const inputElement = document.getElementById("tag-input") as HTMLInputElement
     if (inputElement) {
       if (tagInput.trim()) {
         // If there's text in the input, add it as a tag
@@ -87,7 +140,7 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
     
     // If Enter is pressed, add the tag
-    if (e.key === 'Enter' && tagInput.trim()) {
+    if (e.key === "Enter" && tagInput.trim()) {
       e.preventDefault();
       // Only add to pending tags, don't submit yet
       const tagValue = tagInput.trim();
@@ -98,7 +151,7 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
       }
     }
     // If comma is pressed, add the tag and allow for more
-    else if (e.key === ',' && tagInput.trim()) {
+    else if (e.key === "," && tagInput.trim()) {
       e.preventDefault();
       const tagValue = tagInput.replace(/,/g, '').trim();
       if (tagValue) {
@@ -108,7 +161,7 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
       }
     }
     // If Tab is pressed with content, add the tag
-    else if (e.key === 'Tab' && tagInput.trim()) {
+    else if (e.key === "Tab" && tagInput.trim()) {
       // Only add to pending tags, don't submit yet
       const tagValue = tagInput.trim();
       if (tagValue) {
@@ -142,7 +195,7 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
       try {
         // Ensure we're sending a valid payload with unique tags
         const uniqueTags = [...new Set(pendingTags)];
-        await addTags({ name: uniqueTags });
+        await addTags.mutateAsync({ name: uniqueTags })
         toast.success('Tags added successfully');
         setPendingTags([]);
         setTagsSelected(false);
@@ -167,18 +220,46 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
     setPendingTags(newPendingTags);
   };
   
+  const removeTagFromCaches = (tagId: string) => {
+    queryClient.setQueryData(tagsListQueryKey, (prev: Record<string, any> | undefined) => {
+      if (!prev) {
+        return prev
+      }
+
+      const currentTags = (prev[PERSON_RESOURCE_META.tags.listKey] as Tag[] | undefined) ?? []
+      const nextTags = currentTags.filter((tag) => tag.id !== tagId)
+
+      return {
+        ...prev,
+        [PERSON_RESOURCE_META.tags.listKey]: nextTags,
+        count: nextTags.length,
+      }
+    })
+
+    queryClient.setQueriesData(
+      { queryKey: personsQueryKeys.detail(personId), exact: false },
+      (old: { person?: AdminPerson } | undefined) => {
+        if (!old?.person?.tags) {
+          return old
+        }
+
+        return {
+          ...old,
+          person: {
+            ...old.person,
+            tags: old.person.tags.filter((tag) => tag.id !== tagId),
+          },
+        }
+      },
+    )
+  }
+
   // Handle deleting a tag
   const handleDeleteTag = async (tagId: string) => {
     try {
-      await deleteTag(tagId);
+      await deleteTag.mutateAsync(tagId)
       toast.success('Tag deleted successfully');
-      
-      // Update the person object by filtering out the deleted tag
-      // This provides immediate UI feedback without waiting for a refetch
-      if (person.tags) {
-        const updatedTags = person.tags.filter(tag => tag.id !== tagId);
-        person.tags = updatedTags;
-      }
+      removeTagFromCaches(tagId)
     } catch (error: any) {
       console.error("Error deleting tag:", error);
       toast.error(error?.message || 'Failed to delete tag');
@@ -215,7 +296,9 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
         {/* Command Bar for tag actions */}
         <CommandBar open={tagsSelected}>
           <CommandBar.Bar>
-            <CommandBar.Value>{pendingTags.length} tag{pendingTags.length !== 1 ? 's' : ''} selected</CommandBar.Value>
+            <CommandBar.Value>
+              {pendingTags.length} tag{pendingTags.length !== 1 ? "s" : ""} selected
+            </CommandBar.Value>
             <CommandBar.Seperator />
             <CommandBar.Command
               action={submitTags}
@@ -268,31 +351,33 @@ export const PersonTagsComponent = ({ person }: PersonTagsComponentProps) => {
           ))}
           
           {/* Existing tags */}
-          {person.tags && person.tags.filter(tag => tag && tag.id).map((tag) => {
-            const displayValue = getTagDisplayValue(tag);
-            if (!displayValue) return null;
-            
-            return (
-              <div key={tag.id} className="relative group">
-                <Button
-                  variant="transparent"
-                  size="small"
-                  className="absolute -top-2 -right-2 p-0 h-4 w-4 bg-ui-bg-base rounded-full z-10 opacity-0 sm:group-hover:opacity-100 active:opacity-100 transition-opacity"
-                  onClick={() => handleDeleteTag(tag.id)}
-                >
-                  <XMarkMini className="w-3 h-3" />
-                </Button>
-                <Tooltip content={displayValue}>
-                  <Badge color={getTagColor(tag)}>
-                    {displayValue}
-                  </Badge>
-                </Tooltip>
-              </div>
-            );
-          })}
+          {tags
+            ?.filter((tag) => tag && tag.id)
+            .map((tag) => {
+              const displayValue = getTagDisplayValue(tag)
+              if (!displayValue) {
+                return null
+              }
+
+              return (
+                <div key={tag.id} className="relative group">
+                  <Button
+                    variant="transparent"
+                    size="small"
+                    className="absolute -top-2 -right-2 p-0 h-4 w-4 bg-ui-bg-base rounded-full z-10 opacity-0 sm:group-hover:opacity-100 active:opacity-100 transition-opacity"
+                    onClick={() => handleDeleteTag(tag.id)}
+                  >
+                    <XMarkMini className="w-3 h-3" />
+                  </Button>
+                  <Tooltip content={displayValue}>
+                    <Badge color={getTagColor(tag)}>{displayValue}</Badge>
+                  </Tooltip>
+                </div>
+              )
+            })}
           
           {/* Empty state */}
-          {pendingTags.length === 0 && (!person.tags || person.tags.length === 0) && (
+          {pendingTags.length === 0 && (!tags || tags.length === 0) && (
             <div className="flex flex-col sm:flex-row items-center justify-center py-4 w-full gap-y-2">
               <Text className="text-ui-fg-subtle">No tags found</Text>
               <Button

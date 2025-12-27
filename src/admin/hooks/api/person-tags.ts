@@ -1,176 +1,107 @@
-import { FetchError } from "@medusajs/js-sdk";
-import {
-  QueryKey,
-  UseMutationOptions,
-  UseQueryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { sdk } from "../../lib/config";
-import { queryKeysFactory } from "../../lib/query-key-factory";
-import { Tag } from "./personandtype";
-import { personsQueryKeys } from "./persons";
+import { FetchError } from "@medusajs/js-sdk"
+import { UseMutationOptions, useQueryClient } from "@tanstack/react-query"
 
-// Define types for tag operations
-export interface TagsResponse {
-  tags: Tag[];
-}
+import {
+  PersonResourceItemApiResponse,
+  personResourceHooks,
+} from "./person-resource-hooks"
+import { Tag } from "./personandtype"
+import { PERSON_RESOURCE_META } from "./person-resource-meta"
+import { personsQueryKeys } from "./persons"
 
 export interface TagInput {
-  name: string[];
+  name: string[]
 }
 
-// Define query keys
-const PERSON_TAGS_QUERY_KEY = "person-tags" as const;
-export const personTagsQueryKeys = {
-  ...queryKeysFactory(PERSON_TAGS_QUERY_KEY),
-  list: (personId?: string) => [
-    ...queryKeysFactory(PERSON_TAGS_QUERY_KEY).lists(),
-    personId,
-  ],
-};
+const tagHooks = personResourceHooks.tags
+const TAG_ITEM_KEY = PERSON_RESOURCE_META.tags.itemKey
 
-/**
- * Hook for fetching all tags for a person
- */
+type TagListOptions = Parameters<typeof tagHooks.useResourceList>[2]
+
 export const usePersonTags = (
   personId: string,
-  options?: Omit<
-    UseQueryOptions<
-      TagsResponse,
-      FetchError,
-      TagsResponse,
-      QueryKey
-    >,
-    "queryFn" | "queryKey"
-  >
+  query?: Record<string, any>,
+  options?: TagListOptions,
 ) => {
-  const { data, ...rest } = useQuery({
-    queryKey: personTagsQueryKeys.list(personId),
-    queryFn: async () =>
-      sdk.client.fetch<TagsResponse>(`/admin/persons/${personId}/tags`, {
-        method: "GET",
-      }),
-    ...options,
-  });
+  const result = tagHooks.useResourceList(personId, query, options)
 
   return {
-    ...rest,
-    tags: data?.tags || [],
-  };
-};
+    ...result,
+    tags: result.items as Tag[],
+    count: result.count ?? result.items.length,
+  }
+}
 
-/**
- * Hook for adding tags to a person
- */
+type TagMutationResult = PersonResourceItemApiResponse<Tag>
+
+const toTagResult = (data?: TagMutationResult) => {
+  if (!data) {
+    return undefined
+  }
+
+  const tag = (data[TAG_ITEM_KEY] as Tag | undefined) || data.tag
+
+  if (!tag) {
+    return undefined
+  }
+
+  return { tag }
+}
+
 export const useAddTagsToPerson = (
   personId: string,
-  options?: Omit<
-    UseMutationOptions<
-      TagsResponse,
-      FetchError,
-      TagInput
-    >,
-    "mutationFn"
-  >
+  options?: UseMutationOptions<TagMutationResult, FetchError, TagInput>,
 ) => {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
+  const { onSuccess, onSettled, ...restOptions } = options ?? {}
 
-  return useMutation({
-    mutationFn: async (data: TagInput) =>
-      sdk.client.fetch<TagsResponse>(`/admin/persons/${personId}/tags`, {
-        method: "POST",
-        body: data,
-      }),
-    onSuccess: () => {
-      // Invalidate both the tags list and the person details
-      queryClient.invalidateQueries({
-        queryKey: personTagsQueryKeys.list(personId),
-      });
-      
-      // Also invalidate the person query to ensure person details are up-to-date
+  return tagHooks.useCreateResource(personId, {
+    ...restOptions,
+    onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.detail(personId),
       })
+      const shaped = toTagResult(data)
+      if (shaped) {
+        onSuccess?.(shaped, variables, context)
+      }
     },
-    ...options,
-  });
-};
+    onSettled: (data, error, variables, context) => {
+      const shaped = data ? toTagResult(data) : undefined
+      onSettled?.(shaped, error, variables, context)
+    },
+  })
+}
 
-/**
- * Hook for updating tags for a person
- */
 export const useUpdatePersonTags = (
   personId: string,
-  options?: Omit<
-    UseMutationOptions<
-      TagsResponse,
-      FetchError,
-      TagInput
-    >,
-    "mutationFn"
-  >
+  tagId: string,
+  options?: UseMutationOptions<TagMutationResult, FetchError, TagInput>,
 ) => {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
+  const { onSuccess, onSettled, ...restOptions } = options ?? {}
 
-  return useMutation({
-    mutationFn: async (data: TagInput) =>
-      sdk.client.fetch<TagsResponse>(`/admin/persons/${personId}/tags`, {
-        method: "PUT",
-        body: data,
-      }),
-    onSuccess: () => {
-      // Invalidate both the tags list and the person details
-      queryClient.invalidateQueries({
-        queryKey: personTagsQueryKeys.list(personId),
-      });
-      
-      // Also invalidate the person query to ensure person details are up-to-date
+  return tagHooks.useUpdateResource(personId, tagId, {
+    ...restOptions,
+    onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.detail(personId),
-      });
+      })
+      const shaped = toTagResult(data)
+      if (shaped) {
+        onSuccess?.(shaped, variables, context)
+      }
     },
-    ...options,
-  });
-};
+    onSettled: (data, error, variables, context) => {
+      const shaped = data ? toTagResult(data) : undefined
+      onSettled?.(shaped, error, variables, context)
+    },
+  })
+}
 
-/**
- * Hook for deleting a tag from a person
- */
 export const useDeletePersonTag = (
   personId: string,
-  options?: Omit<
-    UseMutationOptions<
-      void,
-      FetchError,
-      string
-    >,
-    "mutationFn"
-  >
+  options?: UseMutationOptions<void, FetchError, string>,
 ) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (tagId: string): Promise<void> => {
-      await sdk.client.fetch(`/admin/persons/${personId}/tags/${tagId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json"
-        }
-      });
-    },
-    onSuccess: () => {
-      // Invalidate both the tags list and the person details
-      queryClient.invalidateQueries({
-        queryKey: personTagsQueryKeys.list(personId),
-      });
-      
-      // Also invalidate the person query to ensure person details are up-to-date
-      queryClient.invalidateQueries({
-        queryKey: personsQueryKeys.detail(personId),
-      });
-    },
-    ...options,
-  });
-};
+  return tagHooks.useDeleteResourceById(personId, options)
+}

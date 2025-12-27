@@ -313,7 +313,7 @@ setupSharedTestSuite(() => {
       });
     });
 
-    describe("POST /admin/persons/:id/addresses", () => {
+    describe("POST /admin/persons/:id/resources/addresses", () => {
       beforeEach(async () => {
         // Create a test person for address-related tests
         const newPerson = {
@@ -337,7 +337,7 @@ setupSharedTestSuite(() => {
         };
 
         const response = await api.post(
-          `/admin/persons/${personId}/addresses`,
+          `/admin/persons/${personId}/resources/addresses`,
           validAddress,
           headers 
         );
@@ -365,7 +365,7 @@ setupSharedTestSuite(() => {
         };
 
         await expect(
-          api.post(`/admin/persons/${personId}/addresses`, invalidAddress, headers )
+          api.post(`/admin/persons/${personId}/resources/addresses`, invalidAddress, headers )
         ).rejects.toMatchObject({
           response: {
             status: 400,
@@ -387,19 +387,23 @@ setupSharedTestSuite(() => {
         };
 
         await expect(
-          api.post(`/admin/persons/${nonExistentPersonId}/addresses`, validAddress, headers)
+          api.post(
+            `/admin/persons/${nonExistentPersonId}/resources/addresses`,
+            validAddress,
+            headers,
+          )
         ).rejects.toMatchObject({
           response: {
             status: 404,
-            data: expect.objectContaining({    
-              message: expect.stringContaining("Person with id \"non-existent-id\" not found"),
+            data: expect.objectContaining({
+              message: 'Person with id "non-existent-id" was not found',
             }),
           },
         });
       });
     });
 
-    describe("GET /admin/persons/:id/addresses", () => {
+    describe("GET /admin/persons/:id/resources/addresses", () => {
       beforeEach(async () => {
         // Create a test person
         const newPerson = {
@@ -415,9 +419,15 @@ setupSharedTestSuite(() => {
 
       afterEach(async () => {
         try {
-          const response = await api.get(`/admin/persons/${personId}/addresses`, headers);
+          const response = await api.get(
+            `/admin/persons/${personId}/resources/addresses`,
+            headers,
+          );
           for (const address of response.data.addresses || []) {
-            await api.delete(`/admin/persons/${personId}/addresses/${address.id}`, headers);
+            await api.delete(
+            `/admin/persons/${personId}/resources/addresses/${address.id}`,
+            headers,
+          );
           }
         } catch (error) {
           // Ignore cleanup errors
@@ -444,11 +454,15 @@ setupSharedTestSuite(() => {
         ];
 
         for (const address of addresses) {
-          await api.post(`/admin/persons/${personId}/addresses`, address, headers);
+          await api.post(
+            `/admin/persons/${personId}/resources/addresses`,
+            address,
+            headers,
+          );
         }
 
         const response = await api.get(
-          `/admin/persons/${personId}/addresses`,
+          `/admin/persons/${personId}/resources/addresses`,
           headers
         );
 
@@ -481,8 +495,8 @@ setupSharedTestSuite(() => {
 
       it("should return empty array for person with no addresses", async () => {
         const response = await api.get(
-          `/admin/persons/${personId}/addresses`,
-          headers
+          `/admin/persons/${personId}/resources/addresses`,
+          headers,
         );
 
         expect(response.status).toBe(200);
@@ -491,7 +505,7 @@ setupSharedTestSuite(() => {
       });
     });
 
-    describe("DELETE /admin/persons/:id/addresses/:addressId", () => {
+    describe("DELETE /admin/persons/:id/resources/addresses/:addressId", () => {
       let addressId;
 
       beforeEach(async () => {
@@ -516,25 +530,25 @@ setupSharedTestSuite(() => {
         };
 
         const addressResponse = await api.post(
-          `/admin/persons/${personId}/addresses`,
+          `/admin/persons/${personId}/resources/addresses`,
           address,
-          headers
+          headers,
         );
         addressId = addressResponse.data.address.id;
       });
 
       it("should successfully delete an address", async () => {
         const response = await api.delete(
-          `/admin/persons/${personId}/addresses/${addressId}`,
-          headers
+          `/admin/persons/${personId}/resources/addresses/${addressId}`,
+          headers,
         );
 
-        expect(response.status).toBe(204);
+        expect(response.status).toBe(200);
 
         // Verify address is deleted by trying to fetch all addresses
         const getResponse = await api.get(
-          `/admin/persons/${personId}/addresses`,
-          headers
+          `/admin/persons/${personId}/resources/addresses`,
+          headers,
         );
         expect(getResponse.data.addresses).not.toContainEqual(
           expect.objectContaining({ id: addressId })
@@ -546,9 +560,9 @@ setupSharedTestSuite(() => {
 
         await expect(
           api.delete(
-            `/admin/persons/${personId}/addresses/${nonExistentAddressId}`,
-            headers
-          )
+            `/admin/persons/${personId}/resources/addresses/${nonExistentAddressId}`,
+            headers,
+          ),
         ).rejects.toMatchObject({
           response: {
             status: 404,
@@ -564,9 +578,9 @@ setupSharedTestSuite(() => {
 
         await expect(
           api.delete(
-            `/admin/persons/${nonExistentPersonId}/addresses/${addressId}`,
-            headers
-          )
+            `/admin/persons/${nonExistentPersonId}/resources/addresses/${addressId}`,
+            headers,
+          ),
         ).rejects.toMatchObject({
           response: {
             status: 404,
@@ -578,7 +592,7 @@ setupSharedTestSuite(() => {
       });
     });
 
-    describe("POST /admin/persons/:id/contacts", () => {
+    describe("POST /admin/persons/:id/resources/contacts", () => {
       beforeEach(async () => {
         // Create a test person
         const newPerson = {
@@ -594,9 +608,15 @@ setupSharedTestSuite(() => {
 
       afterEach(async () => {
         try {
-          const response = await api.get(`/admin/persons/${personId}/contacts`, headers);
+          const response = await api.get(
+            `/admin/persons/${personId}/resources/contacts`,
+            headers,
+          );
           for (const contact of response.data.contacts || []) {
-            await api.delete(`/admin/persons/${personId}/contacts/${contact.id}`, headers);
+            await api.delete(
+              `/admin/persons/${personId}/resources/contacts/${contact.id}`,
+              headers,
+            );
           }
         } catch (error) {
           // Ignore cleanup errors
@@ -611,9 +631,9 @@ setupSharedTestSuite(() => {
         };
 
         const response = await api.post(
-          `/admin/persons/${personId}/contacts`,
+          `/admin/persons/${personId}/resources/contacts`,
           validContact,
-          headers
+          headers,
         );
 
       
@@ -636,7 +656,11 @@ setupSharedTestSuite(() => {
         };
 
         await expect(
-          api.post(`/admin/persons/${personId}/contacts`, invalidContact, headers)
+          api.post(
+            `/admin/persons/${personId}/resources/contacts`,
+            invalidContact,
+            headers,
+          ),
         ).rejects.toMatchObject({
           response: {
             status: 400,
@@ -645,7 +669,7 @@ setupSharedTestSuite(() => {
       });
     });
 
-    describe("POST /admin/persons/:id/contacts", () => {
+    describe("GET /admin/persons/:id/resources/contacts", () => {
       let contactId;
 
       beforeEach(async () => {
@@ -667,18 +691,24 @@ setupSharedTestSuite(() => {
         };
 
         const contactResponse = await api.post(
-          `/admin/persons/${personId}/contacts`,
+          `/admin/persons/${personId}/resources/contacts`,
           contact,
-          headers
+          headers,
         );
         contactId = contactResponse.data.contact.id;
       });
 
       afterEach(async () => {
         try {
-          const response = await api.get(`/admin/persons/${personId}/contacts`, headers);
+          const response = await api.get(
+            `/admin/persons/${personId}/resources/contacts`,
+            headers,
+          );
           for (const contact of response.data.contacts || []) {
-            await api.delete(`/admin/persons/${personId}/contacts/${contact.id}`, headers);
+            await api.delete(
+              `/admin/persons/${personId}/resources/contacts/${contact.id}`,
+              headers,
+            );
           }
         } catch (error) {
           // Ignore cleanup errors
@@ -687,10 +717,10 @@ setupSharedTestSuite(() => {
 
       it("should list all contacts for a person", async () => {
         const response = await api.get(
-          `/admin/persons/${personId}/contacts`,
-          headers
-        );
-        
+          `/admin/persons/${personId}/resources/contacts`,
+          headers,
+        )
+
         expect(response.status).toBe(200);
         expect(Array.isArray(response.data.contacts)).toBe(true);
         expect(response.data.contacts.length).toBe(1);
@@ -699,7 +729,6 @@ setupSharedTestSuite(() => {
           phone_number: "+1234567890",
           id: expect.any(String),
           person_id: personId,
-          
         });
       });
 
@@ -709,12 +738,11 @@ setupSharedTestSuite(() => {
           phone_number: "+9876543210",
         };
 
-        const response = await api.post(
-          `/admin/persons/${personId}/contacts/${contactId}`,
+        const response = await api.patch(
+          `/admin/persons/${personId}/resources/contacts/${contactId}`,
           updatedContact,
-          headers
+          headers,
         );
-        console.log(response.data)
         expect(response.status).toBe(200);
         expect(response.data.contact).toBeDefined();
         expect(response.data.contact).toMatchObject({

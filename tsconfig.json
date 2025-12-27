@@ -21,6 +21,9 @@
     "paths": {
       "@/*": [
         "./src/admin/*"
+      ],
+      "@person-resources/*": [
+        "./src/api/admin/persons/resources/*"
       ]
     }
   },

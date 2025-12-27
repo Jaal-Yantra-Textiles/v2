@@ -18,10 +18,13 @@ export const GET = async (
   });
 
   if (!agreementData || agreementData.length === 0) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_FOUND,
-      `No agreements found for person with id "${person_id}"`
-    );
+    return res.status(200).json({
+      person_id,
+      person_name: "",
+      person_email: "",
+      agreements: [],
+      count: 0,
+    });
   }
 
   const personInfo = agreementData[0].person;

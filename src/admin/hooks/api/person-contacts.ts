@@ -1,158 +1,121 @@
-import { FetchError } from "@medusajs/js-sdk";
+import { FetchError } from "@medusajs/js-sdk"
+import { UseMutationOptions, useQueryClient } from "@tanstack/react-query"
+
 import {
-  QueryKey,
-  UseMutationOptions,
-  UseQueryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { sdk } from "../../lib/config";
-import { queryKeysFactory } from "../../lib/query-key-factory";
+  PersonResourceItemApiResponse,
+  personResourceHooks,
+} from "./person-resource-hooks"
+import {
+  ContactDetail,
+  ContactInput,
+  ContactUpdateInput,
+} from "./personandtype"
+import { personsQueryKeys } from "./persons"
+import { PERSON_RESOURCE_META } from "./person-resource-meta"
 
-// Define types for contact details
-export interface ContactDetail {
-  id: string;
-  phone_number: string;
-  type: "mobile" | "home" | "work";
-  created_at?: string;
-  updated_at?: string;
-}
+const contactHooks = personResourceHooks.contacts
+const CONTACT_ITEM_KEY = PERSON_RESOURCE_META.contacts.itemKey
 
-export interface ContactInput {
-  phone_number: string;
-  type: "mobile" | "home" | "work";
-}
+type ContactListOptions = Parameters<
+  typeof contactHooks.useResourceList
+>[2]
 
-export interface ContactUpdateInput extends Partial<ContactInput> {}
-
-export interface ContactsResponse {
-  contacts: ContactDetail[];
-  count: number;
-}
-
-// Define query keys
-const PERSON_CONTACTS_QUERY_KEY = "person-contacts" as const;
-export const personContactsQueryKeys = {
-  ...queryKeysFactory(PERSON_CONTACTS_QUERY_KEY),
-  list: (personId?: string, query?: any) => [
-    ...queryKeysFactory(PERSON_CONTACTS_QUERY_KEY).lists(),
-    personId,
-    query,
-  ],
-};
-
-/**
- * Hook for fetching all contacts for a person
- */
 export const usePersonContacts = (
   personId: string,
   query?: Record<string, any>,
-  options?: Omit<
-    UseQueryOptions<
-      { contacts: ContactDetail[], count: number },
-      FetchError,
-      { contacts: ContactDetail[], count: number },
-      QueryKey
-    >,
-    "queryFn" | "queryKey"
-  >
+  options?: ContactListOptions,
 ) => {
-  const { data, ...rest } = useQuery({
-    queryKey: personContactsQueryKeys.list(personId),
-    queryFn: async () =>
-      sdk.client.fetch<ContactsResponse>(`/admin/persons/${personId}/contacts`, {
-        method: "GET",
-        query,
-      }),
-    ...options,
-  });
+  const result = contactHooks.useResourceList(personId, query, options)
 
   return {
-    ...rest,
-    contacts: data?.contacts || [],
-    count: data?.count || 0,
-  };
-};
+    ...result,
+    contacts: result.items as ContactDetail[],
+    count: result.count ?? result.items.length,
+  }
+}
 
-/**
- * Hook for adding a contact to a person
- */
+type ContactMutationResult = PersonResourceItemApiResponse<ContactDetail>
+
+const toContactResult = (
+  data?: PersonResourceItemApiResponse<ContactDetail>,
+) => {
+  if (!data) {
+    return undefined
+  }
+
+  const contact =
+    (data[CONTACT_ITEM_KEY] as ContactDetail | undefined) ||
+    (data as { contact?: ContactDetail }).contact
+
+  if (!contact) {
+    return undefined
+  }
+
+  return { contact }
+}
+
 export const useAddContactToPerson = (
   personId: string,
   options?: UseMutationOptions<
-    { contact: ContactDetail },
+    ContactMutationResult,
     FetchError,
     ContactInput
-  >
+  >,
 ) => {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: async (data: ContactInput) =>
-      sdk.client.fetch<{ contact: ContactDetail }>(`/admin/persons/${personId}/contacts`, {
-        method: "POST",
-        body: data,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: personContactsQueryKeys.list(personId),
-      });
-    },
+  return contactHooks.useCreateResource(personId, {
     ...options,
-  });
-};
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: personsQueryKeys.detail(personId),
+      })
+      const shaped = toContactResult(data)
+      if (shaped) {
+        options?.onSuccess?.(shaped, variables, context)
+      }
+    },
+    onSettled: (data, error, variables, context) => {
+      const shaped = data ? toContactResult(data) : undefined
+      options?.onSettled?.(shaped, error, variables, context)
+    },
+  })
+}
 
-/**
- * Hook for updating a contact
- */
+type UpdateContactOptions = UseMutationOptions<
+  ContactMutationResult,
+  FetchError,
+  ContactUpdateInput
+>
+
 export const useUpdatePersonContact = (
   personId: string,
   contactId: string,
-  options?: UseMutationOptions<
-    { contact: ContactDetail },
-    FetchError,
-    ContactUpdateInput
-  >
+  options?: UpdateContactOptions,
 ) => {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: async (data: ContactUpdateInput) =>
-      sdk.client.fetch<{ contact: ContactDetail }>(`/admin/persons/${personId}/contacts/${contactId}`, {
-        method: "POST",
-        body: data,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: personContactsQueryKeys.list(personId),
-      });
-    },
+  return contactHooks.useUpdateResource(personId, contactId, {
     ...options,
-  });
-};
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: personsQueryKeys.detail(personId),
+      })
+      const shaped = toContactResult(data)
+      if (shaped) {
+        options?.onSuccess?.(shaped, variables, context)
+      }
+    },
+    onSettled: (data, error, variables, context) => {
+      const shaped = data ? toContactResult(data) : undefined
+      options?.onSettled?.(shaped, error, variables, context)
+    },
+  })
+}
 
-/**
- * Hook for deleting a contact
- */
 export const useDeletePersonContact = (
   personId: string,
-  contactId: string,
-  options?: UseMutationOptions<void, FetchError, void>
+  options?: UseMutationOptions<void, FetchError, string>,
 ) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (): Promise<void> => {
-      await sdk.client.fetch(`/admin/persons/${personId}/contacts/${contactId}`, {
-        method: "DELETE",
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: personContactsQueryKeys.list(personId),
-      });
-    },
-    ...options,
-  });
-};
+  return contactHooks.useDeleteResourceById(personId, options)
+}

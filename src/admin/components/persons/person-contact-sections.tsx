@@ -1,40 +1,130 @@
-import { Container, Heading, Text, DataTable, useDataTable, CommandBar } from "@medusajs/ui";
-import { useTranslation } from "react-i18next";
-import { PencilSquare } from "@medusajs/icons";
-import { ActionMenu } from "../common/action-menu";
-import { useState, useEffect } from "react";
-import { toast, usePrompt } from "@medusajs/ui";
-import { useNavigate } from "react-router-dom";
-import { useDeletePersonContact, ContactDetail } from "../../hooks/api/person-contacts";
-import { TableSectionSkeleton } from "../table/skeleton";
+import { PencilSquare } from "@medusajs/icons"
+import {
+  CommandBar,
+  Container,
+  DataTable,
+  Heading,
+  Text,
+  toast,
+  useDataTable,
+  usePrompt,
+} from "@medusajs/ui"
+import { useTranslation } from "react-i18next"
+import { useEffect, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "react-router-dom"
 
-// Define the person with contact details interface
-interface PersonWithContactDetails {
-  id: string;
-  contact_details?: ContactDetail[];
-  [key: string]: any;
-}
+import {
+  useDeletePersonContact,
+  usePersonContacts,
+} from "../../hooks/api/person-contacts"
+import { AdminPerson, ContactDetail } from "../../hooks/api/personandtype"
+import { ActionMenu } from "../common/action-menu"
+import { TableSectionSkeleton } from "../table/skeleton"
+import { PERSON_RESOURCE_META } from "../../hooks/api/person-resource-meta"
+import { personsQueryKeys } from "../../hooks/api/persons"
 
 interface PersonContactSectionProps {
-  person: PersonWithContactDetails;
+  personId: string
+  initialContacts?: ContactDetail[]
 }
 
-export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
-  const { t } = useTranslation();
-  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
-  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
-  const prompt = usePrompt();
-  const navigate = useNavigate();
-  
-  // Use contact_details directly from the person object
-  const contacts = person.contact_details || [];
-  
+export const PersonContactSection = ({
+  personId,
+  initialContacts,
+}: PersonContactSectionProps) => {
+  const { t } = useTranslation()
+  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
+  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
+  const prompt = usePrompt()
+  const navigate = useNavigate()
+  const deleteContact = useDeletePersonContact(personId)
+  const queryClient = useQueryClient()
+  const contactsListQueryKey = useMemo(
+    () =>
+      [
+        "persons",
+        "resources",
+        PERSON_RESOURCE_META.contacts.pathSegment,
+        personId,
+        "list",
+        { query: {} },
+      ] as const,
+    [personId],
+  )
+
+  useEffect(() => {
+    if (initialContacts === undefined) {
+      return
+    }
+
+    queryClient.setQueryData(
+      contactsListQueryKey,
+      (prev: Record<string, any> | undefined) => ({
+        ...(prev ?? {}),
+        [PERSON_RESOURCE_META.contacts.listKey]: initialContacts,
+        count: initialContacts.length,
+      }),
+    )
+  }, [initialContacts, queryClient, contactsListQueryKey])
+
+  const { contacts = [], isPending } = usePersonContacts(
+    personId,
+    undefined,
+    initialContacts !== undefined
+      ? {
+          initialData: {
+            contacts: initialContacts,
+            count: initialContacts.length,
+          },
+        }
+      : undefined,
+  )
   
   // Get the selected contact ID (for edit/delete operations)
   const getSelectedContactId = () => {
     const selectedIds = Object.keys(selectedRows);
     return selectedIds.length === 1 ? selectedIds[0] : null;
   };
+
+  const removeContactFromCaches = (contactId: string) => {
+    queryClient.setQueryData(
+      contactsListQueryKey,
+      (prev: Record<string, any> | undefined) => {
+        if (!prev) {
+          return prev
+        }
+
+        const current = (prev[PERSON_RESOURCE_META.contacts.listKey] as ContactDetail[] | undefined) ?? []
+        const next = current.filter((contact) => contact.id !== contactId)
+
+        return {
+          ...prev,
+          [PERSON_RESOURCE_META.contacts.listKey]: next,
+          count: next.length,
+        }
+      },
+    )
+
+    queryClient.setQueriesData(
+      { queryKey: personsQueryKeys.detail(personId), exact: false },
+      (old: { person?: AdminPerson } | undefined) => {
+        if (!old?.person?.contact_details) {
+          return old
+        }
+
+        return {
+          ...old,
+          person: {
+            ...old.person,
+            contact_details: old.person.contact_details.filter(
+              (contact) => contact.id !== contactId,
+            ),
+          },
+        }
+      },
+    )
+  }
 
   // Command bar handlers
   const handleDelete = async () => {
@@ -46,7 +136,7 @@ export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
     
     // For simplicity, we'll only support deleting one contact at a time
     const contactId = selectedContactIds[0];
-    const contactToDelete = contacts.find(c => c.id === contactId);
+    const contactToDelete = contacts.find((c) => c.id === contactId)
     
     if (!contactToDelete) {
       toast.error('Selected contact not found');
@@ -68,14 +158,11 @@ export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
       return;
     }
     
-    // Get the delete mutation for this contact
-    const { mutateAsync } = useDeletePersonContact(person.id, contactId);
-    
     try {
-      await mutateAsync();
+      await deleteContact.mutateAsync(contactId)
       toast.success('Contact deleted successfully');
       setSelectedRows({});
-      // No need to refetch as the parent component should handle refreshing the person data
+      removeContactFromCaches(contactId);
     } catch (error: any) {
       toast.error(error?.message || 'Failed to delete contact');
     }
@@ -89,7 +176,7 @@ export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
     }
     
     // Navigate to the edit contact page
-    navigate(`/persons/${person.id}/edit-contact/${contactId}`);
+    navigate(`/persons/${personId}/edit-contact/${contactId}`)
   };
 
   // Row selection handler
@@ -151,67 +238,67 @@ export const PersonContactSection = ({ person }: PersonContactSectionProps) => {
   
   // Handle adding a new contact
   const handleAddContact = () => {
-    navigate(`/persons/${person.id}/add-contact`);
+    navigate(`/persons/${personId}/add-contact`)
   };
 
   // Define columns
-  const columns = [
-    {
-      accessorKey: "select",
-      header: ({ table }: { table: any }) => (
-        <input
-          type="checkbox"
-          checked={table.getIsAllRowsSelected()}
-          onChange={(e) => {
-            table.toggleAllRowsSelected(e.target.checked);
-            handleSelectAll(e.target.checked);
-          }}
-        />
-      ),
-      cell: ({ row }: { row: any }) => (
-        <input
-          type="checkbox"
-          checked={selectedRows[row.id] || false}
-          onChange={(e) => {
-            row.toggleSelected(e.target.checked);
-            handleRowSelect(row.id);
-          }}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ),
-      size: 50,
-    },
-    {
-      accessorKey: "phone_number",
-      header: t("fields.phoneNumber"),
-      size: 200,
-    },
-    {
-      accessorKey: "type",
-      header: t("fields.type"),
-      size: 150,
-      cell: ({ row }: { row: any }) => formatContactType(row.getValue("type")),
-    },
-  ];
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "select",
+        header: ({ table }: { table: any }) => (
+          <input
+            type="checkbox"
+            checked={table.getIsAllRowsSelected()}
+            onChange={(e) => {
+              table.toggleAllRowsSelected(e.target.checked)
+              handleSelectAll(e.target.checked)
+            }}
+          />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <input
+            type="checkbox"
+            checked={selectedRows[row.id] || false}
+            onChange={(e) => {
+              row.toggleSelected(e.target.checked)
+              handleRowSelect(row.id)
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ),
+        size: 50,
+      },
+      {
+        accessorKey: "phone_number",
+        header: t("fields.phoneNumber"),
+        size: 200,
+      },
+      {
+        accessorKey: "type",
+        header: t("fields.type"),
+        size: 150,
+        cell: ({ row }: { row: any }) => formatContactType(row.getValue("type")),
+      },
+    ],
+    [selectedRows, t],
+  )
 
   const table = useDataTable({
     columns,
     data: contacts,
-    getRowId: (row) => row.id,
+    getRowId: (row) => row.id as string,
     rowSelection: {
       state: {},
-      onRowSelectionChange: () => {
-        // Handle row selection changes if needed
-        // This is handled manually via the checkbox clicks
-      },
-      enableRowSelection: true
+      onRowSelectionChange: () => {},
+      enableRowSelection: true,
     },
     onRowClick: (_, row) => {
-      handleRowSelect(row.id as string);
+      handleRowSelect(row.id as string)
     },
-  });
+  })
 
-  if (!contacts) {
+  if (isPending) {
     return <TableSectionSkeleton rowCount={3} />
   }
 

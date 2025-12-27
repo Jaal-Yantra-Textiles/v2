@@ -10,7 +10,6 @@ type PersonAgreementsSectionProps = {
 export const PersonAgreementsSection = ({ person }: PersonAgreementsSectionProps) => {
   // Prefer API that includes agreement.responses; fallback to person.agreements
   const { agreements: fetchedAgreements, isPending } = usePersonAgreements(person.id);
-  console.log(fetchedAgreements)
   const agreements = (fetchedAgreements ?? person?.agreements ?? []).map((a: any) => {
     // Defensively scope responses to the current person to avoid showing other signers' links
     const allResponses = Array.isArray(a.responses) ? a.responses : [];

@@ -1,14 +1,14 @@
-import { Button, Heading, Input, Text, toast } from "@medusajs/ui";
-import { useAddAddressToPerson } from "../../hooks/api/persons";
+import { Button, Heading, Input, Text, toast } from "@medusajs/ui"
+import { useAddAddressToPerson } from "../../hooks/api/person-addresses"
 
-import { useForm } from "react-hook-form";
-import { RouteFocusModal } from "../modal/route-focus-modal";
-import { useRouteModal } from "../modal/use-route-modal";
-import { KeyboundForm } from "../utilitites/key-bound-form";
-import { Form } from "../common/form";
-import { useParams } from "react-router-dom";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { useForm } from "react-hook-form"
+import { RouteFocusModal } from "../modal/route-focus-modal"
+import { useRouteModal } from "../modal/use-route-modal"
+import { KeyboundForm } from "../utilitites/key-bound-form"
+import { Form } from "../common/form"
+import { useParams } from "react-router-dom"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 
 const addressSchema = z.object({
   street: z.string().min(1, "Street is required"),
@@ -16,9 +16,9 @@ const addressSchema = z.object({
   state: z.string().min(1, "State is required"),
   postal_code: z.string().min(1, "Postal Code is required"),
   country: z.string().min(1, "Country is required"),
-});
+})
 
-type AddressFormData = z.infer<typeof addressSchema>;
+type AddressFormData = z.infer<typeof addressSchema>
 
 const AddAddressForPerson = () => {
   const form = useForm<AddressFormData>({
@@ -30,30 +30,24 @@ const AddAddressForPerson = () => {
       country: "",
     },
     resolver: zodResolver(addressSchema),
-  });
+  })
 
-  const { id } = useParams();
-  const { handleSuccess } = useRouteModal();
-  const { mutateAsync, isPending } = useAddAddressToPerson(id!);
+  const { id } = useParams()
+  const { handleSuccess } = useRouteModal()
+  const { mutateAsync, isPending } = useAddAddressToPerson(id!, {
+    onSuccess: () => {
+      toast.success("Address added successfully")
+      handleSuccess(`/persons/${id}`)
+    },
+  })
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    console.log('Form submitted with data:', data);
     try {
-      const response = await mutateAsync(data);
-      console.log('API response:', response);
-      
-      if (response?.address) {
-        toast.success('Address added successfully');
-        handleSuccess(`/persons/${id}`);
-      } else {
-        toast.error('Failed to add address: No response from server');
-      }
+      await mutateAsync(data)
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to add address');
-      // Don't close the modal on error
-      return;
+      toast.error(error?.message || "Failed to add address")
     }
-  });
+  })
 
   return (
     <RouteFocusModal.Form form={form}>
@@ -62,7 +56,7 @@ const AddAddressForPerson = () => {
         className="flex flex-1 flex-col overflow-hidden"
       >
         <RouteFocusModal.Header />
-        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto py-8 md:py-16 px-4 md:px-6">
+        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto px-4 py-8 md:px-6 md:py-16">
           <div className="flex w-full max-w-[720px] flex-col gap-y-6 md:gap-y-8">
             <div>
               <Heading className="text-xl md:text-2xl">Add New Address</Heading>

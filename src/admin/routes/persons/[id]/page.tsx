@@ -48,14 +48,23 @@ const PersonDetailPage = () => {
     <TwoColumnPage data={person} hasOutlet={true} showJSON showMetadata={true} >
       <TwoColumnPage.Main>
       <PersonGeneralSection person={person} />
-      <PersonsAddressSection person={person} />
+      <PersonsAddressSection
+        personId={person.id}
+        initialAddresses={person.addresses}
+      />
       <PersonPartnerComponent person={person} />
       <PersonAgreementsSection person={person} />
       <PersonPaymentsSection person={person} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
-        <PersonContactSection person={person} />
-        <PersonTagsComponent person={person} />
+        <PersonContactSection
+          personId={person.id}
+          initialContacts={person.contact_details}
+        />
+        <PersonTagsComponent
+          personId={person.id}
+          initialTags={person.tags}
+        />
         <PersonTypesComponent personTypes={person.person_types} />
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>

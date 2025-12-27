@@ -1,5 +1,3 @@
-import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
-
 export interface AddressDetails {
   id: string;
   street: string;
@@ -11,11 +9,20 @@ export interface AddressDetails {
   longitude: number;
 }
 
-interface ContactDetail {
+export interface ContactDetail {
   id: string;
   phone_number: string;
   type: "mobile" | "home" | "work";
+  created_at?: string;
+  updated_at?: string;
 }
+
+export interface ContactInput {
+  phone_number: string;
+  type: "mobile" | "home" | "work";
+}
+
+export type ContactUpdateInput = Partial<ContactInput>;
 
 export interface Tag {
   id: string;
@@ -35,6 +42,7 @@ export interface AdminPerson {
   avatar: string;
   contact_details: ContactDetail[];
   tags: Tag[];
+  addresses?: AddressDetails[];
   deleted_at: string | null;
 }
 
@@ -51,8 +59,8 @@ export interface AddressInput {
   state: string;
   postal_code: string;
   country: string;
-  latitude: number;
-  longitude: number
+  latitude?: number;
+  longitude?: number
 }
 
 export interface Address {
@@ -132,75 +140,3 @@ export interface AdminPersonTypeListParams {
   updated_at: string;
   q?: string;
 }
-
-// Original types from the top of the file
-export type Person = {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  type: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-};
-
-export type CreatePersonInput = {
-  email: string;
-  first_name: string;
-  last_name: string;
-  type: string;
-};
-
-export type CreatePersonRequest = MedusaRequest<CreatePersonInput>;
-
-export type CreatePersonResponse = MedusaResponse<{
-  person: Person;
-}>;
-
-export type GetPersonsParams = {
-  type?: string;
-  email?: string;
-};
-
-export type GetPersonsRequest = MedusaRequest<GetPersonsParams>;
-
-export type GetPersonsResponse = MedusaResponse<{
-  persons: Person[];
-  count: number;
-  offset: number;
-  limit: number;
-}>;
-
-export type PersonType = {
-  id: string;
-  name: string;
-  description?: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-};
-
-export type CreatePersonTypeInput = {
-  name: string;
-  description?: string;
-};
-
-export type CreatePersonTypeRequest = MedusaRequest<CreatePersonTypeInput>;
-
-export type CreatePersonTypeResponse = MedusaResponse<{
-  person_type: PersonType;
-}>;
-
-export type GetPersonTypesParams = {
-  name?: string;
-};
-
-export type GetPersonTypesRequest = MedusaRequest<GetPersonTypesParams>;
-
-export type GetPersonTypesResponse = MedusaResponse<{
-  person_types: PersonType[];
-  count: number;
-  offset: number;
-  limit: number;
-}>;
