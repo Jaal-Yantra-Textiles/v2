@@ -1,7 +1,7 @@
 import { Container, Heading, Text, Tooltip } from "@medusajs/ui";
 import { PencilSquare } from "@medusajs/icons";
 import { useTranslation } from "react-i18next";
-import { AdminDesign, ColorPalette } from "../../hooks/api/designs";
+import { AdminDesign } from "../../hooks/api/designs";
 import { ActionMenu } from "../common/action-menu";
 
 interface DesignColorPaletteSectionProps {
@@ -10,10 +10,26 @@ interface DesignColorPaletteSectionProps {
 
 export const DesignColorPaletteSection = ({ design }: DesignColorPaletteSectionProps) => {
   const { t } = useTranslation();
-  
-  // Get color palette from design or initialize empty array
-  const colorPalette = design.color_palette || [];
-  
+
+  const structuredColors =
+    design.colors?.map((color) => ({
+      name: color.name,
+      code: color.hex_code,
+      usage_notes: color.usage_notes,
+    })) || [];
+
+  const legacyPalette =
+    design.color_palette?.map((color) => ({
+      name: color.name,
+      code: color.code,
+    })) || [];
+
+  const colorPalette: Array<{
+    name: string;
+    code: string;
+    usage_notes?: string;
+  }> = structuredColors.length ? structuredColors : legacyPalette;
+
   return (
     <Container className="divide-y p-0">
       <div className="px-6 py-4">
@@ -43,11 +59,26 @@ export const DesignColorPaletteSection = ({ design }: DesignColorPaletteSectionP
       <div className="px-6 py-4">
         <div className="flex flex-wrap gap-3">
           {colorPalette.length > 0 ? (
-            colorPalette.map((color: ColorPalette, index: number) => (
-              <Tooltip key={`color-${index}`} content={`${color.name} (${color.code})`}>
+            colorPalette.map((color, index: number) => (
+              <Tooltip
+                key={`color-${index}`}
+                content={
+                  <div className="space-y-1">
+                    <Text size="small" weight="plus">
+                      {color.name}
+                    </Text>
+                    <Text size="small">{color.code?.toUpperCase()}</Text>
+                    {color.usage_notes && (
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        {color.usage_notes}
+                      </Text>
+                    )}
+                  </div>
+                }
+              >
                 <div className="flex flex-col items-center">
-                  <div 
-                    className="w-12 h-12 rounded-md border border-ui-border-base shadow-sm cursor-pointer"
+                  <div
+                    className="w-12 h-12 rounded-md border border-ui-border-base shadow-sm"
                     style={{ backgroundColor: color.code }}
                     aria-label={color.name}
                   />

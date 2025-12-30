@@ -5,6 +5,7 @@ import DesignService from "../../modules/designs/service"
 import TaskService from "../../modules/tasks/service"
 import { TASKS_MODULE } from "../../modules/tasks"
 import { IInventoryService } from "@medusajs/types"
+import { LinkDefinition } from "@medusajs/framework/types"
 
 export type ConsumptionInput = {
   inventory_item_id: string
@@ -102,6 +103,45 @@ const adjustInventoryStep = createStep(
   }
 )
 
+const recordInventoryConsumptionStep = createStep(
+  "complete-design-record-consumption",
+  async (
+    input: { designId: string; adjustments: Array<{ inventoryItemId: string; locationId: string; adjustment: number }> },
+    { container, context },
+  ) => {
+    if (!Array.isArray(input.adjustments) || !input.adjustments.length) {
+      return new StepResponse({ updated: 0 })
+    }
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
+    const consumedAt = new Date()
+    const transactionId = context.transactionId
+    const links: LinkDefinition[] = input.adjustments
+      .filter((adj) => adj?.inventoryItemId)
+      .map((adj) => ({
+        [DESIGN_MODULE]: {
+          design_id: input.designId,
+        },
+        [Modules.INVENTORY]: {
+          inventory_item_id: adj.inventoryItemId,
+        },
+        data: {
+          consumed_quantity: Math.abs(adj.adjustment),
+          consumed_at: consumedAt,
+          location_id: adj.locationId,
+          metadata: {
+            ...(transactionId ? { transaction_id: transactionId } : {}),
+            source: "complete-partner-design",
+          },
+        },
+      }))
+    if (!links.length) {
+      return new StepResponse({ updated: 0 })
+    }
+    await remoteLink.create(links)
+    return new StepResponse({ updated: links.length })
+  },
+)
+
 const updateDesignStatusStep = createStep(
   "complete-design-update-status",
   async (input: { designId: string }, { container }) => {
@@ -157,10 +197,18 @@ export const completePartnerDesignWorkflow = createWorkflow(
 
     const adjResult = adjustInventoryStep({ adjustments }) as any
 
+    const consumptionRecord = recordInventoryConsumptionStep({ designId: input.design_id, adjustments })
+
     const updatedDesign = updateDesignStatusStep({ designId: input.design_id }) as any
 
     const taskResult = completeDesignTasksStep({ tasks: (design as any).tasks || [] }) as any
 
-    return new WorkflowResponse({ success: true, updatedDesign, adjustments: adjResult, tasks: taskResult })
+    return new WorkflowResponse({
+      success: true,
+      updatedDesign,
+      adjustments: adjResult,
+      tasks: taskResult,
+      consumption: consumptionRecord,
+    })
   }
 )

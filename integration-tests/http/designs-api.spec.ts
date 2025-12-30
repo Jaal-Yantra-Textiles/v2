@@ -1,6 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
+import { createStockLocationsWorkflow } from "@medusajs/medusa/core-flows";
 
 jest.setTimeout(30000);
 
@@ -186,6 +187,93 @@ setupSharedTestSuite(() => {
             .catch((err) => err.response);
           expect(response.status).toBe(404);
         });
+
+        describe("inventory metadata", () => {
+          let metadataDesignId: string;
+          let inventoryItemId: string;
+
+          const createStockLocation = async (name: string) => {
+            const { result } = await createStockLocationsWorkflow(
+              getSharedTestEnv().getContainer()
+            ).run({
+              input: {
+                locations: [
+                  {
+                    name,
+                  },
+                ],
+              },
+            });
+
+            return result?.[0]?.id as string;
+          };
+
+          beforeEach(async () => {
+            const metadataDesignResponse = await api.post(
+              "/admin/designs",
+              {
+                ...summerDesign,
+                name: `Metadata Design ${Date.now()}`,
+              },
+              headers
+            );
+            expect(metadataDesignResponse.status).toBe(201);
+            metadataDesignId = metadataDesignResponse.data.design.id;
+            const inventoryItemResponse = await api.post(
+              "/admin/inventory-items",
+              {
+                title: "Structured Inventory Item",
+                description: "Used to test planned quantity metadata",
+              },
+              headers
+            );
+            expect(inventoryItemResponse.status).toBe(200);
+            inventoryItemId = inventoryItemResponse.data.inventory_item.id;
+
+            const stockLocationId = await createStockLocation(
+              `Metadata Location ${Date.now()}`
+            );
+            expect(stockLocationId).toBeTruthy();
+
+            const linkPayload = {
+              inventoryItems: [
+                {
+                  inventoryId: inventoryItemId,
+                  plannedQuantity: 5,
+                  locationId: stockLocationId,
+                  metadata: {
+                    purpose: "test-metadata",
+                  },
+                },
+              ],
+            };
+
+            const linkResponse = await api.post(
+              `/admin/designs/${metadataDesignId}/inventory`,
+              linkPayload,
+              headers
+            );
+            expect(linkResponse.status).toBe(201);
+          });
+
+          it("should expose planned quantities and metadata via /inventory listing", async () => {
+            const inventoryResponse = await api.get(
+              `/admin/designs/${metadataDesignId}/inventory`,
+              headers
+            ).catch((err) => err.response);
+            expect(inventoryResponse.status).toBe(200);
+            const linkedItem = inventoryResponse.data.inventory_items.find(
+              (item) => item.inventory_item_id === inventoryItemId
+            );
+            expect(linkedItem).toBeDefined();
+            expect(linkedItem.planned_quantity).toBe(5);
+            expect(linkedItem.metadata).toMatchObject({
+              purpose: "test-metadata",
+            });
+            expect(linkedItem.consumed_quantity).toBeNull();
+            expect(linkedItem.consumed_at).toBeNull();
+          });
+        });
       });
 
       describe("PUT /admin/designs/:id", () => {
@@ -200,7 +288,15 @@ setupSharedTestSuite(() => {
             tags: ["updated", "summer", "trendy"],
             metadata: {
               version: "2.0"
-            }
+            },
+            colors: [
+              { name: "Updated Coral", hex_code: "#FF7F50", usage_notes: "Primary", order: 1 },
+              { name: "Updated Sand", hex_code: "#D2B48C", usage_notes: "Secondary", order: 2 },
+            ],
+            size_sets: [
+              { size_label: "XS", measurements: { chest: 34, length: 26 } },
+              { size_label: "L", measurements: { chest: 42, length: 31 } },
+            ],
           };
 
           const response = await api.put(
@@ -215,6 +311,18 @@ setupSharedTestSuite(() => {
             ...updateData,
             id: summerDesignId,
           });
+          expect(response.data.design.colors).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({ name: "Updated Coral", hex_code: "#FF7F50" }),
+              expect.objectContaining({ name: "Updated Sand", hex_code: "#D2B48C" }),
+            ])
+          );
+          expect(response.data.design.size_sets).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({ size_label: "XS", measurements: { chest: 34, length: 26 } }),
+              expect.objectContaining({ size_label: "L", measurements: { chest: 42, length: 31 } }),
+            ])
+          );
         });
 
         it("should fail to update non-existent design", async () => {

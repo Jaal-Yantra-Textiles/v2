@@ -1,73 +1,96 @@
-import { Container, Heading, Skeleton, Text, toast } from "@medusajs/ui";
-import { Plus, Trash, TriangleRightMini } from "@medusajs/icons";
-import { ActionMenu } from "../common/action-menu";
-import { AdminDesign, useDesignInventory, useDelinkInventory } from "../../hooks/api/designs";  
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
-
-
-// Define the explicit inventory item interface
-interface InventoryItem {
-  id: string;
-  title?: string;
-  thumbnail?: string | null;
-  sku?: string;
-}
-
-// Define the interface for API response inventory item object 
-interface ApiInventoryItem {
-  id: string | number;
-  title?: string;
-  thumbnail?: string | null;
-  [key: string]: any; // For any other potential properties
-}
+import { Container, Heading, Skeleton, Text, toast } from "@medusajs/ui"
+import { Plus, Trash, InformationCircle } from "@medusajs/icons"
+import { ActionMenu } from "../common/action-menu"
+import { AdminDesign, LinkedInventoryItem, useDesignInventory, useDelinkInventory } from "../../hooks/api/designs"
+import { useNavigate } from "react-router-dom"
 
 interface DesignInventorySectionProps {
-  design: AdminDesign;
+  design: AdminDesign
 }
 
 export const DesignInventorySection = ({ design }: DesignInventorySectionProps) => {
-  const navigate = useNavigate();
-  const { data, isLoading } = useDesignInventory(design.id);
-  const { mutateAsync: delinkInventory, isPending: isDelinking } = useDelinkInventory(design.id);  
-  
-  // Transform items into proper inventory items
-  const inventoryItems: InventoryItem[] = data?.inventory_items?.map(item => {
-    if (typeof item === 'object' && item !== null && 'id' in item) {
-      const typedItem = item as ApiInventoryItem;
-      return {
-        id: String(typedItem.id),
-        title: typedItem.title || `Inventory Item ${String(typedItem.id)}`,
-        thumbnail: typedItem.thumbnail || null,
-        sku: typedItem.sku || `SKU ${String(typedItem.id)}`,
-      };
-    }
-    
-    const id = String(item);
-    return {
-      id,
-      title: `Inventory Item ${id}`,
-      sku: `SKU ${id}`,
-    };
-  }) || [];
-  
+  const navigate = useNavigate()
+  const { data, isLoading } = useDesignInventory(design.id)
+  const { mutateAsync: delinkInventory, isPending: isDelinking } = useDelinkInventory(design.id)
+
+  const inventoryItems: LinkedInventoryItem[] = data?.inventory_items || []
+
   const handleRemoveInventory = async (inventoryId: string) => {
+    console.log("Attempting to remove inventory:", inventoryId)
     try {
-      await delinkInventory({
-        inventoryIds: [inventoryId]
-      });
-      toast.success("Success", {
-        description: "Inventory item removed successfully",
-        dismissable: true,
-      });
+      const result = await delinkInventory({
+        inventoryIds: [inventoryId],
+      })
+      console.log("Delink result:", result)
+      toast.success("Inventory item removed successfully")
     } catch (error) {
-      toast.error("Error", {
-        description: error instanceof Error ? error.message : "Failed to remove inventory item",
-        dismissable: true,
-      });
+      console.error("Error removing inventory:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to remove inventory item")
     }
-  };
-  
+  }
+
+
+  const handleOpenDetails = (inventoryId: string | undefined) => {
+    if (!inventoryId) {
+      return
+    }
+    navigate(`/designs/${design.id}/inventory/${inventoryId}`)
+  }
+
+  const renderInventoryCard = (item: LinkedInventoryItem) => {
+    const inventory = (item.inventory_item || {}) as {
+      id?: string
+      title?: string
+      sku?: string
+      [key: string]: any
+    }
+    const inventoryId = item.inventory_item_id || inventory.id
+    
+    return (
+      <div
+        key={inventoryId || Math.random()}
+        className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors"
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <span className="text-ui-fg-base font-medium">
+                {inventory.title || inventoryId || "Inventory Item"}
+              </span>
+              <span className="text-ui-fg-subtle text-sm">{inventory.sku || "–"}</span>
+              {inventoryId && (
+                <span className="text-ui-fg-subtle text-xs truncate max-w-[150px] sm:max-w-[200px] md:max-w-full block">
+                  {inventoryId}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-x-1">
+              {inventoryId && (
+                <button
+                  onClick={() => handleOpenDetails(inventoryId)}
+                  className="size-7 flex items-center justify-center text-ui-fg-muted hover:text-ui-fg-subtle transition-colors"
+                  title="View link details"
+                >
+                  <InformationCircle className="size-5" />
+                </button>
+              )}
+              {inventoryId && (
+                <button
+                  onClick={() => handleRemoveInventory(inventoryId)}
+                  disabled={isDelinking}
+                  className="size-7 flex items-center justify-center text-ui-fg-muted hover:text-ui-fg-subtle transition-colors disabled:opacity-50"
+                  title="Remove inventory item"
+                >
+                  <Trash className="size-5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -85,7 +108,7 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
                   label: "Add Inventory",
                   icon: <Plus />,
                   onClick: () => {
-                    navigate(`/designs/${design.id}/addinv`);
+                    navigate(`/designs/${design.id}/addinv`)
                   },
                 },
               ],
@@ -93,65 +116,19 @@ export const DesignInventorySection = ({ design }: DesignInventorySectionProps) 
           ]}
         />
       </div>
-        {isLoading ? (
-          <Skeleton className="h-7 w-full" />
-        ) : (
-          <div className="txt-small flex flex-col gap-2 px-1 pb-2">
-            {!inventoryItems.length ? (
-              <div className="flex items-center justify-center py-4 w-full">
-                <Text className="text-ui-fg-subtle">No inventory items found</Text>
-              </div>
-            ) : (
-              inventoryItems.map((item) => {
-                const link = `/inventory/${item.id}`;
-                
-                const Inner = (
-                  <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-1 flex-col overflow-hidden">
-                        <span className="text-ui-fg-base font-medium">
-                          {item.title}
-                        </span>
-                        <span className="text-ui-fg-subtle text-sm">
-                          {item.sku}
-                        </span>
-                        <span className="text-ui-fg-subtle text-xs truncate max-w-[150px] sm:max-w-[200px] md:max-w-full block">
-                          {item.id}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-x-2">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleRemoveInventory(item.id);
-                          }}
-                          disabled={isDelinking}
-                          className="size-7 flex items-center justify-center text-ui-fg-muted hover:text-ui-fg-subtle transition-colors disabled:opacity-50"
-                          title="Remove inventory item"
-                        >
-                          <Trash className="size-5" />
-                        </button>
-                        <div className="size-7 flex items-center justify-center">
-                          <TriangleRightMini className="text-ui-fg-muted" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-                
-                return (
-                  <Link
-                    to={link}
-                    key={item.id}
-                    className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
-                  >
-                    {Inner}
-                  </Link>
-                );
-              })
-            )}
-          </div>
-        )}
+      {isLoading ? (
+        <Skeleton className="h-7 w-full" />
+      ) : (
+        <div className="txt-small flex flex-col gap-3 px-3 pb-4">
+          {!inventoryItems.length ? (
+            <div className="flex items-center justify-center py-4 w-full">
+              <Text className="text-ui-fg-subtle">No inventory items linked</Text>
+            </div>
+          ) : (
+            inventoryItems.map((item) => renderInventoryCard(item))
+          )}
+        </div>
+      )}
     </Container>
-  );
-};
+  )
+}

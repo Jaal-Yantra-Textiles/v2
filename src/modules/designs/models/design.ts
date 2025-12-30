@@ -1,5 +1,7 @@
 import { model } from "@medusajs/framework/utils";
 import DesignSpecification from "./design_specification";
+import DesignColor from "./design_color";
+import DesignSizeSet from "./design_size_set";
 
 const Design = model.define("design", {
   id: model.id().primaryKey(),
@@ -43,8 +45,10 @@ const Design = model.define("design", {
   moodboard: model.json().nullable(),
   // Relationships
   specifications: model.hasMany(() => DesignSpecification, { mappedBy: "design" }),
+  colors: model.hasMany(() => DesignColor, { mappedBy: "design" }),
+  size_sets: model.hasMany(() => DesignSizeSet, { mappedBy: "design" }),
 }).cascades({
-  delete: ['specifications']
+  delete: ['specifications', 'colors', 'size_sets']
 });
 
 export default Design;

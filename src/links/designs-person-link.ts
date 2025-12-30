@@ -13,5 +13,14 @@ export default defineLink(
     linkable: DesignModule.linkable.design,
     isList: true,
   },
-  PersonModule.linkable.person
+  PersonModule.linkable.person,
+  {
+    database: {
+      extraColumns: {
+        role: { type: "text", nullable: true },
+        availability_notes: { type: "text", nullable: true },
+        notification_prefs: { type: "json", nullable: true },
+      },
+    },
+  }
 )

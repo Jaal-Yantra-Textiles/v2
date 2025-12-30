@@ -5,9 +5,9 @@ import { Thumbnail } from "../../../components/common/thumbnail";
 const columnHelper = createDataTableColumnHelper<InventoryItem>();
 
 interface SelectionProps {
-  selectedRows: Record<string, boolean>;
+  selectedRows: Record<string, unknown>;
   handleSelectAll: (checked: boolean) => void;
-  handleRowSelect: (id: string) => void;
+  handleRowSelect: (row: InventoryItem) => void;
   filteredItems: InventoryItem[];
   linkedItemIds: Set<string>;
 }
@@ -19,18 +19,37 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
       id: "select",
       header: () => (
         <div className="flex justify-center">
-          <Checkbox
-            checked={selectionProps.filteredItems.length > 0 && Object.keys(selectionProps.selectedRows).length === selectionProps.filteredItems.length}
-            onCheckedChange={(checked) => selectionProps.handleSelectAll(checked as boolean)}
-          />
+          {(() => {
+            const selectableCount = selectionProps.filteredItems.filter((item) => {
+              const rowId = item.inventory_item_id || item.id
+              return !selectionProps.linkedItemIds.has(rowId)
+            }).length
+            const selectedCount = Object.keys(selectionProps.selectedRows).length
+            const checked =
+              selectableCount > 0 && selectedCount > 0 && selectedCount === selectableCount
+            const indeterminate =
+              selectableCount > 0 && selectedCount > 0 && selectedCount < selectableCount
+
+            return (
+              <Checkbox
+                checked={indeterminate ? "indeterminate" : checked}
+                disabled={!selectableCount}
+                onCheckedChange={(checked) => selectionProps.handleSelectAll(checked as boolean)}
+              />
+            )
+          })()}
         </div>
       ),
       cell: ({ row }) => {
+        const rowId = row.id as string
+        const isLinked = selectionProps.linkedItemIds.has(rowId)
+
         return (
           <div className="flex justify-center">
             <Checkbox
-              checked={!!selectionProps.selectedRows[row.id]}
-              onCheckedChange={() => selectionProps.handleRowSelect(row.id)}
+              checked={isLinked ? true : !!selectionProps.selectedRows[rowId]}
+              disabled={isLinked}
+              onCheckedChange={() => selectionProps.handleRowSelect(row.original)}
             />
           </div>
         );

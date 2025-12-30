@@ -1,36 +1,54 @@
-import { Button, Container, Heading, Badge, Text, Tooltip, } from "@medusajs/ui";
-import { AdminDesign } from "../../hooks/api/designs";
+import { Button, Container, Heading, Badge, Text, Tooltip } from "@medusajs/ui";
+import { AdminDesign, DesignSizeSet } from "../../hooks/api/designs";
 import { useNavigate, useParams } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
-import { PencilSquare } from "@medusajs/icons"
+import { PencilSquare } from "@medusajs/icons";
 
 interface DesignSizesSectionProps {
   design: AdminDesign;
 }
 
+const renderMeasurements = (measurements: Record<string, number>) => (
+  <div className="p-2 space-y-1">
+    {Object.entries(measurements).map(([name, value]) => (
+      <div key={name} className="flex items-center gap-x-2">
+        <Text size="small" leading="compact" weight="plus">
+          {name}:
+        </Text>
+        <Text size="small" leading="compact">
+          {value}
+        </Text>
+      </div>
+    ))}
+  </div>
+);
+
 export const DesignSizesSection = ({ design }: DesignSizesSectionProps) => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Navigate to sizes management modal
   const handleManageSizes = () => {
     navigate(`/designs/${id}/edit-size`);
   };
 
-  // Check if custom sizes exist and has entries
-  const hasSizes = design.custom_sizes && Object.keys(design.custom_sizes).length > 0;
+  const structuredSizeSets: DesignSizeSet[] = design.size_sets || [];
+  const customSizes = design.custom_sizes || {};
+
+  const hasStructuredSizes = structuredSizeSets.length > 0;
+  const hasLegacySizes = Object.keys(customSizes).length > 0;
+  const hasSizes = hasStructuredSizes || hasLegacySizes;
 
   return (
     <Container className="divide-y p-0">
       <div className="px-6 py-4">
-      <div className="flex items-center justify-between">
-        <Heading level="h2">Sizes</Heading>
-        <ActionMenu
+        <div className="flex items-center justify-between">
+          <Heading level="h2">Sizes</Heading>
+          <ActionMenu
             groups={[
               {
                 actions: [
                   {
-                    label: 'Edit Size',
+                    label: "Edit Size",
                     icon: <PencilSquare />,
                     to: "edit-size",
                   },
@@ -38,40 +56,42 @@ export const DesignSizesSection = ({ design }: DesignSizesSectionProps) => {
               },
             ]}
           />
-      </div>
+        </div>
       </div>
       <div className="px-6 py-4">
         {hasSizes ? (
           <div className="flex flex-wrap gap-3">
-            {Object.entries(design.custom_sizes || {}).map(([sizeName, measurements]) => {
-              // Create tooltip content with all measurements
-              const tooltipContent = (
-                <div className="p-2">
-                  {Object.entries(measurements).map(([measurementName, value]) => (
-                    <div key={measurementName} className="flex items-center gap-x-2 mb-1 last:mb-0">
-                      <Text size="small" leading="compact" weight="plus">
-                        {measurementName}:
-                      </Text>
-                      <Text size="small" leading="compact">
-                        {value}
-                      </Text>
+            {hasStructuredSizes
+              ? structuredSizeSets.map((sizeSet) => (
+                  <Tooltip
+                    key={sizeSet.id || sizeSet.size_label}
+                    content={renderMeasurements(sizeSet.measurements || {})}
+                  >
+                    <div>
+                      <Badge className="text-sm font-medium px-3 py-1.5 cursor-pointer hover:bg-ui-bg-base-hover transition-colors">
+                        {sizeSet.size_label}
+                      </Badge>
                     </div>
-                  ))}
-                </div>
-              );
-              
-              return (
-                <Tooltip content={tooltipContent} key={sizeName}>
-                  <div>
-                    <Badge className="text-sm font-medium px-3 py-1.5 cursor-pointer hover:bg-ui-bg-base-hover transition-colors">{sizeName}</Badge>
-                  </div>
-                </Tooltip>
-              );
-            })}
+                  </Tooltip>
+                ))
+              : Object.entries(customSizes).map(([sizeName, measurements]) => (
+                  <Tooltip
+                    key={sizeName}
+                    content={renderMeasurements(
+                      (measurements as Record<string, number>) || {},
+                    )}
+                  >
+                    <div>
+                      <Badge className="text-sm font-medium px-3 py-1.5 cursor-pointer hover:bg-ui-bg-base-hover transition-colors">
+                        {sizeName}
+                      </Badge>
+                    </div>
+                  </Tooltip>
+                ))}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-ui-fg-subtle">
-            <p>No custom sizes defined yet</p>
+            <p>No sizes defined yet</p>
             <Button
               variant="secondary"
               size="small"

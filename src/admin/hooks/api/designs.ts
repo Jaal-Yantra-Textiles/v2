@@ -28,6 +28,20 @@ export interface CustomSize {
   };
 }
 
+export interface DesignColor {
+  id?: string;
+  name: string;
+  hex_code: string;
+  usage_notes?: string;
+  order?: number;
+}
+
+export interface DesignSizeSet {
+  id?: string;
+  size_label: string;
+  measurements: Record<string, number>;
+}
+
 export interface DesignMedia {
   id?: string;
   url: string;
@@ -55,6 +69,8 @@ export interface AdminDesign {
   media_files?: DesignMedia[];
   metadata?: Record<string, any> | null | undefined;
   moodboard?: Record<string, any> | null;
+  colors?: Array<DesignColor>;
+  size_sets?: Array<DesignSizeSet>;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -237,12 +253,43 @@ export const useDeleteDesign = (
   });
 };
 
+export interface PlannedInventoryItemPayload {
+  inventoryId: string;
+  plannedQuantity?: number;
+  locationId?: string;
+  metadata?: Record<string, any>;
+}
+
 export interface LinkDesignInventoryPayload {
-  inventoryIds: string[];
+  inventoryIds?: string[];
+  inventoryItems?: PlannedInventoryItemPayload[];
+}
+
+export interface UpdateInventoryLinkPayload {
+  plannedQuantity?: number | null;
+  locationId?: string | null;
+  metadata?: Record<string, any> | null;
+}
+
+export interface LinkedInventoryItem {
+  inventory_item_id: string;
+  inventory_id?: string;
+  planned_quantity?: number;
+  consumed_quantity?: number;
+  consumed_at?: string;
+  location_id?: string;
+  metadata?: Record<string, any>;
+  inventory_item?: {
+    id: string;
+    title?: string;
+    sku?: string;
+    thumbnail?: string | null;
+    [key: string]: any;
+  };
 }
 
 export interface DesignInventoryResponse {
-  inventory_items: string[];
+  inventory_items: LinkedInventoryItem[];
 }
 
 export const useDesignInventory = (
@@ -311,6 +358,27 @@ export const useDelinkInventory = (
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id, ["inventory"]) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};
+
+export const useUpdateInventoryLink = (
+  designId: string,
+  inventoryId: string,
+  options?: UseMutationOptions<AdminDesignResponse, FetchError, UpdateInventoryLinkPayload>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: UpdateInventoryLinkPayload) =>
+      sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${designId}/inventory/${inventoryId}`, {
+        method: "PATCH",
+        body: data,
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId, ["inventory"]) });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,

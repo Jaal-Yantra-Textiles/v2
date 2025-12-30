@@ -43,6 +43,12 @@ interface StoreCreateDesignBody {
   
   // Optional: inventory items to link (from selected materials)
   inventory_ids?: string[];
+  inventory_items?: Array<{
+    inventoryId: string;
+    plannedQuantity?: number;
+    locationId?: string;
+    metadata?: Record<string, any>;
+  }>;
   
   // Optional: partner to assign for production
   partner_id?: string;
@@ -107,12 +113,18 @@ export async function POST(
     let linkedPartner: any = null;
 
     // Step 2: Link inventory items (if provided)
-    if (body.inventory_ids && body.inventory_ids.length > 0) {
+    if ((body.inventory_ids && body.inventory_ids.length > 0) || (body.inventory_items && body.inventory_items.length > 0)) {
       try {
         const { result: inventoryResult, errors: inventoryErrors } = await linkDesignInventoryWorkflow(req.scope).run({
           input: {
             design_id: designId,
             inventory_ids: body.inventory_ids,
+            inventory_items: body.inventory_items?.map((item) => ({
+              inventory_id: item.inventoryId,
+              planned_quantity: item.plannedQuantity,
+              location_id: item.locationId,
+              metadata: item.metadata,
+            }))
           },
         });
 

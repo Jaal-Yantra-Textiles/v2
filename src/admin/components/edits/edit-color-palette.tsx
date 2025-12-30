@@ -13,6 +13,7 @@ import { SketchPicker } from "react-color";
 import { useUpdateDesign } from "../../hooks/api/designs";
 import { useParams } from "react-router-dom";
 import { useRouteModal } from "../modal/use-route-modal";
+import { convertColorPaletteToColors } from "../../../workflows/designs/helpers/size-set-utils";
 
 // Define ColorPalette interface
 interface ColorPalette {
@@ -341,6 +342,7 @@ export const ColorPaletteEditor = ({ value, onChange }: { value: string; onChang
                     // Call the API to update the design
                     await updateDesign({
                       color_palette: colorPalette,
+                      colors: convertColorPaletteToColors(colorPalette),
                     });
                     
                     toast.success(`Color palette saved with ${colorPalette.length} colors`);

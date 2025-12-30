@@ -59,6 +59,7 @@ setupSharedTestSuite(() => {
       const buttonsResponse = await api.post("/admin/inventory-items", buttons, headers);
       expect(buttonsResponse.status).toBe(200);
       buttonsId = buttonsResponse.data.inventory_item.id;
+
     });
 
     describe("POST /admin/designs/:id/inventory", () => {
@@ -123,6 +124,43 @@ setupSharedTestSuite(() => {
           
           message: 'Design with id "non-existent-id" not found'
         });
+      });
+
+      it("should store planned quantity and metadata when linking inventory items payload", async () => {
+        const payload = {
+          inventoryItems: [
+            {
+              inventoryId: cottonFabricId,
+              plannedQuantity: 12,
+              metadata: {
+                usage: "primary-fabric",
+              },
+            },
+          ],
+        };
+
+        const linkResponse = await api.post(
+          `/admin/designs/${designId}/inventory`,
+          payload,
+          headers
+        );
+        expect(linkResponse.status).toBe(201);
+
+        const inventoryResponse = await api.get(
+          `/admin/designs/${designId}/inventory`,
+          headers
+        );
+        expect(inventoryResponse.status).toBe(200);
+
+        const linkedItem = inventoryResponse.data.inventory_items.find(
+          (item) => item.inventory_item_id === cottonFabricId
+        );
+        expect(linkedItem).toBeDefined();
+        expect(linkedItem.planned_quantity).toBe(12);
+        expect(linkedItem.metadata).toMatchObject({ usage: "primary-fabric" });
+        expect(linkedItem.consumed_quantity).toBeNull();
+        expect(linkedItem.consumed_at).toBeNull();
+        expect(linkedItem.inventory_item?.id).toBe(cottonFabricId);
       });
     });
 

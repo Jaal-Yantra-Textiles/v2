@@ -7,6 +7,7 @@ import { useRouteModal } from "../modal/use-route-modal";
 import { useUpdateDesign, AdminDesign, CustomSize } from "../../hooks/api/designs";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useState } from "react";
+import { convertCustomSizesToSizeSets } from "../../../workflows/designs/helpers/size-set-utils";
 
 // Define standard size options
 const standardSizes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
@@ -446,6 +447,7 @@ export const EditDesignSizes = ({ design }: EditDesignSizesProps) => {
       await mutateAsync(
         {
           custom_sizes: customSizes,
+          size_sets: convertCustomSizesToSizeSets(customSizes),
         },
         {
           onSuccess: ({ design }) => {

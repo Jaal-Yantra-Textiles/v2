@@ -13,5 +13,15 @@ export default defineLink(
     {
       linkable: TasksModule.linkable.task,
       isList: true,
+    },
+    {
+      database: {
+        extraColumns: {
+          phase: { type: "text", nullable: true },
+          transaction_id: { type: "text", nullable: true },
+          priority: { type: "text", nullable: true },
+          metadata: { type: "json", nullable: true },
+        },
+      },
     }
-  )
+)

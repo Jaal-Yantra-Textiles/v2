@@ -15,6 +15,19 @@ const feedbackHistorySchema = z.array(
   })
 );
 
+// New structured schemas for colors and size sets
+const designColorSchema = z.object({
+  name: z.string(),
+  hex_code: z.string(),
+  usage_notes: z.string().optional(),
+  order: z.number().optional(),
+});
+
+const designSizeSetSchema = z.object({
+  size_label: z.string(),
+  measurements: z.record(z.number()),
+});
+
 export const designSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
@@ -50,7 +63,10 @@ export const designSchema = z.object({
     url: z.string().url(),
     isThumbnail: z.boolean().optional().default(false)
   })).optional(),
-  moodboard: z.record(z.any()).optional()
+  moodboard: z.record(z.any()).optional(),
+  // New structured fields (optional)
+  colors: z.array(designColorSchema).optional(),
+  size_sets: z.array(designSizeSetSchema).optional(),
 });
 
 export const UpdateDesignSchema = designSchema.partial();

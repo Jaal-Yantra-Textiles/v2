@@ -5,5 +5,16 @@ import { defineLink } from "@medusajs/framework/utils"
 
 export default defineLink(
   { linkable: DesignModule.linkable.design , isList: true },
-  { linkable: PartnerModule.linkable.partner, isList: true }
+  { linkable: PartnerModule.linkable.partner, isList: true },
+  {
+    database: {
+      extraColumns: {
+        role: { type: "text", nullable: true },
+        sla_days: { type: "integer", nullable: true },
+        performance_score: { type: "bigint", nullable: true },
+        transaction_id: { type: "text", nullable: true },
+        metadata: { type: "json", nullable: true },
+      },
+    },
+  }
 )

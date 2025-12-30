@@ -10,17 +10,94 @@ import {
   createStep,
   WorkflowResponse,
   StepResponse,
-  createWorkflow
+  createWorkflow,
+  transform,
 } from "@medusajs/framework/workflows-sdk"
 import { DESIGN_MODULE } from "../../../modules/designs"
 import DesignService from "../../../modules/designs/service"
 import { MedusaError } from "@medusajs/utils"
 import { IInventoryService, LinkDefinition } from "@medusajs/framework/types"
+import DesignInventoryLink from "../../../links/design-inventory-link"
+
+type InventoryLinkPayload = {
+  inventory_id: string
+  planned_quantity?: number
+  location_id?: string
+  metadata?: Record<string, any>
+}
 
 type LinkDesignInventoryInput = {
   design_id: string
-  inventory_ids: string[]
+  inventory_ids?: string[]
+  inventory_items?: InventoryLinkPayload[]
 }
+
+type UpdateDesignInventoryLinkInput = {
+  design_id: string
+  inventory_id: string
+  planned_quantity?: number | null
+  location_id?: string | null
+  metadata?: Record<string, any> | null
+}
+
+const sanitizeBigInt = (value: any): any => {
+  if (typeof value === "bigint") {
+    return Number(value)
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeBigInt(item))
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value).reduce<Record<string, any>>((acc, [key, val]) => {
+      acc[key] = sanitizeBigInt(val)
+      return acc
+    }, {})
+  }
+
+  return value
+}
+
+const buildInventoryPayloads = (input: LinkDesignInventoryInput): InventoryLinkPayload[] => {
+  const payloadMap = new Map<string, InventoryLinkPayload>()
+
+  for (const item of input.inventory_items || []) {
+    if (!item?.inventory_id) {
+      continue
+    }
+    payloadMap.set(item.inventory_id, {
+      inventory_id: item.inventory_id,
+      planned_quantity: item.planned_quantity,
+      location_id: item.location_id,
+      metadata: item.metadata,
+    })
+  }
+
+  for (const id of input.inventory_ids || []) {
+    if (!payloadMap.has(id)) {
+      payloadMap.set(id, { inventory_id: id })
+    }
+  }
+
+  return Array.from(payloadMap.values())
+}
+
+const prepareInventoryLinkPayloads = createStep(
+  "prepare-design-inventory-payloads",
+  async (input: LinkDesignInventoryInput) => {
+    const payloads = buildInventoryPayloads(input)
+
+    if (!payloads.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "At least one inventory link payload must be provided."
+      )
+    }
+
+    return new StepResponse(payloads)
+  }
+)
 
 const validateInventoryItems = createStep(
   "validate-inventory-items",
@@ -47,22 +124,59 @@ const validateInventoryItems = createStep(
 
 const createDesignInventoryLinks = createStep(
   "create-design-inventory-links",
-  async (input: { design_id: string; inventory_ids: string[] }, { container }) => {
+  async (
+    input: { design_id: string; payloads: InventoryLinkPayload[] },
+    { container, context }
+  ) => {
     const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK)
     const links: LinkDefinition[] = []
-   input.inventory_ids.map(inventoryId => (
-    links.push({
-      [DESIGN_MODULE]: {
-        design_id: input.design_id
-      },
-      [Modules.INVENTORY]: {
-        inventory_item_id: inventoryId
-      },
-      data: {
-        design_id: input.design_id,
-        inventory_id: inventoryId
+    const transactionId = context.transactionId
+
+    input.payloads.forEach((payload) => {
+      const data: Record<string, any> = {}
+      if (typeof payload.planned_quantity === "number") {
+        data.planned_quantity = payload.planned_quantity
       }
-    })))
+      if (payload.location_id) {
+        data.location_id = payload.location_id
+      }
+      if (payload.metadata) {
+        data.metadata = payload.metadata
+      }
+
+      if (transactionId) {
+        data.metadata = {
+          ...(data.metadata || {}),
+          transaction_id: transactionId
+        }
+      }
+
+      if (!data.metadata && !payload.metadata) {
+        data.metadata = {
+          source: "link-design-inventory"
+        }
+      } else if (data.metadata && !data.metadata.source) {
+        data.metadata.source = "link-design-inventory"
+      }
+
+      links.push({
+        [DESIGN_MODULE]: {
+          design_id: input.design_id
+        },
+        [Modules.INVENTORY]: {
+          inventory_item_id: payload.inventory_id
+        },
+        data,
+      })
+    })
+
+    if (!links.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "No inventory payloads provided for linking."
+      )
+    }
+
     await remoteLink.create(links)
     return new StepResponse(links)
   },
@@ -80,18 +194,153 @@ export const linkDesignInventoryWorkflow = createWorkflow(
     store: true
   },
   (input: LinkDesignInventoryInput) => {
-    // First validate that all inventory items exist
-     validateInventoryItems({ 
-      inventory_ids: input.inventory_ids 
+    const payloads = prepareInventoryLinkPayloads(input)
+
+    const inventoryIds = transform({ payloads }, ({ payloads }) =>
+      payloads.map((payload) => payload.inventory_id)
+    ) as unknown as string[]
+
+    validateInventoryItems({
+      inventory_ids: inventoryIds
     })
 
-    // Then create the links
-    const linksResult =  createDesignInventoryLinks({
+    const linksResult = createDesignInventoryLinks({
       design_id: input.design_id,
-      inventory_ids: input.inventory_ids
+      payloads,
     })
-    
+
     return new WorkflowResponse(linksResult)
+  }
+)
+
+const getDesignInventoryLinkStep = createStep(
+  "get-design-inventory-link",
+  async (input: { design_id: string; inventory_id: string }, { container }) => {
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: DesignInventoryLink.entryPoint,
+      fields: [
+        "design_id",
+        "inventory_item_id",
+        "planned_quantity",
+        "consumed_quantity",
+        "consumed_at",
+        "location_id",
+        "metadata",
+      ],
+      filters: {
+        design_id: input.design_id,
+        inventory_item_id: input.inventory_id,
+      },
+      pagination: {
+        take: 1,
+      },
+    })
+
+    if (!data?.length) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Inventory link not found for design ${input.design_id} and inventory ${input.inventory_id}`
+      )
+    }
+
+    return new StepResponse(sanitizeBigInt(data[0]))
+  }
+)
+
+const updateDesignInventoryLinkStep = createStep(
+  "update-design-inventory-link",
+  async (
+    input: {
+      design_id: string
+      inventory_id: string
+      updates: UpdateDesignInventoryLinkInput
+      existing: any
+    },
+    { container }
+  ) => {
+    const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+    const linkDefinition: LinkDefinition = {
+      [DESIGN_MODULE]: { design_id: input.design_id },
+      [Modules.INVENTORY]: { inventory_item_id: input.inventory_id },
+    }
+
+    const mergedData = {
+      planned_quantity:
+        input.updates.planned_quantity !== undefined
+          ? input.updates.planned_quantity
+          : input.existing.planned_quantity ?? null,
+      consumed_quantity: input.existing.consumed_quantity ?? null,
+      consumed_at: input.existing.consumed_at ?? null,
+      location_id:
+        input.updates.location_id !== undefined ? input.updates.location_id : input.existing.location_id ?? null,
+      metadata:
+        input.updates.metadata !== undefined ? input.updates.metadata : input.existing.metadata ?? null,
+    }
+
+    await remoteLink.dismiss([linkDefinition])
+    await remoteLink.create([
+      {
+        ...linkDefinition,
+        data: mergedData,
+      },
+    ])
+
+    return new StepResponse(
+      mergedData,
+      {
+        design_id: input.design_id,
+        inventory_id: input.inventory_id,
+        previousData: {
+          planned_quantity: input.existing.planned_quantity ?? null,
+          consumed_quantity: input.existing.consumed_quantity ?? null,
+          consumed_at: input.existing.consumed_at ?? null,
+          location_id: input.existing.location_id ?? null,
+          metadata: input.existing.metadata ?? null,
+        },
+      }
+    )
+  },
+  async (data, { container }) => {
+    if (!data) {
+      return
+    }
+
+    const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+    const linkDefinition: LinkDefinition = {
+      [DESIGN_MODULE]: { design_id: data.design_id },
+      [Modules.INVENTORY]: { inventory_item_id: data.inventory_id },
+    }
+
+    await remoteLink.dismiss([linkDefinition])
+    await remoteLink.create([
+      {
+        ...linkDefinition,
+        data: data.previousData,
+      },
+    ])
+  }
+)
+
+export const updateDesignInventoryLinkWorkflow = createWorkflow(
+  {
+    name: "update-design-inventory-link",
+    store: true,
+  },
+  (input: UpdateDesignInventoryLinkInput) => {
+    const existing = getDesignInventoryLinkStep({
+      design_id: input.design_id,
+      inventory_id: input.inventory_id,
+    })
+
+    const updated = updateDesignInventoryLinkStep({
+      design_id: input.design_id,
+      inventory_id: input.inventory_id,
+      updates: input,
+      existing,
+    })
+
+    return new WorkflowResponse(updated)
   }
 )
 

@@ -10,7 +10,6 @@ type EditEmailTemplateFormProps = {
 };
 
 export const EditEmailTemplateForm = ({ emailTemplate }: EditEmailTemplateFormProps) => {
-  const { t } = useTranslation();
   const { mutateAsync, isPending } = useUpdateEmailTemplate(emailTemplate.id);
   const { handleSuccess } = useRouteModal();
 
@@ -62,7 +61,7 @@ export const EditEmailTemplateForm = ({ emailTemplate }: EditEmailTemplateFormPr
       required: true
     },
     {
-      name: "templateKey",
+      name: "template_key",
       type: "text", 
       label: "Template Key", 
       required: true
@@ -74,13 +73,13 @@ export const EditEmailTemplateForm = ({ emailTemplate }: EditEmailTemplateFormPr
       required: true
     },
     {
-      name: "isActive",
+      name: "is_active",
       type: "switch", 
       label: "Is Active", 
       required: true
     },
     {
-      name: "templateType",
+      name: "template_type",
       type: "text", 
       label: "Template Type", 
       required: true
@@ -97,10 +96,10 @@ export const EditEmailTemplateForm = ({ emailTemplate }: EditEmailTemplateFormPr
         cc: emailTemplate.cc || "",
         bcc: emailTemplate.bcc || "",
         from: emailTemplate.from || "",
-        templateKey: emailTemplate.templateKey || "",
+        template_key: emailTemplate.template_key || "",
         subject: emailTemplate.subject || "",
-        isActive: emailTemplate.isActive || false,
-        templateType: emailTemplate.templateType || "",
+        is_active: emailTemplate.is_active || false,
+        template_type: emailTemplate.template_type || "",
       }}
       onSubmit={handleSubmit}
       layout={{

@@ -11,6 +11,7 @@ import { DesignTagsSection } from "../../../components/designs/design-tags-secti
 import { DesignColorPaletteSection } from "../../../components/designs/design-color-palette-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
+import { Toaster } from "@medusajs/ui";
 import { designLoader } from "./loader";
 
 
@@ -22,7 +23,16 @@ const DesignDetailPage = () => {
   
   // Use staleTime: 0 to ensure data is always refetched when navigating back to this page
   const { design, isLoading, isError, error } = useDesign(id!, {
-    fields: ["inventory_items.*", 'tasks.*', 'tasks.subtasks.*', 'tasks.outgoing.*', 'tasks.incoming.*', 'partners.*']
+    fields: [
+      "inventory_items.*",
+      "tasks.*",
+      "tasks.subtasks.*",
+      "tasks.outgoing.*",
+      "tasks.incoming.*",
+      "partners.*",
+      "colors.*",
+      "size_sets.*",
+    ],
   }, {
     // This ensures fresh data is fetched when returning from other pages
     // This ensures the query is refetched when the component remounts
@@ -45,6 +55,8 @@ const DesignDetailPage = () => {
   }
   
   return (
+    <>
+      <Toaster/>
       <TwoColumnPage 
         data={design}
         showJSON
@@ -54,6 +66,8 @@ const DesignDetailPage = () => {
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
           <DesignSizesSection design={design} />
+          <DesignTagsSection design={design} />
+          <DesignColorPaletteSection design={design} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
           <DesignMediaSection design={design} />
@@ -61,10 +75,9 @@ const DesignDetailPage = () => {
           <DesignTasksSection design={design} />
           <DesignInventorySection design={design} />
           <DesignPartnerSection design={design} />
-          <DesignTagsSection design={design} />
-          <DesignColorPaletteSection design={design} />
         </TwoColumnPage.Sidebar>  
         </TwoColumnPage>
+    </>
   );
 };
 

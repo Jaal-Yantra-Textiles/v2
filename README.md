@@ -4,6 +4,13 @@
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/dv6ZSz?referralCode=qVdmfO) [![Test and Release](https://github.com/Jaal-Yantra-Textiles/v2/actions/workflows/test-and-release.yml/badge.svg)](https://github.com/Jaal-Yantra-Textiles/v2/actions/workflows/test-and-release.yml)
 
+If we help artisans and consumers
+solve supply chain enrichment, production tracking, and selling high-end goods
+with an all-in-one design and artisanal garment marketplace featuring e-commerce, pre-production, and operations management — launched without writing code —
+they will choose it over competitors
+because our solution is uniquely focused on bringing the full source story of every item, emphasizing traceability and premium quality in a market where quality is often overlooked.
+
+
 <p align="center">
   <img src="design.gif" alt="Medo Design Workflow" width="100%">
 </p>
