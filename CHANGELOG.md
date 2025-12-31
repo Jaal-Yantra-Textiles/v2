@@ -1,3 +1,16 @@
+# [8.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.5.1...v8.6.0) (2025-12-31)
+
+
+### Bug Fixes
+
+* **api:** Notification retry method now avaialble with the feed ([2529c7f](https://github.com/Jaal-Yantra-Textiles/v2/commit/2529c7f03114aae05771416acbaf8d02b1cc8bf7))
+* **admin:** Sending notification with retry feed fix ([d6a33e8](https://github.com/Jaal-Yantra-Textiles/v2/commit/d6a33e80392f6464f0fa58b6013802e2bf9aa7d6))
+
+
+### Features
+
+* **api:** Adming notifications to search the email failed options to be retried ([a9684c0](https://github.com/Jaal-Yantra-Textiles/v2/commit/a9684c01deb89b424c397c9cb5344db7acfdcebf))
+
 ## [8.5.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.5.0...v8.5.1) (2025-12-30)
 
 # [8.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.4.2...v8.5.0) (2025-12-27)
