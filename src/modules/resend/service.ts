@@ -114,6 +114,15 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
           responseError?.status_code ??
           "unknown"
 
+        ;(notification as any).provider_data = {
+          ...(((notification as any).provider_data || {}) as Record<string, any>),
+          error: {
+            code: errorCode,
+            message: responseError?.message ?? "unknown error",
+          },
+          failed_at: new Date().toISOString(),
+        }
+
         if (error) {
           this.logger.error("Failed to send email", error)
         } else {
@@ -133,6 +142,13 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
         id: data.id,
       }
     } catch (error) {
+      ;(notification as any).provider_data = {
+        ...(((notification as any).provider_data || {}) as Record<string, any>),
+        error: {
+          message: error instanceof Error ? error.message : String(error),
+        },
+        failed_at: new Date().toISOString(),
+      }
       this.logger.error("Failed to send email", error)
       // Re-throw the error to properly mark notification as failed
       throw error

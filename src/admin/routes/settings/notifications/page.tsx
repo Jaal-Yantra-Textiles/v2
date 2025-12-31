@@ -16,6 +16,7 @@ import { ArrowPath, ListBullet } from "@medusajs/icons"
 import { createColumnHelper } from "@tanstack/react-table"
 import debounce from "lodash/debounce"
 import { useCallback, useMemo, useState } from "react"
+import { Outlet, useNavigate } from "react-router-dom"
 
 import { EntityActions } from "../../../components/persons/personsActions"
 import { TableSkeleton } from "../../../components/table/skeleton"
@@ -37,6 +38,7 @@ type FilteringUpdater =
 
 const ListAllNotificiation = () => {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [pagination, setPagination] = useState<DataTablePaginationState>({
     pageSize: PAGE_SIZE,
     pageIndex: 0,
@@ -107,9 +109,21 @@ const ListAllNotificiation = () => {
             handleRetry(n)
           },
         },
+        {
+          icon: <ArrowPath />,
+          label: "Edit & Retry",
+          disabled: isPending,
+          onClick: (n: Notification) => {
+            if (!canRetry(n)) {
+              toast.info("Only email notifications that have failed can be retried")
+              return
+            }
+            navigate(`/settings/notifications/${n.id}/edit`)
+          },
+        },
       ],
     }),
-    [canRetry, handleRetry, isPending]
+    [canRetry, handleRetry, isPending, navigate]
   )
 
   const tableColumns = useMemo(
@@ -166,6 +180,9 @@ const ListAllNotificiation = () => {
     columns: tableColumns,
     data: failed_emails ?? [],
     getRowId: (row) => row.id as string,
+    onRowClick: (_, row) => {
+      navigate(`/settings/notifications/${row.id}`)
+    },
     rowCount: total,
     isLoading,
     filters,
@@ -221,6 +238,7 @@ const ListAllNotificiation = () => {
         <DataTable.Pagination />
       </DataTable>
     </Container>
+    <Outlet />
     </>
   )
 }

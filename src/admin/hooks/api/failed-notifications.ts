@@ -18,6 +18,7 @@ export type Notification = {
   status?: "pending" | "success" | "failure";
   external_id?: string | null;
   created_at: string;
+  updated_at?: string;
   data?: Record<string, any> | null;
   provider_id: string;
   from?: string | null;
@@ -29,6 +30,30 @@ export type Notification = {
   original_notification_id?: string | null;
   idempotency_key?: string | null;
 };
+
+export const useNotification = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<AdminNotificationResponse, FetchError, AdminNotificationResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: failedNotificationsQueryKeys.detail(id),
+    queryFn: async () => {
+      return sdk.client.fetch<AdminNotificationResponse>(`/admin/notifications/${id}`, {
+        method: "GET",
+      })
+    },
+    ...options,
+    enabled: Boolean(id) && (options as any)?.enabled !== false,
+  })
+
+  return {
+    notification: data?.notification,
+    ...rest,
+  }
+}
 
 // Backward compatible alias (older UI referred to all items as "failed notifications")
 export type FailedNotification = Notification;
@@ -59,6 +84,10 @@ export interface FailedNotificationsResponse {
   failed_emails: Notification[];
   total: number;
   failed_count: number;
+}
+
+export interface AdminNotificationResponse {
+  notification: Notification;
 }
 
 export interface RetryEmailData {

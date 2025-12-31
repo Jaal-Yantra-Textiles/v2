@@ -14,17 +14,6 @@ import { useDesignInventory, useUpdateInventoryLink } from "../../../../../hooks
 import { useParams } from "react-router-dom"
 import { useStockLocations } from "../../../../../hooks/api/stock_location"
 
-const formatMetadata = (metadata?: Record<string, any>) => {
-  if (!metadata || !Object.keys(metadata).length) {
-    return "—"
-  }
-
-  try {
-    return JSON.stringify(metadata, null, 2)
-  } catch {
-    return "Invalid metadata"
-  }
-}
 
 const formatConsumedAt = (consumedAt?: string) => {
   if (!consumedAt) {
