@@ -1,3 +1,10 @@
+## [8.6.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.6.0...v8.6.1) (2025-12-31)
+
+
+### Bug Fixes
+
+* **admin:** Fixed the admin to send retry with updated information or data ([b78b5a0](https://github.com/Jaal-Yantra-Textiles/v2/commit/b78b5a0e015657e423ff337c5bf1fdae98e5fa3a))
+
 # [8.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.5.1...v8.6.0) (2025-12-31)
 
 
