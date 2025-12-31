@@ -7,6 +7,8 @@ import {
   Text,
   useDataTable,
   createDataTableFilterHelper,
+  toast,
+  Toaster,
 } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
@@ -87,6 +89,7 @@ const ListAllNotificiation = () => {
           disabled: isPending,
           onClick: (n: Notification) => {
             if (!canRetry(n)) {
+              toast.info("Only email notifications that have failed can be retried")
               return
             }
             handleRetry(n)
@@ -182,6 +185,8 @@ const ListAllNotificiation = () => {
   }
 
   return (
+    <>
+    <Toaster/>
     <Container className="divide-y p-0">
       <DataTable instance={table}>
         <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
@@ -204,6 +209,7 @@ const ListAllNotificiation = () => {
         <DataTable.Pagination />
       </DataTable>
     </Container>
+    </>
   )
 }
 

@@ -106,14 +106,26 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
       const { data, error } = await this.resendClient.emails.send(emailOptions)
 
       if (error || !data) {
-        const errorMessage = error?.message || "Unknown error occurred"
+        const responseError: any = error
+        const errorCode =
+          responseError?.code ??
+          responseError?.name ??
+          responseError?.statusCode ??
+          responseError?.status_code ??
+          "unknown"
+
         if (error) {
           this.logger.error("Failed to send email", error)
         } else {
           this.logger.error("Failed to send email: unknown error")
         }
-        // Throw error instead of returning empty object
-        throw new Error(`Resend API error: ${errorMessage}`)
+
+        throw new MedusaError(
+          MedusaError.Types.UNEXPECTED_STATE,
+          `Failed to send email: ${errorCode} - ${
+            responseError?.message ?? "unknown error"
+          }`
+        )
       }
 
       this.logger.info(`Email sent successfully with ID: ${data.id}`)
