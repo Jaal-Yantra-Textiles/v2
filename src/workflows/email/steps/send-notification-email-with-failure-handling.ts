@@ -7,6 +7,7 @@ interface SendNotificationEmailInput {
   to: string
   template: string
   data?: Record<string, any>
+  originalNotificationId?: string
 }
 
 export const sendNotificationEmailWithFailureHandlingStep = createStep(
@@ -17,10 +18,18 @@ export const sendNotificationEmailWithFailureHandlingStep = createStep(
     retryInterval: 5000, // Wait 5 seconds between retries
     autoRetry: true // Enable automatic retries
   },
-  async (input: SendNotificationEmailInput & { templateData?: ProcessedEmailTemplateData | null }, { container }) => {
+  async (
+    input: SendNotificationEmailInput & { templateData?: ProcessedEmailTemplateData | null },
+    { container }
+  ) => {
     const notificationService = container.resolve(Modules.NOTIFICATION) as INotificationModuleService
     console.log('Send notification input:', input)
     console.log('Template data received:', input.templateData)
+
+    const originalNotificationId =
+      input.originalNotificationId ??
+      ((input.data as any)?._original_notification_id as string | undefined)
+    const isRetry = Boolean((input.data as any)?._is_retry || input.originalNotificationId)
     
     // Prepare the data to send to the notification service
     const notificationData = {
@@ -42,6 +51,7 @@ export const sendNotificationEmailWithFailureHandlingStep = createStep(
         channel: "email",
         template: input.template,
         data: notificationData,
+        original_notification_id: originalNotificationId,
       })
 
       // The result should always have an ID if successful
@@ -51,6 +61,34 @@ export const sendNotificationEmailWithFailureHandlingStep = createStep(
       }
 
       console.log(`Email sent successfully with ID: ${result.id}`)
+
+      if (isRetry) {
+        try {
+          const feedNotification = await notificationService.createNotifications({
+            to: "",
+            channel: "feed",
+            template: "admin-ui",
+            data: {
+              title: "✅ Email Retried Successfully",
+              description: `Successfully retried \"${input.template}\" email to ${input.to}.`,
+              metadata: {
+                original_notification_id: originalNotificationId,
+                retried_notification_id: result.id,
+                original_recipient: input.to,
+                original_template: input.template,
+                workflow_name: "send-notification-email-with-failure-handling",
+                timestamp: new Date().toISOString(),
+                severity: "info",
+              },
+            },
+          })
+
+          console.log(`Feed notification sent: ${feedNotification.id}`)
+        } catch (feedError) {
+          console.error("Failed to send success feed notification:", feedError)
+        }
+      }
+
       return new StepResponse(result, { 
         notificationId: result.id,
         emailSent: true
@@ -68,6 +106,7 @@ export const sendNotificationEmailWithFailureHandlingStep = createStep(
             title: "🚨 Email Delivery Failed",
             description: `Failed to send "${input.template}" email to ${input.to}. Error: ${error.message}`,
             metadata: {
+              original_notification_id: originalNotificationId,
               original_recipient: input.to,
               original_template: input.template,
               error_message: error.message,

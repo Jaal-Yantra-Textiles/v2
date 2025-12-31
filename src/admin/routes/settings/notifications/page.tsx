@@ -10,7 +10,7 @@ import {
   toast,
   Toaster,
 } from "@medusajs/ui"
-import { keepPreviousData } from "@tanstack/react-query"
+import { keepPreviousData, useQueryClient } from "@tanstack/react-query"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ArrowPath, ListBullet } from "@medusajs/icons"
 import { createColumnHelper } from "@tanstack/react-table"
@@ -20,6 +20,7 @@ import { useCallback, useMemo, useState } from "react"
 import { EntityActions } from "../../../components/persons/personsActions"
 import { TableSkeleton } from "../../../components/table/skeleton"
 import {
+  failedNotificationsQueryKeys,
   Notification,
   useNotifications,
   useRetryFailedEmail,
@@ -35,6 +36,7 @@ type FilteringUpdater =
   | ((prev: DataTableFilteringState) => DataTableFilteringState)
 
 const ListAllNotificiation = () => {
+  const queryClient = useQueryClient()
   const [pagination, setPagination] = useState<DataTablePaginationState>({
     pageSize: PAGE_SIZE,
     pageIndex: 0,
@@ -71,9 +73,19 @@ const ListAllNotificiation = () => {
         to: notification.to,
         template: notification.template,
         data: notification.data,
+      }, {
+        onSuccess: () => {
+          toast.success("Retry triggered")
+          queryClient.invalidateQueries({
+            queryKey: failedNotificationsQueryKeys.lists(),
+          })
+        },
+        onError: (error) => {
+          toast.error(error.message || "Failed to retry")
+        },
       })
     },
-    [mutate]
+    [mutate, queryClient]
   )
 
   const canRetry = useCallback((n: Notification) => {
