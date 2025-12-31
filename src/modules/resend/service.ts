@@ -106,12 +106,14 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
       const { data, error } = await this.resendClient.emails.send(emailOptions)
 
       if (error || !data) {
+        const errorMessage = error?.message || "Unknown error occurred"
         if (error) {
           this.logger.error("Failed to send email", error)
         } else {
           this.logger.error("Failed to send email: unknown error")
         }
-        return {}
+        // Throw error instead of returning empty object
+        throw new Error(`Resend API error: ${errorMessage}`)
       }
 
       this.logger.info(`Email sent successfully with ID: ${data.id}`)
@@ -120,7 +122,8 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
       }
     } catch (error) {
       this.logger.error("Failed to send email", error)
-      return {}
+      // Re-throw the error to properly mark notification as failed
+      throw error
     }
   }
 }

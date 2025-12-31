@@ -3,8 +3,8 @@ import {
     MedusaResponse,
   } from "@medusajs/framework/http";
 
-import { AdminPostDesignInventoryReq } from "../inventory/validators";
-import { linkDesignInventoryWorkflow } from "../../../../../workflows/designs/inventory/link-inventory";
+import { AdminPatchDesignInventoryLinkReq, AdminPostDesignInventoryReq } from "../inventory/validators";
+import { linkDesignInventoryWorkflow, updateDesignInventoryLinkWorkflow } from "../../../../../workflows/designs/inventory/link-inventory";
 import { DesignInventoryAllowedFields, refetchDesign } from "../inventory/helpers";
 import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/inventory/list-design-inventory";
   

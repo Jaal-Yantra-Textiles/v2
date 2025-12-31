@@ -125,6 +125,7 @@ import { PublishSocialPostSchema } from "./admin/social-posts/[id]/publish/valid
 import { GetAccountsSchema } from "./admin/socials/accounts/validators";
 import { FeedbackSchema, UpdateFeedbackSchema } from "./admin/feedbacks/validators";
 import { AnalyticsEventQuerySchema } from "./admin/analytics-events/validators";
+import { AdminNotificationsQueryParams } from "./admin/notifications/validators";
 import { 
   CreatePublishingCampaignSchema, 
   UpdatePublishingCampaignSchema, 
@@ -1189,6 +1190,12 @@ export default defineMiddlewares({
       matcher: "/admin/email-templates",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(EmailTemplateQueryParams), {})],
+    },
+    // Notifications (custom listing endpoint to avoid overriding core /admin/notifications)
+    {
+      matcher: "/admin/notifications/custom",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminNotificationsQueryParams), {})],
     },
     {
       matcher: "/admin/email-templates/:id",

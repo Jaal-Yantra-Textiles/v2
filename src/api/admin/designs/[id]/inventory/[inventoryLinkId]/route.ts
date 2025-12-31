@@ -13,14 +13,16 @@ export const PATCH = async (
 ) => {
   const designId = req.params.id
   const { inventoryLinkId } = req.params as { inventoryLinkId: string }
+  const body = (req.validatedBody ?? req.body ?? {}) as AdminPatchDesignInventoryLinkReq
+  const { plannedQuantity, locationId, metadata } = body
 
   const { errors } = await updateDesignInventoryLinkWorkflow(req.scope).run({
     input: {
       design_id: designId,
       inventory_id: inventoryLinkId,
-      planned_quantity: req.validatedBody.plannedQuantity,
-      location_id: req.validatedBody.locationId,
-      metadata: req.validatedBody.metadata ?? undefined,
+      planned_quantity: plannedQuantity,
+      location_id: locationId,
+      metadata: metadata ?? undefined,
     },
   })
 
