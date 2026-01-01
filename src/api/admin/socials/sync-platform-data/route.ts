@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { syncPlatformHashtagsMentionsWorkflow } from "../../../../workflows/socials/sync-platform-hashtags-mentions"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import { decryptAccessToken } from "../../../../modules/socials/utils/token-helpers"
+import SocialsService from "../../../../modules/socials/service"
 
 /**
  * POST /admin/socials/sync-platform-data
@@ -22,7 +23,7 @@ export const POST = async (
 
   try {
     // Get platform to extract access token
-    const socials = req.scope.resolve(SOCIALS_MODULE)
+    const socials: SocialsService = req.scope.resolve(SOCIALS_MODULE)
     
     const [platform] = await socials.listSocialPlatforms({ id: platform_id })
     
