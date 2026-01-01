@@ -31,7 +31,8 @@ export const POST = async (
       ad_account_id,
       level = "campaign",
       date_preset = "last_30d",
-      time_increment = "1"
+      time_increment = "1",
+      include_breakdowns = false,
     } = body
 
     // Basic validation (workflow will do more thorough validation)
@@ -51,6 +52,7 @@ export const POST = async (
         level: level as "campaign" | "adset" | "ad",
         date_preset: date_preset as "last_7d" | "last_14d" | "last_30d" | "last_90d" | "maximum",
         time_increment,
+        include_breakdowns,
       },
     })
 

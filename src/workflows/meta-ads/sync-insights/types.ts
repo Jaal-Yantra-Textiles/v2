@@ -8,6 +8,7 @@ export interface SyncInsightsInput {
   level?: "campaign" | "adset" | "ad"
   date_preset?: "last_7d" | "last_14d" | "last_30d" | "last_90d" | "maximum"
   time_increment?: string
+  include_breakdowns?: boolean
 }
 
 export interface SyncInsightsResult {
@@ -56,6 +57,15 @@ export interface InsightRecord {
   video_p50_watched_actions?: Array<{ value: string }>
   video_p75_watched_actions?: Array<{ value: string }>
   video_p100_watched_actions?: Array<{ value: string }>
+
+  // Optional breakdown dimensions
+  age?: string
+  gender?: string
+  country?: string
+  region?: string
+  publisher_platform?: string
+  platform_position?: string
+  device_platform?: string
 }
 
 export interface AggregatedMetrics {

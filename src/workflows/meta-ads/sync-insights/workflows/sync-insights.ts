@@ -50,6 +50,7 @@ export const syncInsightsWorkflow = createWorkflow(
       level: platformData.level,
       datePreset: platformData.datePreset,
       timeIncrement: platformData.timeIncrement,
+      includeBreakdowns: (platformData as any).includeBreakdowns,
     })
 
     // Step 3: Save insights to database

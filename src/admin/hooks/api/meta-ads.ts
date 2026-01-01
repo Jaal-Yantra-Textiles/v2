@@ -88,6 +88,49 @@ export interface AdAccount {
   updated_at: string
 }
 
+export interface AdSet {
+  id: string
+  meta_adset_id: string
+  name: string
+  status: "ACTIVE" | "PAUSED" | "DELETED" | "ARCHIVED"
+  effective_status?: string
+  impressions?: any
+  clicks?: any
+  spend?: any
+  reach?: any
+  leads?: any
+  ctr?: number
+  cpc?: number
+  cpm?: number
+  cost_per_lead?: number
+  last_synced_at?: string
+  campaign_id: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Ad {
+  id: string
+  meta_ad_id: string
+  name: string
+  status: "ACTIVE" | "PAUSED" | "DELETED" | "ARCHIVED"
+  effective_status?: string
+  impressions?: any
+  clicks?: any
+  spend?: any
+  reach?: any
+  leads?: any
+  conversions?: any
+  ctr?: number
+  cpc?: number
+  cpm?: number
+  cost_per_lead?: number
+  last_synced_at?: string
+  ad_set_id: string
+  created_at?: string
+  updated_at?: string
+}
+
 export interface AdCampaign {
   id: string
   meta_campaign_id: string
@@ -112,6 +155,59 @@ export interface AdCampaign {
   updated_at: string
 }
 
+export type MetaAdsOverviewLevel = "account" | "campaign" | "adset" | "ad"
+
+export type MetaAdsOverviewTotals = {
+  impressions: number
+  reach: number
+  clicks: number
+  spend: number
+  ctr: number
+  cpc: number
+  cpm: number
+}
+
+export type MetaAdsOverviewBreakdownRow = {
+  key: Record<string, string>
+  totals: MetaAdsOverviewTotals
+  results: Record<string, number>
+}
+
+export type MetaAdsOverviewResponse = {
+  scope: {
+    platform_id: string
+    ad_account_id: string
+    level: MetaAdsOverviewLevel
+    object_id?: string
+    date_preset: string
+    time_increment?: number
+    last_synced_at?: string | null
+  }
+  totals: MetaAdsOverviewTotals
+  results: Record<string, number>
+  audience: null | {
+    by_age_gender: MetaAdsOverviewBreakdownRow[]
+    by_country: MetaAdsOverviewBreakdownRow[]
+  }
+  content: null | {
+    by_publisher_platform: MetaAdsOverviewBreakdownRow[]
+    by_platform_position: MetaAdsOverviewBreakdownRow[]
+    by_device_platform: MetaAdsOverviewBreakdownRow[]
+  }
+  capabilities: {
+    remote_ad_creation: {
+      supported: boolean
+    }
+  }
+  persistence?: {
+    enabled: boolean
+    created: number
+    updated: number
+    errors: number
+  }
+  data_source?: "db" | "meta"
+}
+
 // ============ Query Keys ============
 
 export const metaAdsKeys = {
@@ -131,6 +227,20 @@ export const metaAdsKeys = {
   campaigns: () => [...metaAdsKeys.all, "campaigns"] as const,
   campaignsList: (filters: Record<string, any>) => [...metaAdsKeys.campaigns(), "list", filters] as const,
   campaignDetail: (id: string) => [...metaAdsKeys.campaigns(), "detail", id] as const,
+
+  // Ad Sets
+  adSets: () => [...metaAdsKeys.all, "adsets"] as const,
+  adSetsList: (filters: Record<string, any>) => [...metaAdsKeys.adSets(), "list", filters] as const,
+  adSetDetail: (id: string) => [...metaAdsKeys.adSets(), "detail", id] as const,
+
+  // Ads
+  ads: () => [...metaAdsKeys.all, "ads"] as const,
+  adsList: (filters: Record<string, any>) => [...metaAdsKeys.ads(), "list", filters] as const,
+  adDetail: (id: string) => [...metaAdsKeys.ads(), "detail", id] as const,
+
+  // Overview
+  overview: () => [...metaAdsKeys.all, "overview"] as const,
+  overviewDetail: (params: Record<string, any>) => [...metaAdsKeys.overview(), "detail", params] as const,
 }
 
 // ============ Lead Hooks ============
@@ -172,6 +282,126 @@ export const useLeads = (params?: ListLeadsParams) => {
       
       return response
     },
+  })
+}
+
+export interface ListAdSetsParams {
+  campaign_id?: string
+  ad_account_id?: string
+  limit?: number
+  offset?: number
+}
+
+export const useAdSets = (params?: ListAdSetsParams) => {
+  return useQuery({
+    queryKey: metaAdsKeys.adSetsList(params || {}),
+    queryFn: async () => {
+      const queryParams = new URLSearchParams()
+      if (params?.campaign_id) queryParams.set("campaign_id", params.campaign_id)
+      if (params?.ad_account_id) queryParams.set("ad_account_id", params.ad_account_id)
+      if (params?.limit) queryParams.set("limit", params.limit.toString())
+      if (params?.offset) queryParams.set("offset", params.offset.toString())
+
+      const queryString = queryParams.toString()
+      const url = queryString ? `/admin/meta-ads/adsets?${queryString}` : `/admin/meta-ads/adsets`
+
+      const response = await sdk.client.fetch<{
+        adSets: AdSet[]
+        count: number
+        total?: number
+        limit?: number
+        offset?: number
+      }>(url)
+
+      return response
+    },
+    enabled: Boolean(params?.campaign_id || params?.ad_account_id),
+  })
+}
+
+export interface ListAdsParams {
+  ad_set_id?: string
+  campaign_id?: string
+  ad_account_id?: string
+  limit?: number
+  offset?: number
+}
+
+export const useAds = (params?: ListAdsParams) => {
+  return useQuery({
+    queryKey: metaAdsKeys.adsList(params || {}),
+    queryFn: async () => {
+      const queryParams = new URLSearchParams()
+      if (params?.ad_set_id) queryParams.set("ad_set_id", params.ad_set_id)
+      if (params?.campaign_id) queryParams.set("campaign_id", params.campaign_id)
+      if (params?.ad_account_id) queryParams.set("ad_account_id", params.ad_account_id)
+      if (params?.limit) queryParams.set("limit", params.limit.toString())
+      if (params?.offset) queryParams.set("offset", params.offset.toString())
+
+      const queryString = queryParams.toString()
+      const url = queryString ? `/admin/meta-ads/ads?${queryString}` : `/admin/meta-ads/ads`
+
+      const response = await sdk.client.fetch<{
+        ads: Ad[]
+        count: number
+        total?: number
+        limit?: number
+        offset?: number
+      }>(url)
+
+      return response
+    },
+    enabled: Boolean(params?.ad_set_id || params?.campaign_id || params?.ad_account_id),
+  })
+}
+
+export const useMetaAdsOverview = (params?: {
+  platform_id?: string
+  ad_account_id?: string
+  level?: MetaAdsOverviewLevel
+  object_id?: string
+  date_preset?: string
+  time_increment?: number
+  include_audience?: boolean
+  include_content?: boolean
+  persist?: boolean
+  refresh?: "auto" | "force" | "never"
+  max_age_minutes?: number
+}) => {
+  return useQuery({
+    queryKey: metaAdsKeys.overviewDetail(params || {}),
+    queryFn: async () => {
+      const query: Record<string, string> = {}
+
+      if (params?.platform_id) query.platform_id = params.platform_id
+      if (params?.ad_account_id) query.ad_account_id = params.ad_account_id
+      if (params?.level) query.level = params.level
+      if (params?.object_id) query.object_id = params.object_id
+      if (params?.date_preset) query.date_preset = params.date_preset
+      if (typeof params?.time_increment === "number") {
+        query.time_increment = String(params.time_increment)
+      }
+      if (typeof params?.include_audience === "boolean") {
+        query.include_audience = String(params.include_audience)
+      }
+      if (typeof params?.include_content === "boolean") {
+        query.include_content = String(params.include_content)
+      }
+      if (typeof params?.persist === "boolean") {
+        query.persist = String(params.persist)
+      }
+      if (params?.refresh) {
+        query.refresh = params.refresh
+      }
+      if (typeof params?.max_age_minutes === "number") {
+        query.max_age_minutes = String(params.max_age_minutes)
+      }
+
+      return sdk.client.fetch<MetaAdsOverviewResponse>(`/admin/meta-ads/overview`, {
+        query,
+      })
+    },
+    enabled: !!params?.platform_id && !!params?.ad_account_id,
   })
 }
 
@@ -401,6 +631,32 @@ export const useAdCampaign = (id: string) => {
   })
 }
 
+export const useAdSet = (id: string) => {
+  return useQuery({
+    queryKey: metaAdsKeys.adSetDetail(id),
+    queryFn: async () => {
+      const response = await sdk.client.fetch<{
+        adSet: any
+      }>(`/admin/meta-ads/adsets/${id}`)
+      return response
+    },
+    enabled: !!id,
+  })
+}
+
+export const useAd = (id: string) => {
+  return useQuery({
+    queryKey: metaAdsKeys.adDetail(id),
+    queryFn: async () => {
+      const response = await sdk.client.fetch<{
+        ad: any
+      }>(`/admin/meta-ads/ads/${id}`)
+      return response
+    },
+    enabled: !!id,
+  })
+}
+
 export const useSyncCampaigns = () => {
   const queryClient = useQueryClient()
   
@@ -437,6 +693,7 @@ export const useSyncInsights = () => {
       level?: "account" | "campaign" | "adset" | "ad"
       date_preset?: "last_7d" | "last_14d" | "last_30d" | "last_90d" | "maximum"
       time_increment?: string
+      include_breakdowns?: boolean
     }) => {
       const response = await sdk.client.fetch<{
         message: string

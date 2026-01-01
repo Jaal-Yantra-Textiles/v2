@@ -126,9 +126,9 @@ import { GetAccountsSchema } from "./admin/socials/accounts/validators";
 import { FeedbackSchema, UpdateFeedbackSchema } from "./admin/feedbacks/validators";
 import { AnalyticsEventQuerySchema } from "./admin/analytics-events/validators";
 import { AdminNotificationsQueryParams } from "./admin/notifications/validators";
-import { 
-  CreatePublishingCampaignSchema, 
-  UpdatePublishingCampaignSchema, 
+import {
+  CreatePublishingCampaignSchema,
+  UpdatePublishingCampaignSchema,
   ListPublishingCampaignsQuerySchema,
   RetryItemSchema,
 } from "./admin/publishing-campaigns/validators";
@@ -140,6 +140,8 @@ import {
   ListCampaignsQuerySchema,
   SyncCampaignsSchema,
   SyncInsightsSchema,
+  MetaAdsOverviewQuerySchema,
+  CreateRemoteAdSchema,
 } from "./admin/meta-ads/validators";
 
 // Utility function to create CORS middleware with configurable options
@@ -1454,6 +1456,16 @@ export default defineMiddlewares({
       matcher: "/admin/meta-ads/insights/sync",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(SyncInsightsSchema))],
+    },
+    {
+      matcher: "/admin/meta-ads/overview",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(MetaAdsOverviewQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/meta-ads/remote/ads",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateRemoteAdSchema))],
     },
   ],
   errorHandler: ((

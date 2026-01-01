@@ -86,6 +86,15 @@ export const saveInsightsToDbStep = createStep(
           quality_ranking: insight.quality_ranking || null,
           engagement_rate_ranking: insight.engagement_rate_ranking || null,
           conversion_rate_ranking: insight.conversion_rate_ranking || null,
+
+          // Breakdowns (optional)
+          age: (insight as any).age || null,
+          gender: (insight as any).gender || null,
+          country: (insight as any).country || null,
+          region: (insight as any).region || null,
+          publisher_platform: (insight as any).publisher_platform || null,
+          platform_position: (insight as any).platform_position || null,
+          device_platform: (insight as any).device_platform || null,
           
           currency: input.adAccount.currency,
           raw_data: insight,
@@ -115,7 +124,7 @@ export const saveInsightsToDbStep = createStep(
         }
 
         // Build unique key for deduplication
-        const uniqueKey = `${dateStart.toISOString()}_${dateStop.toISOString()}_${input.level}_${insight.campaign_id || ''}_${insight.adset_id || ''}_${insight.ad_id || ''}`
+        const uniqueKey = `${dateStart.toISOString()}_${dateStop.toISOString()}_${input.level}_${insight.campaign_id || ''}_${insight.adset_id || ''}_${insight.ad_id || ''}_${(insight as any).age || ''}_${(insight as any).gender || ''}_${(insight as any).country || ''}_${(insight as any).region || ''}_${(insight as any).publisher_platform || ''}_${(insight as any).platform_position || ''}_${(insight as any).device_platform || ''}`
         
         // Check for existing insight
         let existingId: string | null = null
@@ -125,7 +134,7 @@ export const saveInsightsToDbStep = createStep(
             if (!ei.date_start || !ei.date_stop) return false
             const eiStart = new Date(ei.date_start).toISOString()
             const eiStop = new Date(ei.date_stop).toISOString()
-            const eiKey = `${eiStart}_${eiStop}_${ei.level || ''}_${ei.meta_campaign_id || ''}_${ei.meta_adset_id || ''}_${ei.meta_ad_id || ''}`
+            const eiKey = `${eiStart}_${eiStop}_${ei.level || ''}_${ei.meta_campaign_id || ''}_${ei.meta_adset_id || ''}_${ei.meta_ad_id || ''}_${ei.age || ''}_${ei.gender || ''}_${ei.country || ''}_${ei.region || ''}_${ei.publisher_platform || ''}_${ei.platform_position || ''}_${ei.device_platform || ''}`
             return eiKey === uniqueKey
           })
           if (existing?.id) {

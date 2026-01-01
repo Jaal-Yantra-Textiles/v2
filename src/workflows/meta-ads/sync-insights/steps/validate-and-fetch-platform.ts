@@ -91,6 +91,7 @@ export const validateAndFetchPlatformStep = createStep(
       level: input.level || "campaign",
       datePreset: input.date_preset || "last_30d",
       timeIncrement: input.time_increment || "1",
+      includeBreakdowns: input.include_breakdowns || false,
     })
   }
 )

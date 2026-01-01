@@ -10,6 +10,7 @@ interface FetchInsightsInput {
   level: string
   datePreset: string
   timeIncrement: string
+  includeBreakdowns?: boolean
 }
 
 // Fields to request from Meta API
@@ -20,6 +21,8 @@ const INSIGHT_FIELDS = [
   "adset_name",
   "ad_id",
   "ad_name",
+  "date_start",
+  "date_stop",
   "impressions",
   "reach",
   "frequency",
@@ -42,6 +45,22 @@ const INSIGHT_FIELDS = [
   "quality_ranking",
   "engagement_rate_ranking",
   "conversion_rate_ranking",
+]
+
+const BREAKDOWN_FIELDS = [
+  "campaign_id",
+  "adset_id",
+  "ad_id",
+  "date_start",
+  "date_stop",
+  "impressions",
+  "reach",
+  "clicks",
+  "spend",
+  "actions",
+  "cpc",
+  "cpm",
+  "ctr",
 ]
 
 /**
@@ -67,7 +86,39 @@ export const fetchInsightsFromMetaStep = createStep(
       }
     )
 
-    const insights = (insightsResponse as any).data || []
+    let insights = (insightsResponse as any).data || []
+
+    if (input.includeBreakdowns) {
+      const breakdownSets: string[][] = [
+        ["age", "gender"],
+        ["country"],
+        ["publisher_platform"],
+        ["platform_position"],
+        ["device_platform"],
+      ]
+
+      for (const breakdowns of breakdownSets) {
+        try {
+          const resp = await metaAds.getInsights(
+            input.adAccount.meta_account_id,
+            input.platform.accessToken,
+            {
+              level: input.level as "account" | "campaign" | "adset" | "ad",
+              date_preset: input.datePreset,
+              time_increment: parseInt(input.timeIncrement) || 1,
+              breakdowns,
+              fields: BREAKDOWN_FIELDS,
+            }
+          )
+
+          const rows = (resp as any).data || []
+          insights = insights.concat(rows)
+        } catch (e) {
+          // Ignore invalid breakdown combinations for some accounts
+        }
+      }
+    }
+
     console.log(`[SyncInsights] Fetched ${insights.length} insight records from Meta`)
 
     return new StepResponse({

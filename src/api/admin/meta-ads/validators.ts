@@ -67,4 +67,26 @@ export const SyncInsightsSchema = z.object({
   level: z.enum(["account", "campaign", "adset", "ad"]).optional().default("campaign"),
   date_preset: z.enum(["last_7d", "last_14d", "last_30d", "last_90d", "maximum"]).optional().default("last_30d"),
   time_increment: z.string().optional().default("1"),
+  include_breakdowns: z.coerce.boolean().optional().default(false),
+})
+
+export const MetaAdsOverviewQuerySchema = z.object({
+  platform_id: z.string(),
+  ad_account_id: z.string(),
+  level: z.enum(["account", "campaign", "adset", "ad"]).optional().default("account"),
+  object_id: z.string().optional(),
+  date_preset: z.string().optional().default("last_30d"),
+  time_increment: z.coerce.number().optional(),
+  include_audience: z.coerce.boolean().optional().default(true),
+  include_content: z.coerce.boolean().optional().default(true),
+  persist: z.coerce.boolean().optional().default(false),
+  refresh: z.enum(["auto", "force", "never"]).optional().default("auto"),
+  max_age_minutes: z.coerce.number().optional().default(60),
+})
+
+export const CreateRemoteAdSchema = z.object({
+  platform_id: z.string(),
+  ad_account_id: z.string(),
+  // Placeholder for future custom ad payload mapping.
+  data: z.record(z.string(), z.any()).optional(),
 })
