@@ -330,17 +330,107 @@ const emailTemplatesData = [
     is_active: true
   },
     {
-    name: "Shipment Created",
+    name: "Shipment Shipped",
     template_key: "order-shipment-created",
     from: "orders@jyt.com",
     subject: "Your order {{order_id}} just shipped 🚚",
     html_content: `
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <style>
+            html, body { margin: 0; padding: 0; }
+            body { width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+            table { border-collapse: collapse; }
+            img { border: 0; outline: none; text-decoration: none; }
+            * { box-sizing: border-box; }
+
+            .font-sans { font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+            .w-full { width: 100%; }
+            .max-w-2xl { max-width: 672px; }
+            .mx-auto { margin-left: auto; margin-right: auto; }
+
+            .bg-white { background-color: #ffffff; }
+            .bg-slate-50 { background-color: #f8fafc; }
+            .bg-slate-100 { background-color: #f1f5f9; }
+            .bg-slate-900 { background-color: #0f172a; }
+            .bg-indigo-900 { background-color: #312e81; }
+
+            .text-white { color: #ffffff; }
+            .text-slate-900 { color: #0f172a; }
+            .text-slate-800 { color: #1f2937; }
+            .text-slate-700 { color: #334155; }
+            .text-slate-600 { color: #475569; }
+            .text-slate-500 { color: #64748b; }
+            .text-slate-200 { color: #e2e8f0; }
+            .text-indigo-200 { color: #c7d2fe; }
+            .text-indigo-600 { color: #4f46e5; }
+
+            .text-xs { font-size: 12px; line-height: 16px; }
+            .text-sm { font-size: 14px; line-height: 20px; }
+            .text-base { font-size: 16px; line-height: 24px; }
+            .text-3xl { font-size: 30px; line-height: 36px; }
+
+            .font-medium { font-weight: 500; }
+            .font-semibold { font-weight: 600; }
+
+            .uppercase { text-transform: uppercase; }
+            .tracking-wide { letter-spacing: 0.025em; }
+            .tracking-widest { letter-spacing: 0.1em; }
+
+            .leading-relaxed { line-height: 1.625; }
+
+            .p-4 { padding: 16px; }
+            .p-6 { padding: 24px; }
+            .p-8 { padding: 32px; }
+            .px-3 { padding-left: 12px; padding-right: 12px; }
+            .px-4 { padding-left: 16px; padding-right: 16px; }
+            .px-5 { padding-left: 20px; padding-right: 20px; }
+            .px-6 { padding-left: 24px; padding-right: 24px; }
+            .py-1 { padding-top: 4px; padding-bottom: 4px; }
+            .py-2 { padding-top: 8px; padding-bottom: 8px; }
+            .py-4 { padding-top: 16px; padding-bottom: 16px; }
+            .py-10 { padding-top: 40px; padding-bottom: 40px; }
+
+            .mt-1 { margin-top: 4px; }
+            .mt-3 { margin-top: 12px; }
+            .mt-6 { margin-top: 24px; }
+            .mt-8 { margin-top: 32px; }
+            .mt-10 { margin-top: 40px; }
+            .mb-2 { margin-bottom: 8px; }
+
+            .rounded-full { border-radius: 9999px; }
+            .rounded-xl { border-radius: 12px; }
+            .rounded-2xl { border-radius: 16px; }
+
+            .border { border-width: 1px; border-style: solid; }
+            .border-slate-200 { border-color: #e2e8f0; }
+            .border-t { border-top-width: 1px; border-top-style: solid; }
+            .border-b { border-bottom-width: 1px; border-bottom-style: solid; }
+
+            .text-left { text-align: left; }
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
+            .align-top { vertical-align: top; }
+
+            .inline-flex { display: inline-flex; }
+            .flex { display: flex; }
+            .flex-wrap { flex-wrap: wrap; }
+            .items-center { align-items: center; }
+            .justify-between { justify-content: space-between; }
+
+            .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); }
+          </style>
+        </head>
+        <body class="bg-slate-100 font-sans" style="margin:0; padding:0;">
       <div class="bg-slate-100 py-10">
-        <table class="w-full max-w-2xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden font-['Inter',sans-serif]">
+        <table class="w-full max-w-2xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden font-sans">
           <thead>
-            <tr class="bg-gradient-to-r from-slate-900 to-indigo-900">
+            <tr class="bg-slate-900">
               <th class="p-8 text-left">
-                <p class="text-sm uppercase tracking-[0.3em] text-indigo-200">Jaal Yantra Textiles</p>
+                <p class="text-sm uppercase tracking-widest text-indigo-200">Jaal Yantra Textiles</p>
                 <h1 class="text-white text-3xl font-semibold mt-3">Shipment update</h1>
                 <p class="text-slate-200 text-sm mt-1">Order {{order_id}} • {{formatDate order_date}}</p>
               </th>
@@ -446,6 +536,8 @@ const emailTemplatesData = [
           </tbody>
         </table>
       </div>
+        </body>
+      </html>
     `,
     variables: {
       customer_name: "Customer name",
@@ -469,10 +561,83 @@ const emailTemplatesData = [
     from: "orders@jyt.com",
     subject: "Delivered: Order {{order_id}} 📦",
     html_content: `
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <style>
+            html, body { margin: 0; padding: 0; }
+            body { width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+            * { box-sizing: border-box; }
+
+            .font-sans { font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+            .w-full { width: 100%; }
+            .max-w-2xl { max-width: 672px; }
+            .mx-auto { margin-left: auto; margin-right: auto; }
+
+            .bg-white { background-color: #ffffff; }
+            .bg-slate-50 { background-color: #f8fafc; }
+            .bg-slate-900 { background-color: #0f172a; }
+            .bg-emerald-50 { background-color: #ecfdf5; }
+            .bg-emerald-600 { background-color: #059669; }
+
+            .text-white { color: #ffffff; }
+            .text-slate-900 { color: #0f172a; }
+            .text-slate-700 { color: #334155; }
+            .text-slate-600 { color: #475569; }
+            .text-slate-500 { color: #64748b; }
+            .text-slate-400 { color: #94a3b8; }
+            .text-emerald-200 { color: #a7f3d0; }
+            .text-emerald-100 { color: #d1fae5; }
+            .text-emerald-600 { color: #059669; }
+
+            .text-xs { font-size: 12px; line-height: 16px; }
+            .text-sm { font-size: 14px; line-height: 20px; }
+            .text-lg { font-size: 18px; line-height: 28px; }
+            .text-4xl { font-size: 36px; line-height: 40px; }
+
+            .font-semibold { font-weight: 600; }
+
+            .uppercase { text-transform: uppercase; }
+            .tracking-widest { letter-spacing: 0.1em; }
+
+            .leading-relaxed { line-height: 1.625; }
+
+            .p-4 { padding: 16px; }
+            .p-6 { padding: 24px; }
+            .p-8 { padding: 32px; }
+            .p-10 { padding: 40px; }
+            .py-10 { padding-top: 40px; padding-bottom: 40px; }
+            .mt-2 { margin-top: 8px; }
+            .mt-5 { margin-top: 20px; }
+            .mt-10 { margin-top: 40px; }
+            .mt-12 { margin-top: 48px; }
+            .mb-2 { margin-bottom: 8px; }
+            .mb-3 { margin-bottom: 12px; }
+
+            .rounded-2xl { border-radius: 16px; }
+            .rounded-3xl { border-radius: 24px; }
+            .rounded-full { border-radius: 9999px; }
+
+            .border { border-width: 1px; border-style: solid; }
+            .border-slate-100 { border-color: #f1f5f9; }
+            .border-slate-200 { border-color: #e2e8f0; }
+            .border-emerald-100 { border-color: #d1fae5; }
+
+            .text-center { text-align: center; }
+            .flex { display: flex; }
+            .items-start { align-items: flex-start; }
+            .items-center { align-items: center; }
+            .justify-between { justify-content: space-between; }
+            .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+          </style>
+        </head>
+        <body class="bg-emerald-50 font-sans" style="margin:0; padding:0;">
       <div class="bg-emerald-50 py-10">
-        <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden font-['Inter',sans-serif]">
+        <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden font-sans">
           <div class="bg-emerald-600 p-10 text-white">
-            <p class="uppercase tracking-[0.35em] text-emerald-200 text-xs">Delivery confirmation</p>
+            <p class="uppercase tracking-widest text-emerald-200 text-xs">Delivery confirmation</p>
             <h1 class="text-4xl font-semibold mt-2">It’s here!</h1>
             <p class="text-emerald-100 mt-2">Order {{order_id}} • Delivered on {{formatDate order_date}}</p>
           </div>
@@ -551,6 +716,8 @@ const emailTemplatesData = [
           </div>
         </div>
       </div>
+        </body>
+      </html>
     `,
     variables: {
       customer_name: "Customer name",

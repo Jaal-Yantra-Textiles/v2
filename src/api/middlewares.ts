@@ -802,7 +802,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/partners",
       method: "GET",
-      middlewares: [],
+      middlewares: [validateAndTransformQuery(wrapSchema(listPartnersQuerySchema), {})],
     },
     {
       matcher: "/admin/partners/:id",
