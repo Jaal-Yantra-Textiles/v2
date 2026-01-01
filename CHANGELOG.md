@@ -1,3 +1,16 @@
+# [8.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.6.2...v8.7.0) (2026-01-01)
+
+
+### Bug Fixes
+
+* **admin:** Meta ads with toast ([1431bb5](https://github.com/Jaal-Yantra-Textiles/v2/commit/1431bb5fa492e63e627169aa347f9138e28cde50))
+* **api:** Social service type fix ([e006c44](https://github.com/Jaal-Yantra-Textiles/v2/commit/e006c44b724879225b3bb01eb43d4f5e9be20e92))
+
+
+### Features
+
+* **api:** Meta ads insight depth level supported to store in the DB ([725fce9](https://github.com/Jaal-Yantra-Textiles/v2/commit/725fce9ccda31ca876d59499395b7b31cd8db6dc))
+
 ## [8.6.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.6.1...v8.6.2) (2026-01-01)
 
 
