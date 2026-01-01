@@ -1,3 +1,10 @@
+## [8.6.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.6.1...v8.6.2) (2026-01-01)
+
+
+### Bug Fixes
+
+* **api:** Seed email templates, and the middleware.ts for the validators inside the partners API ([1e10118](https://github.com/Jaal-Yantra-Textiles/v2/commit/1e10118a9c12328dd7fe202f07d2d8f850b3ca85))
+
 ## [8.6.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.6.0...v8.6.1) (2025-12-31)
 
 
