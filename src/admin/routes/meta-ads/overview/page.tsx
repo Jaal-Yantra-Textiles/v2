@@ -7,12 +7,13 @@ import {
   Select,
   Switch,
   Text,
+  toast,
   Toaster,
   useDataTable,
 } from "@medusajs/ui"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChartBar } from "@medusajs/icons"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createColumnHelper } from "@tanstack/react-table"
 import { useNavigate, type LoaderFunctionArgs } from "react-router-dom"
 import {
@@ -175,7 +176,13 @@ const MetaAdsOverviewPage = () => {
     return objectId
   }, [level, objectId])
 
-  const { data: overview, isLoading } = useMetaAdsOverview({
+  const {
+    data: overview,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+  } = useMetaAdsOverview({
     platform_id: platformId || undefined,
     ad_account_id: adAccountId || undefined,
     level,
@@ -187,6 +194,102 @@ const MetaAdsOverviewPage = () => {
     refresh: refreshMode,
     max_age_minutes: maxAgeMinutes,
   })
+
+  const fetchToastIdRef = useRef<string | number | null>(null)
+  const lastFetchKeyRef = useRef<string>("")
+  const wasFetchingRef = useRef<boolean>(false)
+
+  const fetchKey = useMemo(() => {
+    return [
+      platformId,
+      adAccountId,
+      level,
+      effectiveObjectId || "",
+      datePreset,
+      includeAudience ? "1" : "0",
+      includeContent ? "1" : "0",
+      persist ? "1" : "0",
+      refreshMode,
+      String(maxAgeMinutes),
+    ].join("|")
+  }, [
+    platformId,
+    adAccountId,
+    level,
+    effectiveObjectId,
+    datePreset,
+    includeAudience,
+    includeContent,
+    persist,
+    refreshMode,
+    maxAgeMinutes,
+  ])
+
+  useEffect(() => {
+    const hasScope = Boolean(platformId && adAccountId)
+    if (!hasScope) {
+      if (fetchToastIdRef.current != null) {
+        toast.dismiss(fetchToastIdRef.current)
+        fetchToastIdRef.current = null
+      }
+      wasFetchingRef.current = false
+      lastFetchKeyRef.current = ""
+      return
+    }
+
+    if (isFetching) {
+      if (fetchKey !== lastFetchKeyRef.current) {
+        if (fetchToastIdRef.current != null) {
+          toast.dismiss(fetchToastIdRef.current)
+        }
+
+        const message =
+          refreshMode === "force"
+            ? "Syncing latest data from Meta..."
+            : "Fetching overview..."
+
+        fetchToastIdRef.current = toast.loading(message, { duration: Infinity })
+        lastFetchKeyRef.current = fetchKey
+      }
+      wasFetchingRef.current = true
+      return
+    }
+
+    // Fetch completed
+    if (wasFetchingRef.current) {
+      if (fetchToastIdRef.current != null) {
+        toast.dismiss(fetchToastIdRef.current)
+        fetchToastIdRef.current = null
+      }
+
+      if (isError) {
+        const msg = (error as any)?.message || "Failed to fetch overview"
+        toast.error(msg)
+      } else if (overview) {
+        toast.success(
+          `Overview updated${overview.data_source ? ` (source: ${overview.data_source.toUpperCase()})` : ""}`
+        )
+
+        if (persist && overview?.persistence?.enabled && overview.persistence.errors > 0) {
+          toast.warning(
+            `Saved with ${overview.persistence.errors} error(s) (${overview.persistence.created} new, ${overview.persistence.updated} updated)`
+          )
+        }
+      }
+
+      wasFetchingRef.current = false
+    }
+  }, [
+    platformId,
+    adAccountId,
+    fetchKey,
+    isFetching,
+    isError,
+    error,
+    overview,
+    refreshMode,
+    persist,
+  ])
 
   const resultsRows: ResultsRow[] = useMemo(() => {
     const rows = Object.entries(overview?.results || {}).map(([k, v]) => ({
