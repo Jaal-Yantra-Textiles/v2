@@ -38,6 +38,10 @@ module.exports = defineConfig({
     backendUrl: process.env.MEDUSA_BACKEND_URL,
     
   },
+  featureFlags: {
+    translation: true,
+    
+  },
 
   modules: [
     // Custom app modules
@@ -199,5 +203,14 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/aivtwo",
   },
+  {
+    resolve: "./src/modules/forms",
+  },
+  {
+      resolve: "./src/modules/production_runs",
+  },
+   {
+      resolve: "@medusajs/medusa/translation",
+    },
 ],
 });

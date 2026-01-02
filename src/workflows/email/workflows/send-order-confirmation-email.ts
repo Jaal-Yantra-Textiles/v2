@@ -8,7 +8,7 @@ const retrieveOrderStep = createStep(
   async ({ orderId }: { orderId: string }, { container }) => {
     const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
     const order = await orderService.retrieveOrder(orderId, {
-      relations: ["customer", "items"],
+      relations: ["items"],
     })
     return new StepResponse(order)
   }

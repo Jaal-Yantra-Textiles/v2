@@ -60,6 +60,13 @@ import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesig
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
+import {
+  AdminApproveProductionRunReq,
+  AdminCreateProductionRunReq,
+  AdminResumeDispatchProductionRunReq,
+  AdminSendProductionRunToProductionReq,
+  AdminStartDispatchProductionRunReq,
+} from "./admin/production-runs/validators";
 import { 
   websiteSchema, 
   updateWebsiteSchema,
@@ -92,6 +99,13 @@ import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreements
 import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
+import {
+  AdminCreateFormSchema,
+  AdminListFormResponsesQuerySchema,
+  AdminListFormsQuerySchema,
+  AdminSetFormFieldsSchema,
+  AdminUpdateFormSchema,
+} from "./admin/forms/validators";
 // Payments: schemas
 import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema } from "./admin/payments/validators";
 import { CreatePaymentAndLinkSchema } from "./admin/payments/link/validators";
@@ -112,7 +126,9 @@ import {
   CreatePaymentMethodForPartnerSchema as PartnerCreatePaymentMethodForPartnerSchema,
 } from "./partners/[id]/payments/validators";
 import { sendDesignToPartnerSchema } from "./admin/designs/[id]/send-to-partner/validators";
+import { AdminCreateDesignProductionRunSchema } from "./admin/designs/[id]/production-runs/validators";
 import { listDesignsQuerySchema } from "./partners/designs/validators";
+import { listProductionRunsQuerySchema } from "./partners/production-runs/validators";
 import { PartnerDesignInventorySchema } from "./partners/designs/[designId]/inventory/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
@@ -143,6 +159,7 @@ import {
   MetaAdsOverviewQuerySchema,
   CreateRemoteAdSchema,
 } from "./admin/meta-ads/validators";
+import { webSubmitFormResponseSchema } from "./web/website/[domain]/forms/[handle]/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -302,6 +319,16 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(partnerSchema)),
       ],
     },
+
+    {
+      matcher: "/partners",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"], {allowUnregistered: true,}),
+        validateAndTransformBody(wrapSchema(partnerSchema)),
+      ],
+    },
     
     {
       matcher: "/partners/:id",
@@ -447,6 +474,24 @@ export default defineMiddlewares({
 
     {
       matcher: "/partners/stores/:id/products",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Production Runs APIs
+    {
+      matcher: "/partners/production-runs",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(wrapSchema(listProductionRunsQuerySchema), {}),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id",
       method: "GET",
       middlewares: [
         createCorsPartnerMiddleware(),
@@ -922,6 +967,32 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(updateTaskTemplateSchema))],
     },
 
+    {
+      matcher: "/admin/production-runs",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreateProductionRunReq))],
+    },
+    {
+      matcher: "/admin/production-runs/:id/approve",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminApproveProductionRunReq))],
+    },
+    {
+      matcher: "/admin/production-runs/:id/send-to-production",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminSendProductionRunToProductionReq))],
+    },
+    {
+      matcher: "/admin/production-runs/:id/start-dispatch",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminStartDispatchProductionRunReq))],
+    },
+    {
+      matcher: "/admin/production-runs/:id/resume-dispatch",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminResumeDispatchProductionRunReq))],
+    },
+
     // Website routes
     {
       matcher: "/admin/websites",
@@ -1009,6 +1080,16 @@ export default defineMiddlewares({
       matcher: "/web/website/:domain/subscribe",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(subscriptionSchema))],
+    },
+    {
+      matcher: "/web/website/:domain/forms/:handle",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(webSubmitFormResponseSchema))],
+    },
+    {
+      matcher: "/web/website/:domain/forms/:handle/schema",
+      method: "GET",
+      middlewares: [],
     },
 
     // Raw Materials Categories API
@@ -1224,6 +1305,44 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdateAgreementSchema))],
     },
+    // Forms
+    {
+      matcher: "/admin/forms",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreateFormSchema))],
+    },
+    {
+      matcher: "/admin/forms",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminListFormsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/forms/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminUpdateFormSchema))],
+    },
+    {
+      matcher: "/admin/forms/:id",
+      method: "DELETE",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/forms/:id/fields",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminSetFormFieldsSchema))],
+    },
+    {
+      matcher: "/admin/forms/:id/responses",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(wrapSchema(AdminListFormResponsesQuerySchema), {}),
+      ],
+    },
+    {
+      matcher: "/admin/forms/:id/responses/:response_id",
+      method: "GET",
+      middlewares: [],
+    },
     {
       matcher: "/admin/persons/:id/agreements/send",
       method: "POST",
@@ -1239,6 +1358,13 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/send-to-partner",
       method: 'POST',
       middlewares: [validateAndTransformBody(wrapSchema(sendDesignToPartnerSchema))],
+    },
+    {
+      matcher: "/admin/designs/:id/production-runs",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminCreateDesignProductionRunSchema)),
+      ],
     },
     // Partner Designs APIs
     {

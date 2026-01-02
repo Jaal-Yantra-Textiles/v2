@@ -15,6 +15,9 @@ const ProductionRun = model.define("production_runs", {
     .default("pending_review"),
   quantity: model.float().default(1),
 
+  parent_run_id: model.text().nullable(),
+  role: model.text().nullable(),
+
   design_id: model.text(),
   partner_id: model.text().nullable(),
 

@@ -25,13 +25,21 @@ export const POST = async (
 
     const { admin, ...partnerData } = partnerSchema.parse(req.body)
 
+    const authIdentityId = req.auth_context?.auth_identity_id
+    if (!authIdentityId) {
+        throw new MedusaError(
+            MedusaError.Types.UNAUTHORIZED,
+            "Partner authentication required"
+        )
+    }
+
     // Create partner and admin using workflow
     const { result } = await createPartnerAdminWorkflow(req.scope)
         .run({
             input: {
                 partner: partnerData,
                 admin,
-                authIdentityId: req.auth_context.auth_identity_id,
+                authIdentityId,
             },
         })
 

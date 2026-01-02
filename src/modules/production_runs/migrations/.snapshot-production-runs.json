@@ -44,6 +44,24 @@
           "default": "1",
           "mappedType": "float"
         },
+        "parent_run_id": {
+          "name": "parent_run_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "design_id": {
           "name": "design_id",
           "type": "text",

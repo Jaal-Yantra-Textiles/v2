@@ -37,7 +37,7 @@ const sanitizeBigInt = (value: any): any => {
 
 export type CreateProductionRunInput = {
   design_id: string
-  partner_id: string
+  partner_id?: string | null
   quantity?: number
   product_id?: string
   variant_id?: string
@@ -131,7 +131,7 @@ const createProductionRunStep = createStep(
 
     const created = await productionRunService.createProductionRuns({
       design_id: input.payload.design_id,
-      partner_id: input.payload.partner_id,
+      partner_id: input.payload.partner_id ?? null,
       quantity: input.payload.quantity ?? 1,
       product_id: input.payload.product_id,
       variant_id: input.payload.variant_id,
@@ -203,8 +203,13 @@ export const createProductionRunWorkflow = createWorkflow(
     const snapshot = transform(
       { input, design, inventory, captured_at },
       (data) => {
+        const capturedAtDate =
+          data.captured_at instanceof Date
+            ? data.captured_at
+            : new Date(data.captured_at as any)
+
         return {
-          captured_at: data.captured_at.toISOString(),
+          captured_at: capturedAtDate.toISOString(),
           design: {
             id: data.design.id,
             name: data.design.name,
@@ -224,7 +229,7 @@ export const createProductionRunWorkflow = createWorkflow(
             product_id: data.input.product_id,
             variant_id: data.input.variant_id,
             quantity: data.input.quantity ?? 1,
-            partner_id: data.input.partner_id,
+            partner_id: data.input.partner_id ?? null,
           },
         }
       }
