@@ -1,3 +1,10 @@
+# [8.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.7.0...v8.8.0) (2026-01-02)
+
+
+### Features
+
+* **api:** Forms recording on various parts of commerce is now supported ([b92d878](https://github.com/Jaal-Yantra-Textiles/v2/commit/b92d87808d6066c867372d8dc144b004f8e3cb86))
+
 # [8.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.6.2...v8.7.0) (2026-01-01)
 
 
