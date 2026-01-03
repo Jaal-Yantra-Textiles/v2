@@ -4,6 +4,7 @@ import { getWebsitePage } from "@lib/data/website"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { generateHTML } from "@tiptap/html"
 import StarterKit from "@tiptap/starter-kit"
+import ContactUsForm from "@modules/layout/components/contact-us-form"
 
 const DOMAIN = "shop.cicilabel.com"
 
@@ -176,6 +177,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       </nav>
 
       <div className="space-y-8">
+        {slug === "contact-us" ? (
+          <section className="py-2">
+            <ContactUsForm />
+          </section>
+        ) : null}
         {blocks.length > 0 ? (
           blocks.map((block, idx) => {
             const type = normalizeType(block.type as any)
