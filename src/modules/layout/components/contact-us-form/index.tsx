@@ -9,8 +9,7 @@ import { submitWebsiteFormResponse } from "@lib/data/forms"
 const ContactUsForm = () => {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
-  const [company, setCompany] = useState("")
-  const [role, setRole] = useState("")
+  const [orderId, setOrderId] = useState("")
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -30,8 +29,7 @@ const ContactUsForm = () => {
           email: email.trim(),
           data: {
             name: name.trim(),
-            company: company.trim() || "",
-            role: role.trim() || "",
+            order_id: orderId.trim() || "",
             message: message.trim(),
           },
           metadata: {
@@ -46,8 +44,7 @@ const ContactUsForm = () => {
       toast.success("Thank you for your message! We will get back to you soon.")
       setName("")
       setEmail("")
-      setCompany("")
-      setRole("")
+      setOrderId("")
       setMessage("")
     } catch (error) {
       console.error(error)
@@ -90,21 +87,12 @@ const ContactUsForm = () => {
               disabled={loading}
             />
             <Input
-              label="Company"
-              name="company"
+              label="Order ID"
+              name="order_id"
               type="text"
-              autoComplete="organization"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              disabled={loading}
-            />
-            <Input
-              label="Role"
-              name="role"
-              type="text"
-              autoComplete="organization-title"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
+              autoComplete="off"
+              value={orderId}
+              onChange={(e) => setOrderId(e.target.value)}
               disabled={loading}
             />
           </div>

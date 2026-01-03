@@ -177,11 +177,6 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       </nav>
 
       <div className="space-y-8">
-        {slug === "contact-us" ? (
-          <section className="py-2">
-            <ContactUsForm />
-          </section>
-        ) : null}
         {blocks.length > 0 ? (
           blocks.map((block, idx) => {
             const type = normalizeType(block.type as any)
@@ -219,6 +214,12 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         ) : (
           <p className="text-ui-fg-subtle">No content available for this page.</p>
         )}
+
+        {slug === "contact-us" ? (
+          <section className="py-2">
+            <ContactUsForm />
+          </section>
+        ) : null}
       </div>
     </article>
   )
