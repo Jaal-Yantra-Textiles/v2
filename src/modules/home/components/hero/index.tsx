@@ -1,3 +1,4 @@
+import { ArrowDownMini } from "@medusajs/icons"
 import { Button, Heading } from "@medusajs/ui"
 import { buildPublicMediaUrl, listPublicMedia } from "@lib/data/media"
 
@@ -21,7 +22,7 @@ const Hero = async () => {
       {/* Media mosaic backdrop */}
       {heroImages.length > 0 && (
         <div className="absolute inset-0 z-0">
-          <div className="grid h-full w-full grid-cols-3 gap-2 p-6 opacity-35 sm:grid-cols-4 lg:grid-cols-6">
+          <div className="grid h-full w-full grid-cols-3 gap-2 p-6 opacity-50 sm:grid-cols-4 lg:grid-cols-6">
             {heroImages.map((img) => (
               <div
                 key={img.id}
@@ -40,7 +41,7 @@ const Hero = async () => {
         </div>
       )}
 
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-gray-900/70 via-gray-900/70 to-gray-900" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-b from-gray-900/55 via-gray-900/65 to-gray-900" />
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_bottom,_rgba(139,92,246,0.15)_0%,_transparent_60%)] animate-breathing" />
       <div className="absolute inset-0 z-10 flex flex-col justify-center items-center text-center small:p-32 gap-6">
         <span>
@@ -65,6 +66,16 @@ const Hero = async () => {
           <Button variant="secondary">
             Design your first piece
           </Button>
+        </a>
+
+        <a
+          href="#shop"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm shadow-sm transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/25"
+        >
+          <span>Scroll more if you want to buy what we made</span>
+          <span className="inline-flex h-8 w-12 items-center justify-center rounded-full bg-white/10">
+            <ArrowDownMini className="h-5 w-5" color="currentColor" />
+          </span>
         </a>
       </div>
     </div>
