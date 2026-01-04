@@ -1,3 +1,10 @@
+# [8.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.9.0...v8.10.0) (2026-01-04)
+
+
+### Features
+
+* **admin:** Production Runs ([554cbeb](https://github.com/Jaal-Yantra-Textiles/v2/commit/554cbeb2815155bc31aa6c0404927d7e65dc7744))
+
 # [8.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.8.0...v8.9.0) (2026-01-04)
 
 
