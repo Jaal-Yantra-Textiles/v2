@@ -1,3 +1,10 @@
+# [8.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.8.0...v8.9.0) (2026-01-04)
+
+
+### Features
+
+* **api:** Production runs and Mobile App for the storefront ([3353486](https://github.com/Jaal-Yantra-Textiles/v2/commit/3353486faeb23f252c5349e23f94544663d3146e))
+
 # [8.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.7.0...v8.8.0) (2026-01-02)
 
 
