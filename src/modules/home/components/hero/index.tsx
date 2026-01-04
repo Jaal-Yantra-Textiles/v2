@@ -1,6 +1,7 @@
 import { ArrowDownMini } from "@medusajs/icons"
 import { Button, Heading } from "@medusajs/ui"
 import { buildPublicMediaUrl, listPublicMedia } from "@lib/data/media"
+import HeroSubheading from "./hero-subheading"
 
 const Hero = async () => {
   const { medias } = await listPublicMedia({
@@ -53,14 +54,7 @@ const Hero = async () => {
           >
             Cici Label
           </Heading>
-          <Heading
-            level="h2"
-            className="text-2xl leading-9 font-medium"
-          >
-            <span className="bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">With Care, </span>
-            <span className="bg-gradient-to-r from-green-200 via-teal-300 to-blue-400 bg-clip-text text-transparent">Through Inversion: </span>
-            <span className="bg-gradient-to-r from-yellow-200 via-orange-300 to-red-400 bg-clip-text text-transparent">Compassion Meets Impermanence</span>
-          </Heading>
+          <HeroSubheading />
         </span>
         <a
           href="/design"
