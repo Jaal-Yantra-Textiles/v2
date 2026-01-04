@@ -22,6 +22,34 @@ export const GET = async (
     const limit = Math.min(Number(query.limit) || 20, 100); // Max 100 items
     const random = query.random !== "false"; // Default true
     const type = query.type || undefined;
+    const offset = Math.max(Number(query.offset) || 0, 0);
+    const seed = typeof query.seed === "string" && query.seed.length ? query.seed : undefined;
+
+    const mulberry32 = (a: number) => {
+      return () => {
+        let t = (a += 0x6d2b79f5)
+        t = Math.imul(t ^ (t >>> 15), t | 1)
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+      }
+    }
+
+    const seedToInt = (value: string) => {
+      let h = 2166136261
+      for (let i = 0; i < value.length; i++) {
+        h ^= value.charCodeAt(i)
+        h = Math.imul(h, 16777619)
+      }
+      return h >>> 0
+    }
+
+    const shuffleInPlace = <T,>(arr: T[], rand: () => number) => {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1))
+        ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      }
+      return arr
+    }
     
     // Build filters - only public media
     const filters: Record<string, any> = {
@@ -38,8 +66,8 @@ export const GET = async (
       input: {
         filters,
         config: {
-          take: random ? limit * 3 : limit, // Fetch more if randomizing
-          skip: 0,
+          take: random ? Math.min((offset + limit) * 3, 500) : limit,
+          skip: random ? 0 : offset,
         },
       },
     });
@@ -49,11 +77,10 @@ export const GET = async (
     
     // Randomize if requested
     if (random && mediaFiles.length > 0) {
-      mediaFiles = mediaFiles
-        .sort(() => Math.random() - 0.5)
-        .slice(0, limit);
+      const rand = seed ? mulberry32(seedToInt(seed)) : Math.random
+      mediaFiles = shuffleInPlace([...mediaFiles], rand).slice(offset, offset + limit);
     } else {
-      mediaFiles = mediaFiles.slice(0, limit);
+      mediaFiles = mediaFiles.slice(offset, offset + limit);
     }
     
     // Return sanitized public data
