@@ -930,7 +930,18 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
 
   // Calculate base image dimensions to fit visible container area
   const getBaseImageDimensions = useCallback(() => {
-    if (!baseImage) return { x: CANVAS_EXTEND, y: CANVAS_EXTEND, width: 0, height: 0 }
+    if (!baseImage) {
+      const padding = 40
+      const width = Math.max(0, containerDims.width - padding * 2)
+      const height = Math.max(0, containerDims.height - padding * 2)
+
+      return {
+        x: CANVAS_EXTEND + (containerDims.width - width) / 2,
+        y: CANVAS_EXTEND + (containerDims.height - height) / 2,
+        width,
+        height,
+      }
+    }
     
     const padding = 40
     const maxWidth = containerDims.width - padding * 2
@@ -1414,7 +1425,7 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
   const baseDims = getBaseImageDimensions()
 
   // Loading state
-  if (baseImageStatus === "loading") {
+  if (product.thumbnail && baseImageStatus === "loading") {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -1426,7 +1437,7 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
   }
 
   // No image fallback
-  if (!product.thumbnail || baseImageStatus === "error") {
+  if (product.thumbnail && baseImageStatus === "error") {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
