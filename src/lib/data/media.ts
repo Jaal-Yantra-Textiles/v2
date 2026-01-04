@@ -29,10 +29,14 @@ export async function listPublicMedia({
   limit = 18,
   type = "image",
   random = true,
+  offset,
+  seed,
 }: {
   limit?: number
   type?: string
   random?: boolean
+  offset?: number
+  seed?: string
 } = {}): Promise<ListPublicMediaResponse> {
   const next = { ...(await getCacheOptions("web_media")) }
 
@@ -42,6 +46,8 @@ export async function listPublicMedia({
       limit,
       type,
       random: random ? "true" : "false",
+      ...(typeof offset === "number" ? { offset: String(offset) } : {}),
+      ...(seed ? { seed } : {}),
     },
     next,
     cache: "force-cache",

@@ -7,6 +7,8 @@ const Hero = async () => {
     limit: 18,
     type: "image",
     random: true,
+    seed: "home-mosaic",
+    offset: 0,
   }).catch(() => ({ medias: [], count: 0, total: 0 }))
 
   const heroImages = medias

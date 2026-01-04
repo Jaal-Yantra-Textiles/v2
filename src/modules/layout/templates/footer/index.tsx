@@ -17,6 +17,8 @@ export default async function Footer() {
     limit: 18,
     type: "image",
     random: true,
+    seed: "home-mosaic",
+    offset: 18,
   }).catch(() => ({ medias: [], count: 0, total: 0 }))
 
   const footerImages = medias
