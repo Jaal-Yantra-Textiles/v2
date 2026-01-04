@@ -1,0 +1,43 @@
+{
+  "cli": {
+    "version": ">= 12.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_MEDUSA_URL": "http://localhost:9000",
+        "EXPO_PUBLIC_MEDUSA_PUBLISHABLE_API_KEY": "pk_e5d795203a3ce0d33c9d4318f28bb58e3b9d3822276075b2c9aee1ce7dc95421",
+        "EXPO_PUBLIC_DEFAULT_REGION": "us",
+        "EXPO_PUBLIC_STRIPE_KEY": "pk_test_51NOlHsHSJb39HclxmvcDUQ2rtRsnoS47AcxQaogfDhIHMhTG8IulQbc3ZO0VZJoP0E4EgF8cXTHmS6w2PBFs1HTo00suYrBWN9"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_MEDUSA_URL": "https://v3.jaalyantra.com",
+        "EXPO_PUBLIC_MEDUSA_PUBLISHABLE_API_KEY": "pk_b75690b676705cfc6649a4f9cc3836894cab9ebbf1fe87e13b24062bf9d68dbf",
+        "EXPO_PUBLIC_DEFAULT_REGION": "us",
+        "EXPO_PUBLIC_STRIPE_KEY": "pk_test_51NOlHsHSJb39HclxmvcDUQ2rtRsnoS47AcxQaogfDhIHMhTG8IulQbc3ZO0VZJoP0E4EgF8cXTHmS6w2PBFs1HTo00suYrBWN9"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_MEDUSA_URL": "https://YOUR_PROD_MEDUSA_DOMAIN",
+        "EXPO_PUBLIC_MEDUSA_PUBLISHABLE_API_KEY": "YOUR_PUBLISHABLE_API_KEY",
+        "EXPO_PUBLIC_DEFAULT_REGION": "us",
+        "EXPO_PUBLIC_STRIPE_KEY": "YOUR_STRIPE_PUBLISHABLE_KEY"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  }
+}

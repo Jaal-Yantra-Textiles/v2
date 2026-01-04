@@ -124,7 +124,7 @@ export const WebsiteAnalyticsModal = () => {
         </div>
       </RouteFocusModal.Header>
 
-      <RouteFocusModal.Body className="overflow-y-auto">
+      <RouteFocusModal.Body className="overflow-y-auto bg-ui-bg-subtle">
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Text className="text-ui-fg-subtle">Loading analytics...</Text>
@@ -142,45 +142,50 @@ export const WebsiteAnalyticsModal = () => {
         {data && (
           <div className="flex flex-col">
             {/* Top Stats Bar */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ui-border-base border-b border-ui-border-base">
-              <MetricCard
-                label="UNIQUE VISITORS"
-                value={data.stats.unique_visitors.toLocaleString()}
-                icon={Users}
-              />
-              <MetricCard
-                label="TOTAL VISITS"
-                value={data.stats.unique_sessions.toLocaleString()}
-                icon={ArrowPath}
-              />
-              <MetricCard
-                label="TOTAL PAGEVIEWS"
-                value={data.stats.total_pageviews.toLocaleString()}
-                icon={Eye}
-              />
-              <MetricCard
-                label="VIEWS PER VISIT"
-                value={data.stats.unique_sessions > 0
-                  ? (data.stats.total_pageviews / data.stats.unique_sessions).toFixed(2)
-                  : "0"}
-                icon={ChartBar}
-              />
+            <div className="p-6">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <MetricCard
+                  label="UNIQUE VISITORS"
+                  value={data.stats.unique_visitors.toLocaleString()}
+                  icon={Users}
+                />
+                <MetricCard
+                  label="TOTAL VISITS"
+                  value={data.stats.unique_sessions.toLocaleString()}
+                  icon={ArrowPath}
+                />
+                <MetricCard
+                  label="TOTAL PAGEVIEWS"
+                  value={data.stats.total_pageviews.toLocaleString()}
+                  icon={Eye}
+                />
+                <MetricCard
+                  label="VIEWS PER VISIT"
+                  value={data.stats.unique_sessions > 0
+                    ? (data.stats.total_pageviews / data.stats.unique_sessions).toFixed(2)
+                    : "0"}
+                  icon={ChartBar}
+                />
+              </div>
             </div>
 
             {/* Main Content */}
-            <div className="p-6 flex flex-col gap-y-8">
+            <div className="px-6 pb-6 flex flex-col gap-y-6">
               {/* Charts Section */}
               {timeSeriesData.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-in fade-in duration-500">
                   {/* Visitors Trend Chart */}
-                  <Container className="p-0 overflow-hidden lg:col-span-2 shadow-sm hover:shadow-md transition-shadow duration-200">
-                    <div className="p-4 border-b border-ui-border-base">
+                  <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
+                    <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
                       <Heading level="h3" className="text-sm font-medium">
-                        Visitors Trend (Last 14 Days)
+                        Visitors
                       </Heading>
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Last 14 days
+                      </Text>
                     </div>
                     <div className="p-4">
-                      <ResponsiveContainer width="100%" height={250}>
+                      <ResponsiveContainer width="100%" height={220}>
                         <AreaChart data={timeSeriesData}>
                           <defs>
                             <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
@@ -234,14 +239,17 @@ export const WebsiteAnalyticsModal = () => {
 
                   {/* Traffic Sources Pie Chart */}
                   {sourcesChartData.length > 0 && (
-                    <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-                      <div className="p-4 border-b border-ui-border-base">
+                    <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
+                      <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
                         <Heading level="h3" className="text-sm font-medium">
                           Traffic Sources
                         </Heading>
+                        <Text size="xsmall" className="text-ui-fg-subtle">
+                          Top 5
+                        </Text>
                       </div>
                       <div className="p-4 flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height={250}>
+                        <ResponsiveContainer width="100%" height={220}>
                           <PieChart>
                             <Pie
                               data={sourcesChartData}
@@ -275,13 +283,16 @@ export const WebsiteAnalyticsModal = () => {
 
               {/* Geographic Distribution */}
               {countriesData.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-700">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-in fade-in duration-700">
                   {/* World Map */}
-                  <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-                    <div className="p-4 border-b border-ui-border-base">
+                  <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
+                    <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
                       <Heading level="h3" className="text-sm font-medium">
                         🗺️ Visitor Map
                       </Heading>
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        By country
+                      </Text>
                     </div>
                     <div className="p-4">
                       <AnalyticsCountryMap countriesData={countriesData} />
@@ -289,14 +300,17 @@ export const WebsiteAnalyticsModal = () => {
                   </Container>
 
                   {/* Top Countries Bar Chart */}
-                  <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-                    <div className="p-4 border-b border-ui-border-base">
+                  <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
+                    <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
                       <Heading level="h3" className="text-sm font-medium">
                         🌍 Top Countries
                       </Heading>
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Top 10
+                      </Text>
                     </div>
                     <div className="p-4">
-                      <ResponsiveContainer width="100%" height={400}>
+                      <ResponsiveContainer width="100%" height={320}>
                         <BarChart data={countriesData.slice(0, 10)} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           <XAxis type="number" tick={{ fontSize: 12 }} stroke="#9ca3af" />
@@ -328,13 +342,16 @@ export const WebsiteAnalyticsModal = () => {
               )}
 
               {/* Top Sources and Top Pages */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-700">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-700">
                 {/* Top Sources */}
-                <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-                  <div className="p-4 border-b border-ui-border-base">
+                <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
+                  <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
                     <Heading level="h3" className="text-sm font-medium">
                       Top Sources
                     </Heading>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      Last {days} days
+                    </Text>
                   </div>
                   <div className="p-4">
                     <div className="flex flex-col gap-y-2">
@@ -372,11 +389,14 @@ export const WebsiteAnalyticsModal = () => {
                 </Container>
 
                 {/* Top Pages */}
-                <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-                  <div className="p-4 border-b border-ui-border-base">
+                <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
+                  <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
                     <Heading level="h3" className="text-sm font-medium">
                       Top Pages
                     </Heading>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      Last {days} days
+                    </Text>
                   </div>
                   <div className="p-4">
                     <div className="flex flex-col gap-y-2">
@@ -406,11 +426,14 @@ export const WebsiteAnalyticsModal = () => {
 
               {/* Recent Events */}
               {data.recent_events.length > 0 && (
-                <Container className="p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 animate-in fade-in duration-1000">
-                  <div className="p-4 border-b border-ui-border-base">
+                <Container className="p-0 overflow-hidden animate-in fade-in duration-1000 rounded-lg border border-ui-border-base bg-ui-bg-base">
+                  <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
                     <Heading level="h3" className="text-sm font-medium">
                       Recent Activity
                     </Heading>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      Latest 10
+                    </Text>
                   </div>
                   <div className="p-4">
                     <div className="flex flex-col gap-y-2">
@@ -475,14 +498,16 @@ function MetricCard({
   icon: React.ComponentType<any>;
 }) {
   return (
-    <div className="bg-ui-bg-base p-5 flex flex-col gap-y-3 transition-all duration-200 hover:bg-ui-bg-subtle-hover">
-      <div className="flex items-center justify-between">
-        <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide font-medium">
-          {label}
-        </Text>
-        <IconComponent className="text-ui-fg-muted transition-transform duration-200 hover:scale-110" />
+    <div className="bg-ui-bg-base p-4 rounded-lg border border-ui-border-base">
+      <div className="flex items-start justify-between gap-x-4">
+        <div className="flex flex-col gap-y-1">
+          <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide font-medium">
+            {label}
+          </Text>
+          <Text className="text-2xl font-bold">{value}</Text>
+        </div>
+        <IconComponent className="text-ui-fg-muted" />
       </div>
-      <Text className="text-3xl font-bold transition-all duration-200">{value}</Text>
     </div>
   );
 }
