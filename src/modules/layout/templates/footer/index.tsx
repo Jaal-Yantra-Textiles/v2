@@ -31,7 +31,7 @@ export default async function Footer() {
     <footer className="border-t border-ui-border-base w-full relative overflow-hidden">
       {footerImages.length > 0 && (
         <div className="absolute inset-0 z-0 pointer-events-none">
-          <div className="grid h-full w-full grid-cols-3 gap-2 p-6 opacity-15 sm:grid-cols-4 lg:grid-cols-6">
+          <div className="grid h-full w-full grid-cols-3 gap-2 p-6 opacity-30 sm:grid-cols-4 lg:grid-cols-6">
             {footerImages.map((img) => (
               <div
                 key={img.id}
@@ -50,7 +50,7 @@ export default async function Footer() {
         </div>
       )}
 
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-white/80 via-white/90 to-white" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-b from-white/55 via-white/75 to-white" />
 
       <div className="content-container flex flex-col w-full relative z-10">
         <div className="flex flex-col gap-y-6 xsmall:flex-row items-start justify-between py-40">
