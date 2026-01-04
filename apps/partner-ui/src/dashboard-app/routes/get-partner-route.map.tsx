@@ -174,6 +174,15 @@ export function getPartnerRouteMap(): RouteObject[] {
                       match?.params?.id || "Production Run",
                   },
                   lazy: () => import("../../routes/production-runs/production-run-detail"),
+                  children: [
+                    {
+                      path: "tasks/:task_id",
+                      lazy: () =>
+                        import(
+                          "../../routes/production-runs/production-run-task-drawer"
+                        ),
+                    },
+                  ],
                 },
               ],
             },

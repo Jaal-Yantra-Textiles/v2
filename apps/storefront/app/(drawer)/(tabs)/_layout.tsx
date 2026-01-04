@@ -9,15 +9,19 @@ import { useCart } from "@/context/cart-context"
 export default function TabLayout() {
   const colorScheme = useColorScheme()
   const { cart } = useCart()
+  const colors = Colors[colorScheme ?? "light"]
 
   const itemCount = cart?.items?.length || 0
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+        tabBarActiveTintColor: colors.tint,
+        tabBarInactiveTintColor: colors.icon,
         headerShown: false,
         tabBarButton: HapticTab,
+        sceneStyle: { backgroundColor: colors.background },
+        tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.border },
       }}
     >
       <Tabs.Screen
@@ -34,8 +38,15 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="cart.fill" color={color} />,
           tabBarBadge: itemCount > 0 ? itemCount : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: Colors[colorScheme ?? "light"].tint,
+            backgroundColor: colors.tint,
           },
+        }}
+      />
+      <Tabs.Screen
+        name="(account)"
+        options={{
+          title: "Account",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
         }}
       />
     </Tabs>

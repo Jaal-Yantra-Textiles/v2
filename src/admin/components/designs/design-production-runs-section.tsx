@@ -1,4 +1,5 @@
 import { Container, Heading, Skeleton, Text, Badge } from "@medusajs/ui"
+import { Link } from "react-router-dom"
 
 import { AdminDesign } from "../../hooks/api/designs"
 import { useProductionRuns } from "../../hooks/api/production-runs"
@@ -64,23 +65,26 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
               const quantity = run.quantity ?? "-"
 
               return (
-                <div
+                <Link
                   key={id}
-                  className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors"
+                  to={`/production-runs/${id}`}
+                  className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col overflow-hidden">
-                      <span className="text-ui-fg-base font-medium truncate">{id}</span>
-                      <span className="text-ui-fg-subtle text-xs truncate">
-                        Partner: {partnerId}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge color={statusColor(status)}>{status}</Badge>
-                      <Badge>{String(quantity)}</Badge>
+                  <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-ui-fg-base font-medium truncate">{id}</span>
+                        <span className="text-ui-fg-subtle text-xs truncate">
+                          Partner: {partnerId}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge color={statusColor(status)}>{status}</Badge>
+                        <Badge>{String(quantity)}</Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Link>
               )
             })
           )}

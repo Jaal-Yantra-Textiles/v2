@@ -19,33 +19,14 @@ import {
 export const ProductionRunDetail = () => {
   const { id } = useParams()
 
-  if (!id) {
-    return (
-      <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
-        <Container className="p-6">
-          <Heading>Production Run</Heading>
-          <Text size="small" className="text-ui-fg-subtle">
-            Missing production run id
-          </Text>
-        </Container>
-      </SingleColumnPage>
-    )
-  }
+  const runId = id ?? ""
 
-  const { production_run, tasks, isPending, isError, error } = usePartnerProductionRun(id)
-  const accept = useAcceptPartnerProductionRun(id, {
+  const { production_run, tasks, isPending, isError, error } = usePartnerProductionRun(runId)
+  const accept = useAcceptPartnerProductionRun(runId, {
     onSuccess: () => {
       toast.success("Run accepted")
     },
   })
-
-  if (isError) {
-    throw error
-  }
-
-  if (isPending || !production_run) {
-    return <TwoColumnPageSkeleton mainSections={3} sidebarSections={2} showJSON />
-  }
 
   const status = String(production_run?.status || "")
   const canAccept = status === "sent_to_partner"
@@ -110,6 +91,27 @@ export const ProductionRunDetail = () => {
 
     return items
   }, [production_run, tasks])
+
+  if (!id) {
+    return (
+      <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
+        <Container className="p-6">
+          <Heading>Production Run</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Missing production run id
+          </Text>
+        </Container>
+      </SingleColumnPage>
+    )
+  }
+
+  if (isError) {
+    throw error
+  }
+
+  if (isPending || !production_run) {
+    return <TwoColumnPageSkeleton mainSections={3} sidebarSections={2} showJSON />
+  }
 
   return (
     <TwoColumnPage widgets={{ before: [], after: [], sideBefore: [], sideAfter: [] }} hasOutlet>
@@ -178,7 +180,7 @@ export const ProductionRunDetail = () => {
                 {tasks.map((t: any) => (
                   <Link
                     key={String(t.id)}
-                    to={`/tasks/${String(t.id)}`}
+                    to={`tasks/${String(t.id)}`}
                     className="block w-full rounded-lg border bg-ui-bg-subtle p-4 hover:bg-ui-bg-base"
                   >
                     <div className="flex items-start justify-between gap-x-4">

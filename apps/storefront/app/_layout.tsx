@@ -7,31 +7,58 @@ import 'react-native-reanimated';
 import { ThemeProvider, useTheme } from '@/context/theme-context';
 import { RegionProvider } from '@/context/region-context';
 import { CartProvider } from '@/context/cart-context';
+import { CustomerProvider } from '@/context/customer-context';
 
 export const unstable_settings = {
   anchor: '(drawer)',
 };
 
 function RootLayoutNav() {
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
+
+  const navigationTheme = isDark
+    ? {
+        ...DarkTheme,
+        colors: {
+          ...DarkTheme.colors,
+          background: colors.background,
+          card: colors.card,
+          text: colors.text,
+          border: colors.border,
+          primary: colors.tint,
+        },
+      }
+    : {
+        ...DefaultTheme,
+        colors: {
+          ...DefaultTheme.colors,
+          background: colors.background,
+          card: colors.card,
+          text: colors.text,
+          border: colors.border,
+          primary: colors.tint,
+        },
+      }
 
   return (
-    <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+    <NavigationThemeProvider value={navigationTheme}>
       <RegionProvider>
-        <CartProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="order-confirmation/[id]"
-              options={{
-                headerShown: true,
-                title: "Order Confirmation",
-                headerBackVisible: false,
-              }}
-            />
-          </Stack>
-          <StatusBar style={isDark ? "light" : "dark"} />
-        </CartProvider>
+        <CustomerProvider>
+          <CartProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="order-confirmation/[id]"
+                options={{
+                  headerShown: true,
+                  title: "Order Confirmation",
+                  headerBackVisible: false,
+                }}
+              />
+            </Stack>
+            <StatusBar style={isDark ? "light" : "dark"} />
+          </CartProvider>
+        </CustomerProvider>
       </RegionProvider>
     </NavigationThemeProvider>
   );

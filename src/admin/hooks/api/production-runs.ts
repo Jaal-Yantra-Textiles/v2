@@ -88,12 +88,46 @@ export const useProductionRuns = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryKey: productionRunQueryKeys.lists(),
+    queryKey: productionRunQueryKeys.list(query),
     queryFn: async () =>
       sdk.client.fetch<AdminProductionRunsResponse>(`/admin/production-runs`, {
         method: "GET",
         query,
       }),
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
+export type AdminProductionRunDetailResponse = {
+  production_run: AdminProductionRun
+  tasks: any[]
+}
+
+export const useProductionRun = (
+  id: string,
+  query?: Record<string, any>,
+  options?: Omit<
+    UseQueryOptions<
+      AdminProductionRunDetailResponse,
+      FetchError,
+      AdminProductionRunDetailResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: productionRunQueryKeys.detail(id, query),
+    queryFn: async () =>
+      sdk.client.fetch<AdminProductionRunDetailResponse>(
+        `/admin/production-runs/${id}`,
+        {
+          method: "GET",
+          query,
+        }
+      ),
     ...options,
   })
 

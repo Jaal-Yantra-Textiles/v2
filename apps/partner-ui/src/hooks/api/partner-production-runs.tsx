@@ -139,6 +139,9 @@ export const useAcceptPartnerProductionRun = (
       queryClient.invalidateQueries({
         queryKey: partnerProductionRunsQueryKeys.detail(id),
       })
+      queryClient.refetchQueries({
+        queryKey: partnerProductionRunsQueryKeys.detail(id),
+      })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

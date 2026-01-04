@@ -15,6 +15,7 @@ export default function CartStackLayout() {
     <Stack
       screenOptions={{
         headerShown: true,
+        contentStyle: { backgroundColor: colors.background },
       }}
     >
       <Stack.Screen
