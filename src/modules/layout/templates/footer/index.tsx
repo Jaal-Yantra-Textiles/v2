@@ -1,5 +1,6 @@
 import { listCategories } from "@lib/data/categories"
 import { listCollections } from "@lib/data/collections"
+import { buildPublicMediaUrl, listPublicMedia } from "@lib/data/media"
 import { Text, clx } from "@medusajs/ui"
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
@@ -12,9 +13,46 @@ export default async function Footer() {
   })
   const productCategories = await listCategories()
 
+  const { medias } = await listPublicMedia({
+    limit: 18,
+    type: "image",
+    random: true,
+  }).catch(() => ({ medias: [], count: 0, total: 0 }))
+
+  const footerImages = medias
+    .map((m) => ({
+      id: m.id,
+      url: buildPublicMediaUrl(m.file_path),
+      alt: m.alt_text || m.title || m.filename || "",
+    }))
+    .filter((m) => Boolean(m.url)) as Array<{ id: string; url: string; alt: string }>
+
   return (
-    <footer className="border-t border-ui-border-base w-full">
-      <div className="content-container flex flex-col w-full">
+    <footer className="border-t border-ui-border-base w-full relative overflow-hidden">
+      {footerImages.length > 0 && (
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <div className="grid h-full w-full grid-cols-3 gap-2 p-6 opacity-15 sm:grid-cols-4 lg:grid-cols-6">
+            {footerImages.map((img) => (
+              <div
+                key={img.id}
+                className="relative aspect-square overflow-hidden rounded-lg bg-gray-100"
+              >
+                <img
+                  src={img.url}
+                  alt={img.alt}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="absolute inset-0 z-0 bg-gradient-to-b from-white/80 via-white/90 to-white" />
+
+      <div className="content-container flex flex-col w-full relative z-10">
         <div className="flex flex-col gap-y-6 xsmall:flex-row items-start justify-between py-40">
           <div>
             <LocalizedClientLink
