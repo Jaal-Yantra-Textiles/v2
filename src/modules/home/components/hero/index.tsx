@@ -3,6 +3,7 @@ import { Button, Heading } from "@medusajs/ui"
 import { buildPublicMediaUrl, listPublicMedia } from "@lib/data/media"
 import HeroSubheading from "./hero-subheading"
 
+
 const Hero = async () => {
   const { medias } = await listPublicMedia({
     limit: 18,
