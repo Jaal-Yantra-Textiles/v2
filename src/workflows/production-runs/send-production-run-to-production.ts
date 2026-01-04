@@ -13,6 +13,9 @@ import type { IEventBusModuleService, Logger } from "@medusajs/types"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
 
+import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
+import type ProductionPolicyService from "../../modules/production_policy/service"
+
 import { TASKS_MODULE } from "../../modules/tasks"
 import type TaskService from "../../modules/tasks/service"
 
@@ -57,23 +60,14 @@ const createTasksForProductionRunStep = createStep(
     const productionRunService: ProductionRunService = container.resolve(
       PRODUCTION_RUNS_MODULE
     )
+    const productionPolicyService: ProductionPolicyService = container.resolve(
+      PRODUCTION_POLICY_MODULE
+    )
     const taskService: TaskService = container.resolve(TASKS_MODULE)
 
     const run = input.run
 
-    if (!run?.partner_id) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        `ProductionRun ${run?.id} must have partner_id to send to production`
-      )
-    }
-
-    if (String(run.status) !== "approved") {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        `ProductionRun ${run?.id} must be approved before sending. Current status: ${run?.status}`
-      )
-    }
+    await productionPolicyService.assertCanSendToProduction(run)
 
     const parentTask = await taskService.createTasks({
       title: `production-run-${run.id}`,

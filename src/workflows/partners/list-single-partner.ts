@@ -23,7 +23,7 @@ export const listSinglePartnerStep = createStep(
       .filter((s) => !!s)
     const fields = Array.from(new Set(["*", "admins.*", ...cleaned]))
     const { data } = await query.graph({
-      entity: "partners",
+      entity: "partner",
       fields,
       filters: { id: input.id },
     })

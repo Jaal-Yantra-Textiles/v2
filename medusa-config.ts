@@ -69,6 +69,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/production_runs",
     },
     {
+      resolve: "./src/modules/production_policy",
+    },
+    {
       resolve: "./src/modules/notes",
     },
     {

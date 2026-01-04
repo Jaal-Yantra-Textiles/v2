@@ -155,6 +155,28 @@ export function getPartnerRouteMap(): RouteObject[] {
                 },
               ],
             },
+
+            {
+              path: "/production-runs",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Production Runs",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () => import("../../routes/production-runs/production-run-list"),
+                },
+                {
+                  path: ":id",
+                  handle: {
+                    breadcrumb: (match?: UIMatch) =>
+                      match?.params?.id || "Production Run",
+                  },
+                  lazy: () => import("../../routes/production-runs/production-run-detail"),
+                },
+              ],
+            },
             {
               path: "/profile",
               errorElement: <ErrorBoundary />,

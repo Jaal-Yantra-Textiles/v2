@@ -8,6 +8,7 @@
       "jyt-ai/",
       "src/admin",
       "src/mastra",
-      "src/partner"
+      "src/partner",
+      "apps"
     ]
   }

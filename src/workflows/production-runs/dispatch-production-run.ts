@@ -10,6 +10,9 @@ import type { IWorkflowEngineService } from "@medusajs/framework/types"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
+
+import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
+import type ProductionPolicyService from "../../modules/production_policy/service"
 import {
   sendProductionRunToProductionWorkflow,
 } from "./send-production-run-to-production"
@@ -32,6 +35,9 @@ const retrieveProductionRunForDispatchStep = createStep(
     const productionRunService: ProductionRunService = container.resolve(
       PRODUCTION_RUNS_MODULE
     )
+    const productionPolicyService: ProductionPolicyService = container.resolve(
+      PRODUCTION_POLICY_MODULE
+    )
 
     const run = await productionRunService.retrieveProductionRun(input.production_run_id)
 
@@ -42,27 +48,7 @@ const retrieveProductionRunForDispatchStep = createStep(
       )
     }
 
-    if (!run.partner_id) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        `ProductionRun ${run.id} must have partner_id to dispatch`
-      )
-    }
-
-    if (String(run.status) !== "approved") {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        `ProductionRun ${run.id} must be approved before dispatch. Current status: ${run.status}`
-      )
-    }
-
-    const dispatchState = (run.metadata as any)?.dispatch?.state
-    if (dispatchState === "awaiting_templates") {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        `ProductionRun ${run.id} dispatch is already awaiting template selection`
-      )
-    }
+    await productionPolicyService.assertCanStartDispatch(run)
 
     return new StepResponse(run)
   }

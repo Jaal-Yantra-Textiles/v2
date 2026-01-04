@@ -4,8 +4,6 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import {
   createProductionRunWorkflow,
 } from "../../../workflows/production-runs/create-production-run"
-import { PRODUCTION_RUNS_MODULE } from "../../../modules/production_runs"
-import type ProductionRunService from "../../../modules/production_runs/service"
 
 import type { AdminCreateProductionRunReq } from "./validators"
 
@@ -41,11 +39,39 @@ export const POST = async (
 }
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const productionRunService: ProductionRunService = req.scope.resolve(
-    PRODUCTION_RUNS_MODULE
-  )
+  const q = req.query as any
+  const limit = Number(q.limit) || 20
+  const offset = Number(q.offset) || 0
 
-  const runs = await productionRunService.listProductionRuns({} as any)
+  const filters: any = {}
+  if (q.design_id) {
+    filters.design_id = q.design_id
+  }
+  if (q.status) {
+    filters.status = q.status
+  }
+  if (q.partner_id) {
+    filters.partner_id = q.partner_id
+  }
+  if (q.parent_run_id) {
+    filters.parent_run_id = q.parent_run_id
+  }
 
-  return res.status(200).json({ production_runs: runs, count: runs.length })
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  const { data: runs, metadata } = await query.graph({
+    entity: "production_runs",
+    fields: ["*"],
+    filters,
+    pagination: { skip: offset, take: limit },
+  })
+
+  const list = runs || []
+
+  return res.status(200).json({
+    production_runs: list,
+    count: (metadata as any)?.count ?? list.length,
+    limit,
+    offset,
+  })
 }

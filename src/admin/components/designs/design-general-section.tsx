@@ -104,6 +104,11 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
                     icon: <PencilSquare />,
                     to: "edit",
                   },
+                  {
+                    label: "Create Production Run",
+                    icon: <Newspaper />,
+                    to: "production-run",
+                  },
                 ],
               },
               {

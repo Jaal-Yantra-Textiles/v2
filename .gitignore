@@ -61,3 +61,6 @@ src/partner/.DS_Store
 debug/
 
 src/.DS_Store
+
+# Local patches (not committed)
+patches/

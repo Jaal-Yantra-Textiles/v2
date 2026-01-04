@@ -9,6 +9,7 @@ import { DesignInventorySection } from "../../../components/designs/design-inven
 import { DesignSizesSection } from "../../../components/designs/design-sizes-section";
 import { DesignTagsSection } from "../../../components/designs/design-tags-section";
 import { DesignColorPaletteSection } from "../../../components/designs/design-color-palette-section";
+import { DesignProductionRunsSection } from "../../../components/designs/design-production-runs-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 import { Toaster } from "@medusajs/ui";
@@ -75,6 +76,7 @@ const DesignDetailPage = () => {
           <DesignTasksSection design={design} />
           <DesignInventorySection design={design} />
           <DesignPartnerSection design={design} />
+          <DesignProductionRunsSection design={design} />
         </TwoColumnPage.Sidebar>  
         </TwoColumnPage>
     </>

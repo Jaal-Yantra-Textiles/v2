@@ -67,6 +67,7 @@ import {
   AdminSendProductionRunToProductionReq,
   AdminStartDispatchProductionRunReq,
 } from "./admin/production-runs/validators";
+import { AdminUpdateProductionRunPolicySchema } from "./admin/production-run-policy/validators";
 import { 
   websiteSchema, 
   updateWebsiteSchema,
@@ -493,6 +494,14 @@ export default defineMiddlewares({
     {
       matcher: "/partners/production-runs/:id",
       method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/accept",
+      method: "POST",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
@@ -991,6 +1000,19 @@ export default defineMiddlewares({
       matcher: "/admin/production-runs/:id/resume-dispatch",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminResumeDispatchProductionRunReq))],
+    },
+
+    {
+      matcher: "/admin/production-run-policy",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/production-run-policy",
+      method: "PUT",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminUpdateProductionRunPolicySchema)),
+      ],
     },
 
     // Website routes

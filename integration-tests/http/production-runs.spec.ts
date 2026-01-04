@@ -7,6 +7,7 @@ setupSharedTestSuite(() => {
   describe("Production Runs", () => {
     let adminHeaders: { headers: Record<string, string> }
     let partnerId: string
+    let partnerHeaders: { headers: Record<string, string> }
     let designId: string
 
     const logAxiosErr = (label: string, err: any) => {
@@ -54,24 +55,42 @@ setupSharedTestSuite(() => {
       }
 
       const unique = Date.now()
-      const partnerRes = await api.post(
-        "/admin/partners",
+      const partnerEmail = `prod-partner-admin-${unique}@jyt.test`
+      const partnerPassword = "supersecret"
+
+      await api.post("/auth/partner/emailpass/register", {
+        email: partnerEmail,
+        password: partnerPassword,
+      })
+
+      const login1 = await api.post("/auth/partner/emailpass", {
+        email: partnerEmail,
+        password: partnerPassword,
+      })
+
+      const createPartnerRes: any = await api.post(
+        "/partners",
         {
-          partner: {
-            name: `Prod Partner ${unique}`,
-            handle: `prod-partner-${unique}`,
-          },
+          name: `Prod Partner ${unique}`,
+          handle: `prod-partner-${unique}`,
           admin: {
-            email: `prod-partner-admin-${unique}@jyt.test`,
+            email: partnerEmail,
             first_name: "Prod",
             last_name: "Partner",
           },
         },
-        adminHeaders
+        { headers: { Authorization: `Bearer ${login1.data.token}` } }
       )
 
-      expect(partnerRes.status).toBe(201)
-      partnerId = partnerRes.data.partner.id
+      expect(createPartnerRes.status).toBe(200)
+      partnerId = createPartnerRes.data.partner.id
+
+      const login2 = await api.post("/auth/partner/emailpass", {
+        email: partnerEmail,
+        password: partnerPassword,
+      })
+
+      partnerHeaders = { headers: { Authorization: `Bearer ${login2.data.token}` } }
 
       const designRes = await api.post(
         "/admin/designs",
@@ -254,7 +273,77 @@ setupSharedTestSuite(() => {
         { timeoutMs: 10_000, intervalMs: 500 }
       )
 
-      // 5) Verify tasks linked to design
+      // 5) Partner accepts the production run
+      const acceptRes = await api
+        .post(`/partners/production-runs/${childRunId}/accept`, {}, partnerHeaders)
+        .catch((err: any) => {
+          logAxiosErr(`POST /partners/production-runs/${childRunId}/accept`, err)
+          throw err
+        })
+
+      expect(acceptRes.status).toBe(200)
+
+      // 6) Verify child run status updated to in_progress
+      const acceptedChild = await api
+        .get(`/admin/production-runs/${childRunId}`, adminHeaders)
+        .catch((err: any) => {
+          logAxiosErr(`GET /admin/production-runs/${childRunId} after accept`, err)
+          throw err
+        })
+
+      expect(String(acceptedChild.data.production_run.status)).toBe("in_progress")
+
+      // 7) Verify parent run status bumped to in_progress
+      const acceptedParent = await api
+        .get(`/admin/production-runs/${parentRunId}`, adminHeaders)
+        .catch((err: any) => {
+          logAxiosErr(`GET /admin/production-runs/${parentRunId} after accept`, err)
+          throw err
+        })
+
+      expect(String(acceptedParent.data.production_run.status)).toBe("in_progress")
+
+      // 8) Partner completes template tasks
+      const afterAcceptRun = await api
+        .get(`/admin/production-runs/${childRunId}`, adminHeaders)
+        .catch((err: any) => {
+          logAxiosErr(`GET /admin/production-runs/${childRunId} to finish tasks`, err)
+          throw err
+        })
+
+      const tasksForRun = afterAcceptRun.data.tasks || []
+      const templateTasks = tasksForRun.filter(
+        (t: any) => t?.title === templateA.name || t?.title === templateB.name
+      )
+      expect(templateTasks.length).toBe(2)
+
+      for (const t of templateTasks) {
+        const finishRes = await api
+          .post(`/partners/assigned-tasks/${t.id}/finish`, {}, partnerHeaders)
+          .catch((err: any) => {
+            logAxiosErr(`POST /partners/assigned-tasks/${t.id}/finish`, err)
+            throw err
+          })
+        expect(finishRes.status).toBe(200)
+      }
+
+      // 9) Wait until the run and parent run are auto-marked completed
+      await waitFor(
+        async () => {
+          const runRes = await api.get(`/admin/production-runs/${childRunId}`, adminHeaders)
+          const parentRes = await api.get(
+            `/admin/production-runs/${parentRunId}`,
+            adminHeaders
+          )
+          return (
+            String(runRes.data?.production_run?.status) === "completed" &&
+            String(parentRes.data?.production_run?.status) === "completed"
+          )
+        },
+        { timeoutMs: 10_000, intervalMs: 500 }
+      )
+
+      // 10) Verify tasks linked to design
       const designTasksRes = await api
         .get(`/admin/designs/${designId}/tasks`, adminHeaders)
         .catch((err: any) => {
@@ -269,7 +358,7 @@ setupSharedTestSuite(() => {
       expect(titles).toContain(templateA.name)
       expect(titles).toContain(templateB.name)
 
-      // 6) Verify tasks linked to partner
+      // 11) Verify tasks linked to partner
       const partnerTasksRes = await api
         .get(`/admin/partners/${partnerId}/tasks`, adminHeaders)
         .catch((err: any) => {
@@ -283,7 +372,7 @@ setupSharedTestSuite(() => {
       expect(partnerTitles).toContain(templateA.name)
       expect(partnerTitles).toContain(templateB.name)
 
-      // 7) Verify tasks linked to production run (via admin retrieve)
+      // 12) Verify tasks linked to production run (via admin retrieve)
       const runRes = await api
         .get(`/admin/production-runs/${childRunId}`, adminHeaders)
         .catch((err: any) => {

@@ -10,6 +10,9 @@ import {
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
 
+import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
+import type ProductionPolicyService from "../../modules/production_policy/service"
+
 export type ProductionRunAssignment = {
   partner_id: string
   role?: string | null
@@ -44,6 +47,10 @@ const approveProductionRunStep = createStep(
       PRODUCTION_RUNS_MODULE
     )
 
+    const productionPolicyService: ProductionPolicyService = container.resolve(
+      PRODUCTION_POLICY_MODULE
+    )
+
     const original = await productionRunService.retrieveProductionRun(input.production_run_id)
 
     if (!original) {
@@ -53,12 +60,7 @@ const approveProductionRunStep = createStep(
       )
     }
 
-    if (!["draft", "pending_review"].includes(String((original as any).status))) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        `ProductionRun ${input.production_run_id} cannot be approved from status ${(original as any).status}`
-      )
-    }
+    await productionPolicyService.assertCanApprove(original as any)
 
     const updatedParent = await productionRunService.updateProductionRuns({
       id: original.id,

@@ -1,6 +1,7 @@
 import {
   BuildingStorefront,
   CogSixTooth,
+  DocumentSeries,
   EllipsisHorizontal,
   MagnifyingGlass,
   OpenRectArrowOut,
@@ -189,6 +190,11 @@ const useCoreRoutes = (): Omit<INavItem, "pathname">[] => {
       icon: <BuildingStorefront />,
       label: "Inventory Orders",
       to: "/inventory-orders",
+    },
+    {
+      icon: <DocumentSeries />,
+      label: "Production Runs",
+      to: "/production-runs",
     },
     {
       icon: <TimelineVertical />,
