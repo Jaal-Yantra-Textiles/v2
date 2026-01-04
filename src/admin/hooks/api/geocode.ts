@@ -19,13 +19,23 @@ export const useGeocodeAllAddresses = (
 ) => {
   return useMutation({
     mutationFn: async () => {
-      const response = (await sdk.client.fetch(
+      const response = await sdk.client.fetch(
         `/admin/persons/${personId}/geocode-addresses`,
         {
           method: "POST",
         }
-      )) as { data: any };
-      return response.data as { summary: any; transaction_id: string };
+      );
+
+      /**
+       * sdk.client.fetch can return either the raw JSON body or a wrapped `{ data }` object
+       * depending on the underlying client implementation. Normalize the shape here so the
+       * component can safely destructure `summary` and `transaction_id`.
+       */
+      if ("data" in (response as any)) {
+        return (response as { data: { summary: any; transaction_id: string } }).data;
+      }
+
+      return response as { summary: any; transaction_id: string };
     },
     ...options,
   });
@@ -56,12 +66,18 @@ export const useBackfillAllGeocodes = (
 ) => {
   return useMutation({
     mutationFn: async () => {
-      return sdk.client.fetch(
+      const response = await sdk.client.fetch(
         `/admin/persons/geocode-addresses`,
         {
           method: "POST",
         }
-      ) as Promise<{ summary: any; transaction_id: string }>
+      );
+
+      if ("data" in (response as any)) {
+        return (response as { data: { summary: any; transaction_id: string } }).data;
+      }
+
+      return response as { summary: any; transaction_id: string };
     },
     ...options,
   });
