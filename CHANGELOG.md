@@ -1,3 +1,10 @@
+## [8.10.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.10.1...v8.10.2) (2026-01-04)
+
+
+### Bug Fixes
+
+* **admin:** Geocoding address null summary issue ([ec6c292](https://github.com/Jaal-Yantra-Textiles/v2/commit/ec6c292d9313d4333afab35beb5833a68d7a7216))
+
 ## [8.10.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.10.0...v8.10.1) (2026-01-04)
 
 # [8.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.9.0...v8.10.0) (2026-01-04)
