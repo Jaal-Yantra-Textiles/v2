@@ -13,15 +13,18 @@ const HeroSubheading = () => {
 
   return (
     <div
-      className="relative mt-4 h-[88px] w-full overflow-hidden"
+      className="relative mt-4 w-full"
       aria-live="polite"
     >
+      {/* Initial message */}
       <Heading
         level="h2"
         className={clx(
-          "absolute inset-0 text-2xl leading-9 font-medium transition-all duration-700 ease-out",
+          "text-lg leading-7 font-medium transition-all duration-700 ease-out sm:text-2xl sm:leading-9",
           "bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent",
-          phase === "initial" ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
+          phase === "initial"
+            ? "opacity-100 relative"
+            : "opacity-0 absolute inset-0 pointer-events-none"
         )}
       >
         <span>With Care, </span>
@@ -33,12 +36,15 @@ const HeroSubheading = () => {
         </span>
       </Heading>
 
+      {/* Secondary message */}
       <Heading
         level="h2"
         className={clx(
-          "absolute inset-0 text-2xl leading-9 font-medium transition-all duration-700 ease-out",
+          "text-lg leading-7 font-medium transition-all duration-700 ease-out sm:text-2xl sm:leading-9",
           "bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 bg-clip-text text-transparent",
-          phase === "secondary" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+          phase === "secondary"
+            ? "opacity-100 relative"
+            : "opacity-0 absolute inset-0 pointer-events-none"
         )}
       >
         Okay, now that you know we source thoughtful fabrics, we turn them into
