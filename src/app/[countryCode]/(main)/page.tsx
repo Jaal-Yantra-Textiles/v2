@@ -31,6 +31,21 @@ export default async function Home(props: {
   return (
     <>
       <Hero />
+      <div className="mx-auto mt-10 w-full max-w-3xl px-4 sm:px-0">
+        <label className="sr-only" htmlFor="coming-soon-search">
+          Coming soon search
+        </label>
+        <input
+          id="coming-soon-search"
+          type="text"
+          disabled
+          placeholder="Soon you can search by entering list of ideas your favorite product coming soon"
+          className="w-full rounded-full border border-dashed border-neutral-300 bg-neutral-100 px-6 py-3 text-base text-neutral-500 placeholder:text-neutral-500"
+        />
+        <p className="mt-2 text-center text-sm text-neutral-500">
+          We&apos;re building powerful discovery tools—stay tuned!
+        </p>
+      </div>
       <div id="shop" className="py-12">
         <ul className="flex flex-col gap-x-6">
           <FeaturedProducts collections={collections} region={region} />

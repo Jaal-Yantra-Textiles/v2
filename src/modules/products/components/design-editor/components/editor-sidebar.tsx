@@ -32,11 +32,11 @@ type EditorSidebarProps = {
     selectedMaterial: RawMaterial | null
     setSelectedMaterial: React.Dispatch<React.SetStateAction<RawMaterial | null>>
     showOnboarding: boolean
-    setShowOnboarding: React.Dispatch<React.SetStateAction<boolean>>
     onboardingSteps: { title: string; description: string }[]
     onboardingStep: number
     handleNextStep: () => void
     handlePrevStep: () => void
+    handleSkipOnboarding: () => void
     updateLayer: (id: string, attrs: Partial<DesignLayer>) => void
     externalPartners: any[]
     partnersLoading: boolean
@@ -81,11 +81,11 @@ export function EditorSidebar({
     selectedMaterial,
     setSelectedMaterial,
     showOnboarding,
-    setShowOnboarding,
     onboardingSteps,
     onboardingStep,
     handleNextStep,
     handlePrevStep,
+    handleSkipOnboarding,
     updateLayer,
     externalPartners,
     partnersLoading,
@@ -120,7 +120,7 @@ export function EditorSidebar({
                     currentStep={onboardingStep}
                     onNext={handleNextStep}
                     onPrev={handlePrevStep}
-                    onSkip={() => setShowOnboarding(false)}
+                    onSkip={handleSkipOnboarding}
                     isMobile={true}
                 />
 
@@ -331,11 +331,11 @@ export function EditorSidebar({
                 currentStep={onboardingStep}
                 onNext={handleNextStep}
                 onPrev={handlePrevStep}
-                onSkip={() => setShowOnboarding(false)}
+                onSkip={handleSkipOnboarding}
             />
 
             <div
-                className="absolute right-6 top-20 z-40 flex w-96 max-h-[calc(100vh-140px)] flex-col rounded-3xl border border-ui-border-base bg-white/95 shadow-2xl backdrop-blur transition-all duration-300"
+                className="relative flex h-full flex-1 rounded-3xl border border-ui-border-base bg-white/95 shadow-2xl backdrop-blur transition-all duration-300"
                 style={{
                     transform: 'translate3d(0, 0, 0)',
                     WebkitTransform: 'translate3d(0, 0, 0)',
@@ -372,7 +372,60 @@ export function EditorSidebar({
                 </div>
 
                 {sidebarExpanded && (
-                    <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-1" style={{ maxHeight: "calc(100vh - 220px)" }}>
+                    <div className="flex-1 flex flex-col">
+                        {(selectedMaterial || selectedPartner) && (
+                            <div className="border-b border-ui-border-base bg-white/90 px-4 py-3 backdrop-blur-sm">
+                                <div className="space-y-3">
+                                    {selectedMaterial && (
+                                        <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3 shadow-inner">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <Text weight="plus" size="small" className="truncate text-blue-900">
+                                                        {selectedMaterial.name || selectedMaterial.material_type?.name || "Selected material"}
+                                                    </Text>
+                                                    <Text size="small" className="text-xs text-blue-700">
+                                                        {selectedMaterial.material_type?.category || "Material selection"}
+                                                    </Text>
+                                                </div>
+                                                <button
+                                                    onClick={() => setSelectedMaterial(null)}
+                                                    className="text-blue-500 hover:text-blue-700"
+                                                    aria-label="Clear material selection"
+                                                >
+                                                    <XMark className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {selectedPartner && (
+                                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 shadow-inner">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <Text weight="plus" size="small" className="truncate text-emerald-900">
+                                                        {selectedPartner.company_name || selectedPartner.name || "Selected partner"}
+                                                    </Text>
+                                                    <Text size="small" className="text-xs text-emerald-700">
+                                                        {selectedPartner.location || "Production partner"}
+                                                    </Text>
+                                                </div>
+                                                <button
+                                                    onClick={() => setSelectedPartner(null)}
+                                                    className="text-emerald-500 hover:text-emerald-700"
+                                                    aria-label="Clear partner selection"
+                                                >
+                                                    <XMark className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        <div
+                            ref={scrollContainerRef}
+                            className="flex-1 overflow-y-auto px-1"
+                            style={{ maxHeight: "calc(100vh - 220px)", overscrollBehavior: "contain" }}
+                        >
                         {/* Product Section */}
                         <section ref={sectionRefs.product} data-section-id="product">
                             <Text size="small" weight="plus" className="mb-2 px-4 pt-4 text-xs uppercase tracking-wide text-gray-500">
@@ -701,6 +754,7 @@ export function EditorSidebar({
                                 )}
                             </div>
                         </section>
+                        </div>
                     </div>
                 )}
             </div>

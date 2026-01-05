@@ -14,6 +14,7 @@ const MIN_SCALE = 0.1
 const MAX_SCALE = 5
 const ZOOM_STEP = 0.1
 const CANVAS_EXTEND = 1500
+const ONBOARDING_STORAGE_KEY = "design-editor-onboarding-dismissed"
 
 type UseDesignEditorProps = {
     product: DesignProduct
@@ -91,6 +92,16 @@ export function useDesignEditor({
         }
     }, [isMobileLayout])
 
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return
+        }
+        const hasDismissed = window.localStorage.getItem(ONBOARDING_STORAGE_KEY)
+        if (hasDismissed === "true") {
+            setShowOnboarding(false)
+        }
+    }, [])
+
     const onboardingSteps = [
         {
             title: "Choose your base",
@@ -106,17 +117,32 @@ export function useDesignEditor({
         },
     ]
 
+    const dismissOnboarding = useCallback(() => {
+        setShowOnboarding(false)
+        if (typeof window !== "undefined") {
+            try {
+                window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "true")
+            } catch (error) {
+                console.warn("Unable to persist onboarding dismissal", error)
+            }
+        }
+    }, [])
+
     const handleNextStep = () => {
         if (onboardingStep < onboardingSteps.length - 1) {
             setOnboardingStep((prev) => prev + 1)
         } else {
-            setShowOnboarding(false)
+            dismissOnboarding()
         }
     }
 
     const handlePrevStep = () => {
         setOnboardingStep((prev) => Math.max(prev - 1, 0))
     }
+
+    const handleSkipOnboarding = useCallback(() => {
+        dismissOnboarding()
+    }, [dismissOnboarding])
 
     // Save to history when design changes
     const saveToHistory = useCallback((newDesign: DesignState) => {
@@ -750,7 +776,6 @@ export function useDesignEditor({
         sidebarExpanded,
         setSidebarExpanded,
         showOnboarding,
-        setShowOnboarding,
         onboardingStep,
         onboardingSteps,
 
@@ -774,6 +799,7 @@ export function useDesignEditor({
 
         handleNextStep,
         handlePrevStep,
+        handleSkipOnboarding,
         handleSave,
         handleNameSubmit,
 

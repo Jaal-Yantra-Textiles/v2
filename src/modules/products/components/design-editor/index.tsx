@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import clsx from "clsx"
 import { Text } from "@medusajs/ui"
 import { CustomerInfo, DesignProduct } from "./types"
 import { useDesignEditor } from "./hooks/use-design-editor"
@@ -75,7 +76,11 @@ export default function DesignEditor({
 
   return (
     <div
-      className={`relative flex h-[calc(100vh-64px)] bg-white overflow-hidden ${isMobileLayout ? "flex-col" : ""}`}
+      className={clsx(
+        "relative flex h-[calc(100vh-64px)] bg-white",
+        isMobileLayout ? "flex-col" : "flex-row",
+        !isMobileLayout && "lg:pr-[420px]"
+      )}
     >
       {/* Name Modal */}
       <NameModal
@@ -105,7 +110,12 @@ export default function DesignEditor({
       />
 
       {/* Main Canvas Area */}
-      <div className={`flex flex-1 flex-col min-h-0 ${isMobileLayout ? "pb-[60px]" : ""} relative`}>
+      <div
+        className={clsx(
+          "relative flex flex-1 flex-col min-h-0",
+          isMobileLayout ? "order-2 pb-[60px]" : "order-1"
+        )}
+      >
         <EditorCanvas
           containerRef={editor.containerRef}
           stageRef={editor.stageRef}
@@ -143,41 +153,49 @@ export default function DesignEditor({
       </div>
 
       {/* Sidebar */}
-      <EditorSidebar
-        isMobileLayout={isMobileLayout}
-        sidebarExpanded={editor.sidebarExpanded}
-        setSidebarExpanded={editor.setSidebarExpanded}
-        product={product}
-        design={editor.design}
-        setDesign={editor.setDesign}
-        activeTool={editor.activeTool}
-        setActiveTool={editor.setActiveTool}
-        fileInputRef={editor.fileInputRef}
-        addImageLayer={editor.addImageLayer}
-        addTextLayer={editor.addTextLayer}
-        externalMaterials={editor.externalMaterials}
-        materialsLoading={editor.materialsLoading}
-        materialsError={editor.materialsError}
-        selectedMaterial={editor.selectedMaterial}
-        setSelectedMaterial={editor.setSelectedMaterial}
-        showOnboarding={editor.showOnboarding}
-        setShowOnboarding={editor.setShowOnboarding}
-        onboardingSteps={editor.onboardingSteps}
-        onboardingStep={editor.onboardingStep}
-        handleNextStep={editor.handleNextStep}
-        handlePrevStep={editor.handlePrevStep}
-        updateLayer={editor.updateLayer}
-        externalPartners={editor.externalPartners}
-        partnersLoading={editor.partnersLoading}
-        selectedPartner={editor.selectedPartner}
-        setSelectedPartner={editor.setSelectedPartner}
-        moveLayerUp={editor.moveLayerUp}
-        moveLayerDown={editor.moveLayerDown}
-        toggleLayerVisibility={editor.toggleLayerVisibility}
-        deleteSelectedLayer={editor.deleteSelectedLayer}
-        handleSave={editor.handleSave}
-        isSaving={editor.isSaving}
-      />
+      <div
+        className={clsx(
+          isMobileLayout
+            ? "order-1 w-full"
+            : "order-2 lg:fixed lg:top-24 lg:bottom-8 lg:right-8 lg:w-[360px] lg:pointer-events-auto"
+        )}
+      >
+        <EditorSidebar
+          isMobileLayout={isMobileLayout}
+          sidebarExpanded={editor.sidebarExpanded}
+          setSidebarExpanded={editor.setSidebarExpanded}
+          product={product}
+          design={editor.design}
+          setDesign={editor.setDesign}
+          activeTool={editor.activeTool}
+          setActiveTool={editor.setActiveTool}
+          fileInputRef={editor.fileInputRef}
+          addImageLayer={editor.addImageLayer}
+          addTextLayer={editor.addTextLayer}
+          externalMaterials={editor.externalMaterials}
+          materialsLoading={editor.materialsLoading}
+          materialsError={editor.materialsError}
+          selectedMaterial={editor.selectedMaterial}
+          setSelectedMaterial={editor.setSelectedMaterial}
+          showOnboarding={editor.showOnboarding}
+          onboardingSteps={editor.onboardingSteps}
+          onboardingStep={editor.onboardingStep}
+          handleNextStep={editor.handleNextStep}
+          handlePrevStep={editor.handlePrevStep}
+          handleSkipOnboarding={editor.handleSkipOnboarding}
+          updateLayer={editor.updateLayer}
+          externalPartners={editor.externalPartners}
+          partnersLoading={editor.partnersLoading}
+          selectedPartner={editor.selectedPartner}
+          setSelectedPartner={editor.setSelectedPartner}
+          moveLayerUp={editor.moveLayerUp}
+          moveLayerDown={editor.moveLayerDown}
+          toggleLayerVisibility={editor.toggleLayerVisibility}
+          deleteSelectedLayer={editor.deleteSelectedLayer}
+          handleSave={editor.handleSave}
+          isSaving={editor.isSaving}
+        />
+      </div>
 
       {/* Detail Modals */}
       <MaterialDetailModal
@@ -193,22 +211,6 @@ export default function DesignEditor({
         partner={editor.selectedPartner!}
         onRemove={() => editor.setSelectedPartner(null)}
       />
-
-      {/* Save Button (Absolute positioned / floating) - Desktop only */}
-      {!isMobileLayout && (
-        <div className="absolute top-4 right-[420px] z-30 flex gap-2">
-          <button
-            onClick={editor.handleSave}
-            disabled={editor.isSaving}
-            className={`px-6 py-2.5 rounded-xl shadow-lg font-medium transition-all ${editor.isSaving
-              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-              : "bg-black text-white hover:bg-gray-800 hover:shadow-xl"
-              }`}
-          >
-            {editor.isSaving ? "Saving..." : "Save Design"}
-          </button>
-        </div>
-      )}
     </div>
   )
 }
