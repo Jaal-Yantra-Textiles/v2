@@ -41,8 +41,8 @@ const HeroSubheading = () => {
           phase === "secondary" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
         )}
       >
-        Okay, now that you know we source thoughtful fabrics, let&apos;s turn them
-        into pieces with artists across Kashmir, the plains, and the desert.
+        Okay, now that you know we source thoughtful fabrics, we turn them into
+        pieces with artists across globe.
       </Heading>
     </div>
   )

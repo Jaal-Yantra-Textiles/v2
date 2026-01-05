@@ -13,11 +13,8 @@ import { notFound } from "next/navigation"
 import ProductActionsWrapper from "./product-actions-wrapper"
 import SizeGuide from "@modules/products/components/size-guide"
 import { HttpTypes } from "@medusajs/types"
-import { Badge, IconBadge, Text, Tooltip, TooltipProvider } from "@medusajs/ui"
-import Link from "next/link"
+import { Text } from "@medusajs/ui"
 import { StoreDesign } from "../../../types/product-design"
-import { MobileDesignScore } from "./mobile-design-score"
-
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct & { designs?: StoreDesign[] } // Extend product type to include designs
   region: HttpTypes.StoreRegion
@@ -63,69 +60,21 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
       >
         <div className="flex flex-col small:sticky small:top-48 small:py-0 small:max-w-[300px] w-full py-8 gap-y-6">
           <ProductInfo product={product} />
-          <div>
-            <div className="flex items-center gap-x-2 mb-4">
-              <Text size="base">Design Info</Text>
-              {/* Desktop/large screens: keep tooltip */}
-              <div className="hidden small:flex">
-                <TooltipProvider>
-                  <Tooltip
-                    content={
-                      <div className="flex flex-col gap-y-2 txt-compact-small p-2 max-w-xs">
-                        <Text className="txt-compact-small-plus font-semibold">
-                          What is a Design Score?
-                        </Text>
-                        <Text>
-                          The score indicates the completeness of the design
-                          information. A higher score means more details like
-                          tasks, partners, and raw materials are available.
-                        </Text>
-                        <Link
-                          href="/what-is-a-design-score"
-                          className="text-ui-fg-interactive hover:underline"
-                        >
-                          Learn more
-                        </Link>
-                      </div>
-                    }
-                  >
-                    <div className="flex items-center gap-x-1 cursor-pointer">
-                      <Badge color="green">
-                        Score: {designScore.score}/{designScore.maxScore}
-                      </Badge>
-                      <IconBadge>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="feather feather-info"
-                        >
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <line x1="12" y1="16" x2="12" y2="12"></line>
-                          <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                        </svg>
-                      </IconBadge>
-                    </div>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-
-              {/* Mobile: Popover-based design score */}
-              <MobileDesignScore score={designScore.score} maxScore={designScore.maxScore} />
-            </div>
-            
-            <DesignInfo design={design} />
+          <div className="hidden small:block">
+            <DesignInfo design={design} designScore={designScore} />
           </div>
-          <ProductTabs product={product} />
+          <div className="hidden small:block">
+            <ProductTabs product={product} />
+          </div>
         </div>
         <div className="block w-full relative">
           <ImageGallery images={product?.images || []} />
+        </div>
+        <div className="w-full py-8 small:hidden">
+          <DesignInfo design={design} designScore={designScore} />
+          <div className="mt-8">
+            <ProductTabs product={product} />
+          </div>
         </div>
         
         <div className="flex flex-col small:sticky small:top-48 small:py-0 small:max-w-[300px] w-full py-8 gap-y-12">

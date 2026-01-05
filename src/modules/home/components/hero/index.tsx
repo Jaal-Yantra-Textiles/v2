@@ -1,7 +1,8 @@
-import { ArrowDownMini } from "@medusajs/icons"
 import { Button, Heading } from "@medusajs/ui"
 import { buildPublicMediaUrl, listPublicMedia } from "@lib/data/media"
 import HeroSubheading from "./hero-subheading"
+import HeroScrollButton from "./hero-scroll-button"
+
 
 
 const Hero = async () => {
@@ -22,7 +23,7 @@ const Hero = async () => {
     .filter((m) => Boolean(m.url)) as Array<{ id: string; url: string; alt: string }>
 
   return (
-    <div className="h-[75vh] w-full border-b border-ui-border-base relative bg-gray-900 overflow-hidden">
+    <div className="min-h-screen sm:h-[75vh] w-full border-b border-ui-border-base relative bg-gray-900 overflow-hidden">
       {/* Media mosaic backdrop */}
       {heroImages.length > 0 && (
         <div className="absolute inset-0 z-0">
@@ -47,33 +48,27 @@ const Hero = async () => {
 
       <div className="absolute inset-0 z-0 bg-gradient-to-b from-gray-900/55 via-gray-900/65 to-gray-900" />
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_bottom,_rgba(139,92,246,0.15)_0%,_transparent_60%)] animate-breathing" />
-      <div className="absolute inset-0 z-10 flex flex-col justify-center items-center text-center small:p-32 gap-6">
-        <span>
-          <Heading
-            level="h1"
-            className="text-6xl font-bold bg-gradient-to-r from-violet-600 to-rose-500 bg-clip-text text-transparent"
+      <div className="absolute inset-0 z-10 flex flex-col justify-center items-center text-center px-6 py-16 small:p-32 gap-8">
+        <div className="flex w-full max-w-3xl flex-col items-center gap-6 rounded-[32px] bg-gray-900/70 px-6 py-8 shadow-2xl backdrop-blur small:px-8 small:py-10">
+          <div className="w-full space-y-4">
+            <Heading
+              level="h1"
+              className="text-6xl font-bold bg-gradient-to-r from-violet-600 to-rose-500 bg-clip-text text-transparent"
+            >
+              Cici Label
+            </Heading>
+            <HeroSubheading />
+          </div>
+          <a
+            href="/design"
           >
-            Cici Label
-          </Heading>
-          <HeroSubheading />
-        </span>
-        <a
-          href="/design"
-        >
-          <Button variant="secondary">
-            Design your first piece
-          </Button>
-        </a>
+            <Button variant="secondary">
+              Design your first piece
+            </Button>
+          </a>
+        </div>
 
-        <a
-          href="#shop"
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm shadow-sm transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/25"
-        >
-          <span>Scroll more if you want to buy what we made</span>
-          <span className="inline-flex h-8 w-12 items-center justify-center rounded-full bg-white/10">
-            <ArrowDownMini className="h-5 w-5" color="currentColor" />
-          </span>
-        </a>
+        <HeroScrollButton targetId="shop" />
       </div>
     </div>
   )

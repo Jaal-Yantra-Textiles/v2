@@ -1,7 +1,7 @@
 import { HttpTypes } from "@medusajs/types"
-import { Heading, Text } from "@medusajs/ui"
+import { Heading } from "@medusajs/ui"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-
+import ProductDescription from "@modules/products/components/product-description"
 type ProductInfoProps = {
   product: HttpTypes.StoreProduct
 }
@@ -26,12 +26,7 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
           {product.title}
         </Heading>
 
-        <Text
-          className="text-medium text-ui-fg-subtle whitespace-pre-line"
-          data-testid="product-description"
-        >
-          {product.description}
-        </Text>
+        <ProductDescription description={product.description} />
       </div>
     </div>
   )
