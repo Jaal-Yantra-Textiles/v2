@@ -163,17 +163,16 @@ export default function ProductActions({
               : "Add to cart"}
           </Button>
 
-          <div className="flex items-center w-full">
-            <div className="flex-grow border-t border-gray-200"></div>
-            <span className="mx-4 text-sm text-gray-500">or</span>
-            <div className="flex-grow border-t border-gray-200"></div>
+          <div className="mt-2 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4">
+            <p className="text-sm text-ui-fg-subtle mb-3">
+              Want something unique? Create your own version of this design — choose your own fabrics and production partners while keeping the same design philosophy.
+            </p>
+            <Link href={`/products/${product.handle}/design`} passHref>
+              <Button variant="secondary" className="w-full h-10">
+                Create your own design
+              </Button>
+            </Link>
           </div>
-
-          <Link href={`/products/${product.handle}/design`} passHref>
-            <Button variant="secondary" className="w-full h-10">
-              Create your own design
-            </Button>
-          </Link>
         </div>
         <MobileActions
           product={product}
