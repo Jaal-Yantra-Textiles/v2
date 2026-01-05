@@ -24,6 +24,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   let page: Awaited<ReturnType<typeof getWebsitePage>> | null = null
   try {
     page = await getWebsitePage(DOMAIN, slug)
+    
   } catch {
     notFound()
   }
@@ -108,11 +109,43 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const renderMain = (body?: unknown, sectionTitle?: string) => {
     // If TipTap JSON object is provided
     if (body && typeof body === "object") {
-      const html = generateHTML(body as any, [StarterKit])
+      const html = generateHTML(body as any, [
+        StarterKit.configure({
+          heading: {
+            levels: [1, 2, 3, 4, 5, 6],
+            HTMLAttributes: {
+              class: 'mb-6 mt-8',
+            },
+          },
+          paragraph: {
+            HTMLAttributes: {
+              class: 'mb-4',
+            },
+          },
+          bulletList: {
+            HTMLAttributes: {
+              class: 'mb-4 ml-6 list-disc',
+            },
+          },
+          orderedList: {
+            HTMLAttributes: {
+              class: 'mb-4 ml-6 list-decimal',
+            },
+          },
+          listItem: {
+            HTMLAttributes: {
+              class: 'mb-2',
+            },
+          },
+        }),
+      ])
       return (
         <section className="prose prose-neutral max-w-none">
-          {sectionTitle && <h2 className="mt-0 mb-4">{sectionTitle}</h2>}
-          <div dangerouslySetInnerHTML={{ __html: html }} />
+          {sectionTitle && <h2 className="mt-0 mb-6">{sectionTitle}</h2>}
+          <div 
+            dangerouslySetInnerHTML={{ __html: html }} 
+            className="tiptap-content"
+          />
         </section>
       )
     }
@@ -120,8 +153,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     // Otherwise treat as plain string
     const text = typeof body === "string" ? body : ""
     return (
-      <section className="prose prose-neutral max-w-none">
-        {sectionTitle && <h2 className="mt-0 mb-4">{sectionTitle}</h2>}
+      <section className="prose prose-neutral max-w-none prose-p:mb-4 prose-headings:mb-6 prose-ul:mb-4 prose-ol:mb-4">
+        {sectionTitle && <h2 className="mt-0 mb-6">{sectionTitle}</h2>}
         {text ? (
           renderFormattedBody(text)
         ) : (

@@ -56,13 +56,18 @@ export default async function Footer() {
 
       <div className="content-container flex flex-col w-full relative z-10">
         <div className="flex flex-col gap-y-6 xsmall:flex-row items-start justify-between py-40">
-          <div>
+          <div className="flex flex-col gap-y-4">
             <LocalizedClientLink
               href="/"
               className="txt-compact-xlarge-plus text-ui-fg-subtle hover:text-ui-fg-base uppercase"
             >
               Cici Label Store
             </LocalizedClientLink>
+            <img
+              src="/logo.png"
+              alt="Cici Label Store Logo"
+              className="h-24 w-auto object-contain"
+            />
           </div>
           <div className="text-small-regular gap-10 md:gap-x-16 grid grid-cols-2 sm:grid-cols-4">
             {productCategories && productCategories?.length > 0 && (
@@ -129,12 +134,7 @@ export default async function Footer() {
                   Collections
                 </span>
                 <ul
-                  className={clx(
-                    "grid grid-cols-1 gap-2 text-ui-fg-subtle txt-small",
-                    {
-                      "grid-cols-2": (collections?.length || 0) > 3,
-                    }
-                  )}
+                  className="grid grid-cols-1 gap-2 text-ui-fg-subtle txt-small"
                 >
                   {collections?.slice(0, 6).map((c) => (
                     <li key={c.id}>
@@ -186,7 +186,7 @@ export default async function Footer() {
             </div>
             {/* Info pages */}
             <div className="flex flex-col gap-y-2">
-              <span className="txt-small-plus txt-ui-fg-base">Info</span>
+              <span className="txt-small-plus txt-ui-fg-base">Info & Other</span>
               <ul className="grid grid-cols-1 gap-y-2 text-ui-fg-subtle txt-small">
                 <li>
                   <LocalizedClientLink className="hover:text-ui-fg-base" href="/pages/terms-and-conditions">
