@@ -3,7 +3,6 @@
 import { Button, Text } from "@medusajs/ui"
 import { XMark } from "@medusajs/icons"
 import clsx from "clsx"
-import { ReactNode } from "react"
 
 type OnboardingStep = {
   title: string
@@ -38,8 +37,8 @@ const OnboardingOverlay = ({
   return (
     <div
       className={clsx(
-        "pointer-events-none absolute z-30",
-        isMobile ? "top-4 left-1/2 -translate-x-1/2" : "top-6 left-6"
+        "pointer-events-none absolute z-30 transition-all",
+        isMobile ? "top-4 left-1/2 -translate-x-1/2 w-[90%]" : "top-24 left-8"
       )}
     >
       <div className="pointer-events-auto max-w-sm rounded-2xl border border-ui-border-base bg-white/95 shadow-2xl backdrop-blur">

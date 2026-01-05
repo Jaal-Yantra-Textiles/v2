@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
-import type { DesignProduct, CustomerInfo } from "./index"
+import { CustomerInfo, DesignProduct } from "./types"
 
 // Dynamic import to avoid SSR issues with Konva
 const DesignEditor = dynamic(() => import("./index"), {
