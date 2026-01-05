@@ -784,9 +784,15 @@ interface DesignEditorProps {
   product: DesignProduct
   customer?: CustomerInfo | null
   countryCode?: string
+  isMobileLayout?: boolean
 }
 
-export default function DesignEditor({ product, customer, countryCode }: DesignEditorProps) {
+export default function DesignEditor({
+  product,
+  customer,
+  countryCode,
+  isMobileLayout = false,
+}: DesignEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -808,8 +814,10 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
   const [history, setHistory] = useState<DesignState[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   
-  // Sidebar expanded state - must be before any conditional returns
+  // Sidebar + onboarding states
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(true)
+  const [onboardingStep, setOnboardingStep] = useState(0)
   
   // Material detail modal state
   const [selectedMaterial, setSelectedMaterial] = useState<RawMaterial | null>(null)
@@ -837,6 +845,39 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
 
   // Load base product image
   const [baseImage, baseImageStatus] = useImage(product.thumbnail || undefined)
+  
+  useEffect(() => {
+    if (isMobileLayout) {
+      setSidebarExpanded(true)
+    }
+  }, [isMobileLayout])
+
+  const onboardingSteps = [
+    {
+      title: "Choose your base",
+      description: "Start with a silhouette from our ready-to-tailor collection to anchor your idea.",
+    },
+    {
+      title: "Select handloom fabrics",
+      description: "Browse our in-house materials sourced across India and match colors to your story.",
+    },
+    {
+      title: "Assign a production partner",
+      description: "Pick an artisan workshop from our global partner list to bring the piece to life.",
+    },
+  ]
+
+  const handleNextStep = () => {
+    if (onboardingStep < onboardingSteps.length - 1) {
+      setOnboardingStep((prev) => prev + 1)
+    } else {
+      setShowOnboarding(false)
+    }
+  }
+
+  const handlePrevStep = () => {
+    setOnboardingStep((prev) => Math.max(prev - 1, 0))
+  }
   
   // Save to history when design changes
   const saveToHistory = useCallback((newDesign: DesignState) => {
@@ -1450,8 +1491,18 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
     )
   }
 
+  const sidebarWidth = !isMobileLayout ? (sidebarExpanded ? "w-64" : "w-14") : "w-full"
+  const sidebarBorder = isMobileLayout ? "border-t" : "border-l"
+  const sidebarOrder = isMobileLayout ? "order-2" : "order-last"
+  const sidebarScrollClass = isMobileLayout
+    ? "max-h-[45vh] overflow-y-auto overflow-x-hidden"
+    : "flex-1 overflow-y-auto overflow-x-hidden"
+
+  const wizardHiddenTransform = isMobileLayout ? "translate-y-[120%]" : "translate-x-[120%]"
+  const wizardTransform = showOnboarding ? "translate-x-0 translate-y-0" : wizardHiddenTransform
+
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-white">
+    <div className={`flex h-[calc(100vh-64px)] bg-white ${isMobileLayout ? "flex-col" : ""}`}>
       {/* Name Modal */}
       {showNameModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -1510,8 +1561,8 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
         }}
       />
 
-      {/* Main Canvas Area - Now on the left/center */}
-      <div className="flex flex-1 flex-col min-h-0">
+      {/* Main Canvas Area */}
+      <div className={`flex flex-1 flex-col min-h-0 ${isMobileLayout ? "order-1" : "order-first"}`}>
         {/* Canvas Container - clips the larger stage */}
         <div 
           ref={containerRef} 
@@ -1877,21 +1928,88 @@ export default function DesignEditor({ product, customer, countryCode }: DesignE
         </div>
       </div>
 
-      {/* Right Sidebar - Compact & Expandable */}
-      <div className={`flex flex-col border-l bg-white transition-all duration-200 ${sidebarExpanded ? "w-64" : "w-14"}`}>
-        {/* Toggle Button - Fixed Header */}
-        <div className="flex-shrink-0 border-b">
-          <button
-            onClick={() => setSidebarExpanded(!sidebarExpanded)}
-            className="flex items-center justify-center w-full py-3 hover:bg-gray-50"
-            title={sidebarExpanded ? "Collapse" : "Expand"}
-          >
-            <ArrowsPointingOutMini className={`h-4 w-4 transition-transform ${sidebarExpanded ? "rotate-180" : ""}`} />
-          </button>
-        </div>
-        
+      {/* Responsive Sidebar */}
+      <div
+        className={`flex flex-col bg-white transition-all duration-200 ${sidebarWidth} ${sidebarBorder} ${sidebarOrder}`}
+      >
+        {/* Toggle Button (desktop only) */}
+        {!isMobileLayout && (
+          <div className="flex-shrink-0 border-b">
+            <button
+              onClick={() => setSidebarExpanded(!sidebarExpanded)}
+              className="flex items-center justify-center w-full py-3 hover:bg-gray-50"
+              title={sidebarExpanded ? "Collapse" : "Expand"}
+            >
+              <ArrowsPointingOutMini
+                className={`h-4 w-4 transition-transform ${sidebarExpanded ? "rotate-180" : ""}`}
+              />
+            </button>
+          </div>
+        )}
+
+        {/* Onboarding Wizard */}
+        {sidebarExpanded && (
+          <div className="relative border-b p-3 overflow-hidden">
+            <div
+              className={`rounded-2xl border border-gray-200 bg-gray-50/80 p-4 shadow-sm transition-transform duration-500 ${wizardTransform}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <Text weight="plus" className="text-sm uppercase tracking-wide text-gray-500">
+                  Design onboarding
+                </Text>
+                <button
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                  onClick={() => setShowOnboarding(false)}
+                >
+                  Skip
+                </button>
+              </div>
+              <div className="mt-3">
+                <Text weight="plus" className="text-base text-gray-900">
+                  {onboardingSteps[onboardingStep].title}
+                </Text>
+                <Text size="small" className="mt-1 text-gray-600">
+                  {onboardingSteps[onboardingStep].description}
+                </Text>
+              </div>
+              <ul className="mt-3 space-y-1 text-xs text-gray-500">
+                <li>• Use our specialised handloom fabrics</li>
+                <li>• Match with a production partner worldwide</li>
+                <li>• Keep the design philosophy intact</li>
+              </ul>
+              <div className="mt-4 flex items-center justify-between">
+                <div className="flex gap-1">
+                  {onboardingSteps.map((_, idx) => (
+                    <span
+                      key={idx}
+                      className={`h-1.5 w-6 rounded-full ${
+                        idx <= onboardingStep ? "bg-gray-900" : "bg-gray-300"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handlePrevStep}
+                    disabled={onboardingStep === 0}
+                    className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-600 disabled:opacity-40"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleNextStep}
+                    className="rounded-full bg-gray-900 px-3 py-1 text-xs text-white"
+                  >
+                    {onboardingStep === onboardingSteps.length - 1 ? "Start" : "Next"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className={sidebarScrollClass}>
 
         {/* Product Info - Show when expanded */}
         {sidebarExpanded && (
