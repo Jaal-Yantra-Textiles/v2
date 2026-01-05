@@ -848,6 +848,8 @@ export default function DesignEditor({
   
   useEffect(() => {
     if (isMobileLayout) {
+      setSidebarExpanded(false)
+    } else {
       setSidebarExpanded(true)
     }
   }, [isMobileLayout])
@@ -1500,6 +1502,9 @@ export default function DesignEditor({
 
   const wizardHiddenTransform = isMobileLayout ? "translate-y-[120%]" : "translate-x-[120%]"
   const wizardTransform = showOnboarding ? "translate-x-0 translate-y-0" : wizardHiddenTransform
+  const visibleWidth = Math.max(containerDims.width, 320)
+  const visibleHeight = Math.max(containerDims.height, 320)
+  const sidebarVisibilityClass = isMobileLayout && !sidebarExpanded ? "hidden" : ""
 
   return (
     <div className={`flex h-[calc(100vh-64px)] bg-white ${isMobileLayout ? "flex-col" : ""}`}>
@@ -1564,10 +1569,10 @@ export default function DesignEditor({
       {/* Main Canvas Area */}
       <div className={`flex flex-1 flex-col min-h-0 ${isMobileLayout ? "order-1" : "order-first"}`}>
         {/* Canvas Container - clips the larger stage */}
-        <div 
-          ref={containerRef} 
+        <div
+          ref={containerRef}
           className="flex-1 min-h-0 overflow-hidden relative"
-          style={{ 
+          style={{
             cursor: activeTool === "pan" || isPanning ? "grab" : "default",
           }}
         >
@@ -1587,7 +1592,7 @@ export default function DesignEditor({
             onTouchMove={handleStageMouseMove}
             onTouchEnd={handleStageMouseUp}
             style={{
-              position: 'absolute',
+              position: "absolute",
               left: -CANVAS_EXTEND,
               top: -CANVAS_EXTEND,
             }}
@@ -1646,7 +1651,16 @@ export default function DesignEditor({
               })}
             </Layer>
           </Stage>
-          
+          {isMobileLayout && (
+            <button
+              type="button"
+              aria-label={sidebarExpanded ? "Hide design panel" : "Show design panel"}
+              onClick={() => setSidebarExpanded((prev) => !prev)}
+              className="absolute bottom-4 right-4 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-medium shadow-lg border border-ui-border-base backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-ui-fg-interactive"
+            >
+              {sidebarExpanded ? "Hide Panel" : "Show Panel"}
+            </button>
+          )}
           {/* Selection Badges - Floating next to canvas */}
           <div className="absolute right-4 top-4 flex flex-col gap-2 z-10">
             {/* Selected Material Badge */}
@@ -1930,7 +1944,7 @@ export default function DesignEditor({
 
       {/* Responsive Sidebar */}
       <div
-        className={`flex flex-col bg-white transition-all duration-200 ${sidebarWidth} ${sidebarBorder} ${sidebarOrder}`}
+        className={`flex flex-col bg-white transition-all duration-200 ${sidebarWidth} ${sidebarBorder} ${sidebarOrder} ${sidebarVisibilityClass}`}
       >
         {/* Toggle Button (desktop only) */}
         {!isMobileLayout && (
