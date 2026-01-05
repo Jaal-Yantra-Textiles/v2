@@ -14,103 +14,84 @@ const SizeGuide = () => {
 
         <FocusModal.Header />
         <FocusModal.Title></FocusModal.Title>
-        <FocusModal.Body className="py-16">
+        <FocusModal.Body className="py-8 sm:py-16 px-4 sm:px-6">
           <div className="flex w-full flex-col items-center">
             <div className="w-full max-w-4xl">
-              <Heading level="h2" className="mb-4 text-center">Size Reference</Heading>
-              <Text className="mb-8 text-center text-ui-fg-subtle">
-                Find your perfect fit. Measurements are in inches.
+              <Heading level="h2" className="mb-2 sm:mb-4 text-center text-lg sm:text-xl">Size Reference</Heading>
+              <Text className="mb-4 sm:mb-8 text-center text-ui-fg-subtle text-sm">
+                Find your perfect fit. Scroll horizontally on mobile to see all measurements.
               </Text>
-              <Table>
-                <Table.Header className="bg-ui-bg-subtle">
-                  <Table.Row>
-                    <Table.HeaderCell>Size</Table.HeaderCell>
-                    <Table.HeaderCell>Chest (in)</Table.HeaderCell>
-                    <Table.HeaderCell>Chest (cm)</Table.HeaderCell>
-                    <Table.HeaderCell>Waist (in)</Table.HeaderCell>
-                    <Table.HeaderCell>Waist (cm)</Table.HeaderCell>
-                    <Table.HeaderCell>Hips (in)</Table.HeaderCell>
-                    <Table.HeaderCell>Hips (cm)</Table.HeaderCell>
-                    <Table.HeaderCell>US</Table.HeaderCell>
-                    <Table.HeaderCell>UK</Table.HeaderCell>
-                    <Table.HeaderCell>EU</Table.HeaderCell>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  <Table.Row>
-                    <Table.Cell>XS</Table.Cell>
-                    <Table.Cell>34-36</Table.Cell>
-                    <Table.Cell>86-91</Table.Cell>
-                    <Table.Cell>28-30</Table.Cell>
-                    <Table.Cell>71-76</Table.Cell>
-                    <Table.Cell>34-36</Table.Cell>
-                    <Table.Cell>86-91</Table.Cell>
-                    <Table.Cell>34</Table.Cell>
-                    <Table.Cell>34</Table.Cell>
-                    <Table.Cell>44</Table.Cell>
-                  </Table.Row>
-                  <Table.Row>
-                    <Table.Cell>S</Table.Cell>
-                    <Table.Cell>36-38</Table.Cell>
-                    <Table.Cell>91-97</Table.Cell>
-                    <Table.Cell>30-32</Table.Cell>
-                    <Table.Cell>76-81</Table.Cell>
-                    <Table.Cell>36-38</Table.Cell>
-                    <Table.Cell>91-97</Table.Cell>
-                    <Table.Cell>36</Table.Cell>
-                    <Table.Cell>36</Table.Cell>
-                    <Table.Cell>46</Table.Cell>
-                  </Table.Row>
-                  <Table.Row>
-                    <Table.Cell>M</Table.Cell>
-                    <Table.Cell>38-40</Table.Cell>
-                    <Table.Cell>97-102</Table.Cell>
-                    <Table.Cell>32-34</Table.Cell>
-                    <Table.Cell>81-86</Table.Cell>
-                    <Table.Cell>38-40</Table.Cell>
-                    <Table.Cell>97-102</Table.Cell>
-                    <Table.Cell>38</Table.Cell>
-                    <Table.Cell>38</Table.Cell>
-                    <Table.Cell>48</Table.Cell>
-                  </Table.Row>
-                  <Table.Row>
-                    <Table.Cell>L</Table.Cell>
-                    <Table.Cell>40-42</Table.Cell>
-                    <Table.Cell>102-107</Table.Cell>
-                    <Table.Cell>34-36</Table.Cell>
-                    <Table.Cell>86-91</Table.Cell>
-                    <Table.Cell>40-42</Table.Cell>
-                    <Table.Cell>102-107</Table.Cell>
-                    <Table.Cell>40</Table.Cell>
-                    <Table.Cell>40</Table.Cell>
-                    <Table.Cell>50</Table.Cell>
-                  </Table.Row>
-                  <Table.Row>
-                    <Table.Cell>XL</Table.Cell>
-                    <Table.Cell>42-44</Table.Cell>
-                    <Table.Cell>107-112</Table.Cell>
-                    <Table.Cell>36-38</Table.Cell>
-                    <Table.Cell>91-97</Table.Cell>
-                    <Table.Cell>42-44</Table.Cell>
-                    <Table.Cell>107-112</Table.Cell>
-                    <Table.Cell>42</Table.Cell>
-                    <Table.Cell>42</Table.Cell>
-                    <Table.Cell>52</Table.Cell>
-                  </Table.Row>
-                  <Table.Row>
-                    <Table.Cell>XXL</Table.Cell>
-                    <Table.Cell>44-46</Table.Cell>
-                    <Table.Cell>112-117</Table.Cell>
-                    <Table.Cell>38-40</Table.Cell>
-                    <Table.Cell>97-102</Table.Cell>
-                    <Table.Cell>44-46</Table.Cell>
-                    <Table.Cell>112-117</Table.Cell>
-                    <Table.Cell>44</Table.Cell>
-                    <Table.Cell>44</Table.Cell>
-                    <Table.Cell>54</Table.Cell>
-                  </Table.Row>
-                </Table.Body>
-              </Table>
+              <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                <Table className="min-w-[600px] sm:min-w-0">
+                  <Table.Header className="bg-ui-bg-subtle">
+                    <Table.Row>
+                      <Table.HeaderCell className="text-xs sm:text-sm whitespace-nowrap">Size</Table.HeaderCell>
+                      <Table.HeaderCell className="text-xs sm:text-sm whitespace-nowrap">Chest</Table.HeaderCell>
+                      <Table.HeaderCell className="text-xs sm:text-sm whitespace-nowrap">Waist</Table.HeaderCell>
+                      <Table.HeaderCell className="text-xs sm:text-sm whitespace-nowrap">Hips</Table.HeaderCell>
+                      <Table.HeaderCell className="text-xs sm:text-sm whitespace-nowrap">US</Table.HeaderCell>
+                      <Table.HeaderCell className="text-xs sm:text-sm whitespace-nowrap">UK</Table.HeaderCell>
+                      <Table.HeaderCell className="text-xs sm:text-sm whitespace-nowrap">EU</Table.HeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    <Table.Row>
+                      <Table.Cell className="text-xs sm:text-sm font-medium">XS</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">34-36″ / 86-91cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">28-30″ / 71-76cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">34-36″ / 86-91cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">34</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">34</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">44</Table.Cell>
+                    </Table.Row>
+                    <Table.Row>
+                      <Table.Cell className="text-xs sm:text-sm font-medium">S</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">36-38″ / 91-97cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">30-32″ / 76-81cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">36-38″ / 91-97cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">36</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">36</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">46</Table.Cell>
+                    </Table.Row>
+                    <Table.Row>
+                      <Table.Cell className="text-xs sm:text-sm font-medium">M</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">38-40″ / 97-102cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">32-34″ / 81-86cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">38-40″ / 97-102cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">38</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">38</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">48</Table.Cell>
+                    </Table.Row>
+                    <Table.Row>
+                      <Table.Cell className="text-xs sm:text-sm font-medium">L</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">40-42″ / 102-107cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">34-36″ / 86-91cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">40-42″ / 102-107cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">40</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">40</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">50</Table.Cell>
+                    </Table.Row>
+                    <Table.Row>
+                      <Table.Cell className="text-xs sm:text-sm font-medium">XL</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">42-44″ / 107-112cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">36-38″ / 91-97cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">42-44″ / 107-112cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">42</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">42</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">52</Table.Cell>
+                    </Table.Row>
+                    <Table.Row>
+                      <Table.Cell className="text-xs sm:text-sm font-medium">XXL</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">44-46″ / 112-117cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">38-40″ / 97-102cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm whitespace-nowrap">44-46″ / 112-117cm</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">44</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">44</Table.Cell>
+                      <Table.Cell className="text-xs sm:text-sm">54</Table.Cell>
+                    </Table.Row>
+                  </Table.Body>
+                </Table>
+              </div>
             </div>
           </div>
         </FocusModal.Body>

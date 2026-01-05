@@ -47,8 +47,8 @@ const HeroSubheading = () => {
             : "opacity-0 absolute inset-0 pointer-events-none"
         )}
       >
-        Okay, now that you know we source thoughtful fabrics, we turn them into
-        pieces with artists across globe.
+        Okay, now that you know about 4 principles,we source good fabrics, we turn them into
+        unique pieces with artists across globe.
       </Heading>
     </div>
   )
