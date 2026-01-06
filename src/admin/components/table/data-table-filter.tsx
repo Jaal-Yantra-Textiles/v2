@@ -62,43 +62,45 @@ export const DataTableFilter = ({
     (f) => !activeFilters.find((af) => af.key === f.key),
   );
 
-  /**
-   * If there are any filters in the URL that are not in the active filters,
-   * add them to the active filters. This ensures that we display the filters
-   * if a user navigates to a page with filters in the URL.
-   */
-  const initialMount = useRef(true);
+  const searchParamsSignature = useMemo(
+    () => searchParams.toString(),
+    [searchParams],
+  );
 
   useEffect(() => {
-    if (initialMount.current) {
-      const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(searchParams);
 
-      filters.forEach((filter) => {
-        const key = prefix ? `${prefix}_${filter.key}` : filter.key;
-        const value = params.get(key);
-        if (value && !activeFilters.find((af) => af.key === filter.key)) {
+    setActiveFilters((prev) => {
+      const filtersFromParams = filters
+        .filter((filter) => {
+          const key = prefix ? `${prefix}_${filter.key}` : filter.key;
+          return params.has(key);
+        })
+        .map((filter) => {
           if (filter.type === "select") {
-            setActiveFilters((prev) => [
-              ...prev,
-              {
-                ...filter,
-                multiple: filter.multiple,
-                options: filter.options,
-                openOnMount: false,
-              },
-            ]);
-          } else {
-            setActiveFilters((prev) => [
-              ...prev,
-              { ...filter, openOnMount: false },
-            ]);
+            return {
+              ...filter,
+              multiple: filter.multiple,
+              options: filter.options,
+              openOnMount: false,
+            };
           }
-        }
-      });
-    }
+          return { ...filter, openOnMount: false };
+        });
 
-    initialMount.current = false;
-  }, [activeFilters, filters, prefix, searchParams]);
+      const prevKeys = prev.map((f) => f.key).join(",");
+      const nextKeys = filtersFromParams.map((f) => f.key).join(",");
+
+      if (prevKeys === nextKeys) {
+        return prev;
+      }
+
+      return filtersFromParams.map((filter) => {
+        const existing = prev.find((f) => f.key === filter.key);
+        return existing ? { ...existing, openOnMount: false } : filter;
+      });
+    });
+  }, [filters, prefix, searchParamsSignature, searchParams]);
 
   const addFilter = (filter: Filter) => {
     setOpen(false);

@@ -7,6 +7,7 @@ import { Design } from "./validators";
 import createDesignWorkflow from "../../../workflows/designs/create-design";
 import listDesignsWorkflow from "../../../workflows/designs/list-designs";
 import { DesignAllowedFields, refetchDesign } from "./helpers";
+import { DateComparisonOperator } from "@medusajs/types";
 
 // Create new design
 export const POST = async (
@@ -46,13 +47,16 @@ export const GET = async (
       status?: "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold";
       priority?: "Low" | "Medium" | "High" | "Urgent";
       tags?: string[];
+      partner_id?: string;
+      created_at?: DateComparisonOperator;
+      target_completion_date?: DateComparisonOperator;
     };
   },
   res: MedusaResponse
 ) => {
 
   try {
-    const { result, errors } = await listDesignsWorkflow.run({
+    const { result, errors } = await listDesignsWorkflow(req.scope).run({
       input: {
         pagination: {
           offset: Number(req.query.offset) || 0,
@@ -64,6 +68,9 @@ export const GET = async (
           status: req.query.status,
           priority: req.query.priority,
           tags: req.query.tags,
+          partner_id: req.query.partner_id,
+          created_at: req.query.created_at,
+          target_completion_date: req.query.target_completion_date,
         },
       },
     });

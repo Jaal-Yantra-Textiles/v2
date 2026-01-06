@@ -1,5 +1,5 @@
 import { FetchError } from "@medusajs/js-sdk";
-import {  PaginatedResponse } from "@medusajs/types";
+import {  PaginatedResponse, DateComparisonOperator } from "@medusajs/types";
 import {
   QueryKey,
   UseMutationOptions,
@@ -73,6 +73,7 @@ export interface AdminDesign {
   size_sets?: Array<DesignSizeSet>;
   created_at?: Date;
   updated_at?: Date;
+  partner_id?: string;
 }
 
 export type CreateAdminDesignPayload = Omit<AdminDesign, "id" | "created_at" | "updated_at">;
@@ -97,6 +98,9 @@ export interface AdminDesignsQuery {
   status?: AdminDesign["status"];
   priority?: AdminDesign["priority"];
   tags?: string[];
+  partner_id?: string;
+  created_at?: DateComparisonOperator;
+  target_completion_date?: DateComparisonOperator;
   q?: string;
 }
 
@@ -141,10 +145,11 @@ export const useDesign = (
     queryFn: async () =>
       sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}`, {
         method: "GET",
-        query: {
-          ...query,
-          fields: query?.fields ? query.fields.join(",") : undefined,
-        },
+        query: query?.fields
+          ? {
+              fields: query.fields.join(","),
+            }
+          : undefined,
       }),
     ...options,
   });

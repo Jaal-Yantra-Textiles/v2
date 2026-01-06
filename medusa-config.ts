@@ -15,6 +15,10 @@ module.exports = defineConfig({
     },
     
   },
+  featureFlags: {
+    index_engine: true,
+    view_configrations: true,
+  },
   admin: {
     vite: () => ({
        // Keep Medusa's default config
