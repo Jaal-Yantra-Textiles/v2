@@ -1,3 +1,10 @@
+# [8.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.10.2...v8.11.0) (2026-01-06)
+
+
+### Features
+
+* **api:** UI Custom Filter View for ease ([a299769](https://github.com/Jaal-Yantra-Textiles/v2/commit/a299769c4a1eeb35a91318e2c9c2be3133a6d54f))
+
 ## [8.10.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.10.1...v8.10.2) (2026-01-04)
 
 
