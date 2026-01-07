@@ -17,6 +17,9 @@ type EditorCanvasProps = {
     isPanning: boolean
     CANVAS_EXTEND: number
     baseImage: HTMLImageElement | null | undefined
+    baseImageStatus: "loading" | "loaded" | "error"
+    isGeneratingBase: boolean
+    regenerateBaseImage: () => void
     baseDims: { x: number; y: number; width: number; height: number }
     design: DesignState
     setDesign: React.Dispatch<React.SetStateAction<DesignState>>
@@ -43,6 +46,9 @@ export function EditorCanvas({
     isPanning,
     CANVAS_EXTEND,
     baseImage,
+    baseImageStatus,
+    isGeneratingBase,
+    regenerateBaseImage,
     baseDims,
     design,
     setDesign,
@@ -60,6 +66,9 @@ export function EditorCanvas({
     setShowPartnerModal,
 }: EditorCanvasProps) {
     const transformerRef = useRef<Konva.Transformer>(null)
+
+    const showLoaderOverlay = baseImageStatus === "loading" || isGeneratingBase
+    const showErrorOverlay = baseImageStatus === "error" && !isGeneratingBase
 
     // Attach transformer to selected layer
     useEffect(() => {
@@ -225,59 +234,32 @@ export function EditorCanvas({
                         {sidebarExpanded ? "Hide Panel" : "Show Panel"}
                     </button>
                 )}
-                {/* Selection Badges - Floating next to canvas */}
-                <div className="absolute right-4 top-4 flex flex-col gap-2 z-10">
-                    {/* Selected Material Badge */}
-                    {selectedMaterial && (
-                        <button
-                            onClick={() => setShowMaterialModal(true)}
-                            className="group flex items-center gap-2 bg-white rounded-full shadow-lg border-2 border-blue-400 px-3 py-2 hover:shadow-xl transition-all hover:scale-105"
-                        >
-                            {(() => {
-                                const mediaArr = Array.isArray(selectedMaterial.media) ? selectedMaterial.media : []
-                                const thumb = mediaArr.find((m: any) => m.isThumbnail)?.url || mediaArr[0]?.url
-                                return thumb ? (
-                                    <img src={thumb} alt="" className="w-8 h-8 rounded-full object-cover border-2 border-blue-300" />
-                                ) : (
-                                    <div
-                                        className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-blue-300"
-                                        style={{ backgroundColor: selectedMaterial.color || '#e5e5e5' }}
-                                    >
-                                        <span className="text-sm">🧵</span>
-                                    </div>
-                                )
-                            })()}
-                            <div className="text-left max-w-[120px]">
-                                <div className="text-xs font-medium text-gray-800 truncate">
-                                    {selectedMaterial.name || selectedMaterial.material_type?.name || 'Material'}
-                                </div>
-                                <div className="text-xs text-blue-600">Click for details</div>
+                {(showLoaderOverlay || showErrorOverlay) && (
+                    <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-white/85 backdrop-blur-sm">
+                        {showLoaderOverlay && (
+                            <>
+                                <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-gray-500" />
+                                <p className="text-sm font-medium text-gray-600">
+                                    {isGeneratingBase ? "Generating base canvas…" : "Loading base design…"}
+                                </p>
+                            </>
+                        )}
+                        {showErrorOverlay && (
+                            <div className="flex flex-col items-center gap-3 text-center">
+                                <p className="text-sm font-medium text-gray-700">
+                                    We couldn&apos;t load the base design image.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={regenerateBaseImage}
+                                    className="rounded-full bg-black px-4 py-2 text-xs font-medium text-white hover:bg-gray-900"
+                                >
+                                    Try regenerating base
+                                </button>
                             </div>
-                        </button>
-                    )}
-
-                    {/* Selected Partner Badge */}
-                    {selectedPartner && (
-                        <button
-                            onClick={() => setShowPartnerModal(true)}
-                            className="group flex items-center gap-2 bg-white rounded-full shadow-lg border-2 border-green-400 px-3 py-2 hover:shadow-xl transition-all hover:scale-105"
-                        >
-                            {selectedPartner.logo_url ? (
-                                <img src={selectedPartner.logo_url} alt="" className="w-8 h-8 rounded-full object-cover border-2 border-green-300" />
-                            ) : (
-                                <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center border-2 border-green-300">
-                                    <span className="text-sm">🏭</span>
-                                </div>
-                            )}
-                            <div className="text-left max-w-[120px]">
-                                <div className="text-xs font-medium text-gray-800 truncate">
-                                    {selectedPartner.name || selectedPartner.company_name || 'Partner'}
-                                </div>
-                                <div className="text-xs text-green-600">Click for details</div>
-                            </div>
-                        </button>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     )

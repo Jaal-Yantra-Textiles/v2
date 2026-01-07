@@ -48,46 +48,55 @@ export default function DesignEditor({
     isMobileLayout,
   })
 
-  // Loading state
-  if (product.thumbnail && editor.baseImageStatus === "loading") {
+  const showBlockingLoader = editor.baseImageStatus === "loading" && !editor.baseImage
+  const showBlockingError = editor.baseImageStatus === "error" && !editor.baseImage && !editor.isGeneratingBase
+
+  if (showBlockingLoader) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-indigo-500" />
-          <Text className="text-gray-600">Loading design editor...</Text>
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4 rounded-3xl border border-slate-200 bg-white px-10 py-8 shadow-lg">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-slate-500" />
+          <Text className="text-sm text-slate-600">Preparing your base design…</Text>
         </div>
       </div>
     )
   }
 
-  // No image fallback
-  if (product.thumbnail && editor.baseImageStatus === "error") {
+  if (showBlockingError) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <Text weight="plus">No product image available</Text>
-          <Text size="small" className="text-gray-600">
-            This product doesn&apos;t have an image to customize.
-          </Text>
+      <div className="flex h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="flex max-w-md flex-col items-center gap-6 rounded-3xl border border-slate-200 bg-white px-10 py-10 text-center shadow-lg">
+          <div className="rounded-full bg-slate-100 p-4 text-slate-500">⚠️</div>
+          <div>
+            <Text weight="plus" className="text-slate-900">
+              We couldn&apos;t load a base design
+            </Text>
+            <Text size="small" className="mt-2 text-slate-600">
+              We&apos;ll generate a neutral template so you can keep customizing.
+            </Text>
+          </div>
+          <button
+            type="button"
+            onClick={editor.regenerateBaseImage}
+            className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white hover:bg-gray-900"
+          >
+            Generate fallback base
+          </button>
         </div>
       </div>
     )
   }
 
   return (
-    <div
-      className={clsx(
-        "relative flex h-[calc(100vh-64px)] bg-white",
-        isMobileLayout ? "flex-col" : "flex-row",
-        !isMobileLayout && "lg:pr-[420px]"
-      )}
-    >
+    <div className="h-[calc(100vh-64px)] bg-slate-50/70">
       {/* Name Modal */}
       <NameModal
         isOpen={editor.showNameModal}
         productTitle={product.title}
         designName={editor.designName}
         setDesignName={editor.setDesignName}
+        badgePreferences={editor.badgePreferences}
+        setBadgePreferences={editor.setBadgePreferences}
         onSubmit={editor.handleNameSubmit}
         onSkip={() => {
           editor.setDesignName("Untitled Design")
@@ -109,92 +118,106 @@ export default function DesignEditor({
         }}
       />
 
-      {/* Main Canvas Area */}
       <div
         className={clsx(
-          "relative flex flex-1 flex-col min-h-0",
-          isMobileLayout ? "order-2 pb-[60px]" : "order-1"
+          "mx-auto flex h-full w-full max-w-[1600px] min-h-0",
+          isMobileLayout ? "flex-col gap-4 px-4 py-4" : "flex-row gap-6 px-8 py-8"
         )}
       >
-        <EditorCanvas
-          containerRef={editor.containerRef}
-          stageRef={editor.stageRef}
-          stageSize={editor.stageSize}
-          view={editor.view}
-          activeTool={editor.activeTool}
-          isPanning={editor.isPanning}
-          CANVAS_EXTEND={editor.CANVAS_EXTEND}
-          baseImage={editor.baseImage}
-          baseDims={editor.baseDims}
-          design={editor.design}
-          setDesign={editor.setDesign}
-          updateLayer={editor.updateLayer}
-          handleWheel={editor.handleWheel}
-          handleStageMouseDown={editor.handleStageMouseDown}
-          handleStageMouseMove={editor.handleStageMouseMove}
-          handleStageMouseUp={editor.handleStageMouseUp}
-          isMobileLayout={isMobileLayout}
-          sidebarExpanded={editor.sidebarExpanded}
-          setSidebarExpanded={editor.setSidebarExpanded}
-          selectedMaterial={editor.selectedMaterial}
-          setShowMaterialModal={editor.setShowMaterialModal}
-          selectedPartner={editor.selectedPartner}
-          setShowPartnerModal={editor.setShowPartnerModal}
-        />
+        {/* Main Canvas Area */}
+        <div
+          className={clsx(
+            "relative flex flex-1 flex-col min-h-0",
+            isMobileLayout
+              ? "order-2 pb-[60px]"
+              : "order-1 rounded-[32px] border border-ui-border-base bg-white shadow-[0_25px_60px_rgba(15,23,42,0.08)] overflow-hidden"
+          )}
+        >
+          <EditorCanvas
+            containerRef={editor.containerRef}
+            stageRef={editor.stageRef}
+            stageSize={editor.stageSize}
+            view={editor.view}
+            activeTool={editor.activeTool}
+            isPanning={editor.isPanning}
+            CANVAS_EXTEND={editor.CANVAS_EXTEND}
+            baseImage={editor.baseImage}
+            baseImageStatus={editor.baseImageStatus}
+            isGeneratingBase={editor.isGeneratingBase}
+            regenerateBaseImage={editor.regenerateBaseImage}
+            baseDims={editor.baseDims}
+            design={editor.design}
+            setDesign={editor.setDesign}
+            updateLayer={editor.updateLayer}
+            handleWheel={editor.handleWheel}
+            handleStageMouseDown={editor.handleStageMouseDown}
+            handleStageMouseMove={editor.handleStageMouseMove}
+            handleStageMouseUp={editor.handleStageMouseUp}
+            isMobileLayout={isMobileLayout}
+            sidebarExpanded={editor.sidebarExpanded}
+            setSidebarExpanded={editor.setSidebarExpanded}
+            selectedMaterial={editor.selectedMaterial}
+            setShowMaterialModal={editor.setShowMaterialModal}
+            selectedPartner={editor.selectedPartner}
+            setShowPartnerModal={editor.setShowPartnerModal}
+          />
 
-        <ZoomControls
-          view={editor.view}
-          zoomIn={editor.zoomIn}
-          zoomOut={editor.zoomOut}
-          resetView={editor.resetView}
-          undo={editor.undo}
-          historyIndex={editor.historyIndex}
-        />
-      </div>
+          <ZoomControls
+            view={editor.view}
+            zoomIn={editor.zoomIn}
+            zoomOut={editor.zoomOut}
+            resetView={editor.resetView}
+            undo={editor.undo}
+            historyIndex={editor.historyIndex}
+          />
+        </div>
 
-      {/* Sidebar */}
-      <div
-        className={clsx(
-          isMobileLayout
-            ? "order-1 w-full"
-            : "order-2 lg:fixed lg:top-24 lg:bottom-8 lg:right-8 lg:w-[360px] lg:pointer-events-auto"
-        )}
-      >
-        <EditorSidebar
-          isMobileLayout={isMobileLayout}
-          sidebarExpanded={editor.sidebarExpanded}
-          setSidebarExpanded={editor.setSidebarExpanded}
-          product={product}
-          design={editor.design}
-          setDesign={editor.setDesign}
-          activeTool={editor.activeTool}
-          setActiveTool={editor.setActiveTool}
-          fileInputRef={editor.fileInputRef}
-          addImageLayer={editor.addImageLayer}
-          addTextLayer={editor.addTextLayer}
-          externalMaterials={editor.externalMaterials}
-          materialsLoading={editor.materialsLoading}
-          materialsError={editor.materialsError}
-          selectedMaterial={editor.selectedMaterial}
-          setSelectedMaterial={editor.setSelectedMaterial}
-          showOnboarding={editor.showOnboarding}
-          onboardingSteps={editor.onboardingSteps}
-          onboardingStep={editor.onboardingStep}
-          handleNextStep={editor.handleNextStep}
-          handlePrevStep={editor.handlePrevStep}
-          handleSkipOnboarding={editor.handleSkipOnboarding}
-          updateLayer={editor.updateLayer}
-          externalPartners={editor.externalPartners}
-          partnersLoading={editor.partnersLoading}
-          selectedPartner={editor.selectedPartner}
-          setSelectedPartner={editor.setSelectedPartner}
-          moveLayerUp={editor.moveLayerUp}
-          moveLayerDown={editor.moveLayerDown}
-          toggleLayerVisibility={editor.toggleLayerVisibility}
-          deleteSelectedLayer={editor.deleteSelectedLayer}
-          handleSave={editor.handleSave}
-          isSaving={editor.isSaving}
-        />
+        {/* Sidebar */}
+        <div
+          className={clsx(
+            isMobileLayout
+              ? "order-1 w-full"
+              : "order-2 w-[360px] flex-shrink-0 h-full"
+          )}
+        >
+          <EditorSidebar
+            isMobileLayout={isMobileLayout}
+            sidebarExpanded={editor.sidebarExpanded}
+            setSidebarExpanded={editor.setSidebarExpanded}
+            product={product}
+            design={editor.design}
+            setDesign={editor.setDesign}
+            badgePreferences={editor.badgePreferences}
+            onEditPreferences={() => editor.setShowNameModal(true)}
+            activeTool={editor.activeTool}
+            setActiveTool={editor.setActiveTool}
+            fileInputRef={editor.fileInputRef}
+            addImageLayer={editor.addImageLayer}
+            addTextLayer={editor.addTextLayer}
+            externalMaterials={editor.externalMaterials}
+            materialsLoading={editor.materialsLoading}
+            materialsError={editor.materialsError}
+            selectedMaterial={editor.selectedMaterial}
+            setSelectedMaterial={editor.setSelectedMaterial}
+            showOnboarding={editor.showOnboarding}
+            onboardingSteps={editor.onboardingSteps}
+            onboardingStep={editor.onboardingStep}
+            handleNextStep={editor.handleNextStep}
+            handlePrevStep={editor.handlePrevStep}
+            handleSkipOnboarding={editor.handleSkipOnboarding}
+            updateLayer={editor.updateLayer}
+            externalPartners={editor.externalPartners}
+            partnersLoading={editor.partnersLoading}
+            selectedPartner={editor.selectedPartner}
+            setSelectedPartner={editor.setSelectedPartner}
+            moveLayerUp={editor.moveLayerUp}
+            moveLayerDown={editor.moveLayerDown}
+            toggleLayerVisibility={editor.toggleLayerVisibility}
+            deleteSelectedLayer={editor.deleteSelectedLayer}
+            handleSave={editor.handleSave}
+            isSaving={editor.isSaving}
+          />
+        </div>
       </div>
 
       {/* Detail Modals */}

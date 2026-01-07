@@ -9,10 +9,99 @@ import {
     CursorArrowRays,
     XMark,
 } from "@medusajs/icons"
-import { DesignLayer, DesignState, DesignProduct } from "../types"
+import {
+    BadgeCategory,
+    BadgeOption,
+    BadgePreferences,
+    DesignLayer,
+    DesignState,
+    DesignProduct,
+    MultiBadgeCategory,
+    SingleBadgeCategory,
+} from "../types"
 import { LayerProperties } from "./layer-properties"
 import OnboardingOverlay from "./onboarding-overlay"
 import { RawMaterial } from "@lib/data/raw-materials"
+
+const badgeSections: Array<{
+    key: BadgeCategory
+    title: string
+    description: string
+}> = [
+    {
+        key: "style",
+        title: "Style DNA",
+        description: "Pick the aesthetic closest to your idea.",
+    },
+    {
+        key: "colorPalette",
+        title: "Color Direction",
+        description: "Select the hues you’d like to explore.",
+    },
+    {
+        key: "bodyType",
+        title: "Body Type",
+        description: "Helps us tailor silhouettes to fit best.",
+    },
+    {
+        key: "silhouette",
+        title: "Silhouette Focus",
+        description: "Overall shape or drape inspiration.",
+    },
+    {
+        key: "embellishment",
+        title: "Embellishment",
+        description: "Preferred level of detail or texture.",
+    },
+    {
+        key: "occasion",
+        title: "Occasion",
+        description: "Where will this piece be worn?",
+    },
+]
+
+const BADGE_OPTIONS: Record<BadgeCategory, BadgeOption[]> = {
+    style: [
+        { label: "Minimal", value: "minimal" },
+        { label: "Boho", value: "boho" },
+        { label: "Avant-garde", value: "avant_garde" },
+        { label: "Classic", value: "classic" },
+        { label: "Streetwear", value: "streetwear" },
+    ],
+    colorPalette: [
+        { label: "Monochrome", value: "mono", swatch: "#0f172a" },
+        { label: "Earth", value: "earth", swatch: "#9a6b4f" },
+        { label: "Pastels", value: "pastel", swatch: "#f5cde0" },
+        { label: "Bold Pop", value: "bold", swatch: "#f97316" },
+        { label: "Neutrals", value: "neutral", swatch: "#d4d4d8" },
+    ],
+    bodyType: [
+        { label: "Petite", value: "petite" },
+        { label: "Tall", value: "tall" },
+        { label: "Curvy", value: "curvy" },
+        { label: "Athletic", value: "athletic" },
+    ],
+    silhouette: [
+        { label: "A-line", value: "aline" },
+        { label: "Column", value: "column" },
+        { label: "Oversized", value: "oversized" },
+        { label: "Structured", value: "structured" },
+    ],
+    embellishment: [
+        { label: "Clean", value: "clean", helper: "Little-to-no detail" },
+        { label: "Balanced", value: "balanced", helper: "Select accents" },
+        { label: "Maximal", value: "maximal", helper: "Statement flourishes" },
+    ],
+    occasion: [
+        { label: "Daily", value: "daily" },
+        { label: "Workwear", value: "work" },
+        { label: "Celebration", value: "celebration" },
+        { label: "Wedding", value: "wedding" },
+        { label: "Resort", value: "resort" },
+    ],
+}
+
+const multiSelectCategories: MultiBadgeCategory[] = ["colorPalette", "occasion"]
 
 type EditorSidebarProps = {
     isMobileLayout: boolean
@@ -21,6 +110,8 @@ type EditorSidebarProps = {
     product: DesignProduct
     design: DesignState
     setDesign: React.Dispatch<React.SetStateAction<DesignState>>
+    badgePreferences: BadgePreferences
+    onEditPreferences: () => void
     activeTool: "select" | "pan"
     setActiveTool: React.Dispatch<React.SetStateAction<"select" | "pan">>
     fileInputRef: React.RefObject<HTMLInputElement | null>
@@ -70,6 +161,8 @@ export function EditorSidebar({
     product,
     design,
     setDesign,
+    badgePreferences,
+    onEditPreferences,
     activeTool,
     setActiveTool,
     fileInputRef,
@@ -110,6 +203,107 @@ export function EditorSidebar({
         }
     }
 
+    const normalizedBadges = React.useMemo<BadgePreferences>(
+        () => ({
+            style: badgePreferences?.style ?? null,
+            colorPalette: Array.isArray(badgePreferences?.colorPalette)
+                ? badgePreferences!.colorPalette.filter(Boolean)
+                : [],
+            bodyType: badgePreferences?.bodyType ?? null,
+            silhouette: badgePreferences?.silhouette ?? null,
+            embellishment: badgePreferences?.embellishment ?? null,
+            occasion: Array.isArray(badgePreferences?.occasion)
+                ? badgePreferences!.occasion.filter(Boolean)
+                : [],
+        }),
+        [badgePreferences]
+    )
+
+    const preferenceItems = React.useMemo(
+        () => [
+            { label: "Style", values: normalizedBadges.style ? [normalizedBadges.style] : [] },
+            { label: "Body", values: normalizedBadges.bodyType ? [normalizedBadges.bodyType] : [] },
+            { label: "Silhouette", values: normalizedBadges.silhouette ? [normalizedBadges.silhouette] : [] },
+            { label: "Embellishment", values: normalizedBadges.embellishment ? [normalizedBadges.embellishment] : [] },
+            {
+                label: "Colors",
+                values: normalizedBadges.colorPalette,
+            },
+            {
+                label: "Occasion",
+                values: normalizedBadges.occasion,
+            },
+        ],
+        [normalizedBadges]
+    )
+
+    const hasPreferences = preferenceItems.some((item) => item.values.length > 0)
+
+    const PreferenceSummaryCard = ({ className }: { className?: string }) => (
+        <div
+            className={clsx(
+                "rounded-2xl border border-ui-border-base bg-white/90 p-4 shadow-sm backdrop-blur",
+                className
+            )}
+        >
+            <div className="mb-3 flex items-center justify-between gap-2">
+                <div>
+                    <Text weight="plus" size="small" className="text-gray-900">
+                        Design profile
+                    </Text>
+                    <Text size="small" className="text-xs text-gray-500">
+                        Guides cost estimates &amp; AI base generation.
+                    </Text>
+                </div>
+                <button
+                    type="button"
+                    onClick={onEditPreferences}
+                    className="rounded-full bg-gray-900 px-3 py-1 text-[11px] font-semibold text-white shadow hover:bg-black"
+                >
+                    Edit
+                </button>
+            </div>
+            {hasPreferences ? (
+                <div className="space-y-3">
+                    {preferenceItems
+                        .filter((item) => item.values.length > 0)
+                        .map((item) => (
+                            <div key={item.label}>
+                                <Text size="small" className="text-[11px] uppercase tracking-wide text-gray-400">
+                                    {item.label}
+                                </Text>
+                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                    {item.values.map((value) => (
+                                        <span
+                                            key={`${item.label}-${value}`}
+                                            className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 shadow-sm"
+                                        >
+                                            {value}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                </div>
+            ) : (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 text-center">
+                    <Text size="small" className="text-xs text-gray-500">
+                        No preferences yet. Add them to improve estimates.
+                    </Text>
+                </div>
+            )}
+        </div>
+    )
+
+    const productDescriptionSnippet = React.useMemo(() => {
+        if (!product.description) return null
+        const trimmed = product.description.trim()
+        if (!trimmed) return null
+        const sentenceEnd = trimmed.indexOf(".")
+        if (sentenceEnd === -1) return trimmed
+        return `${trimmed.slice(0, sentenceEnd + 1)}`
+    }, [product.description])
+
     // --- MOBILE LAYOUT ---
     if (isMobileLayout) {
         return (
@@ -123,6 +317,10 @@ export function EditorSidebar({
                     onSkip={handleSkipOnboarding}
                     isMobile={true}
                 />
+
+                <div className="px-4 pb-4 pt-4">
+                    <PreferenceSummaryCard />
+                </div>
 
                 {/* Mobile Active Tab Overlay (Sheet) */}
                 {mobileActiveTab && (
@@ -335,55 +533,55 @@ export function EditorSidebar({
             />
 
             <div
-                className="relative flex h-full flex-1 rounded-3xl border border-ui-border-base bg-white/95 shadow-2xl backdrop-blur transition-all duration-300"
+                className="relative flex h-full flex-1 overflow-hidden rounded-3xl border border-ui-border-base bg-white/95 shadow-2xl backdrop-blur transition-all duration-300"
                 style={{
-                    transform: 'translate3d(0, 0, 0)',
-                    WebkitTransform: 'translate3d(0, 0, 0)',
-                    willChange: 'transform',
-                    isolation: 'isolate',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    backdropFilter: 'blur(12px)',
+                    transform: "translate3d(0, 0, 0)",
+                    WebkitTransform: "translate3d(0, 0, 0)",
+                    willChange: "transform",
+                    isolation: "isolate",
+                    WebkitBackdropFilter: "blur(12px)",
+                    backdropFilter: "blur(12px)",
                 }}
             >
-                <div className="flex flex-shrink-0 items-center justify-between border-b px-4 py-3">
-                    <div className="flex-1">
-                        <Text weight="plus" size="small" className="text-gray-900">
-                            {sectionLabels[activeSection]}
-                        </Text>
-                        <Text size="small" className="text-xs text-gray-400">
-                            Design Tools
-                        </Text>
+                <div className="flex h-full w-full flex-col">
+                    <div className="flex flex-shrink-0 items-center justify-between border-b px-4 py-3 bg-white/95 backdrop-blur-sm">
+                        <div className="flex-1">
+                            <Text weight="plus" size="small" className="text-gray-900">
+                                {sectionLabels[activeSection]}
+                            </Text>
+                            <Text size="small" className="text-xs text-gray-400">
+                                Design Tools
+                            </Text>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${isSaving
+                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                    : "bg-black text-white hover:bg-gray-800"
+                                    }`}
+                            >
+                                {isSaving ? "Saving..." : "Save"}
+                            </button>
+                            <button onClick={() => setSidebarExpanded((prev) => !prev)} className="text-gray-400 hover:text-black">
+                                <ArrowsPointingOutMini className={`h-4 w-4 transition-transform ${sidebarExpanded ? "rotate-45" : ""}`} />
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isSaving
-                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                : "bg-black text-white hover:bg-gray-800"
-                                }`}
-                        >
-                            {isSaving ? "Saving..." : "Save"}
-                        </button>
-                        <button onClick={() => setSidebarExpanded((prev) => !prev)} className="text-gray-400 hover:text-black">
-                            <ArrowsPointingOutMini className={`h-4 w-4 transition-transform ${sidebarExpanded ? "rotate-45" : ""}`} />
-                        </button>
-                    </div>
-                </div>
 
-                {sidebarExpanded && (
-                    <div className="flex-1 flex flex-col">
-                        {(selectedMaterial || selectedPartner) && (
-                            <div className="border-b border-ui-border-base bg-white/90 px-4 py-3 backdrop-blur-sm">
-                                <div className="space-y-3">
-                                    {selectedMaterial && (
-                                        <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3 shadow-inner">
-                                            <div className="flex items-start justify-between gap-3">
+                    {sidebarExpanded ? (
+                        <div className="flex flex-1 flex-col overflow-hidden">
+                            {(selectedMaterial || selectedPartner) && (
+                                <div className="flex-shrink-0 border-b border-ui-border-base bg-white px-4 py-3">
+                                    <div className="flex flex-col gap-2">
+                                        {selectedMaterial && (
+                                            <div className="flex items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-3 py-2">
                                                 <div className="min-w-0">
                                                     <Text weight="plus" size="small" className="truncate text-blue-900">
                                                         {selectedMaterial.name || selectedMaterial.material_type?.name || "Selected material"}
                                                     </Text>
-                                                    <Text size="small" className="text-xs text-blue-700">
+                                                    <Text size="small" className="text-[11px] text-blue-700">
                                                         {selectedMaterial.material_type?.category || "Material selection"}
                                                     </Text>
                                                 </div>
@@ -395,16 +593,14 @@ export function EditorSidebar({
                                                     <XMark className="h-4 w-4" />
                                                 </button>
                                             </div>
-                                        </div>
-                                    )}
-                                    {selectedPartner && (
-                                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 shadow-inner">
-                                            <div className="flex items-start justify-between gap-3">
+                                        )}
+                                        {selectedPartner && (
+                                            <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-3 py-2">
                                                 <div className="min-w-0">
                                                     <Text weight="plus" size="small" className="truncate text-emerald-900">
                                                         {selectedPartner.company_name || selectedPartner.name || "Selected partner"}
                                                     </Text>
-                                                    <Text size="small" className="text-xs text-emerald-700">
+                                                    <Text size="small" className="text-[11px] text-emerald-700">
                                                         {selectedPartner.location || "Production partner"}
                                                     </Text>
                                                 </div>
@@ -416,347 +612,357 @@ export function EditorSidebar({
                                                     <XMark className="h-4 w-4" />
                                                 </button>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                        <div
-                            ref={scrollContainerRef}
-                            className="flex-1 overflow-y-auto px-1"
-                            style={{ maxHeight: "calc(100vh - 220px)", overscrollBehavior: "contain" }}
-                        >
-                        {/* Product Section */}
-                        <section ref={sectionRefs.product} data-section-id="product">
-                            <Text size="small" weight="plus" className="mb-2 px-4 pt-4 text-xs uppercase tracking-wide text-gray-500">
-                                Base Product
-                            </Text>
-                            <div className="px-4 pb-4">
-                                <div className="rounded-2xl border border-ui-border-base bg-gray-50 p-4">
-                                    <Text weight="plus" className="text-gray-900">
-                                        {product.title}
-                                    </Text>
-                                    {product.description && (
-                                        <Text size="small" className="mt-1 text-gray-600">
-                                            {product.description}
-                                        </Text>
-                                    )}
-                                </div>
-                            </div>
-                        </section>
-
-                        {/* Tools Section */}
-                        <section ref={sectionRefs.tools} data-section-id="tools">
-                            <Text size="small" weight="plus" className="mb-2 px-4 pt-2 text-xs uppercase tracking-wide text-gray-500">
-                                Canvas Tools
-                            </Text>
-                            <div className="px-4 pb-4">
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setActiveTool("select")}
-                                        className={clsx(
-                                            "flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
-                                            activeTool === "select"
-                                                ? "border-black bg-black text-white"
-                                                : "border-ui-border-base bg-gray-50 hover:bg-gray-100"
                                         )}
-                                    >
-                                        Select
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTool("pan")}
-                                        className={clsx(
-                                            "flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
-                                            activeTool === "pan"
-                                                ? "border-black bg-black text-white"
-                                                : "border-ui-border-base bg-gray-50 hover:bg-gray-100"
-                                        )}
-                                    >
-                                        Pan
-                                    </button>
+                                    </div>
                                 </div>
-                            </div>
-                        </section>
+                            )}
 
-                        {/* Add Section */}
-                        <section ref={sectionRefs.add} data-section-id="add">
-                            <Text size="small" weight="plus" className="mb-2 px-4 pt-2 text-xs uppercase tracking-wide text-gray-500">
-                                Add Elements
-                            </Text>
-                            <div className="px-4 pb-4 grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors"
-                                >
-                                    + Image
-                                </button>
-                                <button
-                                    onClick={addTextLayer}
-                                    className="rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-medium text-purple-700 hover:bg-purple-100 transition-colors"
-                                >
-                                    + Text
-                                </button>
-                            </div>
-                        </section>
-
-                        {/* Materials Section */}
-                        <section ref={sectionRefs.materials} data-section-id="materials">
-                            <div className="flex items-center justify-between px-4 pt-2">
-                                <Text size="small" weight="plus" className="text-xs uppercase tracking-wide text-gray-500">
-                                    Materials
-                                </Text>
-                                {materialsLoading && (
-                                    <Text size="small" className="text-[10px] text-gray-400">
-                                        Loading…
-                                    </Text>
-                                )}
-                            </div>
-                            <div className="px-4 pb-4">
-                                {materialsError && (
-                                    <Text size="small" className="text-xs text-red-500">
-                                        {materialsError}
-                                    </Text>
-                                )}
-                                {!materialsLoading && externalMaterials.length > 0 && (
-                                    <TooltipProvider>
-                                        <div className="grid grid-cols-4 gap-2">
-                                            {externalMaterials.map((material) => {
-                                                const mediaArray = Array.isArray(material.media) ? material.media : []
-                                                const thumbnail =
-                                                    mediaArray.find((m: any) => m.isThumbnail)?.url || mediaArray[0]?.url
-                                                const isSelected = selectedMaterial?.id === material.id
-
-                                                return (
-                                                    <Tooltip key={material.id} content={material.name || "Material"}>
-                                                        <button
-                                                            onClick={() => setSelectedMaterial(isSelected ? null : material)}
-                                                            className={clsx(
-                                                                "relative aspect-square rounded-xl border-2 transition-all",
-                                                                isSelected
-                                                                    ? "border-blue-500 ring-2 ring-blue-200"
-                                                                    : "border-transparent hover:border-gray-200"
-                                                            )}
-                                                        >
-                                                            {thumbnail ? (
-                                                                <img
-                                                                    src={thumbnail}
-                                                                    alt={material.name || "Material"}
-                                                                    className="h-full w-full rounded-lg object-cover"
-                                                                />
-                                                            ) : (
-                                                                <div
-                                                                    className="flex h-full w-full items-center justify-center rounded-lg bg-gray-50"
-                                                                    style={{ backgroundColor: material.color || "#f3f4f6" }}
-                                                                >
-                                                                    🧵
-                                                                </div>
-                                                            )}
-                                                        </button>
-                                                    </Tooltip>
-                                                )
-                                            })}
-                                        </div>
-                                    </TooltipProvider>
-                                )}
-
-                                {selectedMaterial && (
-                                    <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <Text weight="plus" size="small">
-                                                    {selectedMaterial.name || selectedMaterial.material_type?.name}
+                            <div
+                                ref={scrollContainerRef}
+                                className="flex-1 overflow-y-auto px-1"
+                                style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
+                            >
+                                <div className="space-y-6 pb-8">
+                                    {/* Product / Design Profile Section */}
+                                    <section ref={sectionRefs.product} data-section-id="product">
+                                        <div className="px-4 pt-4 space-y-3">
+                                            <div className="rounded-2xl border border-ui-border-base bg-white/95 p-4 shadow-sm">
+                                                <Text size="small" className="text-[11px] uppercase tracking-wide text-gray-400">
+                                                    Base product
                                                 </Text>
-                                                <Text size="small" className="text-xs text-gray-500">
-                                                    {selectedMaterial.material_type?.category || "Material"}
+                                                <Text weight="plus" className="text-gray-900">
+                                                    {product.title}
                                                 </Text>
-                                            </div>
-                                            <button
-                                                onClick={() => setSelectedMaterial(null)}
-                                                className="text-gray-400 hover:text-red-500"
-                                            >
-                                                <XMark className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </section>
-
-                        {/* Partners Section */}
-                        <section ref={sectionRefs.partners} data-section-id="partners">
-                            <div className="flex items-center justify-between px-4 pt-2">
-                                <Text size="small" weight="plus" className="text-xs uppercase tracking-wide text-gray-500">
-                                    Production Partners
-                                </Text>
-                                {partnersLoading && (
-                                    <Text size="small" className="text-[10px] text-gray-400">
-                                        Loading…
-                                    </Text>
-                                )}
-                            </div>
-                            <div className="px-4 pb-4">
-                                {!partnersLoading && externalPartners.length > 0 && (
-                                    <TooltipProvider>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {externalPartners.map((partner) => {
-                                                const isSelected = selectedPartner?.id === partner.id
-                                                return (
-                                                    <Tooltip key={partner.id} content={partner.company_name || partner.name || "Partner"}>
-                                                        <button
-                                                            onClick={() => setSelectedPartner(isSelected ? null : partner)}
-                                                            className={clsx(
-                                                                "relative rounded-xl border-2 p-3 text-left transition-all",
-                                                                isSelected
-                                                                    ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                                                                    : "border-transparent bg-gray-50 hover:border-gray-200"
-                                                            )}
-                                                        >
-                                                            <Text weight="plus" size="small" className="truncate">
-                                                                {partner.company_name || partner.name}
-                                                            </Text>
-                                                            {partner.location && (
-                                                                <Text size="small" className="text-xs text-gray-500 truncate">
-                                                                    {partner.location}
-                                                                </Text>
-                                                            )}
-                                                        </button>
-                                                    </Tooltip>
-                                                )
-                                            })}
-                                        </div>
-                                    </TooltipProvider>
-                                )}
-
-                                {selectedPartner && (
-                                    <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <Text weight="plus" size="small">
-                                                    {selectedPartner.company_name || selectedPartner.name}
-                                                </Text>
-                                                <Text size="small" className="text-xs text-gray-500">
-                                                    {selectedPartner.location || "Production Partner"}
-                                                </Text>
-                                            </div>
-                                            <button
-                                                onClick={() => setSelectedPartner(null)}
-                                                className="text-gray-400 hover:text-red-500"
-                                            >
-                                                <XMark className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </section>
-
-                        {/* Layers Section */}
-                        <section ref={sectionRefs.layers} data-section-id="layers">
-                            <Text size="small" weight="plus" className="mb-2 px-4 pt-2 text-xs uppercase tracking-wide text-gray-500">
-                                All Layers
-                            </Text>
-                            <div className="px-4 pb-4">
-                                {design.layers.length === 0 ? (
-                                    <Text size="small" className="text-xs text-gray-500">
-                                        No layers yet. Add text or images to get started.
-                                    </Text>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {design.layers.map((layer, index) => (
-                                            <div
-                                                key={layer.id}
-                                                onClick={() => setDesign(prev => ({ ...prev, selectedId: layer.id }))}
-                                                className={clsx(
-                                                    "flex items-center gap-2 rounded-xl border p-2 cursor-pointer transition-all",
-                                                    design.selectedId === layer.id
-                                                        ? "border-blue-500 bg-blue-50"
-                                                        : "border-gray-200 bg-gray-50 hover:border-gray-300"
+                                                {productDescriptionSnippet && (
+                                                    <Text size="small" className="mt-1 text-gray-600 line-clamp-2">
+                                                        {productDescriptionSnippet}
+                                                    </Text>
                                                 )}
-                                            >
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        toggleLayerVisibility(layer.id)
-                                                    }}
-                                                    className="text-gray-400 hover:text-gray-600"
-                                                >
-                                                    {layer.opacity === 0 ? "👁️‍🗨️" : "👁️"}
-                                                </button>
-                                                <div className="flex-1 min-w-0">
-                                                    <Text size="small" weight="plus" className="truncate">
-                                                        {layer.type === "text" ? layer.text : `Image ${index + 1}`}
-                                                    </Text>
-                                                    <Text size="small" className="text-xs text-gray-500">
-                                                        {layer.type}
-                                                    </Text>
-                                                </div>
-                                                <div className="flex gap-1">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            setDesign(prev => ({ ...prev, selectedId: layer.id }))
-                                                            moveLayerUp()
-                                                        }}
-                                                        disabled={index === design.layers.length - 1}
-                                                        className="text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                                                    >
-                                                        ↑
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            setDesign(prev => ({ ...prev, selectedId: layer.id }))
-                                                            moveLayerDown()
-                                                        }}
-                                                        disabled={index === 0}
-                                                        className="text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                                                    >
-                                                        ↓
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            setDesign(prev => ({ ...prev, selectedId: layer.id }))
-                                                            deleteSelectedLayer()
-                                                        }}
-                                                        className="text-gray-400 hover:text-red-500"
-                                                    >
-                                                        <XMark className="h-3 w-3" />
-                                                    </button>
-                                                </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </section>
+                                            <PreferenceSummaryCard />
+                                        </div>
+                                    </section>
 
-                        {/* Properties Section */}
-                        <section ref={sectionRefs.properties} data-section-id="properties">
-                            <Text size="small" weight="plus" className="mb-2 px-4 pt-2 text-xs uppercase tracking-wide text-gray-500">
-                                Properties
-                            </Text>
-                            <div className="px-4 pb-4">
-                                {design.selectedId ? (
-                                    (() => {
-                                        const layer = design.layers.find((l) => l.id === design.selectedId)
-                                        if (!layer) return null
-                                        return (
-                                            <div className="rounded-2xl border border-ui-border-base bg-gray-50 p-4">
-                                                <LayerProperties layer={layer} onChange={updateLayer} />
+                                    {/* Tools Section */}
+                                    <section ref={sectionRefs.tools} data-section-id="tools">
+                                        <Text size="small" weight="plus" className="mb-2 px-4 text-xs uppercase tracking-wide text-gray-500">
+                                            Canvas Tools
+                                        </Text>
+                                        <div className="px-4">
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setActiveTool("select")}
+                                                    className={clsx(
+                                                        "flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
+                                                        activeTool === "select"
+                                                            ? "border-black bg-black text-white"
+                                                            : "border-ui-border-base bg-gray-50 hover:bg-gray-100"
+                                                    )}
+                                                >
+                                                    Select
+                                                </button>
+                                                <button
+                                                    onClick={() => setActiveTool("pan")}
+                                                    className={clsx(
+                                                        "flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
+                                                        activeTool === "pan"
+                                                            ? "border-black bg-black text-white"
+                                                            : "border-ui-border-base bg-gray-50 hover:bg-gray-100"
+                                                    )}
+                                                >
+                                                    Pan
+                                                </button>
                                             </div>
-                                        )
-                                    })()
-                                ) : (
-                                    <Text size="small" className="text-xs text-gray-500">
-                                        Select an element on the canvas to edit its properties.
-                                    </Text>
-                                )}
+                                        </div>
+                                    </section>
+
+                                    {/* Add Section */}
+                                    <section ref={sectionRefs.add} data-section-id="add">
+                                        <Text size="small" weight="plus" className="mb-2 px-4 pt-2 text-xs uppercase tracking-wide text-gray-500">
+                                            Add Elements
+                                        </Text>
+                                        <div className="px-4 pb-4 grid grid-cols-2 gap-3">
+                                            <button
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                                            >
+                                                + Image
+                                            </button>
+                                            <button
+                                                onClick={addTextLayer}
+                                                className="rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                                            >
+                                                + Text
+                                            </button>
+                                        </div>
+                                    </section>
+
+                                    {/* Materials Section */}
+                                    <section ref={sectionRefs.materials} data-section-id="materials">
+                                        <div className="flex items-center justify-between px-4 pt-2">
+                                            <Text size="small" weight="plus" className="text-xs uppercase tracking-wide text-gray-500">
+                                                Materials
+                                            </Text>
+                                            {materialsLoading && (
+                                                <Text size="small" className="text-[10px] text-gray-400">
+                                                    Loading…
+                                                </Text>
+                                            )}
+                                        </div>
+                                        <div className="px-4 pb-4">
+                                            {materialsError && (
+                                                <Text size="small" className="text-xs text-red-500">
+                                                    {materialsError}
+                                                </Text>
+                                            )}
+                                            {!materialsLoading && externalMaterials.length > 0 && (
+                                                <TooltipProvider>
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        {externalMaterials.map((material) => {
+                                                            const mediaArray = Array.isArray(material.media) ? material.media : []
+                                                            const thumbnail =
+                                                                mediaArray.find((m: any) => m.isThumbnail)?.url || mediaArray[0]?.url
+                                                            const isSelected = selectedMaterial?.id === material.id
+
+                                                            return (
+                                                                <Tooltip key={material.id} content={material.name || "Material"}>
+                                                                    <button
+                                                                        onClick={() => setSelectedMaterial(isSelected ? null : material)}
+                                                                        className={clsx(
+                                                                            "relative aspect-square rounded-xl border-2 transition-all",
+                                                                            isSelected
+                                                                                ? "border-blue-500 ring-2 ring-blue-200"
+                                                                                : "border-transparent hover:border-gray-200"
+                                                                        )}
+                                                                    >
+                                                                        {thumbnail ? (
+                                                                            <img
+                                                                                src={thumbnail}
+                                                                                alt={material.name || "Material"}
+                                                                                className="h-full w-full rounded-lg object-cover"
+                                                                            />
+                                                                        ) : (
+                                                                            <div
+                                                                                className="flex h-full w-full items-center justify-center rounded-lg bg-gray-50"
+                                                                                style={{ backgroundColor: material.color || "#f3f4f6" }}
+                                                                            >
+                                                                                🧵
+                                                                            </div>
+                                                                        )}
+                                                                    </button>
+                                                                </Tooltip>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </TooltipProvider>
+                                            )}
+
+                                            {selectedMaterial && (
+                                                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <Text weight="plus" size="small">
+                                                                {selectedMaterial.name || selectedMaterial.material_type?.name}
+                                                            </Text>
+                                                            <Text size="small" className="text-xs text-gray-500">
+                                                                {selectedMaterial.material_type?.category || "Material"}
+                                                            </Text>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setSelectedMaterial(null)}
+                                                            className="text-gray-400 hover:text-red-500"
+                                                        >
+                                                            <XMark className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+
+                                    {/* Partners Section */}
+                                    <section ref={sectionRefs.partners} data-section-id="partners">
+                                        <div className="flex items-center justify-between px-4 pt-2">
+                                            <Text size="small" weight="plus" className="text-xs uppercase tracking-wide text-gray-500">
+                                                Production Partners
+                                            </Text>
+                                            {partnersLoading && (
+                                                <Text size="small" className="text-[10px] text-gray-400">
+                                                    Loading…
+                                                </Text>
+                                            )}
+                                        </div>
+                                        <div className="px-4 pb-4">
+                                            {!partnersLoading && externalPartners.length > 0 && (
+                                                <TooltipProvider>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {externalPartners.map((partner) => {
+                                                            const isSelected = selectedPartner?.id === partner.id
+                                                            return (
+                                                                <Tooltip key={partner.id} content={partner.company_name || partner.name || "Partner"}>
+                                                                    <button
+                                                                        onClick={() => setSelectedPartner(isSelected ? null : partner)}
+                                                                        className={clsx(
+                                                                            "relative rounded-xl border-2 p-3 text-left transition-all",
+                                                                            isSelected
+                                                                                ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
+                                                                                : "border-transparent bg-gray-50 hover:border-gray-200"
+                                                                        )}
+                                                                    >
+                                                                        <Text weight="plus" size="small" className="truncate">
+                                                                            {partner.company_name || partner.name}
+                                                                        </Text>
+                                                                        {partner.location && (
+                                                                            <Text size="small" className="text-xs text-gray-500 truncate">
+                                                                                {partner.location}
+                                                                            </Text>
+                                                                        )}
+                                                                    </button>
+                                                                </Tooltip>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </TooltipProvider>
+                                            )}
+
+                                            {selectedPartner && (
+                                                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <Text weight="plus" size="small">
+                                                                {selectedPartner.company_name || selectedPartner.name}
+                                                            </Text>
+                                                            <Text size="small" className="text-xs text-gray-500">
+                                                                {selectedPartner.location || "Production Partner"}
+                                                            </Text>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setSelectedPartner(null)}
+                                                            className="text-gray-400 hover:text-red-500"
+                                                        >
+                                                            <XMark className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+
+                                    {/* Layers Section */}
+                                    <section ref={sectionRefs.layers} data-section-id="layers">
+                                        <Text size="small" weight="plus" className="mb-2 px-4 pt-2 text-xs uppercase tracking-wide text-gray-500">
+                                            All Layers
+                                        </Text>
+                                        <div className="px-4 pb-4">
+                                            {design.layers.length === 0 ? (
+                                                <Text size="small" className="text-xs text-gray-500">
+                                                    No layers yet. Add text or images to get started.
+                                                </Text>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {design.layers.map((layer, index) => (
+                                                        <div
+                                                            key={layer.id}
+                                                            onClick={() => setDesign(prev => ({ ...prev, selectedId: layer.id }))}
+                                                            className={clsx(
+                                                                "flex items-center gap-2 rounded-xl border p-2 cursor-pointer transition-all",
+                                                                design.selectedId === layer.id
+                                                                    ? "border-blue-500 bg-blue-50"
+                                                                    : "border-gray-200 bg-gray-50 hover:border-gray-300"
+                                                            )}
+                                                        >
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    toggleLayerVisibility(layer.id)
+                                                                }}
+                                                                className="text-gray-400 hover:text-gray-600"
+                                                            >
+                                                                {layer.opacity === 0 ? "👁️‍🗨️" : "👁️"}
+                                                            </button>
+                                                            <div className="flex-1 min-w-0">
+                                                                <Text size="small" weight="plus" className="truncate">
+                                                                    {layer.type === "text" ? layer.text : `Image ${index + 1}`}
+                                                                </Text>
+                                                                <Text size="small" className="text-xs text-gray-500">
+                                                                    {layer.type}
+                                                                </Text>
+                                                            </div>
+                                                            <div className="flex gap-1">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        setDesign(prev => ({ ...prev, selectedId: layer.id }))
+                                                                        moveLayerUp()
+                                                                    }}
+                                                                    disabled={index === design.layers.length - 1}
+                                                                    className="text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                                                                >
+                                                                    ↑
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        setDesign(prev => ({ ...prev, selectedId: layer.id }))
+                                                                        moveLayerDown()
+                                                                    }}
+                                                                    disabled={index === 0}
+                                                                    className="text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                                                                >
+                                                                    ↓
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        setDesign(prev => ({ ...prev, selectedId: layer.id }))
+                                                                        deleteSelectedLayer()
+                                                                    }}
+                                                                    className="text-gray-400 hover:text-red-500"
+                                                                >
+                                                                    <XMark className="h-3 w-3" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+
+                                    {/* Properties Section */}
+                                    <section ref={sectionRefs.properties} data-section-id="properties">
+                                        <Text size="small" weight="plus" className="mb-2 px-4 pt-2 text-xs uppercase tracking-wide text-gray-500">
+                                            Properties
+                                        </Text>
+                                        <div className="px-4 pb-4">
+                                            {design.selectedId ? (
+                                                (() => {
+                                                    const layer = design.layers.find((l) => l.id === design.selectedId)
+                                                    if (!layer) return null
+                                                    return (
+                                                        <div className="rounded-2xl border border-ui-border-base bg-gray-50 p-4">
+                                                            <LayerProperties layer={layer} onChange={updateLayer} />
+                                                        </div>
+                                                    )
+                                                })()
+                                            ) : (
+                                                <Text size="small" className="text-xs text-gray-500">
+                                                    Select an element on the canvas to edit its properties.
+                                                </Text>
+                                            )}
+                                        </div>
+                                    </section>
+                                </div>
                             </div>
-                        </section>
                         </div>
-                    </div>
-                )}
+                    ) : (
+                        <div className="flex flex-1 items-center justify-center px-4 text-center">
+                            <Text size="small" className="text-xs text-gray-500">
+                                Sidebar collapsed. Expand to view design tools.
+                            </Text>
+                        </div>
+                    )}
+                </div>
             </div>
         </>
     )

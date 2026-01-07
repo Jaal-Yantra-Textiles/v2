@@ -77,3 +77,24 @@ export type ViewState = {
   x: number
   y: number
 }
+
+export type BadgePreferences = {
+  style: string | null
+  colorPalette: string[]
+  bodyType: string | null
+  silhouette: string | null
+  embellishment: string | null
+  occasion: string[]
+}
+
+export type BadgeCategory = keyof BadgePreferences
+
+export type SingleBadgeCategory = Exclude<BadgeCategory, "colorPalette" | "occasion">
+export type MultiBadgeCategory = Extract<BadgeCategory, "colorPalette" | "occasion">
+
+export type BadgeOption = {
+  label: string
+  value: string
+  swatch?: string
+  helper?: string
+}

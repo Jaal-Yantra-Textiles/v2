@@ -2,19 +2,37 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import Konva from "konva"
-import { listRawMaterials, RawMaterial } from "@lib/data/raw-materials"
-import { listPartners, Partner as PartnerData } from "@lib/data/partners"
 import { createDesign, CreateDesignInput } from "@lib/data/designs"
-import { CustomerInfo, DesignProduct, Partner, DesignLayer, DesignState, ViewState } from "../types"
+import {
+    BadgeCategory,
+    BadgePreferences,
+    CustomerInfo,
+    DesignProduct,
+    Partner,
+    DesignLayer,
+    DesignState,
+    ViewState,
+} from "../types"
 import { useImage } from "./use-image"
 import { convertToExcalidraw } from "../utils/excalidraw-converter"
+import { useOnboardingState } from "./modules/use-onboarding"
+import { useDesignDrafts } from "./modules/use-design-drafts"
+import { useExternalResources } from "./modules/use-external-resources"
+import { useDesignHistory } from "./modules/use-design-history"
 
-const DESIGN_DRAFT_KEY = "design_editor_draft"
 const MIN_SCALE = 0.1
 const MAX_SCALE = 5
 const ZOOM_STEP = 0.1
 const CANVAS_EXTEND = 1500
-const ONBOARDING_STORAGE_KEY = "design-editor-onboarding-dismissed"
+
+const BADGE_FLOW_ORDER: BadgeCategory[] = [
+    "style",
+    "colorPalette",
+    "bodyType",
+    "silhouette",
+    "embellishment",
+    "occasion",
+]
 
 type UseDesignEditorProps = {
     product: DesignProduct
@@ -48,29 +66,33 @@ export function useDesignEditor({
     // View state (zoom/pan)
     const [view, setView] = useState<ViewState>({ scale: 1, x: 0, y: 0 })
 
-    // History for undo/redo
-    const [history, setHistory] = useState<DesignState[]>([])
-    const [historyIndex, setHistoryIndex] = useState(-1)
-
     // Sidebar + onboarding states
-    const [sidebarExpanded, setSidebarExpanded] = useState(!isMobileLayout)
-    const [showOnboarding, setShowOnboarding] = useState(true)
-    const [onboardingStep, setOnboardingStep] = useState(0)
+    const {
+        sidebarExpanded,
+        setSidebarExpanded,
+        showOnboarding,
+        onboardingSteps,
+        onboardingStep,
+        handleNextStep,
+        handlePrevStep,
+        handleSkipOnboarding,
+    } = useOnboardingState({ isMobileLayout })
 
-    // Material detail modal state
-    const [selectedMaterial, setSelectedMaterial] = useState<RawMaterial | null>(null)
-    const [showMaterialModal, setShowMaterialModal] = useState(false)
-
-    // External materials from API
-    const [externalMaterials, setExternalMaterials] = useState<RawMaterial[]>([])
-    const [materialsLoading, setMaterialsLoading] = useState(false)
-    const [materialsError, setMaterialsError] = useState<string | null>(null)
-
-    // Partners from API
-    const [externalPartners, setExternalPartners] = useState<Partner[]>([])
-    const [partnersLoading, setPartnersLoading] = useState(false)
-    const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null)
-    const [showPartnerModal, setShowPartnerModal] = useState(false)
+    const {
+        selectedMaterial,
+        setSelectedMaterial,
+        showMaterialModal,
+        setShowMaterialModal,
+        externalMaterials,
+        materialsLoading,
+        materialsError,
+        selectedPartner,
+        setSelectedPartner,
+        showPartnerModal,
+        setShowPartnerModal,
+        externalPartners,
+        partnersLoading,
+    } = useExternalResources()
 
     const [design, setDesign] = useState<DesignState>({
         name: "",
@@ -79,95 +101,129 @@ export function useDesignEditor({
         baseImage: null,
     })
 
+    const defaultBadgePreferences: BadgePreferences = {
+        style: null,
+        colorPalette: [],
+        bodyType: null,
+        silhouette: null,
+        embellishment: null,
+        occasion: [],
+    }
+
+    const [badgePreferences, setBadgePreferences] = useState<BadgePreferences>(defaultBadgePreferences)
+
+    const { historyIndex, recordSnapshot, undo, redo } = useDesignHistory({
+        design,
+        setDesign,
+    })
+
+    const { persistDraftSnapshot, clearDraftSnapshot } = useDesignDrafts({
+        product,
+        design,
+        setDesign,
+        badgePreferences,
+        defaultBadgePreferences,
+        setBadgePreferences,
+        selectedMaterial,
+        setSelectedMaterial,
+        selectedPartner,
+        setSelectedPartner,
+        externalMaterials,
+        externalPartners,
+        setDesignName,
+        setShowNameModal,
+    })
+
+    const [generatedBase, setGeneratedBase] = useState<string | null>(null)
+    const [isGeneratingBase, setIsGeneratingBase] = useState(false)
+
     const [desktopSidebarOffset, setDesktopSidebarOffset] = useState(24)
 
-    // Load base product image
-    const [baseImage, baseImageStatus] = useImage(product.thumbnail || undefined)
+    // Load base product image (prioritize actual thumbnail, otherwise generated fallback)
+    const baseImageSrc = product.thumbnail ?? generatedBase ?? undefined
+    const [baseImage, baseImageStatus] = useImage(baseImageSrc)
 
-    useEffect(() => {
-        if (isMobileLayout) {
-            setSidebarExpanded(false)
-        } else {
-            setSidebarExpanded(true)
-        }
-    }, [isMobileLayout])
-
-    useEffect(() => {
-        if (typeof window === "undefined") {
+    const regenerateBaseImage = useCallback(() => {
+        if (product.thumbnail) {
+            // force reload by clearing generated base state
+            setGeneratedBase(null)
             return
         }
-        const hasDismissed = window.localStorage.getItem(ONBOARDING_STORAGE_KEY)
-        if (hasDismissed === "true") {
-            setShowOnboarding(false)
-        }
-    }, [])
+        if (isGeneratingBase) return
+        if (typeof window === "undefined") return
 
-    const onboardingSteps = [
-        {
-            title: "Choose your base",
-            description: "Start with a silhouette from our ready-to-tailor collection to anchor your idea.",
-        },
-        {
-            title: "Select handloom fabrics",
-            description: "Browse our in-house materials sourced across India and match colors to your story.",
-        },
-        {
-            title: "Assign a production partner",
-            description: "Pick an artisan workshop from our global partner list to bring the piece to life.",
-        },
-    ]
-
-    const dismissOnboarding = useCallback(() => {
-        setShowOnboarding(false)
-        if (typeof window !== "undefined") {
+        setIsGeneratingBase(true)
+        requestAnimationFrame(() => {
             try {
-                window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "true")
-            } catch (error) {
-                console.warn("Unable to persist onboarding dismissal", error)
+                const canvas = document.createElement("canvas")
+                const width = 1024
+                const height = 1280
+                canvas.width = width
+                canvas.height = height
+                const ctx = canvas.getContext("2d")
+                if (ctx) {
+                    // background gradient
+                    const gradient = ctx.createLinearGradient(0, 0, width, height)
+                    gradient.addColorStop(0, "#f8fafc")
+                    gradient.addColorStop(1, "#e2e8f0")
+                    ctx.fillStyle = gradient
+                    ctx.fillRect(0, 0, width, height)
+
+                    // central rounded rectangle representing garment
+                    const garmentWidth = width * 0.55
+                    const garmentHeight = height * 0.7
+                    const garmentX = (width - garmentWidth) / 2
+                    const garmentY = (height - garmentHeight) / 2
+                    ctx.fillStyle = "#ffffff"
+                    ctx.strokeStyle = "#cbd5f5"
+                    ctx.lineWidth = 4
+                    const radius = 30
+                    ctx.beginPath()
+                    ctx.moveTo(garmentX + radius, garmentY)
+                    ctx.lineTo(garmentX + garmentWidth - radius, garmentY)
+                    ctx.quadraticCurveTo(garmentX + garmentWidth, garmentY, garmentX + garmentWidth, garmentY + radius)
+                    ctx.lineTo(garmentX + garmentWidth, garmentY + garmentHeight - radius)
+                    ctx.quadraticCurveTo(
+                        garmentX + garmentWidth,
+                        garmentY + garmentHeight,
+                        garmentX + garmentWidth - radius,
+                        garmentY + garmentHeight
+                    )
+                    ctx.lineTo(garmentX + radius, garmentY + garmentHeight)
+                    ctx.quadraticCurveTo(
+                        garmentX,
+                        garmentY + garmentHeight,
+                        garmentX,
+                        garmentY + garmentHeight - radius
+                    )
+                    ctx.lineTo(garmentX, garmentY + radius)
+                    ctx.quadraticCurveTo(garmentX, garmentY, garmentX + radius, garmentY)
+                    ctx.closePath()
+                    ctx.fill()
+                    ctx.stroke()
+
+                    // dashed centerline
+                    ctx.setLineDash([15, 12])
+                    ctx.lineWidth = 2
+                    ctx.strokeStyle = "#94a3b8"
+                    ctx.beginPath()
+                    ctx.moveTo(width / 2, garmentY + 20)
+                    ctx.lineTo(width / 2, garmentY + garmentHeight - 20)
+                    ctx.stroke()
+                }
+                const dataUrl = canvas.toDataURL("image/png")
+                setGeneratedBase(dataUrl)
+            } finally {
+                setIsGeneratingBase(false)
             }
-        }
-    }, [])
-
-    const handleNextStep = () => {
-        if (onboardingStep < onboardingSteps.length - 1) {
-            setOnboardingStep((prev) => prev + 1)
-        } else {
-            dismissOnboarding()
-        }
-    }
-
-    const handlePrevStep = () => {
-        setOnboardingStep((prev) => Math.max(prev - 1, 0))
-    }
-
-    const handleSkipOnboarding = useCallback(() => {
-        dismissOnboarding()
-    }, [dismissOnboarding])
-
-    // Save to history when design changes
-    const saveToHistory = useCallback((newDesign: DesignState) => {
-        setHistory(prev => {
-            const newHistory = prev.slice(0, historyIndex + 1)
-            return [...newHistory, newDesign]
         })
-        setHistoryIndex(prev => prev + 1)
-    }, [historyIndex])
+    }, [isGeneratingBase, product.thumbnail])
 
-    // Undo
-    const undo = useCallback(() => {
-        if (historyIndex > 0) {
-            setHistoryIndex(prev => prev - 1)
-            setDesign(history[historyIndex - 1])
+    useEffect(() => {
+        if (!product.thumbnail && !generatedBase && !isGeneratingBase) {
+            regenerateBaseImage()
         }
-    }, [history, historyIndex])
-
-    // Redo
-    const redo = useCallback(() => {
-        if (historyIndex < history.length - 1) {
-            setHistoryIndex(prev => prev + 1)
-            setDesign(history[historyIndex + 1])
-        }
-    }, [history, historyIndex])
+    }, [generatedBase, isGeneratingBase, product.thumbnail, regenerateBaseImage])
 
     // Update sizes on resize
     useEffect(() => {
@@ -190,42 +246,6 @@ export function useDesignEditor({
         setTimeout(updateSize, 100)
         window.addEventListener("resize", updateSize)
         return () => window.removeEventListener("resize", updateSize)
-    }, [])
-
-    // Fetch external materials from store API
-    useEffect(() => {
-        const fetchMaterials = async () => {
-            setMaterialsLoading(true)
-            setMaterialsError(null)
-            try {
-                const { raw_materials } = await listRawMaterials({ limit: 50 })
-                setExternalMaterials(raw_materials)
-            } catch (error) {
-                console.error("Error fetching materials:", error)
-                setMaterialsError(error instanceof Error ? error.message : "Failed to load materials")
-            } finally {
-                setMaterialsLoading(false)
-            }
-        }
-
-        fetchMaterials()
-    }, [])
-
-    // Fetch partners from store API
-    useEffect(() => {
-        const fetchPartners = async () => {
-            setPartnersLoading(true)
-            try {
-                const { partners } = await listPartners({ limit: 20 })
-                setExternalPartners(partners as Partner[])
-            } catch (error) {
-                console.error("Error fetching partners:", error)
-            } finally {
-                setPartnersLoading(false)
-            }
-        }
-
-        fetchPartners()
     }, [])
 
     // Calculate base image dimensions to fit visible container area
@@ -420,74 +440,99 @@ export function useDesignEditor({
 
     // Delete selected layer
     const deleteSelectedLayer = useCallback(() => {
-        if (!design.selectedId) return
+        setDesign((prev) => {
+            if (!prev.selectedId) return prev
 
-        const newDesign = {
-            ...design,
-            layers: design.layers.filter((layer) => layer.id !== design.selectedId),
-            selectedId: null,
-        }
-        setDesign(newDesign)
-        saveToHistory(newDesign)
-    }, [design, saveToHistory])
+            const nextLayers = prev.layers.filter((layer) => layer.id !== prev.selectedId)
+            if (nextLayers.length === prev.layers.length) {
+                return prev
+            }
+
+            const updated: DesignState = {
+                ...prev,
+                layers: nextLayers,
+                selectedId: null,
+            }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [recordSnapshot])
 
     // Duplicate selected layer
     const duplicateSelectedLayer = useCallback(() => {
-        if (!design.selectedId) return
+        setDesign((prev) => {
+            if (!prev.selectedId) return prev
 
-        const layer = design.layers.find(l => l.id === design.selectedId)
-        if (!layer) return
+            const layer = prev.layers.find((l) => l.id === prev.selectedId)
+            if (!layer) return prev
 
-        const newLayer: DesignLayer = {
-            ...layer,
-            id: `layer-${Date.now()}`,
-            x: layer.x + 20,
-            y: layer.y + 20,
-        }
+            const newLayer: DesignLayer = {
+                ...layer,
+                id: `layer-${Date.now()}`,
+                x: layer.x + 20,
+                y: layer.y + 20,
+            }
 
-        const newDesign = {
-            ...design,
-            layers: [...design.layers, newLayer],
-            selectedId: newLayer.id,
-        }
-        setDesign(newDesign)
-        saveToHistory(newDesign)
-    }, [design, saveToHistory])
+            const updated: DesignState = {
+                ...prev,
+                layers: [...prev.layers, newLayer],
+                selectedId: newLayer.id,
+            }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [recordSnapshot])
 
     // Move layer up/down in z-order
     const moveLayerUp = useCallback(() => {
-        if (!design.selectedId) return
+        setDesign((prev) => {
+            if (!prev.selectedId) return prev
 
-        const index = design.layers.findIndex(l => l.id === design.selectedId)
-        if (index === design.layers.length - 1) return
+            const index = prev.layers.findIndex((l) => l.id === prev.selectedId)
+            if (index === -1 || index === prev.layers.length - 1) return prev
 
-        const newLayers = [...design.layers]
+            const newLayers = [...prev.layers]
             ;[newLayers[index], newLayers[index + 1]] = [newLayers[index + 1], newLayers[index]]
 
-        setDesign(prev => ({ ...prev, layers: newLayers }))
-    }, [design])
+            const updated: DesignState = { ...prev, layers: newLayers }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [recordSnapshot])
 
     const moveLayerDown = useCallback(() => {
-        if (!design.selectedId) return
+        setDesign((prev) => {
+            if (!prev.selectedId) return prev
 
-        const index = design.layers.findIndex(l => l.id === design.selectedId)
-        if (index === 0) return
+            const index = prev.layers.findIndex((l) => l.id === prev.selectedId)
+            if (index <= 0) return prev
 
-        const newLayers = [...design.layers]
+            const newLayers = [...prev.layers]
             ;[newLayers[index], newLayers[index - 1]] = [newLayers[index - 1], newLayers[index]]
 
-        setDesign(prev => ({ ...prev, layers: newLayers }))
-    }, [design])
+            const updated: DesignState = { ...prev, layers: newLayers }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [recordSnapshot])
 
     // Toggle layer visibility
     const toggleLayerVisibility = useCallback((layerId: string) => {
-        setDesign(prev => ({
-            ...prev,
-            layers: prev.layers.map(l =>
-                l.id === layerId ? { ...l, opacity: l.opacity === 0 ? 1 : 0 } : l
-            )
-        }))
-    }, [])
+        setDesign((prev) => {
+            let changed = false
+            const nextLayers = prev.layers.map((layer) => {
+                if (layer.id !== layerId) return layer
+                changed = true
+                return { ...layer, opacity: layer.opacity === 0 ? 1 : 0 }
+            })
+
+            if (!changed) return prev
+
+            const updated: DesignState = { ...prev, layers: nextLayers }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [recordSnapshot])
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -574,71 +619,6 @@ export function useDesignEditor({
         setLastPointerPos(null)
     }, [])
 
-    // Save design draft to local storage
-    const saveDraftToLocalStorage = useCallback(() => {
-        const draft = {
-            productId: product.id,
-            productHandle: product.handle,
-            name: design.name,
-            layers: design.layers,
-            selectedMaterialId: selectedMaterial?.id,
-            selectedPartnerId: selectedPartner?.id,
-            savedAt: new Date().toISOString(),
-        }
-        localStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(draft))
-        return draft
-    }, [product.id, product.handle, design.name, design.layers, selectedMaterial?.id, selectedPartner?.id])
-
-    // Load design draft from local storage
-    const loadDraftFromLocalStorage = useCallback(() => {
-        try {
-            const draftStr = localStorage.getItem(DESIGN_DRAFT_KEY)
-            if (!draftStr) return null
-
-            const draft = JSON.parse(draftStr)
-            // Only load if it's for the same product
-            if (draft.productId === product.id) {
-                return draft
-            }
-            return null
-        } catch {
-            return null
-        }
-    }, [product.id])
-
-    // Clear draft from local storage
-    const clearDraftFromLocalStorage = useCallback(() => {
-        localStorage.removeItem(DESIGN_DRAFT_KEY)
-    }, [])
-
-    // Load draft on mount if user is logged in and has a draft
-    useEffect(() => {
-        if (customer) {
-            const draft = loadDraftFromLocalStorage()
-            if (draft && draft.layers?.length > 0) {
-                // Ask user if they want to restore the draft
-                const restore = window.confirm(
-                    `You have an unsaved design draft from ${new Date(draft.savedAt).toLocaleString()}. Would you like to restore it?`
-                )
-                if (restore) {
-                    setDesign(prev => ({
-                        ...prev,
-                        name: draft.name || prev.name,
-                        layers: draft.layers || [],
-                    }))
-                    setDesignName(draft.name || "")
-                    if (draft.name) {
-                        setShowNameModal(false)
-                    }
-                    // Clear the draft after restoring
-                    clearDraftFromLocalStorage()
-                } else {
-                    clearDraftFromLocalStorage()
-                }
-            }
-        }
-    }, [customer, loadDraftFromLocalStorage, clearDraftFromLocalStorage])
-
     // Save design
     const handleSave = async () => {
         if (!design.name) {
@@ -649,7 +629,7 @@ export function useDesignEditor({
         // Check if user is logged in
         if (!customer) {
             // Save draft to local storage first
-            saveDraftToLocalStorage()
+            persistDraftSnapshot()
 
             // Redirect to login page with return URL
             const currentPath = window.location.pathname
@@ -717,6 +697,7 @@ export function useDesignEditor({
                     base_product_id: product.id,
                     base_product_thumbnail: product.thumbnail || undefined,
                     customer_id: customer.id,
+                    badges: badgePreferences,
                     excalidraw: excalidrawData, // Include Excalidraw data for mood board
                 },
                 inventory_ids: inventoryIds.length > 0 ? inventoryIds : undefined,
@@ -729,7 +710,7 @@ export function useDesignEditor({
             const result = await createDesign(designInput)
 
             // Clear any draft after successful save
-            clearDraftFromLocalStorage()
+            clearDraftSnapshot()
 
             console.log("Design saved:", result)
             alert(`Design "${design.name}" saved successfully!`)
@@ -757,6 +738,8 @@ export function useDesignEditor({
         containerDims,
         baseImage,
         baseImageStatus,
+        isGeneratingBase,
+        regenerateBaseImage,
         baseDims,
         CANVAS_EXTEND,
 
@@ -772,6 +755,8 @@ export function useDesignEditor({
         designName,
         setDesignName,
         isSaving,
+        badgePreferences,
+        setBadgePreferences,
 
         sidebarExpanded,
         setSidebarExpanded,
