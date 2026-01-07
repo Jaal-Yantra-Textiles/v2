@@ -1,3 +1,15 @@
+# [8.12.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.11.0...v8.12.0) (2026-01-07)
+
+
+### Bug Fixes
+
+* **Package:** fixed the aisdk package ([8ade5be](https://github.com/Jaal-Yantra-Textiles/v2/commit/8ade5be1700ff96ba3bcace015f9e3038d23ccc8))
+
+
+### Features
+
+* **api:** Image Gen API ([17313d6](https://github.com/Jaal-Yantra-Textiles/v2/commit/17313d6216cb7c1fb60b96a16ff43ff1c3270e75))
+
 # [8.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.10.2...v8.11.0) (2026-01-06)
 
 
