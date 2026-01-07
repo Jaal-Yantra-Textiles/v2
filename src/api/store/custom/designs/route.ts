@@ -1,8 +1,12 @@
-import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import {
+  AuthenticatedMedusaRequest,
+  MedusaResponse,
+} from "@medusajs/framework/http";
 import createDesignWorkflow from "../../../../workflows/designs/create-design";
 import { linkDesignInventoryWorkflow } from "../../../../workflows/designs/inventory/link-inventory";
 import { linkDesignPartnerWorkflow } from "../../../../workflows/designs/partner/link-design-to-partner";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import designCustomerLink from "../../../../links/design-customer-link";
 
 /**
  * Store Design Request Body
@@ -69,11 +73,17 @@ interface StoreCreateDesignBody {
  * 3. Links partner (if provided)
  */
 export async function POST(
-  req: MedusaRequest,
+  req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
   try {
     const body = req.body as StoreCreateDesignBody;
+    const customerId = req.auth_context?.actor_id;
+
+    if (!customerId) {
+      res.status(401).json({ message: "Customer authentication required" });
+      return;
+    }
     
     // Validate required fields
     if (!body.name) {
@@ -93,6 +103,8 @@ export async function POST(
       custom_sizes: body.custom_sizes,
       tags: body.tags || ["custom", "customer-design"],
       metadata: body.metadata || {},
+      origin_source: "manual" as const,
+      customer_id_for_link: customerId,
     };
 
     const { result: designResult, errors: designErrors } = await createDesignWorkflow(req.scope).run({
@@ -192,35 +204,46 @@ export async function POST(
  * Lists customer designs (filtered by customer if authenticated)
  */
 export async function GET(
-  req: MedusaRequest,
+  req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
   try {
+    const customerId = req.auth_context?.actor_id;
+
+    if (!customerId) {
+      res.status(401).json({ message: "Customer authentication required" });
+      return;
+    }
+
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
     const limit = Number(req.query.limit ?? 20);
     const offset = Number(req.query.offset ?? 0);
 
-    const { data: designs } = await query.graph({
-      entity: "design",
+    const { data: linkedDesigns } = await query.graph({
+      entity: designCustomerLink.entryPoint,
       filters: {
-        design_type: "Custom" as any,
+        customer_id: customerId,
       },
       fields: [
-        "id",
-        "name",
-        "description",
-        "status",
-        "thumbnail_url",
-        "metadata",
-        "created_at",
-        "inventory_items.id",
-        "inventory_items.title",
-        "partners.id",
-        "partners.name",
+        "design.id",
+        "design.name",
+        "design.description",
+        "design.status",
+        "design.thumbnail_url",
+        "design.metadata",
+        "design.created_at",
+        "design.inventory_items.id",
+        "design.inventory_items.title",
+        "design.partners.id",
+        "design.partners.name",
       ],
+      pagination: {
+        skip: offset,
+        take: limit,
+      },
     });
 
-    const allDesigns = designs || [];
+    const allDesigns = (linkedDesigns || []).map((link: any) => link.design).filter(Boolean);
     const paginated = allDesigns.slice(offset, offset + limit);
 
     res.status(200).json({

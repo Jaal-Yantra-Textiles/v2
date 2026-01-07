@@ -39,8 +39,9 @@ module.exports = defineConfig({
     
   },
   featureFlags: {
-    translation: true,
-    
+     translation: true,
+     index_engine: true,
+     view_configrations: true,
   },
 
   modules: [

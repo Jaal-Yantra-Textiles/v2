@@ -67,6 +67,7 @@ export const designSchema = z.object({
   // New structured fields (optional)
   colors: z.array(designColorSchema).optional(),
   size_sets: z.array(designSizeSetSchema).optional(),
+  origin_source: z.enum(["manual", "ai-mistral", "ai-other"]).optional(),
 });
 
 export const UpdateDesignSchema = designSchema.partial();

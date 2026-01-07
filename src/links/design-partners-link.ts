@@ -3,7 +3,7 @@ import PartnerModule from "../modules/partner"
 import { defineLink } from "@medusajs/framework/utils"
 
 export default defineLink(
-  { linkable: DesignModule.linkable.design, isList: true },
+  { linkable: DesignModule.linkable.design, isList: true, filterable: ["status", "design_type", "priority", "tags", "created_at", "target_completion_date"] },
   {
     linkable: PartnerModule.linkable.partner,
     isList: true,

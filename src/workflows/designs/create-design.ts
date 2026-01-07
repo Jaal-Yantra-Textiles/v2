@@ -3,15 +3,16 @@ import {
   createStep,
   StepResponse,
   WorkflowResponse,
-  createHook,
+  when,
 } from "@medusajs/framework/workflows-sdk";
 import DesignService from "../../modules/designs/service";
 import { DESIGN_MODULE } from "../../modules/designs";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import {
   convertColorPaletteToColors,
   convertCustomSizesToSizeSets,
 } from "./helpers/size-set-utils";
+import type { Link } from "@medusajs/modules-sdk";
 
 type DesignType = "Original" | "Derivative" | "Custom" | "Collaboration";
 type DesignStatus = "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold" | "Commerce_Ready";
@@ -37,6 +38,8 @@ type CreateDesignStepInput = {
   // New structured fields (optional)
   colors?: Array<{ name: string; hex_code: string; usage_notes?: string; order?: number }>;
   size_sets?: Array<{ size_label: string; measurements: Record<string, number> }>;
+  origin_source?: "manual" | "ai-mistral" | "ai-other";
+  customer_id_for_link?: string;
 };
 
 export const createDesignStep = createStep(
@@ -66,6 +69,7 @@ export const createDesignStep = createStep(
       designer_notes: input.designer_notes,
       feedback_history: input.feedback_history,
       metadata: input.metadata,
+      origin_source: input.origin_source,
     });
     // Persist structured colors if provided
     if (normalizedColors?.length) {
@@ -96,10 +100,41 @@ export const createDesignStep = createStep(
 
 type CreateDesignWorkFlowInput = CreateDesignStepInput;
 
+const linkDesignToCustomerStep = createStep(
+  "link-design-to-customer-step",
+  async (input: { design_id: string; customer_id: string }, { container }) => {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
+    await remoteLink.create({
+      [DESIGN_MODULE]: { design_id: input.design_id },
+      [Modules.CUSTOMER]: { customer_id: input.customer_id },
+    });
+    return new StepResponse(null, input);
+  },
+  async (input, { container }) => {
+    if(!input) {
+      return
+    }
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
+    await remoteLink.dismiss({
+      [DESIGN_MODULE]: { design_id: input.design_id },
+      [Modules.CUSTOMER]: { customer_id: input.customer_id },
+    });
+  }
+);
+
 export const createDesignWorkflow = createWorkflow(
   "create-design",
   (input: CreateDesignWorkFlowInput) => {
     const design = createDesignStep(input);
+
+    when({ input, design }, ({ input }) => Boolean(input.customer_id_for_link)).then(
+      () =>
+        linkDesignToCustomerStep({
+          design_id: design.id,
+          customer_id: input.customer_id_for_link!,
+        })
+    );
+
     return new WorkflowResponse(design);
   },
 );

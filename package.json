@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.17",
+    "@ai-sdk/mistral": "^3.0.5",
     "@ai-sdk/openai": "^2.0.15",
     "@ariakit/react": "^0.4.17",
     "@asteasolutions/zod-to-openapi": "^7.3.4",

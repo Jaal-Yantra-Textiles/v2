@@ -64,3 +64,5 @@ src/.DS_Store
 
 # Local patches (not committed)
 patches/
+
+.claude/

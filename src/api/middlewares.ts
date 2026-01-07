@@ -90,6 +90,7 @@ import { createStoreSchema } from "./admin/stores/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
+import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
 import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/confirm/validators";
 import { listPublicPersonsQuerySchema } from "./web/persons/validators";
@@ -963,6 +964,16 @@ export default defineMiddlewares({
       matcher: "/admin/designs/auto",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(CreateDesignLLMSchema))],
+    },
+
+    // Store AI endpoints
+    {
+      matcher: "/store/ai/imagegen",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(StoreGenerateAiImageReqSchema)),
+      ],
     },
     // Task-Templates 
     {

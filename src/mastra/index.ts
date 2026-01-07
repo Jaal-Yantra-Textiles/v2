@@ -9,6 +9,7 @@ import { generalChatWorkflow } from "./workflows/generalChat";
 import { visualFlowCodegenWorkflow } from "./workflows/visualFlowCodegen";
 import { multiStepApiRequestWorkflow } from "./workflows/multiStepApiRequest";
 import { aiV2Workflow } from "./workflows/aiV2";
+import { imageGenerationWorkflow } from "./workflows/imagegen";
 import { sharedStorage } from "./memory";
 import {
     seoAgent,
@@ -41,6 +42,7 @@ export const mastra = new Mastra({
         aiV2Workflow,
         visualFlowCodegenWorkflow,
         multiStepApiRequestWorkflow,
+        imageGenerationWorkflow,
     },
     ...(sharedStorage
         ? { storage: sharedStorage }

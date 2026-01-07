@@ -31,6 +31,11 @@ const Design = model.define("design", {
     "High",
     "Urgent"
   ]).default("Medium"),
+  origin_source: model.enum([
+    "manual",
+    "ai-mistral",
+    "ai-other",
+  ]).default("manual"),
   target_completion_date: model.dateTime().nullable(),
   design_files: model.json().nullable(), // URLs to design files
   thumbnail_url: model.text().nullable(),

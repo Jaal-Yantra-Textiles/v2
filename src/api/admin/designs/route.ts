@@ -1,4 +1,5 @@
 import {
+  AuthenticatedMedusaRequest,
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http";
@@ -11,15 +12,24 @@ import { DateComparisonOperator } from "@medusajs/types";
 
 // Create new design
 export const POST = async (
-  req: MedusaRequest<Design> & {
+  req: AuthenticatedMedusaRequest<Design> & {
     remoteQueryConfig?: {
       fields?: DesignAllowedFields[];
     };
   },
   res: MedusaResponse,
 ) => {
+  const adminId = req.auth_context?.actor_id;
+
+  if (!adminId) {
+    return res.status(401).json({ message: "Admin authentication required" });
+  }
+
   const { result, errors } = await createDesignWorkflow(req.scope).run({
-    input: req.validatedBody,
+    input: {
+      ...req.validatedBody,
+      origin_source: req.validatedBody?.origin_source ?? "manual",
+    },
   })
 
   if (errors.length > 0) {
