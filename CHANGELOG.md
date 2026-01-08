@@ -1,3 +1,10 @@
+## [8.12.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.12.0...v8.12.1) (2026-01-08)
+
+
+### Bug Fixes
+
+* **workflows:** Image Gen workflows using Mistral AI ([a88b2bc](https://github.com/Jaal-Yantra-Textiles/v2/commit/a88b2bcd99247f6757d8e6a78bd6bf466bfbbe87))
+
 # [8.12.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.11.0...v8.12.0) (2026-01-07)
 
 
