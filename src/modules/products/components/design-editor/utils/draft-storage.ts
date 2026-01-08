@@ -1,4 +1,4 @@
-import { BadgePreferences, DesignLayer } from "../types"
+import { AiGenerationHistoryItem, BadgePreferences, DesignLayer } from "../types"
 
 const STORAGE_NAMESPACE = "design_editor_drafts"
 
@@ -13,6 +13,9 @@ export type DesignDraft = {
   selectedMaterialId?: string | null
   selectedPartnerId?: string | null
   savedAt: string
+  // AI generation related
+  generatedBaseUrl?: string | null
+  aiGenerationHistory?: AiGenerationHistoryItem[]
 }
 
 const safeParse = (value: string | null): DraftBucket => {

@@ -98,3 +98,13 @@ export type BadgeOption = {
   swatch?: string
   helper?: string
 }
+
+// AI Generation History Item
+export type AiGenerationHistoryItem = {
+  id: string
+  preview_url: string
+  prompt_used: string
+  generated_at: string
+  badges?: BadgePreferences
+  materials_prompt?: string
+}

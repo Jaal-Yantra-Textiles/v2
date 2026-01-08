@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import Konva from "konva"
 import { createDesign, CreateDesignInput } from "@lib/data/designs"
 import {
+    AiGenerationHistoryItem,
     BadgeCategory,
     BadgePreferences,
     CustomerInfo,
@@ -118,6 +119,10 @@ export function useDesignEditor({
         setDesign,
     })
 
+    // AI generation state - managed here so it can be shared between drafts and AI generation hooks
+    const [generatedBase, setGeneratedBase] = useState<string | null>(null)
+    const [aiGenerationHistory, setAiGenerationHistory] = useState<AiGenerationHistoryItem[]>([])
+
     const { persistDraftSnapshot, clearDraftSnapshot } = useDesignDrafts({
         product,
         design,
@@ -133,9 +138,11 @@ export function useDesignEditor({
         externalPartners,
         setDesignName,
         setShowNameModal,
+        generatedBase,
+        setGeneratedBase,
+        aiGenerationHistory,
+        setAiGenerationHistory,
     })
-
-    const [generatedBase, setGeneratedBase] = useState<string | null>(null)
 
     // AI Generation hook - handles AI-powered base image generation
     const {
@@ -144,10 +151,13 @@ export function useDesignEditor({
         showLoginPrompt,
         lastAiGeneration,
         quotaRemaining,
+        generationHistory,
         generateAiBase,
         dismissLoginPrompt,
         handleLoginRedirect,
         clearAiError,
+        selectFromHistory,
+        clearHistory,
     } = useAiGeneration({
         customer: customer ?? null,
         countryCode,
@@ -158,6 +168,10 @@ export function useDesignEditor({
         onBaseImageGenerated: (url: string) => {
             // Update the generated base image URL when AI generation succeeds
             setGeneratedBase(url)
+        },
+        initialHistory: aiGenerationHistory,
+        onHistoryChange: (history) => {
+            setAiGenerationHistory(history)
         },
     })
     const [isGeneratingBase, setIsGeneratingBase] = useState(false)
@@ -842,9 +856,12 @@ export function useDesignEditor({
         showLoginPrompt,
         lastAiGeneration,
         quotaRemaining,
+        generationHistory,
         generateAiBase,
         dismissLoginPrompt,
         handleLoginRedirect,
         clearAiError,
+        selectFromHistory,
+        clearHistory,
     }
 }

@@ -11,6 +11,7 @@ import {
     Sparkles,
 } from "@medusajs/icons"
 import {
+    AiGenerationHistoryItem,
     BadgeCategory,
     BadgeOption,
     BadgePreferences,
@@ -144,8 +145,11 @@ type EditorSidebarProps = {
     isGeneratingAi?: boolean
     aiGenerationError?: string | null
     quotaRemaining?: number | null
+    generationHistory?: AiGenerationHistoryItem[]
     onGenerateAi?: () => void
     onClearAiError?: () => void
+    onSelectFromHistory?: (item: AiGenerationHistoryItem) => void
+    onClearHistory?: () => void
 }
 
 type SectionKey = "product" | "tools" | "aiGeneration" | "add" | "materials" | "partners" | "layers" | "properties"
@@ -202,8 +206,11 @@ export function EditorSidebar({
     isGeneratingAi,
     aiGenerationError,
     quotaRemaining,
+    generationHistory = [],
     onGenerateAi,
     onClearAiError,
+    onSelectFromHistory,
+    onClearHistory,
 }: EditorSidebarProps) {
     // State for mobile overlay sheets
     const [mobileActiveTab, setMobileActiveTab] = React.useState<string | null>(null)
@@ -797,6 +804,47 @@ export function EditorSidebar({
                                             <Text size="small" className="text-[11px] text-gray-400 text-center">
                                                 Uses your style preferences to generate a unique design base
                                             </Text>
+
+                                            {/* Generation History */}
+                                            {generationHistory.length > 0 && (
+                                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <Text size="small" className="text-[11px] uppercase tracking-wide text-gray-400">
+                                                            Previous Generations
+                                                        </Text>
+                                                        {onClearHistory && (
+                                                            <button
+                                                                onClick={onClearHistory}
+                                                                className="text-[10px] text-gray-400 hover:text-red-500 transition-colors"
+                                                            >
+                                                                Clear all
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {generationHistory.map((item) => (
+                                                            <button
+                                                                key={item.id}
+                                                                onClick={() => onSelectFromHistory?.(item)}
+                                                                className="group relative aspect-square rounded-xl overflow-hidden border-2 border-transparent hover:border-purple-400 transition-all bg-gray-50"
+                                                                title={`Generated: ${new Date(item.generated_at).toLocaleString()}`}
+                                                            >
+                                                                <img
+                                                                    src={item.preview_url}
+                                                                    alt="AI Generated"
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                <div className="absolute bottom-1 left-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <Text size="small" className="text-[9px] text-white truncate">
+                                                                        {new Date(item.generated_at).toLocaleDateString()}
+                                                                    </Text>
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </section>
 

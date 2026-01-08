@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { DesignLayer, DesignProduct, DesignState, Partner, BadgePreferences } from "../../types"
+import { AiGenerationHistoryItem, DesignLayer, DesignProduct, DesignState, Partner, BadgePreferences } from "../../types"
 import { RawMaterial } from "@lib/data/raw-materials"
 import { loadDraft, saveDraft as persistDraft, deleteDraft, DesignDraft } from "../../utils/draft-storage"
 
@@ -20,6 +20,11 @@ export type UseDesignDraftsArgs = {
   externalPartners: Partner[]
   setDesignName: React.Dispatch<React.SetStateAction<string>>
   setShowNameModal: React.Dispatch<React.SetStateAction<boolean>>
+  // AI generation related
+  generatedBase: string | null
+  setGeneratedBase: React.Dispatch<React.SetStateAction<string | null>>
+  aiGenerationHistory: AiGenerationHistoryItem[]
+  setAiGenerationHistory: React.Dispatch<React.SetStateAction<AiGenerationHistoryItem[]>>
 }
 
 export type UseDesignDraftsResult = {
@@ -42,6 +47,10 @@ export const useDesignDrafts = ({
   externalPartners,
   setDesignName,
   setShowNameModal,
+  generatedBase,
+  setGeneratedBase,
+  aiGenerationHistory,
+  setAiGenerationHistory,
 }: UseDesignDraftsArgs): UseDesignDraftsResult => {
   const hasHydratedDraftRef = useRef(false)
   const [pendingMaterialId, setPendingMaterialId] = useState<string | null>(null)
@@ -56,6 +65,9 @@ export const useDesignDrafts = ({
     selectedMaterialId: selectedMaterial?.id ?? pendingMaterialId ?? null,
     selectedPartnerId: selectedPartner?.id ?? pendingPartnerId ?? null,
     savedAt: new Date().toISOString(),
+    // AI generation related
+    generatedBaseUrl: generatedBase,
+    aiGenerationHistory: aiGenerationHistory,
   }), [
     product.id,
     product.handle,
@@ -66,6 +78,8 @@ export const useDesignDrafts = ({
     selectedPartner?.id,
     pendingMaterialId,
     pendingPartnerId,
+    generatedBase,
+    aiGenerationHistory,
   ])
 
   const persistDraftSnapshot = useCallback(() => {
@@ -108,6 +122,14 @@ export const useDesignDrafts = ({
     if (draft.selectedPartnerId) {
       setPendingPartnerId(draft.selectedPartnerId)
     }
+
+    // Restore AI generation data
+    if (draft.generatedBaseUrl) {
+      setGeneratedBase(draft.generatedBaseUrl)
+    }
+    if (draft.aiGenerationHistory && draft.aiGenerationHistory.length > 0) {
+      setAiGenerationHistory(draft.aiGenerationHistory)
+    }
   }, [
     product.id,
     setDesign,
@@ -115,6 +137,8 @@ export const useDesignDrafts = ({
     setShowNameModal,
     setBadgePreferences,
     defaultBadgePreferences,
+    setGeneratedBase,
+    setAiGenerationHistory,
   ])
 
   useEffect(() => {
@@ -127,6 +151,8 @@ export const useDesignDrafts = ({
     badgePreferences,
     selectedMaterial?.id,
     selectedPartner?.id,
+    generatedBase,
+    aiGenerationHistory,
   ])
 
   useEffect(() => {

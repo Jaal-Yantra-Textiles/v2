@@ -221,8 +221,11 @@ export default function DesignEditor({
             isGeneratingAi={editor.isGeneratingAi}
             aiGenerationError={editor.aiGenerationError}
             quotaRemaining={editor.quotaRemaining}
+            generationHistory={editor.generationHistory}
             onGenerateAi={editor.generateAiBase}
             onClearAiError={editor.clearAiError}
+            onSelectFromHistory={editor.selectFromHistory}
+            onClearHistory={editor.clearHistory}
           />
         </div>
       </div>
