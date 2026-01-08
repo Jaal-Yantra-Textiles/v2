@@ -1,6 +1,6 @@
 # Design Editor Feature Plan
 
-_Last updated: 2026-01-07_
+_Last updated: 2026-01-08_
 
 ---
 
@@ -13,22 +13,36 @@ _Last updated: 2026-01-07_
 - ✅ [src/api/store/ai/imagegen/validators.ts](src/api/store/ai/imagegen/validators.ts) - Zod validators for badges, reference images, canvas snapshot, and mode
 
 **Mastra Workflow:**
-- ✅ [src/mastra/workflows/imagegen/index.ts](src/mastra/workflows/imagegen/index.ts) - 3-step workflow using `@ai-sdk/mistral`:
-  1. `buildPromptStep` - Uses Pixtral model to enhance prompts from badges/materials
+- ✅ [src/mastra/workflows/imagegen/index.ts](src/mastra/workflows/imagegen/index.ts) - 3-step workflow:
+  1. `buildPromptStep` - Uses Mistral Medium model to enhance prompts from badges/materials
   2. `checkQuotaStep` - Validates quota before generation
-  3. `generateImageStep` - Image generation (placeholder, ready for service integration)
+  3. `generateImageStep` - Generates images using **Mistral Agents API with built-in `image_generation` tool** (Black Forest Lab FLUX1.1 [pro] Ultra)
 - ✅ Workflow registered in [src/mastra/index.ts](src/mastra/index.ts) as `imageGenerationWorkflow`
+
+**Image Generation Implementation:**
+- Uses Mistral's Agents API (not standard chat completions) because built-in tools only work through Agents API
+- Flow: Create agent → Start conversation → Extract `file_id` from `tool_file` chunks → Download image → Return base64 data URL
+- Properly extracts `file_type` from Mistral response for correct MIME type handling
 
 **Application Workflow:**
 - ✅ [src/workflows/ai/generate-design-image.ts](src/workflows/ai/generate-design-image.ts) - Medusa workflow that:
   - Invokes Mastra workflow via `invokeMastraImageGenStep`
-  - Conditionally uploads to media storage in commit mode via `uploadGeneratedImageStep`
-  - Updates design metadata with AI media info via `updateDesignWithAiMediaStep`
+  - **Always uploads to media storage** (both preview and commit modes) for proper URL handling
+  - Finds existing `ai-designs` folder or creates new one
+  - Parses base64 data URLs and uploads as proper image files
+  - Updates design metadata with AI media info via `updateDesignWithAiMediaStep` (commit mode only)
   - Uses `transform()` and `when()` patterns for runtime value access
+
+**Media Upload:**
+- ✅ [src/workflows/media/upload-and-organize-media.ts](src/workflows/media/upload-and-organize-media.ts) - Uses base64 encoding for Medusa's `uploadFilesWorkflow`
+- Images stored in `/static/` directory with proper file extensions
+- Returns HTTP URL for frontend display
 
 **Storefront Integration (jyt-storefront):**
 - ✅ `src/lib/data/ai-imagegen.ts` - Server action for calling AI API
 - ✅ `.../hooks/modules/use-ai-generation.ts` - Modular hook for AI generation
+- ✅ `.../hooks/use-design-editor.ts` - Main hook integrates AI generation, sets `generatedBase` state
+- ✅ `.../hooks/use-image.ts` - Loads image from URL for canvas display
 - ✅ `.../components/ai-login-prompt.tsx` - Login modal for unauthenticated users
 - ✅ `.../components/editor-sidebar.tsx` - AI Generation section in sidebar
 - ✅ `.../components/editor-canvas.tsx` - AI loading overlay with animation
@@ -75,21 +89,16 @@ _Last updated: 2026-01-07_
 2. When a design is added to cart, create a one-off variant referencing the design ID so the existing `order.placed` subscriber can spawn the production run automatically.
 3. If a product already has `design.estimate_cost`, reuse it; otherwise backfill estimate from material inventory cost + partner rate when the order is confirmed.
 
-### Step 5a – Remaining (Storefront Integration)
-> Backend complete. Storefront integration pending:
+### Step 5a – Remaining (Minor Enhancements)
+> Core functionality complete. Optional enhancements:
 
-1. **Save flow badges UI**: Add badge selection UI in Save Design modal
+1. **Save flow badges UI**: Add badge selection UI in Save Design modal (currently badges passed from sidebar)
    - Style, color family, body type, embellishment level, occasion, budget sensitivity
    - Persist in `design.metadata.badges`
 
-2. **Design editor integration**:
-   - When product lacks base thumbnail, check `design.metadata.ai_media`
-   - If none, call `/store/ai/imagegen` API with loading indicator
-   - Hydrate canvas with returned image
-   - "Regenerate with AI" action comparing existing vs new preview
+2. **"Regenerate with AI" action**: Allow comparing existing vs new preview before committing
 
-3. **Image generation service**: Replace placeholder in `generateImageStep` with real service
-   - Options: Replicate (SDXL/Flux), DALL-E, FAL.ai
+3. ✅ **Image generation service**: COMPLETE - Using Mistral Agents API with FLUX1.1 [pro] Ultra ($100/1000 images)
 
 ### Step 5b – Remaining (Attribution Fields)
 > Core schema and workflow wiring complete. Remaining:

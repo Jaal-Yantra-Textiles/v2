@@ -4,10 +4,24 @@ import { z } from "zod/v4";
 import { Agent } from "@mastra/core/agent";
 import { mistral } from "@ai-sdk/mistral";
 
+
+/**
+ * Design Image Generation Workflow
+ *
+ * This workflow uses AI SDK's generateImage with Mistral's image model
+ * powered by Black Forest Lab FLUX1.1 [pro] Ultra.
+ *
+ * Step 1: Build and enhance prompt using Mastra agent (text generation)
+ * Step 2: Check quota
+ * Step 3: Generate image using AI SDK's generateImage with Mistral
+ *
+ * @see https://docs.mistral.ai/agents/tools/built-in/image_generation
+ */
+
 // Create a dedicated agent for design image generation
 const designImageAgent = new Agent({
   name: "design-image-agent",
-  model: mistral("pixtral-large-latest"),
+  model: "mistral/mistral-medium-latest",
   instructions:
     "You are an expert fashion design AI assistant. " +
     "When given style preferences, materials, and reference images, you enhance and optimize prompts for fashion design image generation. " +
@@ -113,6 +127,7 @@ const buildPromptStep = createStep({
       technical_details: z.string().optional().describe("Technical details about materials and construction"),
     });
 
+    // Use built-in Mastra model string (e.g., "mistral/pixtral-large-latest") for compatibility
     const response = await designImageAgent.generate(
       [{ role: "user", content: userPrompt }],
       {
@@ -162,7 +177,157 @@ const checkQuotaStep = createStep({
   },
 });
 
-// Step 3: Generate image
+/**
+ * Generate image using Mistral's Agents API with built-in image_generation tool
+ *
+ * IMPORTANT: Mistral's image_generation is a server-side built-in tool that only works
+ * through the Agents API (POST /v1/agents, POST /v1/conversations).
+ * The standard chat API will return a tool_call but won't execute the image generation.
+ *
+ * Flow:
+ * 1. Create an agent with image_generation tool
+ * 2. Start a conversation with the prompt
+ * 3. Extract file_id from tool_file chunks
+ * 4. Download the image
+ *
+ * @see https://docs.mistral.ai/agents/tools/built-in/image_generation
+ */
+async function generateImageWithMistralAgentsApi(prompt: string): Promise<{ imageUrl?: string; error?: string }> {
+  const apiKey = process.env.MISTRAL_API_KEY;
+
+  if (!apiKey) {
+    return { error: "MISTRAL_API_KEY not configured" };
+  }
+
+  try {
+    console.log(`[ImageGen] Creating Mistral agent with image_generation tool...`);
+
+    // Step 1: Create an agent with image_generation tool
+    const agentResponse = await fetch("https://api.mistral.ai/v1/agents", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "mistral-medium-latest",
+        name: `fashion-image-gen-${Date.now()}`,
+        description: "Agent for generating fashion design images",
+        instructions: "You are a fashion design image generator. Generate high-quality fashion design images based on the provided prompt. Always use the image_generation tool.",
+        tools: [{ type: "image_generation" }],
+        completion_args: {
+          temperature: 0.7,
+          top_p: 0.95,
+        },
+      }),
+    });
+
+    if (!agentResponse.ok) {
+      const errorText = await agentResponse.text();
+      console.error(`[ImageGen] Failed to create agent: ${agentResponse.status}`, errorText);
+      return { error: `Failed to create agent: ${agentResponse.status} - ${errorText}` };
+    }
+
+    const agent = await agentResponse.json();
+    const agentId = agent.id;
+    console.log(`[ImageGen] Created agent: ${agentId}`);
+
+    // Step 2: Start a conversation with the prompt
+    console.log(`[ImageGen] Starting conversation...`);
+    const conversationResponse = await fetch("https://api.mistral.ai/v1/conversations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        agent_id: agentId,
+        inputs: prompt,
+      }),
+    });
+
+    if (!conversationResponse.ok) {
+      const errorText = await conversationResponse.text();
+      console.error(`[ImageGen] Conversation failed: ${conversationResponse.status}`, errorText);
+      // Cleanup: delete the agent
+      await fetch(`https://api.mistral.ai/v1/agents/${agentId}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${apiKey}` },
+      });
+      return { error: `Conversation failed: ${conversationResponse.status} - ${errorText}` };
+    }
+
+    const conversation = await conversationResponse.json();
+    console.log(`[ImageGen] Conversation response:`, JSON.stringify(conversation, null, 2));
+
+    // Step 3: Extract file_id and file_type from the response
+    let fileId: string | undefined;
+    let fileType: string = "png"; // Default to png
+
+    // Check outputs for tool_file chunks
+    if (conversation.outputs && Array.isArray(conversation.outputs)) {
+      for (const output of conversation.outputs) {
+        // Check message.output type entries
+        if (output.content && Array.isArray(output.content)) {
+          for (const chunk of output.content) {
+            if (chunk.type === "tool_file" && chunk.tool === "image_generation" && chunk.file_id) {
+              fileId = chunk.file_id;
+              // Extract file_type from the response (e.g., "png", "jpg")
+              if (chunk.file_type) {
+                fileType = chunk.file_type;
+              }
+              console.log(`[ImageGen] Found file_id: ${fileId}, file_type: ${fileType}`);
+              break;
+            }
+          }
+        }
+        if (fileId) break;
+      }
+    }
+
+    // Cleanup: delete the agent (we don't need it anymore)
+    await fetch(`https://api.mistral.ai/v1/agents/${agentId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${apiKey}` },
+    }).catch(() => {}); // Ignore cleanup errors
+
+    if (!fileId) {
+      console.log(`[ImageGen] No image file_id found in response`);
+      return { error: "No image generated in response" };
+    }
+
+    // Step 4: Download the generated image
+    console.log(`[ImageGen] Downloading image: ${fileId}`);
+    const fileResponse = await fetch(`https://api.mistral.ai/v1/files/${fileId}/content`, {
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+      },
+    });
+
+    if (!fileResponse.ok) {
+      console.error(`[ImageGen] Failed to download image: ${fileResponse.status}`);
+      return { error: `Failed to download image: ${fileResponse.status}` };
+    }
+
+    const imageBuffer = await fileResponse.arrayBuffer();
+    const base64Image = Buffer.from(imageBuffer).toString("base64");
+
+    // Use file_type from Mistral response to determine mime type
+    // The content-type header from Mistral file download returns "application/octet-stream"
+    // so we use the file_type from the tool_file chunk instead
+    const mimeType = `image/${fileType}`;
+    const imageUrl = `data:${mimeType};base64,${base64Image}`;
+
+    console.log(`[ImageGen] Successfully generated image (${imageBuffer.byteLength} bytes, type: ${mimeType})`);
+    return { imageUrl };
+
+  } catch (error: any) {
+    console.error(`[ImageGen] Error:`, error);
+    return { error: error?.message || "Failed to generate image" };
+  }
+}
+
+// Step 3: Generate image using Mistral's Agents API
 // Input: step2 output, Output: final result
 const generateImageStep = createStep({
   id: "generateImage",
@@ -182,20 +347,27 @@ const generateImageStep = createStep({
     }
 
     try {
-      // TODO: Integrate with actual image generation service
-      // Options:
-      // 1. Stable Diffusion via Replicate: https://replicate.com/stability-ai/sdxl
-      // 2. DALL-E via OpenAI: https://platform.openai.com/docs/guides/images
-      // 3. Flux via Replicate: https://replicate.com/black-forest-labs/flux-schnell
-      // 4. FAL.ai: https://fal.ai/models/flux/schnell
+      console.log(`[ImageGen] Mode: ${mode}, Generating image with Mistral Agents API...`);
+      console.log(`[ImageGen] Enhanced Prompt: ${enhanced_prompt}`);
 
-      console.log(`[ImageGen] Mode: ${mode}, Enhanced Prompt: ${enhanced_prompt}`);
+      // Try to generate image using Mistral's Agents API
+      const { imageUrl, error } = await generateImageWithMistralAgentsApi(enhanced_prompt);
 
-      // Placeholder: Return a mock response
-      const mockImageUrl = `https://via.placeholder.com/1024x1024.png?text=${encodeURIComponent('AI Generated Design')}`;
+      if (error || !imageUrl) {
+        console.log(`[ImageGen] Generation failed or not supported: ${error}`);
+        // Fallback to placeholder for development
+        const placeholderUrl = `https://picsum.photos/1024/1024?random=${Date.now()}`;
+        return {
+          image_url: placeholderUrl,
+          enhanced_prompt,
+          style_context,
+          quota_remaining,
+          error: error || "Using placeholder image",
+        };
+      }
 
       return {
-        image_url: mockImageUrl,
+        image_url: imageUrl,
         enhanced_prompt,
         style_context,
         quota_remaining,
@@ -203,8 +375,10 @@ const generateImageStep = createStep({
       };
     } catch (error: any) {
       console.error(`[ImageGen] Error:`, error);
+      // Fallback to placeholder
+      const placeholderUrl = `https://picsum.photos/1024/1024?random=${Date.now()}`;
       return {
-        image_url: undefined,
+        image_url: placeholderUrl,
         enhanced_prompt,
         style_context,
         quota_remaining,

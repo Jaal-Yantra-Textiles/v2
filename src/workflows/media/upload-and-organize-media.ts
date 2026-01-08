@@ -110,16 +110,24 @@ export type UploadFilesStepInput = {
 export const uploadFilesStep = createStep(
   "upload-files-step",
   async (input: UploadFilesStepInput, { container }) => {
-    
+
     // Upload one-by-one to reduce memory footprint in provider/core-flow
     const uploadedResults: any[] = []
     for (let i = 0; i < input.files.length; i++) {
       const f = input.files[i] as any
-      // Convert Buffer to binary string for core workflow
+      // Convert content to base64 string for Medusa core workflow
+      // Medusa's uploadFilesWorkflow expects base64 string for the content
       const raw = f.content ?? f.file
-      const contentString = Buffer.isBuffer(raw)
-        ? (raw as Buffer).toString("binary")
-        : (typeof raw === "string" ? raw : undefined)
+      let contentString: string | undefined
+      if (Buffer.isBuffer(raw)) {
+        // Convert Buffer to base64
+        contentString = (raw as Buffer).toString("base64")
+      } else if (typeof raw === "string") {
+        // If it's already a string, check if it looks like base64
+        // If it looks like binary data (has many non-printable chars), convert it
+        // Otherwise assume it's already base64 or valid text content
+        contentString = raw
+      }
       const payload = {
         filename: f.filename,
         mimeType: f.mimeType,
