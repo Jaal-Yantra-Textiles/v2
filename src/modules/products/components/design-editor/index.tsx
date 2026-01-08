@@ -11,6 +11,7 @@ import { ZoomControls } from "./components/zoom-controls"
 import { NameModal } from "./components/name-modal"
 import { MaterialDetailModal } from "./components/material-detail-modal"
 import { PartnerDetailModal } from "./components/partner-detail-modal"
+import { AiLoginPrompt } from "./components/ai-login-prompt"
 
 interface DesignEditorProps {
   product: DesignProduct
@@ -160,6 +161,7 @@ export default function DesignEditor({
             setShowMaterialModal={editor.setShowMaterialModal}
             selectedPartner={editor.selectedPartner}
             setShowPartnerModal={editor.setShowPartnerModal}
+            isGeneratingAi={editor.isGeneratingAi}
           />
 
           <ZoomControls
@@ -216,6 +218,11 @@ export default function DesignEditor({
             deleteSelectedLayer={editor.deleteSelectedLayer}
             handleSave={editor.handleSave}
             isSaving={editor.isSaving}
+            isGeneratingAi={editor.isGeneratingAi}
+            aiGenerationError={editor.aiGenerationError}
+            quotaRemaining={editor.quotaRemaining}
+            onGenerateAi={editor.generateAiBase}
+            onClearAiError={editor.clearAiError}
           />
         </div>
       </div>
@@ -233,6 +240,13 @@ export default function DesignEditor({
         onClose={() => editor.setShowPartnerModal(false)}
         partner={editor.selectedPartner!}
         onRemove={() => editor.setSelectedPartner(null)}
+      />
+
+      {/* AI Login Prompt Modal */}
+      <AiLoginPrompt
+        isOpen={editor.showLoginPrompt}
+        onLogin={editor.handleLoginRedirect}
+        onCancel={editor.dismissLoginPrompt}
       />
     </div>
   )

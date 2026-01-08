@@ -8,6 +8,7 @@ import {
     ArrowsPointingOutMini,
     CursorArrowRays,
     XMark,
+    Sparkles,
 } from "@medusajs/icons"
 import {
     BadgeCategory,
@@ -139,13 +140,20 @@ type EditorSidebarProps = {
     deleteSelectedLayer: () => void
     handleSave: () => void
     isSaving: boolean
+    // AI Generation props
+    isGeneratingAi?: boolean
+    aiGenerationError?: string | null
+    quotaRemaining?: number | null
+    onGenerateAi?: () => void
+    onClearAiError?: () => void
 }
 
-type SectionKey = "product" | "tools" | "add" | "materials" | "partners" | "layers" | "properties"
-const sectionOrder: SectionKey[] = ["product", "tools", "add", "materials", "partners", "layers", "properties"]
+type SectionKey = "product" | "tools" | "aiGeneration" | "add" | "materials" | "partners" | "layers" | "properties"
+const sectionOrder: SectionKey[] = ["product", "tools", "aiGeneration", "add", "materials", "partners", "layers", "properties"]
 const sectionLabels: Record<SectionKey, string> = {
     product: "Product Info",
     tools: "Canvas Tools",
+    aiGeneration: "AI Generation",
     add: "Add Elements",
     materials: "Materials",
     partners: "Partners",
@@ -190,6 +198,12 @@ export function EditorSidebar({
     deleteSelectedLayer,
     handleSave,
     isSaving,
+    // AI Generation
+    isGeneratingAi,
+    aiGenerationError,
+    quotaRemaining,
+    onGenerateAi,
+    onClearAiError,
 }: EditorSidebarProps) {
     // State for mobile overlay sheets
     const [mobileActiveTab, setMobileActiveTab] = React.useState<string | null>(null)
@@ -421,6 +435,49 @@ export function EditorSidebar({
                         {mobileActiveTab === "layers" && !design.selectedId && (
                             <Text size="small" className="text-gray-500 text-center py-4">Select an element on the canvas to edit its properties.</Text>
                         )}
+
+                        {mobileActiveTab === "ai" && (
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => {
+                                        onGenerateAi?.()
+                                        setMobileActiveTab(null)
+                                    }}
+                                    disabled={isGeneratingAi || !onGenerateAi}
+                                    className={clsx(
+                                        "w-full rounded-xl px-4 py-3 text-sm font-medium transition-all flex items-center justify-center gap-2",
+                                        isGeneratingAi
+                                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                            : "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                                    )}
+                                >
+                                    {isGeneratingAi ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                            </svg>
+                                            Generating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="h-4 w-4" />
+                                            Generate with AI
+                                        </>
+                                    )}
+                                </button>
+                                {quotaRemaining !== null && quotaRemaining !== undefined && (
+                                    <Text size="small" className="text-xs text-gray-500 text-center">
+                                        {quotaRemaining} generations remaining
+                                    </Text>
+                                )}
+                                {aiGenerationError && (
+                                    <div className="rounded-lg bg-red-50 p-2">
+                                        <Text size="small" className="text-xs text-red-600">{aiGenerationError}</Text>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -430,9 +487,9 @@ export function EditorSidebar({
                         <CursorArrowRays className="h-5 w-5" />
                         <span className="text-[10px] font-medium">Tools</span>
                     </button>
-                    <button onClick={() => toggleMobileTab("materials")} className={`flex flex-col items-center gap-1 p-2 ${mobileActiveTab === "materials" ? "text-blue-600" : "text-gray-500"}`}>
-                        <div className="h-5 w-5 rounded-full border border-current flex items-center justify-center text-[10px]">M</div>
-                        <span className="text-[10px] font-medium">Fabrics</span>
+                    <button onClick={() => toggleMobileTab("ai")} className={`flex flex-col items-center gap-1 p-2 ${mobileActiveTab === "ai" ? "text-purple-600" : "text-gray-500"}`}>
+                        <Sparkles className="h-5 w-5" />
+                        <span className="text-[10px] font-medium">AI</span>
                     </button>
 
                     {/* Main Action Button */}
@@ -673,6 +730,73 @@ export function EditorSidebar({
                                                     Pan
                                                 </button>
                                             </div>
+                                        </div>
+                                    </section>
+
+                                    {/* AI Generation Section */}
+                                    <section ref={sectionRefs.aiGeneration} data-section-id="aiGeneration">
+                                        <Text size="small" weight="plus" className="mb-2 px-4 pt-2 text-xs uppercase tracking-wide text-gray-500">
+                                            AI Generation
+                                        </Text>
+                                        <div className="px-4 pb-4 space-y-3">
+                                            <button
+                                                onClick={onGenerateAi}
+                                                disabled={isGeneratingAi || !onGenerateAi}
+                                                className={clsx(
+                                                    "w-full rounded-2xl px-4 py-3 text-sm font-medium transition-all flex items-center justify-center gap-2",
+                                                    isGeneratingAi
+                                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                        : "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:from-purple-700 hover:to-blue-700 hover:shadow-xl"
+                                                )}
+                                            >
+                                                {isGeneratingAi ? (
+                                                    <>
+                                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                        </svg>
+                                                        Generating...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Sparkles className="h-4 w-4" />
+                                                        Generate with AI
+                                                    </>
+                                                )}
+                                            </button>
+
+                                            {/* Quota display */}
+                                            {quotaRemaining !== null && quotaRemaining !== undefined && (
+                                                <div className="flex items-center justify-center">
+                                                    <Text size="small" className="text-xs text-gray-500">
+                                                        {quotaRemaining} generations remaining today
+                                                    </Text>
+                                                </div>
+                                            )}
+
+                                            {/* Error display */}
+                                            {aiGenerationError && (
+                                                <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <Text size="small" className="text-xs text-red-600">
+                                                            {aiGenerationError}
+                                                        </Text>
+                                                        {onClearAiError && (
+                                                            <button
+                                                                onClick={onClearAiError}
+                                                                className="text-red-400 hover:text-red-600"
+                                                            >
+                                                                <XMark className="h-3 w-3" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Help text */}
+                                            <Text size="small" className="text-[11px] text-gray-400 text-center">
+                                                Uses your style preferences to generate a unique design base
+                                            </Text>
                                         </div>
                                     </section>
 

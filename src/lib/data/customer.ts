@@ -107,6 +107,7 @@ export async function signup(_currentState: unknown, formData: FormData) {
 export async function login(_currentState: unknown, formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
+  const redirectTo = formData.get("redirect_to") as string | null
 
   try {
     await sdk.auth
@@ -123,7 +124,14 @@ export async function login(_currentState: unknown, formData: FormData) {
   try {
     await transferCart()
   } catch (error: any) {
-    return error.toString()
+    // Don't return on cart transfer error - still allow redirect
+    console.error("Cart transfer error:", error)
+  }
+
+  // Redirect to the specified URL after successful login, if provided
+  // Note: redirect() throws internally, so this must be outside try-catch
+  if (redirectTo) {
+    redirect(redirectTo)
   }
 }
 

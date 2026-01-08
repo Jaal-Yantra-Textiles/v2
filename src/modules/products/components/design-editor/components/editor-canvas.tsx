@@ -35,6 +35,8 @@ type EditorCanvasProps = {
     setShowMaterialModal: (show: boolean) => void
     selectedPartner: Partner | null
     setShowPartnerModal: (show: boolean) => void
+    // AI Generation
+    isGeneratingAi?: boolean
 }
 
 export function EditorCanvas({
@@ -64,11 +66,13 @@ export function EditorCanvas({
     setShowMaterialModal,
     selectedPartner,
     setShowPartnerModal,
+    isGeneratingAi,
 }: EditorCanvasProps) {
     const transformerRef = useRef<Konva.Transformer>(null)
 
     const showLoaderOverlay = baseImageStatus === "loading" || isGeneratingBase
     const showErrorOverlay = baseImageStatus === "error" && !isGeneratingBase
+    const showAiOverlay = isGeneratingAi
 
     // Attach transformer to selected layer
     useEffect(() => {
@@ -258,6 +262,43 @@ export function EditorCanvas({
                                 </button>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* AI Generation Overlay */}
+                {showAiOverlay && (
+                    <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-purple-500/10 to-blue-500/10 backdrop-blur-sm">
+                        <div className="flex flex-col items-center gap-4 rounded-3xl border border-purple-200/50 bg-white/90 p-8 shadow-2xl">
+                            {/* Animated sparkle icon */}
+                            <div className="relative">
+                                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 p-[2px]">
+                                    <div className="flex h-full w-full items-center justify-center rounded-full bg-white">
+                                        <svg
+                                            className="h-8 w-8 animate-pulse text-purple-600"
+                                            fill="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                {/* Orbiting dots */}
+                                <div className="absolute inset-0 animate-spin" style={{ animationDuration: '3s' }}>
+                                    <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-purple-400" />
+                                </div>
+                                <div className="absolute inset-0 animate-spin" style={{ animationDuration: '4s', animationDirection: 'reverse' }}>
+                                    <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-blue-400" />
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-lg font-semibold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                                    Generating with AI
+                                </p>
+                                <p className="mt-1 text-sm text-gray-500">
+                                    Creating your unique design base...
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

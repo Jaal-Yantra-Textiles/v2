@@ -19,6 +19,7 @@ import { useOnboardingState } from "./modules/use-onboarding"
 import { useDesignDrafts } from "./modules/use-design-drafts"
 import { useExternalResources } from "./modules/use-external-resources"
 import { useDesignHistory } from "./modules/use-design-history"
+import { useAiGeneration } from "./modules/use-ai-generation"
 
 const MIN_SCALE = 0.1
 const MAX_SCALE = 5
@@ -135,12 +136,37 @@ export function useDesignEditor({
     })
 
     const [generatedBase, setGeneratedBase] = useState<string | null>(null)
+
+    // AI Generation hook - handles AI-powered base image generation
+    const {
+        isGeneratingAi,
+        aiGenerationError,
+        showLoginPrompt,
+        lastAiGeneration,
+        quotaRemaining,
+        generateAiBase,
+        dismissLoginPrompt,
+        handleLoginRedirect,
+        clearAiError,
+    } = useAiGeneration({
+        customer: customer ?? null,
+        countryCode,
+        badgePreferences,
+        design,
+        setDesign,
+        persistDraftSnapshot,
+        onBaseImageGenerated: (url: string) => {
+            // Update the generated base image URL when AI generation succeeds
+            setGeneratedBase(url)
+        },
+    })
     const [isGeneratingBase, setIsGeneratingBase] = useState(false)
 
     const [desktopSidebarOffset, setDesktopSidebarOffset] = useState(24)
 
-    // Load base product image (prioritize actual thumbnail, otherwise generated fallback)
-    const baseImageSrc = product.thumbnail ?? generatedBase ?? undefined
+    // Load base product image
+    // AI-generated base takes priority if set, otherwise fall back to product thumbnail
+    const baseImageSrc = generatedBase ?? product.thumbnail ?? undefined
     const [baseImage, baseImageStatus] = useImage(baseImageSrc)
 
     const regenerateBaseImage = useCallback(() => {
@@ -809,5 +835,16 @@ export function useDesignEditor({
         moveLayerUp,
         moveLayerDown,
         toggleLayerVisibility,
+
+        // AI Generation
+        isGeneratingAi,
+        aiGenerationError,
+        showLoginPrompt,
+        lastAiGeneration,
+        quotaRemaining,
+        generateAiBase,
+        dismissLoginPrompt,
+        handleLoginRedirect,
+        clearAiError,
     }
 }
