@@ -128,10 +128,14 @@ export async function login(_currentState: unknown, formData: FormData) {
     console.error("Cart transfer error:", error)
   }
 
-  // Redirect to the specified URL after successful login, if provided
+  // Redirect after successful login
+  // Validate that redirectTo is a safe internal path (starts with /)
   // Note: redirect() throws internally, so this must be outside try-catch
-  if (redirectTo) {
+  if (redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
     redirect(redirectTo)
+  } else {
+    // Default redirect to account page if no valid redirect_to provided
+    redirect("/account")
   }
 }
 

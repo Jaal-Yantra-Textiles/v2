@@ -23,10 +23,8 @@ const Login = ({ setCurrentView, redirectTo }: Props) => {
         Sign in to access an enhanced shopping experience.
       </p>
       <form className="w-full" action={formAction}>
-        {/* Hidden input for redirect URL after login */}
-        {redirectTo && (
-          <input type="hidden" name="redirect_to" value={redirectTo} />
-        )}
+        {/* Hidden input for redirect URL after login - always render to preserve across re-renders */}
+        <input type="hidden" name="redirect_to" value={redirectTo || ""} />
         <div className="flex flex-col w-full gap-y-2">
           <Input
             label="Email"
