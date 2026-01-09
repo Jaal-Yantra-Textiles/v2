@@ -1,3 +1,10 @@
+# [8.13.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.12.1...v8.13.0) (2026-01-09)
+
+
+### Features
+
+* **api:** AI Image gen ([61b0c42](https://github.com/Jaal-Yantra-Textiles/v2/commit/61b0c42901c07d27fa75662d3f2e7f14676ae7e6))
+
 ## [8.12.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.12.0...v8.12.1) (2026-01-08)
 
 
