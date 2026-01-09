@@ -200,8 +200,14 @@ export async function POST(
 
 /**
  * GET /store/custom/designs
- * 
+ *
  * Lists customer designs (filtered by customer if authenticated)
+ *
+ * Query parameters:
+ * - limit: number of designs to return (default: 20)
+ * - offset: pagination offset (default: 0)
+ * - origin_source: filter by origin source (e.g., "ai-mistral" for AI-generated designs)
+ * - include_ai: if "true", only include AI-generated designs (shorthand for origin_source=ai-mistral)
  */
 export async function GET(
   req: AuthenticatedMedusaRequest,
@@ -218,6 +224,8 @@ export async function GET(
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
     const limit = Number(req.query.limit ?? 20);
     const offset = Number(req.query.offset ?? 0);
+    const originSource = req.query.origin_source as string | undefined;
+    const includeAi = req.query.include_ai === "true";
 
     const { data: linkedDesigns } = await query.graph({
       entity: designCustomerLink.entryPoint,
@@ -231,6 +239,8 @@ export async function GET(
         "design.status",
         "design.thumbnail_url",
         "design.metadata",
+        "design.media_files",
+        "design.origin_source",
         "design.created_at",
         "design.inventory_items.id",
         "design.inventory_items.title",
@@ -238,12 +248,28 @@ export async function GET(
         "design.partners.name",
       ],
       pagination: {
-        skip: offset,
-        take: limit,
+        skip: 0,
+        take: 1000, // Get all to filter, then paginate
       },
     });
 
-    const allDesigns = (linkedDesigns || []).map((link: any) => link.design).filter(Boolean);
+    let allDesigns = (linkedDesigns || []).map((link: any) => link.design).filter(Boolean);
+
+    // Filter by origin_source if provided
+    if (originSource) {
+      allDesigns = allDesigns.filter((d: any) => d.origin_source === originSource);
+    } else if (includeAi) {
+      // Shorthand: include_ai=true means origin_source=ai-mistral
+      allDesigns = allDesigns.filter((d: any) => d.origin_source === "ai-mistral");
+    }
+
+    // Sort by created_at descending (newest first)
+    allDesigns.sort((a: any, b: any) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      return dateB - dateA;
+    });
+
     const paginated = allDesigns.slice(offset, offset + limit);
 
     res.status(200).json({

@@ -95,6 +95,21 @@
           ],
           "mappedType": "enum"
         },
+        "origin_source": {
+          "name": "origin_source",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'manual'",
+          "enumItems": [
+            "manual",
+            "ai-mistral",
+            "ai-other"
+          ],
+          "mappedType": "enum"
+        },
         "target_completion_date": {
           "name": "target_completion_date",
           "type": "timestamptz",

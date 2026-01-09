@@ -2,25 +2,55 @@
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod/v4";
 import { Agent } from "@mastra/core/agent";
-import { mistral } from "@ai-sdk/mistral";
 
+// Import provider modules
+import {
+  ImageProvider,
+  GenerationResult,
+  PROVIDER_PRIORITY,
+  extractRetryAfterMs,
+} from "./providers";
+import { generateWithGoogleImagen } from "./providers/google-imagen";
+import { generateWithGeminiFlash } from "./providers/gemini-flash-image";
+import { generateWithMistralFlux } from "./providers/mistral-flux";
+import { generateWithFireworks } from "./providers/fireworks";
+import { generateWithCheapestModel } from "./providers/model-selector";
+import {
+  canUseProvider,
+  recordRequest,
+  recordRateLimitHit,
+  getProviderStatus,
+} from "./rate-limit-manager";
 
 /**
  * Design Image Generation Workflow
  *
- * This workflow uses AI SDK's generateImage with Mistral's image model
- * powered by Black Forest Lab FLUX1.1 [pro] Ultra.
+ * This workflow generates fashion design images using:
+ * - Step 1: Mastra Agent for prompt enhancement (text generation)
+ * - Step 2: Quota check
+ * - Step 3: Multi-provider image generation with fallback
  *
- * Step 1: Build and enhance prompt using Mastra agent (text generation)
- * Step 2: Check quota
- * Step 3: Generate image using AI SDK's generateImage with Mistral
+ * Provider Types:
+ * - Image Models: Dedicated image generation (Google Imagen, Fireworks FLUX)
+ * - Text Models with Image Output: Multi-modal text models (Gemini Flash, Mistral)
  *
+ * Provider Priority: Mistral → Gemini Flash → Google Imagen → Fireworks → "Out of credits"
+ *
+ * Implementation Notes:
+ * - Google Imagen uses AI SDK's @ai-sdk/google with experimental_generateImage
+ * - Gemini Flash uses AI SDK's generateText with files property for image output
+ * - Mistral uses Mastra Agent with image_generation built-in tool
+ * - Fireworks uses AI SDK's @ai-sdk/fireworks with experimental_generateImage
+ * - Rate limit tracking is in-memory to proactively skip rate-limited providers
+ *
+ * @see https://ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai#image-outputs
  * @see https://docs.mistral.ai/agents/tools/built-in/image_generation
+ * @see https://ai-sdk.dev/providers/ai-sdk-providers/fireworks
  */
 
-// Create a dedicated agent for design image generation
-const designImageAgent = new Agent({
-  name: "design-image-agent",
+// Create a dedicated agent for prompt enhancement (text generation only)
+const promptEnhancerAgent = new Agent({
+  name: "prompt-enhancer-agent",
   model: "mistral/mistral-medium-latest",
   instructions:
     "You are an expert fashion design AI assistant. " +
@@ -32,30 +62,41 @@ const designImageAgent = new Agent({
 // Trigger schema (workflow input)
 export const triggerSchema = z.object({
   mode: z.enum(["preview", "commit"]).default("preview"),
-  badges: z.object({
-    style: z.string().optional(),
-    color_family: z.string().optional(),
-    body_type: z.string().optional(),
-    embellishment_level: z.string().optional(),
-    occasion: z.string().optional(),
-    budget_sensitivity: z.string().optional(),
-    custom: z.record(z.string(), z.any()).optional(),
-  }).optional(),
+  badges: z
+    .object({
+      style: z.string().optional(),
+      color_family: z.string().optional(),
+      body_type: z.string().optional(),
+      embellishment_level: z.string().optional(),
+      occasion: z.string().optional(),
+      budget_sensitivity: z.string().optional(),
+      custom: z.record(z.string(), z.any()).optional(),
+    })
+    .optional(),
   materials_prompt: z.string().optional(),
-  reference_images: z.array(z.object({
-    url: z.string().url(),
-    weight: z.number().min(0).max(1).default(0.5).optional(),
-    prompt: z.string().optional(),
-  })).max(3).optional(),
-  canvas_snapshot: z.object({
-    width: z.number().positive(),
-    height: z.number().positive(),
-    layers: z.array(z.object({
-      id: z.string(),
-      type: z.enum(["image", "text", "shape"]).default("image"),
-      data: z.record(z.any()),
-    })),
-  }).optional(),
+  reference_images: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        weight: z.number().min(0).max(1).default(0.5).optional(),
+        prompt: z.string().optional(),
+      })
+    )
+    .max(3)
+    .optional(),
+  canvas_snapshot: z
+    .object({
+      width: z.number().positive(),
+      height: z.number().positive(),
+      layers: z.array(
+        z.object({
+          id: z.string(),
+          type: z.enum(["image", "text", "shape"]).default("image"),
+          data: z.record(z.any()),
+        })
+      ),
+    })
+    .optional(),
   preview_cache_key: z.string().optional(),
   customer_id: z.string(),
   threadId: z.string().optional(),
@@ -68,8 +109,21 @@ export const outputSchema = z.object({
   enhanced_prompt: z.string(),
   style_context: z.string(),
   quota_remaining: z.number(),
+  provider_used: z.string().optional(),
   error: z.string().optional(),
 });
+
+// Sample test image (1x1 transparent PNG as base64)
+const TEST_SAMPLE_IMAGE_BASE64 =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+/**
+ * Check if we're running in a test environment
+ * Returns true if TEST_TYPE env var is set (integration tests)
+ */
+function isTestEnvironment(): boolean {
+  return !!process.env.TEST_TYPE;
+}
 
 // Step 1: Build and enhance prompt using Mistral agent
 // Input: triggerSchema, Output: enhanced prompt data + passthrough fields
@@ -87,27 +141,39 @@ const buildPromptStep = createStep({
   inputSchema: triggerSchema,
   outputSchema: step1OutputSchema,
   execute: async ({ inputData }) => {
-    const { badges, materials_prompt, reference_images, threadId, resourceId, mode, customer_id } = inputData;
+    const {
+      badges,
+      materials_prompt,
+      reference_images,
+      threadId,
+      resourceId,
+      mode,
+      customer_id,
+    } = inputData;
 
     // Build initial style context from badges
     const styleParts: string[] = [];
     if (badges) {
       if (badges.style) styleParts.push(`Style: ${badges.style}`);
-      if (badges.color_family) styleParts.push(`Color palette: ${badges.color_family}`);
+      if (badges.color_family)
+        styleParts.push(`Color palette: ${badges.color_family}`);
       if (badges.body_type) styleParts.push(`Body fit: ${badges.body_type}`);
-      if (badges.embellishment_level) styleParts.push(`Embellishment: ${badges.embellishment_level}`);
+      if (badges.embellishment_level)
+        styleParts.push(`Embellishment: ${badges.embellishment_level}`);
       if (badges.occasion) styleParts.push(`Occasion: ${badges.occasion}`);
-      if (badges.budget_sensitivity) styleParts.push(`Budget: ${badges.budget_sensitivity}`);
+      if (badges.budget_sensitivity)
+        styleParts.push(`Budget: ${badges.budget_sensitivity}`);
     }
 
-    const styleContext = styleParts.length > 0 ? styleParts.join(", ") : "casual fashion";
+    const styleContext =
+      styleParts.length > 0 ? styleParts.join(", ") : "casual fashion";
 
     // Build reference context
     let refContext = "";
     if (reference_images && reference_images.length > 0) {
       refContext = `\nReference images (${reference_images.length}):`;
       reference_images.forEach((ref, idx) => {
-        refContext += `\n- Image ${idx + 1}${ref.prompt ? `: ${ref.prompt}` : ''}`;
+        refContext += `\n- Image ${idx + 1}${ref.prompt ? `: ${ref.prompt}` : ""}`;
       });
     }
 
@@ -115,20 +181,37 @@ const buildPromptStep = createStep({
     const userPrompt =
       `Create an optimized image generation prompt for a fashion design with these specifications:\n\n` +
       `Style Preferences: ${styleContext}\n` +
-      (materials_prompt ? `Materials: ${materials_prompt}\n` : '') +
+      (materials_prompt ? `Materials: ${materials_prompt}\n` : "") +
       refContext +
       `\n\nGenerate a detailed, professional prompt suitable for a text-to-image AI model. ` +
       `Focus on visual elements, textures, colors, and design details. ` +
       `The prompt should be clear, specific, and optimized for high-quality fashion design generation.`;
 
+    // In test environment, skip the AI call to save credits
+    if (isTestEnvironment()) {
+      console.log(`[ImageGen] Test environment detected - returning mock prompt`);
+      return {
+        enhanced_prompt: `Test fashion design: ${styleContext}. ${materials_prompt || ""}`.trim(),
+        style_context: styleContext,
+        technical_details: "Test mode - no AI enhancement",
+        mode,
+        customer_id,
+      };
+    }
+
     const promptOutputSchema = z.object({
-      enhanced_prompt: z.string().describe("The optimized prompt for image generation"),
+      enhanced_prompt: z
+        .string()
+        .describe("The optimized prompt for image generation"),
       style_context: z.string().describe("Summary of the design style"),
-      technical_details: z.string().optional().describe("Technical details about materials and construction"),
+      technical_details: z
+        .string()
+        .optional()
+        .describe("Technical details about materials and construction"),
     });
 
-    // Use built-in Mastra model string (e.g., "mistral/pixtral-large-latest") for compatibility
-    const response = await designImageAgent.generate(
+    // Use the prompt enhancer agent (no image generation tool)
+    const response = await promptEnhancerAgent.generate(
       [{ role: "user", content: userPrompt }],
       {
         output: promptOutputSchema,
@@ -165,9 +248,10 @@ const checkQuotaStep = createStep({
 
     // Simple quota check - can be enhanced with Redis/DB
     // Preview: higher limit (50/day), Commit: lower limit (10/day)
-    const quotaData = mode === "preview"
-      ? { allowed: true, remaining: 45 }
-      : { allowed: true, remaining: 8 };
+    const quotaData =
+      mode === "preview"
+        ? { allowed: true, remaining: 45 }
+        : { allowed: true, remaining: 8 };
 
     return {
       ...inputData,
@@ -178,163 +262,183 @@ const checkQuotaStep = createStep({
 });
 
 /**
- * Generate image using Mistral's Agents API with built-in image_generation tool
+ * Generate image using provider chain with automatic fallback
  *
- * IMPORTANT: Mistral's image_generation is a server-side built-in tool that only works
- * through the Agents API (POST /v1/agents, POST /v1/conversations).
- * The standard chat API will return a tool_call but won't execute the image generation.
+ * Strategy:
+ * 1. First, try the cheapest available model from our model selector
+ * 2. If that fails, fall back to the provider chain (Mistral → Gemini Flash → Google Imagen → Fireworks)
+ * 3. If all providers fail: return OUT_OF_CREDITS error
  *
  * Flow:
- * 1. Create an agent with image_generation tool
- * 2. Start a conversation with the prompt
- * 3. Extract file_id from tool_file chunks
- * 4. Download the image
- *
- * @see https://docs.mistral.ai/agents/tools/built-in/image_generation
+ * 1. Try cheapest model first (sorted by price)
+ * 2. If fails, check rate limit status for each provider in fallback chain
+ * 3. Try providers in priority order, skipping rate-limited ones
+ * 4. On success: record request and return image
+ * 5. On rate limit: record hit and try next provider
+ * 6. If all providers fail: return OUT_OF_CREDITS error
  */
-async function generateImageWithMistralAgentsApi(prompt: string): Promise<{ imageUrl?: string; error?: string }> {
-  const apiKey = process.env.MISTRAL_API_KEY;
+async function generateWithProviderChain(
+  prompt: string
+): Promise<GenerationResult & { providerStatus?: Record<ImageProvider, unknown> }> {
+  console.log(`[ImageGen] Starting with cheapest model approach...`);
 
-  if (!apiKey) {
-    return { error: "MISTRAL_API_KEY not configured" };
-  }
-
+  // Step 1: Try the cheapest model first
   try {
-    console.log(`[ImageGen] Creating Mistral agent with image_generation tool...`);
+    const cheapestResult = await generateWithCheapestModel(prompt);
 
-    // Step 1: Create an agent with image_generation tool
-    const agentResponse = await fetch("https://api.mistral.ai/v1/agents", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "mistral-medium-latest",
-        name: `fashion-image-gen-${Date.now()}`,
-        description: "Agent for generating fashion design images",
-        instructions: "You are a fashion design image generator. Generate high-quality fashion design images based on the provided prompt. Always use the image_generation tool.",
-        tools: [{ type: "image_generation" }],
-        completion_args: {
-          temperature: 0.7,
-          top_p: 0.95,
-        },
-      }),
-    });
-
-    if (!agentResponse.ok) {
-      const errorText = await agentResponse.text();
-      console.error(`[ImageGen] Failed to create agent: ${agentResponse.status}`, errorText);
-      return { error: `Failed to create agent: ${agentResponse.status} - ${errorText}` };
+    if (cheapestResult.success && cheapestResult.imageUrl) {
+      console.log(`[ImageGen] Success with cheapest model: ${cheapestResult.modelUsed}`);
+      return {
+        success: true,
+        imageUrl: cheapestResult.imageUrl,
+        provider: "google", // Generic, actual model is in logs
+        providerStatus: getProviderStatus(),
+      };
     }
 
-    const agent = await agentResponse.json();
-    const agentId = agent.id;
-    console.log(`[ImageGen] Created agent: ${agentId}`);
-
-    // Step 2: Start a conversation with the prompt
-    console.log(`[ImageGen] Starting conversation...`);
-    const conversationResponse = await fetch("https://api.mistral.ai/v1/conversations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        agent_id: agentId,
-        inputs: prompt,
-      }),
-    });
-
-    if (!conversationResponse.ok) {
-      const errorText = await conversationResponse.text();
-      console.error(`[ImageGen] Conversation failed: ${conversationResponse.status}`, errorText);
-      // Cleanup: delete the agent
-      await fetch(`https://api.mistral.ai/v1/agents/${agentId}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${apiKey}` },
-      });
-      return { error: `Conversation failed: ${conversationResponse.status} - ${errorText}` };
-    }
-
-    const conversation = await conversationResponse.json();
-    console.log(`[ImageGen] Conversation response:`, JSON.stringify(conversation, null, 2));
-
-    // Step 3: Extract file_id and file_type from the response
-    let fileId: string | undefined;
-    let fileType: string = "png"; // Default to png
-
-    // Check outputs for tool_file chunks
-    if (conversation.outputs && Array.isArray(conversation.outputs)) {
-      for (const output of conversation.outputs) {
-        // Check message.output type entries
-        if (output.content && Array.isArray(output.content)) {
-          for (const chunk of output.content) {
-            if (chunk.type === "tool_file" && chunk.tool === "image_generation" && chunk.file_id) {
-              fileId = chunk.file_id;
-              // Extract file_type from the response (e.g., "png", "jpg")
-              if (chunk.file_type) {
-                fileType = chunk.file_type;
-              }
-              console.log(`[ImageGen] Found file_id: ${fileId}, file_type: ${fileType}`);
-              break;
-            }
-          }
-        }
-        if (fileId) break;
-      }
-    }
-
-    // Cleanup: delete the agent (we don't need it anymore)
-    await fetch(`https://api.mistral.ai/v1/agents/${agentId}`, {
-      method: "DELETE",
-      headers: { "Authorization": `Bearer ${apiKey}` },
-    }).catch(() => {}); // Ignore cleanup errors
-
-    if (!fileId) {
-      console.log(`[ImageGen] No image file_id found in response`);
-      return { error: "No image generated in response" };
-    }
-
-    // Step 4: Download the generated image
-    console.log(`[ImageGen] Downloading image: ${fileId}`);
-    const fileResponse = await fetch(`https://api.mistral.ai/v1/files/${fileId}/content`, {
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-      },
-    });
-
-    if (!fileResponse.ok) {
-      console.error(`[ImageGen] Failed to download image: ${fileResponse.status}`);
-      return { error: `Failed to download image: ${fileResponse.status}` };
-    }
-
-    const imageBuffer = await fileResponse.arrayBuffer();
-    const base64Image = Buffer.from(imageBuffer).toString("base64");
-
-    // Use file_type from Mistral response to determine mime type
-    // The content-type header from Mistral file download returns "application/octet-stream"
-    // so we use the file_type from the tool_file chunk instead
-    const mimeType = `image/${fileType}`;
-    const imageUrl = `data:${mimeType};base64,${base64Image}`;
-
-    console.log(`[ImageGen] Successfully generated image (${imageBuffer.byteLength} bytes, type: ${mimeType})`);
-    return { imageUrl };
-
-  } catch (error: any) {
-    console.error(`[ImageGen] Error:`, error);
-    return { error: error?.message || "Failed to generate image" };
+    console.log(`[ImageGen] Cheapest model approach failed: ${cheapestResult.error}`);
+    console.log(`[ImageGen] Falling back to provider chain...`);
+  } catch (error) {
+    console.log(`[ImageGen] Cheapest model threw error, falling back to provider chain...`);
   }
+
+  // Step 2: Fall back to provider chain
+  console.log(`[ImageGen] Starting provider chain fallback...`);
+  console.log(`[ImageGen] Provider status:`, getProviderStatus());
+
+  const errors: string[] = [];
+
+  for (const provider of PROVIDER_PRIORITY) {
+    // Check if provider is available (not rate-limited)
+    if (!canUseProvider(provider)) {
+      console.log(`[ImageGen] Skipping ${provider} (rate limited)`);
+      errors.push(`${provider}: rate limited`);
+      continue;
+    }
+
+    console.log(`[ImageGen] Trying provider: ${provider}`);
+
+    let result: GenerationResult;
+
+    try {
+      // Call the appropriate provider
+      switch (provider) {
+        case "google":
+          result = await generateWithGoogleImagen(prompt);
+          break;
+        case "gemini-flash":
+          result = await generateWithGeminiFlash(prompt);
+          break;
+        case "mistral":
+          result = await generateWithMistralFlux(prompt);
+          break;
+        case "fireworks":
+          result = await generateWithFireworks(prompt);
+          break;
+        default:
+          continue;
+      }
+
+      // Handle result
+      if (result.success && result.imageUrl) {
+        recordRequest(provider);
+        console.log(`[ImageGen] Success with ${provider}`);
+        return {
+          ...result,
+          providerStatus: getProviderStatus(),
+        };
+      }
+
+      // Handle rate limit error
+      if (result.errorCode === "RATE_LIMITED") {
+        console.log(`[ImageGen] ${provider} returned rate limit error`);
+        recordRateLimitHit(provider);
+        errors.push(`${provider}: ${result.error}`);
+        continue;
+      }
+
+      // Handle other errors - try next provider
+      console.log(`[ImageGen] ${provider} failed: ${result.error}`);
+      errors.push(`${provider}: ${result.error}`);
+
+      // For server errors, we might want to retry once
+      if (result.errorCode === "SERVER_ERROR") {
+        console.log(`[ImageGen] Retrying ${provider} once due to server error...`);
+
+        // Small delay before retry
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        switch (provider) {
+          case "google":
+            result = await generateWithGoogleImagen(prompt);
+            break;
+          case "gemini-flash":
+            result = await generateWithGeminiFlash(prompt);
+            break;
+          case "mistral":
+            result = await generateWithMistralFlux(prompt);
+            break;
+          case "fireworks":
+            result = await generateWithFireworks(prompt);
+            break;
+        }
+
+        if (result.success && result.imageUrl) {
+          recordRequest(provider);
+          console.log(`[ImageGen] Success with ${provider} on retry`);
+          return {
+            ...result,
+            providerStatus: getProviderStatus(),
+          };
+        }
+
+        // Still failed, record and continue
+        if (result.errorCode === "RATE_LIMITED") {
+          recordRateLimitHit(provider);
+        }
+        errors.push(`${provider} (retry): ${result.error}`);
+      }
+    } catch (error: unknown) {
+      console.error(`[ImageGen] Unexpected error with ${provider}:`, error);
+
+      // Check if it's a rate limit error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (
+        errorMessage.toLowerCase().includes("rate limit") ||
+        errorMessage.includes("429")
+      ) {
+        recordRateLimitHit(provider, extractRetryAfterMs(error));
+      }
+
+      errors.push(`${provider}: ${errorMessage}`);
+    }
+  }
+
+  // All providers exhausted
+  console.log(`[ImageGen] All providers exhausted. Errors:`, errors);
+  return {
+    success: false,
+    provider: "google", // Default, but not used
+    error: "OUT_OF_CREDITS",
+    errorCode: "RATE_LIMITED",
+    providerStatus: getProviderStatus(),
+  };
 }
 
-// Step 3: Generate image using Mistral's Agents API
+// Step 3: Generate image using provider chain
 // Input: step2 output, Output: final result
 const generateImageStep = createStep({
   id: "generateImage",
   inputSchema: step2OutputSchema,
   outputSchema: outputSchema,
   execute: async ({ inputData }) => {
-    const { enhanced_prompt, style_context, quota_allowed, quota_remaining, mode } = inputData;
+    const {
+      enhanced_prompt,
+      style_context,
+      quota_allowed,
+      quota_remaining,
+      mode,
+    } = inputData;
 
     if (!quota_allowed) {
       return {
@@ -346,39 +450,63 @@ const generateImageStep = createStep({
       };
     }
 
-    try {
-      console.log(`[ImageGen] Mode: ${mode}, Generating image with Mistral Agents API...`);
-      console.log(`[ImageGen] Enhanced Prompt: ${enhanced_prompt}`);
-
-      // Try to generate image using Mistral's Agents API
-      const { imageUrl, error } = await generateImageWithMistralAgentsApi(enhanced_prompt);
-
-      if (error || !imageUrl) {
-        console.log(`[ImageGen] Generation failed or not supported: ${error}`);
-        // Fallback to placeholder for development
-        const placeholderUrl = `https://picsum.photos/1024/1024?random=${Date.now()}`;
-        return {
-          image_url: placeholderUrl,
-          enhanced_prompt,
-          style_context,
-          quota_remaining,
-          error: error || "Using placeholder image",
-        };
-      }
-
+    // In test environment, return a sample image to avoid using AI credits
+    if (isTestEnvironment()) {
+      console.log(`[ImageGen] Test environment detected - returning sample image`);
       return {
-        image_url: imageUrl,
+        image_url: TEST_SAMPLE_IMAGE_BASE64,
         enhanced_prompt,
         style_context,
         quota_remaining,
+        provider_used: "test-mock",
         error: undefined,
       };
-    } catch (error: any) {
-      console.error(`[ImageGen] Error:`, error);
-      // Fallback to placeholder
-      const placeholderUrl = `https://picsum.photos/1024/1024?random=${Date.now()}`;
+    }
+
+    try {
+      console.log(`[ImageGen] Mode: ${mode}, Starting multi-provider generation...`);
+      console.log(`[ImageGen] Enhanced Prompt: ${enhanced_prompt.substring(0, 200)}...`);
+
+      // Use provider chain with automatic fallback
+      const result = await generateWithProviderChain(enhanced_prompt);
+
+      if (result.success && result.imageUrl) {
+        console.log(`[ImageGen] Successfully generated image via ${result.provider}`);
+        return {
+          image_url: result.imageUrl,
+          enhanced_prompt,
+          style_context,
+          quota_remaining,
+          provider_used: result.provider,
+          error: undefined,
+        };
+      }
+
+      // All providers failed
+      if (result.error === "OUT_OF_CREDITS") {
+        console.log(`[ImageGen] All providers exhausted - returning OUT_OF_CREDITS`);
+        return {
+          image_url: undefined,
+          enhanced_prompt,
+          style_context,
+          quota_remaining,
+          error: "OUT_OF_CREDITS",
+        };
+      }
+
+      // Some other error occurred
+      console.log(`[ImageGen] Generation failed: ${result.error}`);
       return {
-        image_url: placeholderUrl,
+        image_url: undefined,
+        enhanced_prompt,
+        style_context,
+        quota_remaining,
+        error: result.error || "Image generation failed",
+      };
+    } catch (error: any) {
+      console.error(`[ImageGen] Unexpected error:`, error);
+      return {
+        image_url: undefined,
         enhanced_prompt,
         style_context,
         quota_remaining,

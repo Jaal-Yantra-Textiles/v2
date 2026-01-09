@@ -1,2 +1,2 @@
 export const DESIGN_DETAIL_FIELDS =
-  "inventory_items.*, tasks.*, tasks.outgoing.*, tasks.incoming.*, partners.*, colors.*, size_sets.*";
+  "inventory_items.*, tasks.*, tasks.outgoing.*, tasks.incoming.*, partners.*, colors.*, size_sets.*, customer.*";

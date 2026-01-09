@@ -8,6 +8,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { mastra } from "../../mastra";
 import { uploadAndOrganizeMediaWorkflow } from "../media/upload-and-organize-media";
+import { createDesignWorkflow } from "../designs/create-design";
 import { DESIGN_MODULE } from "../../modules/designs";
 import DesignService from "../../modules/designs/service";
 import { MEDIA_MODULE } from "../../modules/media";
@@ -136,6 +137,7 @@ type UploadImageInput = {
   customer_id: string;
   badges?: Badge;
   materials_prompt?: string;
+  prompt_used?: string;
 };
 
 const uploadGeneratedImageStep = createStep(
@@ -218,6 +220,7 @@ const uploadGeneratedImageStep = createStep(
         metadata: {
           badges: input.badges || {},
           materials_prompt: input.materials_prompt || "",
+          prompt_used: input.prompt_used || "",
           source: "ai-mistral",
           customer_id: input.customer_id,
           generated_at: new Date().toISOString(),
@@ -290,6 +293,9 @@ const updateDesignWithAiMediaStep = createStep(
   }
 );
 
+// Step 4: Create a new design entry for AI generation history
+// Now uses createDesignWorkflow.runAsStep() for proper workflow composition
+
 // Main workflow
 export const generateDesignAiImageWorkflow = createWorkflow(
   "generate-design-ai-image",
@@ -307,6 +313,7 @@ export const generateDesignAiImageWorkflow = createWorkflow(
         customer_id: data.input.customer_id,
         badges: data.input.badges,
         materials_prompt: data.input.materials_prompt,
+        prompt_used: data.mastraResult.prompt_used,
       })
     );
 
@@ -341,15 +348,75 @@ export const generateDesignAiImageWorkflow = createWorkflow(
       return updateDesignWithAiMediaStep(updateDesignInput);
     });
 
+    // Step 4: Always create a design entry to save AI generation history
+    // Uses createDesignWorkflow.runAsStep() for proper workflow composition
+    // This ensures customers can see their AI generations across sessions
+    const createDesignInput = transform(
+      { input, mastraResult, uploadResult },
+      (data) => {
+        const timestamp = new Date().toISOString();
+        const shortTimestamp = new Date().toLocaleString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        return {
+          name: `AI Design - ${shortTimestamp}`,
+          description: data.mastraResult.prompt_used || "AI-generated design",
+          design_type: "Custom" as const,
+          status: "Conceptual" as const,
+          priority: "Medium" as const,
+          origin_source: "ai-mistral" as const,
+          thumbnail_url: data.uploadResult?.media_url || "",
+          media_files: data.uploadResult?.media_id
+            ? [
+                {
+                  id: data.uploadResult.media_id,
+                  url: data.uploadResult.media_url,
+                  isThumbnail: true,
+                },
+              ]
+            : undefined,
+          metadata: {
+            ai_generation: {
+              media_id: data.uploadResult?.media_id || "",
+              preview_url: data.uploadResult?.media_url || "",
+              badges: data.input.badges || {},
+              materials_prompt: data.input.materials_prompt || "",
+              prompt_used: data.mastraResult.prompt_used,
+              generated_at: timestamp,
+            },
+          },
+          tags: ["ai-generated", "auto-saved"],
+          customer_id_for_link: data.input.customer_id,
+        };
+      }
+    );
+
+    const createDesignResult = when(
+      "create-ai-design-history",
+      { uploadResult },
+      (data) => !!data.uploadResult?.media_id
+    ).then(() => {
+      // Use createDesignWorkflow.runAsStep() for proper workflow composition
+      return createDesignWorkflow.runAsStep({
+        input: createDesignInput,
+      });
+    });
+
     // Return response using transform for runtime value access
     // Always return the uploaded media URL instead of the base64 image_url
     const response = transform(
-      { input, mastraResult, uploadResult },
+      { input, mastraResult, uploadResult, createDesignResult },
       (data) => ({
         mode: data.input.mode,
         // Always use the uploaded media URL if available
         preview_url: data.uploadResult?.media_url || data.mastraResult.image_url,
         media_id: data.uploadResult?.media_id,
+        // createDesignWorkflow returns the design object directly with an id property
+        design_id: data.createDesignResult?.id,
         prompt_used: data.mastraResult.prompt_used,
         badges: data.input.badges,
         materials_prompt: data.input.materials_prompt,

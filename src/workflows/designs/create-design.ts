@@ -35,6 +35,8 @@ type CreateDesignStepInput = {
   designer_notes?: string;
   feedback_history?: Record<string, any>;
   metadata?: Record<string, any>;
+  media_files?: Array<{ id?: string; url: string; isThumbnail?: boolean }>;
+  moodboard?: Record<string, any>;
   // New structured fields (optional)
   colors?: Array<{ name: string; hex_code: string; usage_notes?: string; order?: number }>;
   size_sets?: Array<{ size_label: string; measurements: Record<string, number> }>;
@@ -52,6 +54,7 @@ export const createDesignStep = createStep(
       input.colors?.length ? input.colors : convertColorPaletteToColors(input.color_palette);
 
     // Create the design record first
+    // Note: media_files is typed as json() in the model, so we cast the array to the expected type
     const design = await designService.createDesigns({
       name: input.name,
       description: input.description,
@@ -69,6 +72,8 @@ export const createDesignStep = createStep(
       designer_notes: input.designer_notes,
       feedback_history: input.feedback_history,
       metadata: input.metadata,
+      media_files: input.media_files as Record<string, unknown> | null | undefined,
+      moodboard: input.moodboard,
       origin_source: input.origin_source,
     });
     // Persist structured colors if provided
