@@ -230,11 +230,111 @@ await fetch(`/store/carts/${cartId}/line-items`, {
 
 4. **Complete checkout** using standard Medusa checkout flow.
 
+## Storefront Implementation
+
+The storefront (`jyt-storefront`) implements the design-to-cart flow with a checkout modal that appears after saving a design.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `src/lib/data/designs.ts` | Server actions for API calls |
+| `src/modules/products/components/design-editor/components/design-checkout-modal.tsx` | Checkout modal component |
+| `src/modules/products/components/design-editor/hooks/use-design-editor.ts` | Editor hook with save flow |
+| `src/modules/products/components/design-editor/index.tsx` | Main editor component |
+
+### User Flow
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Design Editor  │────▶│  Save Design    │────▶│ Checkout Modal  │
+│                 │     │  (createDesign) │     │ (shows estimate)│
+└─────────────────┘     └─────────────────┘     └────────┬────────┘
+                                                         │
+                        ┌─────────────────┐              │
+                        │  Cart Page      │◀─────────────┘
+                        │  (/cart)        │   "Add to Cart"
+                        └─────────────────┘   (checkoutDesign + addToCart)
+```
+
+### Server Actions (designs.ts)
+
+```typescript
+// Get cost estimate for a design
+export const getDesignEstimate = async (designId: string): Promise<CostEstimate>
+
+// Create product/variant and return variant_id for cart
+export const checkoutDesign = async (
+  designId: string,
+  options?: { currency_code?: string }
+): Promise<CheckoutDesignResponse>
+```
+
+### DesignCheckoutModal Component
+
+Displays after a design is saved successfully:
+
+- **Header**: "Design Saved!" with design name
+- **Price Breakdown**: Materials cost, production cost, total
+- **Confidence Indicator**: exact/estimated/guesstimate
+- **Actions**:
+  - "Save for Later" - closes modal, design already saved
+  - "Add to Cart" - creates variant, adds to cart, redirects to /cart
+
+```tsx
+<DesignCheckoutModal
+  isOpen={editor.showCheckoutModal}
+  onClose={() => editor.setShowCheckoutModal(false)}
+  designId={editor.savedDesignId}
+  designName={editor.designName || editor.design.name || ""}
+  countryCode={countryCode || "us"}
+/>
+```
+
+### Hook Changes (use-design-editor.ts)
+
+Added state for checkout modal:
+
+```typescript
+const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+const [savedDesignId, setSavedDesignId] = useState<string | null>(null)
+```
+
+Modified `handleSave` to show modal after successful save:
+
+```typescript
+const result = await createDesign(designInput)
+clearDraftSnapshot()
+setSavedDesignId(result.design.id)
+setShowCheckoutModal(true)
+```
+
+### Add to Cart Flow
+
+Inside `DesignCheckoutModal.handleAddToCart()`:
+
+```typescript
+// 1. Checkout design to create product/variant
+const result = await checkoutDesign(designId, { currency_code: "usd" })
+
+// 2. Add variant to cart
+await addToCart({
+  variantId: result.variant_id,
+  quantity: 1,
+  countryCode,
+})
+
+// 3. Redirect to cart
+router.push(`/${countryCode}/cart`)
+```
+
+---
+
 ## Testing
 
 Integration tests: `integration-tests/http/design-to-cart-flow.spec.ts`
 
-**Test Coverage (17 tests):**
+**Test Coverage (18 tests):**
 
 Cost Estimation:
 - Returns cost estimate for customer's design
@@ -262,6 +362,7 @@ Medusa Cart API Integration:
 - Creates cart and adds design variant as line item
 - Updates quantity of design variant in cart
 - Removes design variant from cart
+- **Full checkout with shipping and payment (creates order)**
 
 ## Notes
 
@@ -349,10 +450,25 @@ The integration tests validate cart creation and line item operations. Full chec
 
 In production, these are configured in the Medusa Admin dashboard.
 
+## Test Infrastructure Helper
+
+For full checkout tests, use the helper at `integration-tests/helpers/setup-checkout-infrastructure.ts`:
+
+```typescript
+import { setupCheckoutInfrastructure } from "../helpers/setup-checkout-infrastructure"
+
+// Sets up: stock location, fulfillment set, service zone, shipping option, payment provider
+const infrastructure = await setupCheckoutInfrastructure(container, regionId)
+```
+
+This creates the necessary fulfillment and payment infrastructure for testing the complete checkout flow with manual providers.
+
+---
+
 ## Future Improvements
 
-1. **Simplified Add-to-Cart**: Consider an endpoint that creates variant AND adds to cart in one call
-2. **Price Display**: Frontend component showing cost breakdown on hover/expand
+1. ~~**Simplified Add-to-Cart**: Consider an endpoint that creates variant AND adds to cart in one call~~ ✅ Implemented via checkout modal
+2. ~~**Price Display**: Frontend component showing cost breakdown on hover/expand~~ ✅ Implemented in DesignCheckoutModal
 3. **Inventory Reservation**: Reserve inventory when design is added to cart
 4. **Custom Pricing Rules**: Support for markup percentages, volume discounts
 5. **Cart Expiration**: Handle cleanup of variants for abandoned carts
