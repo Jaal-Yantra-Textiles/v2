@@ -9,6 +9,7 @@ import {
     CursorArrowRays,
     XMark,
     Sparkles,
+    ArrowUturnLeft,
 } from "@medusajs/icons"
 import {
     AiGenerationHistoryItem,
@@ -483,6 +484,43 @@ export function EditorSidebar({
                                         <Text size="small" className="text-xs text-red-600">{aiGenerationError}</Text>
                                     </div>
                                 )}
+
+                                {/* Mobile Generation History */}
+                                {generationHistory.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-gray-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <Text size="small" className="text-[11px] uppercase tracking-wide text-gray-400">
+                                                Previous
+                                            </Text>
+                                            {onClearHistory && (
+                                                <button
+                                                    onClick={onClearHistory}
+                                                    className="text-[10px] text-gray-400 hover:text-red-500"
+                                                >
+                                                    Clear
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {generationHistory.slice(0, 4).map((item) => (
+                                                <button
+                                                    key={item.id}
+                                                    onClick={() => {
+                                                        onSelectFromHistory?.(item)
+                                                        setMobileActiveTab(null)
+                                                    }}
+                                                    className="aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-purple-400 bg-gray-50"
+                                                >
+                                                    <img
+                                                        src={item.preview_url}
+                                                        alt="AI Generated"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -609,13 +647,24 @@ export function EditorSidebar({
             >
                 <div className="flex h-full w-full flex-col">
                     <div className="flex flex-shrink-0 items-center justify-between border-b px-4 py-3 bg-white/95 backdrop-blur-sm">
-                        <div className="flex-1">
-                            <Text weight="plus" size="small" className="text-gray-900">
-                                {sectionLabels[activeSection]}
-                            </Text>
-                            <Text size="small" className="text-xs text-gray-400">
-                                Design Tools
-                            </Text>
+                        <div className="flex items-center gap-2 flex-1">
+                            {activeSection !== "product" && (
+                                <button
+                                    onClick={() => scrollToSection("product")}
+                                    className="flex items-center justify-center h-7 w-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
+                                    title="Back to top"
+                                >
+                                    <ArrowUturnLeft className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                            <div>
+                                <Text weight="plus" size="small" className="text-gray-900">
+                                    {sectionLabels[activeSection]}
+                                </Text>
+                                <Text size="small" className="text-xs text-gray-400">
+                                    Design Tools
+                                </Text>
+                            </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <button

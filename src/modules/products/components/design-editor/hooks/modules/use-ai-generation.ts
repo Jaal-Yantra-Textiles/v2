@@ -1,6 +1,12 @@
-import { useCallback, useState } from "react"
+import { useCallback, useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { generateAiImage, AiBadges, GenerateAiImageResponse } from "@lib/data/ai-imagegen"
+import {
+  generateAiImage,
+  fetchAiGenerationHistory,
+  AiBadges,
+  GenerateAiImageResponse,
+  AiGenerationHistoryItem as ApiAiGenerationHistoryItem,
+} from "@lib/data/ai-imagegen"
 import { AiGenerationHistoryItem, BadgePreferences, CustomerInfo, DesignState } from "../../types"
 
 /**
@@ -14,6 +20,51 @@ function convertBadgesToApiFormat(badges: BadgePreferences): AiBadges {
     embellishment_level: badges.embellishment || undefined,
     occasion: badges.occasion.join(", ") || undefined,
     custom: badges.silhouette ? { silhouette: badges.silhouette } : undefined,
+  }
+}
+
+/**
+ * Converts API AiBadges format to UI BadgePreferences format
+ */
+function convertApiBadgesToUiFormat(apiBadges?: AiBadges): BadgePreferences {
+  if (!apiBadges) {
+    return {
+      style: null,
+      colorPalette: [],
+      bodyType: null,
+      silhouette: null,
+      embellishment: null,
+      occasion: [],
+    }
+  }
+
+  return {
+    style: apiBadges.style || null,
+    colorPalette: apiBadges.color_family
+      ? apiBadges.color_family.split(",").map((s) => s.trim()).filter(Boolean)
+      : [],
+    bodyType: apiBadges.body_type || null,
+    silhouette: apiBadges.custom?.silhouette || null,
+    embellishment: apiBadges.embellishment_level || null,
+    occasion: apiBadges.occasion
+      ? apiBadges.occasion.split(",").map((s) => s.trim()).filter(Boolean)
+      : [],
+  }
+}
+
+/**
+ * Converts API history item to UI history item format
+ */
+function convertApiHistoryToUiFormat(
+  apiItem: ApiAiGenerationHistoryItem
+): AiGenerationHistoryItem {
+  return {
+    id: apiItem.id,
+    preview_url: apiItem.preview_url,
+    prompt_used: apiItem.prompt_used,
+    generated_at: apiItem.generated_at,
+    badges: convertApiBadgesToUiFormat(apiItem.badges),
+    materials_prompt: apiItem.materials_prompt,
   }
 }
 
@@ -47,6 +98,7 @@ type UseAiGenerationArgs = {
 type UseAiGenerationResult = {
   // State
   isGeneratingAi: boolean
+  isLoadingHistory: boolean
   aiGenerationError: string | null
   showLoginPrompt: boolean
   lastAiGeneration: AiGenerationMetadata | null
@@ -92,6 +144,40 @@ export const useAiGeneration = ({
   const [lastAiGeneration, setLastAiGeneration] = useState<AiGenerationMetadata | null>(null)
   const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null)
   const [generationHistory, setGenerationHistory] = useState<AiGenerationHistoryItem[]>(initialHistory)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+
+  /**
+   * Fetch AI generation history from the backend when customer is logged in
+   * Merges with any initialHistory provided (from localStorage/draft)
+   */
+  useEffect(() => {
+    if (!customer?.id) {
+      return
+    }
+
+    // Skip if we already have history from initialHistory
+    if (initialHistory.length > 0) {
+      return
+    }
+
+    const loadHistory = async () => {
+      setIsLoadingHistory(true)
+      try {
+        const apiHistory = await fetchAiGenerationHistory(MAX_HISTORY_ITEMS, 0)
+        if (apiHistory.length > 0) {
+          const uiHistory = apiHistory.map(convertApiHistoryToUiFormat)
+          setGenerationHistory(uiHistory)
+          onHistoryChange?.(uiHistory)
+        }
+      } catch (error) {
+        console.error("[AI Generation] Failed to load history:", error)
+      } finally {
+        setIsLoadingHistory(false)
+      }
+    }
+
+    loadHistory()
+  }, [customer?.id]) // Only re-run when customer changes
 
   /**
    * Clear AI generation error
@@ -229,6 +315,11 @@ export const useAiGeneration = ({
       } else if (error?.message === "QUOTA_EXCEEDED") {
         setAiGenerationError("You've reached your daily AI generation limit. Try again tomorrow.")
         setQuotaRemaining(0)
+      } else if (error?.message === "OUT_OF_CREDITS") {
+        // All AI providers are currently rate-limited
+        setAiGenerationError(
+          "All AI providers are currently at capacity. Please try again in a few minutes."
+        )
       } else {
         setAiGenerationError(
           error?.message || "Failed to generate AI image. Please try again."
@@ -259,6 +350,7 @@ export const useAiGeneration = ({
   return {
     // State
     isGeneratingAi,
+    isLoadingHistory,
     aiGenerationError,
     showLoginPrompt,
     lastAiGeneration,
