@@ -1,3 +1,10 @@
+## [8.14.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.14.0...v8.14.1) (2026-01-09)
+
+
+### Bug Fixes
+
+* **docs:** Design customer link ([1a3a812](https://github.com/Jaal-Yantra-Textiles/v2/commit/1a3a812bdd225dba4b85574ab9dd93a75adc6351))
+
 # [8.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.13.0...v8.14.0) (2026-01-09)
 
 
