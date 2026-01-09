@@ -1,3 +1,10 @@
+# [8.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.13.0...v8.14.0) (2026-01-09)
+
+
+### Features
+
+* **api:** Design to cart API ([833affe](https://github.com/Jaal-Yantra-Textiles/v2/commit/833affe0a01c1853f080fc4bf769cf1c9ca8a134))
+
 # [8.13.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.12.1...v8.13.0) (2026-01-09)
 
 
