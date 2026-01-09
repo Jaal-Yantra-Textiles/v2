@@ -52,17 +52,42 @@ export default async function orderPlacedHandler({
         continue
       }
 
-      // Resolve design from product via module link
-      const { data: productDesignLinks } = await query.graph({
-        entity: "product_design",
-        fields: ["design.*"],
-        filters: { product_id: productId },
-        pagination: { skip: 0, take: 1 },
-      })
+      let designId: string | null = null
+      let isCustomDesign = false
 
-      const link = (productDesignLinks || [])[0]
-      const design = link?.design
-      const designId = design?.id
+      // First, check for design-variant link (custom designs created via design editor)
+      // This takes priority as it's a direct link to the specific design
+      if (variantId) {
+        const { data: variantDesignLinks } = await query.graph({
+          entity: "design_product_variant",
+          fields: ["design_id", "customer_id", "estimated_cost"],
+          filters: { product_variant_id: variantId },
+          pagination: { skip: 0, take: 1 },
+        })
+
+        const variantLink = (variantDesignLinks || [])[0]
+        if (variantLink?.design_id) {
+          designId = variantLink.design_id
+          isCustomDesign = true
+          logger.info(
+            `[order.placed] Found custom design ${designId} for variant ${variantId}`
+          )
+        }
+      }
+
+      // If no variant-level link, check product-level link (standard product-design association)
+      if (!designId) {
+        const { data: productDesignLinks } = await query.graph({
+          entity: "product_design",
+          fields: ["design.*"],
+          filters: { product_id: productId },
+          pagination: { skip: 0, take: 1 },
+        })
+
+        const link = (productDesignLinks || [])[0]
+        const design = link?.design
+        designId = design?.id || null
+      }
 
       if (!designId) {
         continue
@@ -78,6 +103,7 @@ export default async function orderPlacedHandler({
           order_line_item_id: lineItemId,
           metadata: {
             source: "order.placed",
+            is_custom_design: isCustomDesign,
           },
         },
       })

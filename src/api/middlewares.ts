@@ -975,7 +975,22 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(StoreGenerateAiImageReqSchema)),
       ],
     },
-    // Task-Templates 
+    // Store design endpoints - cost estimation and checkout
+    {
+      matcher: "/store/custom/designs/:id/estimate",
+      method: "GET",
+      middlewares: [
+        authenticate("customer", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/store/custom/designs/:id/checkout",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["session", "bearer"]),
+      ],
+    },
+    // Task-Templates
     {
       matcher: "/admin/task-templates",
       method: "POST",

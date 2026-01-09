@@ -1,5 +1,5 @@
 import { Modules } from "@medusajs/utils";
-import { createApiKeysWorkflow } from "@medusajs/medusa/core-flows";
+import { createApiKeysWorkflow, linkSalesChannelsToApiKeyWorkflow } from "@medusajs/medusa/core-flows";
 import Scrypt from "scrypt-kdf";
 import jwt from "jsonwebtoken";
 import { randomBytes } from "crypto";
@@ -98,6 +98,21 @@ export const createTestCustomer = async (container: any) => {
   });
 
   const apiKey = apiKeys[0];
+
+  // Link the API key to the default sales channel
+  // This is required for Medusa to accept the publishable key as "valid"
+  const storeService = container.resolve(Modules.STORE) as any;
+  const stores = await storeService.listStores({});
+  const store = stores?.[0];
+
+  if (store?.default_sales_channel_id) {
+    await linkSalesChannelsToApiKeyWorkflow(container).run({
+      input: {
+        id: apiKey.id,
+        add: [store.default_sales_channel_id],
+      },
+    });
+  }
 
   // Store the generated credentials for later use
   testCustomerCredentials.email = email;
