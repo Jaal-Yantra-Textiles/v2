@@ -12,6 +12,7 @@ import { NameModal } from "./components/name-modal"
 import { MaterialDetailModal } from "./components/material-detail-modal"
 import { PartnerDetailModal } from "./components/partner-detail-modal"
 import { AiLoginPrompt } from "./components/ai-login-prompt"
+import { DesignCheckoutModal } from "./components/design-checkout-modal"
 
 interface DesignEditorProps {
   product: DesignProduct
@@ -89,7 +90,12 @@ export default function DesignEditor({
   }
 
   return (
-    <div className="h-[calc(100vh-64px)] bg-slate-50/70">
+    <div className={clsx(
+      "bg-slate-50/70",
+      isMobileLayout
+        ? "h-[100dvh] overflow-hidden" // Use dynamic viewport height on mobile
+        : "h-[calc(100vh-64px)]"
+    )}>
       {/* Name Modal */}
       <NameModal
         isOpen={editor.showNameModal}
@@ -121,17 +127,19 @@ export default function DesignEditor({
 
       <div
         className={clsx(
-          "mx-auto flex h-full w-full max-w-[1600px] min-h-0",
-          isMobileLayout ? "flex-col gap-4 px-4 py-4" : "flex-row gap-6 px-8 py-8"
+          "mx-auto flex w-full max-w-[1600px] min-h-0",
+          isMobileLayout
+            ? "flex-col h-full pb-[60px]" // Account for bottom toolbar
+            : "flex-row gap-6 px-8 py-8 h-full"
         )}
       >
         {/* Main Canvas Area */}
         <div
           className={clsx(
-            "relative flex flex-1 flex-col min-h-0",
+            "relative flex flex-col min-h-0",
             isMobileLayout
-              ? "order-2 pb-[60px]"
-              : "order-1 rounded-[32px] border border-ui-border-base bg-white shadow-[0_25px_60px_rgba(15,23,42,0.08)] overflow-hidden"
+              ? "order-2 flex-1" // Take remaining space after sidebar
+              : "order-1 flex-1 rounded-[32px] border border-ui-border-base bg-white shadow-[0_25px_60px_rgba(15,23,42,0.08)] overflow-hidden"
           )}
         >
           <EditorCanvas
@@ -155,8 +163,6 @@ export default function DesignEditor({
             handleStageMouseMove={editor.handleStageMouseMove}
             handleStageMouseUp={editor.handleStageMouseUp}
             isMobileLayout={isMobileLayout}
-            sidebarExpanded={editor.sidebarExpanded}
-            setSidebarExpanded={editor.setSidebarExpanded}
             selectedMaterial={editor.selectedMaterial}
             setShowMaterialModal={editor.setShowMaterialModal}
             selectedPartner={editor.selectedPartner}
@@ -164,21 +170,24 @@ export default function DesignEditor({
             isGeneratingAi={editor.isGeneratingAi}
           />
 
-          <ZoomControls
-            view={editor.view}
-            zoomIn={editor.zoomIn}
-            zoomOut={editor.zoomOut}
-            resetView={editor.resetView}
-            undo={editor.undo}
-            historyIndex={editor.historyIndex}
-          />
+          {/* Hide zoom controls on mobile - users can pinch to zoom */}
+          {!isMobileLayout && (
+            <ZoomControls
+              view={editor.view}
+              zoomIn={editor.zoomIn}
+              zoomOut={editor.zoomOut}
+              resetView={editor.resetView}
+              undo={editor.undo}
+              historyIndex={editor.historyIndex}
+            />
+          )}
         </div>
 
         {/* Sidebar */}
         <div
           className={clsx(
             isMobileLayout
-              ? "order-1 w-full"
+              ? "order-1 w-full flex-shrink-0" // Fixed height area at top on mobile
               : "order-2 w-[360px] flex-shrink-0 h-full"
           )}
         >
@@ -218,6 +227,8 @@ export default function DesignEditor({
             deleteSelectedLayer={editor.deleteSelectedLayer}
             handleSave={editor.handleSave}
             isSaving={editor.isSaving}
+            undo={editor.undo}
+            historyIndex={editor.historyIndex}
             isGeneratingAi={editor.isGeneratingAi}
             aiGenerationError={editor.aiGenerationError}
             quotaRemaining={editor.quotaRemaining}
@@ -250,6 +261,15 @@ export default function DesignEditor({
         isOpen={editor.showLoginPrompt}
         onLogin={editor.handleLoginRedirect}
         onCancel={editor.dismissLoginPrompt}
+      />
+
+      {/* Design Checkout Modal - shown after saving design */}
+      <DesignCheckoutModal
+        isOpen={editor.showCheckoutModal}
+        onClose={() => editor.setShowCheckoutModal(false)}
+        designId={editor.savedDesignId}
+        designName={editor.designName || editor.design.name || ""}
+        countryCode={countryCode || "us"}
       />
     </div>
   )

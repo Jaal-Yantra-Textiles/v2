@@ -60,6 +60,10 @@ export function useDesignEditor({
     const [designName, setDesignName] = useState("")
     const [isSaving, setIsSaving] = useState(false)
 
+    // Checkout modal state (shown after design is saved)
+    const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+    const [savedDesignId, setSavedDesignId] = useState<string | null>(null)
+
     // Tool state
     const [activeTool, setActiveTool] = useState<"select" | "pan">("select")
     const [isPanning, setIsPanning] = useState(false)
@@ -753,7 +757,10 @@ export function useDesignEditor({
             clearDraftSnapshot()
 
             console.log("Design saved:", result)
-            alert(`Design "${design.name}" saved successfully!`)
+
+            // Show checkout modal instead of alert
+            setSavedDesignId(result.design.id)
+            setShowCheckoutModal(true)
         } catch (error) {
             console.error("Failed to save:", error)
             alert("Failed to save design. Please try again.")
@@ -797,6 +804,11 @@ export function useDesignEditor({
         isSaving,
         badgePreferences,
         setBadgePreferences,
+
+        // Checkout modal
+        showCheckoutModal,
+        setShowCheckoutModal,
+        savedDesignId,
 
         sidebarExpanded,
         setSidebarExpanded,

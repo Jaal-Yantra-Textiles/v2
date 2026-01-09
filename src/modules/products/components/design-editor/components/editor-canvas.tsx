@@ -29,8 +29,6 @@ type EditorCanvasProps = {
     handleStageMouseMove: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void
     handleStageMouseUp: () => void
     isMobileLayout?: boolean
-    sidebarExpanded: boolean
-    setSidebarExpanded: React.Dispatch<React.SetStateAction<boolean>>
     selectedMaterial: RawMaterial | null
     setShowMaterialModal: (show: boolean) => void
     selectedPartner: Partner | null
@@ -60,8 +58,6 @@ export function EditorCanvas({
     handleStageMouseMove,
     handleStageMouseUp,
     isMobileLayout,
-    sidebarExpanded,
-    setSidebarExpanded,
     selectedMaterial,
     setShowMaterialModal,
     selectedPartner,
@@ -228,15 +224,11 @@ export function EditorCanvas({
                         })()}
                     </Layer>
                 </Stage>
+                {/* Mobile zoom indicator - compact floating button */}
                 {isMobileLayout && (
-                    <button
-                        type="button"
-                        aria-label={sidebarExpanded ? "Hide design panel" : "Show design panel"}
-                        onClick={() => setSidebarExpanded((prev) => !prev)}
-                        className="absolute bottom-4 right-4 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-medium shadow-lg border border-ui-border-base backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-ui-fg-interactive"
-                    >
-                        {sidebarExpanded ? "Hide Panel" : "Show Panel"}
-                    </button>
+                    <div className="absolute top-3 right-3 z-20 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium shadow-md border border-gray-200 backdrop-blur-sm">
+                        {Math.round(view.scale * 100)}%
+                    </div>
                 )}
                 {(showLoaderOverlay || showErrorOverlay) && (
                     <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-white/85 backdrop-blur-sm">

@@ -142,6 +142,9 @@ type EditorSidebarProps = {
     deleteSelectedLayer: () => void
     handleSave: () => void
     isSaving: boolean
+    // Undo support
+    undo?: () => void
+    historyIndex?: number
     // AI Generation props
     isGeneratingAi?: boolean
     aiGenerationError?: string | null
@@ -203,6 +206,9 @@ export function EditorSidebar({
     deleteSelectedLayer,
     handleSave,
     isSaving,
+    // Undo
+    undo,
+    historyIndex = 0,
     // AI Generation
     isGeneratingAi,
     aiGenerationError,
@@ -340,13 +346,36 @@ export function EditorSidebar({
                     isMobile={true}
                 />
 
-                <div className="px-4 pb-4 pt-4">
-                    <PreferenceSummaryCard />
+                {/* Compact mobile header with product info and preferences */}
+                <div className="px-3 py-2 flex items-center gap-3 bg-white/80 backdrop-blur-sm border-b border-ui-border-base">
+                    {/* Product thumbnail */}
+                    {product.thumbnail && (
+                        <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+                            <img src={product.thumbnail} alt={product.title} className="w-full h-full object-cover" />
+                        </div>
+                    )}
+                    {/* Product info */}
+                    <div className="flex-1 min-w-0">
+                        <Text weight="plus" size="small" className="text-gray-900 truncate">
+                            {product.title}
+                        </Text>
+                        <Text size="small" className="text-gray-500 text-xs truncate">
+                            {design.name || "Untitled Design"}
+                        </Text>
+                    </div>
+                    {/* Edit preferences button */}
+                    <button
+                        type="button"
+                        onClick={onEditPreferences}
+                        className="px-3 py-1.5 rounded-full bg-gray-100 text-xs font-medium text-gray-700 hover:bg-gray-200 flex-shrink-0"
+                    >
+                        Preferences
+                    </button>
                 </div>
 
                 {/* Mobile Active Tab Overlay (Sheet) */}
                 {mobileActiveTab && (
-                    <div className="fixed bottom-[60px] left-0 right-0 z-20 mx-2 mb-2 max-h-[60vh] overflow-y-auto rounded-xl border border-ui-border-base bg-white/95 p-4 shadow-2xl backdrop-blur transition-all animate-in slide-in-from-bottom-5">
+                    <div className="fixed bottom-[60px] left-0 right-0 z-20 mx-2 mb-2 max-h-[50vh] overflow-y-auto rounded-xl border border-ui-border-base bg-white/95 p-4 shadow-2xl backdrop-blur transition-all animate-in slide-in-from-bottom-5">
                         <div className="flex items-center justify-between mb-3 border-b pb-2">
                             <Text weight="plus" className="capitalize">{mobileActiveTab}</Text>
                             <button onClick={() => setMobileActiveTab(null)}><XMark /></button>
@@ -527,38 +556,52 @@ export function EditorSidebar({
                 )}
 
                 {/* Bottom Toolbar */}
-                <div className="fixed bottom-0 left-0 right-0 z-30 flex h-[60px] items-center justify-around border-t border-ui-border-base bg-white px-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                    <button onClick={() => toggleMobileTab("tools")} className={`flex flex-col items-center gap-1 p-2 ${mobileActiveTab === "tools" ? "text-blue-600" : "text-gray-500"}`}>
-                        <CursorArrowRays className="h-5 w-5" />
-                        <span className="text-[10px] font-medium">Tools</span>
-                    </button>
-                    <button onClick={() => toggleMobileTab("ai")} className={`flex flex-col items-center gap-1 p-2 ${mobileActiveTab === "ai" ? "text-purple-600" : "text-gray-500"}`}>
-                        <Sparkles className="h-5 w-5" />
-                        <span className="text-[10px] font-medium">AI</span>
-                    </button>
-
-                    {/* Main Action Button */}
+                <div className="fixed bottom-0 left-0 right-0 z-30 flex h-[60px] items-center justify-between border-t border-ui-border-base bg-white px-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                    {/* Left side - Undo */}
                     <button
-                        onClick={() => toggleMobileTab("add")}
-                        className="flex h-12 w-12 -translate-y-4 items-center justify-center rounded-full bg-black text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+                        onClick={undo}
+                        disabled={!undo || historyIndex <= 0}
+                        className={`flex flex-col items-center gap-0.5 p-2 ${historyIndex <= 0 ? "text-gray-300" : "text-gray-500"}`}
                     >
-                        <Plus className="h-6 w-6" />
+                        <ArrowUturnLeft className="h-5 w-5" />
+                        <span className="text-[10px] font-medium">Undo</span>
                     </button>
 
-                    <button onClick={() => toggleMobileTab("layers")} className={`flex flex-col items-center gap-1 p-2 ${mobileActiveTab === "layers" ? "text-blue-600" : "text-gray-500"}`}>
-                        <ArrowsPointingOutMini className="h-5 w-5" />
-                        <span className="text-[10px] font-medium">Edit</span>
-                    </button>
-                    {/* Save Button */}
+                    {/* Center actions */}
+                    <div className="flex items-center gap-1">
+                        <button onClick={() => toggleMobileTab("tools")} className={`flex flex-col items-center gap-0.5 p-2 ${mobileActiveTab === "tools" ? "text-blue-600" : "text-gray-500"}`}>
+                            <CursorArrowRays className="h-5 w-5" />
+                            <span className="text-[10px] font-medium">Tools</span>
+                        </button>
+                        <button onClick={() => toggleMobileTab("ai")} className={`flex flex-col items-center gap-0.5 p-2 ${mobileActiveTab === "ai" ? "text-purple-600" : "text-gray-500"}`}>
+                            <Sparkles className="h-5 w-5" />
+                            <span className="text-[10px] font-medium">AI</span>
+                        </button>
+
+                        {/* Main Action Button */}
+                        <button
+                            onClick={() => toggleMobileTab("add")}
+                            className="flex h-11 w-11 -translate-y-3 items-center justify-center rounded-full bg-black text-white shadow-lg transition-transform hover:scale-105 active:scale-95 mx-1"
+                        >
+                            <Plus className="h-5 w-5" />
+                        </button>
+
+                        <button onClick={() => toggleMobileTab("layers")} className={`flex flex-col items-center gap-0.5 p-2 ${mobileActiveTab === "layers" ? "text-blue-600" : "text-gray-500"}`}>
+                            <ArrowsPointingOutMini className="h-5 w-5" />
+                            <span className="text-[10px] font-medium">Edit</span>
+                        </button>
+                    </div>
+
+                    {/* Right side - Save */}
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className={`flex flex-col items-center gap-1 p-2 ${isSaving ? "text-gray-400" : "text-green-600"}`}
+                        className={`flex flex-col items-center gap-0.5 p-2 ${isSaving ? "text-gray-400" : "text-green-600"}`}
                     >
-                        <div className="h-5 w-5 flex items-center justify-center">
+                        <div className="h-5 w-5 flex items-center justify-center text-lg">
                             {isSaving ? "⏳" : "💾"}
                         </div>
-                        <span className="text-[10px] font-medium">{isSaving ? "Saving" : "Save"}</span>
+                        <span className="text-[10px] font-medium">{isSaving ? "..." : "Save"}</span>
                     </button>
                 </div>
             </>

@@ -156,3 +156,93 @@ export const listDesigns = async ({
     }
   }
 }
+
+// Cost estimation types
+export type CostEstimate = {
+  costs: {
+    material_cost: number
+    production_cost: number
+    total_estimated: number
+    confidence: "exact" | "estimated" | "guesstimate"
+  }
+  breakdown: {
+    materials: Array<{
+      inventory_item_id: string
+      name: string
+      cost: number
+      quantity: number
+      cost_source: string
+    }>
+    production_percent: number
+  }
+  similar_designs?: Array<{
+    id: string
+    name: string
+    estimated_cost: number
+  }>
+}
+
+export type CheckoutDesignResponse = {
+  product_id: string
+  variant_id: string
+  price: number
+  is_new_product: boolean
+  cost_estimate: CostEstimate["costs"] & {
+    breakdown: CostEstimate["breakdown"]
+  }
+}
+
+/**
+ * Gets cost estimate for a design
+ */
+export const getDesignEstimate = async (
+  designId: string
+): Promise<CostEstimate> => {
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  try {
+    const data = await sdk.client.fetch<CostEstimate>(
+      `/store/custom/designs/${designId}/estimate`,
+      {
+        method: "GET",
+        headers,
+      }
+    )
+
+    return data
+  } catch (error) {
+    console.error("Error getting design estimate:", error)
+    throw error
+  }
+}
+
+/**
+ * Checks out a design - creates a product/variant that can be added to cart
+ */
+export const checkoutDesign = async (
+  designId: string,
+  options?: { currency_code?: string }
+): Promise<CheckoutDesignResponse> => {
+  const headers = {
+    ...(await getAuthHeaders()),
+    "Content-Type": "application/json",
+  }
+
+  try {
+    const data = await sdk.client.fetch<CheckoutDesignResponse>(
+      `/store/custom/designs/${designId}/checkout`,
+      {
+        method: "POST",
+        body: options || {},
+        headers,
+      }
+    )
+
+    return data
+  } catch (error) {
+    console.error("Error checking out design:", error)
+    throw error
+  }
+}
