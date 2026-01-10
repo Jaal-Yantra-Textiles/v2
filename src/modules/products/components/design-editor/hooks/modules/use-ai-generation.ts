@@ -257,6 +257,26 @@ export const useAiGeneration = ({
         canvas_snapshot: canvasSnapshot,
       })
 
+      // Check for error in response (Server Actions return errors in response object
+      // instead of throwing, because Next.js suppresses error messages in production)
+      if (response.error) {
+        const { code, message } = response.error
+        console.error("[AI Generation] Error:", code, message)
+
+        if (code === "AUTH_REQUIRED") {
+          setShowLoginPrompt(true)
+          setAiGenerationError(null)
+        } else if (code === "QUOTA_EXCEEDED") {
+          setAiGenerationError(message)
+          setQuotaRemaining(0)
+        } else if (code === "OUT_OF_CREDITS") {
+          setAiGenerationError(message)
+        } else {
+          setAiGenerationError(message)
+        }
+        return
+      }
+
       const { generation } = response
 
       // Store generation metadata
@@ -306,25 +326,12 @@ export const useAiGeneration = ({
       }))
 
     } catch (error: any) {
-      console.error("[AI Generation] Error:", error)
-
-      // Handle specific error types
-      if (error?.message === "AUTH_REQUIRED") {
-        setShowLoginPrompt(true)
-        setAiGenerationError(null)
-      } else if (error?.message === "QUOTA_EXCEEDED") {
-        setAiGenerationError("You've reached your daily AI generation limit. Try again tomorrow.")
-        setQuotaRemaining(0)
-      } else if (error?.message === "OUT_OF_CREDITS") {
-        // All AI providers are currently rate-limited
-        setAiGenerationError(
-          "All AI providers are currently at capacity. Please try again in a few minutes."
-        )
-      } else {
-        setAiGenerationError(
-          error?.message || "Failed to generate AI image. Please try again."
-        )
-      }
+      // This catch block handles unexpected errors (network failures, etc.)
+      // Most errors are now returned in the response object, not thrown
+      console.error("[AI Generation] Unexpected error:", error)
+      setAiGenerationError(
+        error?.message || "Failed to generate AI image. Please try again."
+      )
     } finally {
       setIsGeneratingAi(false)
     }

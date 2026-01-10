@@ -55,6 +55,11 @@ export type GenerateAiImageResponse = {
     generated_at: string
     quota_remaining?: number
   }
+  // Error field for structured error handling (avoids Next.js Server Action error suppression)
+  error?: {
+    code: "AUTH_REQUIRED" | "QUOTA_EXCEEDED" | "OUT_OF_CREDITS" | "UNKNOWN"
+    message: string
+  }
 }
 
 // Error response structure
@@ -103,8 +108,11 @@ export type AiHistoryResponse = {
  * Generates an AI design image based on badges, materials, and references
  *
  * @param input - Generation parameters including mode, badges, and materials
- * @returns Generated image URL and metadata
- * @throws Error if not authenticated or generation fails
+ * @returns Generated image URL and metadata, or an error object
+ *
+ * NOTE: This function returns errors in the response object instead of throwing them.
+ * This is because Next.js Server Actions suppress error messages in production for security,
+ * which would prevent the client from detecting AUTH_REQUIRED errors to show the login modal.
  */
 export const generateAiImage = async (
   input: GenerateAiImageInput
@@ -117,7 +125,18 @@ export const generateAiImage = async (
   // Check if we have auth headers (user is logged in)
   const authHeaders = await getAuthHeaders()
   if (!authHeaders || Object.keys(authHeaders).length === 0) {
-    throw new Error("AUTH_REQUIRED")
+    // Return error in response instead of throwing (Next.js suppresses thrown errors in production)
+    return {
+      generation: {
+        mode: input.mode,
+        prompt_used: "",
+        generated_at: new Date().toISOString(),
+      },
+      error: {
+        code: "AUTH_REQUIRED",
+        message: "Authentication required to generate AI images",
+      },
+    }
   }
 
   try {
@@ -132,13 +151,33 @@ export const generateAiImage = async (
 
     return data
   } catch (error: any) {
-    // Handle specific error types
+    // Handle specific error types - return structured errors instead of throwing
     if (error?.status === 401 || error?.message?.includes("unauthorized")) {
-      throw new Error("AUTH_REQUIRED")
+      return {
+        generation: {
+          mode: input.mode,
+          prompt_used: "",
+          generated_at: new Date().toISOString(),
+        },
+        error: {
+          code: "AUTH_REQUIRED",
+          message: "Authentication required to generate AI images",
+        },
+      }
     }
 
     if (error?.status === 429) {
-      throw new Error("QUOTA_EXCEEDED")
+      return {
+        generation: {
+          mode: input.mode,
+          prompt_used: "",
+          generated_at: new Date().toISOString(),
+        },
+        error: {
+          code: "QUOTA_EXCEEDED",
+          message: "You've reached your daily AI generation limit. Try again tomorrow.",
+        },
+      }
     }
 
     // Handle OUT_OF_CREDITS error from multi-provider system
@@ -147,11 +186,33 @@ export const generateAiImage = async (
       error?.message?.includes("OUT_OF_CREDITS") ||
       error?.body?.message?.includes("OUT_OF_CREDITS")
     ) {
-      throw new Error("OUT_OF_CREDITS")
+      return {
+        generation: {
+          mode: input.mode,
+          prompt_used: "",
+          generated_at: new Date().toISOString(),
+        },
+        error: {
+          code: "OUT_OF_CREDITS",
+          message: "All AI providers are currently at capacity. Please try again in a few minutes.",
+        },
+      }
     }
 
     console.error("Error generating AI image:", error)
-    throw error
+
+    // Return unknown error
+    return {
+      generation: {
+        mode: input.mode,
+        prompt_used: "",
+        generated_at: new Date().toISOString(),
+      },
+      error: {
+        code: "UNKNOWN",
+        message: error?.message || "Failed to generate AI image. Please try again.",
+      },
+    }
   }
 }
 
