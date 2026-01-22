@@ -73,7 +73,7 @@ function Scene({ images }: { images: ThreeSceneProps['images'] }) {
             {images.map((img, i) => (
                 <FloatingImage
                     key={img.id}
-                    url={img.url}
+                    url={`/_next/image?url=${encodeURIComponent(img.url)}&w=640&q=75`}
                     index={i}
                     total={images.length}
                 />
