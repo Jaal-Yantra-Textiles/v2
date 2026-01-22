@@ -4362,51 +4362,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@studio-freight/hamo@npm:^0.6.28":
-  version: 0.6.33
-  resolution: "@studio-freight/hamo@npm:0.6.33"
-  dependencies:
-    "@studio-freight/tempus": ^0.0.38
-    just-debounce-it: ^3.2.0
-    nanoevents: ^9.0.0
-  peerDependencies:
-    react: ^18.2.0
-    react-dom: ^18.2.0
-  checksum: 05823336ea24e6325b41c78971c957f0c7cf2c47999b869299540ef2a6a7e3b15d8a92eaa2d4100ece607941d3265c74d7a2f5091df88047428373e639e30c9c
-  languageName: node
-  linkType: hard
-
-"@studio-freight/lenis@npm:^1.0.40":
-  version: 1.0.42
-  resolution: "@studio-freight/lenis@npm:1.0.42"
-  checksum: 506e1ee1277efb54ade2c02ba1cfe5ab096b06d306102987f8ae4e48be19f6f294b8d1ea1873857d31d9a9265a39b69e408f42edf69c81417a1f76b03ce7e45d
-  languageName: node
-  linkType: hard
-
-"@studio-freight/react-lenis@npm:^0.0.47":
-  version: 0.0.47
-  resolution: "@studio-freight/react-lenis@npm:0.0.47"
-  dependencies:
-    "@studio-freight/hamo": ^0.6.28
-    "@studio-freight/lenis": ^1.0.40
-    "@types/react": ^18.0.0
-    clsx: ^2.0.0
-    react: ^18.0.0
-    zustand: ^4.4.7
-  peerDependencies:
-    react: ^17 || ^18
-    react-dom: ^17 || ^18
-  checksum: 0b030c6ef5763c410f6a5102ffbd02fb07d8660c228f864fbf2229dbc72e355cbf81fa6374e4dc1cb2052e135b24fc7950533ba8a4693251ea18c416cfb27f90
-  languageName: node
-  linkType: hard
-
-"@studio-freight/tempus@npm:^0.0.38":
-  version: 0.0.38
-  resolution: "@studio-freight/tempus@npm:0.0.38"
-  checksum: 32610867d95944067878a09b78b6f86195cae5c81e8c4591736dafc2e2f9d4123f8a1ede8c2cd00d17f79413e0690955c143609f1cd0901850f7948ac9677412
-  languageName: node
-  linkType: hard
-
 "@swc/counter@npm:0.1.3":
   version: 0.1.3
   resolution: "@swc/counter@npm:0.1.3"
@@ -8010,13 +7965,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"just-debounce-it@npm:^3.2.0":
-  version: 3.2.0
-  resolution: "just-debounce-it@npm:3.2.0"
-  checksum: a42039a341f1bdf9ccb797e8df88b7e218a95efee01a7bb4bce53bfd5befe0334f3ce32b905e01666312868ade7c1c23071dcd53e80aaa1000b7246382176e84
-  languageName: node
-  linkType: hard
-
 "keyv@npm:^4.5.3":
   version: 4.5.4
   resolution: "keyv@npm:4.5.4"
@@ -8046,6 +7994,24 @@ __metadata:
   dependencies:
     language-subtag-registry: ^0.3.20
   checksum: 57c530796dc7179914dee71bc94f3747fd694612480241d0453a063777265dfe3a951037f7acb48f456bf167d6eb419d4c00263745326b3ba1cdcf4657070e78
+  languageName: node
+  linkType: hard
+
+"lenis@npm:^1.3.17":
+  version: 1.3.17
+  resolution: "lenis@npm:1.3.17"
+  peerDependencies:
+    "@nuxt/kit": ">=3.0.0"
+    react: ">=17.0.0"
+    vue: ">=3.0.0"
+  peerDependenciesMeta:
+    "@nuxt/kit":
+      optional: true
+    react:
+      optional: true
+    vue:
+      optional: true
+  checksum: a4e50addb50b42868f019eee5e86c352a7df87c21e1d5fe56189fe2e07f6679f90587d2d6a8d133a9f0f7ae316d502cbea8c9ef51f63c38dddadddaf9230f897
   languageName: node
   linkType: hard
 
@@ -8139,7 +8105,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"loose-envify@npm:^1.1.0, loose-envify@npm:^1.4.0":
+"loose-envify@npm:^1.4.0":
   version: 1.4.0
   resolution: "loose-envify@npm:1.4.0"
   dependencies:
@@ -8249,7 +8215,6 @@ __metadata:
     "@react-three/fiber": ^9.5.0
     "@stripe/react-stripe-js": ^3.7.0
     "@stripe/stripe-js": ^7.3.1
-    "@studio-freight/react-lenis": ^0.0.47
     "@tiptap/core": ^3.4.2
     "@tiptap/html": ^3.4.2
     "@tiptap/pm": ^3.4.2
@@ -8269,6 +8234,7 @@ __metadata:
     framer-motion: ^12.18.1
     happy-dom: ^18.0.1
     konva: ^10.0.12
+    lenis: ^1.3.17
     lodash: ^4.17.21
     next: 15.3.8
     pg: ^8.11.3
@@ -8494,13 +8460,6 @@ __metadata:
     object-assign: ^4.0.1
     thenify-all: ^1.0.0
   checksum: 8427de0ece99a07e9faed3c0c6778820d7543e3776f9a84d22cf0ec0a8eb65f6e9aee9c9d353ff9a105ff62d33a9463c6ca638974cc652ee8140cd1e35951c87
-  languageName: node
-  linkType: hard
-
-"nanoevents@npm:^9.0.0":
-  version: 9.1.0
-  resolution: "nanoevents@npm:9.1.0"
-  checksum: 77abbc15c4efc15518a0075b604e5db045e5d6184f4d08892c771928a84f53b1dd46138902213f66e8a9989e6c930168ca6441b80ff9098aec83c01a782bd42b
   languageName: node
   linkType: hard
 
@@ -9725,15 +9684,6 @@ __metadata:
   version: 19.0.0-rc-66855b96-20241106
   resolution: "react@npm:19.0.0-rc-66855b96-20241106"
   checksum: 13ef936f9988035e59eb3b25266108d0d045034c67c4328fc9014afbcfc1ccc1cf197604e4929c225314ef76946b695f514440a44fdb512ed38bf3624efae0f4
-  languageName: node
-  linkType: hard
-
-"react@npm:^18.0.0":
-  version: 18.3.1
-  resolution: "react@npm:18.3.1"
-  dependencies:
-    loose-envify: ^1.1.0
-  checksum: a27bcfa8ff7c15a1e50244ad0d0c1cb2ad4375eeffefd266a64889beea6f6b64c4966c9b37d14ee32d6c9fcd5aa6ba183b6988167ab4d127d13e7cb5b386a376
   languageName: node
   linkType: hard
 
@@ -11285,7 +11235,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zustand@npm:^4.3.2, zustand@npm:^4.4.7":
+"zustand@npm:^4.3.2":
   version: 4.5.7
   resolution: "zustand@npm:4.5.7"
   dependencies:
