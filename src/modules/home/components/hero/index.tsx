@@ -2,15 +2,13 @@ import { Button, Heading } from "@medusajs/ui"
 import { buildPublicMediaUrl, listPublicMedia } from "@lib/data/media"
 import HeroSubheading from "./hero-subheading"
 import HeroScrollButton from "./hero-scroll-button"
-
-
+import ThreeScene from "./three-scene"
 
 const Hero = async () => {
   const { medias } = await listPublicMedia({
     limit: 18,
     type: "image",
     random: true,
-    seed: "home-mosaic",
     offset: 0,
   }).catch(() => ({ medias: [], count: 0, total: 0 }))
 
@@ -24,36 +22,21 @@ const Hero = async () => {
 
   return (
     <div className="min-h-screen sm:h-[75vh] w-full border-b border-ui-border-base relative bg-gray-900 overflow-hidden">
-      {/* Media mosaic backdrop */}
+
+      {/* 3D Scene Backdrop */}
       {heroImages.length > 0 && (
-        <div className="absolute inset-0 z-0">
-          <div className="grid h-full w-full grid-cols-3 gap-2 p-6 opacity-50 sm:grid-cols-4 lg:grid-cols-6">
-            {heroImages.map((img) => (
-              <div
-                key={img.id}
-                className="relative aspect-square overflow-hidden rounded-lg bg-gray-800"
-              >
-                <img
-                  src={img.url}
-                  alt={img.alt}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+        <ThreeScene images={heroImages} />
       )}
 
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-gray-900/55 via-gray-900/65 to-gray-900" />
-      <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_bottom,_rgba(139,92,246,0.15)_0%,_transparent_60%)] animate-breathing" />
-      <div className="absolute inset-0 z-10 flex flex-col justify-center items-center text-center px-6 py-16 small:p-32 gap-8">
-        <div className="flex w-full max-w-3xl flex-col items-center gap-6 rounded-[32px] bg-gray-900/70 px-6 py-8 shadow-2xl backdrop-blur small:px-8 small:py-10">
+      <div className="absolute inset-0 z-0 bg-gradient-to-b from-gray-900/30 via-gray-900/60 to-gray-900 pointer-events-none" />
+
+      <div className="absolute inset-0 z-10 flex flex-col justify-center items-center text-center px-6 py-16 small:p-32 gap-8 pointer-events-none">
+        {/* We use pointer-events-auto on interactive children */}
+        <div className="flex w-full max-w-3xl flex-col items-center gap-6 rounded-[32px] bg-gray-900/40 px-6 py-8 shadow-2xl backdrop-blur-sm small:px-8 small:py-10 pointer-events-auto border border-white/10">
           <div className="w-full space-y-4">
             <Heading
               level="h1"
-              className="text-6xl font-bold bg-gradient-to-r from-violet-600 to-rose-500 bg-clip-text text-transparent"
+              className="text-6xl font-bold bg-gradient-to-r from-violet-400 to-rose-400 bg-clip-text text-transparent drop-shadow-md"
             >
               Cici Label
             </Heading>
@@ -61,14 +44,17 @@ const Hero = async () => {
           </div>
           <a
             href="/design"
+            className="pointer-events-auto"
           >
-            <Button variant="secondary">
+            <Button variant="secondary" className="px-8 py-3 text-lg shadow-lg hover:shadow-violet-500/20 transition-all">
               Design your first piece
             </Button>
           </a>
         </div>
 
-        <HeroScrollButton targetId="shop" />
+        <div className="pointer-events-auto">
+          <HeroScrollButton targetId="shop" />
+        </div>
       </div>
     </div>
   )

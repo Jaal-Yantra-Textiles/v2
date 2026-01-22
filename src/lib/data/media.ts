@@ -50,7 +50,7 @@ export async function listPublicMedia({
       ...(seed ? { seed } : {}),
     },
     next,
-    cache: "force-cache",
+    cache: random ? "no-store" : "force-cache",
   })
 }
 

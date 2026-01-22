@@ -35,9 +35,13 @@ export function Pagination({
   ) => (
     <button
       key={p}
-      className={clx("txt-xlarge-plus text-ui-fg-muted", {
-        "text-ui-fg-base hover:text-ui-fg-subtle": isCurrent,
-      })}
+      className={clx(
+        "w-10 h-10 flex items-center justify-center rounded-full text-small-regular transition-all duration-200 font-serif",
+        {
+          "bg-ui-fg-base text-ui-bg-base hover:bg-ui-fg-base/90": isCurrent,
+          "text-ui-fg-base hover:bg-ui-bg-subtle": !isCurrent,
+        }
+      )}
       disabled={isCurrent}
       onClick={() => handlePageChange(p)}
     >
@@ -107,7 +111,7 @@ export function Pagination({
 
   // Render the component
   return (
-    <div className="flex justify-center w-full mt-12">
+    <div className="flex justify-center w-full mt-12 relative z-10">
       <div className="flex gap-3 items-end" data-testid={dataTestid}>{renderPageButtons()}</div>
     </div>
   )

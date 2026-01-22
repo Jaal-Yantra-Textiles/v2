@@ -1,6 +1,7 @@
 import { HttpTypes } from "@medusajs/types"
 import { Heading } from "@medusajs/ui"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import FadeIn from "@modules/common/components/fade-in"
 import ProductDescription from "@modules/products/components/product-description"
 type ProductInfoProps = {
   product: HttpTypes.StoreProduct
@@ -11,22 +12,28 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
     <div id="product-info">
       <div className="flex flex-col gap-y-4 lg:max-w-[500px] mx-auto">
         {product.collection && (
-          <LocalizedClientLink
-            href={`/collections/${product.collection.handle}`}
-            className="text-medium text-ui-fg-muted hover:text-ui-fg-subtle"
-          >
-            {product.collection.title}
-          </LocalizedClientLink>
+          <FadeIn delay={0.1}>
+            <LocalizedClientLink
+              href={`/collections/${product.collection.handle}`}
+              className="text-medium text-ui-fg-muted hover:text-ui-fg-base transition-colors"
+            >
+              {product.collection.title}
+            </LocalizedClientLink>
+          </FadeIn>
         )}
-        <Heading
-          level="h2"
-          className="text-3xl leading-10 text-ui-fg-base"
-          data-testid="product-title"
-        >
-          {product.title}
-        </Heading>
+        <FadeIn delay={0.2}>
+          <Heading
+            level="h1"
+            className="text-4xl leading-[1.1] font-semibold text-ui-fg-base tracking-tight"
+            data-testid="product-title"
+          >
+            {product.title}
+          </Heading>
+        </FadeIn>
 
-        <ProductDescription description={product.description} />
+        <FadeIn delay={0.3}>
+          <ProductDescription description={product.description} />
+        </FadeIn>
       </div>
     </div>
   )

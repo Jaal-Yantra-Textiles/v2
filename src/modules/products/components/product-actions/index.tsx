@@ -10,6 +10,7 @@ import { isEqual } from "lodash"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { motion } from "framer-motion"
 import ProductPrice from "../product-price"
 import MobileActions from "./mobile-actions"
 
@@ -142,26 +143,32 @@ export default function ProductActions({
         <ProductPrice product={product} variant={selectedVariant} />
 
         <div className="flex flex-col gap-y-4">
-          <Button
-            onClick={handleAddToCart}
-            disabled={
-              !inStock ||
-              !selectedVariant ||
-              !!disabled ||
-              isAdding ||
-              !isValidVariant
-            }
-            variant="primary"
-            className="w-full h-10"
-            isLoading={isAdding}
-            data-testid="add-product-button"
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            animate={isAdding ? { opacity: [1, 0.5, 1], transition: { duration: 0.8, repeat: Infinity } } : {}}
           >
-            {!selectedVariant && !options
-              ? "Select variant"
-              : !inStock || !isValidVariant
-              ? "Out of stock"
-              : "Add to cart"}
-          </Button>
+            <Button
+              onClick={handleAddToCart}
+              disabled={
+                !inStock ||
+                !selectedVariant ||
+                !!disabled ||
+                isAdding ||
+                !isValidVariant
+              }
+              variant="primary"
+              className="w-full h-10 shadow-elevation-card-rest hover:shadow-elevation-card-hover transition-shadow"
+              isLoading={isAdding}
+              data-testid="add-product-button"
+            >
+              {!selectedVariant && !(product.options || []).every((opt) => options[opt.id])
+                ? "Select variant"
+                : !inStock || !isValidVariant
+                  ? "Out of stock"
+                  : "Add to cart"}
+            </Button>
+          </motion.div>
 
           <div className="mt-2 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4">
             <p className="text-sm text-ui-fg-subtle mb-3">

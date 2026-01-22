@@ -55,7 +55,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
   return (
     <>
       <div
-        className="content-container flex flex-col small:flex-row small:items-start py-6 relative"
+        className="content-container flex flex-col small:flex-row small:items-start py-12 relative gap-x-12 small:gap-x-24"
         data-testid="product-container"
       >
         <div className="flex flex-col small:sticky small:top-48 small:py-0 small:max-w-[300px] w-full py-8 gap-y-6">
@@ -76,7 +76,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
             <ProductTabs product={product} />
           </div>
         </div>
-        
+
         <div className="flex flex-col small:sticky small:top-48 small:py-0 small:max-w-[300px] w-full py-8 gap-y-12">
           <ProductOnboardingCta />
 
@@ -85,10 +85,10 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
               <ProductActions product={product} region={region} />
             }
           >
-            
-                        <ProductActionsWrapper id={product.id} region={region} />
+
+            <ProductActionsWrapper id={product.id} region={region} />
             <div className="mt-4 flex items-center gap-x-2">
-            <Text className="txt-medium">Size Guide</Text>
+              <Text className="txt-medium">Size Guide</Text>
               <SizeGuide />
             </div>
           </Suspense>

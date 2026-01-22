@@ -23,11 +23,12 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
   "data-testid": dataTestid,
 }) => {
   const initialImage = thumbnail || images?.[0]?.url
+  const secondaryImage = images?.[1]?.url
 
   return (
     <Container
       className={clx(
-        "relative w-full overflow-hidden p-4 bg-ui-bg-subtle shadow-elevation-card-rest rounded-large group-hover:shadow-elevation-card-hover transition-shadow ease-in-out duration-150",
+        "relative w-full overflow-hidden bg-transparent shadow-none transition-shadow ease-in-out duration-150",
         className,
         {
           "aspect-[11/14]": isFeatured,
@@ -41,7 +42,31 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
       )}
       data-testid={dataTestid}
     >
-      <ImageOrPlaceholder image={initialImage} size={size} />
+      <div className="absolute inset-0 overflow-hidden rounded-lg bg-gray-100">
+        <ImageOrPlaceholder
+          image={initialImage}
+          size={size}
+          className={clx(
+            "absolute inset-0 object-cover object-center transition-all duration-500 ease-in-out transform",
+            // Scale up on hover
+            "group-hover:scale-105",
+            // Fade out if secondary image exists
+            secondaryImage && "group-hover:opacity-0"
+          )}
+        />
+
+        {secondaryImage && (
+          <ImageOrPlaceholder
+            image={secondaryImage}
+            size={size}
+            className={clx(
+              "absolute inset-0 object-cover object-center transition-all duration-500 ease-in-out transform scale-105 opacity-0",
+              // Fade in on hover
+              "group-hover:opacity-100"
+            )}
+          />
+        )}
+      </div>
     </Container>
   )
 }
@@ -49,19 +74,20 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
 const ImageOrPlaceholder = ({
   image,
   size,
-}: Pick<ThumbnailProps, "size"> & { image?: string }) => {
+  className,
+}: Pick<ThumbnailProps, "size"> & { image?: string, className?: string }) => {
   return image ? (
     <Image
       src={image}
       alt="Thumbnail"
-      className="absolute inset-0 object-cover object-center"
+      className={className}
       draggable={false}
       quality={50}
       sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
       fill
     />
   ) : (
-    <div className="w-full h-full absolute inset-0 flex items-center justify-center">
+    <div className="w-full h-full absolute inset-0 flex items-center justify-center bg-gray-100">
       <PlaceholderImage size={size === "small" ? 16 : 24} />
     </div>
   )

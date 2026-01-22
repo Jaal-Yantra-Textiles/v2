@@ -60,6 +60,7 @@ module.exports = {
       },
       fontFamily: {
         sans: [
+          "var(--font-inter)",
           "Inter",
           "-apple-system",
           "BlinkMacSystemFont",
@@ -68,6 +69,13 @@ module.exports = {
           "Helvetica Neue",
           "Ubuntu",
           "sans-serif",
+        ],
+        serif: [
+          "var(--font-playfair)",
+          "Playfair Display",
+          "Georgia",
+          "Times New Roman",
+          "serif",
         ],
       },
       keyframes: {
