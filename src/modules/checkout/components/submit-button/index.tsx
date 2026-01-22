@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@medusajs/ui"
+import { Spinner } from "@medusajs/icons"
 import React from "react"
 import { useFormStatus } from "react-dom"
 
@@ -22,11 +23,11 @@ export function SubmitButton({
       size="large"
       className={className}
       type="submit"
-      isLoading={pending}
+      disabled={pending}
       variant={variant || "primary"}
       data-testid={dataTestId}
     >
-      {children}
+      {pending ? <Spinner className="animate-spin" /> : children}
     </Button>
   )
 }

@@ -1,3 +1,5 @@
+"use client"
+
 import { Container, clx } from "@medusajs/ui"
 import Image from "next/image"
 import React from "react"
@@ -76,16 +78,24 @@ const ImageOrPlaceholder = ({
   size,
   className,
 }: Pick<ThumbnailProps, "size"> & { image?: string, className?: string }) => {
+  const [isLoaded, setIsLoaded] = React.useState(false)
+
   return image ? (
-    <Image
-      src={image}
-      alt="Thumbnail"
-      className={className}
-      draggable={false}
-      quality={50}
-      sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
-      fill
-    />
+    <div className={clx("relative w-full h-full", className)}>
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-gray-100 animate-pulse z-10" />
+      )}
+      <Image
+        src={image}
+        alt="Thumbnail"
+        className="object-cover object-center"
+        draggable={false}
+        quality={50}
+        sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
+        fill
+        onLoad={() => setIsLoaded(true)}
+      />
+    </div>
   ) : (
     <div className="w-full h-full absolute inset-0 flex items-center justify-center bg-gray-100">
       <PlaceholderImage size={size === "small" ? 16 : 24} />
