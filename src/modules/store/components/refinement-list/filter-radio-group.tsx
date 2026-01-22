@@ -1,6 +1,7 @@
 "use client"
 
-import { Label, RadioGroup } from "@medusajs/ui"
+import { Label, RadioGroup, Text, clx } from "@medusajs/ui"
+import { XCircle } from "@medusajs/icons"
 
 type FilterRadioGroupProps = {
     title: string
@@ -23,7 +24,17 @@ const FilterRadioGroup = ({
 }: FilterRadioGroupProps) => {
     return (
         <div className="flex flex-col gap-y-3">
-            <h3 className="txt-compact-large-plus text-ui-fg-base">{title}</h3>
+            <div className="flex items-center gap-x-2">
+                <h3 className="txt-compact-large-plus text-ui-fg-base">{title}</h3>
+                {value && (
+                    <button
+                        onClick={() => onChange("")}
+                        className="text-ui-fg-subtle hover:text-ui-fg-base transition-colors"
+                    >
+                        <XCircle />
+                    </button>
+                )}
+            </div>
             <RadioGroup
                 value={value}
                 onValueChange={onChange}
