@@ -1,3 +1,16 @@
+# [8.15.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.14.1...v8.15.0) (2026-02-07)
+
+
+### Bug Fixes
+
+* **scripts:** Build fixes and other scripts related fixes ([cc1736d](https://github.com/Jaal-Yantra-Textiles/v2/commit/cc1736db7dcff9de23e4f82e6dc995901f71a686))
+
+
+### Features
+
+* consolidate AI chat, add spec DB storage, ad-planning, and platform features ([92bc280](https://github.com/Jaal-Yantra-Textiles/v2/commit/92bc280bbfef1480ea1e24b4db134bb453d20048))
+* **api:** Header with "Ad Planning & Attribution" title ([30e6044](https://github.com/Jaal-Yantra-Textiles/v2/commit/30e60447ed61ed651b0bc664a82a492a9c722a29))
+
 ## [8.14.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.14.0...v8.14.1) (2026-01-09)
 
 
