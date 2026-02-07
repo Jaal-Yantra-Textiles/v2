@@ -37,6 +37,10 @@ apps/**/.yarn/*
 
 .medusa
 
+# Docusaurus
+apps/docs/.docusaurus/
+apps/docs/build/
+
 .vscode/
 
 static/

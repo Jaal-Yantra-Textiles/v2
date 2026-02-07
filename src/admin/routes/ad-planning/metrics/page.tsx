@@ -125,6 +125,67 @@ const MetricsModal = () => {
     },
   })
 
+  // Meta Ads - Campaign Totals
+  const { data: campaignTotals } = useQuery({
+    queryKey: ["meta-ads", "campaigns", "totals", "metrics"],
+    queryFn: async () => {
+      const res = await sdk.client.fetch<{
+        totals: {
+          spend: number
+          impressions: number
+          clicks: number
+          leads: number
+          reach: number
+          conversions: number
+          ctr: number
+          cpc: number
+          cpm: number
+          cpl: number
+          cpa: number
+          campaign_count: number
+        }
+      }>("/admin/meta-ads/campaigns/totals")
+      return res.totals
+    },
+  })
+
+  // Meta Ads - Top Campaigns
+  const { data: topCampaigns } = useQuery({
+    queryKey: ["meta-ads", "campaigns", "metrics-top"],
+    queryFn: async () => {
+      const res = await sdk.client.fetch<{
+        campaigns: any[]
+        count: number
+      }>("/admin/meta-ads/campaigns?limit=5")
+      return res
+    },
+  })
+
+  // Social Posts
+  const { data: socialPostsData } = useQuery({
+    queryKey: ["social-posts", "metrics-summary"],
+    queryFn: async () => {
+      const res = await sdk.client.fetch<{
+        socialPosts: any[]
+        count: number
+      }>("/admin/social-posts?limit=100")
+      return res
+    },
+  })
+
+  // Meta Ads - Leads
+  const { data: leadsData } = useQuery({
+    queryKey: ["meta-ads", "leads", "metrics-summary"],
+    queryFn: async () => {
+      const res = await sdk.client.fetch<{
+        leads: any[]
+        count: number
+        total: number
+      }>("/admin/meta-ads/leads?limit=100")
+      return res
+    },
+  })
+
   // Derived values
   const totalConversions = conversionStats?.total_conversions || 0
   const totalRevenue = conversionStats?.total_value || 0
@@ -161,6 +222,41 @@ const MetricsModal = () => {
       ? ((attrSummary?.converted || 0) / totalAttributions) * 100
       : 0
 
+  // Meta Ads derived
+  const totalSpend = campaignTotals?.spend || 0
+  const totalImpressions = campaignTotals?.impressions || 0
+  const totalClicks = campaignTotals?.clicks || 0
+  const totalAdLeads = campaignTotals?.leads || 0
+  const avgCTR = campaignTotals?.ctr || 0
+  const avgCPC = campaignTotals?.cpc || 0
+
+  // ROAS (Return on Ad Spend)
+  const revenueInCurrency = totalRevenue / 100
+  const roas = totalSpend > 0 ? revenueInCurrency / totalSpend : 0
+
+  // Social posts derived
+  const posts = socialPostsData?.socialPosts || []
+  const postedCount = posts.filter((p: any) => p.status === "posted").length
+  const scheduledCount = posts.filter(
+    (p: any) => p.status === "scheduled"
+  ).length
+  const failedCount = posts.filter((p: any) => p.status === "failed").length
+  const draftCount = posts.filter((p: any) => p.status === "draft").length
+
+  // Leads derived
+  const leads = leadsData?.leads || []
+  const totalLeads = leadsData?.total || leads.length
+  const newLeads = leads.filter((l: any) => l.status === "new").length
+  const qualifiedLeads = leads.filter(
+    (l: any) => l.status === "qualified"
+  ).length
+  const convertedLeads = leads.filter(
+    (l: any) => l.status === "converted"
+  ).length
+  const contactedLeads = leads.filter(
+    (l: any) => l.status === "contacted"
+  ).length
+
   const getFunnelConversion = (fromStage: string, toStage: string) => {
     const from = funnel.find((f: any) => f.stage === fromStage)?.count || 0
     const to = funnel.find((f: any) => f.stage === toStage)?.count || 0
@@ -183,35 +279,422 @@ const MetricsModal = () => {
               leading="compact"
               className="text-ui-fg-subtle mt-1"
             >
-              Consolidated metrics across conversions, experiments, segments,
-              journeys, scores, and attribution
+              Consolidated metrics across ad spend, social content, leads,
+              conversions, experiments, segments, journeys, scores, and
+              attribution
             </Text>
           </div>
 
           {/* Overview KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <MetricCard
-              title="Total Conversions"
-              value={totalConversions.toLocaleString()}
+              title="Ad Spend"
+              value={`₹${totalSpend.toLocaleString()}`}
+              className="text-ui-fg-error"
             />
             <MetricCard
               title="Total Revenue"
               value={`₹${(totalRevenue / 100).toLocaleString()}`}
-            />
-            <MetricCard
-              title="Conversion Rate"
-              value={`${(conversionRate * 100).toFixed(2)}%`}
-            />
-            <MetricCard
-              title="Active Experiments"
-              value={activeExperiments}
               className="text-ui-fg-positive"
             />
-            <MetricCard title="Active Segments" value={activeSegments} />
             <MetricCard
-              title="Attributed Revenue"
-              value={`₹${((attrSummary?.total_value || 0) / 100).toLocaleString()}`}
+              title="Total Conversions"
+              value={totalConversions.toLocaleString()}
             />
+            <MetricCard
+              title="Total Leads"
+              value={totalLeads.toLocaleString()}
+            />
+            <MetricCard
+              title="Social Posts"
+              value={postedCount.toLocaleString()}
+            />
+            <MetricCard
+              title="ROAS"
+              value={`${roas.toFixed(2)}x`}
+              className={roas >= 1 ? "text-ui-fg-positive" : "text-ui-fg-error"}
+            />
+          </div>
+
+          {/* Meta Ads Spend */}
+          <Container className="p-0">
+            <SectionHeader
+              title="Meta Ads Performance"
+              linkTo="/meta-ads/campaigns"
+            />
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+                <div className="p-3 bg-ui-bg-subtle rounded-lg text-center">
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    Spend
+                  </Text>
+                  <Text size="large" weight="plus" className="mt-1">
+                    ₹{totalSpend.toLocaleString()}
+                  </Text>
+                </div>
+                <div className="p-3 bg-ui-bg-subtle rounded-lg text-center">
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    Impressions
+                  </Text>
+                  <Text size="large" weight="plus" className="mt-1">
+                    {totalImpressions.toLocaleString()}
+                  </Text>
+                </div>
+                <div className="p-3 bg-ui-bg-subtle rounded-lg text-center">
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    Clicks
+                  </Text>
+                  <Text size="large" weight="plus" className="mt-1">
+                    {totalClicks.toLocaleString()}
+                  </Text>
+                </div>
+                <div className="p-3 bg-ui-bg-subtle rounded-lg text-center">
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    Leads
+                  </Text>
+                  <Text size="large" weight="plus" className="mt-1">
+                    {totalAdLeads.toLocaleString()}
+                  </Text>
+                </div>
+                <div className="p-3 bg-ui-bg-subtle rounded-lg text-center">
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    CTR
+                  </Text>
+                  <Text size="large" weight="plus" className="mt-1">
+                    {avgCTR.toFixed(2)}%
+                  </Text>
+                </div>
+                <div className="p-3 bg-ui-bg-subtle rounded-lg text-center">
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    ROAS
+                  </Text>
+                  <Text
+                    size="large"
+                    weight="plus"
+                    className={`mt-1 ${roas >= 1 ? "text-ui-fg-positive" : "text-ui-fg-error"}`}
+                  >
+                    {roas.toFixed(2)}x
+                  </Text>
+                </div>
+              </div>
+
+              {/* Top campaigns */}
+              {topCampaigns?.campaigns?.length > 0 && (
+                <div className="divide-y divide-ui-border-base rounded-lg border border-ui-border-base">
+                  {topCampaigns.campaigns
+                    .sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0))
+                    .slice(0, 3)
+                    .map((c: any) => (
+                      <Link
+                        key={c.id}
+                        to={`/meta-ads/campaigns/${c.id}`}
+                        className="block px-4 py-3 hover:bg-ui-bg-base-hover transition-colors first:rounded-t-lg last:rounded-b-lg"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Text
+                              size="small"
+                              leading="compact"
+                              weight="plus"
+                            >
+                              {c.name}
+                            </Text>
+                            <Text
+                              size="xsmall"
+                              leading="compact"
+                              className="text-ui-fg-subtle"
+                            >
+                              ₹{(c.spend || 0).toLocaleString()} spent
+                              · {(c.clicks || 0).toLocaleString()} clicks
+                              · {(c.leads || 0).toLocaleString()} leads
+                            </Text>
+                          </div>
+                          <Badge
+                            color={
+                              c.status === "ACTIVE"
+                                ? "green"
+                                : c.status === "PAUSED"
+                                  ? "orange"
+                                  : "grey"
+                            }
+                            size="xsmall"
+                          >
+                            {c.status}
+                          </Badge>
+                        </div>
+                      </Link>
+                    ))}
+                </div>
+              )}
+            </div>
+          </Container>
+
+          {/* Social Content & Lead Pipeline (side by side) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Social Content */}
+            <Container className="p-0">
+              <SectionHeader
+                title="Social Content"
+                linkTo="/social-posts"
+              />
+              <div className="px-6 py-4">
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="p-3 bg-ui-bg-subtle rounded-lg">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Posted
+                    </Text>
+                    <Text
+                      size="large"
+                      weight="plus"
+                      className="mt-1 text-ui-fg-positive"
+                    >
+                      {postedCount}
+                    </Text>
+                  </div>
+                  <div className="p-3 bg-ui-bg-subtle rounded-lg">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Scheduled
+                    </Text>
+                    <Text size="large" weight="plus" className="mt-1">
+                      {scheduledCount}
+                    </Text>
+                  </div>
+                  <div className="p-3 bg-ui-bg-subtle rounded-lg">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Drafts
+                    </Text>
+                    <Text size="large" weight="plus" className="mt-1">
+                      {draftCount}
+                    </Text>
+                  </div>
+                  <div className="p-3 bg-ui-bg-subtle rounded-lg">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Failed
+                    </Text>
+                    <Text
+                      size="large"
+                      weight="plus"
+                      className={`mt-1 ${failedCount > 0 ? "text-ui-fg-error" : ""}`}
+                    >
+                      {failedCount}
+                    </Text>
+                  </div>
+                </div>
+
+                {/* Recent posted items */}
+                {posts.filter((p: any) => p.status === "posted").length > 0 && (
+                  <div className="divide-y divide-ui-border-base rounded-lg border border-ui-border-base">
+                    {posts
+                      .filter((p: any) => p.status === "posted")
+                      .sort(
+                        (a: any, b: any) =>
+                          new Date(b.posted_at || b.updated_at).getTime() -
+                          new Date(a.posted_at || a.updated_at).getTime()
+                      )
+                      .slice(0, 3)
+                      .map((p: any) => (
+                        <Link
+                          key={p.id}
+                          to={`/social-posts/${p.id}`}
+                          className="block px-4 py-3 hover:bg-ui-bg-base-hover transition-colors first:rounded-t-lg last:rounded-b-lg"
+                        >
+                          <Text size="small" leading="compact" weight="plus">
+                            {p.name}
+                          </Text>
+                          <Text
+                            size="xsmall"
+                            leading="compact"
+                            className="text-ui-fg-subtle"
+                          >
+                            {p.posted_at
+                              ? new Date(p.posted_at).toLocaleDateString()
+                              : ""}
+                            {p.caption
+                              ? ` · ${p.caption.slice(0, 40)}${p.caption.length > 40 ? "..." : ""}`
+                              : ""}
+                          </Text>
+                        </Link>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </Container>
+
+            {/* Lead Pipeline */}
+            <Container className="p-0">
+              <SectionHeader
+                title="Lead Pipeline"
+                linkTo="/meta-ads/leads"
+              />
+              <div className="px-6 py-4">
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="p-3 bg-ui-bg-subtle rounded-lg">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      New
+                    </Text>
+                    <Text
+                      size="large"
+                      weight="plus"
+                      className="mt-1 text-ui-fg-interactive"
+                    >
+                      {newLeads}
+                    </Text>
+                  </div>
+                  <div className="p-3 bg-ui-bg-subtle rounded-lg">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Contacted
+                    </Text>
+                    <Text size="large" weight="plus" className="mt-1">
+                      {contactedLeads}
+                    </Text>
+                  </div>
+                  <div className="p-3 bg-ui-bg-subtle rounded-lg">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Qualified
+                    </Text>
+                    <Text
+                      size="large"
+                      weight="plus"
+                      className="mt-1 text-ui-fg-positive"
+                    >
+                      {qualifiedLeads}
+                    </Text>
+                  </div>
+                  <div className="p-3 bg-ui-bg-subtle rounded-lg">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Converted
+                    </Text>
+                    <Text
+                      size="large"
+                      weight="plus"
+                      className="mt-1 text-ui-fg-positive"
+                    >
+                      {convertedLeads}
+                    </Text>
+                  </div>
+                </div>
+
+                {/* Lead pipeline bar */}
+                {totalLeads > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1 mb-2 h-6">
+                      {newLeads > 0 && (
+                        <div
+                          className="h-full bg-ui-tag-blue-bg rounded"
+                          style={{
+                            width: `${Math.max((newLeads / totalLeads) * 100, 5)}%`,
+                          }}
+                          title={`New: ${newLeads}`}
+                        />
+                      )}
+                      {contactedLeads > 0 && (
+                        <div
+                          className="h-full bg-ui-tag-orange-bg rounded"
+                          style={{
+                            width: `${Math.max((contactedLeads / totalLeads) * 100, 5)}%`,
+                          }}
+                          title={`Contacted: ${contactedLeads}`}
+                        />
+                      )}
+                      {qualifiedLeads > 0 && (
+                        <div
+                          className="h-full bg-ui-tag-green-bg rounded"
+                          style={{
+                            width: `${Math.max((qualifiedLeads / totalLeads) * 100, 5)}%`,
+                          }}
+                          title={`Qualified: ${qualifiedLeads}`}
+                        />
+                      )}
+                      {convertedLeads > 0 && (
+                        <div
+                          className="h-full bg-ui-tag-purple-bg rounded"
+                          style={{
+                            width: `${Math.max((convertedLeads / totalLeads) * 100, 5)}%`,
+                          }}
+                          title={`Converted: ${convertedLeads}`}
+                        />
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <Badge color="blue" size="xsmall">
+                          New
+                        </Badge>
+                        <Text size="xsmall" className="text-ui-fg-subtle">
+                          {newLeads}
+                        </Text>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Badge color="orange" size="xsmall">
+                          Contacted
+                        </Badge>
+                        <Text size="xsmall" className="text-ui-fg-subtle">
+                          {contactedLeads}
+                        </Text>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Badge color="green" size="xsmall">
+                          Qualified
+                        </Badge>
+                        <Text size="xsmall" className="text-ui-fg-subtle">
+                          {qualifiedLeads}
+                        </Text>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Badge color="purple" size="xsmall">
+                          Converted
+                        </Badge>
+                        <Text size="xsmall" className="text-ui-fg-subtle">
+                          {convertedLeads}
+                        </Text>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lead breakdown by campaign */}
+                {leads.length > 0 && (() => {
+                  const byCampaign = leads.reduce(
+                    (acc: Record<string, number>, l: any) => {
+                      const name = l.campaign_name || "Unknown Campaign"
+                      acc[name] = (acc[name] || 0) + 1
+                      return acc
+                    },
+                    {}
+                  )
+                  const sorted = Object.entries(byCampaign)
+                    .sort(([, a], [, b]) => (b as number) - (a as number))
+                    .slice(0, 5)
+
+                  return sorted.length > 0 ? (
+                    <div className="mt-4">
+                      <Text
+                        size="xsmall"
+                        weight="plus"
+                        className="text-ui-fg-subtle mb-2"
+                      >
+                        Top Campaigns by Leads
+                      </Text>
+                      <div className="divide-y divide-ui-border-base rounded-lg border border-ui-border-base">
+                        {sorted.map(([name, count]) => (
+                          <div
+                            key={name}
+                            className="flex items-center justify-between px-3 py-2"
+                          >
+                            <Text size="xsmall" leading="compact">
+                              {name}
+                            </Text>
+                            <Badge color="blue" size="xsmall">
+                              {count as number}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null
+                })()}
+              </div>
+            </Container>
           </div>
 
           {/* Conversions Breakdown */}

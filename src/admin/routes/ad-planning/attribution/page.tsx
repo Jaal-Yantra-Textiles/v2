@@ -18,7 +18,7 @@ import {
   toast,
 } from "@medusajs/ui"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { sdk } from "../../../lib/config"
 import { ArrowPath } from "@medusajs/icons"
 
@@ -36,6 +36,7 @@ interface Attribution {
   converted: boolean
   conversion_value: number | null
   attributed_at: string
+  campaign_spend?: number | null
 }
 
 const columnHelper = createDataTableColumnHelper<Attribution>()
@@ -133,6 +134,18 @@ const columns = [
       )
     },
   }),
+  columnHelper.accessor("campaign_spend", {
+    header: "Ad Spend",
+    cell: ({ getValue }) => {
+      const spend = getValue()
+      if (!spend) return <Text className="text-ui-fg-muted">-</Text>
+      return (
+        <Text size="small" leading="compact">
+          ₹{spend.toLocaleString()}
+        </Text>
+      )
+    },
+  }),
   columnHelper.accessor("attributed_at", {
     header: "Date",
     cell: ({ getValue }) => (
@@ -172,6 +185,43 @@ const AttributionPage = () => {
     },
   })
 
+  // Fetch meta-ads campaigns for spend enrichment
+  const { data: campaignsData } = useQuery({
+    queryKey: ["meta-ads", "campaigns", "attribution-enrichment"],
+    queryFn: async () => {
+      const res = await sdk.client.fetch<{
+        campaigns: any[]
+        count: number
+      }>("/admin/meta-ads/campaigns?limit=100")
+      return res
+    },
+  })
+
+  // Build campaign lookup by name (lowercased)
+  const campaignLookup = useMemo(() => {
+    const lookup: Record<string, any> = {}
+    for (const c of campaignsData?.campaigns || []) {
+      if (c.name) lookup[c.name.toLowerCase()] = c
+    }
+    return lookup
+  }, [campaignsData])
+
+  // Enrich attributions with campaign spend
+  const enrichedAttributions = useMemo(() => {
+    return (data?.attributions || []).map((attr: Attribution) => {
+      const key = (
+        attr.campaign_name ||
+        attr.utm_campaign ||
+        ""
+      ).toLowerCase()
+      const matched = campaignLookup[key]
+      return {
+        ...attr,
+        campaign_spend: matched?.spend || null,
+      }
+    })
+  }, [data?.attributions, campaignLookup])
+
   // Bulk resolve
   const bulkResolve = useMutation({
     mutationFn: async () => {
@@ -191,7 +241,7 @@ const AttributionPage = () => {
   })
 
   const table = useDataTable({
-    data: data?.attributions || [],
+    data: enrichedAttributions,
     columns,
     getRowId: (attr) => attr.id,
     rowCount: data?.count || 0,
