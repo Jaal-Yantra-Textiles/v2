@@ -156,7 +156,8 @@ export async function getFreeModelsByModality(options: {
   }
 
   if (options.minContextLength) {
-    filtered = filtered.filter((m) => (m.context_length || 0) >= options.minContextLength)
+    const minCtx = options.minContextLength
+    filtered = filtered.filter((m) => (m.context_length || 0) >= minCtx)
   }
 
   // Sort by context length descending

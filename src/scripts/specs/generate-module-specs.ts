@@ -169,17 +169,17 @@ class ModuleSpecGenerator {
             data.fields[data.fields.length - 1].type = "enum"
           }
         }
-      }
 
-      // Extract relations
-      const relationMatches = content.matchAll(/\.(hasOne|hasMany|belongsTo|manyToMany)\s*\([^)]+\)/g)
-      for (const match of relationMatches) {
-        const relationType = match[0].split('(')[0]
-        data.relations.push({
-          name: relationType,
-          targetEntity: "Unknown", // Would need deeper parsing
-          cardinality: this.inferCardinality(relationType)
-        })
+        // Extract relations
+        const relationMatches = content.matchAll(/\.(hasOne|hasMany|belongsTo|manyToMany)\s*\([^)]+\)/g)
+        for (const match of relationMatches) {
+          const relationType = match[0].split('(')[0]
+          data.relations.push({
+            name: relationType,
+            targetEntity: "Unknown", // Would need deeper parsing
+            cardinality: this.inferCardinality(relationType)
+          })
+        }
       }
 
       // Extract from service
@@ -191,8 +191,8 @@ class ModuleSpecGenerator {
         const workflowMatches = serviceContent.matchAll(/\w+Workflow/g)
         for (const workflow of workflowMatches) {
           data.workflows.push({
-            name: workflow,
-            description: `Workflow for ${workflow.replace("Workflow", "")}`,
+            name: workflow[0],
+            description: `Workflow for ${workflow[0].replace("Workflow", "")}`,
             inputFields: [],
             outputFields: [],
             triggers: []

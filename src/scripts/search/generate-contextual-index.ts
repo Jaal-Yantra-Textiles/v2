@@ -166,7 +166,7 @@ async function generateContext(
         const { text } = await generateText({
           model: openrouter(modelId) as any,
           prompt,
-          maxTokens: CONFIG.maxTokens,
+          maxOutputTokens: CONFIG.maxTokens,
           temperature: 0.2,
         })
 

@@ -100,7 +100,7 @@ class CodeSearchIndexer {
     const modulesDir = path.join(PROJECT_ROOT, "src", "modules")
 
     try {
-      const workflowFiles = await this.findFiles(workflowDir, /\.ts$/)
+      const workflowFiles = await this.findFiles(workflowsDir, /\.ts$/)
       const moduleWorkflowFiles: string[] = []
 
       try {
@@ -402,21 +402,21 @@ class CodeSearchIndexer {
 
   async findWorkflowsForModule(moduleName: string) {
     const nameLower = moduleName.toLowerCase()
-    return this.search(`workflow ${moduleName}`, "workflows", 20)
-      .filter((w: any) => w.name.toLowerCase().includes(nameLower) || w.file.includes(`/${moduleName}/`))
+    const results = await this.search(`workflow ${moduleName}`, "workflows", 20)
+    return results.filter((w: any) => w.name.toLowerCase().includes(nameLower) || w.file.includes(`/${moduleName}/`))
   }
 
   async findRoutesForModule(moduleName: string) {
     const nameLower = moduleName.toLowerCase()
     const plural = moduleName + "s"
-    return this.search(`route ${moduleName}`, "routes", 20)
-      .filter((r: any) => r.path.includes(`/${nameLower}/`) || r.path.includes(`/${plural}/`))
+    const results = await this.search(`route ${moduleName}`, "routes", 20)
+    return results.filter((r: any) => r.path.includes(`/${nameLower}/`) || r.path.includes(`/${plural}/`))
   }
 
   async findLinksForModule(moduleName: string) {
     const nameLower = moduleName.toLowerCase()
-    return this.search(`link ${moduleName}`, "links", 20)
-      .filter((l: any) => l.sourceModule === nameLower || l.targetModule === nameLower)
+    const results = await this.search(`link ${moduleName}`, "links", 20)
+    return results.filter((l: any) => l.sourceModule === nameLower || l.targetModule === nameLower)
   }
 
   getIndex(): CodeIndex {

@@ -145,6 +145,7 @@ async function main() {
   // Import embedding service
   let embedTexts: (texts: string[]) => Promise<number[][]>
   try {
+    // @ts-ignore - mastra paths excluded from tsconfig, resolved at runtime
     const embeddingModule = await import("../mastra/services/embedding-service")
     embedTexts = (embeddingModule as any).embedTexts
   } catch (error) {
