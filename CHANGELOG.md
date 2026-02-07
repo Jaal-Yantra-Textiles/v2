@@ -1,3 +1,10 @@
+# [8.16.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.15.0...v8.16.0) (2026-02-07)
+
+
+### Features
+
+* **admin:** Docs for better clarity and users ([ea03209](https://github.com/Jaal-Yantra-Textiles/v2/commit/ea03209158e9801fbf99246e0060e42488a666ba))
+
 # [8.15.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.14.1...v8.15.0) (2026-02-07)
 
 
