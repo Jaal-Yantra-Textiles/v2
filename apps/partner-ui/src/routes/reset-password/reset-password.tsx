@@ -3,7 +3,7 @@ import { Alert, Button, Heading, Input, Text, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { Trans, useTranslation } from "react-i18next"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import * as z from "zod"
+import { z as z } from "@medusajs/framework/zod"
 
 import { useState } from "react"
 import { decodeToken } from "react-jwt"

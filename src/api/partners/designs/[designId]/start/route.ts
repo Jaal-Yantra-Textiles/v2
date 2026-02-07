@@ -1,3 +1,62 @@
+/**
+ * @file Partner API route for starting a design workflow
+ * @description Provides endpoints for partners to initiate the development process for a design
+ * @module API/Partners/Designs
+ */
+
+/**
+ * @typedef {Object} DesignStartResponse
+ * @property {string} message - Success message
+ * @property {Object} design - The updated design object
+ * @property {string} design.id - The design ID
+ * @property {string} design.status - The design status (e.g., "In_Development")
+ * @property {Object} design.metadata - Additional design metadata
+ * @property {string} design.metadata.partner_started_at - ISO timestamp when partner started the design
+ * @property {string} design.metadata.partner_status - Current partner status (e.g., "in_progress")
+ */
+
+/**
+ * Start a design workflow
+ * @route POST /partners/designs/:designId/start
+ * @group Design - Operations related to design workflows
+ * @param {string} designId.path.required - The ID of the design to start
+ * @returns {DesignStartResponse} 200 - Design successfully started
+ * @throws {MedusaError} 400 - Design is not assigned to a partner workflow
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 500 - Failed to update design or workflow
+ *
+ * @example request
+ * POST /partners/designs/design_123456789/start
+ *
+ * @example response 200
+ * {
+ *   "message": "Design started successfully",
+ *   "design": {
+ *     "id": "design_123456789",
+ *     "status": "In_Development",
+ *     "metadata": {
+ *       "partner_started_at": "2023-11-15T14:30:00Z",
+ *       "partner_status": "in_progress"
+ *     }
+ *   }
+ * }
+ *
+ * @example response 400
+ * {
+ *   "error": "Design is not assigned to a partner workflow"
+ * }
+ *
+ * @example response 401
+ * {
+ *   "error": "Partner authentication required"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "error": "Failed to update design",
+ *   "details": ["Error details..."]
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../../helpers"

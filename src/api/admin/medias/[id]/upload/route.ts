@@ -1,3 +1,75 @@
+
+/**
+ * POST /admin/medias/:id/upload (DEPRECATED)
+ *
+ * Legacy route handler to upload one or more media files into an existing folder.
+ * Soft-deprecated: sets the "Deprecation" response header and a "Link" header
+ * pointing to the successor route POST /admin/medias/folder/:id/upload.
+ *
+ * Behavior:
+ * - Treats req.params.id as the target folder ID (existingFolderId).
+ * - Accepts single-file (req.file) or multi-file (req.files) uploads from Multer.
+ * - Normalizes files into objects with { filename, mimeType, content, size, _tempPath }.
+ *   - If Multer provides a Buffer, the content is read from buffer.
+ *   - If Multer provides a temp file path, the content is read from fs (binary string).
+ * - Calls uploadAndOrganizeMediaWorkflow(req.scope).run({ input: { files, existingFolderId } }).
+ * - If workflow returns errors, throws a MedusaError(UNEXPECTED_STATE).
+ * - Attempts to cleanup any temp files referenced by _tempPath (best-effort).
+ * - On success returns JSON { deprecated: true, next: "/admin/medias/folder/:id/upload", result }.
+ *
+ * Response headers:
+ * - Deprecation: "true"
+ * - Link: </admin/medias/folder/:id/upload>; rel="successor-version"
+ *
+ * Error handling:
+ * - Missing folder id or missing uploaded files -> MedusaError.Types.INVALID_DATA (400).
+ * - Workflow errors -> MedusaError.Types.UNEXPECTED_STATE (500).
+ * - Other exceptions -> 500 with message.
+ *
+ * @deprecated Use POST /admin/medias/folder/:id/upload instead.
+ *
+ * @param req - MedusaRequest augmented with optional Multer fields:
+ *   - req.params.id: string | undefined (folder id)
+ *   - req.file?: Express.Multer.File (single file)
+ *   - req.files?: Express.Multer.File[] (multiple files)
+ *   - req.scope: DI scope used to resolve/workflow services
+ *
+ * @param res - MedusaResponse used to set headers and return JSON responses
+ *
+ * @throws {MedusaError} INVALID_DATA when folder id is missing or no files provided
+ * @throws {MedusaError} UNEXPECTED_STATE when workflow returns upload errors
+ *
+ * @example Single-file upload (curl)
+ * ```bash
+ * curl -i -X POST "https://your-server.com/admin/medias/123/upload" \
+ *   -H "Authorization: Bearer <admin_token>" \
+ *   -F "file=@/path/to/image.jpg"
+ * ```
+ *
+ * Example success response (200):
+ * ```json
+ * {
+ *   "deprecated": true,
+ *   "next": "/admin/medias/folder/123/upload",
+ *   "result": {
+ *     /* workflow result object (created/organized media entries) *\/
+ *   }
+ * }
+ * ```
+ *
+ * @example Multi-file upload (curl)
+ * ```bash
+ * curl -i -X POST "https://your-server.com/admin/medias/123/upload" \
+ *   -H "Authorization: Bearer <admin_token>" \
+ *   -F "files=@/path/to/image1.jpg" \
+ *   -F "files=@/path/to/image2.png"
+ * ```
+ *
+ * Example error responses:
+ * - Missing folder id -> 400 { "message": "Folder ID is required" }
+ * - No files provided -> 400 { "message": "No files provided for upload" }
+ * - Workflow failure -> 500 { "message": "Failed to upload media: <error messages>" }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { uploadAndOrganizeMediaWorkflow } from "../../../../../workflows/media/upload-and-organize-media"

@@ -1,3 +1,99 @@
+/**
+ * @file Admin API route for bulk syncing social post insights
+ * @description Provides endpoint for synchronizing engagement metrics and analytics for published social media posts
+ * @module API/Admin/SocialPosts
+ */
+
+/**
+ * @typedef {Object} BulkSyncInsightsQueryParams
+ * @property {string} [platform_id] - Optional platform ID to filter posts by specific social platform
+ * @property {number} [limit=50] - Maximum number of posts to process in this sync operation
+ */
+
+/**
+ * @typedef {Object} SyncResultItem
+ * @property {string} postId - The ID of the social post that was processed
+ * @property {string} status - The sync status ("success" or "failed")
+ * @property {string} [error] - Error message if sync failed
+ */
+
+/**
+ * @typedef {Object} BulkSyncInsightsResponse
+ * @property {string} message - Summary message about the sync operation
+ * @property {number} success - Count of successfully synced posts
+ * @property {number} failed - Count of posts that failed to sync
+ * @property {number} total - Total number of posts processed
+ * @property {SyncResultItem[]} results - Detailed results for each processed post
+ */
+
+/**
+ * @typedef {Object} ErrorResponse
+ * @property {string} error - Error message
+ * @property {string} details - Additional error details
+ */
+
+/**
+ * Bulk sync insights for all published social media posts
+ * @route POST /admin/social-posts/sync-all-insights
+ * @group SocialPosts - Operations related to social media posts
+ * @param {BulkSyncInsightsQueryParams} request.query - Query parameters for filtering and limiting the sync operation
+ * @returns {BulkSyncInsightsResponse} 200 - Sync operation results with success/failure counts and detailed results
+ * @throws {ErrorResponse} 500 - Server error during sync operation
+ *
+ * @example request
+ * POST /admin/social-posts/sync-all-insights?platform_id=plat_123456789&limit=25
+ *
+ * @example response 200
+ * {
+ *   "message": "Synced insights for 20 posts",
+ *   "success": 20,
+ *   "failed": 0,
+ *   "total": 20,
+ *   "results": [
+ *     {
+ *       "postId": "post_123456789",
+ *       "status": "success"
+ *     },
+ *     {
+ *       "postId": "post_987654321",
+ *       "status": "success"
+ *     }
+ *   ]
+ * }
+ *
+ * @example response 200 (with failures)
+ * {
+ *   "message": "Synced insights for 15 posts",
+ *   "success": 15,
+ *   "failed": 5,
+ *   "total": 20,
+ *   "results": [
+ *     {
+ *       "postId": "post_123456789",
+ *       "status": "success"
+ *     },
+ *     {
+ *       "postId": "post_987654321",
+ *       "status": "failed",
+ *       "error": "Platform not found"
+ *     }
+ *   ]
+ * }
+ *
+ * @example response 200 (no posts found)
+ * {
+ *   "message": "No published posts found",
+ *   "success": 0,
+ *   "failed": 0,
+ *   "results": []
+ * }
+ *
+ * @example response 500
+ * {
+ *   "error": "Failed to sync insights",
+ *   "details": "Database connection error"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"

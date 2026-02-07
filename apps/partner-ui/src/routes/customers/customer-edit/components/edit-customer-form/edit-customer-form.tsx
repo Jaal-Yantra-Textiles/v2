@@ -3,7 +3,7 @@ import { HttpTypes } from "@medusajs/types"
 import { Button, Input, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 import { ConditionalTooltip } from "../../../../../components/common/conditional-tooltip/index.ts"
 import { Form } from "../../../../../components/common/form/index.ts"
 import {

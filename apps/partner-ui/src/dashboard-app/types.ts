@@ -8,7 +8,7 @@ import {
 } from "@medusajs/admin-shared"
 import { ComponentType } from "react"
 import { LoaderFunction } from "react-router-dom"
-import { ZodFirstPartySchemaTypes } from "zod"
+import { ZodFirstPartySchemaTypes } from "@medusajs/framework/zod"
 import { INavItem } from "../components/layout/nav-item"
 
 export type RouteExtension = {

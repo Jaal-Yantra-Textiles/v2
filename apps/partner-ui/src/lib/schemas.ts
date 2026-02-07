@@ -1,5 +1,5 @@
 import i18n from "i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const AddressSchema = z.object({
   first_name: z.string().min(1),

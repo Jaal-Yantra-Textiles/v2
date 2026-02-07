@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { ShippingOptionPriceType } from "../../../common/constants"
 import { ConditionalPriceSchema } from "../../../common/schema"
 

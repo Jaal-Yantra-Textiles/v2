@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const OrderEditCreateSchema = z.object({
   note: z.string().optional(),

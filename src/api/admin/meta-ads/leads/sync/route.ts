@@ -1,3 +1,92 @@
+/**
+ * @file Admin API route for syncing Meta Ads leads
+ * @description Provides endpoints for syncing lead data from Meta Ads forms into the JYT Commerce platform
+ * @module API/Admin/MetaAds
+ */
+
+/**
+ * @typedef {Object} MetaAdsSyncRequest
+ * @property {string} platform_id.required - The ID of the social platform to sync from
+ * @property {string} [form_id] - Specific form ID to sync (syncs all forms if not provided)
+ * @property {string} [since] - Sync leads created after this date (ISO format)
+ */
+
+/**
+ * @typedef {Object} LeadSyncResult
+ * @property {number} synced - Number of leads successfully synced
+ * @property {number} skipped - Number of leads skipped (already exist)
+ * @property {number} errors - Number of errors encountered
+ * @property {number} forms_processed - Number of forms processed
+ * @property {string[]} error_messages - Array of error messages
+ */
+
+/**
+ * @typedef {Object} LeadSyncResponse
+ * @property {string} message - Status message about the sync operation
+ * @property {LeadSyncResult} results - Detailed sync results
+ */
+
+/**
+ * Sync leads from Meta Ads forms
+ * @route POST /admin/meta-ads/leads/sync
+ * @group MetaAds - Operations related to Meta Ads integration
+ * @param {MetaAdsSyncRequest} request.body.required - Sync parameters
+ * @returns {LeadSyncResponse} 200 - Sync results
+ * @throws {MedusaError} 400 - Invalid request parameters or platform configuration
+ * @throws {MedusaError} 404 - Platform not found
+ * @throws {MedusaError} 500 - Internal server error during sync
+ *
+ * @example request
+ * POST /admin/meta-ads/leads/sync
+ * {
+ *   "platform_id": "meta_123456789",
+ *   "form_id": "1234567890123456",
+ *   "since": "2023-01-01T00:00:00Z"
+ * }
+ *
+ * @example response 200
+ * {
+ *   "message": "Lead sync completed",
+ *   "results": {
+ *     "synced": 15,
+ *     "skipped": 3,
+ *     "errors": 0,
+ *     "forms_processed": 2,
+ *     "error_messages": []
+ *   }
+ * }
+ *
+ * @example response 200 (with errors)
+ * {
+ *   "message": "Sync completed with 2 error(s)",
+ *   "results": {
+ *     "synced": 8,
+ *     "skipped": 1,
+ *     "errors": 2,
+ *     "forms_processed": 3,
+ *     "error_messages": [
+ *       "Failed to sync leads from form 1234567890123456",
+ *       "Failed to create lead 9876543210987654"
+ *     ]
+ *   }
+ * }
+ *
+ * @example response 400
+ * {
+ *   "message": "platform_id is required"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "message": "Platform not found"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "message": "Failed to sync leads",
+ *   "error": "Internal server error details"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"

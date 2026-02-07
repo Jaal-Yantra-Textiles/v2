@@ -12,7 +12,7 @@ import {
   toast,
 } from "@medusajs/ui"
 import { useFieldArray, useForm, useWatch } from "react-hook-form"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { MagnifyingGlass } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"

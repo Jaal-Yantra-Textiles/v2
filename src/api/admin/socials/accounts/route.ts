@@ -1,3 +1,60 @@
+/**
+ * @file Admin API routes for managing social media accounts
+ * @description Provides endpoints for retrieving managed Facebook Pages and linked Instagram Business accounts
+ * @module API/Admin/Socials
+ */
+
+/**
+ * @typedef {Object} GetAccountsRequest
+ * @property {string} userAccessToken - User access token for authentication with social media platforms
+ */
+
+/**
+ * @typedef {Object} ManagedAccount
+ * @property {string} id - The unique identifier of the account
+ * @property {string} name - The name of the account
+ * @property {string} type - The type of account (e.g., "page", "instagram_business")
+ * @property {string} access_token - The access token for the account
+ */
+
+/**
+ * @typedef {Object} GetAccountsResponse
+ * @property {boolean} success - Indicates if the request was successful
+ * @property {ManagedAccount[]} accounts - List of managed accounts
+ */
+
+/**
+ * Get managed Facebook Pages and linked Instagram Business accounts
+ * @route GET /admin/socials/accounts
+ * @group Socials - Operations related to social media accounts
+ * @param {string} userAccessToken.query.required - User access token for authentication
+ * @returns {GetAccountsResponse} 200 - List of managed accounts
+ * @throws {MedusaError} 400 - Invalid input data
+ * @throws {MedusaError} 401 - Unauthorized
+ * @throws {MedusaError} 500 - Internal server error
+ *
+ * @example request
+ * GET /admin/socials/accounts?userAccessToken=EAACEdEose0cBA...
+ *
+ * @example response 200
+ * {
+ *   "success": true,
+ *   "accounts": [
+ *     {
+ *       "id": "1234567890123456",
+ *       "name": "My Business Page",
+ *       "type": "page",
+ *       "access_token": "EAACEdEose0cBA..."
+ *     },
+ *     {
+ *       "id": "17841405822334218",
+ *       "name": "mybusiness",
+ *       "type": "instagram_business",
+ *       "access_token": "IGQVJ..."
+ *     }
+ *   ]
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/utils"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"

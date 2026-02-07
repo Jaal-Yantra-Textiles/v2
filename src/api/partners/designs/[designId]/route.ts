@@ -1,3 +1,123 @@
+/**
+ * @file Partner API route for retrieving design details
+ * @description Provides endpoints for partners to fetch detailed information about specific designs, including workflow status and inventory items
+ * @module API/Partners/Designs
+ */
+
+/**
+ * @typedef {Object} DesignTask
+ * @property {string} title - The title of the task
+ * @property {string} status - The status of the task (e.g., "completed")
+ * @property {string} updated_at - When the task was last updated (ISO 8601)
+ * @property {Record<string, unknown>} metadata - Additional task metadata
+ */
+
+/**
+ * @typedef {Object} PartnerInfo
+ * @property {string} assigned_partner_id - The ID of the partner assigned to this design
+ * @property {"incoming"|"assigned"|"in_progress"|"finished"|"completed"} partner_status - The current status of the design for this partner
+ * @property {"redo"|null} partner_phase - The current phase of the design (null if not in redo phase)
+ * @property {string|null} partner_started_at - When the partner started working on the design (ISO 8601)
+ * @property {string|null} partner_finished_at - When the partner finished working on the design (ISO 8601)
+ * @property {string|null} partner_completed_at - When the design was completed by the partner (ISO 8601)
+ * @property {number} workflow_tasks_count - The number of workflow tasks associated with this design
+ */
+
+/**
+ * @typedef {Object} InventoryItem
+ * @property {string} id - The unique identifier for the inventory item
+ * @property {Object[]} raw_materials - List of raw materials associated with this inventory item
+ * @property {Object[]} location_levels - List of location levels for this inventory item
+ */
+
+/**
+ * @typedef {Object} DesignResponse
+ * @property {string} id - The unique identifier for the design
+ * @property {string} title - The title of the design
+ * @property {string} status - The status of the design
+ * @property {string} created_at - When the design was created (ISO 8601)
+ * @property {string} updated_at - When the design was last updated (ISO 8601)
+ * @property {Record<string, unknown>} metadata - Additional design metadata
+ * @property {DesignTask[]} tasks - List of tasks associated with this design
+ * @property {PartnerInfo} partner_info - Information about the partner's status and workflow for this design
+ * @property {InventoryItem[]} inventory_items - List of inventory items associated with this design
+ */
+
+/**
+ * Get a specific design by ID for a partner
+ * @route GET /partners/designs/{designId}
+ * @group Design - Operations related to designs
+ * @param {string} designId.path.required - The ID of the design to retrieve
+ * @returns {Object} 200 - The design object with partner-specific information
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 404 - Design not found for this partner
+ *
+ * @example request
+ * GET /partners/designs/design_123456789
+ *
+ * @example response 200
+ * {
+ *   "design": {
+ *     "id": "design_123456789",
+ *     "title": "Summer Collection 2023",
+ *     "status": "published",
+ *     "created_at": "2023-01-15T10:30:00Z",
+ *     "updated_at": "2023-02-20T14:45:00Z",
+ *     "metadata": {
+ *       "season": "summer",
+ *       "year": 2023,
+ *       "partner_status": "in_progress"
+ *     },
+ *     "tasks": [
+ *       {
+ *         "title": "partner-design-start",
+ *         "status": "completed",
+ *         "updated_at": "2023-02-01T09:00:00Z",
+ *         "metadata": {}
+ *       },
+ *       {
+ *         "title": "partner-design-finish",
+ *         "status": "pending",
+ *         "updated_at": null,
+ *         "metadata": {}
+ *       }
+ *     ],
+ *     "partner_info": {
+ *       "assigned_partner_id": "partner_987654321",
+ *       "partner_status": "in_progress",
+ *       "partner_phase": null,
+ *       "partner_started_at": "2023-02-01T09:00:00Z",
+ *       "partner_finished_at": null,
+ *       "partner_completed_at": null,
+ *       "workflow_tasks_count": 2
+ *     },
+ *     "inventory_items": [
+ *       {
+ *         "id": "inv_item_111111111",
+ *         "raw_materials": [
+ *           {
+ *             "id": "mat_222222222",
+ *             "name": "Cotton Fabric",
+ *             "quantity": 100
+ *           }
+ *         ],
+ *         "location_levels": [
+ *           {
+ *             "id": "loc_lvl_333333333",
+ *             "stock_locations": [
+ *               {
+ *                 "id": "stock_loc_444444444",
+ *                 "name": "Warehouse A",
+ *                 "address": "123 Main St"
+ *               }
+ *             ]
+ *           }
+ *         ]
+ *       }
+ *     ]
+ *   }
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../helpers"

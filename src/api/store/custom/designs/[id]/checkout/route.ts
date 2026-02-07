@@ -1,3 +1,88 @@
+/**
+ * @file Store API route for design checkout
+ * @description Provides endpoint for converting custom designs into purchasable products
+ * @module API/Store/Designs
+ */
+
+/**
+ * @typedef {Object} DesignCheckoutRequest
+ * @property {string[]} [inventory_item_ids] - Array of material IDs to include in cost estimation
+ * @property {string} [currency_code="usd"] - Currency code for pricing (default: USD)
+ */
+
+/**
+ * @typedef {Object} CostEstimate
+ * @property {number} material_cost - Estimated cost of materials
+ * @property {number} production_cost - Estimated production cost
+ * @property {number} total_estimated - Total estimated cost
+ * @property {number} confidence - Confidence score (0-1) of the estimate
+ * @property {Object} breakdown - Detailed cost breakdown by component
+ */
+
+/**
+ * @typedef {Object} DesignCheckoutResponse
+ * @property {string} product_id - ID of the created product
+ * @property {string} variant_id - ID of the created variant (to add to cart)
+ * @property {number} price - Final price of the product
+ * @property {boolean} is_new_product - Whether a new product was created
+ * @property {CostEstimate} cost_estimate - Detailed cost estimation
+ */
+
+/**
+ * Convert a custom design to a purchasable product
+ * @route POST /store/custom/designs/:id/checkout
+ * @group Design - Operations related to custom designs
+ * @param {string} id.path.required - Design ID to checkout
+ * @param {DesignCheckoutRequest} request.body.required - Checkout configuration
+ * @returns {DesignCheckoutResponse} 200 - Product and variant information
+ * @throws {MedusaError} 400 - Missing design ID
+ * @throws {MedusaError} 401 - Customer authentication required
+ * @throws {MedusaError} 404 - Design not found or not owned by customer
+ * @throws {MedusaError} 500 - Failed to estimate cost or create product
+ *
+ * @example request
+ * POST /store/custom/designs/design_123456789/checkout
+ * {
+ *   "inventory_item_ids": ["mat_wood_123", "mat_fabric_456"],
+ *   "currency_code": "usd"
+ * }
+ *
+ * @example response 200
+ * {
+ *   "product_id": "prod_987654321",
+ *   "variant_id": "variant_123456789",
+ *   "price": 4999,
+ *   "is_new_product": true,
+ *   "cost_estimate": {
+ *     "material_cost": 1500,
+ *     "production_cost": 3000,
+ *     "total_estimated": 4500,
+ *     "confidence": 0.95,
+ *     "breakdown": {
+ *       "wood": 800,
+ *       "fabric": 700,
+ *       "labor": 2500,
+ *       "overhead": 500
+ *     }
+ *   }
+ * }
+ *
+ * @example response 401
+ * {
+ *   "message": "Customer authentication required"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "message": "Design not found or not owned by customer"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "message": "Failed to estimate design cost",
+ *   "errors": ["Material not found: mat_wood_123"]
+ * }
+ */
 import {
   AuthenticatedMedusaRequest,
   MedusaResponse,

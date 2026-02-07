@@ -4,7 +4,7 @@ import { Button } from "@medusajs/ui"
 import { useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"
 import { KeyboundForm } from "../../../components/utilities/keybound-form"

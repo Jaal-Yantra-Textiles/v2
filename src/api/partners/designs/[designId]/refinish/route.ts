@@ -1,3 +1,58 @@
+/**
+ * @file Partner API route for re-finishing designs
+ * @description Provides endpoints for partners to mark designs as re-finished and update workflow status
+ * @module API/Partners/Designs
+ */
+
+/**
+ * @typedef {Object} DesignRefinishResponse
+ * @property {string} message - Success message
+ * @property {Object} design - The updated design object
+ * @property {string} design.id - The design ID
+ * @property {string} design.status - The updated design status
+ * @property {Object} design.metadata - Design metadata
+ * @property {string} design.metadata.partner_finished_at - Timestamp when partner finished
+ * @property {string} design.metadata.partner_status - Partner status
+ * @property {string|null} design.metadata.partner_phase - Current partner phase
+ */
+
+/**
+ * Re-finish a design and update workflow status
+ * @route POST /partners/designs/:designId/refinish
+ * @group Design - Operations related to design management
+ * @param {string} designId.path.required - The ID of the design to re-finish
+ * @returns {DesignRefinishResponse} 200 - Design successfully re-finished
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 500 - Failed to update design or workflow
+ *
+ * @example request
+ * POST /partners/designs/design_123456789/refinish
+ *
+ * @example response 200
+ * {
+ *   "message": "Design re-finished successfully",
+ *   "design": {
+ *     "id": "design_123456789",
+ *     "status": "Technical_Review",
+ *     "metadata": {
+ *       "partner_finished_at": "2023-11-15T14:30:00.000Z",
+ *       "partner_status": "finished",
+ *       "partner_phase": null
+ *     }
+ *   }
+ * }
+ *
+ * @example response 401
+ * {
+ *   "error": "Partner authentication required"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "error": "Failed to update design",
+ *   "details": ["Error details..."]
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../../../partners/helpers"

@@ -1,3 +1,140 @@
+/**
+ * @file Admin API routes for managing persons
+ * @description Provides endpoints for creating and listing persons in the JYT Commerce platform
+ * @module API/Admin/Persons
+ */
+
+/**
+ * @typedef {Object} PersonInput
+ * @property {string} first_name - The first name of the person
+ * @property {string} last_name - The last name of the person
+ * @property {string} email - The email address of the person
+ * @property {string} [phone] - The phone number of the person
+ * @property {string} [state] - The state of the person (active/inactive)
+ * @property {Object} [metadata] - Additional metadata for the person
+ */
+
+/**
+ * @typedef {Object} PersonResponse
+ * @property {string} id - The unique identifier of the person
+ * @property {string} first_name - The first name of the person
+ * @property {string} last_name - The last name of the person
+ * @property {string} email - The email address of the person
+ * @property {string} [phone] - The phone number of the person
+ * @property {string} [state] - The state of the person (active/inactive)
+ * @property {Date} created_at - When the person was created
+ * @property {Date} updated_at - When the person was last updated
+ * @property {Object} [metadata] - Additional metadata for the person
+ */
+
+/**
+ * @typedef {Object} ListPersonsQuery
+ * @property {number} [offset=0] - Pagination offset
+ * @property {number} [limit=10] - Number of items to return
+ * @property {string} [q] - Search query for filtering persons
+ * @property {string} [first_name] - Filter by first name
+ * @property {string} [last_name] - Filter by last name
+ * @property {string} [email] - Filter by email
+ * @property {string} [state] - Filter by state (active/inactive)
+ * @property {boolean} [withDeleted=false] - Include deleted persons in the results
+ * @property {string[]} [fields] - Fields to include in the response
+ */
+
+/**
+ * @typedef {Object} ListPersonsResponse
+ * @property {PersonResponse[]} persons - Array of person objects
+ * @property {number} count - Total count of persons matching the query
+ * @property {number} offset - Current pagination offset
+ * @property {number} limit - Current pagination limit
+ */
+
+/**
+ * Create a new person
+ * @route POST /admin/persons
+ * @group Person - Operations related to persons
+ * @param {PersonInput} request.body.required - Person data to create
+ * @param {Object} [request.remoteQueryConfig] - Configuration for remote queries
+ * @param {string[]} [request.remoteQueryConfig.fields] - Fields to include in the response
+ * @returns {Object} 201 - Created person object
+ * @returns {PersonResponse} 201.person - The created person
+ * @throws {MedusaError} 400 - Invalid input data
+ * @throws {MedusaError} 401 - Unauthorized
+ * @throws {MedusaError} 500 - Internal server error
+ *
+ * @example request
+ * POST /admin/persons
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Doe",
+ *   "email": "john.doe@example.com",
+ *   "phone": "+1234567890",
+ *   "state": "active",
+ *   "metadata": {
+ *     "department": "Marketing"
+ *   }
+ * }
+ *
+ * @example response 201
+ * {
+ *   "person": {
+ *     "id": "person_123456789",
+ *     "first_name": "John",
+ *     "last_name": "Doe",
+ *     "email": "john.doe@example.com",
+ *     "phone": "+1234567890",
+ *     "state": "active",
+ *     "created_at": "2023-01-01T00:00:00Z",
+ *     "updated_at": "2023-01-01T00:00:00Z",
+ *     "metadata": {
+ *       "department": "Marketing"
+ *     }
+ *   }
+ * }
+ */
+
+/**
+ * List persons with pagination and filtering
+ * @route GET /admin/persons
+ * @group Person - Operations related to persons
+ * @param {number} [offset=0] - Pagination offset
+ * @param {number} [limit=10] - Number of items to return
+ * @param {string} [q] - Search query for filtering persons
+ * @param {string} [first_name] - Filter by first name
+ * @param {string} [last_name] - Filter by last name
+ * @param {string} [email] - Filter by email
+ * @param {string} [state] - Filter by state (active/inactive)
+ * @param {boolean} [withDeleted=false] - Include deleted persons in the results
+ * @param {string[]} [fields] - Fields to include in the response
+ * @returns {ListPersonsResponse} 200 - Paginated list of persons
+ * @throws {MedusaError} 400 - Invalid query parameters
+ * @throws {MedusaError} 401 - Unauthorized
+ * @throws {MedusaError} 500 - Internal server error
+ *
+ * @example request
+ * GET /admin/persons?offset=0&limit=10&q=john&state=active
+ *
+ * @example response 200
+ * {
+ *   "persons": [
+ *     {
+ *       "id": "person_123456789",
+ *       "first_name": "John",
+ *       "last_name": "Doe",
+ *       "email": "john.doe@example.com",
+ *       "phone": "+1234567890",
+ *       "state": "active",
+ *       "created_at": "2023-01-01T00:00:00Z",
+ *       "updated_at": "2023-01-01T00:00:00Z",
+ *       "metadata": {
+ *         "department": "Marketing"
+ *       }
+ *     }
+ *   ],
+ *   "count": 1,
+ *   "offset": 0,
+ *   "limit": 10
+ * }
+ */
 import {
   MedusaRequest,
   MedusaResponse,

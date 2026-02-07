@@ -5,6 +5,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { createAnswerRelevancyScorer, createPromptAlignmentScorerLLM } from "@mastra/evals/scorers/llm";
 import { memory } from "../memory";
+import { getVisionModelId, getTextModelId } from "../providers/openrouter";
 
 export const seoAgent = new Agent({
   name: "seo-agent",
@@ -53,13 +54,31 @@ const scorerSampleRate = (() => {
 
 const judgeModel = openrouter("mistralai/devstral-2512:free") as any
 
-// Create an agent
+// Default vision model (fallback, will be dynamically updated)
+const DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-exp:free"
+
+// Create a static agent with default model (for backward compatibility)
 export const productDescriptionAgent = new Agent({
-  model: openrouter('amazon/nova-2-lite-v1:free') as any,
+  model: openrouter(DEFAULT_VISION_MODEL) as any,
   name: 'ProductDescriptionAgent',
   instructions:
     'You are an expert product description writer. Given an image and product information, you will generate a compelling and accurate product description. Focus on highlighting key features and benefits that would appeal to the target audience.',
 });
+
+/**
+ * Factory function to create a ProductDescriptionAgent with dynamically selected model
+ * Use this when you need the best available free vision model
+ */
+export async function createProductDescriptionAgent(): Promise<Agent> {
+  const modelId = await getVisionModelId()
+  console.log(`[ProductDescriptionAgent] Using dynamic model: ${modelId}`)
+  return new Agent({
+    model: openrouter(modelId) as any,
+    name: 'ProductDescriptionAgent',
+    instructions:
+      'You are an expert product description writer. Given an image and product information, you will generate a compelling and accurate product description. Focus on highlighting key features and benefits that would appeal to the target audience.',
+  })
+}
 
 
 export const visualFlowCodegenAgent = new Agent({
@@ -80,13 +99,31 @@ export const visualFlowCodegenAgent = new Agent({
 // Agent specialized for extracting structured item lists from images (receipts, labels, manifests)
 export const imageExtractionAgent = new Agent({
   name: "image-extraction-agent",
-  model: openrouter("qwen/qwen2.5-vl-72b-instruct:free"),
+  model: openrouter(DEFAULT_VISION_MODEL),
   instructions:
     "You are an expert vision analyst that converts images of inventory lists, bills of materials, and packaging labels into clean, structured JSON. " +
     "Return only data that is visible or clearly implied. Use conservative estimates if uncertain and mark items with confidence scores. " +
     "Normalize units (e.g., pcs, m, kg) and include quantity as a number.",
   memory,
 })
+
+/**
+ * Factory function to create an ImageExtractionAgent with dynamically selected model
+ * Use this when you need the best available free vision model
+ */
+export async function createImageExtractionAgent(): Promise<Agent> {
+  const modelId = await getVisionModelId()
+  console.log(`[ImageExtractionAgent] Using dynamic model: ${modelId}`)
+  return new Agent({
+    name: "image-extraction-agent",
+    model: openrouter(modelId) as any,
+    instructions:
+      "You are an expert vision analyst that converts images of inventory lists, bills of materials, and packaging labels into clean, structured JSON. " +
+      "Return only data that is visible or clearly implied. Use conservative estimates if uncertain and mark items with confidence scores. " +
+      "Normalize units (e.g., pcs, m, kg) and include quantity as a number.",
+    memory,
+  })
+}
 
 // General chat agent for conversational tasks (text-only)
 export const generalChatAgent = new Agent({

@@ -1,3 +1,56 @@
+/**
+ * @api {post} /admin/medias/uploads/parts Generate presigned URLs for S3 multipart upload parts
+ * @apiName GeneratePartUrls
+ * @apiGroup Media
+ * @apiDescription Generates presigned URLs for uploading individual parts of a multipart upload to S3.
+ *
+ * This endpoint handles the generation of presigned URLs for each part of a multipart upload to S3.
+ * It first attempts to use the provider's presigning capabilities if available, falling back to
+ * the AWS SDK's presigner if necessary.
+ *
+ * @apiParam {String} uploadId The upload ID of the multipart upload.
+ * @apiParam {String} key The key of the object in S3.
+ * @apiParam {Number[]} partNumbers An array of part numbers for which to generate presigned URLs.
+ *
+ * @apiSuccess {Object[]} urls An array of objects containing part numbers and their corresponding presigned URLs.
+ * @apiSuccess {Number} urls.partNumber The part number.
+ * @apiSuccess {String} urls.url The presigned URL for uploading the part.
+ *
+ * @apiError (400: Invalid Data) {String} message "Missing required fields: uploadId, key, partNumbers"
+ * @apiError (500: Internal Server Error) {String} message Error message indicating the failure reason.
+ *
+ * @apiExample {json} Request Example:
+ *     {
+ *       "uploadId": "example-upload-id",
+ *       "key": "example-key",
+ *       "partNumbers": [1, 2, 3]
+ *     }
+ *
+ * @apiExample {json} Success Response:
+ *     HTTP/1.1 200 OK
+ *     {
+ *       "urls": [
+ *         {
+ *           "partNumber": 1,
+ *           "url": "https://example-bucket.s3.amazonaws.com/example-key?partNumber=1&uploadId=example-upload-id&X-Amz-Signature=..."
+ *         },
+ *         {
+ *           "partNumber": 2,
+ *           "url": "https://example-bucket.s3.amazonaws.com/example-key?partNumber=2&uploadId=example-upload-id&X-Amz-Signature=..."
+ *         },
+ *         {
+ *           "partNumber": 3,
+ *           "url": "https://example-bucket.s3.amazonaws.com/example-key?partNumber=3&uploadId=example-upload-id&X-Amz-Signature=..."
+ *         }
+ *       ]
+ *     }
+ *
+ * @apiExample {json} Error Response:
+ *     HTTP/1.1 400 Bad Request
+ *     {
+ *       "message": "Missing required fields: uploadId, key, partNumbers"
+ *     }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { UploadPartCommand } from "@aws-sdk/client-s3"

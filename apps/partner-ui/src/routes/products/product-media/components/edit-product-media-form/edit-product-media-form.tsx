@@ -27,7 +27,7 @@ import { Fragment, useCallback, useState } from "react"
 import { useFieldArray, useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import {
   RouteFocusModal,

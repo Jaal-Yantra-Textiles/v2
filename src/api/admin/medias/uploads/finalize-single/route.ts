@@ -1,3 +1,54 @@
+
+/**
+ * POST handler to finalize a single S3 multipart/uploaded object into the application's media system.
+ *
+ * This route consumes a flexible request body (see FinalizeSingleBody) with many accepted aliases for the same
+ * properties (e.g. file_key | key | fileKey | path | object_key | objectKey for the uploaded object's key).
+ *
+ * Behavior:
+ * - Extracts required fields from the validated request body (or raw body fallback):
+ *   - file_key (required): the object key/path in the storage bucket.
+ *   - type (required): MIME/content type of the object.
+ *   - size (required): numeric size (will be coerced via Number()).
+ * - Accepts optional filename/name; if absent, a deterministic name is generated using the MIME type
+ *   (falls back to ".bin").
+ * - Constructs a public URL for the file. Priority:
+ *   1. FILE_PUBLIC_BASE (recommended) or legacy S3_FILE_URL environment variable (both trimmed of trailing slash)
+ *      => `${base}/${file_key}` (file_key trimmed of leading slashes)
+ *   2. Fallback to getPublicUrl(file_key).
+ * - Delegates finalization to the finalizeS3MediaWorkflow in request scope by invoking .run({
+ *     input: { files: [{ key, url, filename, mimeType, size }], existingFolderId, existingAlbumIds, metadata }
+ *   }).
+ * - On successful workflow run returns HTTP 200 with JSON: { message: "Single upload finalized", result }.
+ *
+ * Error handling / status codes:
+ * - 400 Bad Request: missing/invalid required data (file_key, type, size) — throws MedusaError.Types.INVALID_DATA.
+ * - 500 Internal Server Error: unexpected workflow errors or other failures. If the workflow returns errors,
+ *   they are aggregated and surfaced as a MedusaError.Types.UNEXPECTED_STATE.
+ * - All MedusaError instances are mapped to 400 or 500 depending on error.type. Non-Medusa errors return 500.
+ *
+ * Notes / caveats:
+ * - size is validated via Number.isFinite(Number(body.size)); non-numeric or absent size is rejected.
+ * - The handler tolerates multiple naming conventions in the incoming JSON to maximize compatibility with clients.
+ * - The route expects that authenticated/authorized middleware and request.scope wiring are present to allow
+ *   finalizeS3MediaWorkflow to operate.
+ *
+ * @param req - MedusaRequest<FinalizeSingleBody> (uses req.validatedBody if present, otherwise req.body)
+ * @param res - MedusaResponse used to send JSON response and status codes
+ * @returns A Promise resolving to the HTTP response (200 on success, 400/500 on error)
+ *
+ * @example
+ * // Accepted request body shape (aliases supported):
+ * // {
+ * //   "file_key": "uploads/abc123-part",
+ * //   "type": "image/png",
+ * //   "size": 12345,
+ * //   "name": "avatar.png",
+ * //   "existingFolderId": "folder_1",
+ * //   "existingAlbumIds": ["album_a"],
+ * //   "metadata": { "source": "web" }
+ * // }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { finalizeS3MediaWorkflow } from "../../../../../workflows/media/finalize-s3-media"

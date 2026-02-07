@@ -7,7 +7,7 @@ import {
 import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { HttpTypes } from "@medusajs/types"
 import { Button, Checkbox, toast } from "@medusajs/ui"

@@ -1,3 +1,48 @@
+/**
+ * @file Partner API route for initiating design redo workflow
+ * @description Provides endpoints for partners to trigger redo cycles on design assignments
+ * @module API/Partners/Designs
+ */
+
+/**
+ * @typedef {Object} DesignRedoResponse
+ * @property {string} message - Confirmation message about redo initiation
+ */
+
+/**
+ * Initiate redo workflow for a design
+ * @route POST /partners/designs/:designId/redo
+ * @group Design - Operations related to design management
+ * @param {string} designId.path.required - The ID of the design to redo
+ * @returns {DesignRedoResponse} 200 - Redo workflow initiated successfully
+ * @throws {MedusaError} 400 - No workflow transaction found to reopen for redo
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 500 - Failed to trigger redo workflow
+ *
+ * @example request
+ * POST /partners/designs/design_123456789/redo
+ *
+ * @example response 200
+ * {
+ *   "message": "Redo acknowledged. Redo cycle started; awaiting re-finish."
+ * }
+ *
+ * @example response 400
+ * {
+ *   "error": "No workflow transaction found to reopen for redo"
+ * }
+ *
+ * @example response 401
+ * {
+ *   "error": "Partner authentication required"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "error": "Failed to trigger redo workflow",
+ *   "details": ["Error details..."]
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../../../partners/helpers"

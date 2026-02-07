@@ -1,3 +1,73 @@
+/**
+ * @file Admin API route for syncing social platform data
+ * @description Provides endpoints for syncing hashtags and mentions from social platforms (Facebook/Instagram)
+ * @module API/Admin/Socials
+ */
+
+/**
+ * @typedef {Object} SyncPlatformDataRequest
+ * @property {string} platform_id.required - The ID of the social platform to sync data from
+ */
+
+/**
+ * @typedef {Object} SyncPlatformDataResponse
+ * @property {string} message - Success message indicating completion
+ * @property {Object} results - The results of the sync operation
+ * @property {string} results.platform_id - The platform ID that was synced
+ * @property {number} results.hashtags_synced - Number of hashtags synced
+ * @property {number} results.mentions_synced - Number of mentions synced
+ * @property {Date} results.synced_at - Timestamp when sync completed
+ */
+
+/**
+ * @typedef {Object} ErrorResponse
+ * @property {string} error - Error message
+ * @property {string} [details] - Additional error details
+ */
+
+/**
+ * Sync hashtags and mentions from a social platform
+ * @route POST /admin/socials/sync-platform-data
+ * @group Socials - Operations related to social media platforms
+ * @param {SyncPlatformDataRequest} request.body.required - Platform sync request data
+ * @returns {SyncPlatformDataResponse} 200 - Successfully synced platform data
+ * @throws {ErrorResponse} 400 - Missing platform_id or invalid request
+ * @throws {ErrorResponse} 404 - Platform not found
+ * @throws {ErrorResponse} 500 - Internal server error during sync
+ *
+ * @example request
+ * POST /admin/socials/sync-platform-data
+ * {
+ *   "platform_id": "fb_123456789"
+ * }
+ *
+ * @example response 200
+ * {
+ *   "message": "Platform data sync completed",
+ *   "results": {
+ *     "platform_id": "fb_123456789",
+ *     "hashtags_synced": 42,
+ *     "mentions_synced": 15,
+ *     "synced_at": "2023-11-15T14:30:00Z"
+ *   }
+ * }
+ *
+ * @example response 400
+ * {
+ *   "error": "platform_id is required"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "error": "Platform not found"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "error": "Failed to sync platform data",
+ *   "details": "Connection timeout to Facebook API"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { syncPlatformHashtagsMentionsWorkflow } from "../../../../workflows/socials/sync-platform-hashtags-mentions"
 import { SOCIALS_MODULE } from "../../../../modules/socials"

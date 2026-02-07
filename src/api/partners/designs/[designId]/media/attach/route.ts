@@ -1,3 +1,109 @@
+/**
+ * @file Partner API route for attaching media to designs
+ * @description Provides endpoints for partners to attach media files to their designs in the JYT Commerce platform
+ * @module API/Partners/Designs/Media
+ */
+
+/**
+ * @typedef {Object} MediaFile
+ * @property {string} [id] - Optional unique identifier for the media file
+ * @property {string} url - The URL or provider key of the media file (e.g., "uploads/2025/09/19/file.jpg")
+ * @property {boolean} [isThumbnail=false] - Whether this media file should be used as the thumbnail
+ */
+
+/**
+ * @typedef {Object} AttachMediaInput
+ * @property {MediaFile[]} media_files - Array of media files to attach to the design
+ * @property {Object} [metadata] - Additional metadata to associate with the design
+ */
+
+/**
+ * @typedef {Object} DesignMedia
+ * @property {string} id - The unique identifier of the media file
+ * @property {string} url - The URL or provider key of the media file
+ * @property {boolean} isThumbnail - Whether this media file is the thumbnail
+ */
+
+/**
+ * @typedef {Object} DesignResponse
+ * @property {string} id - The unique identifier of the design
+ * @property {DesignMedia[]} media_files - Array of media files attached to the design
+ * @property {Object} metadata - Additional metadata associated with the design
+ * @property {string} [metadata.thumbnail] - URL of the thumbnail media file if set
+ * @property {Date} created_at - When the design was created
+ * @property {Date} updated_at - When the design was last updated
+ */
+
+/**
+ * @typedef {Object} AttachMediaResponse
+ * @property {string} message - Success message
+ * @property {DesignResponse} design - The updated design with attached media
+ */
+
+/**
+ * Attach media files to a design
+ * @route POST /partners/designs/:designId/media/attach
+ * @group Design Media - Operations related to design media files
+ * @param {string} designId.path.required - The ID of the design to attach media to
+ * @param {AttachMediaInput} request.body.required - Media files and metadata to attach
+ * @returns {AttachMediaResponse} 200 - Successfully attached media files
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 404 - Design not found for this partner
+ * @throws {MedusaError} 400 - Invalid input data
+ * @throws {MedusaError} 500 - Failed to attach media
+ *
+ * @example request
+ * POST /partners/designs/design_123456789/media/attach
+ * {
+ *   "media_files": [
+ *     {
+ *       "id": "media_987654321",
+ *       "url": "uploads/2025/09/19/design-front.jpg",
+ *       "isThumbnail": true
+ *     },
+ *     {
+ *       "url": "uploads/2025/09/19/design-back.jpg"
+ *     }
+ *   ],
+ *   "metadata": {
+ *     "color": "blue",
+ *     "material": "cotton"
+ *   }
+ * }
+ *
+ * @example response 200
+ * {
+ *   "message": "Media attached successfully",
+ *   "design": {
+ *     "id": "design_123456789",
+ *     "media_files": [
+ *       {
+ *         "id": "media_987654321",
+ *         "url": "uploads/2025/09/19/design-front.jpg",
+ *         "isThumbnail": true
+ *       },
+ *       {
+ *         "id": "media_111222333",
+ *         "url": "uploads/2025/09/18/design-side.jpg",
+ *         "isThumbnail": false
+ *       },
+ *       {
+ *         "id": "media_444555666",
+ *         "url": "uploads/2025/09/19/design-back.jpg",
+ *         "isThumbnail": false
+ *       }
+ *     ],
+ *     "metadata": {
+ *       "thumbnail": "uploads/2025/09/19/design-front.jpg",
+ *       "color": "blue",
+ *       "material": "cotton",
+ *       "previousField": "someValue"
+ *     },
+ *     "created_at": "2023-01-01T00:00:00Z",
+ *     "updated_at": "2023-09-19T12:34:56Z"
+ *   }
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import designPartnersLink from "../../../../../../links/design-partners-link"

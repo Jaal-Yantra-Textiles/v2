@@ -3,7 +3,7 @@ import { Button, Heading, Input, Select, Text } from "@medusajs/ui"
 import { useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { useNavigate } from "react-router-dom"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { Form } from "../../../../components/common/form"
 import { RouteFocusModal } from "../../../../components/modals"

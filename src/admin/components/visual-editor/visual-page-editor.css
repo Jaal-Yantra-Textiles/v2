@@ -1,0 +1,407 @@
+.visual-editor-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: #f4f4f5;
+}
+
+/* Collapsible Panel Base */
+.visual-editor-left-panel,
+.visual-editor-right-panel {
+  background-color: var(--bg-base);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s ease, min-width 0.2s ease, opacity 0.15s ease;
+}
+
+/* Left Panel */
+.visual-editor-left-panel {
+  width: 240px;
+  min-width: 240px;
+  border-right: 1px solid var(--border-base);
+}
+
+.visual-editor-left-panel.collapsed {
+  width: 0;
+  min-width: 0;
+  border-right: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Right Panel */
+.visual-editor-right-panel {
+  width: 300px;
+  min-width: 300px;
+  border-left: 1px solid var(--border-base);
+}
+
+.visual-editor-right-panel.collapsed {
+  width: 0;
+  min-width: 0;
+  border-left: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Center Panel */
+.visual-editor-center-panel {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Toolbar at top of center panel */
+.visual-editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background-color: var(--bg-base);
+  border-bottom: 1px solid var(--border-base);
+  flex-shrink: 0;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.visual-editor-toolbar-left,
+.visual-editor-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.visual-editor-toolbar-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+}
+
+.visual-editor-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--border-base);
+  background-color: var(--bg-base);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  color: var(--fg-muted);
+}
+
+/* Icons are 20x20 by default - don't resize them */
+
+.visual-editor-toggle-btn:hover {
+  background-color: var(--bg-subtle);
+  color: var(--fg-base);
+  border-color: var(--border-strong);
+}
+
+.visual-editor-toggle-btn.active {
+  background-color: var(--bg-interactive);
+  border-color: var(--border-interactive);
+  color: var(--fg-on-color);
+}
+
+/* Preview wrapper */
+.visual-editor-preview-wrapper {
+  flex: 1;
+  padding: 16px;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+/* Panel headers - compact */
+.visual-editor-panel-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-base);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  min-height: 44px;
+}
+
+.visual-editor-panel-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--fg-base);
+}
+
+.visual-editor-panel-subtitle {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-top: 1px;
+}
+
+/* Panel content - compact */
+.visual-editor-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+/* Block list item - sized for 20x20 icons */
+.visual-editor-block-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  border: 1px solid transparent;
+  margin-bottom: 2px;
+  background-color: transparent;
+}
+
+.visual-editor-block-item:hover {
+  background-color: var(--bg-subtle);
+}
+
+.visual-editor-block-item.selected {
+  background-color: var(--bg-interactive);
+  border-color: var(--border-interactive);
+}
+
+.visual-editor-block-item.hovered {
+  border-color: var(--border-strong);
+}
+
+/* Block icon - icons are 20x20 by default, don't resize */
+.visual-editor-block-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--fg-muted);
+}
+
+.visual-editor-block-item.selected .visual-editor-block-item-icon {
+  color: var(--fg-on-color);
+}
+
+.visual-editor-block-item:hover .visual-editor-block-item-icon {
+  color: var(--fg-subtle);
+}
+
+.visual-editor-block-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.visual-editor-block-item-name {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--fg-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.visual-editor-block-item-type {
+  font-size: 10px;
+  color: var(--fg-muted);
+  margin-top: 1px;
+}
+
+.visual-editor-block-item-drag {
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  cursor: grab;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+}
+
+/* Icons are 20x20 by default */
+
+.visual-editor-block-item:hover .visual-editor-block-item-drag {
+  opacity: 0.4;
+}
+
+.visual-editor-block-item-drag:hover {
+  opacity: 1 !important;
+}
+
+/* Preview iframe container */
+.visual-editor-preview-container {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  background-color: white;
+  position: relative;
+  border: 1px solid var(--border-base);
+}
+
+.visual-editor-preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.visual-editor-preview-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-base);
+}
+
+/* Property editor - compact */
+.visual-editor-property-section {
+  margin-bottom: 14px;
+}
+
+.visual-editor-property-section-title {
+  font-weight: 600;
+  font-size: 10px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.visual-editor-property-field {
+  margin-bottom: 10px;
+}
+
+.visual-editor-property-label {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-bottom: 4px;
+  display: block;
+}
+
+/* Add block button - sized for 20x20 icon */
+.visual-editor-add-block-btn {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-base);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  color: var(--fg-muted);
+  background-color: transparent;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.visual-editor-add-block-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--fg-base);
+  background-color: var(--bg-subtle);
+}
+
+/* Save status indicator */
+.visual-editor-save-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--fg-muted);
+}
+
+.visual-editor-save-status.saved {
+  color: var(--fg-success);
+}
+
+.visual-editor-save-status.saving {
+  color: var(--fg-warning);
+}
+
+.visual-editor-save-status.unsaved {
+  color: var(--fg-error);
+}
+
+/* Empty state for right panel */
+.visual-editor-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+.visual-editor-empty-state-icon {
+  margin-bottom: 12px;
+  opacity: 0.35;
+  color: var(--fg-muted);
+}
+
+/* Icons are 20x20 by default */
+
+.visual-editor-empty-state-text {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* URL display in toolbar */
+.visual-editor-url-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background-color: var(--bg-subtle);
+  border-radius: 4px;
+  max-width: 300px;
+}
+
+.visual-editor-url-text {
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1400px) {
+  .visual-editor-left-panel {
+    width: 220px;
+    min-width: 220px;
+  }
+
+  .visual-editor-right-panel {
+    width: 280px;
+    min-width: 280px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .visual-editor-left-panel {
+    width: 200px;
+    min-width: 200px;
+  }
+
+  .visual-editor-right-panel {
+    width: 260px;
+    min-width: 260px;
+  }
+}

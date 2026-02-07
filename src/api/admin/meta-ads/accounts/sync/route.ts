@@ -1,3 +1,26 @@
+/**
+ * @api {post} /admin/meta-ads/accounts/sync Sync Meta Ad Accounts
+ * @apiName SyncMetaAdAccounts
+ * @apiGroup MetaAds
+ * @apiDescription Syncs ad accounts from Meta for a given platform.
+ *
+ * @apiBody {String} platform_id Platform ID to sync from (required)
+ *
+ * @apiSuccess {String} message Success message
+ * @apiSuccess {Object} results Sync results
+ * @apiSuccess {Number} results.created Number of accounts created
+ * @apiSuccess {Number} results.updated Number of accounts updated
+ * @apiSuccess {Number} results.errors Number of errors encountered
+ * @apiSuccess {String[]} results.error_messages Error messages
+ *
+ * @apiError (400: Bad Request) {String} message "platform_id is required"
+ * @apiError (400: Bad Request) {String} message "Platform has no API configuration"
+ * @apiError (400: Bad Request) {String} message "No access token available"
+ * @apiError (400: Bad Request) {String} message "Cannot access ad accounts with current token. Please re-authenticate with Facebook to grant ads permissions."
+ * @apiError (404: Not Found) {String} message "Platform not found"
+ * @apiError (500: Internal Server Error) {String} message "Failed to sync ad accounts"
+ * @apiError (500: Internal Server Error) {String} error Error message
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"

@@ -64,13 +64,19 @@ async function uploadViaServer(file: File, opts: EnqueueOptions) {
       fd.append("existingAlbumIds", id)
     }
   }
+  if (opts.existingFolderId) {
+    fd.append("existingFolderId", opts.existingFolderId)
+  }
+  if (opts.metadata) {
+    fd.append("metadata", JSON.stringify(opts.metadata))
+  }
   const res = await fetch(url, { method: "POST", body: fd, credentials: "include" })
   if (!res.ok) {
     let msg = `Server upload failed: ${res.status}`
     try {
       const data = await res.json()
       if (data?.message) msg = data.message
-    } catch {}
+    } catch { }
     throw new Error(msg)
   }
   return res.json().catch(() => ({}))
@@ -196,15 +202,25 @@ export class UploadManager {
 
       // Small-file path: single PUT presign via provider
       if (file.size <= SMALL_FILE_THRESHOLD) {
-        const presign = await api(`/admin/medias/uploads/presign`, {
-          method: "POST",
-          body: JSON.stringify({
-            name: file.name,
-            type: file.type || "application/octet-stream",
-            size: file.size,
-            access: "public",
-          }),
-        })
+        let presign;
+        try {
+          presign = await api(`/admin/medias/uploads/presign`, {
+            method: "POST",
+            body: JSON.stringify({
+              name: file.name,
+              type: file.type || "application/octet-stream",
+              size: file.size,
+              access: "public",
+            }),
+          })
+        } catch (e) {
+          // Fallback to server upload if presign fails (e.g. local provider)
+          await uploadViaServer(file, opts)
+          state.progress = 1
+          state.status = "completed"
+          this.emit(state)
+          return
+        }
 
         // Upload directly to storage
         const putUrl: string = presign.url
@@ -216,9 +232,16 @@ export class UploadManager {
           presign.path ||
           presign.object_key ||
           presign.objectKey
+
         if (!putUrl || !file_key) {
-          throw new Error("Provider presign response missing url or file key")
+          // Fallback if response is malformed
+          await uploadViaServer(file, opts)
+          state.progress = 1
+          state.status = "completed"
+          this.emit(state)
+          return
         }
+
         try {
           const putResp = await fetch(putUrl, {
             method: "PUT",
@@ -232,7 +255,7 @@ export class UploadManager {
         } catch (err: any) {
           const msg = String(err?.message || err || "")
           // CORS/access-control fallback: proxy through server
-          if (/access control|Failed to fetch|TypeError/i.test(msg)) {
+          if (true) { // Always fallback on PUT failure for robustness
             await uploadViaServer(file, opts)
           } else {
             throw err

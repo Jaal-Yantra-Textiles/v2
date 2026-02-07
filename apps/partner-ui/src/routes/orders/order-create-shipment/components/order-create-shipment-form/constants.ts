@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const CreateShipmentSchema = z.object({
   labels: z.array(

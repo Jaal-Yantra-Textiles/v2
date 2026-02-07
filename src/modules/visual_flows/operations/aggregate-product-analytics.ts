@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IProductModuleService } from "@medusajs/types"
 import type { OperationContext, OperationDefinition, OperationResult } from "./types"

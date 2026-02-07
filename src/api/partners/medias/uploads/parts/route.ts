@@ -1,3 +1,63 @@
+/**
+ * @file Partner API route for generating presigned URLs for multipart uploads
+ * @description Provides endpoints for partners to obtain presigned URLs for uploading file parts to S3 or compatible storage
+ * @module API/Partner/MediaUploads
+ */
+
+/**
+ * @typedef {Object} PartsBody
+ * @property {string} uploadId - The multipart upload ID from the storage provider
+ * @property {string} key - The object key/path where the file will be stored
+ * @property {number[]} partNumbers - Array of part numbers to generate URLs for (1-based indexing)
+ */
+
+/**
+ * @typedef {Object} PartUrlResponse
+ * @property {number} partNumber - The part number this URL corresponds to
+ * @property {string} url - The presigned URL for uploading this part
+ */
+
+/**
+ * @typedef {Object} GeneratePartUrlsResponse
+ * @property {PartUrlResponse[]} urls - Array of presigned URLs for each requested part
+ */
+
+/**
+ * Generate presigned URLs for multipart upload parts
+ * @route POST /partners/medias/uploads/parts
+ * @group MediaUploads - Operations related to media uploads
+ * @param {PartsBody} request.body.required - Upload part information
+ * @returns {GeneratePartUrlsResponse} 200 - Array of presigned URLs for each part
+ * @throws {MedusaError} 400 - Missing required fields or invalid data
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 500 - Unexpected error while generating part URLs
+ *
+ * @example request
+ * POST /partners/medias/uploads/parts
+ * {
+ *   "uploadId": "abc123def456",
+ *   "key": "partners/12345/products/image.jpg",
+ *   "partNumbers": [1, 2, 3]
+ * }
+ *
+ * @example response 200
+ * {
+ *   "urls": [
+ *     {
+ *       "partNumber": 1,
+ *       "url": "https://s3.amazonaws.com/bucket-name/partners/12345/products/image.jpg?partNumber=1&uploadId=abc123def456&..."
+ *     },
+ *     {
+ *       "partNumber": 2,
+ *       "url": "https://s3.amazonaws.com/bucket-name/partners/12345/products/image.jpg?partNumber=2&uploadId=abc123def456&..."
+ *     },
+ *     {
+ *       "partNumber": 3,
+ *       "url": "https://s3.amazonaws.com/bucket-name/partners/12345/products/image.jpg?partNumber=3&uploadId=abc123def456&..."
+ *     }
+ *   ]
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { UploadPartCommand } from "@aws-sdk/client-s3"

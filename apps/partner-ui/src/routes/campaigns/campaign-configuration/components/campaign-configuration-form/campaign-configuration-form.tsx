@@ -3,7 +3,7 @@ import { AdminCampaign } from "@medusajs/types"
 import { Button, DatePicker, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"

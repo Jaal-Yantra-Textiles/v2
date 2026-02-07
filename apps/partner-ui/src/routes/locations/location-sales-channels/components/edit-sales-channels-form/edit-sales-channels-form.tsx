@@ -10,7 +10,7 @@ import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { DataTable } from "../../../../../components/data-table"
 import * as hooks from "../../../../../components/data-table/helpers/sales-channels"

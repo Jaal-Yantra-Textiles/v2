@@ -74,7 +74,7 @@ const generateZodSchemaContent = (
     .map(([name, { zodType }]) => `  ${name}: ${zodType}.optional(),`)
     .join('\n');
 
-  return `import { z } from "zod";
+  return `import { z } from "@medusajs/framework/zod";
 
 export const ${pascalModel}Schema = z.object({
 ${createSchemaFields}

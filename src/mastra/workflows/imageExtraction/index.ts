@@ -1,7 +1,7 @@
 // @ts-nocheck - Ignore all TypeScript errors in this file
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod/v4";
-import { imageExtractionAgent } from "../../agents";
+import { createImageExtractionAgent } from "../../agents";
 
 // Trigger: image to analyze and optional entity type
 export const triggerSchema = z.object({
@@ -105,7 +105,11 @@ const extractItems = createStep({
       ? inputData.resourceId
       : 'image-extraction:inventory-extraction'
       console.log(stableResourceId)
-    const response = await imageExtractionAgent.generate(
+
+    // Create agent with dynamically selected best free vision model
+    const agent = await createImageExtractionAgent();
+
+    const response = await agent.generate(
       [
         {
           role: "user",

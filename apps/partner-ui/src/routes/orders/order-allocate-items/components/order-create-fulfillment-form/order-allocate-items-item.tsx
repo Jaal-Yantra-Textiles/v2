@@ -8,7 +8,7 @@ import {
 } from "@medusajs/icons"
 import { UseFormReturn, useWatch } from "react-hook-form"
 import { Input, Text, clx } from "@medusajs/ui"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { Thumbnail } from "../../../../../components/common/thumbnail"
 import { getFulfillableQuantity } from "../../../../../lib/order-item"

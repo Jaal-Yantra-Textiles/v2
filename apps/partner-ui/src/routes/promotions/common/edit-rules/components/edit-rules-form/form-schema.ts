@@ -1,5 +1,5 @@
 import i18n from "i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const EditRules = z.object({
   type: z.string().optional(),

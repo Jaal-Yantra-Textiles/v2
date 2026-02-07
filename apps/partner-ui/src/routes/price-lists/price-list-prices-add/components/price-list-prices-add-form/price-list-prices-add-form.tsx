@@ -4,7 +4,7 @@ import { Button, ProgressStatus, ProgressTabs, toast } from "@medusajs/ui"
 import { useState } from "react"
 import { FieldPath, useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import {
   RouteFocusModal,

@@ -1,5 +1,5 @@
 import { HttpTypes } from "@medusajs/types"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { useLocalesTableQuery } from "../../../common/hooks/use-locales-table-query"
 import { useRouteModal } from "../../../../../components/modals/route-modal-provider"
 import { useTranslation } from "react-i18next"

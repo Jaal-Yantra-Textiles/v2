@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { FieldValues, useForm, UseFormProps } from "react-hook-form"
-import { z, ZodEffects, ZodObject } from "zod"
+import { z, ZodEffects, ZodObject } from "@medusajs/framework/zod"
 
 import { ConfigField } from "../types"
 

@@ -1,3 +1,78 @@
+/**
+ * @file Partner Task Acceptance API
+ * @description Provides endpoints for partners to accept assigned tasks in the JYT Commerce platform
+ * @module API/Partners/Tasks
+ */
+
+/**
+ * @typedef {Object} TaskAcceptanceResponse
+ * @property {Object} task - The updated task object
+ * @property {string} task.id - The unique identifier of the task
+ * @property {string} task.status - The status of the task (accepted)
+ * @property {string} task.title - The title of the task
+ * @property {string} task.description - The description of the task
+ * @property {Date} task.created_at - When the task was created
+ * @property {Date} task.updated_at - When the task was last updated
+ * @property {Object[]} task.partners - Array of partners assigned to the task
+ * @property {string} task.partners.id - The unique identifier of the partner
+ * @property {string} task.partners.name - The name of the partner
+ * @property {string} message - Success message
+ */
+
+/**
+ * Partner accepts a standalone task assignment
+ * @route POST /partners/assigned-tasks/:taskId/accept
+ * @group Task - Operations related to partner tasks
+ * @param {string} taskId.path.required - The ID of the task to accept
+ * @returns {TaskAcceptanceResponse} 200 - Task successfully accepted
+ * @throws {MedusaError} 401 - Unauthorized - Partner authentication required or no partner associated with this admin
+ * @throws {MedusaError} 403 - Forbidden - Task not assigned to this partner
+ * @throws {MedusaError} 404 - Not Found - Task not found
+ * @throws {MedusaError} 500 - Internal Server Error - Failed to accept task
+ *
+ * @example request
+ * POST /partners/assigned-tasks/task_123456789/accept
+ *
+ * @example response 200
+ * {
+ *   "task": {
+ *     "id": "task_123456789",
+ *     "status": "accepted",
+ *     "title": "Website Redesign",
+ *     "description": "Redesign the company website with new branding",
+ *     "created_at": "2023-01-01T00:00:00Z",
+ *     "updated_at": "2023-01-15T10:30:00Z",
+ *     "partners": [
+ *       {
+ *         "id": "partner_987654321",
+ *         "name": "Design Studio"
+ *       }
+ *     ]
+ *   },
+ *   "message": "Task accepted successfully"
+ * }
+ *
+ * @example response 401
+ * {
+ *   "message": "Partner authentication required"
+ * }
+ *
+ * @example response 403
+ * {
+ *   "message": "Task not assigned to this partner"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "message": "Task not found"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "message": "Failed to accept task",
+ *   "error": "Internal server error"
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";

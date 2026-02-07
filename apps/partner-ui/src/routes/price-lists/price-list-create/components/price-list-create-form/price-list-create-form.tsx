@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next"
 
 import { HttpTypes, PriceListStatus, PriceListType } from "@medusajs/types"
 import { useState } from "react"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import {
   RouteFocusModal,
   useRouteModal,

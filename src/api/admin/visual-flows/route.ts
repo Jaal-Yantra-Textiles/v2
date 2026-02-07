@@ -1,3 +1,89 @@
+/**
+ * Visual Flows API
+ *
+ * This API provides endpoints for managing visual flows in the JYT Commerce platform.
+ * Visual flows are automated workflows that can be triggered by events, schedules, webhooks, or manually.
+ *
+ * @module VisualFlowsAPI
+ */
+
+/**
+ * Example: List all visual flows
+ *
+ * GET /admin/visual-flows
+ *
+ * Query Parameters:
+ * - status: Filter by flow status (active, inactive, draft)
+ * - trigger_type: Filter by trigger type (event, schedule, webhook, manual, another_flow)
+ * - limit: Number of flows to return (default: 50)
+ * - offset: Pagination offset (default: 0)
+ *
+ * Example Request:
+ * GET /admin/visual-flows?status=active&trigger_type=event&limit=10&offset=0
+ *
+ * Example Response:
+ * {
+ *   "flows": [
+ *     {
+ *       "id": "flow_123",
+ *       "name": "Order Processing Flow",
+ *       "status": "active",
+ *       "trigger_type": "event",
+ *       "created_at": "2023-01-01T00:00:00Z",
+ *       "operations": [...]
+ *     }
+ *   ],
+ *   "count": 1,
+ *   "limit": 10,
+ *   "offset": 0
+ * }
+ */
+
+/**
+ * Example: Create a new visual flow
+ *
+ * POST /admin/visual-flows
+ *
+ * Request Body:
+ * {
+ *   "name": "New Order Flow",
+ *   "description": "Handles new order processing",
+ *   "status": "active",
+ *   "trigger_type": "event",
+ *   "trigger_config": { "event_name": "order.placed" },
+ *   "operations": [
+ *     {
+ *       "operation_key": "validate_order",
+ *       "operation_type": "validator",
+ *       "name": "Validate Order",
+ *       "options": { "rules": ["check_inventory"] },
+ *       "position_x": 100,
+ *       "position_y": 200,
+ *       "sort_order": 1
+ *     }
+ *   ],
+ *   "connections": [
+ *     {
+ *       "source_id": "validate_order",
+ *       "target_id": "process_payment",
+ *       "connection_type": "success"
+ *     }
+ *   ]
+ * }
+ *
+ * Example Response:
+ * {
+ *   "flow": {
+ *     "id": "flow_456",
+ *     "name": "New Order Flow",
+ *     "status": "active",
+ *     "trigger_type": "event",
+ *     "created_at": "2023-01-01T00:00:00Z",
+ *     "operations": [...],
+ *     "connections": [...]
+ *   }
+ * }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { VISUAL_FLOWS_MODULE } from "../../../modules/visual_flows"
 import VisualFlowService from "../../../modules/visual_flows/service"

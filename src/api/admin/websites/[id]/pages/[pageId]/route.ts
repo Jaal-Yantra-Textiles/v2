@@ -1,3 +1,25 @@
+/**
+ * @file Admin API route for managing website pages
+ * @description Provides endpoints for retrieving, updating, and deleting website pages
+ * @module admin/websites/[id]/pages/[pageId]
+ *
+ * @example
+ * // Get a page
+ * GET /admin/websites/{websiteId}/pages/{pageId}
+ *
+ * @example
+ * // Update a page
+ * PUT /admin/websites/{websiteId}/pages/{pageId}
+ * {
+ *   "title": "New Page Title",
+ *   "content": "<p>Updated content</p>",
+ *   "is_published": true
+ * }
+ *
+ * @example
+ * // Delete a page
+ * DELETE /admin/websites/{websiteId}/pages/{pageId}
+ */
 import {
   AuthenticatedMedusaRequest,
   MedusaRequest,

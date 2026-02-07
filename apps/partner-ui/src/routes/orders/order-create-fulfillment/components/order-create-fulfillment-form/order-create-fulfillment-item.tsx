@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 import { clx, Input, Text, Tooltip } from "@medusajs/ui"
 import { UseFormReturn } from "react-hook-form"
 import { HttpTypes } from "@medusajs/types"

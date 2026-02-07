@@ -3,11 +3,32 @@ import { FetchError } from "@medusajs/js-sdk";
 import { sdk } from "../../../lib/config";
 import { queryKeysFactory } from "../../../lib/query-key-factory";
 
+/**
+ * File type enum matching the MediaFile model
+ */
+export type FileType = "image" | "video" | "audio" | "document" | "archive" | "other";
+
+/**
+ * Filter options for media queries
+ */
+export type MediasFilters = {
+  /** Filter by file type */
+  file_type?: FileType;
+  /** Filter by public/private status */
+  is_public?: boolean;
+  /** Filter by parent folder ID */
+  parent_folder_id?: string;
+  /** Search query string */
+  q?: string;
+  /** Additional filters */
+  [key: string]: any;
+};
+
 export type MediasQuery = {
   skip?: number;
   take?: number;
-  // Optional JSON-serializable filter/config maps
-  filters?: Record<string, any>;
+  /** Filter options for media queries */
+  filters?: MediasFilters;
   config?: {
     select?: string[];
     relations?: string[];

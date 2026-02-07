@@ -1,3 +1,66 @@
+/**
+ * @file Admin API route for starting publishing campaigns
+ * @description Provides endpoints for starting publishing campaigns in the JYT Commerce platform
+ * @module API/Admin/PublishingCampaigns
+ */
+
+/**
+ * @typedef {Object} PublishingCampaign
+ * @property {string} id - The unique identifier of the campaign
+ * @property {string} status - The status of the campaign (draft, preview, paused, active)
+ * @property {Date} [started_at] - When the campaign was started
+ * @property {Date} [paused_at] - When the campaign was paused
+ * @property {number} [current_index] - The current index of the campaign
+ * @property {Array} [items] - The items to be published in the campaign
+ */
+
+/**
+ * @typedef {Object} StartCampaignResponse
+ * @property {PublishingCampaign} campaign - The updated campaign object
+ * @property {string} message - A message indicating the campaign has started
+ */
+
+/**
+ * Start a publishing campaign
+ * @route POST /admin/publishing-campaigns/:id/start
+ * @group PublishingCampaign - Operations related to publishing campaigns
+ * @param {string} id.path.required - The ID of the campaign to start
+ * @returns {StartCampaignResponse} 200 - The updated campaign object and a success message
+ * @throws {MedusaError} 400 - Campaign has no items to publish or cannot start a campaign with the current status
+ * @throws {MedusaError} 404 - Campaign not found
+ *
+ * @example request
+ * POST /admin/publishing-campaigns/camp_123456789/start
+ *
+ * @example response 200
+ * {
+ *   "campaign": {
+ *     "id": "camp_123456789",
+ *     "status": "active",
+ *     "started_at": "2023-01-01T00:00:00Z",
+ *     "paused_at": null,
+ *     "current_index": 0,
+ *     "items": [
+ *       {
+ *         "id": "item_123456789",
+ *         "name": "Sample Item",
+ *         "status": "draft"
+ *       }
+ *     ]
+ *   },
+ *   "message": "Campaign started. Items will be published according to schedule."
+ * }
+ *
+ * @example response 400
+ * {
+ *   "error": "Campaign has no items to publish"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "error": "Campaign not found"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"

@@ -1,3 +1,39 @@
+/**
+ * GET /admin/meta-ads/ads/:id
+ *
+ * Retrieves a Meta ad by ID with its associated ad set, campaign, and ad account.
+ *
+ * Example Request:
+ *   GET /admin/meta-ads/ads/123456789
+ *
+ * Example Response (200):
+ * {
+ *   "ad": {
+ *     "id": "123456789",
+ *     "name": "Summer Collection Ad",
+ *     "status": "ACTIVE",
+ *     "ad_set_id": "987654321",
+ *     "ad_set": {
+ *       "id": "987654321",
+ *       "name": "Summer Collection Ad Set",
+ *       "campaign_id": "567891234",
+ *       "campaign": {
+ *         "id": "567891234",
+ *         "name": "Summer Collection Campaign",
+ *         "ad_account_id": "123456789",
+ *         "ad_account": {
+ *           "id": "123456789",
+ *           "name": "Company Ad Account"
+ *         }
+ *       }
+ *     }
+ *   }
+ * }
+ *
+ * Error Responses:
+ * - 404: Ad not found
+ * - 500: Failed to get ad (with error details)
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"

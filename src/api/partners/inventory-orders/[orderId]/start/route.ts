@@ -1,3 +1,78 @@
+/**
+ * @file Partner API route for starting inventory orders
+ * @description Provides endpoints for partners to start processing assigned inventory orders in the JYT Commerce platform
+ * @module API/Partners/InventoryOrders
+ */
+
+/**
+ * @typedef {Object} InventoryOrderStartResponse
+ * @property {string} message - Success message
+ * @property {Object} order - The updated inventory order object
+ * @property {string} order.id - The inventory order ID
+ * @property {string} order.status - The updated status (Processing)
+ * @property {Object} order.metadata - Additional order metadata
+ * @property {string} order.metadata.partner_started_at - ISO timestamp when partner started processing
+ * @property {string} order.metadata.partner_status - Current partner status
+ * @property {Object} workflowResult - Result from the workflow step completion
+ */
+
+/**
+ * Start processing an assigned inventory order
+ * @route POST /partners/inventory-orders/:orderId/start
+ * @group InventoryOrder - Operations related to inventory orders
+ * @param {string} orderId.path.required - The ID of the inventory order to start
+ * @returns {InventoryOrderStartResponse} 200 - Order started successfully
+ * @throws {MedusaError} 400 - Order is not in a state that can be started
+ * @throws {MedusaError} 400 - Order is not assigned to a partner workflow
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 404 - Inventory order not found
+ * @throws {MedusaError} 500 - Failed to update inventory order or workflow
+ *
+ * @example request
+ * POST /partners/inventory-orders/invord_123456789/start
+ *
+ * @example response 200
+ * {
+ *   "message": "Order started successfully",
+ *   "order": {
+ *     "id": "invord_123456789",
+ *     "status": "Processing",
+ *     "metadata": {
+ *       "partner_started_at": "2023-11-15T14:30:00Z",
+ *       "partner_status": "started",
+ *       "transaction_id": "txn_987654321"
+ *     }
+ *   },
+ *   "workflowResult": {
+ *     "stepId": "await-order-start",
+ *     "status": "completed",
+ *     "timestamp": "2023-11-15T14:30:01Z"
+ *   }
+ * }
+ *
+ * @example response 400
+ * {
+ *   "error": "Order is not in a state that can be started",
+ *   "currentStatus": "Completed",
+ *   "expectedStatus": "Pending"
+ * }
+ *
+ * @example response 401
+ * {
+ *   "error": "Partner authentication required"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "error": "Inventory order not found"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "error": "Failed to update inventory order",
+ *   "details": ["Database connection error"]
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { setInventoryOrderStepSuccessWorkflow } from "../../../../../workflows/inventory_orders/inventory-order-steps";
 import { updateInventoryOrderWorkflow } from "../../../../../workflows/inventory_orders/update-inventory-order";

@@ -1,3 +1,33 @@
+/**
+ * @file Admin API route for confirming person import transactions
+ * @description Provides an endpoint to confirm and initiate the actual import process for person data
+ * @module API/Admin/Persons
+ */
+
+/**
+ * @typedef {Object} ConfirmImportResponse
+ * @property {boolean} success - Indicates whether the confirmation was successful
+ */
+
+/**
+ * Confirm a person import transaction
+ * @route POST /admin/persons/import/{transaction_id}/confirm
+ * @group Person - Operations related to person management
+ * @param {string} transaction_id.path.required - The unique identifier of the import transaction to confirm
+ * @returns {ConfirmImportResponse} 200 - Success confirmation
+ * @throws {MedusaError} 400 - Invalid transaction ID format
+ * @throws {MedusaError} 401 - Unauthorized access
+ * @throws {MedusaError} 404 - Transaction not found
+ * @throws {MedusaError} 500 - Internal server error during confirmation
+ *
+ * @example request
+ * POST /admin/persons/import/imp_123456789/confirm
+ *
+ * @example response 200
+ * {
+ *   "success": true
+ * }
+ */
 import {
   MedusaRequest,
   MedusaResponse,

@@ -5,11 +5,11 @@ import { seoWorkflow } from "./workflows/seo";
 import designValidationWorkflow from './workflows/designValidator';
 import productDescriptionWorkflow from './workflows/productDescription';
 import { imageExtractionWorkflow } from './workflows/imageExtraction';
-import { generalChatWorkflow } from "./workflows/generalChat";
 import { visualFlowCodegenWorkflow } from "./workflows/visualFlowCodegen";
 import { multiStepApiRequestWorkflow } from "./workflows/multiStepApiRequest";
-import { aiV2Workflow } from "./workflows/aiV2";
+import { aiChatWorkflow } from "./workflows/aiChat";
 import { imageGenerationWorkflow } from "./workflows/imagegen";
+import { textileProductExtractionWorkflow } from "./workflows/textileProductExtraction";
 import { sharedStorage } from "./memory";
 import {
     seoAgent,
@@ -20,6 +20,7 @@ import {
     imageExtractionAgent,
     generalChatAgent,
 } from "./agents";
+import { textileExtractionAgent } from "./agents/textileExtractionAgent";
 
 const mastraConnectionString = process.env.MASTRA_DATABASE_URL || process.env.DATABASE_URL
 
@@ -32,17 +33,18 @@ export const mastra = new Mastra({
         "visual-flow-codegen-agent": visualFlowCodegenAgent,
         "image-extraction-agent": imageExtractionAgent,
         "general-chat-agent": generalChatAgent,
+        "textile-extraction-agent": textileExtractionAgent,
     },
     workflows: {
         seoWorkflow,
         designValidationWorkflow,
         productDescriptionWorkflow,
         imageExtractionWorkflow,
-        generalChatWorkflow,
-        aiV2Workflow,
+        aiChatWorkflow,
         visualFlowCodegenWorkflow,
         multiStepApiRequestWorkflow,
         imageGenerationWorkflow,
+        textileProductExtractionWorkflow,
     },
     ...(sharedStorage
         ? { storage: sharedStorage }

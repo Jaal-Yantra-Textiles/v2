@@ -1,3 +1,65 @@
+/**
+ * @file Route handler for sending blog posts to subscribers
+ *
+ * This route handles the POST request to send a blog post to all subscribers.
+ * It validates the page exists, is a blog, and is published before initiating
+ * the workflow to send emails to subscribers.
+ *
+ * @example
+ * // Example 1: Send blog with default subject
+ * POST /admin/websites/123/pages/456/subs
+ * {
+ *   "customMessage": "Check out our latest blog post!"
+ * }
+ *
+ * @example
+ * // Example 2: Send blog with custom subject
+ * POST /admin/websites/123/pages/456/subs
+ * {
+ *   "subject": "Exciting News: Our New Blog Post",
+ *   "customMessage": "We're thrilled to share our latest insights with you!"
+ * }
+ *
+ * @example
+ * // Example 3: Send blog with minimal data
+ * POST /admin/websites/123/pages/456/subs
+ * {}
+ *
+ * @response
+ * {
+ *   "message": "Blog sending process initiated. Confirmation required to proceed.",
+ *   "workflow_id": "txn_123456789",
+ *   "page_id": "456",
+ *   "website_id": "123",
+ *   "requires_confirmation": true,
+ *   "confirmation_url": "/admin/websites/123/pages/456/subs/txn_123456789/confirm",
+ *   "subscribers": 150
+ * }
+ *
+ * @error
+ * {
+ *   "message": "Page not found",
+ *   "error": "The specified page does not exist"
+ * }
+ *
+ * @error
+ * {
+ *   "message": "Invalid page type",
+ *   "error": "Only blog pages can be sent to subscribers"
+ * }
+ *
+ * @error
+ * {
+ *   "message": "Blog not published",
+ *   "error": "Only published blogs can be sent to subscribers"
+ * }
+ *
+ * @error
+ * {
+ *   "message": "Failed to send blog to subscribers",
+ *   "error": "An unexpected error occurred"
+ * }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { z } from "zod";
 import { sendBlogSubscribersWorkflow } from "../../../../../../../workflows/blogs/send-blog-subscribers";

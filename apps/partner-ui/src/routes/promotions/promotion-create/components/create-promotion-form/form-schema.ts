@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { CreateCampaignSchema } from "../../../../campaigns/campaign-create/components/create-campaign-form"
 
 const RuleSchema = z.array(

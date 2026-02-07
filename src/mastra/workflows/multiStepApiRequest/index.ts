@@ -13,7 +13,7 @@
  */
 
 import { createWorkflow, createStep } from "@mastra/core/workflows"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 // Input/Output schemas
 export const MultiStepApiRequestInput = z.object({

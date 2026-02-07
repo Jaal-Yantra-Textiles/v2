@@ -1,3 +1,88 @@
+/**
+ * API: /admin/inventory-orders
+ *
+ * POST /admin/inventory-orders
+ * - Description: Create a new inventory order via the createInventoryOrderWorkflow.
+ * - Permissions: Admin
+ * - Request Body (application/json): CreateInventoryOrder
+ *   Example:
+ *   {
+ *     "supplier_id": "sup_123",
+ *     "items": [
+ *       { "sku": "FABRIC_A", "quantity": 200, "unit_price": 4.5 },
+ *       { "sku": "TRIM_B", "quantity": 50, "unit_price": 1.25 }
+ *     ],
+ *     "expected_delivery_date": "2026-02-15T00:00:00.000Z",
+ *     "notes": "Urgent run for spring collection"
+ *   }
+ * - Success (201):
+ *   Content-Type: application/json
+ *   Example:
+ *   {
+ *     "inventoryOrder": {
+ *       "id": "invord_abc123",
+ *       "supplier_id": "sup_123",
+ *       "status": "pending",
+ *       "items": [
+ *         { "sku": "FABRIC_A", "quantity": 200, "unit_price": 4.5 },
+ *         { "sku": "TRIM_B", "quantity": 50, "unit_price": 1.25 }
+ *       ],
+ *       "total_price": 1000.0,
+ *       "expected_delivery_date": "2026-02-15T00:00:00.000Z",
+ *       "created_at": "2026-01-14T12:00:00.000Z"
+ *     }
+ *   }
+ * - Errors:
+ *   - 400 / INVALID_DATA: validation errors from validators
+ *   - 409 / CONFLICT: business constraints
+ *
+ * Example curl:
+ * curl -X POST "https://api.example.com/admin/inventory-orders" \
+ *   -H "Authorization: Bearer <ADMIN_TOKEN>" \
+ *   -H "Content-Type: application/json" \
+ *   -d '{ "supplier_id":"sup_123", "items":[{"sku":"FABRIC_A","quantity":200,"unit_price":4.5}], "expected_delivery_date":"2026-02-15T00:00:00.000Z" }'
+ *
+ * --------------------------------------------------------------------------
+ *
+ * GET /admin/inventory-orders
+ * - Description: List inventory orders using filters, pagination and ordering. Uses listInventoryOrdersWorkflow.
+ * - Permissions: Admin
+ * - Query Parameters (see listInventoryOrdersQuerySchema):
+ *   - q (string)         : text search / id
+ *   - status (string)    : one of InventoryOrderStatus (e.g. pending, received, cancelled)
+ *   - quantity (number)  : exact quantity filter
+ *   - total_price (number): exact total price filter
+ *   - expected_delivery_date (ISO date)
+ *   - order_date (ISO date)
+ *   - order (string)     : "created_at:desc" or "total_price:asc" (parsed by parseOrderParam)
+ *   - offset (number)    : pagination offset (default 0)
+ *   - limit (number)     : pagination limit (default 50)
+ * - Success (200):
+ *   Content-Type: application/json
+ *   Example:
+ *   {
+ *     "inventory_orders": [
+ *       {
+ *         "id": "invord_abc123",
+ *         "supplier_id": "sup_123",
+ *         "status": "pending",
+ *         "items": [ { "sku":"FABRIC_A", "quantity":200, "unit_price":4.5 } ],
+ *         "total_price": 900.0,
+ *         "expected_delivery_date": "2026-02-15T00:00:00.000Z",
+ *         "created_at": "2026-01-12T10:00:00.000Z"
+ *       }
+ *     ],
+ *     "count": 1,
+ *     "offset": 0,
+ *     "limit": 50
+ *   }
+ * - Errors:
+ *   - 400 / INVALID_DATA: invalid query values
+ *
+ * Example curl:
+ * curl -X GET "https://api.example.com/admin/inventory-orders?status=pending&limit=20&order=created_at:desc" \
+ *   -H "Authorization: Bearer <ADMIN_TOKEN>"
+ */
 import {
   MedusaRequest,
   MedusaResponse,

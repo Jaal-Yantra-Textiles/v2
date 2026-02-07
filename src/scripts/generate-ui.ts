@@ -666,7 +666,7 @@ ${options}
     return `import { Button, Heading, Text, Input, Select, Checkbox, toast } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useRouteModal } from "../modal/use-route-modal";

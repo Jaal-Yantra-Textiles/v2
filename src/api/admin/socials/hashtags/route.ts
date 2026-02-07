@@ -1,3 +1,57 @@
+/**
+ * @file Admin API routes for social hashtag management
+ * @description Provides endpoints for searching and retrieving hashtags across social platforms
+ * @module API/Admin/Socials
+ */
+
+/**
+ * @typedef {Object} HashtagResponse
+ * @property {string} tag - The hashtag text (e.g., "summer2024")
+ * @property {string} platform - The social platform (facebook, instagram, twitter)
+ * @property {number} usage_count - Number of times this hashtag has been used
+ * @property {Date} last_used_at - When the hashtag was last used
+ */
+
+/**
+ * @typedef {Object} HashtagSearchResponse
+ * @property {HashtagResponse[]} hashtags - Array of hashtag objects
+ */
+
+/**
+ * Search for hashtags across social platforms
+ * @route GET /admin/socials/hashtags
+ * @group Socials - Operations related to social media integration
+ * @param {string} [q] - Search query for hashtags
+ * @param {string} [platform=all] - Platform to search (facebook, instagram, twitter, all)
+ * @param {string} [platform_id] - Optional platform ID for Instagram API access
+ * @param {number} [limit=10] - Number of results to return
+ * @param {string} [type=suggestions] - Type of search (suggestions, popular, recent)
+ * @returns {HashtagSearchResponse} 200 - Array of hashtag objects
+ * @throws {MedusaError} 400 - Invalid query parameters
+ * @throws {MedusaError} 401 - Unauthorized access
+ * @throws {MedusaError} 500 - Internal server error during search
+ *
+ * @example request
+ * GET /admin/socials/hashtags?q=summer&platform=instagram&limit=5&type=popular
+ *
+ * @example response 200
+ * {
+ *   "hashtags": [
+ *     {
+ *       "tag": "#summer2024",
+ *       "platform": "instagram",
+ *       "usage_count": 1500,
+ *       "last_used_at": "2024-06-15T14:30:00Z"
+ *     },
+ *     {
+ *       "tag": "#summervibes",
+ *       "platform": "instagram",
+ *       "usage_count": 875,
+ *       "last_used_at": "2024-06-14T10:15:00Z"
+ *     }
+ *   ]
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"

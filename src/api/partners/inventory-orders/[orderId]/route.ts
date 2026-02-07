@@ -1,3 +1,142 @@
+/**
+ * @file Partner API route for retrieving inventory order details
+ * @description Provides endpoints for partners to view detailed information about specific inventory orders assigned to them
+ * @module API/Partners/InventoryOrders
+ */
+
+/**
+ * @typedef {Object} InventoryOrderLine
+ * @property {string} id - The unique identifier for the order line
+ * @property {string} inventory_item_id - The ID of the associated inventory item
+ * @property {number} quantity - The quantity of items ordered
+ * @property {number} price - The price per unit
+ * @property {Object} metadata - Additional metadata for the order line
+ * @property {Date} created_at - When the order line was created
+ * @property {Date} updated_at - When the order line was last updated
+ * @property {Date} deleted_at - When the order line was deleted (if applicable)
+ * @property {Array<Object>} inventory_items - Array of inventory items associated with this line
+ * @property {Array<Object>} line_fulfillments - Array of fulfillment records for this line
+ */
+
+/**
+ * @typedef {Object} PartnerInfo
+ * @property {string} assigned_partner_id - The ID of the assigned partner
+ * @property {string} partner_name - The name of the partner
+ * @property {string} partner_handle - The handle/identifier of the partner
+ * @property {string} partner_status - The status of the partner's workflow (assigned, in_progress, completed)
+ * @property {string} partner_started_at - When the partner started processing the order (ISO date)
+ * @property {string} partner_completed_at - When the partner completed the order (ISO date)
+ * @property {number} workflow_tasks_count - Number of workflow tasks associated with this order
+ * @property {string} partner_notes - Additional notes from the partner
+ * @property {string} delivery_date - Expected delivery date from partner
+ * @property {string} tracking_number - Tracking number provided by partner
+ */
+
+/**
+ * @typedef {Object} InventoryOrderResponse
+ * @property {string} id - The unique identifier for the inventory order
+ * @property {string} status - The current status of the order
+ * @property {number} quantity - Total quantity of items in the order
+ * @property {number} total_price - Total price of the order
+ * @property {Date} expected_delivery_date - Expected delivery date
+ * @property {Date} order_date - When the order was placed
+ * @property {boolean} is_sample - Whether this is a sample order
+ * @property {Object} shipping_address - Shipping address details
+ * @property {Array<InventoryOrderLine>} order_lines - Array of order lines
+ * @property {Array<Object>} stock_locations - Array of stock locations associated with the order
+ * @property {PartnerInfo} partner_info - Information about the assigned partner and their workflow status
+ * @property {string} admin_notes - Notes from administrators about the order
+ * @property {Date} created_at - When the order was created
+ * @property {Date} updated_at - When the order was last updated
+ */
+
+/**
+ * Retrieve detailed information about a specific inventory order
+ * @route GET /partners/inventory-orders/:orderId
+ * @group InventoryOrders - Operations related to inventory orders for partners
+ * @param {string} orderId.path.required - The ID of the inventory order to retrieve
+ * @returns {Object} 200 - Detailed information about the inventory order
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 404 - Inventory order not found
+ * @throws {MedusaError} 403 - Inventory order is not assigned to your partner account
+ *
+ * @example request
+ * GET /partners/inventory-orders/invord_123456789
+ *
+ * @example response 200
+ * {
+ *   "inventoryOrder": {
+ *     "id": "invord_123456789",
+ *     "status": "pending",
+ *     "quantity": 100,
+ *     "total_price": 5000,
+ *     "expected_delivery_date": "2023-12-15T00:00:00Z",
+ *     "order_date": "2023-11-01T10:00:00Z",
+ *     "is_sample": false,
+ *     "shipping_address": {
+ *       "address1": "123 Main St",
+ *       "city": "New York",
+ *       "country": "US",
+ *       "postal_code": "10001"
+ *     },
+ *     "order_lines": [
+ *       {
+ *         "id": "invline_987654321",
+ *         "inventory_item_id": "invitem_1122334455",
+ *         "quantity": 50,
+ *         "price": 50,
+ *         "metadata": {
+ *           "color": "blue",
+ *           "size": "medium"
+ *         },
+ *         "created_at": "2023-11-01T10:00:00Z",
+ *         "updated_at": "2023-11-02T09:00:00Z",
+ *         "deleted_at": null,
+ *         "inventory_items": [
+ *           {
+ *             "id": "invitem_1122334455",
+ *             "sku": "SKU123",
+ *             "raw_materials": [
+ *               {
+ *                 "id": "mat_5566778899",
+ *                 "name": "Cotton Fabric"
+ *               }
+ *             ]
+ *           }
+ *         ],
+ *         "line_fulfillments": [
+ *           {
+ *             "id": "fulfill_1122334455",
+ *             "quantity": 50,
+ *             "status": "pending"
+ *           }
+ *         ]
+ *       }
+ *     ],
+ *     "stock_locations": [
+ *       {
+ *         "id": "stockloc_112233",
+ *         "name": "Warehouse A"
+ *       }
+ *     ],
+ *     "partner_info": {
+ *       "assigned_partner_id": "partner_12345",
+ *       "partner_name": "Acme Supplies",
+ *       "partner_handle": "acme_supplies",
+ *       "partner_status": "in_progress",
+ *       "partner_started_at": "2023-11-05T08:00:00Z",
+ *       "partner_completed_at": null,
+ *       "workflow_tasks_count": 3,
+ *       "partner_notes": "Processing on schedule",
+ *       "delivery_date": "2023-12-10",
+ *       "tracking_number": "TRACK123456789"
+ *     },
+ *     "admin_notes": "High priority order",
+ *     "created_at": "2023-11-01T10:00:00Z",
+ *     "updated_at": "2023-11-10T14:30:00Z"
+ *   }
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../../helpers";

@@ -8,7 +8,7 @@ import {
   ZodString,
   ZodType,
   ZodUndefined,
-} from "zod"
+} from "@medusajs/framework/zod"
 import { FormFieldType } from "./types"
 
 export function getFieldLabel(name: string, label?: string) {

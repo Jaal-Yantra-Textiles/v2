@@ -1,3 +1,58 @@
+/**
+ * @file Partner API route for marking designs as finished
+ * @description Provides endpoints for partners to complete design workflows in the JYT Commerce platform
+ * @module API/Partners/Designs
+ */
+
+/**
+ * @typedef {Object} DesignFinishResponse
+ * @property {string} message - Success message
+ * @property {Object} design - The updated design object
+ * @property {string} design.id - The design ID
+ * @property {string} design.status - The updated design status
+ * @property {Object} design.metadata - Design metadata
+ * @property {string} design.metadata.partner_finished_at - ISO timestamp when partner finished
+ * @property {string} design.metadata.partner_status - Partner status ("finished")
+ * @property {string|null} design.metadata.partner_phase - Current partner phase
+ */
+
+/**
+ * Mark a design as finished by partner
+ * @route POST /partners/designs/:designId/finish
+ * @group Design - Operations related to design management
+ * @param {string} designId.path.required - The ID of the design to finish
+ * @returns {DesignFinishResponse} 200 - Design successfully marked as finished
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 500 - Failed to update design or workflow
+ *
+ * @example request
+ * POST /partners/designs/design_123456789/finish
+ *
+ * @example response 200
+ * {
+ *   "message": "Design marked as finished",
+ *   "design": {
+ *     "id": "design_123456789",
+ *     "status": "Technical_Review",
+ *     "metadata": {
+ *       "partner_finished_at": "2023-11-15T14:30:00.000Z",
+ *       "partner_status": "finished",
+ *       "partner_phase": null
+ *     }
+ *   }
+ * }
+ *
+ * @example response 401
+ * {
+ *   "error": "Partner authentication required"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "error": "Failed to update design",
+ *   "details": ["Error details..."]
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../../../partners/helpers"

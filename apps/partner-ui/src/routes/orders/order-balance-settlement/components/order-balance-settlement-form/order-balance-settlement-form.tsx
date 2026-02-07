@@ -16,7 +16,7 @@ import { formatValue } from "react-currency-input-field"
 import { useForm } from "react-hook-form"
 import { useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"

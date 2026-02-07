@@ -1,3 +1,119 @@
+
+/**
+ * POST /admin/medias
+ *
+ * Upload one or more media files and organize them (folders/albums) by invoking the
+ * uploadAndOrganizeMediaWorkflow.
+ *
+ * Behavior:
+ * - Accepts single or multiple files via multer (req.file or req.files).
+ * - Each file is read into a binary string and passed to the workflow as:
+ *   { filename, mimeType, content, _tempPath? }.
+ * - Optionally accepts a validated body (req.validatedBody) containing organization
+ *   instructions (e.g. folder info, album links, is_public, etc.). If a folder
+ *   contains parent_folder_id as null/empty string, parent_folder_id will be removed.
+ * - Attempts to run the workflow and returns 201 with the workflow result on success.
+ * - Cleans up any temporary uploaded files when present.
+ *
+ * Request:
+ * - Content-Type: multipart/form-data
+ * - Files: one or more files (field name used by multer configuration; file objects used from req.file/req.files)
+ * - Optional body fields (example):
+ *   {
+ *     folder: { name?: string, parent_folder_id?: string },
+ *     is_public?: boolean,
+ *     q?: string,
+ *     ...other workflow inputs
+ *   }
+ *
+ * Responses:
+ * - 201: { message: string, result: any } - success
+ * - 400: { message: string } - invalid data (e.g. no files)
+ * - 500: { message: string } - unexpected errors or workflow failures
+ *
+ * Examples:
+ *
+ * Curl (single file):
+ * curl -X POST "https://example.com/admin/medias" \
+ *   -H "Authorization: Bearer <ADMIN_TOKEN>" \
+ *   -F "files=@/path/to/image.jpg" \
+ *   -F 'folder={"name":"My Uploads","parent_folder_id":"1234"}'
+ *
+ * Curl (multiple files):
+ * curl -X POST "https://example.com/admin/medias" \
+ *   -H "Authorization: Bearer <ADMIN_TOKEN>" \
+ *   -F "files[]=@/path/to/image1.jpg" \
+ *   -F "files[]=@/path/to/image2.png"
+ *
+ * Node fetch example (browser/Node with form-data):
+ * const fd = new FormData();
+ * fd.append("files", fileInput.files[0]); // browser File
+ * fd.append("folder", JSON.stringify({ name: "MyFolder" }));
+ * fetch("/admin/medias", { method: "POST", body: fd, headers: { Authorization: "Bearer <token>" } });
+ *
+ * @param req - MedusaRequest<UploadMediaRequest> & { files?: Express.Multer.File[] }
+ * @param res - MedusaResponse
+ * @throws MedusaError on validation or workflow failure
+ */
+
+/**
+ * GET /admin/medias
+ *
+ * List all media-related entities (folders, albums, media files, album-media links) using
+ * listAllMediasWorkflow. Supports flexible query formats for filters and configuration.
+ *
+ * Query parameters:
+ * - filters: JSON string or object (or bracket-notation) describing filter conditions.
+ *   Common keys:
+ *     - is_public: boolean | "true" | "false"
+ *     - parent_folder_id: string | omitted to list root items
+ *     - q: string (search text)
+ *   Examples:
+ *     - ?filters={"is_public":true,"q":"logo"}
+ *     - ?filters[is_public]=true&filters[q]=logo
+ *
+ * - config: JSON string or object with configuration options passed to the workflow (e.g. ordering).
+ *   Examples:
+ *     - ?config={"order":"created_at:desc"}
+ *     - ?config[order]=created_at:desc
+ *
+ * - skip: number (pagination offset)
+ * - take: number (pagination limit)
+ *
+ * Behavior:
+ * - Parses raw query values: JSON string parsing for filters/config, coercion for boolean-like strings.
+ * - Removes empty parent_folder_id and empty q values so they are treated as unspecified.
+ * - Merges skip/take into the final config passed to the workflow.
+ * - Returns workflow result (typically a paginated list and metadata).
+ *
+ * Responses:
+ * - 200: workflow result (list of media entities)
+ * - 500: throws MedusaError with "Failed to list media entities" on unexpected errors
+ *
+ * Examples:
+ *
+ * Curl (basic list, pagination):
+ * curl -X GET "https://example.com/admin/medias?skip=0&take=50" \
+ *   -H "Authorization: Bearer <ADMIN_TOKEN>"
+ *
+ * Curl (filters and config as JSON strings):
+ * curl -G "https://example.com/admin/medias" \
+ *   --data-urlencode 'filters={"is_public":true,"q":"banner"}' \
+ *   --data-urlencode 'config={"order":"created_at:desc"}' \
+ *   --data-urlencode 'skip=0' \
+ *   --data-urlencode 'take=25' \
+ *   -H "Authorization: Bearer <ADMIN_TOKEN>"
+ *
+ * Curl (bracket-notation filters):
+ * curl -G "https://example.com/admin/medias" \
+ *   --data-urlencode 'filters[is_public]=true' \
+ *   --data-urlencode 'filters[q]=logo' \
+ *   -H "Authorization: Bearer <ADMIN_TOKEN>"
+ *
+ * @param req - MedusaRequest
+ * @param res - MedusaResponse
+ * @throws MedusaError on unexpected failure
+ */
 import {
     MedusaRequest,
     MedusaResponse,
@@ -143,6 +259,14 @@ import { UploadMediaRequest } from "./validator";
       }
       if (filters.q === "") {
         delete filters.q
+      }
+
+      // Validate file_type filter against allowed enum values
+      if (filters.file_type !== undefined) {
+        const validTypes = ["image", "video", "audio", "document", "archive", "other"]
+        if (typeof filters.file_type !== "string" || !validTypes.includes(filters.file_type)) {
+          delete filters.file_type
+        }
       }
 
       const { result } = await listAllMediasWorkflow(req.scope).run({

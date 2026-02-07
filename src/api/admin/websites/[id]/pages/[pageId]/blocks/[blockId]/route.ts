@@ -1,5 +1,27 @@
+/**
+ * @file Admin API route for managing website page blocks
+ * @description Handles CRUD operations for blocks within a website page
+ * @module admin/websites/[id]/pages/[pageId]/blocks/[blockId]
+ *
+ * @example
+ * // Update a block
+ * PUT /admin/websites/{websiteId}/pages/{pageId}/blocks/{blockId}
+ * {
+ *   "title": "Updated Block Title",
+ *   "content": "Updated block content",
+ *   "type": "text"
+ * }
+ *
+ * @example
+ * // Get a single block
+ * GET /admin/websites/{websiteId}/pages/{pageId}/blocks/{blockId}
+ *
+ * @example
+ * // Delete a block
+ * DELETE /admin/websites/{websiteId}/pages/{pageId}/blocks/{blockId}
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { DeleteBlockSchema, UpdateBlockSchema } from "../validators";
+import {  UpdateBlockSchema } from "../validators";
 import { updateBlockWorkflow } from "../../../../../../../../workflows/website/page-blocks/update-block";
 import { refetchBlock } from "../helpers";
 import { deleteBlockWorkflow } from "../../../../../../../../workflows/website/page-blocks/delete-block";

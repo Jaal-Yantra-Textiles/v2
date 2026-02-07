@@ -183,7 +183,7 @@ const generateZodSchemaContent = (
     })
     .join('\n');
 
-  return `import { z } from "zod";
+  return `import { z } from "@medusajs/framework/zod";
 
 // Base ${pascalModel} schema
 export const ${pascalModel}Schema = z.object({

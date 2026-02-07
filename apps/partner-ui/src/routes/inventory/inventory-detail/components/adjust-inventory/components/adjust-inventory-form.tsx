@@ -3,7 +3,7 @@ import { HttpTypes, InventoryLevelDTO, StockLocationDTO } from "@medusajs/types"
 import { Button, Input, Text, toast } from "@medusajs/ui"
 import { useForm, useWatch } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { Form } from "../../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../../components/modals"

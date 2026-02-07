@@ -1,3 +1,92 @@
+/**
+ * @file Partner API routes for managing assigned tasks
+ * @description Provides endpoints for retrieving tasks assigned to partners in the JYT Commerce platform
+ * @module API/Partner/AssignedTasks
+ */
+
+/**
+ * @typedef {Object} Task
+ * @property {string} id - The unique identifier for the task
+ * @property {string} title - The title of the task
+ * @property {string} description - Detailed description of the task
+ * @property {string} status - Current status of the task (e.g., "pending", "in_progress", "completed")
+ * @property {string} priority - Priority level of the task (e.g., "low", "medium", "high")
+ * @property {Date} due_date - The due date for the task completion
+ * @property {Date} created_at - When the task was created
+ * @property {Date} updated_at - When the task was last updated
+ * @property {string} [parent_task_id] - ID of the parent task if this is a subtask
+ * @property {Array<Task>} [subtasks] - List of subtasks associated with this task
+ * @property {Array<Object>} [outgoing] - Outgoing relationships or dependencies
+ * @property {Array<Object>} [incoming] - Incoming relationships or dependencies
+ */
+
+/**
+ * @typedef {Object} AssignedTasksResponse
+ * @property {Array<Task>} tasks - List of tasks assigned to the partner
+ * @property {number} count - Total number of tasks returned
+ */
+
+/**
+ * List all standalone tasks assigned to the authenticated partner
+ * @route GET /partners/assigned-tasks
+ * @group Partner Tasks - Operations related to partner tasks
+ * @returns {AssignedTasksResponse} 200 - List of tasks assigned to the partner
+ * @throws {MedusaError} 401 - Partner authentication required - no actor ID
+ * @throws {MedusaError} 401 - No partner found for this user
+ * @throws {MedusaError} 500 - Failed to fetch assigned tasks
+ *
+ * @example request
+ * GET /partners/assigned-tasks
+ *
+ * @example response 200
+ * {
+ *   "tasks": [
+ *     {
+ *       "id": "task_123456789",
+ *       "title": "Design Review",
+ *       "description": "Review the latest design submissions",
+ *       "status": "pending",
+ *       "priority": "high",
+ *       "due_date": "2023-12-31T23:59:59Z",
+ *       "created_at": "2023-10-01T00:00:00Z",
+ *       "updated_at": "2023-10-01T00:00:00Z",
+ *       "parent_task_id": null,
+ *       "subtasks": [
+ *         {
+ *           "id": "task_987654321",
+ *           "title": "Subtask 1",
+ *           "description": "Review design A",
+ *           "status": "in_progress",
+ *           "priority": "medium",
+ *           "due_date": "2023-11-15T23:59:59Z",
+ *           "created_at": "2023-10-02T00:00:00Z",
+ *           "updated_at": "2023-10-02T00:00:00Z",
+ *           "parent_task_id": "task_123456789"
+ *         }
+ *       ],
+ *       "outgoing": [],
+ *       "incoming": []
+ *     }
+ *   ],
+ *   "count": 1
+ * }
+ *
+ * @example response 401
+ * {
+ *   "message": "Partner authentication required - no actor ID"
+ * }
+ *
+ * @example response 401
+ * {
+ *   "message": "No partner found for this user"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "message": "Failed to fetch assigned tasks",
+ *   "error": "Internal server error"
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../helpers";

@@ -9,7 +9,7 @@ import {
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { keepPreviousData } from "@tanstack/react-query"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { AdminProduct } from "@medusajs/types"
 

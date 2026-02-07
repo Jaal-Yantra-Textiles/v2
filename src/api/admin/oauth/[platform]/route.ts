@@ -1,3 +1,20 @@
+/**
+ * @file Admin OAuth API routes
+ * @description Provides endpoints for initiating OAuth flows with social platforms and external stores
+ * @module API/Admin/OAuth
+ */
+
+/**
+ * @typedef {Object} OAuthResponse
+ * @property {string} location - The provider authorization URL to redirect users to
+ * @property {string} [state] - CSRF protection state token (optional)
+ */
+
+/**
+ * @typedef {Object} AppOnlyTokenResponse
+ * @property {string} token - The OAuth 2.0 bearer token for app-only authentication
+ * @property {string} expiresAt - ISO 8601 timestamp when the token expires
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { SOCIAL_PROVIDER_MODULE, SocialProviderService } from "../../../../modules/social-provider"
 import { EXTERNAL_STORES_MODULE, ExternalStoresService } from "../../../../modules/external_stores"

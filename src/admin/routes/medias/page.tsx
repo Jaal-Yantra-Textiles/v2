@@ -168,6 +168,8 @@ const AllMediaPage = () => {
               acc.is_public = value === "true" ? true : value === "false" ? false : value;
             } else if (key === "parent_folder_id") {
               acc.parent_folder_id = value as string;
+            } else if (key === "file_type") {
+              acc.file_type = value as string;
             }
             return acc;
           }, {} as Record<string, any>)
@@ -205,6 +207,22 @@ const AllMediaPage = () => {
             const uniqueParentFolders = [...new Set(folders.map((f) => f.parent_folder_id))];
             return uniqueParentFolders.map((id) => ({ label: id || "", value: id || "" }));
           })(),
+        })
+      )
+    }
+    if (tab === "files") {
+      base.push(
+        filterHelper.accessor("file_type", {
+          type: "select",
+          label: "File Type",
+          options: [
+            { label: "Images", value: "image" },
+            { label: "Videos", value: "video" },
+            { label: "Audio", value: "audio" },
+            { label: "Documents", value: "document" },
+            { label: "Archives", value: "archive" },
+            { label: "Other", value: "other" },
+          ],
         })
       )
     }

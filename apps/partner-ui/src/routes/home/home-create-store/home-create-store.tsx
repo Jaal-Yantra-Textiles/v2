@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { Button, Heading, Input, Select, Text, toast } from "@medusajs/ui"
 import { useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { Form } from "../../../components/common/form"
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"

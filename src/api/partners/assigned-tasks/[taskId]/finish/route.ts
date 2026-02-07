@@ -1,3 +1,59 @@
+/**
+ * @file Partner API route for completing assigned tasks
+ * @description Provides endpoints for partners to complete standalone tasks and submit bills
+ * @module API/Partners/AssignedTasks
+ */
+
+/**
+ * @typedef {Object} TaskCompletionResponse
+ * @property {Object} task - The completed task object
+ * @property {string} task.id - The unique identifier of the task
+ * @property {string} task.status - The status of the task (completed)
+ * @property {Object} task.metadata - Additional task metadata
+ * @property {Object} task.metadata.workflow_config - Workflow configuration
+ * @property {Array<Object>} task.metadata.workflow_config.steps - Array of workflow steps
+ * @property {string} task.metadata.workflow_config.steps[].status - Status of each step (completed)
+ * @property {Date} task.completed_at - When the task was completed
+ * @property {string} message - Success message
+ */
+
+/**
+ * Complete an assigned task
+ * @route POST /partners/assigned-tasks/:taskId/finish
+ * @group Partner Tasks - Operations related to partner tasks
+ * @param {string} taskId.path.required - The ID of the task to complete
+ * @returns {TaskCompletionResponse} 200 - Successfully completed task
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 403 - Task not assigned to this partner or does not exist
+ * @throws {MedusaError} 500 - Failed to complete task
+ *
+ * @example request
+ * POST /partners/assigned-tasks/task_123456789/finish
+ *
+ * @example response 200
+ * {
+ *   "task": {
+ *     "id": "task_123456789",
+ *     "status": "completed",
+ *     "metadata": {
+ *       "workflow_config": {
+ *         "steps": [
+ *           {
+ *             "id": "step_1",
+ *             "status": "completed"
+ *           },
+ *           {
+ *             "id": "step_2",
+ *             "status": "completed"
+ *           }
+ *         ]
+ *       }
+ *     },
+ *     "completed_at": "2023-01-01T00:00:00Z"
+ *   },
+ *   "message": "Task completed successfully"
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";

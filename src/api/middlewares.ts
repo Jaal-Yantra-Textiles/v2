@@ -14,7 +14,7 @@ import path from "path";
 import { ConfigModule } from "@medusajs/framework/types";
 import { parseCorsOrigins } from "@medusajs/framework/utils";
 import cors from "cors";
-import * as z from "zod";
+import { z } from "zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
 import { getPersonResourceDefinition } from "./admin/persons/resources/registry";
 
@@ -25,27 +25,27 @@ const wrapSchema = <T extends z.ZodType>(schema: T) => {
 
 const buildPersonResourceValidator =
   (type: "create" | "update") =>
-  (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
-    const resourceKey = req.params?.resource;
+    (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
+      const resourceKey = req.params?.resource;
 
-    if (!resourceKey) {
-      return next();
-    }
+      if (!resourceKey) {
+        return next();
+      }
 
-    const definition = getPersonResourceDefinition(resourceKey);
+      const definition = getPersonResourceDefinition(resourceKey);
 
-    if (!definition) {
-      return next();
-    }
+      if (!definition) {
+        return next();
+      }
 
-    const schema = definition.validators?.[type];
+      const schema = definition.validators?.[type];
 
-    if (!schema) {
-      return next();
-    }
+      if (!schema) {
+        return next();
+      }
 
-    return validateAndTransformBody(wrapSchema(schema))(req, res, next);
-  };
+      return validateAndTransformBody(wrapSchema(schema))(req, res, next);
+    };
 
 const validatePersonResourceCreate = buildPersonResourceValidator("create");
 const validatePersonResourceUpdate = buildPersonResourceValidator("update");
@@ -68,15 +68,15 @@ import {
   AdminStartDispatchProductionRunReq,
 } from "./admin/production-runs/validators";
 import { AdminUpdateProductionRunPolicySchema } from "./admin/production-run-policy/validators";
-import { 
-  websiteSchema, 
+import {
+  websiteSchema,
   updateWebsiteSchema,
 } from "./admin/websites/validators";
 import {
   updatePageSchema,
   postPagesSchema,
 } from "./admin/websites/[id]/pages/validators";
-import {  createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
+import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 import { partnerSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
@@ -101,6 +101,7 @@ import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreements
 import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
+import { ExtractFeaturesRequestSchema } from "./admin/medias/extract-features/validators";
 import {
   AdminCreateFormSchema,
   AdminListFormResponsesQuerySchema,
@@ -115,10 +116,9 @@ import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/v
 import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]/validators";
 import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSchema } from "./admin/payments/persons/[id]/methods/validators";
 import { ListPaymentMethodsByPartnerQuerySchema, CreatePaymentMethodForPartnerSchema } from "./admin/payments/partners/[id]/methods/validators";
-import { AdminGeneralChatReq, AdminGeneralChatStreamQuery } from "./admin/ai/chat/validators";
 import { AdminRagSearchQuery } from "./admin/ai/rag/search/validators";
-import { AdminAiV2ChatReq, AdminAiV2ChatStreamQuery } from "./admin/ai/v2/chat/validators";
-import { AdminAiV2ResumeReq } from "./admin/ai/v2/runs/[runId]/resume/validators";
+import { AdminAiChatResolveReq, AdminAiChatResolveQuery } from "./admin/ai/chat/resolve/validators";
+import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
 import { AdminCreatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
@@ -199,7 +199,7 @@ const createCorsPartnerMiddleware = (corsOptions?: cors.CorsOptions) => {
 }
 
 // Configure multer for small/CSV uploads (memory) - safe small limit
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }})
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
 // Configure disk-based multer for large media uploads to avoid OOM
 const mediaUpload = multer({
@@ -327,11 +327,11 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         createCorsPartnerMiddleware(),
-        authenticate("partner", ["session", "bearer"], {allowUnregistered: true,}),
+        authenticate("partner", ["session", "bearer"], { allowUnregistered: true, }),
         validateAndTransformBody(wrapSchema(partnerSchema)),
       ],
     },
-    
+
     {
       matcher: "/partners/:id",
       method: "POST",
@@ -720,16 +720,11 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminImageExtractionReq))],
     },
-    // AI General Chat endpoints
+    // AI Chat endpoints (BM25 + LLM hybrid)
     {
-      matcher: "/admin/ai/chat",
+      matcher: "/admin/ai/chat/chat",
       method: "POST",
-      middlewares: [validateAndTransformBody(wrapSchema(AdminGeneralChatReq))],
-    },
-    {
-      matcher: "/admin/ai/chat/stream",
-      method: "GET",
-      middlewares: [validateAndTransformQuery(wrapSchema(AdminGeneralChatStreamQuery), {})],
+      middlewares: [validateAndTransformBody(wrapSchema(AdminAiChatReq))],
     },
 
     {
@@ -738,27 +733,16 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformQuery(wrapSchema(AdminRagSearchQuery), {})],
     },
 
+    // AI Chat Query Resolution endpoints
     {
-      matcher: "/admin/ai/v2/chat",
+      matcher: "/admin/ai/chat/resolve",
       method: "POST",
-      middlewares: [validateAndTransformBody(wrapSchema(AdminAiV2ChatReq))],
+      middlewares: [validateAndTransformBody(wrapSchema(AdminAiChatResolveReq))],
     },
     {
-      matcher: "/admin/ai/v2/chat/stream",
+      matcher: "/admin/ai/chat/resolve",
       method: "GET",
-      middlewares: [validateAndTransformQuery(wrapSchema(AdminAiV2ChatStreamQuery), {})],
-    },
-
-    {
-      matcher: "/admin/ai/v2/runs/:runId/resume",
-      method: "POST",
-      middlewares: [validateAndTransformBody(wrapSchema(AdminAiV2ResumeReq))],
-    },
-
-    {
-      matcher: "/admin/ai/v2/runs/:runId/feedback",
-      method: "POST",
-      middlewares: [validateAndTransformBody(wrapSchema(FeedbackSchema))],
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminAiChatResolveQuery), {})],
     },
 
     // Admin Feedback routes
@@ -785,6 +769,23 @@ export default defineMiddlewares({
       matcher: "/admin/medias/existdir",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(folderSchema))],
+    },
+    // Folder creation endpoint
+    {
+      matcher: "/admin/medias/folder",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(folderSchema))],
+    },
+    // Textile Product Feature Extraction endpoints
+    {
+      matcher: "/admin/medias/extract-features",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(ExtractFeaturesRequestSchema))],
+    },
+    {
+      matcher: "/admin/medias/extract-features/:transaction_id/confirm",
+      method: "POST",
+      middlewares: [],
     },
     // Person Types
     {
@@ -1096,7 +1097,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/websites/:id/pages/:pageId",
       method: "DELETE",
-      middlewares: [], 
+      middlewares: [],
     },
 
     {
@@ -1152,7 +1153,7 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(CreateMaterialTypeSchema))],
     },
 
-    { 
+    {
       matcher: "/admin/inventory-items/raw-materials",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(ListInventoryItemRawMaterialsQuerySchema), {})],
@@ -1655,8 +1656,8 @@ export default defineMiddlewares({
     // Option 1: standard name check
     // if (error.name === "ZodError") {
     // Option 2: check if error is an instance of ZodError
-    if (error.__isMedusaError){
-      if (error.type == 'not_found'){
+    if (error.__isMedusaError) {
+      if (error.type == 'not_found') {
         return res.status(404).json({
           message: error.message,
         });
@@ -1681,7 +1682,7 @@ export default defineMiddlewares({
       }));
 
       // Create a single error message that includes code and path for each issue
-      const errorMessage = formattedIssues.map(issue => 
+      const errorMessage = formattedIssues.map(issue =>
         `${issue.code} ${issue.message} (at path: ${issue.path})`
       ).join('; ');
 

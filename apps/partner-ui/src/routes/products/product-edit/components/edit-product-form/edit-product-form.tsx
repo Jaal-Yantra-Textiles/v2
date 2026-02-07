@@ -1,6 +1,6 @@
 import { Button, Input, Select, Text, Textarea, toast } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { HttpTypes } from "@medusajs/types"
 import { Form } from "../../../../../components/common/form"

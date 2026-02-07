@@ -1,4 +1,4 @@
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { Button, Input, toast } from "@medusajs/ui"
 import { RouteDrawer, useRouteModal } from "../../../../../../components/modals"
@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { InventoryTypes } from "@medusajs/types"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { Form } from "../../../../../../components/common/form"
 import { CountrySelect } from "../../../../../../components/inputs/country-select"

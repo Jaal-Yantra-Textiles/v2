@@ -1,3 +1,118 @@
+/**
+ * @file Partner API routes for managing task comments
+ * @description Provides endpoints for partners to add and retrieve comments on assigned tasks in the JYT Commerce platform
+ * @module API/Partner/TaskComments
+ */
+
+/**
+ * @typedef {Object} TaskComment
+ * @property {string} id - Unique identifier for the comment
+ * @property {string} comment - The comment text content
+ * @property {"partner"|"admin"} author_type - Type of author (partner or admin)
+ * @property {string} author_id - ID of the author
+ * @property {string} author_name - Name of the author
+ * @property {string} created_at - ISO 8601 timestamp when comment was created
+ */
+
+/**
+ * @typedef {Object} TaskMetadata
+ * @property {TaskComment[]} [comments] - Array of comments associated with the task
+ * @property {Record<string, unknown>} [workflow_config] - Additional workflow configuration
+ */
+
+/**
+ * @typedef {Object} AddCommentRequest
+ * @property {string} comment.required - The comment text to add (must be non-empty string)
+ */
+
+/**
+ * @typedef {Object} AddCommentResponse
+ * @property {string} message - Success message
+ * @property {TaskComment} comment - The newly created comment
+ * @property {Object} task - The updated task object
+ */
+
+/**
+ * @typedef {Object} GetCommentsResponse
+ * @property {TaskComment[]} comments - Array of comments sorted by creation date (newest first)
+ * @property {number} count - Total number of comments
+ */
+
+/**
+ * Partner adds a comment to a task
+ * @route POST /partners/assigned-tasks/:taskId/comments
+ * @group TaskComments - Operations related to task comments
+ * @param {string} taskId.path.required - ID of the task to comment on
+ * @param {AddCommentRequest} request.body.required - Comment data to add
+ * @returns {AddCommentResponse} 200 - Successfully added comment
+ * @throws {MedusaError} 400 - Invalid comment text
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 404 - Task not found or not assigned to partner
+ * @throws {MedusaError} 500 - Failed to add comment
+ *
+ * @example request
+ * POST /partners/assigned-tasks/task_123456789/comments
+ * {
+ *   "comment": "I've completed the design draft and uploaded it to the shared folder."
+ * }
+ *
+ * @example response 200
+ * {
+ *   "message": "Comment added successfully",
+ *   "comment": {
+ *     "id": "comment_1678901234567_abc123def",
+ *     "comment": "I've completed the design draft and uploaded it to the shared folder.",
+ *     "author_type": "partner",
+ *     "author_id": "partner_123456789",
+ *     "author_name": "Partner",
+ *     "created_at": "2023-03-15T14:30:45.678Z"
+ *   },
+ *   "task": {
+ *     "id": "task_123456789",
+ *     "metadata": {
+ *       "comments": [...],
+ *       "workflow_config": {...}
+ *     }
+ *   }
+ * }
+ */
+
+/**
+ * Get all comments for a task
+ * @route GET /partners/assigned-tasks/:taskId/comments
+ * @group TaskComments - Operations related to task comments
+ * @param {string} taskId.path.required - ID of the task to retrieve comments for
+ * @returns {GetCommentsResponse} 200 - List of comments for the task
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 404 - Task not found or not assigned to partner
+ * @throws {MedusaError} 500 - Failed to fetch comments
+ *
+ * @example request
+ * GET /partners/assigned-tasks/task_123456789/comments
+ *
+ * @example response 200
+ * {
+ *   "comments": [
+ *     {
+ *       "id": "comment_1678901234567_abc123def",
+ *       "comment": "I've completed the design draft and uploaded it to the shared folder.",
+ *       "author_type": "partner",
+ *       "author_id": "partner_123456789",
+ *       "author_name": "Partner",
+ *       "created_at": "2023-03-15T14:30:45.678Z"
+ *     },
+ *     {
+ *       "id": "comment_1678897654321_ghi789jkl",
+ *       "comment": "Please review the requirements document before starting.",
+ *       "author_type": "admin",
+ *       "author_id": "admin_987654321",
+ *       "author_name": "Admin User",
+ *       "created_at": "2023-03-14T10:15:30.123Z"
+ *     }
+ *   ],
+ *   "count": 2
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../../../helpers";

@@ -66,3 +66,9 @@ src/.DS_Store
 patches/
 
 .claude/
+
+# Generated RAG/contextual index (regenerate with src/scripts/generate-contextual-index.ts)
+.contextual-index/
+
+# Generated specs (stored in DB, regenerate with src/scripts/specs/)
+specs/**

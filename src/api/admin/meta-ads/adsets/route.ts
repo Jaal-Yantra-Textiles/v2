@@ -1,3 +1,44 @@
+/**
+ * @file Admin API route for managing Meta Ads ad sets
+ *
+ * This route provides endpoints for listing and creating ad sets in Meta Ads.
+ * Ad sets are groups of ads that share the same budget, schedule, and targeting.
+ *
+ * @module Admin/MetaAds/AdSets
+ * @category API
+ * @subcategory Admin
+ *
+ * @example
+ * // List all ad sets
+ * GET /admin/meta-ads/adsets
+ *
+ * @example
+ * // List ad sets for a specific campaign
+ * GET /admin/meta-ads/adsets?campaign_id=12345
+ *
+ * @example
+ * // List ad sets for a specific ad account
+ * GET /admin/meta-ads/adsets?ad_account_id=act_123456789
+ *
+ * @example
+ * // Create a new ad set
+ * POST /admin/meta-ads/adsets
+ * {
+ *   "name": "Summer Collection 2024",
+ *   "campaign_id": "12345",
+ *   "daily_budget": "100",
+ *   "billing_event": "IMPRESSIONS",
+ *   "optimization_goal": "REACH",
+ *   "bid_amount": "5",
+ *   "targeting": {
+ *     "geo_locations": {
+ *       "countries": ["US", "CA"]
+ *     },
+ *     "age_min": 18,
+ *     "age_max": 65
+ *   }
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"

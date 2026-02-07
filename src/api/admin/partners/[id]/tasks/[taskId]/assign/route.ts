@@ -1,3 +1,77 @@
+/**
+ * @file Admin API route for assigning tasks to partners
+ * @description Provides endpoints for assigning specific tasks to partners in the JYT Commerce platform
+ * @module API/Admin/Partners/Tasks
+ */
+
+/**
+ * @typedef {Object} AdminPostPartnerTaskAssignReq
+ * @property {string} [additional_data] - Optional additional data to include with the task assignment
+ */
+
+/**
+ * @typedef {Object} Partner
+ * @property {string} id - The unique identifier of the partner
+ * @property {string} name - The name of the partner
+ * @property {string} email - The email address of the partner
+ * @property {string} status - The current status of the partner (active/inactive)
+ */
+
+/**
+ * @typedef {Object} Task
+ * @property {string} id - The unique identifier of the task
+ * @property {string} title - The title of the task
+ * @property {string} description - The description of the task
+ * @property {string} status - The current status of the task (pending, assigned, completed, etc.)
+ * @property {Date} created_at - When the task was created
+ * @property {Date} updated_at - When the task was last updated
+ * @property {Partner[]} partners - Array of partners assigned to this task
+ */
+
+/**
+ * @typedef {Object} TaskAssignmentResponse
+ * @property {Task} task - The task object with updated partner assignments
+ */
+
+/**
+ * Assign a task to a partner
+ * @route POST /admin/partners/:id/tasks/:taskId/assign
+ * @group Partner Tasks - Operations related to partner task assignments
+ * @param {string} id.path.required - The ID of the partner to assign the task to
+ * @param {string} taskId.path.required - The ID of the task to be assigned
+ * @param {AdminPostPartnerTaskAssignReq} request.body - Optional additional data for the assignment
+ * @returns {TaskAssignmentResponse} 200 - Task object with updated partner assignments
+ * @throws {MedusaError} 400 - Invalid input data or missing required fields
+ * @throws {MedusaError} 401 - Unauthorized access
+ * @throws {MedusaError} 404 - Partner or task not found
+ * @throws {MedusaError} 500 - Internal server error during task assignment workflow
+ *
+ * @example request
+ * POST /admin/partners/partner_123/tasks/task_456/assign
+ * {
+ *   "additional_data": "Urgent priority assignment"
+ * }
+ *
+ * @example response 200
+ * {
+ *   "task": {
+ *     "id": "task_456",
+ *     "title": "Website Redesign",
+ *     "description": "Complete redesign of the main website",
+ *     "status": "assigned",
+ *     "created_at": "2023-01-15T09:30:00Z",
+ *     "updated_at": "2023-01-20T14:45:00Z",
+ *     "partners": [
+ *       {
+ *         "id": "partner_123",
+ *         "name": "Design Studio Inc.",
+ *         "email": "contact@designstudio.com",
+ *         "status": "active"
+ *       }
+ *     ]
+ *   }
+ * }
+ */
 import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framework";
 import { createTaskAssignmentWorkflow } from "../../../../../../../workflows/tasks/create-task-assignment";
 import { runTaskAssignmentWorkflow } from "../../../../../../../workflows/tasks/run-task-assignment";

@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { i18n } from "../../../components/utilities/i18n/i18n"
 import { optionalFloat, optionalInt } from "../../../lib/validation"
 import { decorateVariantsWithDefaultValues } from "./utils"

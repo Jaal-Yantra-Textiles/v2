@@ -1,5 +1,5 @@
 import { t } from "i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { castNumber } from "../../../lib/cast-number"
 
 export const ConditionalPriceSchema = z

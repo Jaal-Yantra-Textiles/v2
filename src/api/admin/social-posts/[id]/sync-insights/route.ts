@@ -1,3 +1,74 @@
+/**
+ * @file Admin API route for syncing social post insights
+ * @description Provides an endpoint to fetch and sync insights (likes, comments, shares, etc.) for a published social media post
+ * @module API/Admin/SocialPosts
+ */
+
+/**
+ * @typedef {Object} SyncInsightsResponse
+ * @property {string} message - Success message
+ * @property {Object} insights - The synced insights data
+ * @property {number} [insights.likes] - Number of likes
+ * @property {number} [insights.comments] - Number of comments
+ * @property {number} [insights.shares] - Number of shares
+ * @property {number} [insights.impressions] - Number of impressions
+ * @property {number} [insights.reach] - Reach count
+ * @property {Date} [insights.last_synced_at] - When insights were last synced
+ */
+
+/**
+ * @typedef {Object} ErrorResponse
+ * @property {string} error - Error message
+ * @property {string} [details] - Additional error details
+ * @property {Object} [debug] - Debugging information
+ * @property {string[]} [debug.available_keys] - Available insight keys
+ * @property {string} [debug.post_status] - Current post status
+ * @property {string} [debug.post_url] - Post URL
+ * @property {string} [debug.hint] - Helpful hint for resolution
+ */
+
+/**
+ * Sync insights for a published social media post
+ * @route POST /admin/social-posts/:id/sync-insights
+ * @group SocialPosts - Operations related to social media posts
+ * @param {string} id.path.required - The ID of the social post to sync insights for
+ * @returns {SyncInsightsResponse} 200 - Successfully synced insights
+ * @throws {ErrorResponse} 400 - Post must be published before syncing insights or no platform post ID found
+ * @throws {ErrorResponse} 404 - Post not found or platform not found
+ * @throws {ErrorResponse} 500 - Failed to sync insights due to server error
+ *
+ * @example request
+ * POST /admin/social-posts/socpst_123456789/sync-insights
+ *
+ * @example response 200
+ * {
+ *   "message": "Insights synced successfully",
+ *   "insights": {
+ *     "likes": 150,
+ *     "comments": 25,
+ *     "shares": 12,
+ *     "impressions": 5000,
+ *     "reach": 3800,
+ *     "last_synced_at": "2023-11-15T14:30:00Z"
+ *   }
+ * }
+ *
+ * @example response 400
+ * {
+ *   "error": "Post must be published before syncing insights"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "error": "Post not found"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "error": "Failed to sync insights",
+ *   "details": "API rate limit exceeded"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"

@@ -1,3 +1,64 @@
+/**
+ * @api {post} /admin/meta-ads/ads/:id/status Update Ad Status
+ * @apiName UpdateAdStatus
+ * @apiGroup Meta Ads
+ * @apiDescription Update the status of a Meta ad (pause or resume)
+ *
+ * @apiParam {String} id Ad ID
+ *
+ * @apiBody {String="ACTIVE","PAUSED"} status New status for the ad
+ *
+ * @apiSuccess {String} message Success message
+ * @apiSuccess {Object} ad Updated ad object
+ *
+ * @apiError (400: Bad Request) {String} message Invalid status provided
+ * @apiError (404: Not Found) {String} message Ad, ad set, campaign, ad account, or platform not found
+ * @apiError (400: Bad Request) {String} message No access token available
+ * @apiError (500: Internal Server Error) {String} message Failed to update ad status
+ *
+ * @apiExample {curl} Example usage:
+ *   curl -X POST "http://localhost:9000/admin/meta-ads/ads/ad_123/status" \
+ *   -H "Content-Type: application/json" \
+ *   -d '{"status": "PAUSED"}'
+ *
+ * @apiExample {javascript} JavaScript example:
+ *   const response = await fetch('http://localhost:9000/admin/meta-ads/ads/ad_123/status', {
+ *     method: 'POST',
+ *     headers: {
+ *       'Content-Type': 'application/json',
+ *     },
+ *     body: JSON.stringify({ status: 'ACTIVE' }),
+ *   });
+ *   const data = await response.json();
+ *   console.log(data);
+ *
+ * @apiExample {typescript} TypeScript example:
+ *   interface UpdateAdStatusResponse {
+ *     message: string;
+ *     ad: any;
+ *   }
+ *
+ *   async function updateAdStatus(adId: string, status: 'ACTIVE' | 'PAUSED'): Promise<UpdateAdStatusResponse> {
+ *     const response = await fetch(`http://localhost:9000/admin/meta-ads/ads/${adId}/status`, {
+ *       method: 'POST',
+ *       headers: {
+ *         'Content-Type': 'application/json',
+ *       },
+ *       body: JSON.stringify({ status }),
+ *     });
+ *
+ *     if (!response.ok) {
+ *       throw new Error(`Failed to update ad status: ${response.statusText}`);
+ *     }
+ *
+ *     return response.json();
+ *   }
+ *
+ *   // Usage
+ *   updateAdStatus('ad_123', 'PAUSED')
+ *     .then(data => console.log(data))
+ *     .catch(error => console.error(error));
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../../modules/socials"
 import SocialsService from "../../../../../../modules/socials/service"

@@ -1,3 +1,41 @@
+/**
+ * @file Admin API route for managing Meta Ads
+ * @module api/admin/meta-ads/ads
+ * @description Provides endpoints for listing and creating Meta ads
+ *
+ * @example
+ * // List all ads
+ * GET /admin/meta-ads/ads
+ *
+ * @example
+ * // List ads with pagination
+ * GET /admin/meta-ads/ads?limit=50&offset=0
+ *
+ * @example
+ * // List ads by ad set ID
+ * GET /admin/meta-ads/ads?ad_set_id=12345
+ *
+ * @example
+ * // List ads by campaign ID
+ * GET /admin/meta-ads/ads?campaign_id=67890
+ *
+ * @example
+ * // List ads by ad account ID
+ * GET /admin/meta-ads/ads?ad_account_id=act_123456789
+ *
+ * @example
+ * // Create an ad
+ * POST /admin/meta-ads/ads
+ * {
+ *   "name": "Summer Collection Ad",
+ *   "ad_set_id": "12345",
+ *   "creative": {
+ *     "image_url": "https://example.com/image.jpg",
+ *     "title": "Summer Collection",
+ *     "body": "Check out our new summer collection!"
+ *   }
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"

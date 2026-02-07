@@ -13,7 +13,7 @@ import { RowSelectionState } from "@tanstack/react-table"
 import { useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { ConditionalTooltip } from "../../../../../components/common/conditional-tooltip"
 import { DataTable } from "../../../../../components/data-table"

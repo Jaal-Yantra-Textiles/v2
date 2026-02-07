@@ -1,3 +1,267 @@
+/**
+ * @file Admin API route for Meta Ads overview
+ * @description Provides endpoints for retrieving Meta Ads insights and analytics
+ * @module API/Admin/MetaAds
+ */
+
+/**
+ * @typedef {Object} MetaAdsOverviewQuery
+ * @property {string} platform_id - The ID of the social platform
+ * @property {string} ad_account_id - The Meta Ads account ID
+ * @property {"account" | "campaign" | "adset" | "ad"} [level="account"] - The level of insights to retrieve
+ * @property {string} [object_id] - The ID of the specific campaign, adset, or ad (required when level is not "account")
+ * @property {string} [date_preset="last_30d"] - The date range preset (last_7d, last_14d, last_30d, last_90d, maximum)
+ * @property {number} [time_increment=1] - The time increment for the insights
+ * @property {boolean} [include_audience=true] - Whether to include audience breakdowns
+ * @property {boolean} [include_content=true] - Whether to include content breakdowns
+ * @property {boolean} [persist=false] - Whether to persist the insights to the database
+ * @property {"auto" | "force" | "never"} [refresh="auto"] - The refresh strategy for the insights
+ * @property {number} [max_age_minutes=60] - The maximum age of cached insights in minutes
+ */
+
+/**
+ * @typedef {Object} InsightRow
+ * @property {string} [date_start] - The start date of the insight period
+ * @property {string} [date_stop] - The end date of the insight period
+ * @property {number} [impressions] - The number of impressions
+ * @property {number} [reach] - The number of unique users reached
+ * @property {number} [clicks] - The number of clicks
+ * @property {number} [spend] - The amount spent
+ * @property {number} [ctr] - The click-through rate
+ * @property {number} [cpc] - The cost per click
+ * @property {number} [cpm] - The cost per thousand impressions
+ * @property {Array<{action_type?: string, value?: string | number}>} [actions] - The actions taken
+ * @property {string} [age] - The age group
+ * @property {string} [gender] - The gender
+ * @property {string} [country] - The country
+ * @property {string} [region] - The region
+ * @property {string} [publisher_platform] - The publisher platform
+ * @property {string} [platform_position] - The platform position
+ * @property {string} [device_platform] - The device platform
+ * @property {string} [campaign_id] - The campaign ID
+ * @property {string} [adset_id] - The adset ID
+ * @property {string} [ad_id] - The ad ID
+ */
+
+/**
+ * @typedef {Object} AggregateTotals
+ * @property {number} impressions - The total number of impressions
+ * @property {number} reach - The total number of unique users reached
+ * @property {number} clicks - The total number of clicks
+ * @property {number} spend - The total amount spent
+ * @property {number} ctr - The click-through rate
+ * @property {number} cpc - The cost per click
+ * @property {number} cpm - The cost per thousand impressions
+ */
+
+/**
+ * @typedef {Object} BreakdownGroup
+ * @property {Record<string, string>} key - The breakdown key
+ * @property {AggregateTotals} totals - The aggregated totals for the group
+ * @property {Record<string, number>} results - The aggregated results for the group
+ */
+
+/**
+ * @typedef {Object} MetaAdsOverviewResponse
+ * @property {Object} scope - The scope of the insights
+ * @property {string} scope.platform_id - The ID of the social platform
+ * @property {string} scope.ad_account_id - The Meta Ads account ID
+ * @property {"account" | "campaign" | "adset" | "ad"} scope.level - The level of insights
+ * @property {string} [scope.object_id] - The ID of the specific campaign, adset, or ad
+ * @property {string} scope.date_preset - The date range preset
+ * @property {number} scope.time_increment - The time increment for the insights
+ * @property {string} [scope.last_synced_at] - The last synced timestamp
+ * @property {AggregateTotals} totals - The aggregated totals
+ * @property {Record<string, number>} results - The aggregated results
+ * @property {Object} [audience] - The audience breakdowns
+ * @property {BreakdownGroup[]} [audience.by_age_gender] - The breakdown by age and gender
+ * @property {BreakdownGroup[]} [audience.by_country] - The breakdown by country
+ * @property {Object} [content] - The content breakdowns
+ * @property {BreakdownGroup[]} [content.by_publisher_platform] - The breakdown by publisher platform
+ * @property {BreakdownGroup[]} [content.by_platform_position] - The breakdown by platform position
+ * @property {BreakdownGroup[]} [content.by_device_platform] - The breakdown by device platform
+ * @property {Object} capabilities - The capabilities of the endpoint
+ * @property {Object} capabilities.remote_ad_creation - The remote ad creation capability
+ * @property {boolean} capabilities.remote_ad_creation.supported - Whether remote ad creation is supported
+ * @property {Object} persistence - The persistence statistics
+ * @property {boolean} persistence.enabled - Whether persistence is enabled
+ * @property {number} persistence.created - The number of insights created
+ * @property {number} persistence.updated - The number of insights updated
+ * @property {number} persistence.errors - The number of persistence errors
+ * @property {"db" | "meta"} data_source - The source of the data
+ */
+
+/**
+ * Get Meta Ads overview insights
+ * @route GET /admin/meta-ads/overview
+ * @group MetaAds - Operations related to Meta Ads
+ * @param {string} platform_id.query.required - The ID of the social platform
+ * @param {string} ad_account_id.query.required - The Meta Ads account ID
+ * @param {"account" | "campaign" | "adset" | "ad"} [level="account"].query - The level of insights to retrieve
+ * @param {string} [object_id].query - The ID of the specific campaign, adset, or ad (required when level is not "account")
+ * @param {string} [date_preset="last_30d"].query - The date range preset (last_7d, last_14d, last_30d, last_90d, maximum)
+ * @param {number} [time_increment=1].query - The time increment for the insights
+ * @param {boolean} [include_audience=true].query - Whether to include audience breakdowns
+ * @param {boolean} [include_content=true].query - Whether to include content breakdowns
+ * @param {boolean} [persist=false].query - Whether to persist the insights to the database
+ * @param {"auto" | "force" | "never"} [refresh="auto"].query - The refresh strategy for the insights
+ * @param {number} [max_age_minutes=60].query - The maximum age of cached insights in minutes
+ * @returns {MetaAdsOverviewResponse} 200 - Meta Ads overview insights
+ * @throws {MedusaError} 400 - Invalid input data
+ * @throws {MedusaError} 401 - Unauthorized
+ * @throws {MedusaError} 404 - Platform not found
+ *
+ * @example request
+ * GET /admin/meta-ads/overview?platform_id=web_123&ad_account_id=act_123456789&level=account&date_preset=last_30d&time_increment=1&include_audience=true&include_content=true&persist=false&refresh=auto&max_age_minutes=60
+ *
+ * @example response 200
+ * {
+ *   "scope": {
+ *     "platform_id": "web_123",
+ *     "ad_account_id": "act_123456789",
+ *     "level": "account",
+ *     "date_preset": "last_30d",
+ *     "time_increment": 1,
+ *     "last_synced_at": "2023-01-01T00:00:00Z"
+ *   },
+ *   "totals": {
+ *     "impressions": 10000,
+ *     "reach": 8000,
+ *     "clicks": 500,
+ *     "spend": 100,
+ *     "ctr": 5,
+ *     "cpc": 0.2,
+ *     "cpm": 10
+ *   },
+ *   "results": {
+ *     "link_click": 500,
+ *     "post_reaction": 100,
+ *     "post_comment": 50
+ *   },
+ *   "audience": {
+ *     "by_age_gender": [
+ *       {
+ *         "key": {
+ *           "age": "25-34",
+ *           "gender": "male"
+ *         },
+ *         "totals": {
+ *           "impressions": 5000,
+ *           "reach": 4000,
+ *           "clicks": 250,
+ *           "spend": 50,
+ *           "ctr": 5,
+ *           "cpc": 0.2,
+ *           "cpm": 10
+ *         },
+ *         "results": {
+ *           "link_click": 250,
+ *           "post_reaction": 50,
+ *           "post_comment": 25
+ *         }
+ *       }
+ *     ],
+ *     "by_country": [
+ *       {
+ *         "key": {
+ *           "country": "US"
+ *         },
+ *         "totals": {
+ *           "impressions": 8000,
+ *           "reach": 6400,
+ *           "clicks": 400,
+ *           "spend": 80,
+ *           "ctr": 5,
+ *           "cpc": 0.2,
+ *           "cpm": 10
+ *         },
+ *         "results": {
+ *           "link_click": 400,
+ *           "post_reaction": 80,
+ *           "post_comment": 40
+ *         }
+ *       }
+ *     ]
+ *   },
+ *   "content": {
+ *     "by_publisher_platform": [
+ *       {
+ *         "key": {
+ *           "publisher_platform": "facebook"
+ *         },
+ *         "totals": {
+ *           "impressions": 6000,
+ *           "reach": 4800,
+ *           "clicks": 300,
+ *           "spend": 60,
+ *           "ctr": 5,
+ *           "cpc": 0.2,
+ *           "cpm": 10
+ *         },
+ *         "results": {
+ *           "link_click": 300,
+ *           "post_reaction": 60,
+ *           "post_comment": 30
+ *         }
+ *       }
+ *     ],
+ *     "by_platform_position": [
+ *       {
+ *         "key": {
+ *           "platform_position": "feed"
+ *         },
+ *         "totals": {
+ *           "impressions": 7000,
+ *           "reach": 5600,
+ *           "clicks": 350,
+ *           "spend": 70,
+ *           "ctr": 5,
+ *           "cpc": 0.2,
+ *           "cpm": 10
+ *         },
+ *         "results": {
+ *           "link_click": 350,
+ *           "post_reaction": 70,
+ *           "post_comment": 35
+ *         }
+ *       }
+ *     ],
+ *     "by_device_platform": [
+ *       {
+ *         "key": {
+ *           "device_platform": "mobile"
+ *         },
+ *         "totals": {
+ *           "impressions": 9000,
+ *           "reach": 7200,
+ *           "clicks": 450,
+ *           "spend": 90,
+ *           "ctr": 5,
+ *           "cpc": 0.2,
+ *           "cpm": 10
+ *         },
+ *         "results": {
+ *           "link_click": 450,
+ *           "post_reaction": 90,
+ *           "post_comment": 45
+ *         }
+ *       }
+ *     ]
+ *   },
+ *   "capabilities": {
+ *     "remote_ad_creation": {
+ *       "supported": false
+ *     }
+ *   },
+ *   "persistence": {
+ *     "enabled": false,
+ *     "created": 0,
+ *     "updated": 0,
+ *     "errors": 0
+ *   },
+ *   "data_source": "meta"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"

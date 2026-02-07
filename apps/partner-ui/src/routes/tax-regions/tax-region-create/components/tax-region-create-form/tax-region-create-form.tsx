@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { InformationCircleSolid } from "@medusajs/icons"
 import { Button, Heading, Input, Text, toast, Tooltip } from "@medusajs/ui"

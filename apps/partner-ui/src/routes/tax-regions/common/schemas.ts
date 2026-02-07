@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { TaxRateRuleReferenceType } from "./constants"
 
 export const TaxRateRuleReferenceSchema = z.object({

@@ -1,3 +1,62 @@
+/**
+ * @route POST /admin/websites/:id/pages/:pageId/blocks
+ * @description Create blocks for a specific page
+ * @body {CreateBlocksSchema | BlockSchema} - Either a single block or batch of blocks
+ * @param {string} pageId - The ID of the page to create blocks for
+ * @returns {Object} - Response with created blocks or errors
+ * @example
+ * // Create a single block
+ * POST /admin/websites/123/pages/456/blocks
+ * {
+ *   "type": "text",
+ *   "content": "Hello World",
+ *   "position": 1
+ * }
+ * @example
+ * // Create multiple blocks
+ * POST /admin/websites/123/pages/456/blocks
+ * {
+ *   "blocks": [
+ *     {
+ *       "type": "text",
+ *       "content": "First block",
+ *       "position": 1
+ *     },
+ *     {
+ *       "type": "image",
+ *       "url": "/path/to/image.jpg",
+ *       "position": 2
+ *     }
+ *   ]
+ * }
+ * @response 201 - All blocks created successfully
+ * @response 207 - Some blocks created, some failed
+ * @response 400 - Failed to create blocks
+ */
+
+/**
+ * @route GET /admin/websites/:id/pages/:pageId/blocks
+ * @description List blocks for a specific page
+ * @param {string} pageId - The ID of the page to list blocks for
+ * @query {Object} - Optional query parameters for pagination and filtering
+ * @returns {Object} - Response with blocks, count, offset, and limit
+ * @example
+ * GET /admin/websites/123/pages/456/blocks?offset=0&limit=10
+ * @response 200 - List of blocks
+ * {
+ *   "blocks": [
+ *     {
+ *       "id": "1",
+ *       "type": "text",
+ *       "content": "Hello World",
+ *       "position": 1
+ *     }
+ *   ],
+ *   "count": 1,
+ *   "offset": 0,
+ *   "limit": 10
+ * }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import {
   createBlockWorkflow,

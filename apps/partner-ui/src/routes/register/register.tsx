@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { Link } from "react-router-dom"
 import { useNavigate } from "react-router-dom"
-import * as z from "zod"
+import { z as z } from "@medusajs/framework/zod"
 
 import { Form } from "../../components/common/form"
 import AvatarBox from "../../components/common/logo-box/avatar-box"

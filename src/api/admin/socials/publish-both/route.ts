@@ -1,3 +1,164 @@
+/**
+ * @file Admin API route for publishing social posts to both Facebook and Instagram
+ * @description Provides a deprecated endpoint for publishing social content to both Facebook and Instagram platforms simultaneously
+ * @module API/Admin/Socials
+ * @deprecated This module is deprecated. Use the new unified publishing endpoint instead.
+ */
+
+/**
+ * @typedef {Object} PublishBothRequest
+ * @property {string} post_id.required - The ID of the social post to publish
+ */
+
+/**
+ * @typedef {Object} PublishResult
+ * @property {boolean} success - Whether the publication was successful
+ * @property {string} [postId] - The ID of the created post on the platform
+ * @property {string} [permalink] - The permanent URL to the published post
+ * @property {string} [error] - Error message if publication failed
+ * @property {string} platform - The platform name ("facebook" or "instagram")
+ */
+
+/**
+ * @typedef {Object} SocialPost
+ * @property {string} id - The unique identifier of the social post
+ * @property {string} status - The status of the post (e.g., "posted", "failed")
+ * @property {string} [post_url] - URL to the published post
+ * @property {Date} [posted_at] - When the post was published
+ * @property {Object} [insights] - Analytics and metadata about the post
+ * @property {string} [error_message] - Error message if publishing failed
+ * @property {string} caption - The caption/content of the post
+ * @property {Array<Object>} media_attachments - Media files attached to the post
+ * @property {Object} platform - The platform configuration
+ * @property {Object} metadata - Additional metadata including target accounts
+ */
+
+/**
+ * @typedef {Object} PublishBothResponse
+ * @property {boolean} success - Whether all publications were successful
+ * @property {SocialPost} post - The updated social post object
+ * @property {Object} results - Publication results for each platform
+ * @property {PublishResult} results.facebook - Facebook publication result
+ * @property {PublishResult} results.instagram - Instagram publication result
+ * @property {Object} _deprecation - Deprecation information
+ * @property {string} _deprecation.message - Deprecation warning message
+ * @property {string} _deprecation.sunset_date - When the endpoint will be removed (ISO date)
+ * @property {string} _deprecation.alternative - Recommended alternative endpoint
+ */
+
+/**
+ * Publish a social post to both Facebook and Instagram
+ * @route POST /admin/socials/publish-both
+ * @group Socials - Operations related to social media publishing
+ * @deprecated This endpoint is deprecated. Use POST /admin/social-posts/:id/publish instead.
+ * @param {PublishBothRequest} request.body.required - Post ID to publish
+ * @returns {PublishBothResponse} 200 - Publication results for both platforms
+ * @throws {MedusaError} 400 - Invalid input data (missing post_id, invalid platform, etc.)
+ * @throws {MedusaError} 404 - Social post not found
+ * @throws {MedusaError} 500 - Publishing failed due to server error
+ *
+ * @example request
+ * POST /admin/socials/publish-both
+ * {
+ *   "post_id": "spost_123456789"
+ * }
+ *
+ * @example response 200
+ * {
+ *   "success": true,
+ *   "post": {
+ *     "id": "spost_123456789",
+ *     "status": "posted",
+ *     "post_url": "https://www.facebook.com/123456789",
+ *     "posted_at": "2023-01-01T00:00:00Z",
+ *     "insights": {
+ *       "facebook_post_id": "123456789",
+ *       "instagram_media_id": "987654321",
+ *       "instagram_permalink": "https://www.instagram.com/p/ABC123",
+ *       "publish_results": [
+ *         {
+ *           "platform": "facebook",
+ *           "success": true,
+ *           "postId": "123456789"
+ *         },
+ *         {
+ *           "platform": "instagram",
+ *           "success": true,
+ *           "postId": "987654321",
+ *           "permalink": "https://www.instagram.com/p/ABC123"
+ *         }
+ *       ],
+ *       "published_at": "2023-01-01T00:00:00Z"
+ *     },
+ *     "caption": "Check out our new product!",
+ *     "media_attachments": [
+ *       {
+ *         "type": "image",
+ *         "url": "https://example.com/image.jpg"
+ *       }
+ *     ],
+ *     "platform": {
+ *       "name": "Facebook & Instagram",
+ *       "api_config": {
+ *         "access_token": "EAACEdEose0cBA..."
+ *       }
+ *     },
+ *     "metadata": {
+ *       "page_id": "123456789",
+ *       "ig_user_id": "987654321",
+ *       "publish_target": "both"
+ *     }
+ *   },
+ *   "results": {
+ *     "facebook": {
+ *       "success": true,
+ *       "postId": "123456789",
+ *       "platform": "facebook"
+ *     },
+ *     "instagram": {
+ *       "success": true,
+ *       "postId": "987654321",
+ *       "permalink": "https://www.instagram.com/p/ABC123",
+ *       "platform": "instagram"
+ *     }
+ *   },
+ *   "_deprecation": {
+ *     "message": "This endpoint is deprecated. Use POST /admin/social-posts/:id/publish instead.",
+ *     "sunset_date": "2023-04-01T00:00:00Z",
+ *     "alternative": "POST /admin/social-posts/:id/publish"
+ *   }
+ * }
+ *
+ * @example response 400
+ * {
+ *   "message": "post_id is required",
+ *   "type": "invalid_argument"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "message": "Social post spost_123456789 not found",
+ *   "type": "not_found"
+ * }
+ *
+ * @example response 400 (invalid platform)
+ * {
+ *   "message": "Platform Twitter is not supported for dual publishing. Use FBINSTA platform.",
+ *   "type": "invalid_data"
+ * }
+ *
+ * @example response 400 (missing credentials)
+ * {
+ *   "message": "No access token found in platform configuration. Please re-authenticate.",
+ *   "type": "invalid_data"
+ * }
+ *
+ * @example response 400 (unsupported content type)
+ * {
+ *   "message": "Text-only posts are not supported on Instagram. Please add media.",
+ *   "type": "invalid_data"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"

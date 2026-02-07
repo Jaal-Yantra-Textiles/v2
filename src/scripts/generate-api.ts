@@ -80,7 +80,7 @@ export const refetch${pascalModel} = async (
 
 // --- Template for validators.ts ---
 const getValidatorsTemplate = (pascalModel: string) => {
-  return `import { z } from "zod";
+  return `import { z } from "@medusajs/framework/zod";
 
 // TODO: Define the Zod schema based on the ${pascalModel} model
 export const ${pascalModel}Schema = z.object({

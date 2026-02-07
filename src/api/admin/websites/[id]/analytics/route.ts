@@ -1,3 +1,30 @@
+/**
+ * Example usage:
+ *
+ * // Get analytics for website "web_123" over last 30 days (default)
+ * GET /admin/websites/web_123/analytics
+ *
+ * // Get analytics for website "web_123" over last 7 days
+ * GET /admin/websites/web_123/analytics?days=7
+ *
+ * // Get analytics for website "web_123" over last 90 days
+ * GET /admin/websites/web_123/analytics?days=90
+ *
+ * Response structure:
+ * {
+ *   website: {
+ *     id: string,
+ *     name: string,
+ *     // ... other website fields
+ *   },
+ *   analytics: {
+ *     total_visits: number,
+ *     unique_visitors: number,
+ *     conversion_rate: number,
+ *     // ... other analytics metrics
+ *   }
+ * }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { getWebsiteAnalyticsOverviewWorkflow } from "../../../../../workflows/analytics/get-website-analytics-overview";
 

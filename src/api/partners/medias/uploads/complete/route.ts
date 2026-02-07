@@ -1,3 +1,71 @@
+/**
+ * @file Partner API route for completing multipart media uploads
+ * @description Provides an endpoint for partners to finalize multipart uploads to S3 or configured file service
+ * @module API/Partners/MediaUploads
+ */
+
+/**
+ * @typedef {Object} CompleteMultipartUploadBody
+ * @property {string} uploadId.required - The AWS S3 multipart upload ID
+ * @property {string} key.required - The object key/path in the storage bucket
+ * @property {Array<Part>} parts.required - Array of uploaded parts with their ETags
+ * @property {string} name.required - The original filename
+ * @property {string} type.required - The MIME type of the uploaded file
+ * @property {number} size.required - The total file size in bytes
+ * @property {Object} [metadata] - Optional metadata to associate with the file
+ */
+
+/**
+ * @typedef {Object} Part
+ * @property {number} PartNumber.required - The part number (1-based index)
+ * @property {string} ETag.required - The ETag returned from the part upload
+ */
+
+/**
+ * @typedef {Object} CompleteUploadResponse
+ * @property {string} message - Success message
+ * @property {Object} s3 - S3 upload details
+ * @property {string} s3.location - The public URL of the uploaded file
+ * @property {string} s3.key - The storage key of the uploaded file
+ */
+
+/**
+ * Complete a multipart upload
+ * @route POST /partners/medias/uploads/complete
+ * @group MediaUploads - Operations related to media uploads
+ * @param {CompleteMultipartUploadBody} request.body.required - Multipart upload completion data
+ * @returns {CompleteUploadResponse} 200 - Upload completion details
+ * @throws {MedusaError} 400 - Missing required fields or invalid data
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 500 - Unexpected error while completing upload
+ *
+ * @example request
+ * POST /partners/medias/uploads/complete
+ * {
+ *   "uploadId": "VXBsb2FkIElEIGZvciB3b3JrZmxvd18wMDAwMDAwMDAwMDAwMDAwMDAwMDAw",
+ *   "key": "partners/12345/products/image.jpg",
+ *   "parts": [
+ *     { "PartNumber": 1, "ETag": "\"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4\"" },
+ *     { "PartNumber": 2, "ETag": "\"b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5\"" }
+ *   ],
+ *   "name": "product-image.jpg",
+ *   "type": "image/jpeg",
+ *   "size": 1048576,
+ *   "metadata": {
+ *     "productId": "prod_12345",
+ *     "altText": "Product showcase image"
+ *   }
+ * }
+ *
+ * @example response 200
+ * {
+ *   "message": "Upload completed",
+ *   "s3": {
+ *     "location": "https://cdn.example.com/partners/12345/products/image.jpg",
+ *     "key": "partners/12345/products/image.jpg"
+ *   }
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CompleteMultipartUploadCommand } from "@aws-sdk/client-s3"

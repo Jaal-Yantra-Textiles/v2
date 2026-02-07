@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { interpolateVariables, interpolateString } from "./utils"
 import { VISUAL_FLOWS_MODULE } from "../index"

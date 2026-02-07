@@ -1,3 +1,98 @@
+/**
+ * Visual Flows Metadata API
+ *
+ * This API endpoint provides comprehensive metadata about the Medusa e-commerce platform
+ * that can be used to build visual workflow automation flows.
+ *
+ * The metadata includes:
+ * - Available entities (database models) that can be queried
+ * - Registered workflows and their steps
+ * - System events that can trigger flows
+ * - Other flows that can be triggered
+ * - Data chain variables for expression interpolation
+ *
+ * Example Usage:
+ *
+ * 1. Get all metadata:
+ *    GET /admin/visual-flows/metadata
+ *
+ * 2. Use metadata to build a flow:
+ *    - Find queryable entities to use as data sources
+ *    - Discover available workflows to execute
+ *    - Identify events to trigger flows
+ *    - Reference other flows that can be triggered
+ *
+ * 3. Data chain variables in expressions:
+ *    - "{{ $trigger.user_id }}" - Access trigger payload
+ *    - "{{ $last.records[0].id }}" - Access previous operation output
+ *    - "{{ $input.customer_name }}" - Access any data chain value
+ *    - "{{ $env.API_KEY }}" - Access environment variables
+ *
+ * 4. Conditional expressions:
+ *    - "{{ $last.count > 0 ? 'yes' : 'no' }}"
+ *    - "{{ $trigger.status === 'completed' }}"
+ *
+ * Response Structure:
+ * {
+ *   entities: EntityMetadata[] - All available entities with query capabilities
+ *   workflows: WorkflowMetadata[] - All registered workflows
+ *   registeredModules: string[] - All module names
+ *   events: EventMetadata[] - All system events
+ *   triggerableFlows: TriggerableFlow[] - Flows that can be triggered
+ *   dataChainVariables: { name: string, description: string }[] - Special variables
+ *   interpolationSyntax: { variable: string, nested: string, expression: string } - Syntax examples
+ * }
+ *
+ * EntityMetadata:
+ * {
+ *   name: string - Entity name (e.g., "products")
+ *   type: "core" | "custom" - Module type
+ *   description: string - Human-readable description
+ *   queryable: boolean - Can be queried via query.graph
+ *   queryError?: string - Error if not queryable
+ *   moduleName?: string - Container registration name
+ *   fields?: FieldMetadata[] - Available fields for filtering
+ * }
+ *
+ * FieldMetadata:
+ * {
+ *   name: string - Field name
+ *   type: string - Field type (string, number, boolean, etc.)
+ *   filterable?: boolean - Can be used in filters
+ * }
+ *
+ * WorkflowMetadata:
+ * {
+ *   name: string - Workflow name
+ *   description: string - Human-readable description
+ *   category: string - Workflow category
+ *   steps?: string[] - Step names
+ *   requiredModules?: string[] - Required modules
+ *   optionalModules?: string[] - Optional modules
+ *   isScheduled?: boolean - Is scheduled workflow
+ * }
+ *
+ * EventMetadata:
+ * {
+ *   name: string - Event name
+ *   description: string - Human-readable description
+ *   category: string - Event category
+ *   subscriberCount?: number - Number of subscribers
+ * }
+ *
+ * TriggerableFlow:
+ * {
+ *   id: string - Flow ID
+ *   name: string - Flow name
+ *   description?: string - Flow description
+ *   trigger_type: string - Trigger type
+ *   status: string - Flow status
+ * }
+ *
+ * Debugging:
+ * Set VISUAL_FLOWS_METADATA_DEBUG=true environment variable to enable detailed logging
+ * of module discovery, entity query testing, and workflow extraction.
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { WorkflowManager } from "@medusajs/orchestration"

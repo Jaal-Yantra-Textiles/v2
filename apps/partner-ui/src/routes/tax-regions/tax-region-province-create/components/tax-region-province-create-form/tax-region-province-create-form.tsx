@@ -4,7 +4,7 @@ import { HttpTypes } from "@medusajs/types"
 import { Button, Heading, Input, Text, toast, Tooltip } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { Form } from "../../../../../components/common/form"
 import { SwitchBox } from "../../../../../components/common/switch-box"

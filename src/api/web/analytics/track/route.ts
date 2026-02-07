@@ -1,3 +1,80 @@
+/**
+ * @file Web Analytics API route for tracking events
+ * @description Provides endpoints for tracking pageviews and custom events in the JYT Commerce platform
+ * @module API/Web/Analytics
+ */
+
+/**
+ * @typedef {Object} TrackEventRequest
+ * @property {string} website_id - The ID of the website where the event occurred
+ * @property {string} event_type - Type of event being tracked (pageview or custom_event)
+ * @property {string} [event_name] - Name of the custom event (required if event_type is custom_event)
+ * @property {string} pathname - The page path where the event occurred (e.g., /about)
+ * @property {string} [referrer] - The referrer URL
+ * @property {string} visitor_id - Hashed visitor identifier (generated client-side)
+ * @property {string} session_id - Session identifier (generated client-side)
+ * @property {string} [query_string] - Query string from the URL
+ * @property {boolean} [is_404=false] - Whether this is a 404 page
+ * @property {string} [utm_source] - UTM source parameter
+ * @property {string} [utm_medium] - UTM medium parameter
+ * @property {string} [utm_campaign] - UTM campaign parameter
+ * @property {string} [utm_term] - UTM term parameter
+ * @property {string} [utm_content] - UTM content parameter
+ * @property {Object} [metadata] - Additional metadata for the event
+ */
+
+/**
+ * @typedef {Object} TrackEventResponse
+ * @property {boolean} success - Whether the event was tracked successfully
+ * @property {string} message - Status message about the tracking
+ */
+
+/**
+ * Track a pageview or custom event for analytics
+ * @route POST /web/analytics/track
+ * @group Analytics - Operations related to analytics tracking
+ * @param {TrackEventRequest} request.body.required - Event data to track
+ * @returns {TrackEventResponse} 200 - Event tracked successfully
+ * @throws {MedusaError} 400 - Invalid request data
+ *
+ * @example request
+ * POST /web/analytics/track
+ * {
+ *   "website_id": "web_123456789",
+ *   "event_type": "pageview",
+ *   "pathname": "/products/shoes",
+ *   "visitor_id": "vis_abc123def456",
+ *   "session_id": "ses_789ghi012jkl",
+ *   "referrer": "https://google.com",
+ *   "utm_source": "google",
+ *   "utm_medium": "cpc",
+ *   "metadata": {
+ *     "device_type": "mobile",
+ *     "screen_resolution": "1920x1080"
+ *   }
+ * }
+ *
+ * @example response 200
+ * {
+ *   "success": true,
+ *   "message": "Event tracked"
+ * }
+ *
+ * @example request - Custom Event
+ * POST /web/analytics/track
+ * {
+ *   "website_id": "web_123456789",
+ *   "event_type": "custom_event",
+ *   "event_name": "add_to_cart",
+ *   "pathname": "/products/shoes",
+ *   "visitor_id": "vis_abc123def456",
+ *   "session_id": "ses_789ghi012jkl",
+ *   "metadata": {
+ *     "product_id": "prod_123",
+ *     "quantity": 1
+ *   }
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { z } from "zod";
 import { trackAnalyticsEventWorkflow } from "../../../../workflows/analytics/track-analytics-event";

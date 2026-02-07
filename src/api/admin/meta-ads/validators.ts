@@ -1,4 +1,4 @@
-import * as z from "zod"
+import { z as z } from "zod"
 
 // Lead status enum
 export const LeadStatusEnum = z.enum([

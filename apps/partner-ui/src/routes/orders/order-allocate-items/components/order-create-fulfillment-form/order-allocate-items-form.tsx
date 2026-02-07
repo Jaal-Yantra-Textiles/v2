@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { AdminOrder, InventoryItemDTO, OrderLineItemDTO } from "@medusajs/types"
 import { Alert, Button, Heading, Input, Select, toast } from "@medusajs/ui"

@@ -3,7 +3,7 @@ import { Alert, Button, Heading, Hint, Input, Text } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { Trans, useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import * as z from "zod"
+import { z as z } from "@medusajs/framework/zod"
 
 import { Form } from "../../components/common/form"
 import AvatarBox from "../../components/common/logo-box/avatar-box"

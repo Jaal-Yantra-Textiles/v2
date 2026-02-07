@@ -1,6 +1,6 @@
 import { Heading, Input, Select, clx } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { HttpTypes } from "@medusajs/types"
 import { Control } from "react-hook-form"

@@ -1,5 +1,5 @@
-import { z } from "zod"
-import * as zod from "zod"
+import { z } from "@medusajs/framework/zod"
+import { z as zod } from "@medusajs/framework/zod"
 import { optionalInt } from "../../../../../lib/validation"
 
 export const CreateProductVariantSchema = z.object({

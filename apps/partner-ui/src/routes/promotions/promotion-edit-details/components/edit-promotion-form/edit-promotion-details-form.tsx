@@ -4,7 +4,7 @@ import { Button, CurrencyInput, Input, RadioGroup, Text } from "@medusajs/ui"
 import { useForm, useWatch } from "react-hook-form"
 import { Trans, useTranslation } from "react-i18next"
 import { useEffect } from "react"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { Form } from "../../../../../components/common/form"
 import { DeprecatedPercentageInput } from "../../../../../components/inputs/percentage-input"

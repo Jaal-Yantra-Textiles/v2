@@ -1,3 +1,55 @@
+/**
+ * @file Partner API route for initiating multipart media uploads
+ * @description Provides endpoints for partners to initiate multipart uploads for media files in the JYT Commerce platform
+ * @module API/Partners/MediaUploads
+ */
+
+/**
+ * @typedef {Object} InitiateUploadRequest
+ * @property {string} name.required - The original filename including extension
+ * @property {string} type.required - The MIME type of the file
+ * @property {number} size.required - The size of the file in bytes
+ * @property {string} [access=public] - The access level for the uploaded file (public/private)
+ * @property {string} [folderPath] - Optional folder path for organizing files
+ */
+
+/**
+ * @typedef {Object} InitiateUploadResponse
+ * @property {string} uploadId - The unique identifier for the multipart upload session
+ * @property {string} key - The generated object key for the file in storage
+ * @property {string} bucket - The storage bucket name
+ * @property {string} region - The storage region
+ * @property {number} partSize - The recommended part size for upload chunks in bytes
+ */
+
+/**
+ * Initiate a multipart upload for media files
+ * @route POST /partners/medias/uploads/initiate
+ * @group MediaUploads - Operations related to media file uploads
+ * @param {InitiateUploadRequest} request.body.required - Upload initiation parameters
+ * @returns {InitiateUploadResponse} 200 - Multipart upload session details
+ * @throws {MedusaError} 400 - Invalid input data (missing required fields)
+ * @throws {MedusaError} 401 - Unauthorized (partner authentication required)
+ * @throws {MedusaError} 500 - Unexpected error during upload initiation
+ *
+ * @example request
+ * POST /partners/medias/uploads/initiate
+ * {
+ *   "name": "product_image.jpg",
+ *   "type": "image/jpeg",
+ *   "size": 2048576,
+ *   "access": "public"
+ * }
+ *
+ * @example response 200
+ * {
+ *   "uploadId": "abc123def456ghi789",
+ *   "key": "product_image-7a2b3c4d.jpg",
+ *   "bucket": "jyt-commerce-media",
+ *   "region": "us-east-1",
+ *   "partSize": 8388608
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CreateMultipartUploadCommand } from "@aws-sdk/client-s3"

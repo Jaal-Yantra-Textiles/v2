@@ -1,3 +1,84 @@
+/**
+ * @file Admin API route for syncing Meta Ads campaigns
+ * @description Provides endpoints for synchronizing Meta Ads campaigns, ad sets, and ads with the JYT Commerce platform
+ * @module API/Admin/MetaAds/Campaigns
+ */
+
+/**
+ * @typedef {Object} MetaAdsSyncRequest
+ * @property {string} ad_account_id.required - The Meta Ads account ID (either internal ID or meta_account_id like "act_123456")
+ * @property {boolean} [include_insights=false] - Whether to fetch campaign insights (default: false)
+ */
+
+/**
+ * @typedef {Object} MetaAdsSyncResult
+ * @property {number} campaigns_created - Number of campaigns created
+ * @property {number} campaigns_updated - Number of campaigns updated
+ * @property {number} adsets_created - Number of ad sets created
+ * @property {number} adsets_updated - Number of ad sets updated
+ * @property {number} ads_created - Number of ads created
+ * @property {number} ads_updated - Number of ads updated
+ * @property {number} errors - Number of errors encountered during sync
+ */
+
+/**
+ * @typedef {Object} MetaAdsSyncResponse
+ * @property {string} message - Summary message of the sync operation
+ * @property {Object} results - Detailed sync results
+ * @property {number} results.created - Total number of entities created
+ * @property {number} results.updated - Total number of entities updated
+ * @property {MetaAdsSyncResult} results - Detailed breakdown of sync results
+ */
+
+/**
+ * Sync Meta Ads campaigns, ad sets, and ads
+ * @route POST /admin/meta-ads/campaigns/sync
+ * @group Meta Ads - Operations related to Meta Ads integration
+ * @param {MetaAdsSyncRequest} request.body.required - Sync parameters
+ * @returns {MetaAdsSyncResponse} 200 - Sync operation results
+ * @throws {MedusaError} 400 - Missing required parameters or invalid access token
+ * @throws {MedusaError} 404 - Ad account or platform not found
+ * @throws {MedusaError} 500 - Internal server error during sync
+ *
+ * @example request
+ * POST /admin/meta-ads/campaigns/sync
+ * {
+ *   "ad_account_id": "act_123456789",
+ *   "include_insights": true
+ * }
+ *
+ * @example response 200
+ * {
+ *   "message": "Synced 5 campaigns, 12 ad sets, 20 ads",
+ *   "results": {
+ *     "created": 8,
+ *     "updated": 29,
+ *     "campaigns_created": 2,
+ *     "campaigns_updated": 3,
+ *     "adsets_created": 3,
+ *     "adsets_updated": 9,
+ *     "ads_created": 3,
+ *     "ads_updated": 17,
+ *     "errors": 0
+ *   }
+ * }
+ *
+ * @example response 400
+ * {
+ *   "message": "ad_account_id is required"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "message": "Ad account not found. Please sync ad accounts first."
+ * }
+ *
+ * @example response 500
+ * {
+ *   "message": "Failed to sync campaigns",
+ *   "error": "Internal server error details"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"

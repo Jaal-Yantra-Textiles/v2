@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const CreateFulfillmentSchema = z.object({
   quantity: z.record(z.string(), z.number()),

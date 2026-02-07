@@ -1,13 +1,14 @@
 import { Button, CommandBar, Container, Heading, Text, Tooltip, clx, toast } from "@medusajs/ui";
 import { AdminMediaFolder, MediaFile } from "../../../hooks/api/media-folders";
 import { Link } from "react-router-dom";
-import { MediaPlay, ThumbnailBadge } from "@medusajs/icons";
+import { MediaPlay, ThumbnailBadge, Sparkles } from "@medusajs/icons";
 import { ActionMenu } from "../../common/action-menu";
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { sdk } from "../../../lib/config";
 import { mediaFolderDetailQueryKeys } from "../../../hooks/api/media-folders/use-media-folder-detail";
 import { getThumbUrl } from "../../../lib/media";
+import { TextileExtractionModal } from "../textile-extraction-modal";
 
 interface FolderMediaSectionProps {
   folder: AdminMediaFolder;
@@ -15,8 +16,26 @@ interface FolderMediaSectionProps {
 
 export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
   const [selection, setSelection] = useState<Record<string, true>>({})
+  const [extractionModalOpen, setExtractionModalOpen] = useState(false)
+  const [extractionMediaIds, setExtractionMediaIds] = useState<string[]>([])
   const queryClient = useQueryClient()
   const selectedCount = useMemo(() => Object.keys(selection).length, [selection])
+
+  // Get selected image media files only (extraction only works on images)
+  const selectedImageMediaIds = useMemo(() => {
+    if (!folder.media_files) return []
+    return folder.media_files
+      .filter((media) => selection[media.id] && media.file_type === "image")
+      .map((media) => media.id)
+  }, [selection, folder.media_files])
+
+  // Get all image media file IDs
+  const allImageMediaIds = useMemo(() => {
+    if (!folder.media_files) return []
+    return folder.media_files
+      .filter((media) => media.file_type === "image")
+      .map((media) => media.id)
+  }, [folder.media_files])
 
   const toggleSelect = (id?: string) => (e?: React.MouseEvent) => {
     if (!id) return
@@ -45,12 +64,35 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
           toast.error(err?.message || `Failed to delete ${id}`)
         }
       }
-      toast.success(`Deleted ${success}/${ids.length} item(s)`) 
+      toast.success(`Deleted ${success}/${ids.length} item(s)`)
       clearSelection()
       await queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) })
     } finally {
       toast.dismiss(loading)
     }
+  }
+
+  const handleExtractSelected = () => {
+    if (selectedImageMediaIds.length === 0) {
+      toast.error("No images selected. Extraction only works on image files.")
+      return
+    }
+    setExtractionMediaIds(selectedImageMediaIds)
+    setExtractionModalOpen(true)
+  }
+
+  const handleExtractAll = () => {
+    if (allImageMediaIds.length === 0) {
+      toast.error("No images in this folder. Extraction only works on image files.")
+      return
+    }
+    setExtractionMediaIds(allImageMediaIds)
+    setExtractionModalOpen(true)
+  }
+
+  const handleExtractionSuccess = async () => {
+    clearSelection()
+    await queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) })
   }
 
   return (
@@ -65,6 +107,15 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
                   label: 'Manage Media',
                   icon: <MediaPlay />,
                   to: "media",
+                },
+              ],
+            },
+            {
+              actions: [
+                {
+                  label: 'Extract Features of All Media',
+                  icon: <Sparkles />,
+                  onClick: handleExtractAll,
                 },
               ],
             },
@@ -152,11 +203,19 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
         <CommandBar.Bar>
           <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
           <CommandBar.Seperator />
+          <CommandBar.Command action={handleExtractSelected} label="Extract Features" shortcut="e" />
+          <CommandBar.Seperator />
           <CommandBar.Command action={handleDeleteSelected} label="Delete" shortcut="d" />
           <CommandBar.Seperator />
           <CommandBar.Command action={clearSelection} label="Clear" shortcut="esc" />
         </CommandBar.Bar>
       </CommandBar>
+      <TextileExtractionModal
+        open={extractionModalOpen}
+        onOpenChange={setExtractionModalOpen}
+        mediaIds={extractionMediaIds}
+        onSuccess={handleExtractionSuccess}
+      />
     </Container>
   );
 };

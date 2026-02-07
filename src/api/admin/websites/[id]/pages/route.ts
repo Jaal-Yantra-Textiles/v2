@@ -1,3 +1,48 @@
+/**
+ * @file Admin API route for managing website pages
+ * @description Handles creation and listing of pages for a specific website
+ *
+ * @example
+ * // Create a single page
+ * POST /admin/websites/{id}/pages
+ * {
+ *   "title": "About Us",
+ *   "content": "<p>Company information</p>",
+ *   "status": "published",
+ *   "page_type": "standard",
+ *   "genMetaDataLLM": true
+ * }
+ *
+ * @example
+ * // Create multiple pages (batch)
+ * POST /admin/websites/{id}/pages
+ * {
+ *   "pages": [
+ *     {
+ *       "title": "Contact",
+ *       "content": "<p>Contact form</p>",
+ *       "status": "draft",
+ *       "page_type": "contact",
+ *       "genMetaDataLLM": false
+ *     },
+ *     {
+ *       "title": "Privacy Policy",
+ *       "content": "<p>Privacy terms</p>",
+ *       "status": "published",
+ *       "page_type": "legal",
+ *       "genMetaDataLLM": true
+ *     }
+ *   ]
+ * }
+ *
+ * @example
+ * // List pages with filters
+ * GET /admin/websites/{id}/pages?q=about&status=published&page_type=standard&offset=0&limit=10
+ *
+ * @example
+ * // List pages with pagination
+ * GET /admin/websites/{id}/pages?offset=10&limit=10
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { createPageWorkflow } from "../../../../../workflows/website/website-page/create-page";
 import { createBulkPagesWorkflow } from "../../../../../workflows/website/website-page/create-bulk-pages";

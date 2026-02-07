@@ -1,3 +1,112 @@
+/**
+ * @file Admin API routes for managing task templates
+ * @description Provides endpoints for retrieving, updating, and deleting task templates in the JYT Commerce platform
+ * @module API/Admin/TaskTemplates
+ */
+
+/**
+ * @typedef {Object} TaskTemplateResponse
+ * @property {string} id - The unique identifier of the task template
+ * @property {string} title - The title of the task template
+ * @property {string} description - The description of the task template
+ * @property {string} status - The status of the task template (active/inactive)
+ * @property {string} category_id - The ID of the category this template belongs to
+ * @property {Object} category - The category details
+ * @property {string} category.id - The unique identifier of the category
+ * @property {string} category.name - The name of the category
+ * @property {Date} created_at - When the task template was created
+ * @property {Date} updated_at - When the task template was last updated
+ */
+
+/**
+ * @typedef {Object} UpdateTaskTemplateInput
+ * @property {string} [title] - The title of the task template
+ * @property {string} [description] - The description of the task template
+ * @property {string} [status] - The status of the task template (active/inactive)
+ * @property {string} [category_id] - The ID of the category this template belongs to
+ */
+
+/**
+ * Get a single task template by ID
+ * @route GET /admin/task-templates/:id
+ * @group TaskTemplate - Operations related to task templates
+ * @param {string} id.path.required - The ID of the task template to retrieve
+ * @param {string[]} [fields] - Fields to include in the response (optional)
+ * @returns {Object} 200 - The requested task template object
+ * @throws {MedusaError} 404 - Task template not found
+ *
+ * @example request
+ * GET /admin/task-templates/design_123456789
+ *
+ * @example response 200
+ * {
+ *   "task_template": {
+ *     "id": "design_123456789",
+ *     "title": "Website Redesign",
+ *     "description": "Complete redesign of the company website",
+ *     "status": "active",
+ *     "category_id": "cat_987654321",
+ *     "category": {
+ *       "id": "cat_987654321",
+ *       "name": "Design"
+ *     },
+ *     "created_at": "2023-01-01T00:00:00Z",
+ *     "updated_at": "2023-01-15T10:30:00Z"
+ *   }
+ * }
+ */
+
+/**
+ * Update a task template
+ * @route PUT /admin/task-templates/:id
+ * @group TaskTemplate - Operations related to task templates
+ * @param {string} id.path.required - The ID of the task template to update
+ * @param {UpdateTaskTemplateInput} request.body.required - Task template data to update
+ * @returns {Object} 200 - The updated task template object
+ * @throws {MedusaError} 400 - Invalid input data
+ * @throws {MedusaError} 401 - Unauthorized
+ * @throws {MedusaError} 404 - Task template not found
+ *
+ * @example request
+ * PUT /admin/task-templates/design_123456789
+ * {
+ *   "title": "Website Redesign - Phase 2",
+ *   "status": "inactive"
+ * }
+ *
+ * @example response 200
+ * {
+ *   "task_template": {
+ *     "id": "design_123456789",
+ *     "title": "Website Redesign - Phase 2",
+ *     "description": "Complete redesign of the company website",
+ *     "status": "inactive",
+ *     "category_id": "cat_987654321",
+ *     "category": {
+ *       "id": "cat_987654321",
+ *       "name": "Design"
+ *     },
+ *     "created_at": "2023-01-01T00:00:00Z",
+ *     "updated_at": "2023-02-20T14:45:00Z"
+ *   }
+ * }
+ */
+
+/**
+ * Delete a task template
+ * @route DELETE /admin/task-templates/:id
+ * @group TaskTemplate - Operations related to task templates
+ * @param {string} id.path.required - The ID of the task template to delete
+ * @returns {void} 204 - Task template successfully deleted
+ * @throws {MedusaError} 401 - Unauthorized
+ * @throws {MedusaError} 404 - Task template not found
+ *
+ * @example request
+ * DELETE /admin/task-templates/design_123456789
+ *
+ * @example response 204
+ * (No content)
+ */
 import {
   MedusaRequest,
   MedusaResponse,

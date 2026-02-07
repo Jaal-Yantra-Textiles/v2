@@ -1,3 +1,118 @@
+/**
+ * @file Admin API routes for managing task comments
+ * @description Provides endpoints for adding and retrieving comments on tasks in the JYT Commerce platform
+ * @module API/Admin/Tasks/Comments
+ */
+
+/**
+ * @typedef {Object} TaskComment
+ * @property {string} id - Unique identifier for the comment
+ * @property {string} comment - The comment text
+ * @property {"partner"|"admin"} author_type - Type of author (partner or admin)
+ * @property {string} author_id - ID of the author
+ * @property {string} author_name - Name of the author
+ * @property {string} created_at - ISO timestamp when comment was created
+ */
+
+/**
+ * @typedef {Object} TaskCommentInput
+ * @property {string} comment.required - The comment text to add
+ */
+
+/**
+ * @typedef {Object} TaskCommentResponse
+ * @property {Object} task - Updated task object
+ * @property {string} task.id - Task ID
+ * @property {Object} task.metadata - Task metadata
+ * @property {TaskComment[]} task.metadata.comments - Array of comments
+ * @property {TaskComment} comment - The newly created comment
+ */
+
+/**
+ * @typedef {Object} TaskCommentsListResponse
+ * @property {TaskComment[]} comments - Array of comments for the task
+ */
+
+/**
+ * Add a comment to a task
+ * @route POST /admin/tasks/:id/comments
+ * @group Task Comments - Operations related to task comments
+ * @param {string} id.path.required - Task ID
+ * @param {TaskCommentInput} request.body.required - Comment data to add
+ * @returns {TaskCommentResponse} 200 - Successfully added comment
+ * @throws {MedusaError} 400 - Invalid comment text or missing authentication
+ * @throws {MedusaError} 401 - Unauthorized
+ * @throws {MedusaError} 404 - Task not found
+ * @throws {MedusaError} 500 - Internal server error
+ *
+ * @example request
+ * POST /admin/tasks/task_123456789/comments
+ * {
+ *   "comment": "This task needs to be completed by Friday"
+ * }
+ *
+ * @example response 200
+ * {
+ *   "task": {
+ *     "id": "task_123456789",
+ *     "metadata": {
+ *       "comments": [
+ *         {
+ *           "id": "comment_1678901234567_abc123",
+ *           "comment": "This task needs to be completed by Friday",
+ *           "author_type": "admin",
+ *           "author_id": "usr_987654321",
+ *           "author_name": "John Doe",
+ *           "created_at": "2023-03-15T10:30:45.123Z"
+ *         }
+ *       ]
+ *     }
+ *   },
+ *   "comment": {
+ *     "id": "comment_1678901234567_abc123",
+ *     "comment": "This task needs to be completed by Friday",
+ *     "author_type": "admin",
+ *     "author_id": "usr_987654321",
+ *     "author_name": "John Doe",
+ *     "created_at": "2023-03-15T10:30:45.123Z"
+ *   }
+ * }
+ */
+
+/**
+ * Get all comments for a task
+ * @route GET /admin/tasks/:id/comments
+ * @group Task Comments - Operations related to task comments
+ * @param {string} id.path.required - Task ID
+ * @returns {TaskCommentsListResponse} 200 - List of task comments
+ * @throws {MedusaError} 404 - Task not found
+ * @throws {MedusaError} 500 - Internal server error
+ *
+ * @example request
+ * GET /admin/tasks/task_123456789/comments
+ *
+ * @example response 200
+ * {
+ *   "comments": [
+ *     {
+ *       "id": "comment_1678901234567_abc123",
+ *       "comment": "This task needs to be completed by Friday",
+ *       "author_type": "admin",
+ *       "author_id": "usr_987654321",
+ *       "author_name": "John Doe",
+ *       "created_at": "2023-03-15T10:30:45.123Z"
+ *     },
+ *     {
+ *       "id": "comment_1678901234568_def456",
+ *       "comment": "I've assigned this to the design team",
+ *       "author_type": "admin",
+ *       "author_id": "usr_123456789",
+ *       "author_name": "Jane Smith",
+ *       "created_at": "2023-03-15T11:15:22.456Z"
+ *     }
+ *   ]
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { MedusaError } from "@medusajs/framework/utils";
 import { TASKS_MODULE } from "../../../../../modules/tasks";

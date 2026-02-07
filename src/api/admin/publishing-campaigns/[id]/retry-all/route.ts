@@ -1,3 +1,80 @@
+/**
+ * @file Admin API route for retrying failed items in a publishing campaign
+ * @description Provides an endpoint to retry all failed items in a publishing campaign in the JYT Commerce platform
+ * @module API/Admin/PublishingCampaigns
+ */
+
+/**
+ * @typedef {Object} RetryAllResponse
+ * @property {boolean} success - Whether the operation was successful
+ * @property {string} message - Human-readable message about the operation result
+ * @property {number} retried - Total number of items that were retried
+ * @property {number} succeeded - Number of items that were successfully published
+ * @property {number} failed - Number of items that failed to publish
+ * @property {Object} campaign - The updated campaign object
+ * @property {string} campaign.id - The campaign ID
+ * @property {string} campaign.name - The campaign name
+ * @property {string} campaign.platform_id - The social platform ID
+ * @property {string} campaign.status - The campaign status
+ * @property {Object[]} campaign.items - Array of campaign items
+ * @property {string} campaign.items[].product_id - The product ID
+ * @property {string} campaign.items[].status - The item status (publishing, published, failed)
+ * @property {string} [campaign.items[].social_post_id] - The social post ID if published
+ * @property {Date} [campaign.items[].published_at] - When the item was published
+ * @property {string} [campaign.items[].error_message] - Error message if failed
+ */
+
+/**
+ * Retry all failed items in a publishing campaign
+ * @route POST /admin/publishing-campaigns/:id/retry-all
+ * @group PublishingCampaign - Operations related to publishing campaigns
+ * @param {string} id.path.required - The ID of the publishing campaign
+ * @returns {RetryAllResponse} 200 - Result of the retry operation
+ * @throws {MedusaError} 404 - Campaign not found
+ * @throws {MedusaError} 500 - Internal server error during processing
+ *
+ * @example request
+ * POST /admin/publishing-campaigns/camp_123456789/retry-all
+ *
+ * @example response 200
+ * {
+ *   "success": true,
+ *   "message": "Retried 3 items: 2 succeeded, 1 failed",
+ *   "retried": 3,
+ *   "succeeded": 2,
+ *   "failed": 1,
+ *   "campaign": {
+ *     "id": "camp_123456789",
+ *     "name": "Summer Collection Launch",
+ *     "platform_id": "plat_987654321",
+ *     "status": "active",
+ *     "items": [
+ *       {
+ *         "product_id": "prod_111111111",
+ *         "status": "published",
+ *         "social_post_id": "post_111111111",
+ *         "published_at": "2023-06-15T10:30:00Z"
+ *       },
+ *       {
+ *         "product_id": "prod_222222222",
+ *         "status": "published",
+ *         "social_post_id": "post_222222222",
+ *         "published_at": "2023-06-15T10:31:00Z"
+ *       },
+ *       {
+ *         "product_id": "prod_333333333",
+ *         "status": "failed",
+ *         "error_message": "Invalid product data"
+ *       }
+ *     ]
+ *   }
+ * }
+ *
+ * @example response 404
+ * {
+ *   "error": "Campaign not found"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"

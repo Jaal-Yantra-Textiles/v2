@@ -1,7 +1,7 @@
 import { HttpTypes } from "@medusajs/types"
 import { Button, Input } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 import { Form } from "../../../../../components/common/form"
 import { CountrySelect } from "../../../../../components/inputs/country-select"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"

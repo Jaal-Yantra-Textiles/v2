@@ -1,3 +1,140 @@
+/**
+ * @file Admin API routes for managing partner tasks
+ * @description Provides endpoints for listing and creating tasks assigned to partners in the JYT Commerce platform
+ * @module API/Admin/Partners/Tasks
+ */
+
+/**
+ * @typedef {Object} AdminCreatePartnerTaskReq
+ * @property {string} title.required - The title of the task
+ * @property {string} description - The description of the task
+ * @property {string} status - The status of the task (e.g., "pending", "in_progress", "completed")
+ * @property {string} priority - The priority level of the task (e.g., "low", "medium", "high")
+ * @property {Date|string} end_date - The due date for the task (ISO format or Date object)
+ * @property {Date|string} start_date - The start date for the task (ISO format or Date object)
+ * @property {string[]} template_names - Names of templates associated with the task
+ * @property {Object} eventable - Eventable configuration for the task
+ * @property {Object} notifiable - Notifiable configuration for the task
+ * @property {string} message - Additional message for the task
+ * @property {Object} metadata - Additional metadata for the task
+ * @property {Object[]} child_tasks - Array of child tasks
+ * @property {string} child_tasks.title - Title of the child task
+ * @property {string} child_tasks.description - Description of the child task
+ * @property {Date|string} child_tasks.start_date - Start date for the child task
+ * @property {Date|string} child_tasks.end_date - End date for the child task
+ * @property {string} dependency_type - Type of dependency for the task
+ */
+
+/**
+ * @typedef {Object} TaskResponse
+ * @property {string} id - The unique identifier of the task
+ * @property {string} title - The title of the task
+ * @property {string} description - The description of the task
+ * @property {string} status - The status of the task
+ * @property {string} priority - The priority level of the task
+ * @property {Date} end_date - The due date for the task
+ * @property {Date} start_date - The start date for the task
+ * @property {string[]} template_names - Names of templates associated with the task
+ * @property {Object} eventable - Eventable configuration for the task
+ * @property {Object} notifiable - Notifiable configuration for the task
+ * @property {string} message - Additional message for the task
+ * @property {Object} metadata - Additional metadata for the task
+ * @property {Object[]} child_tasks - Array of child tasks
+ * @property {string} dependency_type - Type of dependency for the task
+ */
+
+/**
+ * @typedef {Object} PartnerTasksResponse
+ * @property {TaskResponse[]} tasks - Array of tasks assigned to the partner
+ * @property {number} count - Total count of tasks
+ */
+
+/**
+ * List all tasks assigned to a specific partner
+ * @route GET /admin/partners/:id/tasks
+ * @group Partner Tasks - Operations related to partner tasks
+ * @param {string} id.path.required - The ID of the partner
+ * @returns {PartnerTasksResponse} 200 - List of tasks assigned to the partner
+ * @throws {MedusaError} 404 - Partner not found
+ * @throws {MedusaError} 500 - Internal server error
+ *
+ * @example request
+ * GET /admin/partners/partner_123/tasks
+ *
+ * @example response 200
+ * {
+ *   "tasks": [
+ *     {
+ *       "id": "task_123",
+ *       "title": "Complete Onboarding",
+ *       "description": "Complete the onboarding process for the new partner",
+ *       "status": "in_progress",
+ *       "priority": "high",
+ *       "start_date": "2023-01-01T00:00:00Z",
+ *       "end_date": "2023-01-31T00:00:00Z",
+ *       "template_names": ["onboarding_template"],
+ *       "eventable": {},
+ *       "notifiable": {},
+ *       "message": "Please complete the onboarding process",
+ *       "metadata": {},
+ *       "child_tasks": [],
+ *       "dependency_type": "none"
+ *     }
+ *   ],
+ *   "count": 1
+ * }
+ */
+
+/**
+ * Create a new task and assign it to a partner
+ * @route POST /admin/partners/:id/tasks
+ * @group Partner Tasks - Operations related to partner tasks
+ * @param {string} id.path.required - The ID of the partner
+ * @param {AdminCreatePartnerTaskReq} request.body.required - Task data to create
+ * @returns {TaskResponse} 200 - Created task object
+ * @throws {MedusaError} 400 - Invalid input data
+ * @throws {MedusaError} 401 - Unauthorized
+ * @throws {MedusaError} 404 - Partner not found
+ * @throws {MedusaError} 500 - Internal server error
+ *
+ * @example request
+ * POST /admin/partners/partner_123/tasks
+ * {
+ *   "title": "Complete Onboarding",
+ *   "description": "Complete the onboarding process for the new partner",
+ *   "status": "pending",
+ *   "priority": "high",
+ *   "end_date": "2023-01-31T00:00:00Z",
+ *   "start_date": "2023-01-01T00:00:00Z",
+ *   "template_names": ["onboarding_template"],
+ *   "eventable": {},
+ *   "notifiable": {},
+ *   "message": "Please complete the onboarding process",
+ *   "metadata": {},
+ *   "child_tasks": [],
+ *   "dependency_type": "none"
+ * }
+ *
+ * @example response 200
+ * {
+ *   "task": {
+ *     "id": "task_123",
+ *     "title": "Complete Onboarding",
+ *     "description": "Complete the onboarding process for the new partner",
+ *     "status": "pending",
+ *     "priority": "high",
+ *     "start_date": "2023-01-01T00:00:00Z",
+ *     "end_date": "2023-01-31T00:00:00Z",
+ *     "template_names": ["onboarding_template"],
+ *     "eventable": {},
+ *     "notifiable": {},
+ *     "message": "Please complete the onboarding process",
+ *     "metadata": {},
+ *     "child_tasks": [],
+ *     "dependency_type": "none"
+ *   }
+ * }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import PartnerTaskLink from "../../../../../links/partner-task";

@@ -1,3 +1,69 @@
+/**
+ * @file Partner API routes for managing design media
+ * @description Provides endpoints for uploading media files to designs in the JYT Commerce platform
+ * @module API/Partner/Designs/Media
+ */
+
+/**
+ * @typedef {Object} UploadedFile
+ * @property {string} id - The unique identifier of the uploaded file
+ * @property {string} url - The public URL of the uploaded file
+ */
+
+/**
+ * @typedef {Object} MediaUploadResponse
+ * @property {UploadedFile[]} files - Array of uploaded file objects
+ */
+
+/**
+ * Upload media files for a design
+ * @route POST /partners/designs/:designId/media
+ * @group Design Media - Operations related to design media files
+ * @param {string} designId.path.required - The ID of the design to upload media for
+ * @param {Express.Multer.File[]} files.formData - Array of files to upload
+ * @returns {MediaUploadResponse} 200 - Successfully uploaded files with URLs
+ * @throws {MedusaError} 400 - Invalid input data or missing files
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 404 - Design not found for this partner
+ * @throws {MedusaError} 500 - Unexpected server error
+ *
+ * @example request
+ * POST /partners/designs/design_123456789/media
+ * Content-Type: multipart/form-data
+ * files: [file1.jpg, file2.png]
+ *
+ * @example response 200
+ * {
+ *   "files": [
+ *     {
+ *       "id": "file_123456789",
+ *       "url": "https://storage.example.com/designs/design_123456789/file1.jpg"
+ *     },
+ *     {
+ *       "id": "file_987654321",
+ *       "url": "https://storage.example.com/designs/design_123456789/file2.png"
+ *     }
+ *   ]
+ * }
+ *
+ * @example response 401
+ * {
+ *   "error": "Partner authentication required"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "error": "Design not found for this partner",
+ *   "designId": "design_123456789",
+ *   "partnerId": "partner_987654321"
+ * }
+ *
+ * @example response 400
+ * {
+ *   "error": "No files provided for upload",
+ *   "type": "invalid_data"
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError } from "@medusajs/framework/utils"
 import { uploadFilesWorkflow } from "@medusajs/medusa/core-flows"

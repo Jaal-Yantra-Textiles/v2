@@ -8,7 +8,7 @@ import {
   ProgressTabs,
   Text,
 } from "@medusajs/ui"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 type Person = {
   first_name: string

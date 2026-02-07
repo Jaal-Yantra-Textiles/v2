@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { HttpTypes } from "@medusajs/types"
 import { Button, toast } from "@medusajs/ui"

@@ -1,4 +1,91 @@
-import { MedusaError } from "@medusajs/utils"
+/**
+ * Admin Inventory Order Tasks API
+ *
+ * Base path:
+ *   /admin/inventory-orders/:id/tasks
+ *
+ * Authentication:
+ *   Requires admin authentication (e.g. Authorization: Bearer <ADMIN_TOKEN>)
+ *
+ * Endpoints:
+ *
+ * 1) GET /admin/inventory-orders/:id/tasks
+ *    - Query parameters:
+ *        - fields (optional): comma-separated list of task fields to include
+ *          Example: ?fields=id,status,assignee
+ *    - Response: 200
+ *        {
+ *          "tasks": [ /* array of task objects, may be empty *\/ ]
+ *        }
+ *    - Errors:
+ *        400 — invalid request
+ *        401 — unauthorized
+ *        404 — inventory order not found
+ *
+ *    Example (curl):
+ *      curl -X GET "https://api.example.com/admin/inventory-orders/io_123/tasks?fields=id,status" \
+ *        -H "Authorization: Bearer ADMIN_TOKEN"
+ *
+ *    Example (fetch):
+ *      await fetch("/admin/inventory-orders/io_123/tasks?fields=id,status", {
+ *        method: "GET",
+ *        headers: { "Authorization": "Bearer ADMIN_TOKEN" }
+ *      }).then(r => r.json())
+ *
+ *
+ * 2) POST /admin/inventory-orders/:id/tasks
+ *    - Purpose: Create tasks for an inventory order from templates.
+ *    - Body: validated against AdminPostInventoryOrderTasksReqType (server-side validation).
+ *      Example body (illustrative):
+ *        {
+ *          "templates": [
+ *            { "template_id": "tmpl_1", "quantity": 2 },
+ *            { "template_id": "tmpl_2", "quantity": 1 }
+ *          ],
+ *          "options": { "priority": "high", "notify": true }
+ *        }
+ *    - Response: 200
+ *        {
+ *          "taskLinks": {
+ *            "list": [ /* full task objects (refetched) *\/ ],
+ *            "count": 2
+ *          },
+ *          "message": "Inventory Order io_123 successfully created 2 tasks"
+ *        }
+ *    - Errors:
+ *        400 — validation or creation error (response includes error message)
+ *        401 — unauthorized
+ *        404 — inventory order or template not found
+ *
+ *    Example (curl):
+ *      curl -X POST "https://api.example.com/admin/inventory-orders/io_123/tasks" \
+ *        -H "Authorization: Bearer ADMIN_TOKEN" \
+ *        -H "Content-Type: application/json" \
+ *        -d '{
+ *          "templates": [
+ *            { "template_id": "tmpl_1", "quantity": 2 }
+ *          ],
+ *          "options": { "notify": true }
+ *        }'
+ *
+ *    Example (fetch):
+ *      await fetch("/admin/inventory-orders/io_123/tasks", {
+ *        method: "POST",
+ *        headers: {
+ *          "Authorization": "Bearer ADMIN_TOKEN",
+ *          "Content-Type": "application/json"
+ *        },
+ *        body: JSON.stringify({
+ *          templates: [{ template_id: "tmpl_1", quantity: 2 }],
+ *          options: { notify: true }
+ *        })
+ *      }).then(r => r.json())
+ *
+ * Notes:
+ *  - Validation of POST payload is performed by the workflow using AdminPostInventoryOrderTasksReqType.
+ *  - The POST response includes a refetched list of created tasks (taskLinks.list) and a count.
+ *  - Use the `fields` query on GET to limit returned task fields and reduce payload size.
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { createTasksFromTemplatesWorkflow } from "../../../../../workflows/inventory_orders/create-tasks-from-templates"
 import { getInventoryOrderTasksWorkflow } from "../../../../../workflows/inventory_orders/get-inventory-order-tasks"

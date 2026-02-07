@@ -7,7 +7,7 @@ import {
 import { useEffect, useMemo, useState } from "react"
 import { UseFormReturn, useFieldArray } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { ChipGroup } from "../../../../../components/common/chip-group"
 import { Form } from "../../../../../components/common/form"

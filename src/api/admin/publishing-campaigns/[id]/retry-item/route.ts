@@ -1,3 +1,109 @@
+/**
+ * @file Admin API route for retrying failed publishing campaign items
+ * @description Provides an endpoint to retry failed items in a publishing campaign
+ * @module API/Admin/PublishingCampaigns
+ */
+
+/**
+ * @typedef {Object} RetryItemRequest
+ * @property {number} item_index.required - The index of the campaign item to retry
+ */
+
+/**
+ * @typedef {Object} CampaignItem
+ * @property {string} product_id - The ID of the product associated with this item
+ * @property {string} status - The current status of the item (publishing, published, failed)
+ * @property {string} [social_post_id] - The ID of the created social post
+ * @property {Date} [published_at] - When the item was published
+ * @property {string} [error_message] - Error message if publishing failed
+ */
+
+/**
+ * @typedef {Object} PublishingCampaign
+ * @property {string} id - The unique identifier for the campaign
+ * @property {string} name - The name of the campaign
+ * @property {string} platform_id - The ID of the social platform
+ * @property {string} content_rule - The content rule for publishing
+ * @property {CampaignItem[]} items - Array of campaign items
+ */
+
+/**
+ * @typedef {Object} RetryItemResponse
+ * @property {boolean} success - Whether the retry operation was successful
+ * @property {PublishingCampaign} campaign - The updated campaign object
+ * @property {CampaignItem} item - The updated campaign item
+ */
+
+/**
+ * Retry a failed campaign item
+ * @route POST /admin/publishing-campaigns/:id/retry-item
+ * @group PublishingCampaign - Operations related to publishing campaigns
+ * @param {string} id.path.required - The ID of the publishing campaign
+ * @param {RetryItemRequest} request.body.required - The item index to retry
+ * @returns {RetryItemResponse} 200 - Success response with updated campaign and item
+ * @throws {MedusaError} 400 - Invalid item index or item not in failed state
+ * @throws {MedusaError} 404 - Campaign not found
+ * @throws {MedusaError} 500 - Internal server error during retry process
+ *
+ * @example request
+ * POST /admin/publishing-campaigns/camp_123456789/retry-item
+ * {
+ *   "item_index": 2
+ * }
+ *
+ * @example response 200
+ * {
+ *   "success": true,
+ *   "campaign": {
+ *     "id": "camp_123456789",
+ *     "name": "Summer Collection 2023",
+ *     "platform_id": "plat_987654321",
+ *     "content_rule": "standard",
+ *     "items": [
+ *       {
+ *         "product_id": "prod_111111111",
+ *         "status": "published",
+ *         "social_post_id": "post_111111111",
+ *         "published_at": "2023-06-15T10:00:00Z"
+ *       },
+ *       {
+ *         "product_id": "prod_222222222",
+ *         "status": "published",
+ *         "social_post_id": "post_222222222",
+ *         "published_at": "2023-06-15T10:05:00Z"
+ *       },
+ *       {
+ *         "product_id": "prod_333333333",
+ *         "status": "published",
+ *         "social_post_id": "post_333333333",
+ *         "published_at": "2023-06-15T10:10:00Z"
+ *       }
+ *     ]
+ *   },
+ *   "item": {
+ *     "product_id": "prod_333333333",
+ *     "status": "published",
+ *     "social_post_id": "post_333333333",
+ *     "published_at": "2023-06-15T10:10:00Z"
+ *   }
+ * }
+ *
+ * @example response 400
+ * {
+ *   "error": "Invalid item index"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "error": "Campaign not found"
+ * }
+ *
+ * @example response 500
+ * {
+ *   "success": false,
+ *   "error": "Failed to process campaign item"
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"

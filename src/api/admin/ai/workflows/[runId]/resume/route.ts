@@ -1,3 +1,41 @@
+/**
+ * @file Admin API route for resuming suspended AI workflows
+ * @description Provides endpoints for resuming Human-In-The-Loop (HITL) workflows that require user input
+ * @module API/Admin/AI/Workflows
+ */
+
+/**
+ * @typedef {Object} ResumeWorkflowInput
+ * @property {string} [step] - The step ID to resume from (defaults to "confirm-selection")
+ * @property {Object} [resumeData] - Data to provide for resuming the workflow
+ * @property {Object} [resumeData.context] - Contextual data for the workflow
+ * @property {Object} [resumeData.context.auth_headers] - Authentication headers to include
+ * @property {string} [resumeData.context.auth_headers.authorization] - Authorization header
+ * @property {string} [resumeData.context.auth_headers.cookie] - Cookie header
+ */
+
+/**
+ * @typedef {Object} SuspendedWorkflowResponse
+ * @property {string} status - Workflow status ("suspended")
+ * @property {string} runId - The workflow run ID
+ * @property {Object} suspendPayload - Payload containing data needed for the next step
+ * @property {string} message - Human-readable message about the suspension
+ */
+
+/**
+ * @typedef {Object} CompletedWorkflowResponse
+ * @property {string} status - Workflow status ("completed")
+ * @property {string} [reply] - AI-generated summary of the workflow results
+ * @property {string} [tip] - Concise summary of key metrics from the workflow
+ * @property {Object} result - The final workflow output
+ * @property {Object} [meta] - Additional metadata from the workflow
+ * @property {Object} [error] - Any error that occurred during workflow execution
+ */
+
+/**
+ * @typedef {Object} WorkflowErrorResponse
+ * @property {string} message - Error message
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { mastra, mastraStorageInit } from "../../../../../../mastra"
 import { runStorage } from "../../../../../../mastra/run-storage"

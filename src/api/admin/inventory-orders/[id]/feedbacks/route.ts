@@ -1,3 +1,70 @@
+
+/**
+ * Routes: /admin/inventory-orders/[id]/feedbacks
+ *
+ * GET
+ * @summary List all feedbacks linked to a specific inventory order
+ * @param {string} id - Inventory order id (path parameter)
+ * @returns {{ feedbacks: Feedback[]; count: number }} 200 - Array of feedbacks and total count
+ * @throws 500 - Returns { message: string; error: string } on server error
+ * @example
+ * // curl
+ * curl -X GET "https://example.com/admin/inventory-orders/ord_123/feedbacks" \
+ *   -H "Authorization: Bearer <ADMIN_TOKEN>" \
+ *   -H "Content-Type: application/json"
+ *
+ * @example
+ * // fetch (node / browser)
+ * await fetch("https://example.com/admin/inventory-orders/ord_123/feedbacks", {
+ *   method: "GET",
+ *   headers: { "Authorization": "Bearer <ADMIN_TOKEN>", "Content-Type": "application/json" },
+ * }).then(res => res.json()).then(data => {
+ *   // data.feedbacks -> Feedback[]
+ *   // data.count -> number
+ * });
+ *
+ * POST
+ * @summary Create a new feedback and link it to the inventory order
+ * @param {string} id - Inventory order id (path parameter)
+ * @param {Feedback} body - Request body must conform to the Feedback validator used by the route
+ * @returns {{ feedback: Feedback }} 201 - The created feedback object
+ * @throws 500 - Returns { message: string; error: string } on server error
+ * @remarks
+ * The implementation will augment the provided body with a link_to.inventory_order_id
+ * set to the path id before creating the feedback.
+ * @example
+ * // Request body example (must follow server-side Feedback validator)
+ * {
+ *   "title": "Damaged items",
+ *   "message": "Some items arrived damaged",
+ *   "severity": "high"
+ * }
+ *
+ * @example
+ * // curl
+ * curl -X POST "https://example.com/admin/inventory-orders/ord_123/feedbacks" \
+ *   -H "Authorization: Bearer <ADMIN_TOKEN>" \
+ *   -H "Content-Type: application/json" \
+ *   -d '{
+ *     "title": "Damaged items",
+ *     "message": "Some items arrived damaged",
+ *     "severity": "high"
+ *   }'
+ *
+ * @example
+ * // fetch (node / browser)
+ * const res = await fetch("https://example.com/admin/inventory-orders/ord_123/feedbacks", {
+ *   method: "POST",
+ *   headers: { "Authorization": "Bearer <ADMIN_TOKEN>", "Content-Type": "application/json" },
+ *   body: JSON.stringify({
+ *     title: "Damaged items",
+ *     message: "Some items arrived damaged",
+ *     severity: "high"
+ *   }),
+ * });
+ * const payload = await res.json();
+ * // payload.feedback -> created Feedback
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createFeedbackWithLinkWorkflow } from "../../../../../workflows/feedback/create-feedback-with-link";

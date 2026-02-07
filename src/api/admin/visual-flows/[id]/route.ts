@@ -1,3 +1,73 @@
+/**
+ * Visual Flow Admin API - Single Flow Management
+ *
+ * This route handles operations for a specific visual flow including:
+ * - Retrieving flow details with operations and connections
+ * - Updating flow configuration and structure
+ * - Deleting flows
+ *
+ * Example Usage:
+ *
+ * 1. GET /admin/visual-flows/:id
+ *    - Retrieves a complete flow definition including operations and connections
+ *    - Example response:
+ *      {
+ *        "flow": {
+ *          "id": "flow_123",
+ *          "name": "Order Processing",
+ *          "status": "active",
+ *          "operations": [
+ *            {
+ *              "id": "op_1",
+ *              "operation_key": "validate_order",
+ *              "operation_type": "validator",
+ *              "position_x": 100,
+ *              "position_y": 200
+ *            }
+ *          ],
+ *          "connections": [
+ *            {
+ *              "source_id": "op_1",
+ *              "target_id": "op_2",
+ *              "connection_type": "success"
+ *            }
+ *          ]
+ *        }
+ *      }
+ *
+ * 2. PUT /admin/visual-flows/:id
+ *    - Updates flow metadata and structure
+ *    - Example request body:
+ *      {
+ *        "name": "Updated Order Processing",
+ *        "status": "active",
+ *        "operations": [
+ *          {
+ *            "operation_key": "validate_order",
+ *            "operation_type": "validator",
+ *            "position_x": 100,
+ *            "position_y": 200,
+ *            "sort_order": 1
+ *          }
+ *        ],
+ *        "connections": [
+ *          {
+ *            "source_id": "op_1",
+ *            "target_id": "op_2",
+ *            "connection_type": "success"
+ *          }
+ *        ]
+ *      }
+ *
+ * 3. DELETE /admin/visual-flows/:id
+ *    - Deletes a flow and all associated operations/connections
+ *    - Returns: { success: true, id: "flow_123" }
+ *
+ * Error Handling:
+ * - 400: Validation errors (Zod schema validation)
+ * - 404: Flow not found
+ * - 500: Workflow execution errors
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import VisualFlowService from "../../../../modules/visual_flows/service"

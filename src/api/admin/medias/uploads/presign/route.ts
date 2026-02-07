@@ -1,3 +1,54 @@
+/**
+ * @api {post} /admin/medias/uploads/presign Generate Presigned Upload URL
+ * @apiName GeneratePresignedUploadURL
+ * @apiGroup Media
+ * @apiDescription Generates a presigned URL for uploading a file to the configured file storage provider.
+ *
+ * @apiBody {String} name The name of the file to be uploaded.
+ * @apiBody {String} type The MIME type of the file.
+ * @apiBody {Number} size The size of the file in bytes.
+ * @apiBody {String="public","private"} [access="public"] The access level for the file.
+ *
+ * @apiSuccess {String} url The presigned URL for uploading the file.
+ * @apiSuccess {String} file_key The unique identifier for the file in the storage provider.
+ * @apiSuccess {String} name The name of the file.
+ * @apiSuccess {String} type The MIME type of the file.
+ * @apiSuccess {Number} size The size of the file in bytes.
+ * @apiSuccess {String} [extension] The file extension.
+ *
+ * @apiSuccessExample Success-Response:
+ *     HTTP/1.1 200 OK
+ *     {
+ *       "url": "https://storage-provider.com/upload-url",
+ *       "file_key": "unique-file-key",
+ *       "name": "example.jpg",
+ *       "type": "image/jpeg",
+ *       "size": 1024,
+ *       "extension": "jpg"
+ *     }
+ *
+ * @apiError (400: Invalid Data) {String} message "Missing required fields: type, size"
+ * @apiError (500: Unexpected State) {String} message "File service provider not available"
+ * @apiError (500: Unexpected State) {String} message "Active file provider does not support presigned uploads"
+ * @apiError (500: Unexpected Error) {String} message "Unexpected error generating presigned URL"
+ *
+ * @apiErrorExample Error-Response:
+ *     HTTP/1.1 400 Bad Request
+ *     {
+ *       "message": "Missing required fields: type, size"
+ *     }
+ *
+ * @apiExample {curl} Example usage:
+ *     curl -X POST \
+ *       http://localhost:9000/admin/medias/uploads/presign \
+ *       -H 'Content-Type: application/json' \
+ *       -d '{
+ *             "name": "example.jpg",
+ *             "type": "image/jpeg",
+ *             "size": 1024,
+ *             "access": "public"
+ *           }'
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 

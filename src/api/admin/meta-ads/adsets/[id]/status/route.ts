@@ -1,3 +1,69 @@
+/**
+ * @api {post} /admin/meta-ads/adsets/:id/status Update Ad Set Status
+ * @apiName UpdateAdSetStatus
+ * @apiGroup Meta Ads
+ * @apiDescription Update the status of a Meta ad set (pause or resume)
+ *
+ * @apiParam {String} id Ad set ID
+ *
+ * @apiBody {Object} body
+ * @apiBody {String="ACTIVE","PAUSED"} status New status for the ad set
+ *
+ * @apiSuccess {String} message Success message
+ * @apiSuccess {Object} adSet Updated ad set object
+ *
+ * @apiSuccessExample {json} Success-Response:
+ *     HTTP/1.1 200 OK
+ *     {
+ *       "message": "Ad set resumed successfully",
+ *       "adSet": {
+ *         "id": "adset_123",
+ *         "status": "ACTIVE",
+ *         "name": "Summer Campaign",
+ *         "campaign_id": "camp_456"
+ *       }
+ *     }
+ *
+ * @apiError (400: Bad Request) {String} message Invalid status provided
+ * @apiErrorExample {json} Error-Response:
+ *     HTTP/1.1 400 Bad Request
+ *     {
+ *       "message": "Invalid status. Must be 'ACTIVE' or 'PAUSED'"
+ *     }
+ *
+ * @apiError (404: Not Found) {String} message Resource not found
+ * @apiErrorExample {json} Error-Response:
+ *     HTTP/1.1 404 Not Found
+ *     {
+ *       "message": "Ad set not found"
+ *     }
+ *
+ * @apiError (500: Internal Server Error) {String} message Server error
+ * @apiErrorExample {json} Error-Response:
+ *     HTTP/1.1 500 Internal Server Error
+ *     {
+ *       "message": "Failed to update ad set status",
+ *       "error": "Detailed error message"
+ *     }
+ *
+ * @apiExample {curl} Example usage:
+ *     curl -X POST \
+ *       http://localhost:9000/admin/meta-ads/adsets/adset_123/status \
+ *       -H "Content-Type: application/json" \
+ *       -d '{"status": "PAUSED"}'
+ *
+ * @apiExample {javascript} JavaScript example:
+ *     const response = await fetch(
+ *       'http://localhost:9000/admin/meta-ads/adsets/adset_123/status',
+ *       {
+ *         method: 'POST',
+ *         headers: { 'Content-Type': 'application/json' },
+ *         body: JSON.stringify({ status: 'ACTIVE' })
+ *       }
+ *     );
+ *     const data = await response.json();
+ *     console.log(data);
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../../modules/socials"
 import SocialsService from "../../../../../../modules/socials/service"

@@ -1,3 +1,135 @@
+/**
+ * @file Admin AI OpenAPI Catalog
+ * @description Provides a catalog of all available admin API endpoints including both Medusa core and custom JYT Commerce routes. This endpoint returns a structured list of API operations with metadata for documentation and discovery purposes.
+ * @module API/Admin/AI/OpenAPI
+ */
+
+/**
+ * @typedef {Object} CatalogItem
+ * @property {string} id - Unique identifier for the API operation (derived from operationId or path)
+ * @property {string} method - HTTP method (GET, POST, PUT, DELETE, PATCH)
+ * @property {string} path - API path (e.g., "/admin/products")
+ * @property {string} summary - Human-readable summary of the operation
+ * @property {string[]} [tags] - API tags/categories this operation belongs to
+ * @property {string} [description] - Detailed description of the operation
+ * @property {string} [operationId] - OpenAPI operationId if available
+ * @property {string[]} [pathParams] - List of path parameters (e.g., ["id"] for "/admin/products/{id}")
+ * @property {string[]} [queryParams] - List of query parameter names
+ * @property {Object[]} [queryParamsSchema] - Schema information for query parameters
+ * @property {string} queryParamsSchema.name - Parameter name
+ * @property {boolean} [queryParamsSchema.required] - Whether parameter is required
+ * @property {Object} [queryParamsSchema.schema] - Parameter schema
+ * @property {string} [queryParamsSchema.description] - Parameter description
+ * @property {boolean} [requestBodyRequired] - Whether request body is required
+ * @property {Object} [requestBodySchema] - Schema for request body
+ * @property {Object} [responseBodySchema] - Schema for response body
+ * @property {string[]} [responseCodes] - Possible HTTP response codes
+ * @property {Object} [security] - Security requirements
+ * @property {boolean} [authenticated] - Whether endpoint requires authentication
+ */
+
+/**
+ * @typedef {Object} CatalogResponse
+ * @property {CatalogItem[]} items - Array of API catalog items
+ */
+
+/**
+ * Get OpenAPI catalog of all admin endpoints
+ * @route GET /admin/ai/openapi/catalog
+ * @group AI/OpenAPI - AI and API documentation endpoints
+ * @returns {CatalogResponse} 200 - Structured catalog of all admin API endpoints
+ * @throws {MedusaError} 500 - Internal server error when processing OpenAPI specification
+ * @throws {MedusaError} 502 - Failed to fetch upstream OpenAPI specification
+ *
+ * @example request
+ * GET /admin/ai/openapi/catalog
+ *
+ * @example response 200
+ * {
+ *   "items": [
+ *     {
+ *       "id": "get_products",
+ *       "method": "GET",
+ *       "path": "/admin/products",
+ *       "summary": "List Products",
+ *       "tags": ["Products"],
+ *       "description": "Retrieve a list of products",
+ *       "operationId": "AdminGetProducts",
+ *       "pathParams": [],
+ *       "queryParams": ["offset", "limit", "fields"],
+ *       "queryParamsSchema": [
+ *         {
+ *           "name": "offset",
+ *           "required": false,
+ *           "schema": { "type": "integer" },
+ *           "description": "Pagination offset"
+ *         },
+ *         {
+ *           "name": "limit",
+ *           "required": false,
+ *           "schema": { "type": "integer" },
+ *           "description": "Number of items to return"
+ *         }
+ *       ],
+ *       "requestBodyRequired": false,
+ *       "responseBodySchema": {
+ *         "type": "object",
+ *         "properties": {
+ *           "products": {
+ *             "type": "array",
+ *             "items": { "$ref": "#/components/schemas/AdminProduct" }
+ *           },
+ *           "count": { "type": "integer" },
+ *           "offset": { "type": "integer" },
+ *           "limit": { "type": "integer" }
+ *         }
+ *       },
+ *       "responseCodes": ["200"],
+ *       "security": [{ "bearerAuth": [] }],
+ *       "authenticated": true
+ *     },
+ *     {
+ *       "id": "post_designs",
+ *       "method": "POST",
+ *       "path": "/admin/designs",
+ *       "summary": "Create Design",
+ *       "tags": ["Designs"],
+ *       "description": "Create a new design (custom JYT endpoint)",
+ *       "operationId": "AdminPostDesigns",
+ *       "pathParams": [],
+ *       "queryParams": [],
+ *       "queryParamsSchema": [],
+ *       "requestBodyRequired": true,
+ *       "requestBodySchema": {
+ *         "type": "object",
+ *         "required": ["name", "template_id"],
+ *         "properties": {
+ *           "name": { "type": "string" },
+ *           "template_id": { "type": "string" },
+ *           "metadata": { "type": "object" }
+ *         }
+ *       },
+ *       "responseBodySchema": {
+ *         "type": "object",
+ *         "properties": {
+ *           "design": {
+ *             "type": "object",
+ *             "properties": {
+ *               "id": { "type": "string" },
+ *               "name": { "type": "string" },
+ *               "template_id": { "type": "string" },
+ *               "created_at": { "type": "string", "format": "date-time" }
+ *             }
+ *           }
+ *         }
+ *       },
+ *       "responseCodes": ["200", "400"],
+ *       "security": [{ "bearerAuth": [] }],
+ *       "authenticated": true
+ *     }
+ *   ]
+ * }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import yaml from "js-yaml"
 import { OpenApiGeneratorV31 } from "@asteasolutions/zod-to-openapi"

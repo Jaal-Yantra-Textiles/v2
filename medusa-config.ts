@@ -216,6 +216,12 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/forms",
   },
+  {
+    resolve: "./src/modules/ad-planning",
+  },
+  {
+    resolve: "./src/modules/spec_store",
+  },
    {
       resolve: "@medusajs/medusa/translation",
   },

@@ -1,4 +1,4 @@
-import { PencilSquare, Trash, Envelope } from "@medusajs/icons";
+import { PencilSquare, Trash, Envelope, SquaresPlusSolid } from "@medusajs/icons";
 import {
   Container,
   Heading,
@@ -86,6 +86,11 @@ export const PageGeneralSection = ({ page, websiteId }: PageGeneralSectionProps)
                     label: t("actions.edit", "Edit"),
                     icon: <PencilSquare />,
                     to: `/websites/${websiteId}/pages/${page.id}/edit`,
+                  },
+                  {
+                    label: t("actions.visualEditor", "Visual Editor"),
+                    icon: <SquaresPlusSolid />,
+                    to: `/websites/${websiteId}/pages/${page.id}/visual-editor`,
                   },
                 ],
               },

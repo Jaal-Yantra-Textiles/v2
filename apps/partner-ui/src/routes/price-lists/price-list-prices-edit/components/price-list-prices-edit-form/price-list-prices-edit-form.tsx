@@ -4,7 +4,7 @@ import { Button, toast } from "@medusajs/ui"
 import { useRef } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { DataGrid } from "../../../../../components/data-grid"
 import {

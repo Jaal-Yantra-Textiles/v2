@@ -1,5 +1,5 @@
 import { MedusaContainer } from "@medusajs/framework/types"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 /**
  * Data chain that accumulates data as the flow executes

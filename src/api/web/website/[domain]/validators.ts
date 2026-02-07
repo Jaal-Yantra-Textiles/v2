@@ -1,4 +1,4 @@
-import {z} from 'zod'
+import {z} from "zod"
 import { Network, SubscriptionType } from '../../../../workflows/persons/create-person-subs';
 
 export const subscriptionSchema = z.object({

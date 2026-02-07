@@ -1,3 +1,35 @@
+/**
+ * @file Admin API route for listing visual flow executions
+ * @module api/admin/visual-flows/[id]/executions
+ *
+ * This route provides functionality to list and filter executions of a specific visual flow.
+ * Executions represent individual runs of a visual flow with their current status and metadata.
+ *
+ * @example
+ * // List all executions for flow with ID "flow_123"
+ * GET /admin/visual-flows/flow_123/executions
+ *
+ * @example
+ * // List only completed executions (limit 20)
+ * GET /admin/visual-flows/flow_123/executions?status=completed&limit=20
+ *
+ * @example
+ * // List failed executions with pagination (offset 10, limit 15)
+ * GET /admin/visual-flows/flow_123/executions?status=failed&offset=10&limit=15
+ *
+ * @example
+ * // List pending executions (default limit 50)
+ * GET /admin/visual-flows/flow_123/executions?status=pending
+ *
+ * @returns {Object} Response object containing:
+ *   - executions: Array of execution objects
+ *   - count: Total number of executions matching filters
+ *   - limit: Number of executions returned per page
+ *   - offset: Current pagination offset
+ *
+ * @throws {400} When validation fails or invalid parameters are provided
+ * @throws {404} When the visual flow with specified ID doesn't exist
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { VISUAL_FLOWS_MODULE } from "../../../../../modules/visual_flows"
 import VisualFlowService from "../../../../../modules/visual_flows/service"

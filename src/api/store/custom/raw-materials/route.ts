@@ -1,3 +1,91 @@
+/**
+ * @file Store API routes for raw materials
+ * @description Provides endpoints for customers to browse available raw materials for customization
+ * @module API/Store/RawMaterials
+ */
+
+/**
+ * @typedef {Object} StoreRawMaterialsQuery
+ * @property {string} [limit=20] - Number of items to return (default: 20)
+ * @property {string} [offset=0] - Pagination offset (default: 0)
+ * @property {string} [q] - Search query for filtering raw materials
+ */
+
+/**
+ * @typedef {Object} RawMaterialMedia
+ * @property {string} url - URL of the media file
+ * @property {boolean} [isThumbnail] - Whether this is the thumbnail image
+ */
+
+/**
+ * @typedef {Object} InventoryItemSummary
+ * @property {string} id - The inventory item ID
+ * @property {string} title - Title of the inventory item
+ * @property {string} sku - SKU of the inventory item
+ */
+
+/**
+ * @typedef {Object} RawMaterialResponse
+ * @property {string} id - The raw material ID
+ * @property {string} name - Name of the raw material
+ * @property {string} color - Color of the raw material
+ * @property {string} composition - Material composition
+ * @property {string} material_type - Type of material (e.g., fabric, leather)
+ * @property {RawMaterialMedia[]} media - Array of media files
+ * @property {InventoryItemSummary} inventory_item - Associated inventory item
+ */
+
+/**
+ * @typedef {Object} RawMaterialsListResponse
+ * @property {RawMaterialResponse[]} raw_materials - Array of raw materials
+ * @property {number} count - Total count of raw materials
+ * @property {number} offset - Current pagination offset
+ * @property {number} limit - Number of items per page
+ */
+
+/**
+ * List raw materials available for customization
+ * @route GET /store/custom/raw-materials
+ * @group Raw Materials - Operations related to raw materials
+ * @param {string} [limit=20] - Number of items to return
+ * @param {string} [offset=0] - Pagination offset
+ * @param {string} [q] - Search query for filtering
+ * @returns {RawMaterialsListResponse} 200 - Paginated list of raw materials
+ * @throws {MedusaError} 500 - Internal server error
+ *
+ * @example request
+ * GET /store/custom/raw-materials?limit=10&offset=0&q=cotton
+ *
+ * @example response 200
+ * {
+ *   "raw_materials": [
+ *     {
+ *       "id": "mat_123456789",
+ *       "name": "Premium Cotton Fabric",
+ *       "color": "white",
+ *       "composition": "100% cotton",
+ *       "material_type": "fabric",
+ *       "media": [
+ *         {
+ *           "url": "https://example.com/images/cotton-white.jpg",
+ *           "isThumbnail": true
+ *         },
+ *         {
+ *           "url": "https://example.com/images/cotton-white-closeup.jpg"
+ *         }
+ *       ],
+ *       "inventory_item": {
+ *         "id": "inv_987654321",
+ *         "title": "Cotton Fabric Roll",
+ *         "sku": "FAB-COT-001"
+ *       }
+ *     }
+ *   ],
+ *   "count": 1,
+ *   "offset": 0,
+ *   "limit": 10
+ * }
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { getAllInventoryWithRawMaterial, RawMaterialAllowedFields } from "../../../admin/inventory-items/[id]/rawmaterials/helpers";
 

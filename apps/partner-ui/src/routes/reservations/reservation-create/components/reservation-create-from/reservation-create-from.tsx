@@ -1,4 +1,4 @@
-import * as zod from "zod"
+import { z as zod } from "@medusajs/framework/zod"
 
 import { Button, Heading, Input, Text, Textarea, toast } from "@medusajs/ui"
 import {

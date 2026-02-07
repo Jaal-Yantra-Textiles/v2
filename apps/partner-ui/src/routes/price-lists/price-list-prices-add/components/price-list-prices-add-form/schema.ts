@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { PriceListCreateProductsSchema } from "../../../common/schemas"
 
 export const PriceListPricesAddSchema = z.object({

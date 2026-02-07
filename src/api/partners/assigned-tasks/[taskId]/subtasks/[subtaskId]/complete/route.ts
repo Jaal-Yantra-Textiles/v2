@@ -1,3 +1,67 @@
+/**
+ * @file Partner API route for completing subtasks
+ * @description Provides endpoint for partners to mark subtasks as completed within assigned tasks
+ * @module API/Partners/Tasks
+ */
+
+/**
+ * @typedef {Object} SubtaskCompletionResponse
+ * @property {Object} subtask - The updated subtask object
+ * @property {string} subtask.id - The unique identifier of the subtask
+ * @property {string} subtask.status - The status of the subtask (completed)
+ * @property {Date} subtask.completed_at - When the subtask was completed
+ * @property {boolean} parent_completed - Whether the parent task was completed as a result
+ * @property {string} message - Human-readable message about the operation result
+ */
+
+/**
+ * Mark a subtask as completed
+ * @route POST /partners/assigned-tasks/:taskId/subtasks/:subtaskId/complete
+ * @group Task - Operations related to tasks and subtasks
+ * @param {string} taskId.path.required - The ID of the parent task
+ * @param {string} subtaskId.path.required - The ID of the subtask to complete
+ * @returns {SubtaskCompletionResponse} 200 - Subtask completion result
+ * @throws {MedusaError} 401 - Partner authentication required
+ * @throws {MedusaError} 403 - Task not assigned to this partner
+ * @throws {MedusaError} 404 - Task or subtask not found
+ * @throws {MedusaError} 400 - Invalid task state or subtask relationship
+ * @throws {MedusaError} 500 - Internal server error
+ *
+ * @example request
+ * POST /partners/assigned-tasks/task_12345/subtasks/subtask_67890/complete
+ *
+ * @example response 200
+ * {
+ *   "subtask": {
+ *     "id": "subtask_67890",
+ *     "status": "completed",
+ *     "completed_at": "2023-11-15T14:30:00Z"
+ *   },
+ *   "parent_completed": true,
+ *   "message": "Subtask completed and all tasks finished!"
+ * }
+ *
+ * @example response 401
+ * {
+ *   "error": "Partner authentication required - no actor ID"
+ * }
+ *
+ * @example response 403
+ * {
+ *   "error": "Task not assigned to this partner"
+ * }
+ *
+ * @example response 404
+ * {
+ *   "error": "Task not found"
+ * }
+ *
+ * @example response 400
+ * {
+ *   "error": "Parent task must be accepted before completing subtasks",
+ *   "parent_status": "pending"
+ * }
+ */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../../../../../helpers";

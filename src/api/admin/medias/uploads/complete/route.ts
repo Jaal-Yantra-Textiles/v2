@@ -1,3 +1,48 @@
+
+/**
+ * Complete a multipart upload and finalize media records.
+ *
+ * This route completes an S3 multipart upload (or delegates to a configured file provider
+ * that implements completeMultipartUpload), constructs a public URL for the uploaded object,
+ * and runs the internal finalizeS3MediaWorkflow to create/update DB records, link albums/folders,
+ * and persist metadata.
+ *
+ * Request body (CompleteBody):
+ * - uploadId: string — multipart upload id (required)
+ * - key: string — object key/path (required)
+ * - parts: Array<{ PartNumber: number; ETag: string }> — parts list (required, non-empty)
+ * - name: string — original filename (required)
+ * - type: string — MIME type (required)
+ * - size: number — file size in bytes (required)
+ * - existingAlbumIds?: string[] — optional album ids to attach
+ * - existingFolderId?: string — optional folder id to attach
+ * - metadata?: Record<string, any> — optional arbitrary metadata
+ *
+ * Behavior:
+ * - Validates required fields and throws MedusaError.Types.INVALID_DATA on missing/invalid input.
+ * - If a file provider exposing completeMultipartUpload exists, calls provider.completeMultipartUpload:
+ *   expects provider response with .location or .url.
+ * - Otherwise, uses AWS S3 CompleteMultipartUploadCommand via getS3Client(), sending parts sorted by part number.
+ * - Public URL selection:
+ *   - If FILE_PUBLIC_BASE or S3_FILE_URL env var is set, it overrides any provider URL and is used to build the public URL.
+ *   - Else uses provider response or getPublicUrl(key) as fallback.
+ * - Calls finalizeS3MediaWorkflow(req.scope).run(...) with file info to persist media and link albums/folders.
+ * - If finalize workflow returns errors, throws MedusaError.Types.UNEXPECTED_STATE with aggregated messages.
+ *
+ * Environment variables:
+ * - FILE_PUBLIC_BASE or S3_FILE_URL — optional explicit public base URL to override provider/S3 URL.
+ *
+ * Responses:
+ * - 200: { message: "Upload completed", s3: { location: string, key: string }, result: any } on success.
+ * - 400: when input validation fails (MedusaError.Types.INVALID_DATA).
+ * - 500: on provider/S3 errors, workflow failures, or unexpected errors.
+ *
+ * @param req - MedusaRequest<CompleteBody>; uses req.validatedBody if present, otherwise req.body.
+ * @param res - MedusaResponse used to send JSON responses and appropriate HTTP status codes.
+ *
+ * @throws {MedusaError} INVALID_DATA when required fields are missing or invalid.
+ * @throws {MedusaError} UNEXPECTED_STATE when finalizing media in the application domain fails.
+ */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CompleteMultipartUploadCommand } from "@aws-sdk/client-s3"

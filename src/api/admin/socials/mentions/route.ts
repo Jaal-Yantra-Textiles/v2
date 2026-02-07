@@ -1,3 +1,86 @@
+/**
+ * @file Admin API routes for managing social media mentions
+ * @description Provides endpoints for retrieving mention suggestions and popular mentions across social platforms
+ * @module API/Admin/Socials/Mentions
+ */
+
+/**
+ * @typedef {Object} Mention
+ * @property {string} username - The social media username/handle
+ * @property {string} display_name - The display name of the user
+ * @property {"facebook"|"instagram"|"twitter"} platform - The social media platform
+ * @property {number} usage_count - How many times this mention has been used
+ * @property {Date} last_used_at - When this mention was last used
+ */
+
+/**
+ * @typedef {Object} GetMentionsResponse
+ * @property {Mention[]} mentions - Array of mention objects
+ */
+
+/**
+ * Get mention suggestions or popular mentions
+ * @route GET /admin/socials/mentions
+ * @group Socials - Operations related to social media mentions
+ * @param {string} [q] - Search query for mention suggestions
+ * @param {"facebook"|"instagram"|"twitter"} [platform] - Filter by social media platform
+ * @param {number} [limit=10] - Maximum number of results to return
+ * @returns {GetMentionsResponse} 200 - Array of mention objects
+ * @throws {MedusaError} 500 - Internal server error when fetching mentions
+ *
+ * @example request
+ * GET /admin/socials/mentions?q=john&platform=twitter&limit=5
+ *
+ * @example response 200
+ * {
+ *   "mentions": [
+ *     {
+ *       "username": "johndoe",
+ *       "display_name": "John Doe",
+ *       "platform": "twitter",
+ *       "usage_count": 42,
+ *       "last_used_at": "2023-05-15T10:30:00Z"
+ *     },
+ *     {
+ *       "username": "john_official",
+ *       "display_name": "John Official",
+ *       "platform": "twitter",
+ *       "usage_count": 18,
+ *       "last_used_at": "2023-05-10T08:15:00Z"
+ *     }
+ *   ]
+ * }
+ *
+ * @example request - Get popular mentions without search query
+ * GET /admin/socials/mentions?platform=instagram&limit=3
+ *
+ * @example response 200
+ * {
+ *   "mentions": [
+ *     {
+ *       "username": "fashionista",
+ *       "display_name": "Fashion Lovers",
+ *       "platform": "instagram",
+ *       "usage_count": 125,
+ *       "last_used_at": "2023-05-20T14:20:00Z"
+ *     },
+ *     {
+ *       "username": "style_guru",
+ *       "display_name": "Style Guru",
+ *       "platform": "instagram",
+ *       "usage_count": 98,
+ *       "last_used_at": "2023-05-18T09:45:00Z"
+ *     },
+ *     {
+ *       "username": "trend_setter",
+ *       "display_name": "Trend Setter",
+ *       "platform": "instagram",
+ *       "usage_count": 87,
+ *       "last_used_at": "2023-05-17T11:30:00Z"
+ *     }
+ *   ]
+ * }
+ */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
