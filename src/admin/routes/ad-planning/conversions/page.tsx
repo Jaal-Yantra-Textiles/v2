@@ -13,12 +13,10 @@ import {
   createDataTableColumnHelper,
   useDataTable,
   DataTablePaginationState,
-  Button,
   Select,
 } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
-import { Link } from "react-router-dom"
 import { sdk } from "../../../lib/config"
 
 interface Conversion {
@@ -136,15 +134,6 @@ const ConversionsPage = () => {
     },
   })
 
-  // Fetch stats
-  const { data: stats } = useQuery({
-    queryKey: ["ad-planning", "conversions", "stats"],
-    queryFn: async () => {
-      const res = await sdk.client.fetch<any>("/admin/ad-planning/conversions/stats")
-      return res
-    },
-  })
-
   const table = useDataTable({
     data: data?.conversions || [],
     columns,
@@ -172,63 +161,15 @@ const ConversionsPage = () => {
   ]
 
   return (
-    <div className="flex flex-col gap-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Link to="/ad-planning" className="hover:underline">
-              <Text size="small" className="text-ui-fg-subtle hover:text-ui-fg-base">
-                Ad Planning
-              </Text>
-            </Link>
-            <Text size="small" className="text-ui-fg-muted">/</Text>
-            <Text size="small" weight="plus">Conversions</Text>
-          </div>
-          <Heading level="h1" className="mt-2">Conversions</Heading>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Total Conversions
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {(stats?.total_conversions || 0).toLocaleString()}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Total Revenue
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            ₹{((stats?.total_value || 0) / 100).toLocaleString()}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Purchases
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {(stats?.by_type?.purchase || 0).toLocaleString()}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Lead Forms
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {(stats?.by_type?.lead_form_submission || 0).toLocaleString()}
-          </Text>
-        </div>
-      </div>
-
-      {/* Conversions Table */}
-      <Container className="p-0">
+    <Container className="divide-y p-0">
         <DataTable instance={table}>
-          <DataTable.Toolbar className="px-6 py-4">
+          <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
+            <div>
+              <Heading>Conversions</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Track and analyze conversion events
+              </Text>
+            </div>
             <div className="flex items-center gap-4">
               <DataTable.Search placeholder="Search conversions..." />
               <Select
@@ -252,13 +193,16 @@ const ConversionsPage = () => {
           <DataTable.Table />
           <DataTable.Pagination />
         </DataTable>
-      </Container>
-    </div>
+    </Container>
   )
 }
 
 export const config = defineRouteConfig({
   label: "Conversions",
 })
+
+export const handle = {
+  breadcrumb: () => "Conversions",
+}
 
 export default ConversionsPage

@@ -14,7 +14,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { v4 as uuidv4 } from "uuid"
 import { mastra, mastraStorageInit } from "../../../../../mastra"
-import { AdminAiV4ChatReq, AdminAiV4ChatReqType } from "./validators"
+import { AdminAiChatReq, AdminAiChatReqType } from "./validators"
 
 /**
  * POST /admin/ai/chat/chat
@@ -65,13 +65,13 @@ import { AdminAiV4ChatReq, AdminAiV4ChatReqType } from "./validators"
  *   }
  * }
  */
-export const POST = async (req: MedusaRequest<AdminAiV4ChatReqType>, res: MedusaResponse) => {
+export const POST = async (req: MedusaRequest<AdminAiChatReqType>, res: MedusaResponse) => {
   const runId = uuidv4()
 
   try {
     // Validate request body
-    const parsed = AdminAiV4ChatReq.safeParse(
-      (req as any).validatedBody || (req.body as AdminAiV4ChatReqType)
+    const parsed = AdminAiChatReq.safeParse(
+      (req as any).validatedBody || (req.body as AdminAiChatReqType)
     )
 
     if (!parsed.success) {

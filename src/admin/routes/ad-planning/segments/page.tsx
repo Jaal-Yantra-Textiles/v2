@@ -270,66 +270,15 @@ const SegmentsPage = () => {
 
   return (
     <div className="flex flex-col gap-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Link to="/ad-planning" className="hover:underline">
-              <Text size="small" className="text-ui-fg-subtle hover:text-ui-fg-base">
-                Ad Planning
-              </Text>
-            </Link>
-            <Text size="small" className="text-ui-fg-muted">/</Text>
-            <Text size="small" weight="plus">Customer Segments</Text>
-          </div>
-          <Heading level="h1" className="mt-2">Customer Segments</Heading>
-        </div>
-        <Button size="small" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2" />
-          Create Segment
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Total Segments
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {data?.count || 0}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Active Segments
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1 text-ui-fg-positive">
-            {data?.segments?.filter((s: Segment) => s.status === "active").length || 0}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Dynamic Segments
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {data?.segments?.filter((s: Segment) => s.is_dynamic).length || 0}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Total Members
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {data?.segments?.reduce((acc: number, s: Segment) => acc + (s.member_count || 0), 0).toLocaleString() || 0}
-          </Text>
-        </div>
-      </div>
-
-      {/* Segments Table */}
-      <Container className="p-0">
+      <Container className="divide-y p-0">
         <DataTable instance={table}>
-          <DataTable.Toolbar className="px-6 py-4">
+          <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
+            <div>
+              <Heading>Customer Segments</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Create and manage customer segments for targeting
+              </Text>
+            </div>
             <div className="flex items-center gap-4">
               <DataTable.Search placeholder="Search segments..." />
               <Select
@@ -348,6 +297,10 @@ const SegmentsPage = () => {
                   ))}
                 </Select.Content>
               </Select>
+              <Button size="small" onClick={() => setCreateOpen(true)}>
+                <Plus className="mr-2" />
+                Create Segment
+              </Button>
             </div>
           </DataTable.Toolbar>
           <DataTable.Table />
@@ -513,5 +466,9 @@ const SegmentsPage = () => {
 export const config = defineRouteConfig({
   label: "Segments",
 })
+
+export const handle = {
+  breadcrumb: () => "Customer Segments",
+}
 
 export default SegmentsPage

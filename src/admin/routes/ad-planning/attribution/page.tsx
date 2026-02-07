@@ -19,7 +19,6 @@ import {
 } from "@medusajs/ui"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import { Link } from "react-router-dom"
 import { sdk } from "../../../lib/config"
 import { ArrowPath } from "@medusajs/icons"
 
@@ -173,15 +172,6 @@ const AttributionPage = () => {
     },
   })
 
-  // Fetch summary
-  const { data: summary } = useQuery({
-    queryKey: ["ad-planning", "attribution", "summary"],
-    queryFn: async () => {
-      const res = await sdk.client.fetch<any>("/admin/ad-planning/attribution/summary")
-      return res
-    },
-  })
-
   // Bulk resolve
   const bulkResolve = useMutation({
     mutationFn: async () => {
@@ -234,120 +224,16 @@ const AttributionPage = () => {
     { value: "direct", label: "Direct" },
   ]
 
-  // Summary stats
-  const totalAttributions = summary?.total || 0
-  const convertedAttributions = summary?.converted || 0
-  const conversionRate = totalAttributions > 0 ? ((convertedAttributions / totalAttributions) * 100).toFixed(1) : 0
-  const totalValue = summary?.total_value || 0
-
   return (
-    <div className="flex flex-col gap-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Link to="/ad-planning" className="hover:underline">
-              <Text size="small" className="text-ui-fg-subtle hover:text-ui-fg-base">
-                Ad Planning
-              </Text>
-            </Link>
-            <Text size="small" className="text-ui-fg-muted">/</Text>
-            <Text size="small" weight="plus">Attribution</Text>
-          </div>
-          <Heading level="h1" className="mt-2">Campaign Attribution</Heading>
-        </div>
-        <Button
-          size="small"
-          variant="secondary"
-          onClick={() => bulkResolve.mutate()}
-          isLoading={bulkResolve.isPending}
-        >
-          <ArrowPath className="mr-2" />
-          Resolve Attributions
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Total Attributions
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {totalAttributions.toLocaleString()}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Conversions
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1 text-ui-fg-positive">
-            {convertedAttributions.toLocaleString()}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Conversion Rate
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {conversionRate}%
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Attributed Revenue
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            ₹{(totalValue / 100).toLocaleString()}
-          </Text>
-        </div>
-      </div>
-
-      {/* Source Breakdown */}
-      {summary?.by_source && Object.keys(summary.by_source).length > 0 && (
-        <Container className="p-0">
-          <div className="px-6 py-4 border-b border-ui-border-base">
-            <Text size="small" leading="compact" weight="plus">
-              Attribution by Source
-            </Text>
-          </div>
-          <div className="px-6 py-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {Object.entries(summary.by_source).map(([source, data]: [string, any]) => (
-                <div key={source} className="p-3 bg-ui-bg-subtle rounded-lg">
-                  <Badge
-                    color={
-                      source.toLowerCase().includes("google")
-                        ? "blue"
-                        : source.toLowerCase().includes("facebook") ||
-                          source.toLowerCase().includes("instagram") ||
-                          source.toLowerCase().includes("meta")
-                        ? "purple"
-                        : source.toLowerCase().includes("email")
-                        ? "green"
-                        : "grey"
-                    }
-                    size="xsmall"
-                  >
-                    {source}
-                  </Badge>
-                  <Text size="base" weight="plus" className="mt-2 block">
-                    {data.count?.toLocaleString() || 0}
-                  </Text>
-                  <Text size="xsmall" className="text-ui-fg-subtle">
-                    ₹{((data.value || 0) / 100).toLocaleString()} revenue
-                  </Text>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Container>
-      )}
-
-      {/* Attributions Table */}
-      <Container className="p-0">
+    <Container className="divide-y p-0">
         <DataTable instance={table}>
-          <DataTable.Toolbar className="px-6 py-4">
+          <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
+            <div>
+              <Heading>Campaign Attribution</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Campaign attribution analysis and insights
+              </Text>
+            </div>
             <div className="flex items-center gap-4">
               <DataTable.Search placeholder="Search attributions..." />
               <Select
@@ -366,18 +252,30 @@ const AttributionPage = () => {
                   ))}
                 </Select.Content>
               </Select>
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => bulkResolve.mutate()}
+                isLoading={bulkResolve.isPending}
+              >
+                <ArrowPath className="mr-2" />
+                Resolve Attributions
+              </Button>
             </div>
           </DataTable.Toolbar>
           <DataTable.Table />
           <DataTable.Pagination />
         </DataTable>
-      </Container>
-    </div>
+    </Container>
   )
 }
 
 export const config = defineRouteConfig({
   label: "Attribution",
 })
+
+export const handle = {
+  breadcrumb: () => "Attribution",
+}
 
 export default AttributionPage

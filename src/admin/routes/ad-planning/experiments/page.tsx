@@ -33,7 +33,7 @@ interface Experiment {
   description: string | null
   status: "draft" | "running" | "paused" | "completed"
   primary_metric: string
-  traffic_split: number
+  variants: Array<{ id: string; name: string; weight: number; config?: any }>
   target_sample_size: number | null
   confidence_level: number
   is_significant: boolean | null
@@ -111,13 +111,17 @@ const ExperimentsPage = () => {
         </Text>
       ),
     }),
-    columnHelper.accessor("traffic_split", {
+    columnHelper.accessor("variants", {
       header: "Traffic Split",
-      cell: ({ getValue }) => (
-        <Text size="small" leading="compact">
-          {getValue()}% / {100 - getValue()}%
-        </Text>
-      ),
+      cell: ({ getValue }) => {
+        const variants = getValue()
+        const controlWeight = variants?.[0]?.weight ?? 50
+        return (
+          <Text size="small" leading="compact">
+            {controlWeight}% / {100 - controlWeight}%
+          </Text>
+        )
+      },
     }),
     columnHelper.accessor("improvement_percent", {
       header: "Lift",
@@ -253,66 +257,15 @@ const ExperimentsPage = () => {
 
   return (
     <div className="flex flex-col gap-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Link to="/ad-planning" className="hover:underline">
-              <Text size="small" className="text-ui-fg-subtle hover:text-ui-fg-base">
-                Ad Planning
-              </Text>
-            </Link>
-            <Text size="small" className="text-ui-fg-muted">/</Text>
-            <Text size="small" weight="plus">Experiments</Text>
-          </div>
-          <Heading level="h1" className="mt-2">A/B Experiments</Heading>
-        </div>
-        <Button size="small" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2" />
-          Create Experiment
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Total Experiments
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {data?.count || 0}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Running
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1 text-ui-fg-positive">
-            {data?.experiments?.filter((e: Experiment) => e.status === "running").length || 0}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Completed
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1">
-            {data?.experiments?.filter((e: Experiment) => e.status === "completed").length || 0}
-          </Text>
-        </div>
-        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Draft
-          </Text>
-          <Text size="xlarge" leading="compact" weight="plus" className="mt-1 text-ui-fg-muted">
-            {data?.experiments?.filter((e: Experiment) => e.status === "draft").length || 0}
-          </Text>
-        </div>
-      </div>
-
-      {/* Experiments Table */}
-      <Container className="p-0">
+      <Container className="divide-y p-0">
         <DataTable instance={table}>
-          <DataTable.Toolbar className="px-6 py-4">
+          <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
+            <div>
+              <Heading>A/B Experiments</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Create and manage A/B testing experiments
+              </Text>
+            </div>
             <div className="flex items-center gap-4">
               <DataTable.Search placeholder="Search experiments..." />
               <Select
@@ -331,6 +284,10 @@ const ExperimentsPage = () => {
                   ))}
                 </Select.Content>
               </Select>
+              <Button size="small" onClick={() => setCreateOpen(true)}>
+                <Plus className="mr-2" />
+                Create Experiment
+              </Button>
             </div>
           </DataTable.Toolbar>
           <DataTable.Table />
@@ -465,5 +422,9 @@ const ExperimentsPage = () => {
 export const config = defineRouteConfig({
   label: "Experiments",
 })
+
+export const handle = {
+  breadcrumb: () => "Experiments",
+}
 
 export default ExperimentsPage

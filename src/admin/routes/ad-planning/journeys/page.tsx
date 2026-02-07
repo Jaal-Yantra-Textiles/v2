@@ -17,7 +17,6 @@ import {
 } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
-import { Link } from "react-router-dom"
 import { sdk } from "../../../lib/config"
 
 interface JourneyEvent {
@@ -164,15 +163,6 @@ const JourneysPage = () => {
     },
   })
 
-  // Fetch funnel stats
-  const { data: funnelData } = useQuery({
-    queryKey: ["ad-planning", "journeys", "funnel"],
-    queryFn: async () => {
-      const res = await sdk.client.fetch<any>("/admin/ad-planning/journeys/funnel")
-      return res
-    },
-  })
-
   const table = useDataTable({
     data: data?.journeys || [],
     columns,
@@ -210,100 +200,16 @@ const JourneysPage = () => {
     { value: "social_engage", label: "Social Engage" },
   ]
 
-  // Calculate funnel metrics
-  const funnel = funnelData?.funnel || []
-  const getFunnelConversion = (fromStage: string, toStage: string) => {
-    const from = funnel.find((f: any) => f.stage === fromStage)?.count || 0
-    const to = funnel.find((f: any) => f.stage === toStage)?.count || 0
-    if (from === 0) return 0
-    return ((to / from) * 100).toFixed(1)
-  }
-
   return (
-    <div className="flex flex-col gap-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Link to="/ad-planning" className="hover:underline">
-              <Text size="small" className="text-ui-fg-subtle hover:text-ui-fg-base">
-                Ad Planning
-              </Text>
-            </Link>
-            <Text size="small" className="text-ui-fg-muted">/</Text>
-            <Text size="small" weight="plus">Customer Journeys</Text>
-          </div>
-          <Heading level="h1" className="mt-2">Customer Journeys</Heading>
-        </div>
-      </div>
-
-      {/* Funnel Visualization */}
-      <Container className="p-0">
-        <div className="px-6 py-4 border-b border-ui-border-base">
-          <Text size="small" leading="compact" weight="plus">
-            Customer Funnel
-          </Text>
-        </div>
-        <div className="px-6 py-6">
-          <div className="flex items-end justify-between gap-4">
-            {funnel.map((stage: any, index: number) => {
-              const maxCount = Math.max(...funnel.map((f: any) => f.count))
-              const heightPercent = maxCount > 0 ? (stage.count / maxCount) * 100 : 0
-
-              return (
-                <div key={stage.stage} className="flex-1 flex flex-col items-center">
-                  {/* Bar */}
-                  <div className="w-full flex flex-col items-center mb-2">
-                    <Text size="small" weight="plus" className="mb-1">
-                      {stage.count.toLocaleString()}
-                    </Text>
-                    <div
-                      className="w-full bg-ui-bg-interactive rounded-t-md transition-all"
-                      style={{
-                        height: `${Math.max(heightPercent, 10)}px`,
-                        minHeight: "20px",
-                        maxHeight: "120px",
-                      }}
-                    />
-                  </div>
-                  {/* Label */}
-                  <Text size="xsmall" className="text-ui-fg-subtle capitalize text-center">
-                    {stage.stage}
-                  </Text>
-                  {/* Conversion rate to next stage */}
-                  {index < funnel.length - 1 && (
-                    <Text size="xsmall" className="text-ui-fg-muted mt-1">
-                      {getFunnelConversion(stage.stage, funnel[index + 1].stage)}% →
-                    </Text>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </Container>
-
-      {/* Stage Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        {funnel.map((stage: any) => (
-          <div
-            key={stage.stage}
-            className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-3"
-          >
-            <Text size="xsmall" leading="compact" className="text-ui-fg-subtle capitalize">
-              {stage.stage}
-            </Text>
-            <Text size="large" leading="compact" weight="plus" className="mt-1">
-              {stage.count.toLocaleString()}
-            </Text>
-          </div>
-        ))}
-      </div>
-
-      {/* Journeys Table */}
-      <Container className="p-0">
+    <Container className="divide-y p-0">
         <DataTable instance={table}>
-          <DataTable.Toolbar className="px-6 py-4">
+          <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
+            <div>
+              <Heading>Customer Journeys</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Visualize customer touchpoints and funnel analysis
+              </Text>
+            </div>
             <div className="flex items-center gap-4">
               <DataTable.Search placeholder="Search journeys..." />
               <Select
@@ -343,13 +249,16 @@ const JourneysPage = () => {
           <DataTable.Table />
           <DataTable.Pagination />
         </DataTable>
-      </Container>
-    </div>
+    </Container>
   )
 }
 
 export const config = defineRouteConfig({
   label: "Journeys",
 })
+
+export const handle = {
+  breadcrumb: () => "Customer Journeys",
+}
 
 export default JourneysPage
