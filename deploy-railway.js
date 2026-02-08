@@ -123,7 +123,9 @@ if (isGitHubActions) {
           }
         }
       } else {
-        console.log('⚠️ .medusa/server directory not found, skipping server config update');
+        console.error('Error: .medusa/server directory not found after build. The build likely failed silently.');
+        restoreDevConfig();
+        process.exit(1);
       }
     } catch (buildError) {
       console.error('Error building Medusa:', buildError.message);

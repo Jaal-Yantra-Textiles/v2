@@ -213,6 +213,12 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/production_policy",
   },
+  {
+    resolve: "./src/modules/ad-planning",
+  },
+  {
+    resolve: "./src/modules/spec_store",
+  },
    {
       resolve: "@medusajs/medusa/translation",
     },
