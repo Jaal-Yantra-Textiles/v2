@@ -127,7 +127,8 @@ if (isGitHubActions) {
       }
     } catch (buildError) {
       console.error('Error building Medusa:', buildError.message);
-      // Continue even if build fails since Railway will build it again
+      restoreDevConfig();
+      process.exit(1);
     }
   } catch (error) {
     console.error('Error copying production configuration:', error.message);
