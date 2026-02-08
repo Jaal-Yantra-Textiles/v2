@@ -1,3 +1,11 @@
+## [8.16.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.16.0...v8.16.1) (2026-02-08)
+
+
+### Bug Fixes
+
+* **build:** ci build error fix ([8e3ca1d](https://github.com/Jaal-Yantra-Textiles/v2/commit/8e3ca1d2c10cf4a0ef6a1f2754f08737120e7ebb))
+* **Build:** module enot registered ([8bf44fa](https://github.com/Jaal-Yantra-Textiles/v2/commit/8bf44fabc9cf0b12960d81bf0d25b2fc8b4c1436))
+
 # [8.16.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.15.0...v8.16.0) (2026-02-07)
 
 
