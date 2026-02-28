@@ -41,7 +41,13 @@ export default defineConfig(({ mode }) => {
         { find: /^react$/, replacement: require.resolve("react") },
         { find: /^react-dom$/, replacement: require.resolve("react-dom") },
       ],
-      dedupe: ["react", "react-dom"],
+      dedupe: [
+        "react",
+        "react-dom",
+        "@internationalized/date",
+        "react-aria",
+        "react-stately",
+      ],
     },
     define: {
       __BASE__: JSON.stringify(BASE),
