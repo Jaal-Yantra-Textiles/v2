@@ -540,6 +540,13 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    {
+      matcher: "/partners/inventory-orders/:orderId/submit-payment",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Payments APIs
     {
       matcher: "/partners/:id/payments",

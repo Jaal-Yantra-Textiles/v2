@@ -117,6 +117,13 @@ export function getPartnerRouteMap(): RouteObject[] {
                           "../../routes/inventory-orders/inventory-order-complete"
                         ),
                     },
+                    {
+                      path: "submit-payment",
+                      lazy: () =>
+                        import(
+                          "../../routes/inventory-orders/inventory-order-submit-payment"
+                        ),
+                    },
                   ],
                 },
               ],

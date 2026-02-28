@@ -20,6 +20,7 @@ export const InventoryOrderActionsSection = ({
   const showStart = canStart && !inventoryOrder?.partner_info?.partner_started_at
   const showComplete =
     canComplete && !inventoryOrder?.partner_info?.partner_completed_at
+  const showSubmitPayment = !!inventoryOrder?.partner_info?.partner_started_at
 
   return (
     <Container className="divide-y p-0">
@@ -35,6 +36,11 @@ export const InventoryOrderActionsSection = ({
         {showComplete && (
           <Button size="small" variant="primary" disabled={isPending} asChild>
             <Link to="complete">Complete</Link>
+          </Button>
+        )}
+        {showSubmitPayment && (
+          <Button size="small" variant="secondary" disabled={isPending} asChild>
+            <Link to="submit-payment">Submit Payment</Link>
           </Button>
         )}
       </div>

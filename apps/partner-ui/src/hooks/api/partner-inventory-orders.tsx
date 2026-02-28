@@ -71,6 +71,19 @@ export type PartnerCompleteInventoryOrderResponse = {
   result?: any
 }
 
+export type PartnerSubmitPaymentPayload = {
+  amount: number
+  payment_type?: "Bank" | "Cash" | "Digital_Wallet"
+  payment_date?: string
+  note?: string
+  paid_to_id?: string
+}
+
+export type PartnerSubmitPaymentResponse = {
+  message?: string
+  payment?: any
+}
+
 const buildQuery = (params?: Record<string, any>) => {
   const query = qs.stringify(params || {}, { skipNulls: true })
   return query ? `?${query}` : ""
@@ -177,6 +190,33 @@ export const useCompletePartnerInventoryOrder = (
     mutationFn: async (payload) =>
       sdk.client.fetch<PartnerCompleteInventoryOrderResponse>(
         `/partners/inventory-orders/${orderId}/complete`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: partnerInventoryOrdersQueryKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export const useSubmitPartnerInventoryOrderPayment = (
+  orderId: string,
+  options?: UseMutationOptions<
+    PartnerSubmitPaymentResponse,
+    FetchError,
+    PartnerSubmitPaymentPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<PartnerSubmitPaymentResponse>(
+        `/partners/inventory-orders/${orderId}/submit-payment`,
         { method: "POST", body: payload }
       ),
     onSuccess: (data, variables, context) => {

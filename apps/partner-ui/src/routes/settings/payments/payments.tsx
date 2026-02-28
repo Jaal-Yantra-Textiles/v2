@@ -98,12 +98,6 @@ export const SettingsPayments = () => {
                 <Text size="xsmall" className="text-ui-fg-subtle">
                   {r.bank_name || "Bank"}
                 </Text>
-                <Text size="small">{r.account_number || "-"}</Text>
-                {r.ifsc_code ? (
-                  <Text size="xsmall" className="text-ui-fg-subtle">
-                    IFSC: {r.ifsc_code}
-                  </Text>
-                ) : null}
               </div>
             )
           }
