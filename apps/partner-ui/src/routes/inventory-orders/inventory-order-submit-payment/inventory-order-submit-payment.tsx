@@ -30,7 +30,7 @@ const InventoryOrderSubmitPaymentContent = () => {
   const partnerId = user?.partner_id
 
   const { inventoryOrder } = usePartnerInventoryOrder(id || "")
-  const { paymentMethods } = usePartnerPaymentMethods(partnerId)
+  const { paymentMethods, isLoading: isLoadingPaymentMethods } = usePartnerPaymentMethods(partnerId)
   const { mutateAsync, isPending } = useSubmitPartnerInventoryOrderPayment(id || "")
 
   const [amount, setAmount] = useState<string>("")
@@ -101,9 +101,9 @@ const InventoryOrderSubmitPaymentContent = () => {
 
         <div className="grid gap-y-2">
           <Label>Payment Method (optional)</Label>
-          <Select value={paidToId} onValueChange={setPaidToId}>
+          <Select value={paidToId} onValueChange={setPaidToId} disabled={isLoadingPaymentMethods}>
             <Select.Trigger>
-              <Select.Value placeholder="Select a method" />
+              <Select.Value placeholder={isLoadingPaymentMethods ? "Loading methods..." : "Select a method"} />
             </Select.Trigger>
             <Select.Content>
               <Select.Item value="__none__">None</Select.Item>
