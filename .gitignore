@@ -80,3 +80,5 @@ specs/**
 # yalc local plugin linking
 .yalc/
 yalc.lock
+
+.yarnrc.yml
