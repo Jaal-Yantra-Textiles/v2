@@ -64,7 +64,7 @@ export const generateSkuStep = createStep(
   },
   async (inventoryId, { container }) => {
     if (!inventoryId) return
-    const inventoryService = container.resolve(Modules.INVENTORY)
+    const inventoryService: IInventoryService = container.resolve(Modules.INVENTORY)
     await inventoryService.updateInventoryItems({
       id: inventoryId,
       sku: undefined as any,
