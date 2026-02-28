@@ -3,7 +3,7 @@ import { openai } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { createAnswerRelevancyScorer, createPromptAlignmentScorerLLM } from "@mastra/evals/scorers/llm";
+import { createAnswerRelevancyScorer, createPromptAlignmentScorerLLM } from "@mastra/evals/scorers/prebuilt";
 import { memory } from "../memory";
 import { getVisionModelId, getTextModelId } from "../providers/openrouter";
 

@@ -38,8 +38,8 @@ export const generateDesignDataStep = createStep(
 
     try {
       // Call the Mastra designValidator workflow
-      const { runId , start } = mastra.getWorkflow('designValidationWorkflow').createRun();
-      const runResult = await start({
+      const run = await mastra.getWorkflow('designValidationWorkflow').createRun();
+      const runResult = await run.start({
         inputData: {
           designPrompt: input.designPrompt,
           existingValues: input.existingValues || {}

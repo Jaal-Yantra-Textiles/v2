@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 export const tagSchema = z.object({
   name: z.array(z.string().min(1, "Tag value is required")),

@@ -4,7 +4,7 @@
  */
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { AD_PLANNING_MODULE } from "../../../../../modules/ad-planning";
 import { PERSON_MODULE } from "../../../../../modules/person";
 

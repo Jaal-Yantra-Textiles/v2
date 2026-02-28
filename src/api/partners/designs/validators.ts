@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const listDesignsQuerySchema = z.object({
   limit: z.string().transform(Number).optional(),

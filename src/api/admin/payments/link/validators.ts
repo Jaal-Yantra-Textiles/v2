@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 const StatusEnum = z.enum(["Pending", "Processing", "Completed", "Failed", "Cancelled"]) 
 const PaymentTypeEnum = z.enum(["Bank", "Cash", "Digital_Wallet"]) 

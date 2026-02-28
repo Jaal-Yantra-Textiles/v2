@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { personSchema } from "../../admin/persons/validators"
 
 export const partnerPeopleSchema = z.object({

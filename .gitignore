@@ -76,3 +76,7 @@ patches/
 
 # Generated specs (stored in DB, regenerate with src/scripts/specs/)
 specs/**
+
+# yalc local plugin linking
+.yalc/
+yalc.lock

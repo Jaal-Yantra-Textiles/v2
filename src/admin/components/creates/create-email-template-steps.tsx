@@ -2,7 +2,7 @@ import { Button, toast, ProgressTabs, ProgressStatus} from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { useCreateEmailTemplates } from "../../hooks/api/email-templates";

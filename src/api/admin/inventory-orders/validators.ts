@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 // Query schema for listing inventory orders
 import { INVENTORY_ORDER_STATUS } from "../../../modules/inventory_orders/constants";
 

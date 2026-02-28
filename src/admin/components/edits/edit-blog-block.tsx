@@ -1,7 +1,7 @@
 import { Button, Prompt, Switch, Text, toast } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { useUpdateBlock } from "../../hooks/api/blocks";
 import { useRouteNonFocusModal } from "../modal/route-non-focus";
 import { useCallback, useEffect, useRef, useState } from "react";

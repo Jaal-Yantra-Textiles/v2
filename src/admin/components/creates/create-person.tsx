@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { Button, DatePicker, Heading, Input, Text, toast } from "@medusajs/ui";
 
 import { useRouteModal } from "../modal/use-route-modal";

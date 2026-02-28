@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const AdminPostPersonTypesReq = z.object({
   personTypeIds: z.array(z.string())

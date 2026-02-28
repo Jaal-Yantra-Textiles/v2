@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { Memory } from "@mastra/memory";
 import { PostgresStore, PgVector } from "@mastra/pg";
-import { google } from "@ai-sdk/google-v5";
+import { google } from "@ai-sdk/google";
 
 // Centralized Mastra Memory configuration using Postgres + pgvector
 // Uses DATABASE_URL or MEDUSA_DB_URL for connection
@@ -24,7 +24,7 @@ try {
     !embeddingsEnabled
 
   if (connectionString) {
-    sharedStorage = new PostgresStore({ connectionString })
+    sharedStorage = new PostgresStore({ id: "mastra-memory-storage", connectionString })
     if (embeddingsDisabled) {
       memory = new Memory({
         storage: sharedStorage,
@@ -38,7 +38,7 @@ try {
     } else {
       memory = new Memory({
         storage: sharedStorage,
-        vector: new PgVector({ connectionString }),
+        vector: new PgVector({ id: "mastra-memory-vector", connectionString }),
         embedder: google.textEmbeddingModel("text-embedding-004", { outputDimensionality: 768 }),
         options: {
           workingMemory: { enabled: true },

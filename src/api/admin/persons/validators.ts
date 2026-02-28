@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 export const personSchema = z.object({
   first_name: z.string().min(1, "First name is required"),

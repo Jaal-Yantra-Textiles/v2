@@ -22,8 +22,7 @@ export const generateProductDescriptionStep = createStep(
   "generate-product-description-step",
   async (input: GenerateProductDescriptionInput, { container }) => {
     try {
-      // createRunAsync returns a Run object, we need to call .start() on it
-      const run = await mastra.getWorkflow('productDescriptionWorkflow').createRunAsync();
+      const run = await mastra.getWorkflow('productDescriptionWorkflow').createRun();
       const workflowResult = await run.start({
         inputData: {
           imageUrl: input.imageUrl,

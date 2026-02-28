@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 // Query schema for listing persons publicly
 export const listPublicPersonsQuerySchema = z.object({

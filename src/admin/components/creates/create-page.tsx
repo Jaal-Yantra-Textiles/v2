@@ -1,7 +1,7 @@
 import { Button, Heading, IconButton, Input, Text, toast, Label, Switch } from "@medusajs/ui";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { useNavigate } from "react-router-dom";
 import { Select } from "@medusajs/ui"
 import { Plus, Minus } from "@medusajs/icons";

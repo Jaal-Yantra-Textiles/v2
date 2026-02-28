@@ -1,4 +1,4 @@
-import { z as z } from "zod"
+import { z as z } from "@medusajs/framework/zod"
 
 /**
  * Validator for POST /admin/ai/chat/resolve

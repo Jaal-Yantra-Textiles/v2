@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 const AssignmentSchema = z.object({
   partner_id: z.string().min(1),

@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const ListIdentitiesQuerySchema = z.object({
   email: z.string().email(),

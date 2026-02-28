@@ -3,7 +3,7 @@ import { Button, Input, Select, Switch } from "@medusajs/ui";
 import { FileUpload } from "./file-upload";
 import { FieldValues, Path, useForm, type Control, type DefaultValues, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { Form } from "./form";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { RouteDrawer } from "../modal/route-drawer/route-drawer";

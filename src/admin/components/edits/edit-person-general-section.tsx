@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { toast } from "sonner";
 import { DatePicker } from "@medusajs/ui";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";

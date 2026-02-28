@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 // Create schema for AnalyticsEvent
 export const AnalyticsEventCreateSchema = z.object({

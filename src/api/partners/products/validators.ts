@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 // Minimal validator to accept a product payload and target store
 // We rely on createProductsWorkflow to validate deeper product structure

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { AdminTaskTemplate, useUpdateTaskTemplate } from "../../hooks/api/task-templates";
 import { useTaskTemplateCategories } from "../../hooks/api/task-template-categories";
 import { CategorySearch } from "../common/category-search";

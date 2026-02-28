@@ -106,7 +106,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../../helpers"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { completePartnerDesignWorkflow } from "../../../../../workflows/designs/complete-partner-design"
 import { setDesignStepFailedWorkflow, setDesignStepSuccessWorkflow } from "../../../../../workflows/designs/design-steps"
 

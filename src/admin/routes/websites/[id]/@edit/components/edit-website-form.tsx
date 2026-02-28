@@ -1,7 +1,7 @@
 import { Badge, Button, Input, Select, Textarea, toast } from "@medusajs/ui"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { z as zod } from "zod";
+import { z as zod } from "@medusajs/framework/zod";
 import { Form } from "../../../../../components/common/form"
 import { useUpdateWebsite } from "../../../../../hooks/api/websites"
 import { useFileUpload } from "../../../../../hooks/api/upload"

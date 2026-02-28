@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const PostPartnerSchema = z.object({
   partner: z.object({

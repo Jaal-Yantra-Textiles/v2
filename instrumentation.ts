@@ -25,10 +25,10 @@ import Sentry from "@sentry/node"
 import otelApi from "@opentelemetry/api"
 import { registerOtel } from "@medusajs/medusa"
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc" 
-import { 
-  SentrySpanProcessor, 
+import {
+  SentrySpanProcessor,
   SentryPropagator,
-} from "@sentry/opentelemetry-node"
+} from "@sentry/opentelemetry"
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,

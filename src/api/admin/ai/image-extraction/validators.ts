@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 const expectedItemSchema = z.object({
   name: z.string().optional(),

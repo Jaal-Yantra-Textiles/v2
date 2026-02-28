@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const GenerateDescriptionValidator = z.object({
   imageUrl: z.string().url(),

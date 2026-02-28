@@ -4,7 +4,7 @@
  */
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { AD_PLANNING_MODULE } from "../../../../modules/ad-planning";
 import { calculateNPSWorkflow } from "../../../../workflows/ad-planning/scoring/calculate-nps";
 import { calculateEngagementWorkflow } from "../../../../workflows/ad-planning/scoring/calculate-engagement";

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 export const FeedbackSchema = z.object({
   rating: z.enum(["one","two","three","four","five"]),

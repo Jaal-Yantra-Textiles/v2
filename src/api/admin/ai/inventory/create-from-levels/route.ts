@@ -96,7 +96,7 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { createInventoryItemsWorkflow, createInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
 
 const BodySchema = z.object({

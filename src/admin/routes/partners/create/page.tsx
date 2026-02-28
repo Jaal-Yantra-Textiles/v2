@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { Button, Heading, Input, Select, Switch, Text, toast } from "@medusajs/ui"
 
 import { RouteFocusModal } from "../../../components/modal/route-focus-modal"

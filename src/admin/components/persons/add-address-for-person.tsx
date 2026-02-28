@@ -8,7 +8,7 @@ import { KeyboundForm } from "../utilitites/key-bound-form"
 import { Form } from "../common/form"
 import { useParams } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import { z } from "@medusajs/framework/zod"
 
 const addressSchema = z.object({
   street: z.string().min(1, "Street is required"),

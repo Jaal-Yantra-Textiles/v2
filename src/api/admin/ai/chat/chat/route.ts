@@ -84,14 +84,14 @@ export const POST = async (req: MedusaRequest<AdminAiChatReqType>, res: MedusaRe
 
     // Get the V4 workflow
     const wf = mastra.getWorkflow("aiChatWorkflow")
-    if (!wf || !(wf as any).createRunAsync) {
+    if (!wf || !(wf as any).createRun) {
       throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "aiChatWorkflow not found")
     }
 
     const body = parsed.data
 
     // Create and start the workflow run
-    const run = await (wf as any).createRunAsync({ runId })
+    const run = await (wf as any).createRun({ runId })
 
     const startTime = Date.now()
 
@@ -188,7 +188,7 @@ export const GET = async (_req: MedusaRequest, res: MedusaResponse) => {
   try {
     // Check if workflow exists
     const wf = mastra.getWorkflow("aiChatWorkflow")
-    const workflowAvailable = !!(wf && (wf as any).createRunAsync)
+    const workflowAvailable = !!(wf && (wf as any).createRun)
 
     // Check if hybrid resolver is configured
     const llmConfigured = !!process.env.OPENROUTER_API_KEY

@@ -3,7 +3,7 @@
  */
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { MedusaError } from "@medusajs/framework/utils";
 import { AD_PLANNING_MODULE } from "../../../../../modules/ad-planning";
 

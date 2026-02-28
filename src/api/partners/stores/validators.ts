@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 // Input payload to create a store with defaults from Partner API
 // Mirrors `CreateStoreWithDefaultsInput` with reasonable validations

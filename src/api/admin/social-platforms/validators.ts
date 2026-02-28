@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 // API Category enum
 export const ApiCategorySchema = z.enum([

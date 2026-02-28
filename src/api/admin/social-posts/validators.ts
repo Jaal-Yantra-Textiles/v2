@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 export const SocialPostSchema = z.object({
   name: z.string().min(1, "Name is required"),

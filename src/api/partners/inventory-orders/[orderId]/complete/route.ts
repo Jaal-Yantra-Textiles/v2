@@ -106,7 +106,7 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { getPartnerFromAuthContext } from "../../../helpers";
 import { partnerCompleteInventoryOrderWorkflow } from "../../../../../workflows/inventory_orders/partner-complete-inventory-order";
 

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 // Validator for creating folder
 export const folderSchema = z.object({

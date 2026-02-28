@@ -135,13 +135,13 @@ export const POST = async (
     }
 
     const wf = mastra.getWorkflow("visualFlowCodegenWorkflow")
-    if (!wf || !(wf as any).createRunAsync) {
+    if (!wf || !(wf as any).createRun) {
       throw new MedusaError(
         MedusaError.Types.UNEXPECTED_STATE,
         "visualFlowCodegenWorkflow is not available"
       )
     }
-    const run = await (wf as any).createRunAsync()
+    const run = await (wf as any).createRun()
 
     const result = await run.start({
       inputData: {

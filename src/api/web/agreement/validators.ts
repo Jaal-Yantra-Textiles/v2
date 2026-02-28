@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 // Validator for agreement access with token
 export const WebAgreementAccessSchema = z.object({

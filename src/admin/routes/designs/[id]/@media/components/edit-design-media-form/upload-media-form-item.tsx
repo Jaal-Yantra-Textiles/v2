@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import { UseFormReturn } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { v4 as uuidv4 } from "uuid"
 import { FileUpload } from "../../../../../../components/common/file-upload"
 import { Form } from "../../../../../../components/common/form"

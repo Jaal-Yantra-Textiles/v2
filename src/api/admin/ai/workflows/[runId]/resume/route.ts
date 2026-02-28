@@ -69,7 +69,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         let run = runStorage.get(runId)
         if (!run) {
             const workflow = mastra.getWorkflow("multiStepApiRequestWorkflow")
-            run = await workflow.createRunAsync({ runId })
+            run = await workflow.createRun({ runId })
         }
 
         // Resume the workflow

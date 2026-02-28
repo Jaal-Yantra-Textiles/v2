@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { PriorityLevel, Status } from "../../../../../workflows/tasks/create-task"
 
 // ============= Constants =============

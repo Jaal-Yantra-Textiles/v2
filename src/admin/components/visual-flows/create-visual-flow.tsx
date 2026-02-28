@@ -1,7 +1,7 @@
 import { Button, Heading, Text, Input, Textarea, toast, Select } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { KeyboundForm } from "../utilitites/key-bound-form"
 import { useCreateVisualFlow, useFlowMetadata } from "../../hooks/api/visual-flows"

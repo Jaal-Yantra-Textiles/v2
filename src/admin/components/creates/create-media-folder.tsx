@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { Button, Heading, Input, Text, toast, Textarea, Select } from "@medusajs/ui";
 // React import not needed with new JSX runtime
 

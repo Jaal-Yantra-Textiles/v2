@@ -1,10 +1,10 @@
-import zod, { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
-export const LinkPersonValidator = zod.object({
+export const LinkPersonValidator = z.object({
   personId: z.string(),
 })
 
-export const UnlinkPersonValidator = zod.object({
+export const UnlinkPersonValidator = z.object({
   personId: z.string(),
 })
 

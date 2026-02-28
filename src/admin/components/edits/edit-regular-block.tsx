@@ -3,7 +3,7 @@ import { Button, Text, toast, Input, Tooltip } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import "../common/json-editor-overrides.css";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { InformationCircleSolid } from "@medusajs/icons";
 import { Form } from "../common/form";
 import { KeyboundForm } from "../utilitites/key-bound-form";

@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 const referenceImageSchema = z.object({
   url: z.string().url(),

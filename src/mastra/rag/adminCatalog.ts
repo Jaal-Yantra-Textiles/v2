@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { embedMany } from "ai"
 import { PgVector } from "@mastra/pg"
-import { google } from "@ai-sdk/google-v5"
+import { google } from "@ai-sdk/google"
 
 type EmbeddingProvider = "google" | "hf_local"
 

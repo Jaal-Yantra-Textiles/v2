@@ -13,7 +13,7 @@ import {
 import { useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { useParams } from "react-router-dom"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 import { Form } from "../../../../components/common/form"
 import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer"

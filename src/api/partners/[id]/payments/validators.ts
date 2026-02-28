@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 // List payments for a partner
 export const ListPaymentsByPartnerQuerySchema = z.object({

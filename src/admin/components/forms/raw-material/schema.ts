@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 // Define the material type schema for existing types (with ID)
 export const existingMaterialTypeSchema = z.object({

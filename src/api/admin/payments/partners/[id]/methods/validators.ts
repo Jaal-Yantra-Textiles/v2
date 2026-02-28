@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const ListPaymentMethodsByPartnerQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0).optional(),

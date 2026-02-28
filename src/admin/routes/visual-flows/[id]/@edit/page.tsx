@@ -4,7 +4,7 @@ import { useVisualFlow, useUpdateVisualFlow } from "../../../../hooks/api/visual
 import { Button, Heading, Text, Input, Textarea, toast, Select } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { KeyboundForm } from "../../../../components/utilitites/key-bound-form"
 import { useRouteModal } from "../../../../components/modal/use-route-modal"
 import { Form } from "../../../../components/common/form"

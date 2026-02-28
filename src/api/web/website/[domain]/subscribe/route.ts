@@ -1,6 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { findWebsiteByDomainWorkflow } from "../../../../../workflows/website/find-website-by-domain";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import createPersonWorkflow from "../../../../../workflows/create-person";
 import { SubscriptionSchema } from "../validators";
 import createPersonTagsWorkflow from "../../../../../workflows/persons/create-person-tags";

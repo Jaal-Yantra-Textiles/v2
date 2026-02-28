@@ -36,7 +36,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { VISUAL_FLOWS_MODULE } from "../../../../../modules/visual_flows"
 import VisualFlowService from "../../../../../modules/visual_flows/service"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 const duplicateSchema = z.object({
   name: z.string().optional(),

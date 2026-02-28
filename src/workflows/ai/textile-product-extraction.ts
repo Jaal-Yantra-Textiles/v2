@@ -96,7 +96,7 @@ const runMastraTextileExtractionStep = createStep(
     try {
       // Get the Mastra workflow
       const workflow = mastra.getWorkflow("textileProductExtractionWorkflow");
-      const run = await workflow.createRunAsync();
+      const run = await workflow.createRun();
 
       // Generate threadId and resourceId if not provided (required for Memory)
       const threadId = input.threadId || `textile-thread-${Date.now()}`;
@@ -125,7 +125,7 @@ const runMastraTextileExtractionStep = createStep(
       }
 
       // Check for errors
-      const failedStep = Object.entries(workflowResult.steps).find(([, step]) => step.status === "failed");
+      const failedStep = Object.entries(workflowResult.steps).find(([, step]) => (step as any).status === "failed");
       if (failedStep) {
         throw new MedusaError(
           MedusaError.Types.UNEXPECTED_STATE,

@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const PartnerDesignInventorySchema = z.object({
   inventory_used: z.preprocess((val) => {

@@ -110,7 +110,7 @@ import designPartnersLink from "../../../../../../links/design-partners-link"
 import updateDesignWorkflow from "../../../../../../workflows/designs/update-design"
 import listSingleDesignsWorkflow from "../../../../../../workflows/designs/list-single-design"
 import { getPartnerFromAuthContext } from "../../../../helpers"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 // Payload schema for attaching media to a design
 const partnerAttachMediaSchema = z.object({

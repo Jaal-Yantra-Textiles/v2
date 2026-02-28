@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 export const contactSchema = z.object({
   type: z.enum(["mobile", "home", "work"]),

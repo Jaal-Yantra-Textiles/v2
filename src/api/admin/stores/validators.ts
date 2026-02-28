@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 // Schema for creating a new store
 export const createStoreSchema = z.object({

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { Status, PriorityLevel } from "../../../../../workflows/tasks/create-task";
 
 // Schema for child tasks (subtasks)

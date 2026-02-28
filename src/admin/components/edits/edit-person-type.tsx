@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Input, toast } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { AdminPersonType } from "../person-type/person-type-general-section";
 import { useUpdatePersonType } from "../../hooks/api/persontype";
 import { KeyboundForm } from "../utilitites/key-bound-form";

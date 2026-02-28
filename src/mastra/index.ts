@@ -49,7 +49,7 @@ export const mastra = new Mastra({
     ...(sharedStorage
         ? { storage: sharedStorage }
         : (mastraConnectionString
-            ? { storage: new PostgresStore({ connectionString: mastraConnectionString }) }
+            ? { storage: new PostgresStore({ id: "mastra-storage", connectionString: mastraConnectionString }) }
             : {})),
     observability: {
         default: {

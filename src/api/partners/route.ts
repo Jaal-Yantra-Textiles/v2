@@ -104,7 +104,7 @@ import {
 import { MedusaError } from "@medusajs/framework/utils"
 import createPartnerAdminWorkflow from "../../workflows/partner/create-partner-admin"
 import { partnerSchema } from "./validators"
-import type { z } from "zod"
+import type { z } from "@medusajs/framework/zod"
 import { refetchPartner } from "./helpers"
 
 type RequestBody = z.infer<typeof partnerSchema>

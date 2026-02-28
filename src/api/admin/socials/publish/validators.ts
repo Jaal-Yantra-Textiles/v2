@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const PublishContentSchema = z.object({
   platform: z.enum(["facebook", "instagram", "both"]),

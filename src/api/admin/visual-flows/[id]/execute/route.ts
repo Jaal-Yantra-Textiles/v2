@@ -57,7 +57,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { executeVisualFlowWorkflow } from "../../../../../workflows/visual-flows"
 
 const executeSchema = z.object({

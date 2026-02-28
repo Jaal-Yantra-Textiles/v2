@@ -121,7 +121,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { sendTestBlogEmailWorkflow } from "../../../../../../../../workflows/blogs/send-blog-subscribers";
 import { WEBSITE_MODULE } from "../../../../../../../../modules/website";
 import WebsiteService from "../../../../../../../../modules/website/service";

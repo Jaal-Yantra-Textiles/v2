@@ -8,7 +8,7 @@ import { KeyboundForm } from "../utilitites/key-bound-form";
 import { Form } from "../common/form";
 import { useParams } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { z } from "@medusajs/framework/zod";
 
 const contactSchema = z.object({
   phone_number: z.string().min(1, "Phone number is required"),

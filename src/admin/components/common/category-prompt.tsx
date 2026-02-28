@@ -1,7 +1,7 @@
 import { Button, Input } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "./form";
 import {

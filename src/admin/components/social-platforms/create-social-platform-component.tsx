@@ -2,7 +2,7 @@ import { Button, Heading, Input, Textarea, toast, Text, Select } from "@medusajs
 import { RouteFocusModal } from "../modal/route-focus-modal" // Assuming path based on task-template
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { useCreateSocialPlatform } from "../../hooks/api/social-platforms" // Adjusted path
 
 import { KeyboundForm } from "../utilitites/key-bound-form"

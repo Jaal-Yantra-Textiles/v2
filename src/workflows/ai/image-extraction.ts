@@ -85,7 +85,7 @@ const runMastraExtraction = createStep(
   "run-mastra-extraction",
   async (input: ImageExtractionInput) => {
     // Execute the Mastra imageExtractionWorkflow to unify behavior
-    const run  = await mastra.getWorkflow("imageExtractionWorkflow").createRunAsync()
+    const run  = await mastra.getWorkflow("imageExtractionWorkflow").createRun()
     const workflowResult = await run.start({ inputData: {
       image_url: input.image_url,
       entity_type: input.entity_type || "raw_material",

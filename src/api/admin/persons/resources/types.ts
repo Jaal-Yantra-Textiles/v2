@@ -1,5 +1,5 @@
 import { MedusaContainer } from "@medusajs/framework/types"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { PersonResourceKey } from "./meta"
 
 export interface PersonResourceListResult<T = any> {

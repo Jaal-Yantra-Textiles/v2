@@ -1,7 +1,7 @@
 import { Badge, Button, Heading, Text, toast } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { z } from "@medusajs/framework/zod";
 import { useParams } from "react-router-dom";
 import { Select } from "@medusajs/ui";
 import { Form } from "../common/form";

@@ -72,7 +72,7 @@ export const analyzeImageBatchStep = createStep(
 
 Return structured JSON.`
 
-                        const result = await generateObject({
+                        const result: any = await generateObject({
                             model: openrouter("google/gemini-2.0-flash-exp:free") as any,
                             messages: [
                                 {

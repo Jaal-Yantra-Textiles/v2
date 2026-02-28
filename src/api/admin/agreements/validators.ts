@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 // Create Agreement Schema
 export const CreateAgreementSchema = z.object({

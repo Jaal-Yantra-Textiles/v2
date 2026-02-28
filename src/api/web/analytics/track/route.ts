@@ -76,7 +76,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { trackAnalyticsEventWorkflow } from "../../../../workflows/analytics/track-analytics-event";
 
 // Validator for tracking request

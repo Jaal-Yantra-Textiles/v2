@@ -14,7 +14,7 @@ import path from "path";
 import { ConfigModule } from "@medusajs/framework/types";
 import { parseCorsOrigins } from "@medusajs/framework/utils";
 import cors from "cors";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
 import { getPersonResourceDefinition } from "./admin/persons/resources/registry";
 

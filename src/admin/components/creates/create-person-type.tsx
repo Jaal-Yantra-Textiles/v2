@@ -1,5 +1,5 @@
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { Button, Heading, Input, Text, toast } from "@medusajs/ui";
 
 import { useRouteModal } from "../modal/use-route-modal";

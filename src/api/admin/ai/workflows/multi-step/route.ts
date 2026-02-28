@@ -111,7 +111,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
         // Create a new run
         const runId = uuidv4()
-        const run = await workflow.createRunAsync({ runId })
+        const run = await workflow.createRun({ runId })
 
         // Store run instance for later resume
         runStorage.set(runId, run)

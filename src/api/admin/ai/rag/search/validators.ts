@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 export const AdminRagSearchQuery = z.object({
   q: z.string().min(1, { message: "q is required" }),

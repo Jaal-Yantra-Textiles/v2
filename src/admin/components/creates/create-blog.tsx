@@ -6,7 +6,7 @@ import { useUsers } from "../../hooks/api/users";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { Form } from "../common/form";
 import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";

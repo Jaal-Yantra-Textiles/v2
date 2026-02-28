@@ -4,7 +4,7 @@
  */
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { resolveSessionAttributionWorkflow } from "../../../../../workflows/ad-planning/attribution/resolve-session-attribution";
 import { bulkResolveAttributionsWorkflow } from "../../../../../workflows/ad-planning/attribution/bulk-resolve-attributions";
 

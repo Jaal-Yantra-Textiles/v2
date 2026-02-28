@@ -1,6 +1,6 @@
 import { Button, Heading, Input, Select, Switch, Text } from "@medusajs/ui"
 import { useForm, useWatch } from "react-hook-form"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useCreateSocialPost } from "../../hooks/api/social-posts"
 import { useSocialPlatforms, useSocialPlatform } from "../../hooks/api/social-platforms"

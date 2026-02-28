@@ -25,18 +25,21 @@ jobs:
           --health-retries 5
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+
     - name: Use Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '>=20'
-        cache: 'yarn'
+        cache: 'pnpm'
 
     - name: Install dependencies
-      run: yarn install --frozen-lockfile
+      run: pnpm install --frozen-lockfile
 
     - name: Setup Database
       run: |
@@ -58,7 +61,7 @@ jobs:
         EOF
 
     - name: Run integration tests
-      run: yarn test:integration:http:batched
+      run: pnpm test:integration:http:batched
       env:
         NODE_ENV: test
         DATABASE_URL: postgresql://runner@localhost:5432/postgres
@@ -74,22 +77,26 @@ jobs:
       pull-requests: write
       issues: write
       packages: write
-    
+
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "20.x"
-          cache: 'yarn'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: yarn semantic-release
+        run: pnpm semantic-release
 
   notify:
     needs: test

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react"
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button, CommandBar, IconButton, Text, clx, toast } from "@medusajs/ui"
 import { useFieldArray, useForm } from "react-hook-form"

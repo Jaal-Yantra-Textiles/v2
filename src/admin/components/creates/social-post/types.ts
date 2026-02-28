@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@medusajs/framework/zod"
 
 // Content rule schema for campaign mode - all fields optional for form flexibility
 export const ContentRuleSchema = z.object({

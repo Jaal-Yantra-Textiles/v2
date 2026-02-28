@@ -1,0 +1,3 @@
+packages:
+  - "apps/partner-ui"
+  - "apps/media-gallery"

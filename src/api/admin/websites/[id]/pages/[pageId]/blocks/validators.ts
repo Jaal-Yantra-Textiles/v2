@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 
 const blockBaseSchema = z.object({
   name: z.string().min(1, "Name is required"),

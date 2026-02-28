@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
+import { z } from "@medusajs/framework/zod";
 import { toast } from "sonner";
 import { Badge, Text, Button, Switch, Input } from "@medusajs/ui";
 import { Trash, Plus } from "@medusajs/icons";

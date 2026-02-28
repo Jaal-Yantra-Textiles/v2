@@ -74,7 +74,7 @@ const invokeMastraImageGenStep = createStep(
       }
 
       // Create run and start workflow
-      const run = await workflow.createRunAsync();
+      const run = await workflow.createRun();
       const result = await run.start({
         inputData: {
           mode: input.mode,
