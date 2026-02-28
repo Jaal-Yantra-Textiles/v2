@@ -121,7 +121,7 @@ const requestBodySchema = z.object({
     stockLocationId: z.string().optional(),
     lines: z.array(z.object({
         order_line_id: z.string(),
-        quantity: z.number().min(0)
+        quantity: z.number().positive("Quantity must be greater than 0")
     })).nonempty()
 });
 

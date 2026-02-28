@@ -136,6 +136,7 @@ const prepareFulfillmentPayloadsStep = createStep(
 )
 
 // Step: create fulfillment entries and links from prepared payloads (single step encapsulation)
+// Bug 3 fix: re-verifies cumulative quantities before writing to guard against concurrent submissions
 const createFulfillmentEntriesStep = createStep(
   "partner-complete-create-fulfillment-entries",
   async (
@@ -144,9 +145,47 @@ const createFulfillmentEntriesStep = createStep(
   ) => {
     const service: Fullfilled_ordersService = container.resolve(FULLFILLED_ORDERS_MODULE) as any
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
+
+    // Re-read current fulfillment state to guard against concurrent submissions
+    const payloads = input.payloads || []
+    if (payloads.length > 0) {
+      const orderId = payloads[0].orderId
+      const { data: orders } = await query.graph({
+        entity: "inventory_orders",
+        fields: ["id", "orderlines.id", "orderlines.quantity", "orderlines.line_fulfillments.quantity_delta"],
+        filters: { id: orderId },
+      })
+
+      if (orders && orders.length > 0) {
+        const order = orders[0]
+        const lineMap = new Map<string, { requested: number; fulfilled: number }>()
+        for (const ol of (order.orderlines ?? []).filter(Boolean)) {
+          const lineId = String((ol as any).id)
+          const requested = Number((ol as any).quantity ?? 0) || 0
+          const fulfilled = ((ol as any).line_fulfillments || []).reduce(
+            (s: number, f: any) => s + (Number(f?.quantity_delta) || 0), 0
+          )
+          lineMap.set(lineId, { requested, fulfilled })
+        }
+
+        for (const p of payloads) {
+          const line = lineMap.get(p.orderLineId)
+          if (line) {
+            const remaining = line.requested - line.fulfilled
+            if (p.quantityDelta > remaining + 0.01) {
+              throw new MedusaError(
+                MedusaError.Types.INVALID_DATA,
+                `Concurrent conflict: line ${p.orderLineId} has ${remaining.toFixed(2)} remaining but attempted to deliver ${p.quantityDelta}`
+              )
+            }
+          }
+        }
+      }
+    }
 
     const createdIds: string[] = []
-    for (const p of (input.payloads || [])) {
+    for (const p of payloads) {
       const entry = await service.createLine_fulfillments({
         quantity_delta: p.quantityDelta,
         event_type: p.eventType,
@@ -219,19 +258,35 @@ const validateAndFetchOrderStep = createStep(
       throw new MedusaError(MedusaError.Types.INVALID_DATA, `lines must be a non-empty array`)
     }
 
+    // Build a set of valid order line IDs for validation
+    const validLineIds = new Set(
+      (order.orderlines ?? []).filter(Boolean).map((ol: any) => String(ol.id))
+    )
+
     // Build easy lookup for delivered quantities
     const deliveredByLine: Record<string, number> = {}
     for (const l of input.lines) {
       if (!l?.order_line_id || typeof l.quantity !== "number" || l.quantity < 0) {
         throw new MedusaError(MedusaError.Types.INVALID_DATA, `Invalid line item in lines payload`)
       }
+      // Bug 5 fix: validate that the order_line_id belongs to this order
+      if (!validLineIds.has(l.order_line_id)) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Order line ${l.order_line_id} does not belong to order ${input.orderId}`
+        )
+      }
       deliveredByLine[l.order_line_id] = l.quantity
     }
+
+    // Small tolerance for floating point comparisons (e.g. 4.5 vs 5 rounding)
+    const OVER_DELIVERY_TOLERANCE = 0.01
 
     // Determine if fully fulfilled cumulatively: requested <= (existing delivered + this payload)
     // If any line cumulative is less than requested, keep open
     let fullyFulfilled = true
     const shortages: Array<{ order_line_id: string; requested: number; delivered_cumulative: number; shortage: number }> = []
+    const overDeliveries: Array<{ order_line_id: string; requested: number; delivered_cumulative: number; excess: number }> = []
     for (const ol of (order.orderlines ?? []).filter(Boolean)) {
       const lineId = (ol as any).id
       const requested = Number((ol as any).quantity ?? 0) || 0
@@ -241,7 +296,19 @@ const validateAndFetchOrderStep = createStep(
       )
       const thisPayloadDelivered = deliveredByLine[lineId] ?? 0
       const deliveredCumulative = existingDelivered + thisPayloadDelivered
-      if (deliveredCumulative < requested) {
+
+      // Bug 1 fix: reject over-delivery beyond tolerance
+      const remaining = requested - existingDelivered
+      if (thisPayloadDelivered > remaining + OVER_DELIVERY_TOLERANCE) {
+        overDeliveries.push({
+          order_line_id: lineId,
+          requested,
+          delivered_cumulative: deliveredCumulative,
+          excess: thisPayloadDelivered - remaining,
+        })
+      }
+
+      if (deliveredCumulative < requested - OVER_DELIVERY_TOLERANCE) {
         fullyFulfilled = false
         shortages.push({
           order_line_id: lineId,
@@ -252,15 +319,40 @@ const validateAndFetchOrderStep = createStep(
       }
     }
 
+    // Bug 6 fix: reject if any lines have over-delivery
+    if (overDeliveries.length > 0) {
+      const details = overDeliveries
+        .map((o) => `line ${o.order_line_id}: requested ${o.requested}, would deliver ${o.delivered_cumulative} (excess ${o.excess.toFixed(2)})`)
+        .join("; ")
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Over-delivery detected on ${overDeliveries.length} line(s): ${details}`
+      )
+    }
+
+    // Bug 2 fix: append to delivery history instead of overwriting
+    const existingDeliveryHistory = Array.isArray(order.metadata?.partner_delivery_history)
+      ? order.metadata.partner_delivery_history
+      : []
+    const deliveryEntry = {
+      lines: input.lines,
+      notes: input.notes || null,
+      delivery_date: input.deliveryDate || null,
+      tracking_number: input.trackingNumber || null,
+      submitted_at: new Date().toISOString(),
+    }
+
     // Compute metadata patch with delivery info
     const completionMetadata = {
       ...(order.metadata || {}),
-      partner_completed_at: new Date().toISOString(),
+      // Bug 7 fix: only set partner_completed_at when fully fulfilled
+      ...(fullyFulfilled ? { partner_completed_at: new Date().toISOString() } : {}),
       partner_status: fullyFulfilled ? "completed" : "partial",
       partner_completion_notes: input.notes,
       partner_delivery_date: input.deliveryDate,
       partner_tracking_number: input.trackingNumber,
-      partner_delivered_lines: input.lines, // store business data on order metadata
+      partner_delivered_lines: input.lines,
+      partner_delivery_history: [...existingDeliveryHistory, deliveryEntry],
     }
 
     const response = { order, completionMetadata, fullyFulfilled, shortages }
