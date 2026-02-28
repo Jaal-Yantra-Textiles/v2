@@ -12,6 +12,7 @@ import { SingleColumnPage } from "../../../components/layout/pages"
 import { _DataTable } from "../../../components/table/data-table"
 import { getLocaleAmount } from "../../../lib/money-amount-helpers"
 import { usePartnerPayments } from "../../../hooks/api/partner-payments"
+import { usePartnerPaymentMethods } from "../../../hooks/api/partner-payment-methods"
 import { useMe } from "../../../hooks/api/users"
 import { useDataTable } from "../../../hooks/use-data-table"
 
@@ -20,6 +21,7 @@ export const SettingsPayments = () => {
   const partnerId = user?.partner_id
 
   const { payments, isPending: isPaymentsLoading } = usePartnerPayments(partnerId)
+  const { paymentMethods, isPending: isMethodsLoading } = usePartnerPaymentMethods(partnerId)
 
   type PaymentMethodRow = {
     id: string
@@ -33,34 +35,17 @@ export const SettingsPayments = () => {
   }
 
   const rows = useMemo<PaymentMethodRow[]>(() => {
-    if (!partnerId) {
-      return []
-    }
-
-    if (typeof window === "undefined") {
-      return []
-    }
-
-    try {
-      const raw = localStorage.getItem(`partner_payment_methods_${partnerId}`)
-      const parsed = raw ? (JSON.parse(raw) as any[]) : []
-      if (!Array.isArray(parsed)) {
-        return []
-      }
-      return parsed.map((m) => ({
-        id: String(m.id),
-        type: String(m.type || ""),
-        account_name: String(m.account_name || ""),
-        account_number: m.account_number ?? null,
-        bank_name: m.bank_name ?? null,
-        ifsc_code: m.ifsc_code ?? null,
-        wallet_id: m.wallet_id ?? null,
-        created_at: m.created_at ?? null,
-      }))
-    } catch {
-      return []
-    }
-  }, [partnerId])
+    return (paymentMethods || []).map((m) => ({
+      id: String(m.id),
+      type: String(m.type || ""),
+      account_name: String(m.account_name || ""),
+      account_number: m.account_number ?? null,
+      bank_name: m.bank_name ?? null,
+      ifsc_code: m.ifsc_code ?? null,
+      wallet_id: m.wallet_id ?? null,
+      created_at: m.created_at ?? null,
+    }))
+  }, [paymentMethods])
 
   type PaymentRow = {
     id: string
@@ -132,7 +117,15 @@ export const SettingsPayments = () => {
       }),
       columnHelper.accessor("created_at", {
         header: () => "Added",
-        cell: ({ getValue }) => (getValue() ? String(getValue()) : "-"),
+        cell: ({ getValue }) => {
+          const v = getValue()
+          if (!v) return "-"
+          try {
+            return new Date(String(v)).toLocaleDateString()
+          } catch {
+            return String(v)
+          }
+        },
       }),
     ],
     [columnHelper]
@@ -229,7 +222,7 @@ export const SettingsPayments = () => {
             table={table}
             pagination
             count={rows.length}
-            isLoading={false}
+            isLoading={isMethodsLoading}
             pageSize={20}
             queryObject={{}}
             noRecords={{

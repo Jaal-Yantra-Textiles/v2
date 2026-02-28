@@ -14,6 +14,7 @@ export const CreatePaymentAndLinkSchema = z.object({
   }),
   personIds: z.array(z.string()).optional(),
   partnerIds: z.array(z.string()).optional(),
+  inventoryOrderIds: z.array(z.string()).optional(),
 })
 
 export type CreatePaymentAndLink = z.infer<typeof CreatePaymentAndLinkSchema>

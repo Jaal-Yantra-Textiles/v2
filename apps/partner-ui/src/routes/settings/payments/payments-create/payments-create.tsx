@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Button, Heading, Input, Select, Text } from "@medusajs/ui"
-import { useMemo } from "react"
+import { Button, Heading, Input, Select, Text, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { useNavigate } from "react-router-dom"
 import { z as zod } from "@medusajs/framework/zod"
@@ -8,6 +7,7 @@ import { z as zod } from "@medusajs/framework/zod"
 import { Form } from "../../../../components/common/form"
 import { RouteFocusModal } from "../../../../components/modals"
 import { useMe } from "../../../../hooks/api/users"
+import { useCreatePartnerPaymentMethod } from "../../../../hooks/api/partner-payment-methods"
 
 const CreatePaymentMethodSchema = zod.object({
   type: zod.enum(["bank_account", "cash_account", "digital_wallet"]),
@@ -20,19 +20,12 @@ const CreatePaymentMethodSchema = zod.object({
 
 type CreatePaymentMethodValues = zod.infer<typeof CreatePaymentMethodSchema>
 
-type StoredPaymentMethod = CreatePaymentMethodValues & {
-  id: string
-  created_at: string
-}
-
 export const SettingsPaymentsCreate = () => {
   const navigate = useNavigate()
   const { user } = useMe()
   const partnerId = user?.partner_id
 
-  const storageKey = useMemo(() => {
-    return partnerId ? `partner_payment_methods_${partnerId}` : null
-  }, [partnerId])
+  const { mutateAsync, isPending } = useCreatePartnerPaymentMethod(partnerId || "")
 
   const form = useForm<CreatePaymentMethodValues>({
     defaultValues: {
@@ -49,23 +42,18 @@ export const SettingsPaymentsCreate = () => {
   const type = form.watch("type")
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (!storageKey) {
+    if (!partnerId) {
       return
     }
 
-    const now = new Date().toISOString()
-    const next: StoredPaymentMethod = {
-      ...values,
-      id: `local_${Date.now()}`,
-      created_at: now,
+    try {
+      await mutateAsync(values)
+      toast.success("Payment method created successfully")
+      form.reset()
+      navigate("..", { replace: true })
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to create payment method")
     }
-
-    const raw = localStorage.getItem(storageKey)
-    const current = raw ? (JSON.parse(raw) as StoredPaymentMethod[]) : []
-    localStorage.setItem(storageKey, JSON.stringify([next, ...(current || [])]))
-
-    form.reset()
-    navigate("..", { replace: true, state: { isSubmitSuccessful: true } })
   })
 
   return (
@@ -196,9 +184,9 @@ export const SettingsPaymentsCreate = () => {
                     variant="primary"
                     type="button"
                     onClick={handleSubmit}
-                    disabled={!partnerId}
+                    disabled={!partnerId || isPending}
                   >
-                    Create
+                    {isPending ? "Creating..." : "Create"}
                   </Button>
                 </div>
               </div>

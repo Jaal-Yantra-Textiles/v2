@@ -3,6 +3,7 @@ import { UseMutationOptions, useMutation, useQueryClient } from "@tanstack/react
 import { sdk } from "../../lib/config";
 import { partnersQueryKeys as adminPartnersQueryKeys } from "./partners-admin";
 import { personsQueryKeys } from "./persons";
+import { inventoryOrderQueryKeys } from "./inventory-orders";
 
 export type AdminPayment = Record<string, any>;
 
@@ -36,6 +37,12 @@ export const useCreatePaymentAndLink = (
         // details() invalidation already covers all partner detail queries; keep for clarity
         (variables as any).partnerIds.forEach((pid: string) => {
           queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.detail(pid) });
+        });
+      }
+      if (Array.isArray((variables as any)?.inventoryOrderIds)) {
+        queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.details() });
+        (variables as any).inventoryOrderIds.forEach((oid: string) => {
+          queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(oid) });
         });
       }
       options?.onSuccess?.(data, variables, context);

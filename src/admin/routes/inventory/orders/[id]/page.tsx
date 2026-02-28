@@ -6,6 +6,7 @@ import InventoryOrderGeneralSection from "../../../../components/inventory-order
 import InventoryOrderLinesSection from "../../../../components/inventory-orders/inventory-order-lines-section";
 import InventoryOrderStockLocation from "../../../../components/inventory-orders/inventory-order-stock-location";
 import { InventoryOrderTasksSection } from "../../../../components/inventory-orders/inventory-order-tasks-section";
+import { InventoryOrderPaymentsSection } from "../../../../components/inventory-orders/inventory-order-payments-section";
 import { InventoryOrderFeedbacksSection } from "../../../../components/inventory-orders/inventory-order-feedbacks-section";
 import { inventoryOrderLoader } from "./loader";
 import InventoryOrderIDSection from "../../../../components/inventory-orders/inventory-order-general-orderId";
@@ -14,7 +15,7 @@ const InventoryOrderDetailPage = () => {
   const intialData = useLoaderData() as Awaited<AdminInventoryOrderResponse>
   const { id } = useParams();
   const { inventoryOrder, isLoading, isError, error } = useInventoryOrder(id!, {
-    fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*', '+tasks.*', '+partner.*']
+    fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*', '+tasks.*', '+partner.*', '+internal_payments.*']
   }, {
     initialData: intialData
   });
@@ -42,6 +43,7 @@ const InventoryOrderDetailPage = () => {
        <InventoryOrderLinesSection inventoryOrder={inventoryOrder} />
        <InventoryOrderTasksSection inventoryOrder={inventoryOrder}/>
        <InventoryOrderStockLocation inventoryOrder={inventoryOrder}/>
+       <InventoryOrderPaymentsSection inventoryOrder={inventoryOrder}/>
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
   );

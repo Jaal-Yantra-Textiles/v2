@@ -13,6 +13,7 @@ import type { Link } from "@medusajs/modules-sdk"
 import { INTERNAL_PAYMENTS_MODULE } from "../../modules/internal_payments"
 import { PERSON_MODULE } from "../../modules/person"
 import { PARTNER_MODULE } from "../../modules/partner"
+import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import InternalPaymentService from "../../modules/internal_payments/service"
 
 export type CreatePaymentAndLinkInput = {
@@ -26,6 +27,7 @@ export type CreatePaymentAndLinkInput = {
   }
   personIds?: string[]
   partnerIds?: string[]
+  inventoryOrderIds?: string[]
 }
 
 export const createPaymentStep = createStep(
@@ -111,6 +113,41 @@ export const linkPaymentToPartnersStep = createStep(
   }
 )
 
+export const linkPaymentToInventoryOrdersStep = createStep(
+  "link-payment-to-inventory-orders-step",
+  async (
+    input: { payment_id: string; inventory_order_ids: string[] },
+    { container }
+  ) => {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+
+    const links: LinkDefinition[] = input.inventory_order_ids.map((inventory_orders_id) => ({
+      [ORDER_INVENTORY_MODULE]: {
+        inventory_orders_id,
+      },
+      [INTERNAL_PAYMENTS_MODULE]: {
+        internal_payments_id: input.payment_id,
+      },
+      data: {
+        inventory_orders_id,
+        payment_id: input.payment_id,
+        linked_with: "inventory_order",
+      },
+    }))
+
+    if (links.length) {
+      await remoteLink.create(links)
+    }
+
+    return new StepResponse(links, links)
+  },
+  async (rollbackLinks: LinkDefinition[], { container }) => {
+    if (!rollbackLinks?.length) return
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    await remoteLink.dismiss(rollbackLinks)
+  }
+)
+
 export const createPaymentAndLinkWorkflow = createWorkflow(
   "create-payment-and-link",
   (input: CreatePaymentAndLinkInput) => {
@@ -130,6 +167,13 @@ export const createPaymentAndLinkWorkflow = createWorkflow(
       })
     )
 
-    return new WorkflowResponse({ payment, personLinks, partnerLinks })
+    const inventoryOrderLinks = when(input, (i) => Boolean(i.inventoryOrderIds && i.inventoryOrderIds.length)).then(() =>
+      linkPaymentToInventoryOrdersStep({
+        payment_id: payment.id,
+        inventory_order_ids: input.inventoryOrderIds as string[],
+      })
+    )
+
+    return new WorkflowResponse({ payment, personLinks, partnerLinks, inventoryOrderLinks })
   }
 )
