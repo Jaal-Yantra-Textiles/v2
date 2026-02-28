@@ -1,4 +1,4 @@
-import { Button, DatePicker, Heading, Input, Text, toast } from "@medusajs/ui"
+import { Button, Heading, Input, Text, toast } from "@medusajs/ui"
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
 
@@ -88,15 +88,8 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
 
   const [lines, setLines] = useState<LineDraft[]>([])
   const [notes, setNotes] = useState<string>("")
-  const [deliveryDate, setDeliveryDate] = useState<Date | null>(null)
+  const [deliveryDate, setDeliveryDate] = useState<string>("")
   const [trackingNumber, setTrackingNumber] = useState<string>("")
-
-  const formatDate = (date: Date) => {
-    const yyyy = date.getFullYear()
-    const mm = String(date.getMonth() + 1).padStart(2, "0")
-    const dd = String(date.getDate()).padStart(2, "0")
-    return `${yyyy}-${mm}-${dd}`
-  }
 
   useEffect(() => {
     if (initialLines.length) {
@@ -169,7 +162,7 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
     await completeOrder(
       {
         notes: notes || undefined,
-        deliveryDate: deliveryDate ? formatDate(deliveryDate) : undefined,
+        deliveryDate: deliveryDate || undefined,
         trackingNumber: trackingNumber || undefined,
         lines: trimmedLines,
       },
@@ -204,10 +197,10 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
               <Text size="xsmall" className="text-ui-fg-subtle">
                 Delivery date
               </Text>
-              <DatePicker
-                granularity="day"
+              <Input
+                type="date"
                 value={deliveryDate}
-                onChange={setDeliveryDate}
+                onChange={(e) => setDeliveryDate(e.target.value)}
               />
             </div>
             <div>
