@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { RAW_MATERIAL_MODULE } from "../../../modules/raw_material"
 import RawMaterialService from "../../../modules/raw_material/service"
 import { buildSkuPrefix, formatSku, nextSequenceNumber } from "../../../utils/generate-sku"
+import { IInventoryService } from "@medusajs/types"
 
 type GenerateSkuInput = {
   inventoryId: string
@@ -12,9 +13,9 @@ type GenerateSkuInput = {
 export const generateSkuStep = createStep(
   "generate-sku-for-inventory-item",
   async (input: GenerateSkuInput, { container }) => {
-    const inventoryService = container.resolve(Modules.INVENTORY)
+    const inventoryService: IInventoryService = container.resolve(Modules.INVENTORY)
     const rawMaterialService: RawMaterialService = container.resolve(RAW_MATERIAL_MODULE)
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     // Check if inventory item already has a SKU
     const inventoryItem = await inventoryService.retrieveInventoryItem(input.inventoryId)
