@@ -82,9 +82,9 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
   const initialLines = useMemo<LineDraft[]>(() => {
     return orderLines.map((l) => ({
       order_line_id: String(l.id),
-      quantity: remainingByLineId.get(String(l.id)) ?? 0,
+      quantity: 0,
     }))
-  }, [orderLines, remainingByLineId])
+  }, [orderLines])
 
   const [lines, setLines] = useState<LineDraft[]>([])
   const [notes, setNotes] = useState<string>("")
@@ -122,6 +122,15 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
       return Number(l.quantity || 0) === remaining
     })
   }, [lines, remainingByLineId])
+
+  const handleFillAll = () => {
+    setLines(
+      orderLines.map((l) => ({
+        order_line_id: String(l.id),
+        quantity: remainingByLineId.get(String(l.id)) ?? 0,
+      }))
+    )
+  }
 
   if (isError) {
     throw error
@@ -213,7 +222,12 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
           </div>
 
           <div className="mt-6">
-            <Heading level="h2">Lines</Heading>
+            <div className="flex items-center justify-between">
+              <Heading level="h2">Lines</Heading>
+              <Button size="small" variant="secondary" onClick={handleFillAll}>
+                Fill All Remaining
+              </Button>
+            </div>
             {!isFullDelivery && (
               <Text size="small" className="text-ui-fg-subtle">
                 Partial delivery detected. Add notes or set quantities to match remaining.
@@ -264,6 +278,7 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
                           min={0}
                           step="any"
                           max={remaining}
+                          placeholder={`Max: ${remaining}`}
                           value={current?.quantity ?? 0}
                           onChange={(e) => {
                             const raw = Number(e.target.value || 0)
