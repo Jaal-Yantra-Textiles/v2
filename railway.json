@@ -2,10 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "yarn install && node deploy-railway.js --mode=$MEDUSA_WORKER_MODE --ci"
+    "buildCommand": "pnpm install && node deploy-railway.js --mode=$MEDUSA_WORKER_MODE --ci"
   },
   "deploy": {
-    "startCommand": "cd .medusa/server && yarn predeploy && yarn run start",
+    "startCommand": "cd .medusa/server && pnpm predeploy && pnpm run start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 500,
     "restartPolicyType": "ON_FAILURE",
