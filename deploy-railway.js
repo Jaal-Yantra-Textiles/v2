@@ -90,7 +90,7 @@ if (isGitHubActions) {
     // Build Medusa with production config to ensure .medusa/server uses the correct config
     console.log('Building Medusa with production config...');
     try {
-      execSync('yarn medusa build', { stdio: 'inherit' });
+      execSync('pnpm medusa build', { stdio: 'inherit' });
       console.log('✅ Medusa built successfully with production config');
       
       // Handle the compiled config in .medusa/server directory
@@ -228,8 +228,8 @@ try {
 // Step 5: Generate custom start commands
 console.log('Generating deployment commands...');
 
-const serverStartCommand = 'cd .medusa/server && yarn install && yarn predeploy && yarn run start';
-const workerStartCommand = 'cd .medusa/server && yarn install && yarn predeploy && yarn run start';
+const serverStartCommand = 'cd .medusa/server && pnpm install && pnpm predeploy && pnpm run start';
+const workerStartCommand = 'cd .medusa/server && pnpm install && pnpm predeploy && pnpm run start';
 const startCommand = mode === 'server' ? serverStartCommand : workerStartCommand;
 
 console.log('\n✅ Deployment preparation complete!');
