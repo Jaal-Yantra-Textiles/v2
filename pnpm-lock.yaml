@@ -187,6 +187,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.0.7
         version: 3.20.0
+      '@types/bwip-js':
+        specifier: ^3.2.3
+        version: 3.2.3
       '@types/file-saver':
         specifier: ^2.0.7
         version: 2.0.7
@@ -220,6 +223,9 @@ importers:
       awilix:
         specifier: ^8.0.1
         version: 8.0.1
+      bwip-js:
+        specifier: ^4.8.0
+        version: 4.8.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -6452,6 +6458,9 @@ packages:
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
 
+  '@types/bwip-js@3.2.3':
+    resolution: {integrity: sha512-kgL1GOW7n5FhlC5aXnckaEim0rz1cFM4t9/xUwuNXCIDnWLx8ruQ4JQkG6znq4GQFovNLhQy5JdgbDwJw4D/zg==}
+
   '@types/connect@3.4.38':
     resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
 
@@ -7235,6 +7244,10 @@ packages:
   busboy@1.6.0:
     resolution: {integrity: sha512-8SFQbg/0hQ9xy3UNTB0YEnsNBbWfhf7RtnzpL7TkBiTBRfrQ9Fxcnz7VJsleJpyp6rVLvXiuORqjlHi5q+PYuA==}
     engines: {node: '>=10.16.0'}
+
+  bwip-js@4.8.0:
+    resolution: {integrity: sha512-gUDkDHSTv8/DJhomSIbO0fX/Dx0MO/sgllLxJyJfu4WixCQe9nfGJzmHm64ZCbxo+gUYQEsQcRmqcwcwPRwUkg==}
+    hasBin: true
 
   bytes@3.0.0:
     resolution: {integrity: sha512-pMhOfFDPiv9t5jjIXkHosWmkSyQbvsgEVNkz0ERHbuLh2T/7j4Mqqpz523Fe8MVY89KC6Sh/QfS2sM+SjgFDcw==}
@@ -21622,6 +21635,10 @@ snapshots:
       '@types/connect': 3.4.38
       '@types/node': 20.19.34
 
+  '@types/bwip-js@3.2.3':
+    dependencies:
+      '@types/node': 20.19.34
+
   '@types/connect@3.4.38':
     dependencies:
       '@types/node': 20.19.34
@@ -22554,6 +22571,8 @@ snapshots:
   busboy@1.6.0:
     dependencies:
       streamsearch: 1.1.0
+
+  bwip-js@4.8.0: {}
 
   bytes@3.0.0: {}
 

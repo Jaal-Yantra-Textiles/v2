@@ -4,7 +4,7 @@ import { Badge, Container, Heading, usePrompt, Text, StatusBadge, toast, Skeleto
 import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../components/common/action-menu"
 import { Button } from "@medusajs/ui"
-import { PencilSquare, Plus, Trash, InformationCircleSolid } from "@medusajs/icons"
+import { PencilSquare, Plus, Trash, InformationCircleSolid, SquareTwoStack, DocumentText } from "@medusajs/icons"
 import { useInventoryItem } from "../hooks/api/raw-materials"
 
 const materialStatusColor = (status: string) => {
@@ -60,6 +60,7 @@ type RawMaterial = {
 
 type AdminInventory = {
   id: string
+  sku?: string
   raw_materials?: RawMaterial
 }
 
@@ -99,6 +100,15 @@ const InventoryRawMaterialWidget = ({
     }
   }
 
+  const handleCopySku = (sku: string) => {
+    navigator.clipboard.writeText(sku)
+    toast.success("SKU copied to clipboard")
+  }
+
+  const handlePrintLabel = () => {
+    window.open(`/admin/inventory-items/${data.id}/labels`, "_blank")
+  }
+
   const getItemActionGroups = (rawMaterialId: string) => [
     {
       actions: [
@@ -106,6 +116,11 @@ const InventoryRawMaterialWidget = ({
           label: "Edit",
           icon: <PencilSquare />,
           to: `raw-materials/edit`,
+        },
+        {
+          label: "Print Label",
+          icon: <DocumentText />,
+          onClick: handlePrintLabel,
         },
       ],
     },
@@ -184,6 +199,25 @@ const InventoryRawMaterialWidget = ({
           </div>
         ) : (
           <>
+            {inventory_item.sku && (
+              <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4 border-b">
+                <Text size="small" leading="compact" weight="plus">
+                  SKU
+                </Text>
+                <div className="flex items-center gap-x-2">
+                  <code className="text-ui-fg-base bg-ui-bg-field rounded px-1.5 py-0.5 font-mono text-xs">
+                    {inventory_item.sku}
+                  </code>
+                  <button
+                    onClick={() => handleCopySku(inventory_item.sku!)}
+                    className="text-ui-fg-muted hover:text-ui-fg-subtle"
+                  >
+                    <SquareTwoStack className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4 border-b">
               <Text size="small" leading="compact" weight="plus">
                 Material Name

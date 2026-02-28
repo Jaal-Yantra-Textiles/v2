@@ -9,6 +9,7 @@ import { RAW_MATERIAL_MODULE } from "../../modules/raw_material"
 import { LinkDefinition } from "@medusajs/framework/types"
 import RawMaterialService from "../../modules/raw_material/service"
 import type { Link } from "@medusajs/modules-sdk"
+import { generateSkuStep } from "./steps/generate-sku"
 
 type CreateRawMaterialInput = {
   inventoryId: string
@@ -150,10 +151,16 @@ export const createRawMaterialWorkflow = createWorkflow(
       inventoryId: input.inventoryId,
       rawMaterialId: rawMaterialResult.id
     })
-    
+
+    const skuResult = generateSkuStep({
+      inventoryId: input.inventoryId,
+      rawMaterialId: rawMaterialResult.id,
+    })
+
     return new WorkflowResponse([
       rawMaterialResult,
-      rawMaterialLinkResult
+      rawMaterialLinkResult,
+      skuResult
     ])
   }
 )
