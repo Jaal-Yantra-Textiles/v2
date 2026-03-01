@@ -135,6 +135,15 @@
           "length": 6,
           "mappedType": "datetime"
         },
+        "depends_on_run_ids": {
+          "name": "depends_on_run_ids",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",

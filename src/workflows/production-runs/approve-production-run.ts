@@ -17,6 +17,8 @@ export type ProductionRunAssignment = {
   partner_id: string
   role?: string | null
   quantity?: number
+  order?: number
+  template_names?: string[]
 }
 
 export type ApproveProductionRunInput = {
@@ -90,6 +92,11 @@ const approveProductionRunStep = createStep(
           }
         : originalSnapshot
 
+      const baseMetadata = (original as any).metadata ?? {}
+      const childMetadata = a.template_names?.length
+        ? { ...baseMetadata, dispatch_template_names: a.template_names }
+        : baseMetadata
+
       return {
         parent_run_id: original.id,
         role: a.role ?? null,
@@ -103,7 +110,7 @@ const approveProductionRunStep = createStep(
         snapshot,
         captured_at: (original as any).captured_at,
         status: "approved" as any,
-        metadata: (original as any).metadata ?? null,
+        metadata: Object.keys(childMetadata).length ? childMetadata : null,
       }
     })
 
@@ -111,6 +118,48 @@ const approveProductionRunStep = createStep(
     const children = Array.isArray(createdChildren) ? createdChildren : [createdChildren]
 
     const childIds = children.map((c: any) => c.id).filter(Boolean)
+
+    // Compute depends_on_run_ids based on assignment order
+    const hasOrdering = assignments.some((a) => a.order != null)
+    if (hasOrdering && children.length === assignments.length) {
+      // Group children by their assignment order
+      const orderToChildIds = new Map<number, string[]>()
+      for (let i = 0; i < assignments.length; i++) {
+        const order = assignments[i].order ?? 0
+        const childId = (children[i] as any)?.id
+        if (!childId) continue
+        if (!orderToChildIds.has(order)) {
+          orderToChildIds.set(order, [])
+        }
+        orderToChildIds.get(order)!.push(childId)
+      }
+
+      const sortedOrders = Array.from(orderToChildIds.keys()).sort((a, b) => a - b)
+
+      for (let i = 1; i < sortedOrders.length; i++) {
+        const prevOrder = sortedOrders[i - 1]
+        const currentOrder = sortedOrders[i]
+        const dependencyIds = orderToChildIds.get(prevOrder) || []
+        const currentChildIds = orderToChildIds.get(currentOrder) || []
+
+        for (const childId of currentChildIds) {
+          await productionRunService.updateProductionRuns({
+            id: childId,
+            depends_on_run_ids: dependencyIds,
+          } as any)
+        }
+      }
+
+      // Refresh children to include updated depends_on_run_ids
+      const refreshedChildren = await Promise.all(
+        childIds.map((id: string) => productionRunService.retrieveProductionRun(id))
+      )
+
+      return new StepResponse(
+        { parent: updatedParent, children: refreshedChildren },
+        { parentOriginal: original, childIds }
+      )
+    }
 
     return new StepResponse(
       { parent: updatedParent, children },

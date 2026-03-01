@@ -7,6 +7,7 @@ type ProductionRunLike = {
   status?: string | null
   partner_id?: string | null
   role?: string | null
+  depends_on_run_ids?: string[] | null
   metadata?: Record<string, any> | null
 }
 

@@ -2,11 +2,13 @@ import { useParams } from "react-router-dom"
 import { RouteFocusModal } from "../../../../../../components/modal/route-focus-modal"
 import { usePage } from "../../../../../../hooks/api/pages"
 import { useBlocks } from "../../../../../../hooks/api/blocks"
+import { useWebsite } from "../../../../../../hooks/api/websites"
 import { VisualPageEditor } from "../../../../../../components/visual-editor/visual-page-editor"
 import { Text } from "@medusajs/ui"
 
 const VisualEditorPage = () => {
   const { id: websiteId, pageId } = useParams<{ id: string; pageId: string }>()
+  const { website } = useWebsite(websiteId!)
   const { page, isLoading: pageLoading } = usePage(websiteId!, pageId!)
   const { blocks, isLoading: blocksLoading } = useBlocks(websiteId!, pageId!)
 
@@ -37,6 +39,7 @@ const VisualEditorPage = () => {
           pageId={pageId!}
           page={page}
           blocks={blocks || []}
+          domain={website?.domain}
         />
       </RouteFocusModal.Body>
     </RouteFocusModal>

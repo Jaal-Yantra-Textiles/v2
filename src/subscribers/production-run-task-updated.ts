@@ -4,6 +4,9 @@ import type { Logger } from "@medusajs/types"
 
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
+import {
+  sendProductionRunToProductionWorkflow,
+} from "../workflows/production-runs/send-production-run-to-production"
 
 export default async function productionRunTaskUpdatedHandler({
   event: { data },
@@ -88,6 +91,56 @@ export default async function productionRunTaskUpdatedHandler({
     const parentRunId = (node as any)?.parent_run_id ?? null
     if (!parentRunId) {
       return
+    }
+
+    // Auto-dispatch sibling runs that depend on this now-completed run
+    try {
+      const siblings = await productionRunService.listProductionRuns({
+        parent_run_id: String(parentRunId),
+      } as any)
+
+      for (const sibling of siblings || []) {
+        const depIds = (sibling as any).depends_on_run_ids as string[] | null
+        if (!depIds?.length) continue
+        if (!depIds.includes(String(productionRunId))) continue
+        if (String((sibling as any).status) !== "approved") continue
+
+        // Check if ALL dependencies are completed
+        const depRuns = await Promise.all(
+          depIds.map((id) =>
+            productionRunService.retrieveProductionRun(id).catch(() => null)
+          )
+        )
+        const allDepsCompleted = depRuns.every(
+          (r) => r && String((r as any).status) === "completed"
+        )
+
+        if (!allDepsCompleted) continue
+
+        // Auto-dispatch: use template_names from metadata if available
+        const siblingMetadata = ((sibling as any).metadata || {}) as Record<string, any>
+        const templateNames = siblingMetadata.dispatch_template_names as string[] | undefined
+
+        if (templateNames?.length) {
+          logger.info(
+            `[tasks.task.updated] Auto-dispatching dependent run ${(sibling as any).id} with templates: ${templateNames.join(", ")}`
+          )
+          await sendProductionRunToProductionWorkflow(container).run({
+            input: {
+              production_run_id: String((sibling as any).id),
+              template_names: templateNames,
+            },
+          })
+        } else {
+          logger.info(
+            `[tasks.task.updated] Dependent run ${(sibling as any).id} is ready for dispatch but has no pre-configured templates. Manual dispatch required.`
+          )
+        }
+      }
+    } catch (e: any) {
+      logger.warn(
+        `[tasks.task.updated] Failed to auto-dispatch dependent runs: ${e?.message || String(e)}`
+      )
     }
 
     const children = await productionRunService.listProductionRuns({

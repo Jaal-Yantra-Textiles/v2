@@ -53,11 +53,25 @@ interface TaskNodeData {
   isParentTask?: boolean;
 }
 
-interface DesignTaskCanvasSectionProps {
-  design: AdminDesign;
+interface ProductionRunWithTasks {
+  id: string
+  status?: string
+  partner_id?: string | null
+  tasks?: Array<{
+    id: string
+    title?: string
+    name?: string
+    status?: string
+  }>
+  [key: string]: any
 }
 
-export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps) {
+interface DesignTaskCanvasSectionProps {
+  design: AdminDesign;
+  productionRuns?: ProductionRunWithTasks[];
+}
+
+export function DesignTaskCanvasSection({ design, productionRuns }: DesignTaskCanvasSectionProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const tasks = design.tasks || [];
@@ -608,8 +622,75 @@ export function DesignTaskCanvasSection({ design }: DesignTaskCanvasSectionProps
       }
     });
     
+    // --- Production Run Tasks ---
+    const runs = productionRuns || []
+    const runsWithTasks = runs.filter((r) => r.tasks && r.tasks.length > 0)
+
+    if (runsWithTasks.length > 0) {
+      // Place production run groups below everything else
+      const maxY = Math.max(
+        ...Array.from(taskMap.values()).map((v) => v.y),
+        0
+      )
+      const PROD_START_Y = maxY + VERTICAL_SPACING + 80
+      let prodGroupY = PROD_START_Y
+
+      runsWithTasks.forEach((run) => {
+        const runTasks = run.tasks || []
+        const runId = String(run.id)
+        const runStatus = String(run.status || "draft")
+        const groupId = `prod-run-${runId}`
+
+        const tasksPerRow = 3
+        const rows = Math.ceil(runTasks.length / tasksPerRow)
+        const groupWidth = tasksPerRow * (HORIZONTAL_SPACING / 1.5) + 50
+        const groupHeight = rows * (VERTICAL_SPACING / 1.5) + 60
+
+        // Group container node
+        flowNodes.push({
+          id: groupId,
+          type: "group",
+          position: { x: 100, y: prodGroupY },
+          style: {
+            width: groupWidth,
+            height: groupHeight,
+            backgroundColor: "rgba(99, 102, 241, 0.06)",
+            border: "1px dashed #6366f1",
+            borderRadius: "8px",
+            padding: "10px",
+            zIndex: -1,
+          },
+          data: {
+            label: `Run …${runId.slice(-8)} (${runStatus}) — ${runTasks.length} tasks`,
+          },
+        })
+
+        // Position each task node inside the group
+        runTasks.forEach((task: any, idx: number) => {
+          const row = Math.floor(idx / tasksPerRow)
+          const col = idx % tasksPerRow
+          const taskId = `prod-task-${runId}-${String(task.id)}`
+          const x = 125 + col * (HORIZONTAL_SPACING / 1.5)
+          const y = prodGroupY + 40 + row * (VERTICAL_SPACING / 1.5)
+
+          flowNodes.push({
+            id: taskId,
+            type: "taskNode",
+            position: { x, y },
+            data: {
+              label: String(task.title || task.name || task.id),
+              status: String(task.status || "pending"),
+              task: task as any,
+            },
+          })
+        })
+
+        prodGroupY += groupHeight + 40
+      })
+    }
+
     return { nodes: flowNodes, edges: flowEdges };
-  }, [tasks]);
+  }, [tasks, productionRuns]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">

@@ -4,6 +4,8 @@ const ProductionAssignmentSchema = z.object({
   partner_id: z.string().min(1),
   role: z.string().optional(),
   quantity: z.number().positive(),
+  order: z.number().int().positive().optional(),
+  template_names: z.array(z.string()).optional(),
 })
 
 export const AdminCreateDesignProductionRunSchema = z.object({

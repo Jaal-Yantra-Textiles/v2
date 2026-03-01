@@ -99,6 +99,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 import { createProductionRunWorkflow } from "../../../../../workflows/production-runs/create-production-run"
 import { approveProductionRunWorkflow } from "../../../../../workflows/production-runs/approve-production-run"
+import { sendProductionRunToProductionWorkflow } from "../../../../../workflows/production-runs/send-production-run-to-production"
 
 import type { AdminCreateDesignProductionRunReq } from "./validators"
 
@@ -183,6 +184,21 @@ export const POST = async (
       assignments,
     },
   })
+
+  // For each approved child that has dispatch_template_names in metadata,
+  // trigger sendProductionRunToProductionWorkflow to actually create tasks.
+  const children = approved?.children || []
+  for (const child of children) {
+    const templateNames = (child as any)?.metadata?.dispatch_template_names as string[] | undefined
+    if (templateNames?.length) {
+      await sendProductionRunToProductionWorkflow(req.scope).run({
+        input: {
+          production_run_id: (child as any).id,
+          template_names: templateNames,
+        },
+      })
+    }
+  }
 
   return res.status(201).json({
     production_run: approved?.parent || createdRun,

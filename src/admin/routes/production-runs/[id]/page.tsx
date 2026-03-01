@@ -1,5 +1,5 @@
-import { Container, Heading, Tabs, Text, Badge } from "@medusajs/ui"
-import { LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom"
+import { Badge, Button, Container, Heading, Tabs, Text } from "@medusajs/ui"
+import { Link, LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom"
 
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
@@ -51,6 +51,11 @@ const ProductionRunDetailPage = () => {
                 Design: {String(run.design_id || "-")}
               </Text>
             </div>
+            {run.status === "pending_review" && (
+              <Link to="approve">
+                <Button size="small">Approve</Button>
+              </Link>
+            )}
           </div>
 
           <div className="px-6 py-4">
@@ -79,6 +84,18 @@ const ProductionRunDetailPage = () => {
                     <Text size="small" className="text-ui-fg-subtle">Parent Run</Text>
                     <Text>{String(run.parent_run_id || "-")}</Text>
                   </div>
+                  {run.depends_on_run_ids?.length > 0 && (
+                    <div className="col-span-2">
+                      <Text size="small" className="text-ui-fg-subtle">Depends On</Text>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {run.depends_on_run_ids.map((depId: string) => (
+                          <Link key={depId} to={`/production-runs/${depId}`}>
+                            <Badge color="blue">{depId}</Badge>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Tabs.Content>
 

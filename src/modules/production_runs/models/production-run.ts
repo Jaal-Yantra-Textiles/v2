@@ -28,6 +28,7 @@ const ProductionRun = model.define("production_runs", {
 
   snapshot: model.json(),
   captured_at: model.dateTime(),
+  depends_on_run_ids: model.json().nullable(),
   metadata: model.json().nullable(),
 })
 

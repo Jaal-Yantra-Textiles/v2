@@ -1,10 +1,11 @@
 import { Plus, TriangleRightMini, Eye } from "@medusajs/icons";
-import { Container, Heading, Skeleton, Text } from "@medusajs/ui";
+import { Badge, Container, Heading, Skeleton, Text } from "@medusajs/ui";
 import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AdminDesign } from "../../hooks/api/designs";
 import { AdminDesignTask } from "../../hooks/api/design-tasks";
+import { useProductionRuns } from "../../hooks/api/production-runs";
 import { ActionMenu } from "../common/action-menu";
 
 // Define the explicit task item interface
@@ -33,6 +34,42 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const isLoading = !design?.tasks;
 
+  const { production_runs: prodRuns, isLoading: isRunsLoading } = useProductionRuns(
+    { design_id: design.id, limit: 50, offset: 0, include_tasks: "true" },
+  )
+
+  // Build a summarised snapshot of production run tasks
+  const prodTaskSnapshot = useMemo(() => {
+    const runs = (prodRuns || []) as any[]
+    const entries: Array<{
+      runId: string
+      partnerId: string | null
+      status: string
+      tasks: Array<{ id: string; title: string; status: string }>
+    }> = []
+
+    for (const run of runs) {
+      const tasks = (run.tasks || []).map((t: any) => ({
+        id: String(t.id),
+        title: String(t.title || t.name || t.id),
+        status: String(t.status || "pending"),
+      }))
+      entries.push({
+        runId: String(run.id),
+        partnerId: run.partner_id ? String(run.partner_id) : null,
+        status: String(run.status || "draft"),
+        tasks,
+      })
+    }
+
+    return entries
+  }, [prodRuns])
+
+  const prodTaskTotal = prodTaskSnapshot.reduce((sum, r) => sum + r.tasks.length, 0)
+  const prodTaskCompleted = prodTaskSnapshot.reduce(
+    (sum, r) => sum + r.tasks.filter((t) => t.status === "completed").length,
+    0
+  )
 
   // Function to collect tasks with subtask information
   const collectTasks = (tasks: AdminDesignTask[] = [], isSubtask: boolean = false): TaskItem[] => {
@@ -244,6 +281,61 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Production Run Tasks Snapshot */}
+      {!isRunsLoading && prodTaskSnapshot.length > 0 && (
+        <div className="border-t px-3 pb-3 pt-3">
+          <div className="flex items-center justify-between px-3 mb-2">
+            <Text size="small" weight="plus" className="text-ui-fg-subtle">
+              Production Runs
+            </Text>
+            {prodTaskTotal > 0 && (
+              <Text size="small" className="text-ui-fg-muted">
+                {prodTaskCompleted}/{prodTaskTotal} tasks
+              </Text>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-y-1.5">
+            {prodTaskSnapshot.map((run) => {
+              const completed = run.tasks.filter((t) => t.status === "completed").length
+              return (
+                <Link
+                  key={run.runId}
+                  to={`/production-runs/${run.runId}`}
+                  className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-subtle-hover"
+                >
+                  <div className="rounded-md bg-ui-bg-subtle px-3 py-2 transition-colors flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        color={
+                          run.status === "completed"
+                            ? "green"
+                            : run.status === "cancelled"
+                              ? "red"
+                              : run.status === "in_progress" || run.status === "sent_to_partner"
+                                ? "orange"
+                                : "grey"
+                        }
+                      >
+                        {run.status}
+                      </Badge>
+                      <Text size="xsmall" className="text-ui-fg-subtle truncate max-w-[120px]">
+                        {run.runId.slice(-8)}
+                      </Text>
+                    </div>
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      {run.tasks.length > 0
+                        ? `${completed}/${run.tasks.length} tasks`
+                        : "No tasks"}
+                    </Text>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
         </div>
       )}
     </Container>

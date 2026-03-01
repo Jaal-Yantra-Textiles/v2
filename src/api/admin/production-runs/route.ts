@@ -183,9 +183,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
+  const includeTasks = q.include_tasks === "true"
+
   const { data: runs, metadata } = await query.graph({
     entity: "production_runs",
-    fields: ["*"],
+    fields: includeTasks ? ["*", "tasks.*"] : ["*"],
     filters,
     pagination: { skip: offset, take: limit },
   })

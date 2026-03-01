@@ -6,7 +6,6 @@ import {
   Heading,
   Input,
   Select,
-  Switch,
   Text,
   toast,
 } from "@medusajs/ui"
@@ -15,7 +14,6 @@ import { useForm } from "react-hook-form"
 import { useParams } from "react-router-dom"
 import { z } from "@medusajs/framework/zod"
 
-import { Form } from "../../../../components/common/form"
 import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer"
 import { useRouteModal } from "../../../../components/modal/use-route-modal"
 import { StackedFocusModal } from "../../../../components/modal/stacked-modal/stacked-focused-modal"
@@ -23,10 +21,7 @@ import { useStackedModal } from "../../../../components/modal/stacked-modal/use-
 
 import { usePartners } from "../../../../hooks/api/partners"
 import { useTaskTemplates } from "../../../../hooks/api/task-templates"
-import {
-  useCreateDesignProductionRun,
-  useSendProductionRunToProduction,
-} from "../../../../hooks/api/production-runs"
+import { useApproveProductionRun } from "../../../../hooks/api/production-runs"
 
 const assignmentSchema = z.object({
   partner_id: z.string().min(1, "Partner is required"),
@@ -36,14 +31,11 @@ const assignmentSchema = z.object({
   template_names: z.array(z.string()).optional(),
 })
 
-const createSchema = z.object({
-  quantity: z.coerce.number().positive().optional(),
+const approveSchema = z.object({
   assignments: z.array(assignmentSchema).optional(),
-  send_to_production: z.boolean().optional(),
-  template_names: z.array(z.string()).optional(),
 })
 
-type FormValues = z.infer<typeof createSchema>
+type FormValues = z.infer<typeof approveSchema>
 
 type Assignment = {
   partner_id: string
@@ -53,7 +45,7 @@ type Assignment = {
   template_names?: string[]
 }
 
-const MODAL_ID = "manage-assignments"
+const MODAL_ID = "approve-assignments"
 
 const AssignmentsModal = ({
   form,
@@ -108,11 +100,6 @@ const AssignmentsModal = ({
         return { ...a, template_names: next }
       })
     )
-  }
-
-  const partnerName = (id: string) => {
-    const p = partners.find((p: any) => String(p.id) === id)
-    return p ? String(p.name || p.handle || p.id) : id
   }
 
   return (
@@ -259,22 +246,17 @@ const AssignmentsModal = ({
   )
 }
 
-const CreateProductionRunDrawerForm = () => {
-  const { id: designId } = useParams()
+const ApproveProductionRunDrawerForm = () => {
+  const { id: runId } = useParams()
   const { handleSuccess } = useRouteModal()
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(createSchema),
+    resolver: zodResolver(approveSchema),
     defaultValues: {
-      quantity: undefined,
       assignments: [],
-      send_to_production: false,
-      template_names: [],
     },
   })
 
-  const sendToProduction = form.watch("send_to_production")
-  const selectedTemplateNames = form.watch("template_names") || []
   const assignments = form.watch("assignments") || []
 
   const { partners = [] } = usePartners({ limit: 100, offset: 0 })
@@ -286,11 +268,7 @@ const CreateProductionRunDrawerForm = () => {
     )
   }, [taskTemplates])
 
-  const { mutateAsync: createRun, isPending: isCreating } = useCreateDesignProductionRun(
-    designId || "",
-  )
-
-  const sendMutation = useSendProductionRunToProduction()
+  const { mutateAsync: approveRun, isPending } = useApproveProductionRun(runId || "")
 
   const partnerName = (id: string) => {
     const p = partners.find((p: any) => String(p.id) === id)
@@ -298,60 +276,19 @@ const CreateProductionRunDrawerForm = () => {
   }
 
   const onSubmit = form.handleSubmit(async (values) => {
-    if (!designId) {
-      toast.error("Missing design id")
-      return
-    }
-
-    const hasPerAssignmentTemplates = values.assignments?.some(
-      (a) => a.template_names && a.template_names.length > 0
-    )
-
-    if (
-      values.send_to_production &&
-      !hasPerAssignmentTemplates &&
-      (!values.template_names || !values.template_names.length)
-    ) {
-      toast.error("Select at least one task template")
+    if (!runId) {
+      toast.error("Missing run id")
       return
     }
 
     try {
-      const res = await createRun({
-        quantity: values.quantity,
+      await approveRun({
         assignments: values.assignments?.length ? values.assignments : undefined,
       })
-
-      toast.success("Production run created")
-
-      if (!values.send_to_production) {
-        handleSuccess()
-        return
-      }
-
-      const children = (res as any)?.children as any[] | undefined
-      const parent = (res as any)?.production_run as any
-
-      const runsToSend = (children?.length ? children : [parent]).filter(
-        (r: any) => r?.partner_id
-      )
-
-      if (!runsToSend.length) {
-        toast.error("No partner-assigned runs to send")
-        return
-      }
-
-      for (const run of runsToSend) {
-        await sendMutation.mutateAsync({
-          run_id: String(run.id),
-          template_names: values.template_names || [],
-        })
-      }
-
-      toast.success("Sent to production")
+      toast.success("Production run approved")
       handleSuccess()
     } catch (e: any) {
-      toast.error(e?.message || "Failed")
+      toast.error(e?.message || "Failed to approve")
     }
   })
 
@@ -359,42 +296,17 @@ const CreateProductionRunDrawerForm = () => {
     <RouteDrawer.Form form={form}>
       <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
         <RouteDrawer.Header>
-          <Heading>Create Production Run</Heading>
+          <Heading>Approve Production Run</Heading>
         </RouteDrawer.Header>
 
         <RouteDrawer.Body className="flex flex-1 flex-col gap-y-8 overflow-y-auto py-6">
           <div className="flex flex-col gap-y-6">
             <Container className="divide-y p-0">
-              <div className="px-6 py-4">
-                <Heading level="h2">Quantity</Heading>
-                <Text size="small" className="text-ui-fg-subtle">
-                  Optional parent quantity. If using assignments, their quantities should sum to this.
-                </Text>
-              </div>
-
-              <div className="px-6 py-4">
-                <Form.Field
-                  control={form.control}
-                  name="quantity"
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label optional>Quantity</Form.Label>
-                      <Form.Control>
-                        <Input type="number" min={1} {...field} />
-                      </Form.Control>
-                      <Form.ErrorMessage />
-                    </Form.Item>
-                  )}
-                />
-              </div>
-            </Container>
-
-            <Container className="divide-y p-0">
               <div className="px-6 py-4 flex items-center justify-between">
                 <div>
                   <Heading level="h2">Assignments</Heading>
                   <Text size="small" className="text-ui-fg-subtle">
-                    Optional. Add one or more partner assignments to create child runs.
+                    Optional. Add partner assignments with ordering and templates.
                   </Text>
                 </div>
                 <AssignmentsModal
@@ -417,72 +329,6 @@ const CreateProductionRunDrawerForm = () => {
                 </div>
               )}
             </Container>
-
-            <Container className="divide-y p-0">
-              <div className="px-6 py-4">
-                <Heading level="h2">Send to production (optional)</Heading>
-                <Text size="small" className="text-ui-fg-subtle">
-                  If enabled, we will call send-to-production after creating the run.
-                </Text>
-              </div>
-
-              <div className="px-6 py-4">
-                <Form.Field
-                  control={form.control}
-                  name="send_to_production"
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label>Send immediately</Form.Label>
-                      <Form.Control>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={!!field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                          <Text size="small" className="text-ui-fg-subtle">
-                            Enable send to production
-                          </Text>
-                        </div>
-                      </Form.Control>
-                      <Form.ErrorMessage />
-                    </Form.Item>
-                  )}
-                />
-
-                {sendToProduction && (
-                  <div className="mt-4">
-                    <Text size="small" className="text-ui-fg-subtle">
-                      Select task templates (names) to create for the run.
-                    </Text>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {templatesToShow.map((tpl: any) => {
-                        const name = String(tpl.name)
-                        const selected = selectedTemplateNames.includes(name)
-                        return (
-                          <button
-                            key={name}
-                            type="button"
-                            className="rounded-md border px-2 py-1 text-xs"
-                            onClick={() => {
-                              const current = form.getValues("template_names") || []
-                              const next = selected
-                                ? current.filter((n) => n !== name)
-                                : [...current, name]
-                              form.setValue("template_names", next, {
-                                shouldDirty: true,
-                              })
-                            }}
-                          >
-                            <Badge color={selected ? "green" : "grey"}>{name}</Badge>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Container>
           </div>
         </RouteDrawer.Body>
 
@@ -493,12 +339,8 @@ const CreateProductionRunDrawerForm = () => {
                 Cancel
               </Button>
             </RouteDrawer.Close>
-            <Button
-              size="small"
-              type="submit"
-              isLoading={isCreating || sendMutation.isPending}
-            >
-              Create
+            <Button size="small" type="submit" isLoading={isPending}>
+              Approve
             </Button>
           </div>
         </RouteDrawer.Footer>
@@ -507,10 +349,10 @@ const CreateProductionRunDrawerForm = () => {
   )
 }
 
-export default function CreateProductionRunDrawer() {
+export default function ApproveProductionRunDrawer() {
   return (
     <RouteDrawer>
-      <CreateProductionRunDrawerForm />
+      <ApproveProductionRunDrawerForm />
     </RouteDrawer>
   )
 }

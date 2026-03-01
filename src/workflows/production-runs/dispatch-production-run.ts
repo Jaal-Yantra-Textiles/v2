@@ -50,6 +50,26 @@ const retrieveProductionRunForDispatchStep = createStep(
 
     await productionPolicyService.assertCanStartDispatch(run)
 
+    // Check cross-run dependencies
+    const dependsOnRunIds = (run as any).depends_on_run_ids as string[] | null
+    if (dependsOnRunIds?.length) {
+      const depRuns = await Promise.all(
+        dependsOnRunIds.map((id) =>
+          productionRunService.retrieveProductionRun(id).catch(() => null)
+        )
+      )
+      const unmet = depRuns.filter(
+        (r) => r && String((r as any).status) !== "completed"
+      )
+      if (unmet.length) {
+        const unmetIds = unmet.map((r) => (r as any).id).join(", ")
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `Cannot dispatch: waiting for dependent runs to complete (${unmetIds})`
+        )
+      }
+    }
+
     return new StepResponse(run)
   }
 )

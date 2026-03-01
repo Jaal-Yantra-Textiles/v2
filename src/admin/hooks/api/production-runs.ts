@@ -21,6 +21,8 @@ export type AdminCreateDesignProductionRunPayload = {
     partner_id: string
     role?: string
     quantity: number
+    order?: number
+    template_names?: string[]
   }>
 }
 
@@ -164,6 +166,49 @@ export const useSendProductionRunToProduction = (
         }
       ),
     onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export type AdminApproveProductionRunPayload = {
+  assignments?: Array<{
+    partner_id: string
+    role?: string
+    quantity?: number
+    order?: number
+    template_names?: string[]
+  }>
+}
+
+export type AdminApproveProductionRunResponse = {
+  production_run: AdminProductionRun
+  children?: AdminProductionRun[]
+}
+
+export const useApproveProductionRun = (
+  runId: string,
+  options?: UseMutationOptions<
+    AdminApproveProductionRunResponse,
+    FetchError,
+    AdminApproveProductionRunPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminApproveProductionRunPayload) =>
+      sdk.client.fetch<AdminApproveProductionRunResponse>(
+        `/admin/production-runs/${runId}/approve`,
+        {
+          method: "POST",
+          body: payload,
+        }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
       options?.onSuccess?.(data, variables, context)
     },

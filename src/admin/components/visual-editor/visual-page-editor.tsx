@@ -14,6 +14,7 @@ export interface VisualPageEditorProps {
   pageId: string
   page: AdminPage
   blocks: AdminBlock[]
+  domain?: string
 }
 
 export function VisualPageEditor({
@@ -21,6 +22,7 @@ export function VisualPageEditor({
   pageId,
   page,
   blocks: initialBlocks,
+  domain,
 }: VisualPageEditorProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [blocks, setBlocks] = useState<AdminBlock[]>(
@@ -35,7 +37,7 @@ export function VisualPageEditor({
   const selectedBlock = blocks.find((b) => b.id === selectedBlockId)
 
   // Get the preview URL for the page
-  const previewUrl = getPreviewUrl(page.slug)
+  const previewUrl = getPreviewUrl(domain, page.slug)
 
   // Iframe communication hook
   const {
@@ -325,9 +327,14 @@ export function VisualPageEditor({
   )
 }
 
-function getPreviewUrl(slug: string): string {
-  // Get the preview URL from environment or use default
-  const baseUrl = import.meta.env.VITE_PREVIEW_URL || "http://localhost:3000"
+function getPreviewUrl(domain: string | undefined, slug: string): string {
+  let baseUrl: string
+  if (domain) {
+    baseUrl = domain.startsWith("http") ? domain : `https://${domain}`
+  } else {
+    baseUrl = import.meta.env.VITE_PREVIEW_URL || "http://localhost:3000"
+  }
+  baseUrl = baseUrl.replace(/\/+$/, "")
   const path = slug === "home" ? "/" : `/${slug}`
   return `${baseUrl}${path}?visual_editor=true`
 }
