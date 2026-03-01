@@ -1,3 +1,34 @@
+# [9.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.16.1...v9.0.0) (2026-03-01)
+
+
+### Bug Fixes
+
+* **partner-ui:** Date filter in the inventory ficed ([0d49a5c](https://github.com/Jaal-Yantra-Textiles/v2/commit/0d49a5c8a9b182018ddd6ed6b5feefe12ad68949))
+* **partner-ui:** DateFilter ([cb22caa](https://github.com/Jaal-Yantra-Textiles/v2/commit/cb22caaa3af7b08bde2fe9e141681956b2c98ae2))
+* **docs:** Fixed the loading of the payment methods. ([12514e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/12514e95993a2634640bd287e657b81e5c8848ef))
+* **api:** Fixed the logic for the invo logic ([c4faaac](https://github.com/Jaal-Yantra-Textiles/v2/commit/c4faaac94dfe9ff6f16f24fb5bafd2b31451c06d))
+* **workflows:** fixed the service tye ([6221256](https://github.com/Jaal-Yantra-Textiles/v2/commit/622125661135f424d7f6fb941c2318bf8ede9eca))
+* **workflows:** Fixed the type issue ([dcee2af](https://github.com/Jaal-Yantra-Textiles/v2/commit/dcee2afc211b356f2b4d9797b5f77925f88c99ae))
+* **scripts:** fixed yarn to pnpm ([94f7075](https://github.com/Jaal-Yantra-Textiles/v2/commit/94f7075bf2486f1e2853240f33510c72df23ac2a))
+* **invo:** Inventory order line logic fixed ([6b1c4ad](https://github.com/Jaal-Yantra-Textiles/v2/commit/6b1c4ad753810edd8d10a6ce0e8163f2e3a9571a))
+
+
+### Code Refactoring
+
+* **api:** yarn --> to pnpm to smoothen some stuff out ([35dfd17](https://github.com/Jaal-Yantra-Textiles/v2/commit/35dfd173a91db59195d9f6710fdf0a0b52cec0be))
+
+
+### Features
+
+* **api:** Payment intent at the inventory order ([35b354b](https://github.com/Jaal-Yantra-Textiles/v2/commit/35b354be956892e253a5cfa6eedd2071cc2d4cdb))
+* **api:** Raw material SKU label generation ([9a04723](https://github.com/Jaal-Yantra-Textiles/v2/commit/9a04723e45f6870a846d1e45862751fbc0def0c8))
+
+
+### BREAKING CHANGES
+
+* **api:** 
+* **api:**
+
 ## [8.16.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.16.0...v8.16.1) (2026-02-08)
 
 
