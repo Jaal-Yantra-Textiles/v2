@@ -2,6 +2,10 @@ import { MedusaError, MedusaService } from "@medusajs/framework/utils"
 
 import ProductionRunPolicy from "./models/production-run-policy"
 
+import { InferTypeOf } from "@medusajs/framework/types"
+import  ProductionRun from "../../modules/production_runs/models/production-run"
+export type ProductionRun = InferTypeOf<typeof ProductionRun>
+
 type ProductionRunLike = {
   id: string
   status?: string | null
@@ -27,7 +31,7 @@ class ProductionPolicyService extends MedusaService({
     super(...arguments)
   }
 
-  private getDispatchState(run: ProductionRunLike): string | null {
+  private getDispatchState(run: ProductionRun): string | null {
     const metadata = (run?.metadata || {}) as Record<string, any>
     const dispatch = (metadata.dispatch || {}) as Record<string, any>
     return dispatch.state ? String(dispatch.state) : null
@@ -88,7 +92,7 @@ class ProductionPolicyService extends MedusaService({
     return (policy?.config || this.defaultPolicyConfig()) as Record<string, any>
   }
 
-  async assertCanAccept(run: ProductionRunLike) {
+  async assertCanAccept(run: ProductionRun) {
     if (!run) {
       throw new MedusaError(MedusaError.Types.NOT_FOUND, "ProductionRun not found")
     }
@@ -132,7 +136,7 @@ class ProductionPolicyService extends MedusaService({
     }
   }
 
-  async assertCanStartDispatch(run: ProductionRunLike) {
+  async assertCanStartDispatch(run: ProductionRun) {
     if (!run) {
       throw new MedusaError(MedusaError.Types.NOT_FOUND, "ProductionRun not found")
     }
