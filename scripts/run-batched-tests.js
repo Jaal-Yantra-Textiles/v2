@@ -92,7 +92,7 @@ async function runBatch(batch, batchNumber, retryCount = 0) {
   
   return new Promise((resolve, reject) => {
     const testPattern = batch.map(f => f.replace('.spec.ts', '')).join('|');
-    const cmd = 'yarn';
+    const cmd = 'pnpm';
     const args = [
       'test:integration:http:shared',
       '--testNamePattern',
