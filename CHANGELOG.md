@@ -1,3 +1,15 @@
+# [9.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.0.0...v9.1.0) (2026-03-01)
+
+
+### Bug Fixes
+
+* **workflows:** Fixed workflow run type script inference ([c734611](https://github.com/Jaal-Yantra-Textiles/v2/commit/c734611a4efaf2def2fd085fdc3a529d05b34655))
+
+
+### Features
+
+* **api:** Visual editor inside the web view ([268a5f3](https://github.com/Jaal-Yantra-Textiles/v2/commit/268a5f36e105c5c95a2dbf2059d0b04e86091296))
+
 # [9.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v8.16.1...v9.0.0) (2026-03-01)
 
 
