@@ -43,7 +43,7 @@ export const listDesignsStep = createStep(
   "list-designs-step",
   async (input: ListDesignsStepInput, { container }) => {
     const designService: DesignService = container.resolve(DESIGN_MODULE)
-    const query = container.resolve(
+    const query:any = container.resolve(
       ContainerRegistrationKeys.QUERY
     ) 
 
