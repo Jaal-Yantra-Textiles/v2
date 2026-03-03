@@ -23,25 +23,33 @@ async function getRegionMap(cacheId: string) {
     !regionMap.keys().next().value ||
     regionMapUpdated < Date.now() - 3600 * 1000
   ) {
-    // Fetch regions from Medusa. We can't use the JS client here because middleware is running on Edge and the client needs a Node environment.
+    // Fetch regions from Medusa with timeout and compression headers
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
     const { regions } = await fetch(`${BACKEND_URL}/store/regions`, {
       headers: {
         "x-publishable-api-key": PUBLISHABLE_API_KEY!,
+        "Accept-Encoding": "gzip, deflate, br",
       },
+      signal: controller.signal,
       next: {
         revalidate: 3600,
         tags: [`regions-${cacheId}`],
       },
       cache: "force-cache",
-    }).then(async (response) => {
-      const json = await response.json()
-
-      if (!response.ok) {
-        throw new Error(json.message)
-      }
-
-      return json
     })
+      .finally(() => clearTimeout(timeoutId))
+      .then(async (response) => {
+        console.log(response)
+        const json = await response.json()
+
+        if (!response.ok) {
+          throw new Error(json.message)
+        }
+
+        return json
+      })
 
     if (!regions?.length) {
       throw new Error(

@@ -776,6 +776,7 @@ export function EditorSidebar({
                             <div
                                 ref={scrollContainerRef}
                                 className="flex-1 overflow-y-auto px-1"
+                                data-lenis-prevent
                                 style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
                             >
                                 <div className="space-y-6 pb-8">

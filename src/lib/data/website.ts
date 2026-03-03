@@ -31,7 +31,9 @@ export type PublicBlog = PublicWebsitePage
 const DEFAULT_DOMAIN = "shop.cicilabel.com"
 
 // GET /web/website/:domain
-export async function getWebsite(domain: string = DEFAULT_DOMAIN): Promise<PublicWebsite> {
+export async function getWebsite(
+  domain: string = DEFAULT_DOMAIN
+): Promise<PublicWebsite> {
   const next = { ...(await getCacheOptions("website")) }
   return sdk.client.fetch<PublicWebsite>(`/web/website/${domain}`, {
     next,
@@ -40,7 +42,10 @@ export async function getWebsite(domain: string = DEFAULT_DOMAIN): Promise<Publi
 }
 
 // GET /web/website/:domain/:page
-export async function getWebsitePage(domain: string, slug: string): Promise<PublicWebsitePage> {
+export async function getWebsitePage(
+  domain: string,
+  slug: string
+): Promise<PublicWebsitePage> {
   const next = { ...(await getCacheOptions("website_page")) }
   return sdk.client.fetch<PublicWebsitePage>(`/web/website/${domain}/${slug}`, {
     next,
@@ -49,28 +54,45 @@ export async function getWebsitePage(domain: string, slug: string): Promise<Publ
 }
 
 // GET /web/website/:domain/blogs
-export async function listWebsiteBlogs(domain: string = DEFAULT_DOMAIN): Promise<PublicBlog[]> {
+export async function listWebsiteBlogs(
+  domain: string = DEFAULT_DOMAIN,
+  limit: number = 20,
+  offset: number = 0
+): Promise<PublicBlog[]> {
   const next = { ...(await getCacheOptions("website_blogs")) }
   return sdk.client.fetch<PublicBlog[]>(`/web/website/${domain}/blogs`, {
+    query: { limit: limit.toString(), offset: offset.toString() },
     next,
     cache: "force-cache",
   })
 }
 
 // GET /web/website/:domain/blogs/:blogId
-export async function getWebsiteBlog(domain: string, blogSlug: string): Promise<PublicBlog> {
+export async function getWebsiteBlog(
+  domain: string,
+  blogSlug: string
+): Promise<PublicBlog> {
   const next = { ...(await getCacheOptions("website_blog")) }
-  return sdk.client.fetch<PublicBlog>(`/web/website/${domain}/blogs/${blogSlug}`, {
-    next,
-    cache: "force-cache",
-  })
+  return sdk.client.fetch<PublicBlog>(
+    `/web/website/${domain}/blogs/${blogSlug}`,
+    {
+      next,
+      cache: "force-cache",
+    }
+  )
 }
 
 // POST /web/website/:domain/subscribe
-export async function subscribeToWebsite(domain: string, data: { first_name: string; last_name: string; email: string }) {
-  return sdk.client.fetch<{ message: string }>(`/web/website/${domain}/subscribe`, {
-    method: "POST",
-    body: data,
-    cache: "no-store",
-  })
+export async function subscribeToWebsite(
+  domain: string,
+  data: { first_name: string; last_name: string; email: string }
+) {
+  return sdk.client.fetch<{ message: string }>(
+    `/web/website/${domain}/subscribe`,
+    {
+      method: "POST",
+      body: data,
+      cache: "no-store",
+    }
+  )
 }
