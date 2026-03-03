@@ -1,8 +1,7 @@
 "use client"
 
-import { Stage, Layer, Image as KonvaImage, Rect, Transformer } from "react-konva"
+import { Stage, Layer, Image as KonvaImage, Rect } from "react-konva"
 import Konva from "konva"
-import { useRef, useEffect } from "react"
 import { ImageLayer } from "./image-layer"
 import { TextLayer } from "./text-layer"
 import { DesignLayer, DesignState, ViewState, Partner } from "../types"
@@ -64,29 +63,9 @@ export function EditorCanvas({
     setShowPartnerModal,
     isGeneratingAi,
 }: EditorCanvasProps) {
-    const transformerRef = useRef<Konva.Transformer>(null)
-
     const showLoaderOverlay = baseImageStatus === "loading" || isGeneratingBase
     const showErrorOverlay = baseImageStatus === "error" && !isGeneratingBase
     const showAiOverlay = isGeneratingAi
-
-    // Attach transformer to selected layer
-    useEffect(() => {
-        if (!design.selectedId || !transformerRef.current || !stageRef.current) {
-            if (transformerRef.current) {
-                transformerRef.current.nodes([])
-            }
-            return
-        }
-
-        // Find the selected node
-        const selectedNode = stageRef.current.findOne(`#${design.selectedId}`)
-
-        if (selectedNode && transformerRef.current) {
-            transformerRef.current.nodes([selectedNode])
-            transformerRef.current.getLayer()?.batchDraw()
-        }
-    }, [design.selectedId, stageRef])
 
     return (
         <div className={`flex flex-1 flex-col min-h-0 ${isMobileLayout ? "order-1" : "order-first"}`}>
@@ -172,56 +151,6 @@ export function EditorCanvas({
                             return null
                         })}
 
-                        {/* Transformer for selected layer */}
-                        {(() => {
-                            const transformerRef = useRef<Konva.Transformer>(null)
-                            const layerRef = useRef<Konva.Layer>(null)
-
-                            useEffect(() => {
-                                if (!design.selectedId || !transformerRef.current || !stageRef.current) return
-
-                                // Find the selected node
-                                const selectedNode = stageRef.current.findOne(`#${design.selectedId}`)
-
-                                if (selectedNode && transformerRef.current) {
-                                    transformerRef.current.nodes([selectedNode])
-                                    transformerRef.current.getLayer()?.batchDraw()
-                                } else {
-                                    transformerRef.current.nodes([])
-                                }
-                            }, [design.selectedId])
-
-                            return (
-                                <Transformer
-                                    ref={transformerRef}
-                                    enabledAnchors={[
-                                        'top-left',
-                                        'top-right',
-                                        'bottom-left',
-                                        'bottom-right',
-                                        'middle-left',
-                                        'middle-right',
-                                        'top-center',
-                                        'bottom-center'
-                                    ]}
-                                    rotateEnabled={true}
-                                    borderStroke="#4F46E5"
-                                    borderStrokeWidth={2}
-                                    anchorStroke="#4F46E5"
-                                    anchorFill="#fff"
-                                    anchorSize={8}
-                                    anchorCornerRadius={4}
-                                    keepRatio={false}
-                                    boundBoxFunc={(oldBox, newBox) => {
-                                        // Limit resize to prevent too small sizes
-                                        if (newBox.width < 10 || newBox.height < 10) {
-                                            return oldBox
-                                        }
-                                        return newBox
-                                    }}
-                                />
-                            )
-                        })()}
                     </Layer>
                 </Stage>
                 {/* Mobile zoom indicator - compact floating button */}

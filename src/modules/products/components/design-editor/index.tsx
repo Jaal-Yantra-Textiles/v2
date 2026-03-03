@@ -178,7 +178,9 @@ export default function DesignEditor({
               zoomOut={editor.zoomOut}
               resetView={editor.resetView}
               undo={editor.undo}
+              redo={editor.redo}
               historyIndex={editor.historyIndex}
+              canRedo={editor.canRedo}
             />
           )}
         </div>
@@ -262,6 +264,23 @@ export default function DesignEditor({
         onLogin={editor.handleLoginRedirect}
         onCancel={editor.dismissLoginPrompt}
       />
+
+      {/* Save error notification */}
+      {editor.saveError && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
+          <div className="flex items-center gap-3 rounded-full border border-red-200 bg-red-50 px-5 py-2.5 shadow-lg">
+            <span className="text-sm font-medium text-red-700">{editor.saveError}</span>
+            <button
+              type="button"
+              onClick={editor.clearSaveError}
+              className="rounded-full p-0.5 text-red-400 hover:text-red-600"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Design Checkout Modal - shown after saving design */}
       <DesignCheckoutModal

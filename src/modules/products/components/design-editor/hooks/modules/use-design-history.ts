@@ -8,6 +8,7 @@ type UseDesignHistoryArgs = {
 
 type UseDesignHistoryResult = {
   historyIndex: number
+  canRedo: boolean
   recordSnapshot: (next: DesignState) => void
   undo: () => void
   redo: () => void
@@ -63,6 +64,7 @@ export const useDesignHistory = ({ design, setDesign }: UseDesignHistoryArgs): U
 
   return {
     historyIndex,
+    canRedo: historyIndex < history.length - 1,
     recordSnapshot,
     undo,
     redo,

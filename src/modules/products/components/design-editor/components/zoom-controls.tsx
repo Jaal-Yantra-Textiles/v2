@@ -1,7 +1,7 @@
 "use client"
 
 import { Text } from "@medusajs/ui"
-import { ArrowUturnLeft, MinusMini, PlusMini } from "@medusajs/icons"
+import { ArrowUturnLeft, ArrowsPointingOutMini, MinusMini, PlusMini } from "@medusajs/icons"
 import clsx from "clsx"
 import { ViewState } from "../types"
 
@@ -11,7 +11,9 @@ type ZoomControlsProps = {
   zoomOut: () => void
   resetView: () => void
   undo: () => void
+  redo: () => void
   historyIndex: number
+  canRedo: boolean
   variant?: "inline" | "floating"
   className?: string
 }
@@ -25,7 +27,9 @@ export function ZoomControls({
   zoomOut,
   resetView,
   undo,
+  redo,
   historyIndex,
+  canRedo,
   variant = "inline",
   className,
 }: ZoomControlsProps) {
@@ -37,14 +41,24 @@ export function ZoomControls({
           className
         )}
       >
-        <button
-          onClick={undo}
-          disabled={historyIndex <= 0}
-          className={iconButtonClasses}
-          title="Undo (⌘Z)"
-        >
-          <ArrowUturnLeft className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={undo}
+            disabled={historyIndex <= 0}
+            className={iconButtonClasses}
+            title="Undo (⌘Z)"
+          >
+            <ArrowUturnLeft className="h-4 w-4" />
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            className={iconButtonClasses}
+            title="Redo (⌘⇧Z)"
+          >
+            <ArrowUturnLeft className="h-4 w-4 -scale-x-100" />
+          </button>
+        </div>
         <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1">
           <button onClick={zoomOut} className={iconButtonClasses} title="Zoom Out">
             <MinusMini className="h-4 w-4" />
@@ -56,8 +70,8 @@ export function ZoomControls({
             <PlusMini className="h-4 w-4" />
           </button>
         </div>
-        <button onClick={resetView} className={iconButtonClasses} title="Reset View">
-          <ArrowUturnLeft className="h-4 w-4 rotate-180" />
+        <button onClick={resetView} className={iconButtonClasses} title="Reset View (⌘0)">
+          <ArrowsPointingOutMini className="h-4 w-4" />
         </button>
       </div>
     )
@@ -70,7 +84,7 @@ export function ZoomControls({
         className
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         <button
           onClick={undo}
           disabled={historyIndex <= 0}
@@ -78,6 +92,14 @@ export function ZoomControls({
           title="Undo (⌘Z)"
         >
           <ArrowUturnLeft className="h-4 w-4" />
+        </button>
+        <button
+          onClick={redo}
+          disabled={!canRedo}
+          className={iconButtonClasses}
+          title="Redo (⌘⇧Z)"
+        >
+          <ArrowUturnLeft className="h-4 w-4 -scale-x-100" />
         </button>
       </div>
 
@@ -94,9 +116,9 @@ export function ZoomControls({
         <button
           onClick={resetView}
           className={`${iconButtonClasses} ml-2`}
-          title="Reset View"
+          title="Reset View (⌘0)"
         >
-          <ArrowUturnLeft className="h-4 w-4 rotate-180" />
+          <ArrowsPointingOutMini className="h-4 w-4" />
         </button>
       </div>
 

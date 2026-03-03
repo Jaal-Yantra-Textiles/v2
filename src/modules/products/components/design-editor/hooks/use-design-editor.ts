@@ -63,6 +63,8 @@ export function useDesignEditor({
     // Checkout modal state (shown after design is saved)
     const [showCheckoutModal, setShowCheckoutModal] = useState(false)
     const [savedDesignId, setSavedDesignId] = useState<string | null>(null)
+    const [saveError, setSaveError] = useState<string | null>(null)
+    const clearSaveError = useCallback(() => setSaveError(null), [])
 
     // Tool state
     const [activeTool, setActiveTool] = useState<"select" | "pan">("select")
@@ -118,7 +120,7 @@ export function useDesignEditor({
 
     const [badgePreferences, setBadgePreferences] = useState<BadgePreferences>(defaultBadgePreferences)
 
-    const { historyIndex, recordSnapshot, undo, redo } = useDesignHistory({
+    const { historyIndex, canRedo, recordSnapshot, undo, redo } = useDesignHistory({
         design,
         setDesign,
     })
@@ -434,11 +436,15 @@ export function useDesignEditor({
                 opacity: 1,
             }
 
-            setDesign((prev) => ({
-                ...prev,
-                layers: [...prev.layers, newLayer],
-                selectedId: newLayer.id,
-            }))
+            setDesign((prev) => {
+                const updated: DesignState = {
+                    ...prev,
+                    layers: [...prev.layers, newLayer],
+                    selectedId: newLayer.id,
+                }
+                recordSnapshot(updated)
+                return updated
+            })
         }
 
         img.src = url
@@ -452,7 +458,7 @@ export function useDesignEditor({
             id: `layer-${Date.now()}`,
             type: "text",
             x: baseDims.x + baseDims.width / 2 - 50,
-            y: baseDims.y + 40, // Position near top of base image with padding
+            y: baseDims.y + 40,
             rotation: 0,
             scaleX: 1,
             scaleY: 1,
@@ -465,11 +471,15 @@ export function useDesignEditor({
             opacity: 1,
         }
 
-        setDesign((prev) => ({
-            ...prev,
-            layers: [...prev.layers, newLayer],
-            selectedId: newLayer.id,
-        }))
+        setDesign((prev) => {
+            const updated: DesignState = {
+                ...prev,
+                layers: [...prev.layers, newLayer],
+                selectedId: newLayer.id,
+            }
+            recordSnapshot(updated)
+            return updated
+        })
     }
 
     // Update layer
@@ -749,21 +759,17 @@ export function useDesignEditor({
                 tags: ["custom", "customer-design", product.handle],
             }
 
-            console.log("Saving design:", designInput)
-
             const result = await createDesign(designInput)
 
             // Clear any draft after successful save
             clearDraftSnapshot()
 
-            console.log("Design saved:", result)
-
-            // Show checkout modal instead of alert
+            // Show checkout modal
             setSavedDesignId(result.design.id)
             setShowCheckoutModal(true)
         } catch (error) {
             console.error("Failed to save:", error)
-            alert("Failed to save design. Please try again.")
+            setSaveError("Failed to save design. Please try again.")
         } finally {
             setIsSaving(false)
         }
@@ -809,6 +815,8 @@ export function useDesignEditor({
         showCheckoutModal,
         setShowCheckoutModal,
         savedDesignId,
+        saveError,
+        clearSaveError,
 
         sidebarExpanded,
         setSidebarExpanded,
@@ -832,6 +840,7 @@ export function useDesignEditor({
         partnersLoading,
 
         historyIndex,
+        canRedo,
         desktopSidebarOffset,
 
         handleNextStep,

@@ -17,7 +17,17 @@ interface TextLayerProps {
 export function TextLayer({ layer, isSelected, onSelect, onChange, stageRef }: TextLayerProps) {
   const shapeRef = useRef<Konva.Text>(null)
   const trRef = useRef<Konva.Transformer>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+
+  // Clean up any dangling textarea if the component unmounts while editing
+  useEffect(() => {
+    return () => {
+      if (textareaRef.current?.parentNode) {
+        textareaRef.current.parentNode.removeChild(textareaRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current && !isEditing) {
@@ -45,6 +55,7 @@ export function TextLayer({ layer, isSelected, onSelect, onChange, stageRef }: T
 
     const textarea = document.createElement("textarea")
     document.body.appendChild(textarea)
+    textareaRef.current = textarea
 
     textarea.value = layer.text || ""
     textarea.style.position = "fixed"
@@ -74,6 +85,7 @@ export function TextLayer({ layer, isSelected, onSelect, onChange, stageRef }: T
       if (textarea.parentNode) {
         textarea.parentNode.removeChild(textarea)
       }
+      textareaRef.current = null
       textNode.show()
       if (trRef.current) trRef.current.show()
       setIsEditing(false)
