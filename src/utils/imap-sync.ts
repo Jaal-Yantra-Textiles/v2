@@ -128,7 +128,8 @@ export class ImapSyncService {
     const emails: ParsedEmail[] = []
 
     try {
-      const totalMessages = this.client.mailbox?.exists ?? 0
+      const mailboxObj = this.client.mailbox
+      const totalMessages = mailboxObj !== false ? mailboxObj.exists : 0
       if (totalMessages === 0) return emails
 
       const startSeq = Math.max(1, totalMessages - count + 1)
@@ -138,6 +139,7 @@ export class ImapSyncService {
         source: true,
         uid: true,
       })) {
+        if (!message.source) continue
         try {
           const parsed = await simpleParser(message.source)
           emails.push(this.toParsedEmail(message.uid, parsed, mailbox))
@@ -173,6 +175,7 @@ export class ImapSyncService {
               source: true,
               uid: true,
             })) {
+              if (!message.source) continue
               const parsed = await simpleParser(message.source)
               const email = this.toParsedEmail(message.uid, parsed, mailbox)
               this.onNewEmail?.(email)

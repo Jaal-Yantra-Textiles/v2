@@ -222,5 +222,8 @@ module.exports = defineConfig({
    {
       resolve: "@medusajs/medusa/translation",
     },
+    {
+    resolve: "./src/modules/inbound_emails",
+  },
 ],
 });

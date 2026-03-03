@@ -30,11 +30,6 @@ export const updateAgreementResponseStep = createStep(
           "Agreement response not found"
         );
       }
-
-      console.log('=== UPDATE STEP DEBUG ===');
-      console.log('Existing status:', existingResponse.status);
-      console.log('Requested status:', input.status);
-
       // Handle status transitions intelligently
       let shouldUpdate = false;
       const updateData: any = {};
@@ -97,7 +92,7 @@ export const updateAgreementResponseStep = createStep(
       
       throw new MedusaError(
         MedusaError.Types.DB_ERROR,
-        `Failed to update agreement response: ${error.message}`
+        `Failed to update agreement response: ${error}`
       );
     }
   },
