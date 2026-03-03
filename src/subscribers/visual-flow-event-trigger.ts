@@ -55,7 +55,7 @@ export default async function visualFlowEventTriggerHandler({
     for (const flow of matchingFlows) {
       try {
         logger.info(`[visual-flow-event-trigger] Executing flow "${flow.name}" (${flow.id})`)
-        
+
         await executeVisualFlowWorkflow(container).run({
           input: {
             flowId: flow.id,
@@ -194,5 +194,9 @@ export const config: SubscriberConfig = {
     
     // Subscriptions
     "subscription.created",
+
+    // Inbound Emails
+    "inbound_emails.inbound-email.created",
+    "inbound_emails.inbound-email.updated",
   ],
 }

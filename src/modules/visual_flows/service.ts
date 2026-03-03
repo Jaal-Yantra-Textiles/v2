@@ -286,7 +286,14 @@ class VisualFlowService extends MedusaService({
       console.log(`[updateExecutionStatus] Setting completed_at for execution ${executionId}:`, updateData.completed_at)
     }
     
-    console.log(`[updateExecutionStatus] Updating execution ${executionId} with:`, JSON.stringify(updateData, null, 2))
+    // Truncate long string fields (e.g. html_body in data_chain) before logging
+    const safeLog = JSON.parse(JSON.stringify(updateData, (_key, value) => {
+      if (typeof value === "string" && value.length > 200) {
+        return value.slice(0, 200) + `… [${value.length} chars]`
+      }
+      return value
+    }))
+    console.log(`[updateExecutionStatus] Updating execution ${executionId} with:`, JSON.stringify(safeLog, null, 2))
     
     return this.updateVisualFlowExecutions(updateData)
   }

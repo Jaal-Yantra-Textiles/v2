@@ -238,7 +238,7 @@ export const GET = async (
       offset: req.query.offset || 0,
       limit: req.query.limit || 10,
     });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
+  } catch (errors) {
+    res.status(400).json({ error: errors instanceof Error ? errors.message : "An error occurred" });
   }
 };

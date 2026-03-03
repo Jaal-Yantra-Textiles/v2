@@ -18,7 +18,8 @@
     "medusa"
   ],
   "scripts": {
-    "build": "medusa build && pnpm run resolve:aliases",
+    "build": "medusa build && pnpm run resolve:aliases && pnpm run build:schemas",
+    "build:schemas": "npx ts-node --skip-project src/scripts/build-workflow-schemas.ts",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "start": "medusa start",
     "dev": "medusa develop",
@@ -161,6 +162,7 @@
     "rimraf": "^6.0.1",
     "slugify": "^1.6.6",
     "sonner": "^2.0.3",
+    "svix": "^1.86.0",
     "twitter-api-sdk": "^1.2.1",
     "uploadthing": "7.2.0",
     "use-file-picker": "^2.1.2",

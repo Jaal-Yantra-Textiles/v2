@@ -20,8 +20,19 @@ export const logOperation: OperationDefinition = {
   execute: async (options, context: OperationContext): Promise<OperationResult> => {
     try {
       const message = interpolateVariables(options.message, context.dataChain)
-      
-      console.log(`[Flow ${context.flowId}][${context.operationKey}]`, message)
+
+      // Truncate long strings so HTML email bodies don't flood the console
+      const truncate = (v: unknown, max = 300): unknown => {
+        if (typeof v === "string" && v.length > max) return v.slice(0, max) + `… [${v.length} chars]`
+        if (v && typeof v === "object") {
+          return Array.isArray(v)
+            ? (v as any[]).map((i) => truncate(i, max))
+            : Object.fromEntries(Object.entries(v as object).map(([k, val]) => [k, truncate(val, max)]))
+        }
+        return v
+      }
+
+      console.log(`[Flow ${context.flowId}][${context.operationKey}]`, truncate(message))
       
       return {
         success: true,

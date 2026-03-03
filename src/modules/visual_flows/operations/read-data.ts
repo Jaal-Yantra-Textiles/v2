@@ -36,11 +36,23 @@ export const readDataOperation: OperationDefinition = {
         fields = options.fields.map((f: string) => interpolateString(f, context.dataChain))
       }
       
-      // Handle filters - interpolate values
-      const filters = options.filters 
-        ? interpolateVariables(options.filters, context.dataChain) 
+      // Handle filters - interpolate values, then drop any keys that resolved
+      // to undefined/null so they don't silently disable the filter
+      const rawFilters = options.filters
+        ? interpolateVariables(options.filters, context.dataChain)
         : undefined
-      
+
+      const filters: Record<string, any> = {}
+      if (rawFilters && typeof rawFilters === "object") {
+        for (const [k, v] of Object.entries(rawFilters)) {
+          if (v === undefined || v === null || v === "") {
+            console.warn(`[read_data] Filter key "${k}" resolved to ${JSON.stringify(v)} — check your variable path. It will be ignored.`)
+          } else {
+            filters[k] = v
+          }
+        }
+      }
+
       if (!entity) {
         return {
           success: false,

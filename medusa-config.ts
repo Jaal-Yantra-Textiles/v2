@@ -222,6 +222,9 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/spec_store",
   },
+  {
+    resolve: "./src/modules/inbound_emails",
+  },
    {
       resolve: "@medusajs/medusa/translation",
   },

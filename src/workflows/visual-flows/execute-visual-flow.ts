@@ -71,9 +71,13 @@ const initializeExecutionStep = createStep(
   ) => {
     const service: VisualFlowService = container.resolve(VISUAL_FLOWS_MODULE)
     
-    // Initialize data chain
+    // Initialize data chain.
+    // Spread triggerData at the root of $trigger so users can write
+    // {{ $trigger.id }}, {{ $trigger.html_body }}, etc. directly.
+    // Also keep .payload for backwards compatibility.
     const dataChain: DataChain = {
       $trigger: {
+        ...input.triggerData,
         payload: input.triggerData,
         event: input.flow.trigger_config?.event,
         timestamp: new Date().toISOString(),

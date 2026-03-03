@@ -392,6 +392,15 @@ export interface EntityMetadata {
   fields?: FieldMetadata[]
 }
 
+export interface WorkflowInputField {
+  name: string
+  type: "string" | "number" | "boolean" | "date" | "array" | "object" | "id"
+  description?: string
+  required?: boolean
+  placeholder?: string
+  example?: any
+}
+
 export interface WorkflowMetadata {
   name: string
   description: string
@@ -400,7 +409,7 @@ export interface WorkflowMetadata {
   requiredModules?: string[]
   optionalModules?: string[]
   isScheduled?: boolean
-  inputSchema?: Record<string, any>
+  inputSchema?: WorkflowInputField[]
 }
 
 export interface EventMetadata {

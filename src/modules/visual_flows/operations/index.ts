@@ -19,6 +19,7 @@ export { sendEmailOperation } from "./send-email"
 export { executeCodeOperation } from "./execute-code"
 export { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
 export { bulkUpdateDataOperation } from "./bulk-update-data"
+export { aiExtractOperation } from "./ai-extract"
 
 // Import all operations and register them
 import { operationRegistry } from "./types"
@@ -38,6 +39,7 @@ import { sendEmailOperation } from "./send-email"
 import { executeCodeOperation } from "./execute-code"
 import { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
 import { bulkUpdateDataOperation } from "./bulk-update-data"
+import { aiExtractOperation } from "./ai-extract"
 
 // Register all built-in operations
 export function registerBuiltInOperations(): void {
@@ -59,6 +61,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(httpRequestOperation)
   operationRegistry.register(triggerWorkflowOperation)
   operationRegistry.register(triggerFlowOperation)
+  operationRegistry.register(aiExtractOperation)
   
   // Utility operations
   operationRegistry.register(transformOperation)

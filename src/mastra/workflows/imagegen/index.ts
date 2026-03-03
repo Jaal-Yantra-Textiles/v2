@@ -1,6 +1,6 @@
 // @ts-nocheck - Ignore all TypeScript errors in this file
 import { createWorkflow, createStep } from "@mastra/core/workflows";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { Agent } from "@mastra/core/agent";
 
 // Import provider modules

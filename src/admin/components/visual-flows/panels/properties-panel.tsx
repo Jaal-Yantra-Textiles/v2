@@ -1,9 +1,10 @@
 import { Text, Heading, IconButton, Button, Input, Label, Textarea, Select, Checkbox, Badge } from "@medusajs/ui"
-import { XMark, Trash } from "@medusajs/icons"
+import { XMark, Trash, MagnifyingGlass } from "@medusajs/icons"
 import { Edge, Node } from "@xyflow/react"
 import { useState, useEffect, useMemo } from "react"
-import { useFlowMetadata, EntityMetadata } from "../../../hooks/api/visual-flows"
+import { useFlowMetadata, EntityMetadata, WorkflowInputField } from "../../../hooks/api/visual-flows"
 import { CodeEditorModal } from "../code-editor-modal"
+import { StackedFocusModal } from "../../modal/stacked-modal/stacked-focused-modal"
 
 interface PropertiesPanelProps {
   node: Node
@@ -24,6 +25,8 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
   const [advancedJson, setAdvancedJson] = useState("")
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [conditionExpressionError, setConditionExpressionError] = useState<string | null>(null)
+  const [workflowSearch, setWorkflowSearch] = useState("")
+  const [showRawWorkflowJson, setShowRawWorkflowJson] = useState(false)
 
   // Get entities from metadata
   const entities = metadata?.entities || []
@@ -113,6 +116,10 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
     return out
   }, [availableOperationKeys])
 
+  // Only reset local state when switching to a different node.
+  // Do NOT include node.data — every updateOption call creates a new node.data
+  // reference via handleNodeUpdate → setNodes, which would fire this effect and
+  // reset mid-edit state, causing the visible "catching up" lag.
   useEffect(() => {
     setLabel(String(node.data.label || ""))
     setOperationKey(String(node.data.operationKey || ""))
@@ -120,7 +127,8 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
     setAdvancedJson(JSON.stringify(node.data.options || {}, null, 2))
     setJsonError(null)
     setConditionExpressionError(null)
-  }, [node.id, node.data])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.id])
 
   const parseConditionExpressionToFilterRule = (raw: string): {
     filterRule?: Record<string, any>
@@ -205,6 +213,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
     setOptions(prev => {
       const newOptions = { ...prev, ...updates }
       setAdvancedJson(JSON.stringify(newOptions, null, 2))
+      onUpdate({ label, operationKey, options: newOptions })
       return newOptions
     })
   }
@@ -1177,63 +1186,6 @@ return {
           return acc
         }, {})
         
-        // Infer input schema from workflow name patterns
-        const inferInputSchema = (workflowName: string): { fields: string[], example: Record<string, any> } => {
-          const name = workflowName.toLowerCase()
-          
-          // Common patterns for workflow inputs
-          if (name.includes("create-")) {
-            const entity = name.replace("create-", "").replace(/-/g, "_")
-            return {
-              fields: ["name", "data"],
-              example: { name: `New ${entity}`, data: "{ ... }" }
-            }
-          }
-          if (name.includes("update-") || name.includes("edit-")) {
-            return {
-              fields: ["id", "data"],
-              example: { id: "{{ $last.id }}", data: "{ ... }" }
-            }
-          }
-          if (name.includes("delete-") || name.includes("remove-")) {
-            return {
-              fields: ["id"],
-              example: { id: "{{ $last.id }}" }
-            }
-          }
-          if (name.includes("send-") || name.includes("email")) {
-            return {
-              fields: ["to", "subject", "template"],
-              example: { to: "{{ $trigger.email }}", subject: "Notification", template: "default" }
-            }
-          }
-          if (name.includes("assign-")) {
-            return {
-              fields: ["id", "assignee_id"],
-              example: { id: "{{ $last.id }}", assignee_id: "{{ $trigger.user_id }}" }
-            }
-          }
-          if (name.includes("complete-") || name.includes("finish-")) {
-            return {
-              fields: ["id"],
-              example: { id: "{{ $last.id }}" }
-            }
-          }
-          if (name.includes("list-") || name.includes("get-")) {
-            return {
-              fields: ["filters", "limit"],
-              example: { filters: {}, limit: 100 }
-            }
-          }
-          // Default - just id
-          return {
-            fields: ["id"],
-            example: { id: "{{ $last.id }}" }
-          }
-        }
-        
-        const inferredSchema = selectedWorkflow ? inferInputSchema(selectedWorkflow.name) : null
-        
         return (
           <>
             <div>
@@ -1243,37 +1195,101 @@ return {
               ) : workflows.length === 0 ? (
                 <Text size="small" className="text-ui-fg-muted py-2">No workflows found</Text>
               ) : (
-                <Select
-                  value={workflowValue || undefined}
-                  onValueChange={(value) => {
-                    // Auto-populate input with inferred schema
-                    const wf = workflows.find((w: any) => w.name === value)
-                    const schema = wf ? inferInputSchema(wf.name) : null
-                    
-                    // Update all options at once to avoid race condition
-                    updateOptions({
-                      workflow_name: value,
-                      workflow_id: undefined, // Clear legacy field
-                      ...(schema ? { input: schema.example } : {})
-                    })
-                  }}
-                >
-                  <Select.Trigger>
-                    <Select.Value placeholder="Select workflow..." />
-                  </Select.Trigger>
-                  <Select.Content className="max-h-64 overflow-y-auto">
-                    {Object.entries(workflowsByCategory).map(([category, wfs]) => (
-                      <Select.Group key={category}>
-                        <Text className="px-2 py-1 text-xs text-ui-fg-muted capitalize">{category}</Text>
-                        {(wfs as any[]).map((wf: any) => (
-                          <Select.Item key={wf.name} value={wf.name}>
-                            {wf.name}
-                          </Select.Item>
-                        ))}
-                      </Select.Group>
-                    ))}
-                  </Select.Content>
-                </Select>
+                <StackedFocusModal id="workflow-picker">
+                  <StackedFocusModal.Trigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm border border-ui-border-base rounded-md bg-ui-bg-field hover:bg-ui-bg-field-hover text-left"
+                    >
+                      <span className={workflowValue ? "text-ui-fg-base" : "text-ui-fg-muted"}>
+                        {workflowValue || "Select workflow..."}
+                      </span>
+                      <MagnifyingGlass className="text-ui-fg-muted w-4 h-4 shrink-0" />
+                    </button>
+                  </StackedFocusModal.Trigger>
+                  <StackedFocusModal.Content>
+                    <StackedFocusModal.Header>
+                      <Text weight="plus">Select Workflow</Text>
+                    </StackedFocusModal.Header>
+                    <div className="px-4 py-3 border-b border-ui-border-base">
+                      <div className="relative">
+                        <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-muted w-4 h-4" />
+                        <Input
+                          autoFocus
+                          value={workflowSearch}
+                          onChange={(e) => setWorkflowSearch(e.target.value)}
+                          placeholder="Search workflows..."
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
+                    <StackedFocusModal.Body className="p-0 overflow-y-auto max-h-[60vh]">
+                      {(() => {
+                        const q = workflowSearch.toLowerCase()
+                        const filtered = workflows.filter((wf: any) =>
+                          !q ||
+                          wf.name?.toLowerCase().includes(q) ||
+                          wf.description?.toLowerCase().includes(q) ||
+                          wf.category?.toLowerCase().includes(q)
+                        )
+                        const grouped = filtered.reduce((acc: Record<string, any[]>, wf: any) => {
+                          const cat = wf.category || "general"
+                          if (!acc[cat]) acc[cat] = []
+                          acc[cat].push(wf)
+                          return acc
+                        }, {})
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="flex items-center justify-center py-12">
+                              <Text className="text-ui-fg-muted">No workflows match "{workflowSearch}"</Text>
+                            </div>
+                          )
+                        }
+
+                        return Object.entries(grouped).map(([category, wfs]) => (
+                          <div key={category}>
+                            <div className="px-4 py-2 bg-ui-bg-subtle border-b border-ui-border-base sticky top-0">
+                              <Text className="text-xs font-medium text-ui-fg-muted uppercase tracking-wide capitalize">{category}</Text>
+                            </div>
+                            {(wfs as any[]).map((wf: any) => (
+                              <StackedFocusModal.Close key={wf.name} asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateOptions({
+                                      workflow_name: wf.name,
+                                      workflow_id: undefined,
+                                      input: {},
+                                    })
+                                    setWorkflowSearch("")
+                                  }}
+                                  className={[
+                                    "w-full text-left px-4 py-3 border-b border-ui-border-base",
+                                    "hover:bg-ui-bg-subtle transition-colors",
+                                    wf.name === workflowValue ? "bg-ui-bg-highlight" : "",
+                                  ].join(" ")}
+                                >
+                                  <Text className="text-sm font-medium text-ui-fg-base">{wf.name}</Text>
+                                  {wf.description && (
+                                    <Text className="text-xs text-ui-fg-subtle mt-0.5 line-clamp-1">{wf.description}</Text>
+                                  )}
+                                  {wf.requiredModules?.length > 0 && (
+                                    <div className="flex gap-1 mt-1 flex-wrap">
+                                      {wf.requiredModules.map((m: string) => (
+                                        <Badge key={m} size="2xsmall" color="grey">{m}</Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </button>
+                              </StackedFocusModal.Close>
+                            ))}
+                          </div>
+                        ))
+                      })()}
+                    </StackedFocusModal.Body>
+                  </StackedFocusModal.Content>
+                </StackedFocusModal>
               )}
               {selectedWorkflow && (
                 <div className="mt-2 text-xs space-y-1">
@@ -1295,39 +1311,92 @@ return {
               )}
             </div>
 
-            {/* Inferred input fields */}
-            {inferredSchema && inferredSchema.fields.length > 0 && (
-              <div>
-                <Label>Expected Input Fields</Label>
-                <div className="mt-1 flex gap-1 flex-wrap">
-                  {inferredSchema.fields.map((field: string) => (
-                    <Badge key={field} size="2xsmall" color="blue">{field}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Field mapper / JSON toggle */}
+            {(() => {
+              const fields: WorkflowInputField[] = selectedWorkflow?.inputSchema || []
+              const inputObj: Record<string, any> =
+                typeof options.input === "object" && options.input !== null
+                  ? options.input
+                  : {}
 
-            <div>
-              <Label htmlFor="input">Workflow Input (JSON)</Label>
-              <Textarea
-                id="input"
-                value={typeof options.input === "string" ? options.input : JSON.stringify(options.input || {}, null, 2)}
-                onChange={(e) => {
-                  try {
-                    updateOption("input", JSON.parse(e.target.value))
-                  } catch {
-                    // Keep as string if not valid JSON
-                    updateOption("input", e.target.value)
-                  }
-                }}
-                rows={6}
-                className="font-mono text-xs"
-                placeholder={inferredSchema ? JSON.stringify(inferredSchema.example, null, 2) : '{ "id": "{{ $last.id }}" }'}
-              />
-              <Text className="text-xs text-ui-fg-subtle mt-1">
-                Use {"{{ $last.field }}"} or {"{{ $trigger.field }}"} for dynamic values
-              </Text>
-            </div>
+              const setField = (name: string, value: string) => {
+                updateOption("input", { ...inputObj, [name]: value })
+              }
+
+              const TYPE_COLORS: Record<string, "blue" | "green" | "orange" | "purple" | "grey"> = {
+                string: "blue", number: "green", boolean: "orange",
+                date: "purple", array: "grey", object: "grey", id: "grey",
+              }
+
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Workflow Input</Label>
+                    <button
+                      type="button"
+                      onClick={() => setShowRawWorkflowJson((v) => !v)}
+                      className="text-xs text-ui-fg-interactive hover:underline"
+                    >
+                      {showRawWorkflowJson ? "Field mapper" : "Raw JSON"}
+                    </button>
+                  </div>
+
+                  {showRawWorkflowJson ? (
+                    <div>
+                      <Textarea
+                        value={typeof options.input === "string" ? options.input : JSON.stringify(options.input || {}, null, 2)}
+                        onChange={(e) => {
+                          try { updateOption("input", JSON.parse(e.target.value)) }
+                          catch { updateOption("input", e.target.value) }
+                        }}
+                        rows={8}
+                        className="font-mono text-xs"
+                        placeholder={'{\n  "id": "{{ $last.id }}"\n}'}
+                      />
+                      <Text className="text-xs text-ui-fg-subtle mt-1">
+                        Use {"{{ step_key.field }}"} for dynamic values
+                      </Text>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {fields.map((field) => (
+                        <div key={field.name} className="border border-ui-border-base rounded-md px-3 py-2 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Text className="text-xs font-mono font-medium text-ui-fg-base flex-1">
+                              {field.name}
+                            </Text>
+                            <Badge size="2xsmall" color={TYPE_COLORS[field.type] ?? "grey"}>
+                              {field.type}
+                            </Badge>
+                            {field.required && (
+                              <Badge size="2xsmall" color="orange">required</Badge>
+                            )}
+                          </div>
+                          {field.description && (
+                            <Text className="text-xs text-ui-fg-subtle">{field.description}</Text>
+                          )}
+                          <Input
+                            value={inputObj[field.name] !== undefined
+                              ? (typeof inputObj[field.name] === "object"
+                                  ? JSON.stringify(inputObj[field.name])
+                                  : String(inputObj[field.name]))
+                              : ""}
+                            onChange={(e) => setField(field.name, e.target.value)}
+                            placeholder={field.placeholder ?? `{{ $last.${field.name} }}`}
+                            className="text-xs font-mono mt-1"
+                          />
+                        </div>
+                      ))}
+                      {fields.length === 0 && (
+                        <Text className="text-xs text-ui-fg-subtle italic">
+                          No input schema defined for this workflow.
+                        </Text>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </>
         )
 
@@ -1423,6 +1492,208 @@ return {
             </div>
           </>
         )
+
+      case "ai_extract": {
+        const schemaFields: Array<{ name: string; type: string; description?: string; enumValues?: string[]; required?: boolean }> = options.schema_fields || []
+
+        const addField = () => {
+          updateOption("schema_fields", [
+            ...schemaFields,
+            { name: "", type: "string", required: false },
+          ])
+        }
+
+        const removeField = (idx: number) => {
+          updateOption("schema_fields", schemaFields.filter((_: any, i: number) => i !== idx))
+        }
+
+        const updateField = (idx: number, patch: Record<string, any>) => {
+          updateOption(
+            "schema_fields",
+            schemaFields.map((f: any, i: number) => (i === idx ? { ...f, ...patch } : f))
+          )
+        }
+
+        return (
+          <>
+            {/* Model */}
+            <div>
+              <Label htmlFor="ai_model">Model</Label>
+              <Select
+                value={options.model || "google/gemini-2.0-flash-exp:free"}
+                onValueChange={(value) => updateOption("model", value)}
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content className="max-h-72 overflow-y-auto">
+                  <Select.Group>
+                    <Text className="px-2 py-1 text-xs text-ui-fg-muted">Free models</Text>
+                    <Select.Item value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash Exp · 1M ctx (free)</Select.Item>
+                    <Select.Item value="google/gemma-3-27b-it:free">Gemma 3 27B · 131k ctx (free)</Select.Item>
+                    <Select.Item value="meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B · 131k ctx (free)</Select.Item>
+                    <Select.Item value="mistralai/mistral-small-3.1-24b-instruct:free">Mistral Small 3.1 24B · 128k ctx (free)</Select.Item>
+                    <Select.Item value="qwen/qwen3-4b:free">Qwen3 4B · 128k ctx (free)</Select.Item>
+                    <Select.Item value="qwen/qwen3-coder:free">Qwen3 Coder 480B · 1M ctx (free)</Select.Item>
+                    <Select.Item value="qwen/qwen3-next-80b-a3b-instruct:free">Qwen3 Next 80B · 262k ctx (free)</Select.Item>
+                    <Select.Item value="openai/gpt-oss-120b:free">OpenAI OSS 120B · 131k ctx (free)</Select.Item>
+                    <Select.Item value="openai/gpt-oss-20b:free">OpenAI OSS 20B · 131k ctx (free)</Select.Item>
+                    <Select.Item value="nvidia/nemotron-3-nano-30b-a3b:free">Nemotron 3 Nano 30B · 256k ctx (free)</Select.Item>
+                    <Select.Item value="nvidia/nemotron-nano-12b-v2-vl:free">Nemotron Nano 12B VL · 128k ctx (free)</Select.Item>
+                    <Select.Item value="nvidia/nemotron-nano-9b-v2:free">Nemotron Nano 9B · 32k ctx (free)</Select.Item>
+                    <Select.Item value="z-ai/glm-4.5-air:free">GLM 4.5 Air · 131k ctx (free)</Select.Item>
+                    <Select.Item value="arcee-ai/trinity-large-preview:free">Trinity Large Preview · 131k ctx (free)</Select.Item>
+                    <Select.Item value="arcee-ai/trinity-mini:free">Trinity Mini · 131k ctx (free)</Select.Item>
+                    <Select.Item value="stepfun/step-3.5-flash:free">Step 3.5 Flash · 256k ctx (free)</Select.Item>
+                    <Select.Item value="liquid/lfm-2.5-1.2b-instruct:free">LFM2.5 1.2B Instruct · 32k ctx (free)</Select.Item>
+                  </Select.Group>
+                  <Select.Group>
+                    <Text className="px-2 py-1 text-xs text-ui-fg-muted">Paid models</Text>
+                    <Select.Item value="google/gemini-2.5-pro-exp-03-25">Gemini 2.5 Pro</Select.Item>
+                    <Select.Item value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</Select.Item>
+                    <Select.Item value="anthropic/claude-3.5-haiku">Claude 3.5 Haiku</Select.Item>
+                    <Select.Item value="openai/gpt-4o-mini">GPT-4o Mini</Select.Item>
+                    <Select.Item value="openai/gpt-4o">GPT-4o</Select.Item>
+                  </Select.Group>
+                </Select.Content>
+              </Select>
+            </div>
+
+            {/* System Prompt */}
+            <div>
+              <Label htmlFor="system_prompt">System Prompt</Label>
+              <Textarea
+                id="system_prompt"
+                value={options.system_prompt || ""}
+                onChange={(e) => updateOption("system_prompt", e.target.value)}
+                rows={3}
+                placeholder="Extract order info from this vendor email. Be precise and return null for missing fields."
+              />
+              <Text className="text-xs text-ui-fg-subtle mt-1">
+                Instructions for the model on how to extract data
+              </Text>
+            </div>
+
+            {/* Input */}
+            <div>
+              <Label htmlFor="ai_input">Input</Label>
+              <Textarea
+                id="ai_input"
+                value={options.input || ""}
+                onChange={(e) => updateOption("input", e.target.value)}
+                rows={3}
+                placeholder={"Subject: {{ $trigger.subject }}\n\n{{ $trigger.html_body }}"}
+                className="font-mono text-xs"
+              />
+              <Text className="text-xs text-ui-fg-subtle mt-1">
+                Text sent to the model. Use {"{{ variable }}"} for dynamic values.
+              </Text>
+            </div>
+
+            {/* Schema Fields */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label>Fields to Extract</Label>
+                <Button variant="secondary" size="small" onClick={addField}>
+                  + Add Field
+                </Button>
+              </div>
+
+              {schemaFields.length === 0 && (
+                <Text className="text-xs text-ui-fg-subtle italic">
+                  No fields defined. Add fields to extract structured data.
+                </Text>
+              )}
+
+              <div className="space-y-2">
+                {schemaFields.map((field: any, idx: number) => (
+                  <div key={idx} className="border border-ui-border-base rounded-md p-2 space-y-2">
+                    {/* Row 1: name + type + required + remove */}
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={field.name}
+                        onChange={(e) => updateField(idx, { name: e.target.value })}
+                        placeholder="field_name"
+                        className="flex-1 text-xs font-mono"
+                      />
+                      <Select
+                        value={field.type || "string"}
+                        onValueChange={(value) => updateField(idx, { type: value, enumValues: undefined })}
+                      >
+                        <Select.Trigger className="w-28">
+                          <Select.Value />
+                        </Select.Trigger>
+                        <Select.Content>
+                          <Select.Item value="string">string</Select.Item>
+                          <Select.Item value="number">number</Select.Item>
+                          <Select.Item value="boolean">boolean</Select.Item>
+                          <Select.Item value="enum">enum</Select.Item>
+                          <Select.Item value="array">array</Select.Item>
+                          <Select.Item value="object">object</Select.Item>
+                        </Select.Content>
+                      </Select>
+                      <div className="flex items-center gap-1">
+                        <Checkbox
+                          id={`field-required-${idx}`}
+                          checked={!!field.required}
+                          onCheckedChange={(checked) => updateField(idx, { required: !!checked })}
+                        />
+                        <Text className="text-xs text-ui-fg-subtle">req</Text>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeField(idx)}
+                        className="text-ui-fg-muted hover:text-ui-fg-error text-sm leading-none"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    {/* Enum values */}
+                    {field.type === "enum" && (
+                      <div>
+                        <Input
+                          value={(field.enumValues || []).join(", ")}
+                          onChange={(e) => {
+                            const vals = e.target.value
+                              .split(",")
+                              .map((v: string) => v.trim())
+                              .filter((v: string) => v.length > 0)
+                            updateField(idx, { enumValues: vals })
+                          }}
+                          placeholder="value1, value2, value3"
+                          className="text-xs font-mono"
+                        />
+                        <Text className="text-xs text-ui-fg-subtle mt-0.5">Comma-separated enum values</Text>
+                      </div>
+                    )}
+
+                    {/* Description */}
+                    <Input
+                      value={field.description || ""}
+                      onChange={(e) => updateField(idx, { description: e.target.value })}
+                      placeholder="Optional: hint for the model"
+                      className="text-xs"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Fallback on error */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="fallback_on_error"
+                checked={!!options.fallback_on_error}
+                onCheckedChange={(checked) => updateOption("fallback_on_error", !!checked)}
+              />
+              <Label htmlFor="fallback_on_error" className="cursor-pointer">
+                Return empty object on error (don't fail flow)
+              </Label>
+            </div>
+          </>
+        )
+      }
 
       default:
         return null

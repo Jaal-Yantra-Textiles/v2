@@ -97,17 +97,557 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { WorkflowManager } from "@medusajs/orchestration"
 import { DmlEntity, camelToSnakeCase, pluralize } from "@medusajs/utils"
+import * as fs from "fs"
+import * as path from "path"
+
+// ── Input schema types ────────────────────────────────────────────────────────
+
+export interface WorkflowInputField {
+  name: string
+  type: "string" | "number" | "boolean" | "date" | "array" | "object" | "id"
+  description?: string
+  required?: boolean
+  placeholder?: string
+  example?: any
+}
+
+// ── Pre-generated schema cache (workflow-schemas.json) ───────────────────────
+
+interface GeneratedSchemaEntry {
+  fields: WorkflowInputField[]
+  source: "custom_ts" | "core_dts" | "inferred"
+  sourceFile?: string
+}
+
+let _generatedSchemas: Record<string, GeneratedSchemaEntry> | null = null
+
+function getGeneratedSchemas(): Record<string, GeneratedSchemaEntry> {
+  if (_generatedSchemas !== null) return _generatedSchemas
+
+  const candidates = [
+    path.join(process.cwd(), "workflow-schemas.json"),
+    path.resolve(__dirname, "..", "..", "..", "..", "..", "workflow-schemas.json"),
+    path.resolve(__dirname, "..", "..", "..", "..", "workflow-schemas.json"),
+  ]
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      try {
+        _generatedSchemas = JSON.parse(fs.readFileSync(candidate, "utf-8"))
+        return _generatedSchemas!
+      } catch { /* corrupt JSON, keep looking */ }
+    }
+  }
+
+  _generatedSchemas = {} // nothing found
+  return _generatedSchemas
+}
+
+// ── Source-file scanner ───────────────────────────────────────────────────────
+
+/**
+ * Cached map of workflow-name → absolute source file path.
+ * Built once per process from src/workflows/**‌/*.ts.
+ */
+let _workflowFileCache: Map<string, string> | null = null
+
+function getWorkflowFileMap(): Map<string, string> {
+  if (_workflowFileCache) return _workflowFileCache
+  const map = new Map<string, string>()
+
+  // 1. Custom workflows: scan src/workflows/**/*.ts
+  const srcCandidates = [
+    path.join(process.cwd(), "src", "workflows"),
+    path.resolve(__dirname, "..", "..", "..", "..", "workflows"),
+  ]
+  for (const dir of srcCandidates) {
+    if (fs.existsSync(dir)) {
+      scanDirForWorkflows(dir, map, ".ts")
+      if (map.size > 0) break
+    }
+  }
+
+  // 2. Core Medusa workflows: scan @medusajs/core-flows/dist/**/*.js for workflow IDs
+  //    then map each ID to the corresponding .d.ts in @medusajs/types/dist/workflow/
+  const coreFlowsDir = resolveNodeModuleDir("@medusajs/core-flows", "dist")
+  const typesWorkflowDir = resolveNodeModuleDir("@medusajs/types", path.join("dist", "workflow"))
+
+  if (coreFlowsDir && typesWorkflowDir) {
+    const idToTypeFile = buildCoreFlowsTypeFileMap(coreFlowsDir, typesWorkflowDir)
+    for (const [id, typeFile] of idToTypeFile) {
+      if (!map.has(id)) map.set(id, typeFile)
+    }
+  }
+
+  _workflowFileCache = map
+  return map
+}
+
+/** Try to resolve a node_modules path, returning null if not found */
+function resolveNodeModuleDir(pkg: string, subDir: string): string | null {
+  const candidates = [
+    path.join(process.cwd(), "node_modules", pkg, subDir),
+    path.resolve(__dirname, "..", "..", "..", "..", "..", "node_modules", pkg, subDir),
+  ]
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c
+  }
+  return null
+}
+
+/**
+ * Scan core-flows .js files for `WorkflowId = "..."` constants,
+ * then map each workflow ID to the matching .d.ts in @medusajs/types/dist/workflow/.
+ */
+function buildCoreFlowsTypeFileMap(coreFlowsDir: string, typesWorkflowDir: string): Map<string, string> {
+  const result = new Map<string, string>()
+
+  // Build a slug → .d.ts path map from the types package
+  // e.g. "cancel-order" → "order/cancel-order.d.ts"
+  const slugToTypeFile = new Map<string, string>()
+  scanDirForDts(typesWorkflowDir, typesWorkflowDir, slugToTypeFile)
+
+  // Scan core-flows .js for WorkflowId constants
+  const idPattern = /WorkflowId\s*=\s*["']([^"']+)["']/g
+  scanDirForWorkflowIds(coreFlowsDir, idPattern, slugToTypeFile, result)
+
+  return result
+}
+
+function scanDirForDts(baseDir: string, dir: string, slugToFile: Map<string, string>) {
+  let entries: fs.Dirent[]
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      scanDirForDts(baseDir, full, slugToFile)
+    } else if (entry.name.endsWith(".d.ts") && !entry.name.endsWith(".d.ts.map")) {
+      const slug = entry.name.replace(".d.ts", "")
+      if (!slugToFile.has(slug)) slugToFile.set(slug, full)
+    }
+  }
+}
+
+function scanDirForWorkflowIds(
+  dir: string,
+  pattern: RegExp,
+  slugToTypeFile: Map<string, string>,
+  result: Map<string, string>
+) {
+  let entries: fs.Dirent[]
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      scanDirForWorkflowIds(full, pattern, slugToTypeFile, result)
+    } else if (entry.name.endsWith(".js") && !entry.name.endsWith(".js.map")) {
+      try {
+        const content = fs.readFileSync(full, "utf-8")
+        pattern.lastIndex = 0
+        for (const m of content.matchAll(pattern)) {
+          const workflowId = m[1] // e.g. "cancel-order"
+          if (result.has(workflowId)) continue
+          // Try to find a matching .d.ts by slug (last segment of the id)
+          const slug = workflowId.split("-").slice(-2).join("-") // "cancel-order"
+          const typeFile = slugToTypeFile.get(workflowId)
+            ?? slugToTypeFile.get(slug)
+            ?? slugToTypeFile.get(workflowId.replace(/-workflow$/, ""))
+          if (typeFile) result.set(workflowId, typeFile)
+        }
+      } catch { /* skip */ }
+    }
+  }
+}
+
+function scanDirForWorkflows(dir: string, map: Map<string, string>, ext: string) {
+  let entries: fs.Dirent[]
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      scanDirForWorkflows(full, map, ext)
+    } else if (entry.name.endsWith(ext)) {
+      try {
+        const content = fs.readFileSync(full, "utf-8")
+        for (const m of content.matchAll(/createWorkflow\(\s*["']([^"']+)["']/g)) {
+          if (!map.has(m[1])) map.set(m[1], full)
+        }
+      } catch { /* skip unreadable files */ }
+    }
+  }
+}
+
+/**
+ * Map a TypeScript type string + field name → our field type enum.
+ */
+function mapTsType(name: string, tsType: string): WorkflowInputField["type"] {
+  if (name === "id" || name.endsWith("_id")) return "id"
+  const t = tsType.toLowerCase().replace(/\s+/g, "")
+  if (t === "date" || name.endsWith("_at") || name.endsWith("_date") || name.includes("date")) return "date"
+  if (t === "number" || t === "int" || t === "float") return "number"
+  if (t === "boolean" || t === "bool") return "boolean"
+  if (t.endsWith("[]") || t.startsWith("array<") || t.startsWith("arraylike")) return "array"
+  if (t.startsWith("record<") || t.startsWith("{") || t.startsWith("object")) return "object"
+  // union of string literals / enum → string
+  if (t.startsWith("'") || t.startsWith('"')) return "string"
+  if (t.includes("|")) return "string"
+  return "string"
+}
+
+function defaultPlaceholder(name: string, type: WorkflowInputField["type"]): string {
+  if (name === "id" || name.endsWith("_id")) return `{{ $last.${name} }}`
+  if (type === "date") return `{{ $trigger.${name} }}`
+  if (type === "array") return `{{ $last.${name} }}`
+  if (type === "object") return "{}"
+  if (type === "number") return "0"
+  if (type === "boolean") return "false"
+  return `{{ $last.${name} }}`
+}
+
+/**
+ * Extract workflow input fields from a TypeScript source file.
+ * Finds the first type/interface whose name contains "Input" and parses its top-level fields.
+ */
+function extractInputFieldsFromSource(source: string): WorkflowInputField[] {
+  // Match: type FooInput = { ... } or interface FooInput { ... }
+  // We need to handle the body carefully because of nested braces.
+  const headerRe = /(?:type|interface)\s+\w*[Ii]nput\w*\s*(?:=\s*)?\{/g
+  const headerMatch = headerRe.exec(source)
+  if (!headerMatch) return []
+
+  // Find matching closing brace
+  let depth = 0
+  let start = -1
+  let end = -1
+  for (let i = headerMatch.index; i < source.length; i++) {
+    if (source[i] === "{") { if (depth === 0) start = i; depth++ }
+    else if (source[i] === "}") { depth--; if (depth === 0) { end = i; break } }
+  }
+  if (start === -1 || end === -1) return []
+
+  const body = source.slice(start + 1, end)
+  const fields: WorkflowInputField[] = []
+
+  // Parse top-level field lines (skip nested object bodies)
+  let nestDepth = 0
+  for (const line of body.split("\n")) {
+    // Track nested brace depth to skip nested object fields
+    for (const ch of line) {
+      if (ch === "{") nestDepth++
+      else if (ch === "}") nestDepth--
+    }
+    if (nestDepth !== 0) continue
+
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) continue
+
+    // Field pattern: fieldName?: SomeType; or fieldName: SomeType;
+    const m = trimmed.match(/^(\w+)(\?)?\s*:\s*(.+?)(?:;)?\s*$/)
+    if (!m) continue
+
+    const [, name, optional] = m
+    if (!name || name === "type") continue // skip "type" keyword confusion
+
+    // Strip trailing inline comment and semicolons from the type
+    let rt = m[3].replace(/\s*\/\/.*$/, "").replace(/\s*;$/, "").trim()
+
+    // Skip if rawType is just an opening brace (multi-line nested object)
+    if (rt === "{" || rt === "(" || rt === "") continue
+
+    const fieldType = mapTsType(name, rt)
+    fields.push({
+      name,
+      type: fieldType,
+      required: !optional,
+      placeholder: defaultPlaceholder(name, fieldType),
+    })
+  }
+
+  return fields
+}
+
+function getInputFieldsFromSourceFile(workflowName: string): WorkflowInputField[] {
+  const fileMap = getWorkflowFileMap()
+  const filePath = fileMap.get(workflowName)
+  if (!filePath) return []
+  try {
+    const source = fs.readFileSync(filePath, "utf-8")
+    const fields = extractInputFieldsFromSource(source)
+    // For .d.ts files, also try to extract JSDoc descriptions
+    if (filePath.endsWith(".d.ts")) {
+      return enrichWithJsDocDescriptions(source, fields)
+    }
+    return fields
+  } catch { return [] }
+}
+
+/**
+ * For .d.ts files, try to find the JSDoc comment above each field
+ * and use it as the field description.
+ */
+function enrichWithJsDocDescriptions(source: string, fields: WorkflowInputField[]): WorkflowInputField[] {
+  return fields.map(field => {
+    // Look for the JSDoc block immediately before `fieldName?:` or `fieldName:`
+    const re = new RegExp(`\\/\\*\\*([\\s\\S]*?)\\*\\/\\s*\\n\\s*${field.name}\\??\\s*:`)
+    const m = source.match(re)
+    if (m) {
+      // Extract text from JSDoc: strip leading " * " markers
+      const desc = m[1]
+        .split("\n")
+        .map(l => l.replace(/^\s*\*\s?/, "").trim())
+        .filter(Boolean)
+        .join(" ")
+      return { ...field, description: desc }
+    }
+    return field
+  })
+}
+
+// ── Static overrides (enrich auto-extracted fields with better descriptions/placeholders) ──
+
+/**
+ * Static input schema registry.
+ * Keys are workflow IDs (as registered with createWorkflow).
+ * These OVERRIDE auto-extracted schemas — use when you need better descriptions or placeholders.
+ * Auto-extraction from source files handles everything else automatically.
+ */
+const WORKFLOW_INPUT_SCHEMAS: Record<string, WorkflowInputField[]> = {
+  // ── Inventory Orders ───────────────────────────────────────────────────────
+  "create-inventory-order-workflow": [
+    { name: "quantity",               type: "number",  required: true,  description: "Total unit count", placeholder: "{{ extracted.total_quantity }}" },
+    { name: "total_price",            type: "number",  required: true,  description: "Total order price", placeholder: "{{ extracted.total }}" },
+    { name: "status",                 type: "string",  required: true,  description: "Pending | Processing | Shipped | Delivered | Cancelled", placeholder: "Pending" },
+    { name: "stock_location_id",      type: "id",      required: true,  description: "Destination stock location ID", placeholder: "sloc_..." },
+    { name: "order_date",             type: "date",    required: false, description: "ISO date string", placeholder: "{{ $trigger.received_at }}" },
+    { name: "expected_delivery_date", type: "date",    required: false, description: "ISO date string", placeholder: "{{ extracted.estimated_delivery }}" },
+    { name: "order_lines",            type: "array",   required: true,  description: "Array of { inventory_item_id, quantity, price }", placeholder: "{{ item_mappings.order_lines }}" },
+    { name: "metadata",               type: "object",  required: false, description: "Arbitrary key/value metadata", placeholder: '{ "order_number": "{{ extracted.order_number }}" }' },
+  ],
+  "update-inventory-order-workflow": [
+    { name: "id",       type: "id",     required: true,  description: "Inventory order ID", placeholder: "{{ $last.id }}" },
+    { name: "status",   type: "string", required: false, description: "Pending | Processing | Shipped | Delivered | Cancelled", placeholder: "Shipped" },
+    { name: "metadata", type: "object", required: false, description: "Fields to merge into metadata", placeholder: '{ "key": "value" }' },
+  ],
+  "delete-inventory-order-workflow": [
+    { name: "id", type: "id", required: true, description: "Inventory order ID to delete", placeholder: "{{ $last.id }}" },
+  ],
+  "send-inventory-order-to-partner": [
+    { name: "id", type: "id", required: true, description: "Inventory order ID", placeholder: "{{ $last.id }}" },
+  ],
+  "partner-complete-inventory-order": [
+    { name: "id", type: "id", required: true, description: "Inventory order ID", placeholder: "{{ $last.id }}" },
+  ],
+  // ── Notifications ──────────────────────────────────────────────────────────
+  "send-notification": [
+    { name: "to",       type: "string", required: true,  description: "Recipient email or phone", placeholder: "{{ $trigger.email }}" },
+    { name: "channel",  type: "string", required: true,  description: "email | sms | push", placeholder: "email" },
+    { name: "template", type: "string", required: false, description: "Template name", placeholder: "order-confirmed" },
+    { name: "data",     type: "object", required: false, description: "Template variables", placeholder: "{}" },
+  ],
+  // ── Medusa Core Workflows ──────────────────────────────────────────────────
+  "createProductsWorkflow": [
+    { name: "products", type: "array", required: true, description: "Array of product objects to create" },
+  ],
+  "updateProductsWorkflow": [
+    { name: "products", type: "array", required: true, description: "Array of { id, ...updates } objects" },
+  ],
+  "deleteProductsWorkflow": [
+    { name: "ids", type: "array", required: true, description: "Array of product IDs to delete" },
+  ],
+  "createProductVariantsWorkflow": [
+    { name: "product_variants", type: "array", required: true, description: "Array of variant objects with product_id" },
+  ],
+  "updateProductVariantsWorkflow": [
+    { name: "product_variants", type: "array", required: true, description: "Array of { id, ...updates }" },
+  ],
+  "createOrderWorkflow": [
+    { name: "region_id",         type: "id",     required: true,  description: "Region ID", placeholder: "reg_..." },
+    { name: "customer_id",       type: "id",     required: false, description: "Customer ID", placeholder: "cus_..." },
+    { name: "email",             type: "string", required: false, description: "Customer email", placeholder: "{{ $trigger.email }}" },
+    { name: "items",             type: "array",  required: true,  description: "Array of { variant_id, quantity }" },
+    { name: "shipping_address",  type: "object", required: false, description: "Shipping address object" },
+    { name: "billing_address",   type: "object", required: false, description: "Billing address object" },
+    { name: "shipping_methods",  type: "array",  required: false, description: "Array of { name, amount }" },
+    { name: "metadata",          type: "object", required: false, description: "Arbitrary metadata" },
+  ],
+  "cancelOrderWorkflow": [
+    { name: "order_id",      type: "id",     required: true,  description: "Order ID to cancel", placeholder: "{{ $last.id }}" },
+    { name: "canceled_by",   type: "string", required: false, description: "Who cancelled (user/system)" },
+  ],
+  "createFulfillmentWorkflow": [
+    { name: "order_id",         type: "id",    required: true,  description: "Order ID" },
+    { name: "items",            type: "array", required: true,  description: "Array of { id, quantity } line items" },
+    { name: "location_id",      type: "id",    required: true,  description: "Stock location ID" },
+    { name: "provider_id",      type: "string", required: false, description: "Fulfillment provider ID" },
+    { name: "metadata",         type: "object", required: false, description: "Metadata" },
+  ],
+  "createReturnWorkflow": [
+    { name: "order_id",     type: "id",    required: true,  description: "Order ID", placeholder: "{{ $last.order_id }}" },
+    { name: "items",        type: "array", required: true,  description: "Array of { id, quantity, reason_id? }" },
+    { name: "return_shipping", type: "object", required: false, description: "Return shipping { option_id, price? }" },
+    { name: "note",         type: "string", required: false, description: "Return note" },
+    { name: "metadata",     type: "object", required: false, description: "Metadata" },
+  ],
+  "createCartWorkflow": [
+    { name: "region_id",    type: "id",     required: true,  description: "Region ID", placeholder: "reg_..." },
+    { name: "customer_id",  type: "id",     required: false, description: "Customer ID" },
+    { name: "email",        type: "string", required: false, description: "Customer email" },
+    { name: "items",        type: "array",  required: false, description: "Array of { variant_id, quantity }" },
+    { name: "sales_channel_id", type: "id", required: false, description: "Sales channel ID" },
+    { name: "metadata",     type: "object", required: false, description: "Metadata" },
+  ],
+  "createCustomerWorkflow": [
+    { name: "first_name", type: "string", required: false, description: "First name", placeholder: "{{ $trigger.first_name }}" },
+    { name: "last_name",  type: "string", required: false, description: "Last name" },
+    { name: "email",      type: "string", required: true,  description: "Customer email", placeholder: "{{ $trigger.email }}" },
+    { name: "phone",      type: "string", required: false, description: "Phone number" },
+    { name: "metadata",   type: "object", required: false, description: "Metadata" },
+  ],
+  "updateCustomersWorkflow": [
+    { name: "selector", type: "object", required: true,  description: "Filter to match customers" },
+    { name: "update",   type: "object", required: true,  description: "Fields to update" },
+  ],
+  "deleteCustomersWorkflow": [
+    { name: "ids", type: "array", required: true, description: "Array of customer IDs" },
+  ],
+  "createInventoryItemsWorkflow": [
+    { name: "input", type: "array", required: true, description: "Array of inventory item objects" },
+  ],
+  "updateInventoryItemsWorkflow": [
+    { name: "input", type: "array", required: true, description: "Array of { id, ...updates }" },
+  ],
+  "deleteInventoryItemWorkflow": [
+    { name: "id", type: "id", required: true, description: "Inventory item ID" },
+  ],
+  "adjustInventoryLevelsWorkflow": [
+    { name: "input", type: "array", required: true, description: "Array of { inventory_item_id, location_id, adjustment }" },
+  ],
+  "createStockLocationsWorkflow": [
+    { name: "input", type: "array", required: true, description: "Array of stock location objects" },
+  ],
+  "sendNotificationsWorkflow": [
+    { name: "notifications", type: "array", required: true, description: "Array of { to, channel, template, data }" },
+  ],
+}
+
+/**
+ * Build a basic input schema from the workflow name when no static entry exists.
+ * Returns a minimal set of fields inferred from common naming patterns.
+ */
+function inferFieldsFromName(workflowName: string): WorkflowInputField[] {
+  const n = workflowName.toLowerCase()
+  if (n.includes("create-") || n.includes("add-")) {
+    return [
+      { name: "data", type: "object", required: true, description: "Fields for the new record", placeholder: "{{ $last }}" },
+    ]
+  }
+  if (n.includes("update-") || n.includes("edit-") || n.includes("patch-")) {
+    return [
+      { name: "id",   type: "id",     required: true,  description: "Record ID to update", placeholder: "{{ $last.id }}" },
+      { name: "data", type: "object", required: false, description: "Fields to update", placeholder: "{}" },
+    ]
+  }
+  if (n.includes("delete-") || n.includes("remove-") || n.includes("archive-")) {
+    return [
+      { name: "id", type: "id", required: true, description: "Record ID to delete", placeholder: "{{ $last.id }}" },
+    ]
+  }
+  if (n.includes("send-") || n.includes("notify") || n.includes("email")) {
+    return [
+      { name: "to",      type: "string", required: true,  description: "Recipient", placeholder: "{{ $trigger.email }}" },
+      { name: "subject", type: "string", required: false, description: "Subject line", placeholder: "Notification" },
+      { name: "data",    type: "object", required: false, description: "Payload data", placeholder: "{}" },
+    ]
+  }
+  if (n.includes("assign-")) {
+    return [
+      { name: "id",          type: "id", required: true, description: "Record ID", placeholder: "{{ $last.id }}" },
+      { name: "assignee_id", type: "id", required: true, description: "Assignee ID", placeholder: "{{ $trigger.user_id }}" },
+    ]
+  }
+  // Generic fallback
+  return [
+    { name: "id",   type: "id",     required: false, description: "Record ID (if applicable)", placeholder: "{{ $last.id }}" },
+    { name: "data", type: "object", required: false, description: "Input payload", placeholder: "{}" },
+  ]
+}
+
+/**
+ * GET /admin/visual-flows/metadata?debug=workflows
+ *
+ * Passing ?debug=workflows skips the normal response and returns a raw dump of
+ * every registered workflow in WorkflowManager, along with what the source
+ * scanner found for it. Useful for auditing which workflows have input schemas.
+ */
+function buildWorkflowDebugDump() {
+  const allWorkflows = WorkflowManager.getWorkflows()
+  const fileMap = getWorkflowFileMap()
+
+  const rows: any[] = []
+  for (const [id, def] of allWorkflows.entries()) {
+    const staticSchema   = WORKFLOW_INPUT_SCHEMAS[id] ?? null
+    const scannedSchema  = (() => { const f = getInputFieldsFromSourceFile(id); return f.length > 0 ? f : null })()
+    const inferredSchema = inferFieldsFromName(id)
+
+    const sourceFile = fileMap.get(id) ?? null
+
+    // What's actually stored in WorkflowManager
+    const managerKeys = Object.keys(def).filter(k => k !== "handler" && k !== "orchestrator")
+
+    rows.push({
+      id,
+      // WorkflowManager raw fields (types-erased — no input schema here)
+      manager: {
+        keys: managerKeys,
+        options: (def as any).options ?? {},
+        requiredModules: (def as any).requiredModules ? [...(def as any).requiredModules] : [],
+        optionalModules: (def as any).optionalModules ? [...(def as any).optionalModules] : [],
+        stepCount: (() => {
+          const h = (def as any).handlers_
+          return h instanceof Map ? h.size : 0
+        })(),
+      },
+      // Schema resolution
+      schema: (() => {
+        const genEntry = getGeneratedSchemas()[id]
+        const genSchema = genEntry && genEntry.source !== "inferred" ? genEntry.fields : null
+        const final = staticSchema ?? genSchema ?? scannedSchema ?? inferredSchema
+        const finalSource = staticSchema ? "static_registry"
+          : genSchema ? `generated_json(${genEntry?.source})`
+          : scannedSchema ? "live_source_scan"
+          : "name_heuristic"
+        return {
+          source: finalSource,
+          sourceFile: (genEntry?.sourceFile ?? (sourceFile ? sourceFile.replace(process.cwd(), "~") : null)),
+          fields: final.map((f: WorkflowInputField) => `${f.required ? "*" : ""}${f.name}:${f.type}`),
+        }
+      })(),
+    })
+  }
+
+  rows.sort((a, b) => a.id.localeCompare(b.id))
+  return rows
+}
 
 /**
  * GET /admin/visual-flows/metadata
- * 
+ *
  * Returns metadata about available entities, workflows, and services
  * that can be used in visual flows.
- * 
+ *
  * Dynamically introspects the Awilix container to discover registered modules.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
+    // Debug mode: return raw workflow registry dump
+    if ((req.query as any).debug === "workflows") {
+      return res.json({
+        total: WorkflowManager.getWorkflows().size,
+        sourceFilesScanned: getWorkflowFileMap().size,
+        workflows: buildWorkflowDebugDump(),
+      })
+    }
+
     // Get all registered services from the Awilix container
     const registeredModules = getRegisteredModulesFromContainer(req.scope)
 
@@ -537,6 +1077,15 @@ function getRegisteredWorkflowsFromContainer(container: any): WorkflowMetadata[]
       ? Array.from(workflowDef.optionalModules) as string[]
       : []
     
+    // Priority: hand-crafted static registry → pre-generated JSON → live source scan → name heuristic
+    const generatedEntry = getGeneratedSchemas()[name]
+    const inputSchema =
+      WORKFLOW_INPUT_SCHEMAS[name] ??
+      (generatedEntry && generatedEntry.source !== "inferred" ? generatedEntry.fields : null) ??
+      (() => { const f = getInputFieldsFromSourceFile(name); return f.length > 0 ? f : null })() ??
+      (generatedEntry?.fields ?? null) ??
+      inferFieldsFromName(name)
+
     workflows.push({
       name,
       description: `Workflow: ${name.replace(/-/g, " ")}`,
@@ -545,6 +1094,7 @@ function getRegisteredWorkflowsFromContainer(container: any): WorkflowMetadata[]
       requiredModules,
       optionalModules,
       isScheduled: !!workflowDef.options?.schedule,
+      inputSchema,
     })
   }
   
@@ -709,7 +1259,7 @@ interface WorkflowMetadata {
   requiredModules?: string[]
   optionalModules?: string[]
   isScheduled?: boolean
-  inputSchema?: Record<string, any>
+  inputSchema?: WorkflowInputField[]
 }
 
 interface EventMetadata {
@@ -808,7 +1358,8 @@ function categorizeEvent(eventName: string): string {
   if (lowerName.startsWith("page.") || lowerName.includes("page")) return "pages"
   if (lowerName.startsWith("feedback") || lowerName.includes("feedback")) return "feedback"
   if (lowerName.startsWith("subscription") || lowerName.includes("subscription")) return "subscriptions"
-  
+  if (lowerName.startsWith("inbound_email") || lowerName.includes("inbound_email")) return "email"
+
   return "other"
 }
 
@@ -860,6 +1411,10 @@ function getFallbackEvents(): EventMetadata[] {
     { name: "task_assigned", description: "When a task is assigned", category: "tasks" },
     { name: "analytics_event.created", description: "When analytics event is recorded", category: "analytics" },
     { name: "page.created", description: "When a page is created", category: "pages" },
+
+    // Inbound Email events
+    { name: "inbound_emails.inbound-email.created", description: "When an inbound email is received", category: "email" },
+    { name: "inbound_emails.inbound-email.updated", description: "When an inbound email is updated", category: "email" },
   ]
 }
 

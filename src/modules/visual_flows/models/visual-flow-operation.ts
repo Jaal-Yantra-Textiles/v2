@@ -27,6 +27,7 @@ export const VisualFlowOperation = model.define("visual_flow_operation", {
     "execute_code",
     "sleep",
     "log",
+    "ai_extract",
   ]),
   
   // Display name

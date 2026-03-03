@@ -1,19 +1,21 @@
 import { CommandLineSolid, PencilSquare, Trash } from "@medusajs/icons";
 import { useTranslation } from "react-i18next";
-import { AdminSocialPlatform } from "../../hooks/api/social-platforms"; // Path based on typical structure
-import { CommonSection, CommonField } from "../common/section-views"; // Assumed path
+import { AdminSocialPlatform } from "../../hooks/api/social-platforms";
+import { CommonSection, CommonField } from "../common/section-views";
 import { usePrompt, toast } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
 import { useDeleteSocialPlatform } from "../../hooks/api/social-platforms";
-
-// Assuming CommonField and CommonSection props based on TaskTemplateGeneralSection
-// If these are incorrect, please provide the correct definitions or path.
+import { sdk } from "../../lib/config";
 
 export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSocialPlatform }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const prompt = usePrompt();
   const { mutateAsync: deletePlatform } = useDeleteSocialPlatform(platform.id);
+
+  const apiConfig = platform.api_config as Record<string, any> | null;
+  const isEmail = platform.category === "email";
+  const providerType = apiConfig?.provider as string | undefined;
 
   const handleDelete = async () => {
     const confirmation = await prompt({
@@ -37,13 +39,52 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
     }
   };
 
-  const actionGroups = [
+  const handleTestConnection = async () => {
+    if (providerType !== "imap" || !apiConfig) return;
+    try {
+      const result = await sdk.client.fetch<{ success: boolean; message: string }>(
+        "/admin/inbound-emails/test-connection",
+        {
+          method: "POST",
+          body: {
+            host: apiConfig.host,
+            port: apiConfig.port,
+            user: apiConfig.user || apiConfig.username,
+            password: apiConfig.password,
+            tls: apiConfig.tls,
+            mailbox: apiConfig.mailbox,
+          },
+        }
+      );
+      toast.success(result.message || "Connection successful");
+    } catch (e: any) {
+      toast.error(e.message || "Connection failed");
+    }
+  };
+
+  const handleSetupWebhook = async () => {
+    if (providerType !== "resend") return;
+    try {
+      const result = await sdk.client.fetch<{ success: boolean; webhook_url: string }>(
+        "/admin/inbound-emails/setup-resend-webhook",
+        {
+          method: "POST",
+          body: { platform_id: platform.id },
+        }
+      );
+      toast.success(`Webhook registered at ${result.webhook_url}`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to register webhook");
+    }
+  };
+
+  const actionGroups: any[] = [
     {
       actions: [
         {
           label: t("actions.edit"),
           icon: <PencilSquare />,
-          to: `edit`, // Relative path for editing
+          to: `edit`,
         },
       ],
     },
@@ -52,21 +93,47 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
         {
           label: t("Add Access"),
           icon: <CommandLineSolid />,
-          to: `access`, // Relative path for access tokens
-        },
-      ],
-    },
-    {
-      actions: [
-        {
-          label: t("actions.delete"),
-          icon: <Trash />,
-          onClick: handleDelete,
-          variant: "danger",
+          to: `access`,
         },
       ],
     },
   ];
+
+  // Add email-specific actions
+  if (isEmail && providerType === "imap") {
+    actionGroups.push({
+      actions: [
+        {
+          label: "Test Connection",
+          icon: <CommandLineSolid />,
+          onClick: handleTestConnection,
+        },
+      ],
+    });
+  }
+
+  if (isEmail && providerType === "resend") {
+    actionGroups.push({
+      actions: [
+        {
+          label: "Setup Webhook",
+          icon: <CommandLineSolid />,
+          onClick: handleSetupWebhook,
+        },
+      ],
+    });
+  }
+
+  actionGroups.push({
+    actions: [
+      {
+        label: t("actions.delete"),
+        icon: <Trash />,
+        onClick: handleDelete,
+        variant: "danger",
+      },
+    ],
+  });
 
   const generalFields: CommonField[] = [
     {
@@ -89,23 +156,57 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
       label: "Status",
       value: platform.status || "-",
     },
-    {
-      label: "Base URL",
-      value: platform.base_url ? (
-        <a href={platform.base_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-          {platform.base_url}
-        </a>
-      ) : "-",
-    },
-    {
-      label: "Icon URL",
-      value: platform.icon_url ? (
-        <a href={platform.icon_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-          {platform.icon_url}
-        </a>
-      ) : "-",
-    },
   ];
+
+  if (isEmail && providerType) {
+    generalFields.push({
+      label: "Provider Type",
+      value: providerType.toUpperCase(),
+    });
+
+    if (providerType === "imap" && apiConfig) {
+      generalFields.push(
+        {
+          label: "Host",
+          value: apiConfig.host ? `${apiConfig.host}:${apiConfig.port || 993}` : "-",
+        },
+        {
+          label: "Mailbox",
+          value: apiConfig.mailbox || "INBOX",
+        },
+        {
+          label: "TLS",
+          value: apiConfig.tls !== false ? "Enabled" : "Disabled",
+        }
+      );
+    }
+
+    if (providerType === "resend" && apiConfig) {
+      generalFields.push({
+        label: "Inbound Domain",
+        value: apiConfig.inbound_domain || "-",
+      });
+    }
+  } else {
+    generalFields.push(
+      {
+        label: "Base URL",
+        value: platform.base_url ? (
+          <a href={platform.base_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+            {platform.base_url}
+          </a>
+        ) : "-",
+      },
+      {
+        label: "Icon URL",
+        value: platform.icon_url ? (
+          <a href={platform.icon_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+            {platform.icon_url}
+          </a>
+        ) : "-",
+      }
+    );
+  }
 
   return (
     <CommonSection

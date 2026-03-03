@@ -133,6 +133,8 @@ export const POST = async (req: MedusaRequest<UpdateSocialPlatform>, res: Medusa
   res.status(200).json({ socialPlatform });
 };
 
+export const PUT = POST;
+
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   await deleteSocialPlatformWorkflow(req.scope).run({
     input: { id: req.params.id },

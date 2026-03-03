@@ -70,6 +70,34 @@ export const updateInventoryOrdersSchema = createInventoryOrdersSchema._def.sche
 export type UpdateInventoryOrder = z.infer<typeof updateInventoryOrdersSchema>;
 export type CreateInventoryOrder = z.infer<typeof createInventoryOrdersSchema>;
 
+// Preprocessor that handles both a plain ISO date string and a
+// filter-object with $gte / $lte keys (sent as bracket notation in URLs,
+// e.g. order_date[$gte]=2026-03-01T00:00:00.000Z).
+function preprocessDateFilter(val: unknown) {
+  if (val === undefined || val === null || val === "") return undefined
+  if (typeof val === "string") return new Date(val)
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>
+    const result: Record<string, Date> = {}
+    if (obj.$gte) result.$gte = new Date(obj.$gte as string)
+    if (obj.$lte) result.$lte = new Date(obj.$lte as string)
+    if (obj.$gt)  result.$gt  = new Date(obj.$gt  as string)
+    if (obj.$lt)  result.$lt  = new Date(obj.$lt  as string)
+    return Object.keys(result).length > 0 ? result : undefined
+  }
+  return undefined
+}
+
+const dateFilterSchema = z.union([
+  z.date(),
+  z.object({
+    $gte: z.date().optional(),
+    $lte: z.date().optional(),
+    $gt:  z.date().optional(),
+    $lt:  z.date().optional(),
+  }),
+]).optional()
+
 // Query schema for listing inventory orders
 export const listInventoryOrdersQuerySchema = z.object({
   status: z.enum(INVENTORY_ORDER_STATUS).optional(),
@@ -83,14 +111,8 @@ export const listInventoryOrdersQuerySchema = z.object({
     (val) => (val !== undefined && val !== null ? Number(val) : undefined),
     z.number().nonnegative().optional()
   ),
-  expected_delivery_date: z.preprocess(
-    (val) => (val ? new Date(val as string) : undefined),
-    z.date().optional()
-  ),
-  order_date: z.preprocess(
-    (val) => (val ? new Date(val as string) : undefined),
-    z.date().optional()
-  ),
+  expected_delivery_date: z.preprocess(preprocessDateFilter, dateFilterSchema),
+  order_date: z.preprocess(preprocessDateFilter, dateFilterSchema),
   offset: z.preprocess(
     (val) => (val !== undefined && val !== null ? Number(val) : undefined),
     z.number().int().min(0).default(0)

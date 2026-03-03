@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useEffect } from "react"
+import { useCallback, useState, useRef, useEffect, useMemo } from "react"
 import {
   ReactFlow,
   Background,
@@ -151,7 +151,12 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
   const initialData = flowToReactFlow(flow)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialData.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialData.edges)
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  // Derive from nodes so it's always current after handleNodeUpdate mutates nodes state
+  const selectedNode = useMemo(
+    () => (selectedNodeId ? nodes.find(n => n.id === selectedNodeId) ?? null : null),
+    [nodes, selectedNodeId]
+  )
   const [showOperationsPanel, setShowOperationsPanel] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
@@ -182,11 +187,11 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
   )
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    setSelectedNode(node)
+    setSelectedNodeId(node.id)
   }, [])
 
   const onPaneClick = useCallback(() => {
-    setSelectedNode(null)
+    setSelectedNodeId(null)
   }, [])
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -305,7 +310,7 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
     }
     setNodes((nds) => nds.filter((node) => node.id !== nodeId))
     setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId))
-    setSelectedNode(null)
+    setSelectedNodeId(null)
   }, [setNodes, setEdges])
 
   return (
@@ -384,7 +389,7 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
               flowId={flow.id}
               onUpdate={(data: Record<string, any>) => handleNodeUpdate(selectedNode.id, data)}
               onDelete={() => handleDeleteNode(selectedNode.id)}
-              onClose={() => setSelectedNode(null)}
+              onClose={() => setSelectedNodeId(null)}
             />
           </StackedModalProvider>
         </div>

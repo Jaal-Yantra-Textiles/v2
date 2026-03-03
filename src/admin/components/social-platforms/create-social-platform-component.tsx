@@ -8,6 +8,7 @@ import { useCreateSocialPlatform } from "../../hooks/api/social-platforms" // Ad
 import { KeyboundForm } from "../utilitites/key-bound-form"
 import { Form } from "../common/form"
 import { useRouteModal } from "../modal/use-route-modal"
+import { EmailProviderFields } from "./email-provider-fields"
 
 const CreateSocialPlatformSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -16,6 +17,32 @@ const CreateSocialPlatformSchema = z.object({
   category: z.enum(["social", "payment", "shipping", "email", "sms", "analytics", "crm", "storage", "communication", "authentication", "other"]).optional(),
   auth_type: z.enum(["oauth2", "oauth1", "api_key", "bearer", "basic"]).optional(),
   status: z.enum(["active", "inactive", "error", "pending"]).optional(),
+  // Email provider fields
+  provider_type: z.enum(["imap", "resend"]).optional(),
+  host: z.string().optional(),
+  port: z.coerce.number().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  tls: z.boolean().optional(),
+  mailbox: z.string().optional(),
+  api_key: z.string().optional(),
+  webhook_signing_secret: z.string().optional(),
+  inbound_domain: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.category === "email") {
+    if (!data.provider_type) {
+      ctx.addIssue({ code: "custom", path: ["provider_type"], message: "Provider type is required" })
+    }
+    if (data.provider_type === "imap") {
+      if (!data.host) ctx.addIssue({ code: "custom", path: ["host"], message: "Host is required" })
+      if (!data.username) ctx.addIssue({ code: "custom", path: ["username"], message: "Username is required" })
+      if (!data.password) ctx.addIssue({ code: "custom", path: ["password"], message: "Password is required" })
+    }
+    if (data.provider_type === "resend") {
+      if (!data.api_key) ctx.addIssue({ code: "custom", path: ["api_key"], message: "API key is required" })
+      if (!data.webhook_signing_secret) ctx.addIssue({ code: "custom", path: ["webhook_signing_secret"], message: "Webhook signing secret is required" })
+    }
+  }
 })
 
 type CreateSocialPlatformForm = z.infer<typeof CreateSocialPlatformSchema>
@@ -31,20 +58,63 @@ export const CreateSocialPlatformComponent = () => {
       category: "social",
       auth_type: "oauth2",
       status: "pending",
+      provider_type: "imap",
+      host: "",
+      port: 993,
+      username: "",
+      password: "",
+      tls: true,
+      mailbox: "INBOX",
+      api_key: "",
+      webhook_signing_secret: "",
+      inbound_domain: "",
     },
   })
 
   const { mutateAsync, isPending } = useCreateSocialPlatform()
+  const selectedCategory = form.watch("category")
+  const isEmail = selectedCategory === "email"
 
   const onSubmit = form.handleSubmit(async (data) => {
     try {
-      await mutateAsync(data, {
-        onSuccess: ({ socialPlatform}) => { 
-            toast.success("External Platform created successfully")
-            handleSuccess(`/settings/external-platforms/${socialPlatform.id}`) 
+      let payload: Record<string, any> = {
+        name: data.name,
+        description: data.description,
+        category: data.category,
+        status: data.status,
+      }
+
+      if (isEmail) {
+        const apiConfig: Record<string, any> = {
+          provider: data.provider_type,
         }
+        if (data.provider_type === "imap") {
+          apiConfig.host = data.host
+          apiConfig.port = data.port || 993
+          apiConfig.user = data.username
+          apiConfig.password = data.password
+          apiConfig.tls = data.tls !== false
+          apiConfig.mailbox = data.mailbox || "INBOX"
+        } else {
+          apiConfig.api_key = data.api_key
+          apiConfig.webhook_signing_secret = data.webhook_signing_secret
+          apiConfig.inbound_domain = data.inbound_domain
+        }
+        payload.auth_type = data.provider_type === "resend" ? "api_key" : "basic"
+        payload.api_config = apiConfig
+        payload.metadata = { provider: data.provider_type }
+        payload.status = "active"
+      } else {
+        payload.base_url = data.base_url
+        payload.auth_type = data.auth_type
+      }
+
+      await mutateAsync(payload as any, {
+        onSuccess: ({ socialPlatform }) => {
+          toast.success("External Platform created successfully")
+          handleSuccess(`/settings/external-platforms/${socialPlatform.id}`)
+        },
       })
-      // Navigate back to the list page
     } catch (e: any) {
       toast.error(e.message)
     }
@@ -81,8 +151,8 @@ export const CreateSocialPlatformComponent = () => {
                 Connect a new external platform (social media, analytics, CRM, etc.) to your system.
               </Text>
             </div>
-            
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-1"> {/* Changed to 1 column for simplicity, adjust if needed */}
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-1">
               <Form.Field
                 control={form.control}
                 name="name"
@@ -90,7 +160,7 @@ export const CreateSocialPlatformComponent = () => {
                   <Form.Item>
                     <Form.Label>Name</Form.Label>
                     <Form.Control>
-                      <Input {...field} placeholder="e.g. Facebook, Instagram" />
+                      <Input {...field} placeholder={isEmail ? "e.g. Production IMAP, Resend Inbound" : "e.g. Facebook, Instagram"} />
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>
@@ -105,20 +175,6 @@ export const CreateSocialPlatformComponent = () => {
                     <Form.Label optional>Description</Form.Label>
                     <Form.Control>
                       <Textarea {...field} placeholder="e.g. Official Facebook page for customer engagement" />
-                    </Form.Control>
-                    <Form.ErrorMessage />
-                  </Form.Item>
-                )}
-              />
-
-              <Form.Field
-                control={form.control}
-                name="base_url"
-                render={({ field }) => (
-                  <Form.Item>
-                    <Form.Label optional>Base URL</Form.Label>
-                    <Form.Control>
-                      <Input type="url" {...field} placeholder="https://api.platform.com" />
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>
@@ -156,30 +212,53 @@ export const CreateSocialPlatformComponent = () => {
                 )}
               />
 
-              <Form.Field
-                control={form.control}
-                name="auth_type"
-                render={({ field }) => (
-                  <Form.Item>
-                    <Form.Label>Authentication Type</Form.Label>
-                    <Form.Control>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <Select.Trigger>
-                          <Select.Value placeholder="Select authentication type" />
-                        </Select.Trigger>
-                        <Select.Content>
-                          <Select.Item value="oauth2">OAuth 2.0</Select.Item>
-                          <Select.Item value="oauth1">OAuth 1.0</Select.Item>
-                          <Select.Item value="api_key">API Key</Select.Item>
-                          <Select.Item value="bearer">Bearer Token</Select.Item>
-                          <Select.Item value="basic">Basic Auth</Select.Item>
-                        </Select.Content>
-                      </Select>
-                    </Form.Control>
-                    <Form.ErrorMessage />
-                  </Form.Item>
-                )}
-              />
+              {isEmail ? (
+                <EmailProviderFields
+                  control={form.control}
+                  watch={form.watch}
+                />
+              ) : (
+                <>
+                  <Form.Field
+                    control={form.control}
+                    name="base_url"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label optional>Base URL</Form.Label>
+                        <Form.Control>
+                          <Input type="url" {...field} placeholder="https://api.platform.com" />
+                        </Form.Control>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
+
+                  <Form.Field
+                    control={form.control}
+                    name="auth_type"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>Authentication Type</Form.Label>
+                        <Form.Control>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <Select.Trigger>
+                              <Select.Value placeholder="Select authentication type" />
+                            </Select.Trigger>
+                            <Select.Content>
+                              <Select.Item value="oauth2">OAuth 2.0</Select.Item>
+                              <Select.Item value="oauth1">OAuth 1.0</Select.Item>
+                              <Select.Item value="api_key">API Key</Select.Item>
+                              <Select.Item value="bearer">Bearer Token</Select.Item>
+                              <Select.Item value="basic">Basic Auth</Select.Item>
+                            </Select.Content>
+                          </Select>
+                        </Form.Control>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
+                </>
+              )}
 
               <Form.Field
                 control={form.control}

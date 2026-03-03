@@ -5,10 +5,15 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
-import type { RemoteQueryFunction } from "@medusajs/types";
 import { DESIGN_MODULE } from "../../modules/designs";
 import { DateComparisonOperator } from "@medusajs/types";
 import DesignService from "../../modules/designs/service";
+
+import { InferTypeOf } from "@medusajs/framework/types"
+
+import Design from "../../modules/designs/models/design"
+
+export type Design = InferTypeOf<typeof Design>
 
 export type ListDesignsStepInput = {
   filters?: {
@@ -27,13 +32,20 @@ export type ListDesignsStepInput = {
   };
 };
 
+type ListDesignsStepOutput = {
+  designs: (Omit<Design, "partners"> & { partners?: any[] })[];
+  count: any;
+  offset: number;
+  limit: number;
+};
+
 export const listDesignsStep = createStep(
   "list-designs-step",
   async (input: ListDesignsStepInput, { container }) => {
     const designService: DesignService = container.resolve(DESIGN_MODULE)
     const query = container.resolve(
       ContainerRegistrationKeys.QUERY
-    ) as Omit<RemoteQueryFunction, symbol>
+    ) 
 
     const {
       partner_id,
@@ -103,12 +115,12 @@ export const listDesignsStep = createStep(
         },
       })
 
-      const designs = data || []
+      const designs = (data as (Omit<Design, "partners"> & { partners?: any[] })[]) || []
       const count =
         (metadata as any)?.count ??
         designs.length
 
-      return new StepResponse(
+      return new StepResponse<ListDesignsStepOutput,null>(
         {
           designs,
           count,

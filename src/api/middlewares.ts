@@ -137,6 +137,12 @@ import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq } from "./partners/products/validators";
+import {
+  listInboundEmailsQuerySchema,
+  extractInboundEmailSchema,
+  executeInboundEmailSchema,
+  syncInboundEmailsSchema,
+} from "./admin/inbound-emails/validators";
 import { LinkPersonValidator, UnlinkPersonValidator } from "./admin/products/[id]/linkPerson/validators";
 import { GenerateDescriptionValidator } from "./admin/products/[id]/generateDescription/validators";
 import { PublishSocialPostSchema } from "./admin/social-posts/[id]/publish/validators";
@@ -295,6 +301,12 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [],
       bodyParser: false, // Disable default JSON body parser for this route
+    },
+    {
+      matcher: "/webhooks/inbound-email/resend",
+      method: "POST",
+      middlewares: [],
+      bodyParser: false, // Need raw body for Svix signature verification
     },
     {
       matcher: "/partners*",
@@ -863,6 +875,27 @@ export default defineMiddlewares({
       method: 'PUT',
       middlewares: [validateAndTransformBody(wrapSchema(updateInventoryOrderLinesSchema))],
     },
+    // Inbound Emails routes
+    {
+      matcher: "/admin/inbound-emails",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(listInboundEmailsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/inbound-emails/sync",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(syncInboundEmailsSchema))],
+    },
+    {
+      matcher: "/admin/inbound-emails/:id/extract",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(extractInboundEmailSchema))],
+    },
+    {
+      matcher: "/admin/inbound-emails/:id/execute",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(executeInboundEmailSchema))],
+    },
     // Admin Partners routes
     {
       matcher: "/admin/partners",
@@ -1186,7 +1219,7 @@ export default defineMiddlewares({
 
     {
       matcher: "/admin/social-platforms/:socialPlatformId",
-      method: "POST",
+      method: ["POST", "PUT"],
       middlewares: [validateAndTransformBody(wrapSchema(UpdateSocialPlatformSchema))],
     },
 
