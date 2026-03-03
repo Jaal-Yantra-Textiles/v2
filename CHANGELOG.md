@@ -1,3 +1,11 @@
+## [9.1.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.1.0...v9.1.1) (2026-03-03)
+
+
+### Bug Fixes
+
+* **api:** fixing the module resolution error at the build ([94f487d](https://github.com/Jaal-Yantra-Textiles/v2/commit/94f487dca15cc2cc813bc515fc8c6e7b047eb068))
+* **api:** Workflows with Inbound Mail settings where we can recieve external orders that we place for the inventory and inbventory will be created automagically ([ac51746](https://github.com/Jaal-Yantra-Textiles/v2/commit/ac51746a855f5518ecbb7870165892fd10b2ec40))
+
 # [9.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.0.0...v9.1.0) (2026-03-01)
 
 
