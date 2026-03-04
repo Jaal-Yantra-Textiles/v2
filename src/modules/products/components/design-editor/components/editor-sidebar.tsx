@@ -559,7 +559,9 @@ export function EditorSidebar({
                         onClick={() => toggleMobileTab("add")}
                         className="flex h-12 w-12 -translate-y-3 items-center justify-center rounded-full bg-black text-white shadow-lg transition-transform active:scale-95 flex-shrink-0"
                     >
-                        <Plus className="h-7 w-7" style={{ strokeWidth: 3 }} />
+                        <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                            <path d="M12 5v14M5 12h14" />
+                        </svg>
                     </button>
 
                     {/* Right half */}
