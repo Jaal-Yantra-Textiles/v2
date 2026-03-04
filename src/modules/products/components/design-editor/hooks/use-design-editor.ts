@@ -213,54 +213,198 @@ export function useDesignEditor({
                 canvas.height = height
                 const ctx = canvas.getContext("2d")
                 if (ctx) {
-                    // background gradient
-                    const gradient = ctx.createLinearGradient(0, 0, width, height)
-                    gradient.addColorStop(0, "#f8fafc")
-                    gradient.addColorStop(1, "#e2e8f0")
-                    ctx.fillStyle = gradient
-                    ctx.fillRect(0, 0, width, height)
+                    const W = width, H = height, cx = W / 2
 
-                    // central rounded rectangle representing garment
-                    const garmentWidth = width * 0.55
-                    const garmentHeight = height * 0.7
-                    const garmentX = (width - garmentWidth) / 2
-                    const garmentY = (height - garmentHeight) / 2
-                    ctx.fillStyle = "#ffffff"
-                    ctx.strokeStyle = "#cbd5f5"
-                    ctx.lineWidth = 4
-                    const radius = 30
+                    // ── Background ──────────────────────────────────────────
+                    const bg = ctx.createLinearGradient(0, 0, W, H)
+                    bg.addColorStop(0, "#f7f8fa")
+                    bg.addColorStop(1, "#eceef2")
+                    ctx.fillStyle = bg
+                    ctx.fillRect(0, 0, W, H)
+
+                    // Subtle dot grid
+                    ctx.fillStyle = "rgba(0,0,0,0.035)"
+                    for (let gx = 48; gx < W; gx += 48) {
+                        for (let gy = 48; gy < H; gy += 48) {
+                            ctx.beginPath()
+                            ctx.arc(gx, gy, 1.8, 0, Math.PI * 2)
+                            ctx.fill()
+                        }
+                    }
+
+                    // ── Key anchor points (sleeveless shift dress) ───────────
+                    // Neckline
+                    const neckBtm  = { x: cx,       y: 268 }  // scoop bottom
+                    const neckL    = { x: 433,       y: 200 }  // left neckline edge
+                    const neckR    = { x: 591,       y: 200 }  // right neckline edge
+                    // Shoulders
+                    const shldL    = { x: 388,       y: 226 }  // left shoulder point
+                    const shldR    = { x: 636,       y: 226 }  // right shoulder point
+                    // Armholes (sleeveless — curves inward from shoulder to chest)
+                    const armholeL = { x: 408,       y: 390 }
+                    const armholeR = { x: 616,       y: 390 }
+                    // Body
+                    const waistL   = { x: 410,       y: 625 }
+                    const waistR   = { x: 614,       y: 625 }
+                    const hipL     = { x: 386,       y: 790 }
+                    const hipR     = { x: 638,       y: 790 }
+                    const hemL     = { x: 362,       y: 1018 }
+                    const hemR     = { x: 662,       y: 1018 }
+
+                    // ── Faint body silhouette behind dress ───────────────────
+                    // Very subtle hourglass hint so the garment reads as "worn"
+                    ctx.save()
+                    ctx.globalAlpha = 0.055
+                    ctx.fillStyle = "#8896b0"
+                    // neck column
                     ctx.beginPath()
-                    ctx.moveTo(garmentX + radius, garmentY)
-                    ctx.lineTo(garmentX + garmentWidth - radius, garmentY)
-                    ctx.quadraticCurveTo(garmentX + garmentWidth, garmentY, garmentX + garmentWidth, garmentY + radius)
-                    ctx.lineTo(garmentX + garmentWidth, garmentY + garmentHeight - radius)
-                    ctx.quadraticCurveTo(
-                        garmentX + garmentWidth,
-                        garmentY + garmentHeight,
-                        garmentX + garmentWidth - radius,
-                        garmentY + garmentHeight
-                    )
-                    ctx.lineTo(garmentX + radius, garmentY + garmentHeight)
-                    ctx.quadraticCurveTo(
-                        garmentX,
-                        garmentY + garmentHeight,
-                        garmentX,
-                        garmentY + garmentHeight - radius
-                    )
-                    ctx.lineTo(garmentX, garmentY + radius)
-                    ctx.quadraticCurveTo(garmentX, garmentY, garmentX + radius, garmentY)
+                    ctx.ellipse(cx, 138, 38, 52, 0, 0, Math.PI * 2)
+                    ctx.fill()
+                    // torso
+                    ctx.beginPath()
+                    ctx.moveTo(cx - 200, 210)
+                    ctx.bezierCurveTo(cx - 240, 350, cx - 180, 560, cx - 195, 800)
+                    ctx.bezierCurveTo(cx - 195, 860, cx - 230, 920, cx - 220, 1060)
+                    ctx.lineTo(cx + 220, 1060)
+                    ctx.bezierCurveTo(cx + 230, 920, cx + 195, 860, cx + 195, 800)
+                    ctx.bezierCurveTo(cx + 180, 560, cx + 240, 350, cx + 200, 210)
                     ctx.closePath()
                     ctx.fill()
+                    ctx.restore()
+
+                    // ── Garment flat outline ─────────────────────────────────
+                    ctx.save()
+                    ctx.strokeStyle = "#1e2235"
+                    ctx.lineWidth = 2.8
+                    ctx.lineJoin = "round"
+                    ctx.lineCap = "round"
+
+                    ctx.beginPath()
+                    // Start bottom of neckline scoop, go clockwise
+                    ctx.moveTo(neckBtm.x, neckBtm.y)
+                    // Right neckline → neckR
+                    ctx.bezierCurveTo(cx + 52, neckBtm.y - 18, neckR.x - 18, neckR.y + 28, neckR.x, neckR.y)
+                    // neckR → right shoulder
+                    ctx.lineTo(shldR.x, shldR.y)
+                    // Right armhole: shoulder → curves down-in to armhole bottom
+                    ctx.bezierCurveTo(shldR.x + 22, shldR.y + 48, armholeR.x + 32, armholeR.y - 52, armholeR.x, armholeR.y)
+                    // Right side seam: armhole → waist → hip → hem
+                    ctx.bezierCurveTo(armholeR.x + 8,  armholeR.y + 80, waistR.x + 12, waistR.y - 80, waistR.x, waistR.y)
+                    ctx.bezierCurveTo(waistR.x,        waistR.y + 65,   hipR.x - 4,   hipR.y - 65,   hipR.x, hipR.y)
+                    ctx.bezierCurveTo(hipR.x + 6,      hipR.y + 72,     hemR.x + 4,   hemR.y - 48,   hemR.x, hemR.y)
+                    // Hem (straight across)
+                    ctx.lineTo(hemL.x, hemL.y)
+                    // Left side seam: hem → hip → waist → armhole
+                    ctx.bezierCurveTo(hemL.x - 4,      hemL.y - 48,     hipL.x - 6,   hipL.y + 72,   hipL.x, hipL.y)
+                    ctx.bezierCurveTo(hipL.x,          hipL.y - 65,     waistL.x,     waistL.y + 65, waistL.x, waistL.y)
+                    ctx.bezierCurveTo(waistL.x - 12,   waistL.y - 80,   armholeL.x - 8, armholeL.y + 80, armholeL.x, armholeL.y)
+                    // Left armhole: curves up-out to shoulder
+                    ctx.bezierCurveTo(armholeL.x - 32, armholeL.y - 52, shldL.x - 22, shldL.y + 48, shldL.x, shldL.y)
+                    // Left shoulder → neckL
+                    ctx.lineTo(neckL.x, neckL.y)
+                    // Left neckline → back to neckBtm
+                    ctx.bezierCurveTo(neckL.x + 18, neckL.y + 28, cx - 52, neckBtm.y - 18, neckBtm.x, neckBtm.y)
+                    ctx.closePath()
+
+                    // White fill first, then stroke on top
+                    ctx.fillStyle = "#ffffff"
+                    ctx.shadowColor = "rgba(30,34,53,0.10)"
+                    ctx.shadowBlur = 28
+                    ctx.shadowOffsetY = 6
+                    ctx.fill()
+                    ctx.shadowColor = "transparent"
+                    ctx.stroke()
+                    ctx.restore()
+
+                    // ── Inner neckline seam (finish line ~12px inside) ───────
+                    ctx.save()
+                    ctx.strokeStyle = "rgba(30,34,53,0.18)"
+                    ctx.lineWidth = 1.2
+                    ctx.lineJoin = "round"
+                    ctx.beginPath()
+                    const inset = 12
+                    ctx.moveTo(neckBtm.x, neckBtm.y - inset)
+                    ctx.bezierCurveTo(cx + 40, neckBtm.y - inset - 14, neckR.x - inset - 4, neckR.y + 22, neckR.x - inset, neckR.y + inset)
+                    ctx.lineTo(shldR.x - inset, shldR.y + inset)
+                    ctx.restore()
+
+                    ctx.save()
+                    ctx.strokeStyle = "rgba(30,34,53,0.18)"
+                    ctx.lineWidth = 1.2
+                    ctx.lineJoin = "round"
+                    ctx.beginPath()
+                    ctx.moveTo(neckBtm.x, neckBtm.y - inset)
+                    ctx.bezierCurveTo(cx - 40, neckBtm.y - inset - 14, neckL.x + inset + 4, neckL.y + 22, neckL.x + inset, neckL.y + inset)
+                    ctx.lineTo(shldL.x + inset, shldL.y + inset)
+                    ctx.restore()
+
+                    // ── Construction lines ───────────────────────────────────
+                    ctx.save()
+
+                    // Center-front line (dashed)
+                    ctx.setLineDash([10, 8])
+                    ctx.strokeStyle = "rgba(30,34,53,0.15)"
+                    ctx.lineWidth = 1.5
+                    ctx.beginPath()
+                    ctx.moveTo(cx, neckBtm.y)
+                    ctx.lineTo(cx, hemR.y)
                     ctx.stroke()
 
-                    // dashed centerline
-                    ctx.setLineDash([15, 12])
-                    ctx.lineWidth = 2
-                    ctx.strokeStyle = "#94a3b8"
+                    // Waist indicator (horizontal dashed)
+                    ctx.setLineDash([6, 8])
+                    ctx.strokeStyle = "rgba(30,34,53,0.10)"
+                    ctx.lineWidth = 1
                     ctx.beginPath()
-                    ctx.moveTo(width / 2, garmentY + 20)
-                    ctx.lineTo(width / 2, garmentY + garmentHeight - 20)
+                    ctx.moveTo(waistL.x, waistL.y)
+                    ctx.lineTo(waistR.x, waistR.y)
                     ctx.stroke()
+
+                    ctx.setLineDash([])
+
+                    // Grain line with double-headed arrow
+                    const grainY1 = 700, grainY2 = 900
+                    ctx.strokeStyle = "rgba(30,34,53,0.22)"
+                    ctx.lineWidth = 1.4
+                    ctx.beginPath()
+                    ctx.moveTo(cx, grainY1)
+                    ctx.lineTo(cx, grainY2)
+                    ctx.stroke()
+                    // Arrow heads
+                    ctx.beginPath()
+                    ctx.moveTo(cx - 7, grainY1 + 12); ctx.lineTo(cx, grainY1); ctx.lineTo(cx + 7, grainY1 + 12)
+                    ctx.stroke()
+                    ctx.beginPath()
+                    ctx.moveTo(cx - 7, grainY2 - 12); ctx.lineTo(cx, grainY2); ctx.lineTo(cx + 7, grainY2 - 12)
+                    ctx.stroke()
+
+                    // Notch marks at shoulder & hip (small perpendicular ticks)
+                    const notch = (x: number, y: number, angle: number) => {
+                        const len = 10
+                        const nx = Math.cos(angle) * len, ny = Math.sin(angle) * len
+                        ctx.beginPath()
+                        ctx.moveTo(x - nx, y - ny)
+                        ctx.lineTo(x + nx, y + ny)
+                        ctx.stroke()
+                    }
+                    ctx.strokeStyle = "rgba(30,34,53,0.25)"
+                    ctx.lineWidth = 1.6
+                    notch(shldL.x, shldL.y, Math.PI / 2)
+                    notch(shldR.x, shldR.y, Math.PI / 2)
+                    notch(hipL.x,  hipL.y,  0)
+                    notch(hipR.x,  hipR.y,  0)
+
+                    ctx.restore()
+
+                    // ── "Start designing" hint ───────────────────────────────
+                    ctx.save()
+                    ctx.textAlign = "center"
+                    ctx.font = "600 22px -apple-system, BlinkMacSystemFont, sans-serif"
+                    ctx.fillStyle = "rgba(30,34,53,0.18)"
+                    ctx.fillText("Your design starts here", cx, 1090)
+                    ctx.font = "400 17px -apple-system, BlinkMacSystemFont, sans-serif"
+                    ctx.fillStyle = "rgba(30,34,53,0.12)"
+                    ctx.fillText("Add layers, text, or generate with AI", cx, 1120)
+                    ctx.restore()
                 }
                 const dataUrl = canvas.toDataURL("image/png")
                 setGeneratedBase(dataUrl)
