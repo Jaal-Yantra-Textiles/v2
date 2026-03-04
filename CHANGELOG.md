@@ -1,3 +1,15 @@
+## [9.3.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.3.1...v9.3.2) (2026-03-04)
+
+
+### Bug Fixes
+
+* **api:** Client-controlled MIME type forwarded to fal.ai ([ac386e8](https://github.com/Jaal-Yantra-Textiles/v2/commit/ac386e8fa26499cb7a451cf61292efaf77e8189a))
+* **CI:** ds store ([adf157d](https://github.com/Jaal-Yantra-Textiles/v2/commit/adf157d80249cdd19341279d06abc064dbed92ad))
+* **admin:** Fixed the UI visual flow settings editor ([393d138](https://github.com/Jaal-Yantra-Textiles/v2/commit/393d138970e36ba4b50ea8f7bec0360eb77c4f4e))
+* **api:** fixing the try on api 2 file ([fef481d](https://github.com/Jaal-Yantra-Textiles/v2/commit/fef481d0e6918f71ed4d27566b1f8159beb23ee0))
+* **admin:** flow-editor.tsx ([c2fd3e6](https://github.com/Jaal-Yantra-Textiles/v2/commit/c2fd3e6d5c84a4ce8b2d0a34be16f39fd7c8d3ec))
+* **api:** Garment → stage.toBlob() (raw binary Blob) + face → File (already binary) → both sent as ([2214afd](https://github.com/Jaal-Yantra-Textiles/v2/commit/2214afd89dee891c43a63d60da08c33b4e3047ca))
+
 ## [9.3.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.3.0...v9.3.1) (2026-03-04)
 
 
