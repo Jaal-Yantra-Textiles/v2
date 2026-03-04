@@ -770,10 +770,52 @@
   "update-agreement-response": {
     "fields": [
       {
-        "name": "id",
+        "name": "response_id",
         "type": "id",
         "required": true,
-        "placeholder": "{{ $last.id }}"
+        "placeholder": "{{ $last.response_id }}"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.status }}"
+      },
+      {
+        "name": "agreed",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
+      },
+      {
+        "name": "responded_at",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.responded_at }}"
+      },
+      {
+        "name": "viewed_at",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.viewed_at }}"
+      },
+      {
+        "name": "response_notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.response_notes }}"
+      },
+      {
+        "name": "response_ip",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.response_ip }}"
+      },
+      {
+        "name": "response_user_agent",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.response_user_agent }}"
       }
     ],
     "source": "custom_ts",
@@ -941,6 +983,54 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/ai/textile-product-extraction.ts"
+  },
+  "try-on-garment": {
+    "fields": [
+      {
+        "name": "customer_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.customer_id }}"
+      },
+      {
+        "name": "garment_image_url",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.garment_image_url }}"
+      },
+      {
+        "name": "garment_image_base64",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.garment_image_base64 }}"
+      },
+      {
+        "name": "face_image_base64",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.face_image_base64 }}"
+      },
+      {
+        "name": "cloth_type",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.cloth_type }}"
+      },
+      {
+        "name": "gender",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.gender }}"
+      },
+      {
+        "name": "model_preset",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.model_preset }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/ai/try-on-garment.ts"
   },
   "create-analytics-event": {
     "fields": [
@@ -2562,6 +2652,18 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/hooks/socials.ts"
+  },
+  "sync-inbound-emails": {
+    "fields": [
+      {
+        "name": "count",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inbound-emails/sync-inbound-emails.ts"
   },
   "create-payment-and-link": {
     "fields": [
