@@ -7,7 +7,7 @@ export const StoreTryOnReqSchema = z.object({
   // Face image as base64 data URL (required)
   face_image_base64: z.string(),
   // Garment category for CatVTON
-  cloth_type: z.enum(["upper_body", "lower_body", "dresses"]).default("upper_body"),
+  cloth_type: z.enum(["upper_body", "lower_body", "dress"]).default("upper_body"),
   // Gender for face-swap model
   gender: z.enum(["male", "female"]).default("female"),
   // Optional preset stock-model photo key; if omitted a default is chosen per gender

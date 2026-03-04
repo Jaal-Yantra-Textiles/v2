@@ -37,7 +37,7 @@ export type TryOnGarmentInput = {
   garment_image_url?: string
   garment_image_base64?: string
   face_image_base64: string
-  cloth_type: "upper_body" | "lower_body" | "dresses"
+  cloth_type: "upper_body" | "lower_body" | "dress"
   gender: "male" | "female"
   model_preset?: string
 }
@@ -55,12 +55,19 @@ type UploadResult = {
   media_url: string
 }
 
+// CatVTON expects different cloth_type values than our internal enum
+const CATVTON_CLOTH_TYPE_MAP: Record<string, string> = {
+  upper_body: "upper",
+  lower_body: "lower",
+  dress: "overall",
+}
+
 // ---------------------------------------------------------------------------
 // Helper: upload a base64 image to fal.ai storage and return a public URL
 // ---------------------------------------------------------------------------
 async function uploadBase64ToFal(base64DataUrl: string): Promise<string> {
   // Dynamic import so the module is only loaded at runtime
-  const fal = await import("@fal-ai/client")
+  const { fal } = await import("@fal-ai/client")
   fal.config({ credentials: process.env.FAL_KEY })
 
   // Extract raw base64 and mime type
@@ -83,7 +90,7 @@ async function uploadBase64ToFal(base64DataUrl: string): Promise<string> {
 const catVtonStep = createStep(
   "cat-vton-step",
   async (input: TryOnGarmentInput): Promise<StepResponse<CatVtonResult, null>> => {
-    const fal = await import("@fal-ai/client")
+    const { fal } = await import("@fal-ai/client")
     fal.config({ credentials: process.env.FAL_KEY })
 
     const modelUrl = resolveModelUrl(input.gender, input.model_preset)
@@ -104,8 +111,8 @@ const catVtonStep = createStep(
       input: {
         human_image_url: modelUrl,
         garment_image_url: garmentUrl,
-        cloth_type: input.cloth_type,
-      },
+        cloth_type: CATVTON_CLOTH_TYPE_MAP[input.cloth_type] ?? "upper",
+      } as any,
     })
 
     const imageUrl = (result as any)?.image?.url || (result as any)?.output?.image?.url
@@ -131,7 +138,7 @@ type FaceSwapInput = {
 const faceSwapStep = createStep(
   "face-swap-step",
   async (input: FaceSwapInput): Promise<StepResponse<FaceSwapResult, null>> => {
-    const fal = await import("@fal-ai/client")
+    const { fal } = await import("@fal-ai/client")
     fal.config({ credentials: process.env.FAL_KEY })
 
     // Upload face image to fal storage
@@ -145,7 +152,7 @@ const faceSwapStep = createStep(
         target_image: input.tryon_image_url,
         gender_0: input.gender,
         workflow_type: "target_hair",
-      },
+      } as any,
     })
 
     const imageUrl = (result as any)?.image?.url || (result as any)?.output?.image?.url

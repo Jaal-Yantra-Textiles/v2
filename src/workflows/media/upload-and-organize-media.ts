@@ -22,9 +22,6 @@ export const validateExistingFolderStep = createStep(
       throw new Error(`Folder with ID ${folderId} not found`);
     }
   },
-  async (folderId: string) => {
-    // No rollback needed for validation
-  }
 );
 
 // Step 1: Create folder if needed
@@ -62,7 +59,8 @@ export const createFolderStep = createStep(
     const folder = await service.createFolders(folderData);
     return new StepResponse(folder, folder.id);
   },
-  async (folderId: string, { container }) => {
+  async (folderId: string | undefined, { container }) => {
+    if (!folderId) return; // Nothing to clean up if folder was never created
     const service: MediaFileService = container.resolve(MEDIA_MODULE);
     await service.softDeleteFolders(folderId);
   }
@@ -90,7 +88,8 @@ export const createAlbumStep = createStep(
     });
     return new StepResponse(album, album.id);
   },
-  async (albumId: string, { container }) => {
+  async (albumId: string | undefined, { container }) => {
+    if (!albumId) return; // Nothing to clean up if album was never created
     const service: MediaFileService = container.resolve(MEDIA_MODULE);
     await service.softDeleteAlbums(albumId);
   }
@@ -245,7 +244,8 @@ export const createMediaRecordsStep = createStep(
     );
     return new StepResponse(mediaFiles, mediaFiles.map(f => f.id));
   },
-  async (mediaFileIds: string[], { container }) => {
+  async (mediaFileIds: string[] | undefined, { container }) => {
+    if (!mediaFileIds || mediaFileIds.length === 0) return; // Nothing to clean up if no media files were created
     const service: MediaFileService = container.resolve(MEDIA_MODULE);
     await service.softDeleteMediaFiles(mediaFileIds);
     

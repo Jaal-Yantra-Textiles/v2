@@ -28,7 +28,10 @@ export const updateAgreementStep = createStep(
 
     return new StepResponse(updated, { id, originalData: original });
   },
-  async (compensationData: { id: string; originalData: any }, { container }) => {
+  async (compensationData: { id: string; originalData: any } | undefined, { container }) => {
+    if (!compensationData) {
+      return;
+    }
     const service: AgreementService = container.resolve(AGREEMENTS_MODULE);
     await service.updateAgreements({
       selector: { id: compensationData.id },
