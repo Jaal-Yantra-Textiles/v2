@@ -1,3 +1,10 @@
+## [9.3.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.3.0...v9.3.1) (2026-03-04)
+
+
+### Bug Fixes
+
+* **workflows:** Fixed the inventory order workflow ([fd9629f](https://github.com/Jaal-Yantra-Textiles/v2/commit/fd9629ff4fa93e78ebbd937265945ff447874f1a))
+
 # [9.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.2.0...v9.3.0) (2026-03-04)
 
 
