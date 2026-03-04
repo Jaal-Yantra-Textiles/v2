@@ -160,8 +160,8 @@ export default function DesignEditor({
               showPrintZone={editor.showPrintZone}
             />
           </div>
-          {/* Sidebar */}
-          <div className="order-1 w-full flex-shrink-0">
+          {/* Sidebar — capped at 45 % of viewport height so canvas always has room */}
+          <div className="order-1 w-full flex-shrink-0 max-h-[45vh] overflow-hidden">
             <EditorSidebar
               isMobileLayout={true}
               sidebarExpanded={editor.sidebarExpanded}

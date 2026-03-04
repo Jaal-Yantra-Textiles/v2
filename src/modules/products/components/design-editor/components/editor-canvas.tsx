@@ -187,6 +187,57 @@ export function EditorCanvas({
                     </div>
                 )}
 
+                {/* Material badge — bottom-left of canvas */}
+                {selectedMaterial && (
+                    <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex max-w-[180px] items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2 shadow-lg backdrop-blur-sm">
+                        {(() => {
+                            const mediaArray = Array.isArray((selectedMaterial as any).media) ? (selectedMaterial as any).media : []
+                            const thumb = mediaArray.find((m: any) => m.isThumbnail)?.url || mediaArray[0]?.url
+                            return thumb ? (
+                                <img src={thumb} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
+                            ) : (
+                                <div
+                                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sm ring-1 ring-slate-200"
+                                    style={{ backgroundColor: (selectedMaterial as any).color || "#f3f4f6" }}
+                                >
+                                    🧵
+                                </div>
+                            )
+                        })()}
+                        <div className="min-w-0">
+                            <p className="truncate text-[11px] font-semibold leading-tight text-slate-800">
+                                {selectedMaterial.name || (selectedMaterial as any).material_type?.name || "Material"}
+                            </p>
+                            <p className="truncate text-[10px] leading-tight text-slate-500">
+                                {(selectedMaterial as any).material_type?.category || "Material"}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Partner badge — bottom-right of canvas */}
+                {selectedPartner && (
+                    <button
+                        type="button"
+                        onClick={() => setShowPartnerModal(true)}
+                        className="absolute bottom-3 right-3 z-10 flex max-w-[180px] items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2 shadow-lg backdrop-blur-sm transition-shadow hover:shadow-xl"
+                    >
+                        {(selectedPartner as any).logo_url ? (
+                            <img src={(selectedPartner as any).logo_url} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-contain ring-1 ring-slate-200" />
+                        ) : (
+                            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-sm ring-1 ring-emerald-200">
+                                🏭
+                            </div>
+                        )}
+                        <div className="min-w-0 text-left">
+                            <p className="text-[10px] font-medium leading-tight text-slate-500">Made by</p>
+                            <p className="truncate text-[11px] font-semibold leading-tight text-slate-800">
+                                {selectedPartner.company_name || selectedPartner.name}
+                            </p>
+                        </div>
+                    </button>
+                )}
+
                 {(showLoaderOverlay || showErrorOverlay) && (
                     <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-white/85 backdrop-blur-sm">
                         {showLoaderOverlay && (

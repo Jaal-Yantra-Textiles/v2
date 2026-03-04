@@ -2,7 +2,8 @@
 
 import React from "react"
 import clsx from "clsx"
-import { DesignState } from "../types"
+import { DesignState, Partner } from "../types"
+import { RawMaterial } from "@lib/data/raw-materials"
 
 type LayersTabProps = {
   design: DesignState
@@ -17,6 +18,8 @@ type LayersTabProps = {
   toggleLayerVisibility: (id: string) => void
   deleteSelectedLayer: () => void
   duplicateSelectedLayer: () => void
+  selectedMaterial?: RawMaterial | null
+  selectedPartner?: Partner | null
 }
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -88,12 +91,67 @@ export function LayersTab({
   toggleLayerVisibility,
   deleteSelectedLayer,
   duplicateSelectedLayer,
+  selectedMaterial,
+  selectedPartner,
 }: LayersTabProps) {
   const layers = [...design.layers].reverse() // show topmost first
   const selectedId = design.selectedId
+  const hasResources = selectedMaterial || selectedPartner
 
   return (
     <div className="flex h-full flex-col">
+      {/* Resources section — pinned at top when material/partner selected */}
+      {hasResources && (
+        <div className="flex-shrink-0 border-b border-slate-100 px-3 pb-3 pt-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Resources</p>
+          <div className="space-y-1.5">
+            {selectedMaterial && (() => {
+              const mediaArray = Array.isArray((selectedMaterial as any).media) ? (selectedMaterial as any).media : []
+              const thumb = mediaArray.find((m: any) => m.isThumbnail)?.url || mediaArray[0]?.url
+              return (
+                <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-2.5 py-2">
+                  {thumb ? (
+                    <img src={thumb} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-cover ring-1 ring-blue-200" />
+                  ) : (
+                    <div
+                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sm ring-1 ring-blue-200"
+                      style={{ backgroundColor: (selectedMaterial as any).color || "#e0f2fe" }}
+                    >
+                      🧵
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-slate-800">
+                      {selectedMaterial.name || (selectedMaterial as any).material_type?.name || "Material"}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {(selectedMaterial as any).material_type?.category || "Material"} · visible on canvas
+                    </p>
+                  </div>
+                </div>
+              )
+            })()}
+            {selectedPartner && (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-2.5 py-2">
+                {(selectedPartner as any).logo_url ? (
+                  <img src={(selectedPartner as any).logo_url} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-contain ring-1 ring-emerald-200" />
+                ) : (
+                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-sm ring-1 ring-emerald-200">
+                    🏭
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-slate-800">
+                    {selectedPartner.company_name || selectedPartner.name}
+                  </p>
+                  <p className="text-[10px] text-slate-500">Production partner · visible on canvas</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Layer list */}
       <div className="flex-1 overflow-y-auto p-3" data-lenis-prevent>
         {layers.length === 0 ? (

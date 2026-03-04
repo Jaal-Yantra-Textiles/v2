@@ -160,6 +160,8 @@ export function RightPanel({
             toggleLayerVisibility={toggleLayerVisibility}
             deleteSelectedLayer={deleteSelectedLayer}
             duplicateSelectedLayer={duplicateSelectedLayer}
+            selectedMaterial={selectedMaterial}
+            selectedPartner={selectedPartner}
           />
         )}
         {activeTab === "style" && (

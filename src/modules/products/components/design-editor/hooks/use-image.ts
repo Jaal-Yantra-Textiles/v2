@@ -13,6 +13,11 @@ export function useImage(src?: string | null): [HTMLImageElement | null, "loadin
       return
     }
 
+    // Set loading state BEFORE assigning src. Browser-cached images fire onload
+    // synchronously during `img.src = src`, so if setStatus("loading") comes after,
+    // it overwrites the "loaded" state and the image appears permanently stuck loading.
+    setStatus("loading")
+
     const img = new window.Image()
 
     img.onload = () => {
@@ -26,7 +31,6 @@ export function useImage(src?: string | null): [HTMLImageElement | null, "loadin
     }
 
     img.src = src
-    setStatus("loading")
 
     return () => {
       img.onload = null
