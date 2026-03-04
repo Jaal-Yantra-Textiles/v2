@@ -889,8 +889,15 @@ async function getQueryableEntities(container: any, modules: ModuleInfo[]): Prom
 
         // Extract field names from the result
         if (result.data && result.data.length > 0) {
-          const sampleRecord = result.data[0]
-          fields = extractFieldsFromRecord(sampleRecord)
+          fields = extractFieldsFromRecord(result.data[0])
+        } else if (mod.type === "custom") {
+          // Empty table: fall back to schema-derived fields from DML model
+          fields = getFieldsFromDmlEntityByName(container, mod.name, entityName)
+          if (process.env.VISUAL_FLOWS_METADATA_DEBUG === "true" && fields.length > 0) {
+            logger.info(
+              `[visual-flows/metadata] ${entityName}: empty table, derived ${fields.length} fields from DML schema`
+            )
+          }
         }
       } catch (e: any) {
         // Entity might not be queryable via graph - that's okay
@@ -958,6 +965,98 @@ function getModelEntityNamesFromModule(container: any, moduleName: string): stri
   } catch {
     return []
   }
+}
+
+/**
+ * Map DML field dataType name to FieldMetadata type string
+ */
+function dmlTypeToMetadataType(typeName: string): string {
+  switch (typeName) {
+    case "text":
+    case "string":
+    case "enum":
+      return "string"
+    case "number":
+    case "float":
+    case "bigNumber":
+      return "number"
+    case "integer":
+      return "integer"
+    case "boolean":
+      return "boolean"
+    case "dateTime":
+    case "date":
+      return "datetime"
+    case "id":
+      return "id"
+    case "json":
+    case "object":
+      return "object"
+    case "array":
+      return "array"
+    default:
+      return "unknown"
+  }
+}
+
+/**
+ * Extract fields from a DML entity schema definition (no sample data needed)
+ */
+function getFieldsFromDmlEntity(dmlEntity: any): FieldMetadata[] {
+  const fields: FieldMetadata[] = []
+  try {
+    const schema = dmlEntity?.schema
+    if (!schema || typeof schema !== "object") return fields
+    for (const [fieldName, fieldDef] of Object.entries(schema)) {
+      if (fieldName.startsWith("__")) continue
+      const typeName =
+        (fieldDef as any)?.dataType?.name ||
+        (fieldDef as any)?.type ||
+        "unknown"
+      const fieldType = dmlTypeToMetadataType(typeName)
+      fields.push({
+        name: fieldName,
+        type: fieldType,
+        filterable: isFilterableField(fieldName, fieldType),
+      })
+    }
+    // Sort: id first, then filterable fields, then alphabetically
+    fields.sort((a, b) => {
+      if (a.name === "id") return -1
+      if (b.name === "id") return 1
+      if (a.filterable !== b.filterable) return a.filterable ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+  } catch { /* best-effort */ }
+  return fields
+}
+
+/**
+ * Resolve DML entity by its remote-query alias name and extract schema fields
+ */
+function getFieldsFromDmlEntityByName(
+  container: any,
+  moduleName: string,
+  entityName: string
+): FieldMetadata[] {
+  try {
+    const service = container.resolve(moduleName) as any
+    if (!service?.constructor) return []
+
+    const modelObjectsSymbol = Symbol.for("MedusaServiceModelObjectsSymbol")
+    const modelObjects = ((service.constructor as any)[modelObjectsSymbol] ||
+      (service as any)[modelObjectsSymbol]) as Record<string, any> | undefined
+    if (!modelObjects || typeof modelObjects !== "object") return []
+
+    for (const config of Object.values(modelObjects)) {
+      if (!DmlEntity.isDmlEntity(config) || typeof config.name !== "string") continue
+      const alias = pluralize(camelToSnakeCase(config.name).toLowerCase())
+      if (alias === entityName) {
+        return getFieldsFromDmlEntity(config)
+      }
+    }
+  } catch { /* best-effort */ }
+  return []
 }
 
 /**
