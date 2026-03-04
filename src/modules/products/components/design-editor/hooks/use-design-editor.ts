@@ -70,6 +70,9 @@ export function useDesignEditor({
     const [activeTool, setActiveTool] = useState<"select" | "pan">("select")
     const [isPanning, setIsPanning] = useState(false)
     const [lastPointerPos, setLastPointerPos] = useState<{ x: number; y: number } | null>(null)
+    // On mobile, track travel distance so a short tap on empty canvas deselects instead of panning
+    const mobileTouchStartOnEmptyRef = useRef(false)
+    const mobileTouchTravelRef = useRef(0)
 
     // View state (zoom/pan)
     const [view, setView] = useState<ViewState>({ scale: 1, x: 0, y: 0 })
@@ -749,12 +752,19 @@ export function useDesignEditor({
         return () => window.removeEventListener("keydown", handleKeyDown)
     }, [deleteSelectedLayer, duplicateSelectedLayer, undo, redo, zoomIn, zoomOut, resetView])
 
-    // Handle stage mouse down (for panning)
+    // Handle stage mouse/touch down
     const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-        // If pan tool is active or middle mouse button
         const isMiddleButton = 'button' in e.evt && e.evt.button === 1
-        if (activeTool === "pan" || isMiddleButton || e.evt.ctrlKey) {
+        const isEmptyStage = e.target === e.target.getStage()
+
+        // On mobile, single-finger drag on empty canvas = pan.
+        // We also track travel so a quick tap (< 8px) deselects instead.
+        const mobileEmptyDrag = isMobileLayout && isEmptyStage
+
+        if (activeTool === "pan" || isMiddleButton || e.evt.ctrlKey || mobileEmptyDrag) {
             setIsPanning(true)
+            mobileTouchStartOnEmptyRef.current = mobileEmptyDrag
+            mobileTouchTravelRef.current = 0
             const stage = stageRef.current
             if (stage) {
                 const pos = stage.getPointerPosition()
@@ -763,11 +773,11 @@ export function useDesignEditor({
             return
         }
 
-        // Deselect on stage click
-        if (e.target === e.target.getStage()) {
+        // Desktop: deselect on bare stage click
+        if (isEmptyStage) {
             setDesign((prev) => ({ ...prev, selectedId: null }))
         }
-    }, [activeTool])
+    }, [activeTool, isMobileLayout])
 
     const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
         if (!isPanning || !lastPointerPos) return
@@ -781,6 +791,9 @@ export function useDesignEditor({
         const dx = pos.x - lastPointerPos.x
         const dy = pos.y - lastPointerPos.y
 
+        // Accumulate travel so we can distinguish tap from drag on mobile
+        mobileTouchTravelRef.current += Math.sqrt(dx * dx + dy * dy)
+
         setView(prev => ({
             ...prev,
             x: prev.x + dx,
@@ -791,6 +804,12 @@ export function useDesignEditor({
     }, [isPanning, lastPointerPos])
 
     const handleStageMouseUp = useCallback(() => {
+        // Mobile tap on empty canvas (< 8px travel) → deselect instead of pan
+        if (mobileTouchStartOnEmptyRef.current && mobileTouchTravelRef.current < 8) {
+            setDesign((prev) => ({ ...prev, selectedId: null }))
+        }
+        mobileTouchStartOnEmptyRef.current = false
+        mobileTouchTravelRef.current = 0
         setIsPanning(false)
         setLastPointerPos(null)
     }, [])
