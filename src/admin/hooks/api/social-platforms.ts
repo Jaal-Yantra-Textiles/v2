@@ -218,6 +218,62 @@ export const useInitiateSocialPlatformOAuth = () => {
   });
 };
 
+export type TestImapConnectionPayload = {
+  host: string
+  port?: number
+  user: string
+  password: string
+  tls?: boolean
+  mailbox?: string
+}
+
+export type TestImapConnectionResponse = {
+  success: boolean
+  message: string
+  mailbox: string
+  message_count: number
+}
+
+export const useTestImapConnection = (): UseMutationResult<
+  TestImapConnectionResponse,
+  Error,
+  TestImapConnectionPayload
+> => {
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<TestImapConnectionResponse>(
+        `/admin/inbound-emails/test-connection`,
+        { method: "POST", body: payload }
+      ),
+  })
+}
+
+export type SetupResendWebhookPayload = {
+  platform_id: string
+  webhook_url?: string
+}
+
+export type SetupResendWebhookResponse = {
+  success: boolean
+  webhook_id: string
+  webhook_url: string
+  events: string[]
+}
+
+export const useSetupResendWebhook = (): UseMutationResult<
+  SetupResendWebhookResponse,
+  Error,
+  SetupResendWebhookPayload
+> => {
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<SetupResendWebhookResponse>(
+        `/admin/inbound-emails/setup-resend-webhook`,
+        { method: "POST", body: payload }
+      ),
+  })
+}
+
 export const useDeleteSocialPlatform = (
   id: string
 ): UseMutationResult<void, Error, void> => {

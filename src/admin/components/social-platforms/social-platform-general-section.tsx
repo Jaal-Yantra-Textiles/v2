@@ -1,17 +1,22 @@
 import { CommandLineSolid, PencilSquare, Trash } from "@medusajs/icons";
 import { useTranslation } from "react-i18next";
-import { AdminSocialPlatform } from "../../hooks/api/social-platforms";
+import {
+  AdminSocialPlatform,
+  useDeleteSocialPlatform,
+  useTestImapConnection,
+  useSetupResendWebhook,
+} from "../../hooks/api/social-platforms";
 import { CommonSection, CommonField } from "../common/section-views";
 import { usePrompt, toast } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
-import { useDeleteSocialPlatform } from "../../hooks/api/social-platforms";
-import { sdk } from "../../lib/config";
 
 export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSocialPlatform }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const prompt = usePrompt();
   const { mutateAsync: deletePlatform } = useDeleteSocialPlatform(platform.id);
+  const { mutateAsync: testConnection } = useTestImapConnection();
+  const { mutateAsync: setupWebhook } = useSetupResendWebhook();
 
   const apiConfig = platform.api_config as Record<string, any> | null;
   const isEmail = platform.category === "email";
@@ -42,20 +47,14 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
   const handleTestConnection = async () => {
     if (providerType !== "imap" || !apiConfig) return;
     try {
-      const result = await sdk.client.fetch<{ success: boolean; message: string }>(
-        "/admin/inbound-emails/test-connection",
-        {
-          method: "POST",
-          body: {
-            host: apiConfig.host,
-            port: apiConfig.port,
-            user: apiConfig.user || apiConfig.username,
-            password: apiConfig.password,
-            tls: apiConfig.tls,
-            mailbox: apiConfig.mailbox,
-          },
-        }
-      );
+      const result = await testConnection({
+        host: apiConfig.host,
+        port: apiConfig.port,
+        user: apiConfig.user || apiConfig.username,
+        password: apiConfig.password,
+        tls: apiConfig.tls,
+        mailbox: apiConfig.mailbox,
+      });
       toast.success(result.message || "Connection successful");
     } catch (e: any) {
       toast.error(e.message || "Connection failed");
@@ -65,13 +64,7 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
   const handleSetupWebhook = async () => {
     if (providerType !== "resend") return;
     try {
-      const result = await sdk.client.fetch<{ success: boolean; webhook_url: string }>(
-        "/admin/inbound-emails/setup-resend-webhook",
-        {
-          method: "POST",
-          body: { platform_id: platform.id },
-        }
-      );
+      const result = await setupWebhook({ platform_id: platform.id });
       toast.success(`Webhook registered at ${result.webhook_url}`);
     } catch (e: any) {
       toast.error(e.message || "Failed to register webhook");
