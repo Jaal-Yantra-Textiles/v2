@@ -209,6 +209,24 @@ const createCorsPartnerMiddleware = (corsOptions?: cors.CorsOptions) => {
 // Configure multer for small/CSV uploads (memory) - safe small limit
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
+// Image-only file filter — rejects anything that isn't jpeg/png/webp at the
+// Content-Type level. The route additionally verifies magic bytes.
+const imageOnlyFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
+  const allowed = ["image/jpeg", "image/png", "image/webp"]
+  if (allowed.includes(file.mimetype)) {
+    cb(null, true)
+  } else {
+    cb(new Error(`Invalid file type: ${file.mimetype}. Only JPEG, PNG and WebP images are accepted.`))
+  }
+}
+
+// Image-only multer: 10 MB limit, strict MIME filter
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: imageOnlyFilter,
+})
+
 // Configure disk-based multer for large media uploads to avoid OOM
 const mediaUpload = multer({
   storage: multer.diskStorage({
@@ -1040,7 +1058,7 @@ export default defineMiddlewares({
       bodyParser: false,
       middlewares: [
         authenticate("customer", ["session", "bearer"]),
-        adaptMulter(upload.fields([
+        adaptMulter(imageUpload.fields([
           { name: "garment_image", maxCount: 1 },
           { name: "face_image", maxCount: 1 },
         ])),
