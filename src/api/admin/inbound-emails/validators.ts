@@ -30,6 +30,20 @@ export const executeInboundEmailSchema = z.object({
 
 export type ExecuteInboundEmailBody = z.infer<typeof executeInboundEmailSchema>
 
+export const testConnectionSchema = z.object({
+  host: z.string().min(1, "host is required"),
+  port: z.preprocess(
+    (val) => (val !== undefined && val !== null ? Number(val) : undefined),
+    z.number().int().min(1).max(65535).default(993)
+  ),
+  user: z.string().min(1, "user is required"),
+  password: z.string().min(1, "password is required"),
+  tls: z.boolean().default(true),
+  mailbox: z.string().default("INBOX"),
+})
+
+export type TestConnectionBody = z.infer<typeof testConnectionSchema>
+
 export const syncInboundEmailsSchema = z.object({
   count: z.preprocess(
     (val) => (val !== undefined && val !== null ? Number(val) : undefined),

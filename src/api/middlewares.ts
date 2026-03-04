@@ -143,6 +143,7 @@ import {
   extractInboundEmailSchema,
   executeInboundEmailSchema,
   syncInboundEmailsSchema,
+  testConnectionSchema,
 } from "./admin/inbound-emails/validators";
 import { LinkPersonValidator, UnlinkPersonValidator } from "./admin/products/[id]/linkPerson/validators";
 import { GenerateDescriptionValidator } from "./admin/products/[id]/generateDescription/validators";
@@ -891,7 +892,7 @@ export default defineMiddlewares({
     {
       matcher: "/admin/inbound-emails/test-connection",
       method: "POST",
-      middlewares: [],
+      middlewares: [validateAndTransformBody(wrapSchema(testConnectionSchema))],
     },
     {
       matcher: "/admin/inbound-emails/actions",

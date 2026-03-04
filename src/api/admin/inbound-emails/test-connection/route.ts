@@ -1,5 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ImapFlow } from "imapflow"
+import type { TestConnectionBody } from "../validators"
 
 /**
  * POST /admin/inbound-emails/test-connection
@@ -8,24 +9,10 @@ import { ImapFlow } from "imapflow"
  * Does not store anything — purely for validation.
  */
 export const POST = async (
-  req: MedusaRequest,
+  req: MedusaRequest<TestConnectionBody>,
   res: MedusaResponse
 ) => {
-  const { host, port, user, password, tls, mailbox } = req.body as {
-    host: string
-    port?: number
-    user: string
-    password: string
-    tls?: boolean
-    mailbox?: string
-  }
-
-  if (!host || !user || !password) {
-    return res.status(400).json({
-      success: false,
-      error: "host, user, and password are required",
-    })
-  }
+  const { host, port, user, password, tls, mailbox } = req.validatedBody
 
   const client = new ImapFlow({
     host,
