@@ -8,13 +8,16 @@ interface VisualFlowEditorSectionProps {
 }
 
 export const VisualFlowEditorSection = ({ flow }: VisualFlowEditorSectionProps) => {
-  // Get counts from canvas_state if operations array is empty (data stored in canvas_state)
+  // canvas_state is always the source of truth — it reflects what's actually on the canvas.
+  // flow.operations can be stale (last DB-persisted snapshot) so only use it as fallback.
   const canvasNodes = flow.canvas_state?.nodes || []
   const canvasEdges = flow.canvas_state?.edges || []
-  
-  // Count operations (nodes excluding trigger)
-  const operationsCount = flow.operations?.length || canvasNodes.filter((n: any) => n.id !== "trigger").length
-  const connectionsCount = flow.connections?.length || canvasEdges.length
+
+  const canvasOpCount = canvasNodes.filter((n: any) => n.id !== "trigger").length
+  const canvasEdgeCount = canvasEdges.length
+
+  const operationsCount = canvasOpCount || flow.operations?.length || 0
+  const connectionsCount = canvasEdgeCount || flow.connections?.length || 0
 
   return (
     <Container className="divide-y p-0">
@@ -59,7 +62,7 @@ export const VisualFlowEditorSection = ({ flow }: VisualFlowEditorSectionProps) 
             <Text size="small" weight="plus" className="mb-2">Operations</Text>
             <div className="space-y-2">
               {/* Get operations from either operations array or canvas_state nodes */}
-              {(flow.operations?.length ? flow.operations : canvasNodes.filter((n: any) => n.id !== "trigger"))
+              {(canvasOpCount ? canvasNodes.filter((n: any) => n.id !== "trigger") : flow.operations || [])
                 .slice(0, 5)
                 .map((op: any, index: number) => {
                   // Handle both operation format and canvas node format
