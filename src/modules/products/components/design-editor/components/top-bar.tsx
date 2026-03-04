@@ -17,6 +17,7 @@ type TopBarProps = {
   onGenerateAi?: () => void
   isGeneratingAi?: boolean
   quotaRemaining?: number | null
+  onTryOn?: () => void
 }
 
 const iconBtn =
@@ -35,6 +36,7 @@ export function TopBar({
   onGenerateAi,
   isGeneratingAi,
   quotaRemaining,
+  onTryOn,
 }: TopBarProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(designName)
@@ -115,6 +117,16 @@ export function TopBar({
             <Sparkles className="h-3.5 w-3.5" />
           )}
           {isGeneratingAi ? "Generating…" : "Generate"}
+        </button>
+      )}
+
+      {/* Try On */}
+      {onTryOn && (
+        <button
+          onClick={onTryOn}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all hover:border-slate-400 hover:bg-slate-50"
+        >
+          <Sparkles className="h-3.5 w-3.5" /> Try On
         </button>
       )}
 

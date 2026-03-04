@@ -153,6 +153,7 @@ type EditorSidebarProps = {
     onClearAiError?: () => void
     onSelectFromHistory?: (item: AiGenerationHistoryItem) => void
     onClearHistory?: () => void
+    onTryOn?: () => void
 }
 
 type SectionKey = "product" | "tools" | "aiGeneration" | "add" | "materials" | "partners" | "layers" | "properties"
@@ -217,6 +218,7 @@ export function EditorSidebar({
     onClearAiError,
     onSelectFromHistory,
     onClearHistory,
+    onTryOn,
 }: EditorSidebarProps) {
     // State for mobile overlay sheets
     const [mobileActiveTab, setMobileActiveTab] = React.useState<string | null>(null)
@@ -573,6 +575,15 @@ export function EditorSidebar({
                             <ArrowsPointingOutMini className="h-5 w-5" />
                             <span className="text-[10px] font-medium">Edit</span>
                         </button>
+                        {onTryOn && (
+                            <button
+                                onClick={onTryOn}
+                                className="flex flex-col items-center gap-0.5 px-3 py-2 text-gray-500"
+                            >
+                                <Sparkles className="h-5 w-5" />
+                                <span className="text-[10px] font-medium">Try On</span>
+                            </button>
+                        )}
                         <button
                             onClick={handleSave}
                             disabled={isSaving}

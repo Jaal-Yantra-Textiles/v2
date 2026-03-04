@@ -62,6 +62,7 @@ export function useDesignEditor({
 
     // Checkout modal state (shown after design is saved)
     const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+    const [showTryOnModal, setShowTryOnModal] = useState(false)
     const [savedDesignId, setSavedDesignId] = useState<string | null>(null)
     const [saveError, setSaveError] = useState<string | null>(null)
     const clearSaveError = useCallback(() => setSaveError(null), [])
@@ -1099,6 +1100,10 @@ export function useDesignEditor({
         // Checkout modal
         showCheckoutModal,
         setShowCheckoutModal,
+
+        // Try-on modal
+        showTryOnModal,
+        setShowTryOnModal,
         savedDesignId,
         saveError,
         clearSaveError,

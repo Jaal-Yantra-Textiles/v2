@@ -16,6 +16,7 @@ import { MaterialDetailModal } from "./components/material-detail-modal"
 import { PartnerDetailModal } from "./components/partner-detail-modal"
 import { AiLoginPrompt } from "./components/ai-login-prompt"
 import { DesignCheckoutModal } from "./components/design-checkout-modal"
+import { TryOnModal } from "./components/try-on-modal"
 
 interface DesignEditorProps {
   product: DesignProduct
@@ -208,6 +209,7 @@ export default function DesignEditor({
               onClearAiError={editor.clearAiError}
               onSelectFromHistory={editor.selectFromHistory}
               onClearHistory={editor.clearHistory}
+              onTryOn={() => editor.setShowTryOnModal(true)}
             />
           </div>
         </div>
@@ -233,6 +235,7 @@ export default function DesignEditor({
             onGenerateAi={editor.generateAiBase}
             isGeneratingAi={editor.isGeneratingAi}
             quotaRemaining={editor.quotaRemaining}
+            onTryOn={() => editor.setShowTryOnModal(true)}
           />
 
           {/* Main area: ToolStrip + Canvas + RightPanel */}
@@ -385,6 +388,14 @@ export default function DesignEditor({
         designId={editor.savedDesignId}
         designName={editor.designName || editor.design.name || ""}
         countryCode={countryCode || "us"}
+      />
+
+      {/* Virtual Try-On Modal */}
+      <TryOnModal
+        isOpen={editor.showTryOnModal}
+        onClose={() => editor.setShowTryOnModal(false)}
+        stageRef={editor.stageRef}
+        customer={customer}
       />
     </div>
   )
