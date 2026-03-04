@@ -363,10 +363,9 @@ const validateAndFetchOrderStep = createStep(
 const updateOrderOnCompletionStep = createStep(
   "partner-complete-update-order",
   async (
-    input: { orderId: string; completionMetadata: Record<string, any>; fullyFulfilled: boolean },
+    input: { orderId: string; completionMetadata: Record<string, any>; fullyFulfilled: boolean; previousStatus: string; previousMetadata: Record<string, any> },
     { container }
   ) => {
-    // Use the existing update workflow like in the route
     const scope = container
     const { result, errors } = await updateInventoryOrderWorkflow(scope).run({
       input: {
@@ -382,7 +381,31 @@ const updateOrderOnCompletionStep = createStep(
       throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Failed to update inventory order: ${JSON.stringify(errors)}`)
     }
 
-    return new StepResponse(result)
+    // Pass rollback data to compensation
+    return new StepResponse(result, {
+      orderId: input.orderId,
+      previousStatus: input.previousStatus,
+      previousMetadata: input.previousMetadata,
+    })
+  },
+  async (rollback, { container }) => {
+    if (!rollback) return
+    try {
+      const { result, errors } = await updateInventoryOrderWorkflow(container).run({
+        input: {
+          id: rollback.orderId,
+          update: {
+            status: rollback.previousStatus as any,
+            metadata: rollback.previousMetadata,
+          },
+        },
+      })
+      if (errors && errors.length > 0) {
+        console.error("[partner-complete-update-order][compensation] failed to restore order:", JSON.stringify(errors))
+      }
+    } catch (e) {
+      console.error("[partner-complete-update-order][compensation] exception:", e)
+    }
   }
 )
 
@@ -459,10 +482,14 @@ const prepareUpdateInputStep = createStep(
     _ctx
   ) => {
     const { orderId, validated } = input as any
+    const order = validated.order as any
     const payload = {
       orderId,
       completionMetadata: validated.completionMetadata,
       fullyFulfilled: validated.fullyFulfilled,
+      // Capture pre-update state for compensation rollback
+      previousStatus: String(order.status ?? "Processing"),
+      previousMetadata: { ...(order.metadata ?? {}) },
     }
     return new StepResponse(payload)
   }

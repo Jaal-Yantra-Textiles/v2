@@ -5,7 +5,7 @@ const Line_fulfillment = model.define("line_fulfillment", {
   quantity_delta: model.number(),
   event_type: model.enum(["sent","shipped","received","adjust","correction"]),
   transaction_id: model.text(),
-  notes: model.text(),
+  notes: model.text().nullable(),
   metadata: model.json(),
 });
 

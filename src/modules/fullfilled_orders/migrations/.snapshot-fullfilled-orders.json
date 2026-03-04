@@ -55,7 +55,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "mappedType": "text"
         },
         "metadata": {
@@ -110,7 +110,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_line_fulfillment_deleted_at\" ON \"line_fulfillment\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_line_fulfillment_deleted_at\" ON \"line_fulfillment\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "line_fulfillment_pkey",
