@@ -5,6 +5,10 @@
 /uploads
 /node_modules
 "node_modules 2"/
+# Root yarn.lock is obsolete — project uses pnpm (pnpm-lock.yaml)
+/yarn.lock
+# partner-ui is in the pnpm workspace, no separate yarn.lock needed
+apps/partner-ui/yarn.lock
 yarn-error.log
 .env.railway.worker
 
