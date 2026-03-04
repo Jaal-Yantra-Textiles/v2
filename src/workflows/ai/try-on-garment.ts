@@ -37,7 +37,7 @@ export type TryOnGarmentInput = {
   garment_image_url?: string
   garment_image_base64?: string
   face_image_base64: string
-  cloth_type: "upper_body" | "lower_body" | "dress"
+  cloth_type: "upper_body" | "lower_body" | "dresses"
   gender: "male" | "female"
   model_preset?: string
 }
@@ -53,13 +53,6 @@ type FaceSwapResult = {
 type UploadResult = {
   media_id: string
   media_url: string
-}
-
-// CatVTON expects different cloth_type values than our internal enum
-const CATVTON_CLOTH_TYPE_MAP: Record<string, string> = {
-  upper_body: "upper",
-  lower_body: "lower",
-  dress: "overall",
 }
 
 // ---------------------------------------------------------------------------
@@ -111,8 +104,8 @@ const catVtonStep = createStep(
       input: {
         human_image_url: modelUrl,
         garment_image_url: garmentUrl,
-        cloth_type: CATVTON_CLOTH_TYPE_MAP[input.cloth_type] ?? "upper",
-      } as any,
+        cloth_type: input.cloth_type,
+      },
     })
 
     const imageUrl = (result as any)?.image?.url || (result as any)?.output?.image?.url
@@ -152,7 +145,7 @@ const faceSwapStep = createStep(
         target_image: input.tryon_image_url,
         gender_0: input.gender,
         workflow_type: "target_hair",
-      } as any,
+      },
     })
 
     const imageUrl = (result as any)?.image?.url || (result as any)?.output?.image?.url
