@@ -63,18 +63,13 @@ export function TryOnModal({ isOpen, onClose, stageRef, customer }: TryOnModalPr
     setResultUrl(null)
 
     try {
-      const garmentBase64 = stageRef.current.toDataURL({ pixelRatio: 1.5 }) ?? ""
-
-      const faceBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = (ev) => resolve(ev.target?.result as string)
-        reader.onerror = reject
-        reader.readAsDataURL(faceFile)
-      })
+      // Convert Konva canvas to a Blob (multipart-friendly, no base64 inflation)
+      const garmentBlob = await stageRef.current.toBlob({ pixelRatio: 1.5 })
+      if (!garmentBlob) throw new Error("Canvas export failed")
 
       const response = await generateTryOn({
-        garment_image_base64: garmentBase64,
-        face_image_base64: faceBase64,
+        garmentFile: garmentBlob,
+        faceFile,
         cloth_type: clothType,
         gender,
       })

@@ -1,11 +1,10 @@
 "use server"
 
-import { sdk } from "@lib/config"
 import { getAuthHeaders } from "./cookies"
 
 export type GenerateTryOnInput = {
-  garment_image_base64: string
-  face_image_base64: string
+  garmentFile: File | Blob
+  faceFile: File
   cloth_type: "upper_body" | "lower_body" | "dress"
   gender: "female" | "male"
 }
@@ -17,6 +16,7 @@ export type GenerateTryOnResponse = {
 
 /**
  * Generates a virtual try-on image by combining a garment design with a face photo.
+ * Sends images as multipart/form-data to avoid JSON body size limits.
  *
  * NOTE: Returns errors in the response object instead of throwing them.
  * This is because Next.js Server Actions suppress error messages in production for security,
@@ -36,15 +36,32 @@ export const generateTryOn = async (
   }
 
   try {
-    const data = await sdk.client.fetch<GenerateTryOnResponse>(`/store/ai/tryon`, {
+    const formData = new FormData()
+    formData.append("garment_image", input.garmentFile, "garment.png")
+    formData.append("face_image", input.faceFile, input.faceFile.name ?? "face.jpg")
+    formData.append("cloth_type", input.cloth_type)
+    formData.append("gender", input.gender)
+
+    // Use native fetch — don't set Content-Type, let it be set automatically with multipart boundary
+    const backendUrl = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL
+    const response = await fetch(`${backendUrl}/store/ai/tryon`, {
       method: "POST",
-      body: input,
+      body: formData,
       headers: {
         ...authHeaders,
-        "Content-Type": "application/json",
+        // Do NOT set Content-Type here — fetch sets it automatically with the correct boundary
       },
     })
 
+    if (!response.ok) {
+      const text = await response.text()
+      if (response.status === 401) {
+        return { error: { code: "AUTH_REQUIRED", message: "Authentication required to use Virtual Try-On" } }
+      }
+      throw new Error(text || `HTTP ${response.status}`)
+    }
+
+    const data = await response.json() as GenerateTryOnResponse
     return data
   } catch (error: any) {
     if (error?.status === 401 || error?.message?.includes("unauthorized")) {
