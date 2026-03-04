@@ -29,7 +29,7 @@ const VisualFlowEditorPage = () => {
         </div>
       </RouteFocusModal.Header>
       <RouteFocusModal.Body className="p-0 h-[calc(100vh-120px)]">
-        <FlowEditor flow={flow} onUpdate={updateFlow.mutate} />
+        <FlowEditor flow={flow} onUpdate={updateFlow.mutateAsync} />
       </RouteFocusModal.Body>
     </RouteFocusModal>
   )

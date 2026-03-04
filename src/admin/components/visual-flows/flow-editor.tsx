@@ -34,7 +34,7 @@ const nodeTypes: NodeTypes = {
 
 interface FlowEditorProps {
   flow: VisualFlow
-  onUpdate: (data: VisualFlowUpdateInput) => void
+  onUpdate: (data: VisualFlowUpdateInput) => Promise<VisualFlow>
 }
 
 // Convert flow data to React Flow format
@@ -145,9 +145,10 @@ function flowToReactFlow(flow: VisualFlow): { nodes: Node[]; edges: Edge[] } {
 
 function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, getViewport } = useReactFlow()
   const { data: operationsData } = useOperationDefinitions()
-  
+  const [isSaving, setIsSaving] = useState(false)
+
   const initialData = flowToReactFlow(flow)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialData.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialData.edges)
@@ -159,20 +160,18 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
   )
   const [showOperationsPanel, setShowOperationsPanel] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-  const [isInitialized, setIsInitialized] = useState(false)
+  // Use a ref so the initialization flag never causes a re-render and can't
+  // race with a slow-loading flow prop.
+  const isInitializedRef = useRef(false)
 
-  // Track changes - only after initial render
+  // Track changes — skip the very first render where nodes/edges settle from props
   useEffect(() => {
-    if (isInitialized) {
-      setHasChanges(true)
+    if (!isInitializedRef.current) {
+      isInitializedRef.current = true
+      return
     }
-  }, [nodes, edges, isInitialized])
-
-  // Mark as initialized after first render
-  useEffect(() => {
-    const timer = setTimeout(() => setIsInitialized(true), 100)
-    return () => clearTimeout(timer)
-  }, [])
+    setHasChanges(true)
+  }, [nodes, edges])
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -231,11 +230,16 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
     [screenToFlowPosition, setNodes, operationsData]
   )
 
-  const handleSave = useCallback(() => {
-    // Convert React Flow state back to flow format
+  const handleSave = useCallback(async () => {
+    if (isSaving) return
+    setIsSaving(true)
+
+    // Convert React Flow state back to API format
     const operations = nodes
       .filter(n => n.type === "operation")
       .map((n, index) => ({
+        // New nodes have a temporary "op_" prefixed ID — omit so the server creates them.
+        // Existing nodes have a server-assigned UUID — include so the server updates them.
         id: n.id.startsWith("op_") ? undefined : n.id,
         operation_key: n.data.operationKey as string,
         operation_type: n.data.operationType as string,
@@ -247,7 +251,7 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
       }))
 
     const connections = edges.map(e => ({
-      // Clear ID for new edges (ReactFlow generates IDs starting with "xy-edge__" or "reactflow")
+      // ReactFlow auto-generates IDs like "xy-edge__..." for new edges — omit so the server creates them.
       id: (e.id.startsWith("reactflow") || e.id.startsWith("xy-edge__")) ? undefined : e.id,
       source_id: e.source,
       source_handle: e.sourceHandle || "default",
@@ -259,38 +263,60 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
       label: (e.label as string) || undefined,
     }))
 
-    // Debug logging
-    console.log("[FlowEditor] Saving flow:", {
-      totalNodes: nodes.length,
-      operationNodes: nodes.filter(n => n.type === "operation").length,
-      operations: operations.map(o => ({ 
-        key: o.operation_key, 
-        type: o.operation_type,
-        options: o.options,
-      })),
-      connections: connections.map(c => ({ source: c.source_id, target: c.target_id })),
-    })
+    const viewport = getViewport()
 
-    // Save operations, connections, and canvas state
-    onUpdate({
-      operations,
-      connections,
-      canvas_state: {
-        nodes: nodes.map(n => ({ id: n.id, position: n.position, data: n.data })),
-        edges: edges.map(e => ({
-          id: e.id,
-          source: e.source,
-          sourceHandle: e.sourceHandle || "default",
-          target: e.target,
-          targetHandle: e.targetHandle || "default",
-        })),
-        viewport: { x: 0, y: 0, zoom: 1 },
-      },
-    })
+    try {
+      const savedFlow = await onUpdate({
+        operations,
+        connections,
+        canvas_state: {
+          nodes: nodes.map(n => ({ id: n.id, position: n.position, data: n.data })),
+          edges: edges.map(e => ({
+            id: e.id,
+            source: e.source,
+            sourceHandle: e.sourceHandle || "default",
+            target: e.target,
+            targetHandle: e.targetHandle || "default",
+          })),
+          viewport,
+        },
+      })
 
-    setHasChanges(false)
-    toast.success("Flow saved")
-  }, [nodes, edges, onUpdate])
+      // Remap temporary "op_" node IDs to the server-assigned UUIDs so that
+      // subsequent saves update existing records instead of creating duplicates.
+      if (savedFlow?.operations?.length) {
+        setNodes(nds => nds.map(node => {
+          if (!node.id.startsWith("op_")) return node
+          const serverOp = savedFlow.operations!.find(
+            op => op.operation_key === node.data.operationKey
+          )
+          if (!serverOp) return node
+          return { ...node, id: serverOp.id }
+        }))
+        // Also remap edge source/target references
+        setEdges(eds => eds.map(edge => {
+          const updatedSource = savedFlow.operations!.find(
+            op => nodes.find(n => n.id === edge.source)?.data.operationKey === op.operation_key
+          )
+          const updatedTarget = savedFlow.operations!.find(
+            op => nodes.find(n => n.id === edge.target)?.data.operationKey === op.operation_key
+          )
+          return {
+            ...edge,
+            source: updatedSource?.id ?? edge.source,
+            target: updatedTarget?.id ?? edge.target,
+          }
+        }))
+      }
+
+      setHasChanges(false)
+      toast.success("Flow saved")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save flow")
+    } finally {
+      setIsSaving(false)
+    }
+  }, [nodes, edges, onUpdate, getViewport, isSaving, setNodes, setEdges])
 
   const handleNodeUpdate = useCallback((nodeId: string, data: any) => {
     setNodes((nds) =>
@@ -357,12 +383,13 @@ function FlowEditorInner({ flow, onUpdate }: FlowEditorProps) {
                 <PlusMini className="mr-1" />
                 Add Operation
               </Button>
-              <Button 
-                size="small" 
+              <Button
+                size="small"
                 variant={hasChanges ? "primary" : "secondary"}
                 onClick={handleSave}
+                disabled={isSaving}
               >
-                {hasChanges ? "Save Changes*" : "Save"}
+                {isSaving ? "Saving…" : hasChanges ? "Save Changes*" : "Save"}
               </Button>
             </div>
           </Panel>

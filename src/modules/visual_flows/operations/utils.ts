@@ -51,17 +51,35 @@ export function interpolateVariables(obj: any, dataChain: DataChain): any {
  * Get a value from an object by dot-notation path
  * Supports array indexing like "items[0].name"
  */
+// Built-in dataChain keys that use the $ prefix natively
+const BUILTIN_DOLLAR_KEYS = new Set(["$trigger", "$last", "$accountability", "$env"])
+
 export function getValueByPath(obj: any, path: string): any {
   if (!path) return obj
-  
+
   const parts = path.split(/\.|\[|\]/).filter(Boolean)
   let current = obj
-  
-  for (const part of parts) {
+
+  for (let i = 0; i < parts.length; i++) {
     if (current === null || current === undefined) return undefined
-    current = current[part]
+    const part = parts[i]
+    // First try the key as-is
+    if (part in Object(current)) {
+      current = current[part]
+      continue
+    }
+    // If the key starts with $ and isn't a built-in, also try without the $
+    // e.g. {{ $read_data_123.records[0].subject }} → dataChain["read_data_123"]
+    if (part.startsWith("$") && !BUILTIN_DOLLAR_KEYS.has(part)) {
+      const stripped = part.slice(1)
+      if (stripped in Object(current)) {
+        current = current[stripped]
+        continue
+      }
+    }
+    return undefined
   }
-  
+
   return current
 }
 

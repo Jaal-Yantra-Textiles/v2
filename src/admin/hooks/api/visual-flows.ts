@@ -225,7 +225,7 @@ export function useCreateVisualFlow() {
  */
 export function useUpdateVisualFlow(id: string) {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
     mutationFn: async (data: VisualFlowUpdateInput) => {
       const response = await sdk.client.fetch<{ flow: VisualFlow }>(
@@ -237,8 +237,11 @@ export function useUpdateVisualFlow(id: string) {
       )
       return response.flow
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: VISUAL_FLOW_KEY(id) })
+    onSuccess: (savedFlow) => {
+      // Immediately populate the cache with the server response so the detail
+      // view and section components reflect the new state without a round-trip.
+      queryClient.setQueryData(VISUAL_FLOW_KEY(id), savedFlow)
+      // Invalidate the list so index pages stay consistent.
       queryClient.invalidateQueries({ queryKey: VISUAL_FLOWS_KEY })
     },
   })
