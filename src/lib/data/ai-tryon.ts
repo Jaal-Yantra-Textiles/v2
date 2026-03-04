@@ -36,9 +36,22 @@ export const generateTryOn = async (
   }
 
   try {
+    // Reconstruct as proper Blob/File instances on the server side.
+    // When passed through a Next.js Server Action boundary, Blob/File objects are
+    // serialized as binary data and may lose their instanceof type, causing
+    // FormData.append(name, blob, filename) to throw "parameter 2 is not of type 'Blob'".
+    const garmentBlob = new Blob([await input.garmentFile.arrayBuffer()], {
+      type: input.garmentFile.type || "image/png",
+    })
+    const faceBlob = new File(
+      [await input.faceFile.arrayBuffer()],
+      input.faceFile.name ?? "face.jpg",
+      { type: input.faceFile.type || "image/jpeg" }
+    )
+
     const formData = new FormData()
-    formData.append("garment_image", input.garmentFile, "garment.png")
-    formData.append("face_image", input.faceFile, input.faceFile.name ?? "face.jpg")
+    formData.append("garment_image", garmentBlob, "garment.png")
+    formData.append("face_image", faceBlob, faceBlob.name)
     formData.append("cloth_type", input.cloth_type)
     formData.append("gender", input.gender)
 
