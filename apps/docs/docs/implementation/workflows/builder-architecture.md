@@ -106,20 +106,25 @@ Directus Flows provides:
 
 Each operation type maps to specific functionality:
 
-| Operation Type | Description | MedusaJS Integration |
-|---------------|-------------|---------------------|
-| `condition` | Branch based on filter rules | Uses `when()` from workflows-sdk |
-| `create_data` | Create records in any module | Calls module service `.create*()` |
-| `read_data` | Query data from modules | Uses `query.graph()` |
-| `update_data` | Update existing records | Calls module service `.update*()` |
-| `delete_data` | Delete records | Calls module service `.delete*()` |
-| `http_request` | Make external HTTP calls | Uses `fetch()` |
-| `run_script` | Execute custom JavaScript | Sandboxed execution |
-| `send_email` | Send emails | Uses existing email workflow |
-| `notification` | Create admin notifications | Uses notification service |
-| `transform` | Transform/map data | Uses `transform()` from workflows-sdk |
-| `trigger_workflow` | Trigger existing MedusaJS workflow | Uses `.runAsStep()` |
-| `sleep` | Delay execution | Uses `setTimeout` |
+| Type | Category | Description |
+|------|----------|-------------|
+| `condition` | Logic | Branch on filter rules |
+| `execute_code` | Logic | Sandboxed JS (lodash, dayjs, uuid, crypto) |
+| `transform` | Logic | Map/reshape data |
+| `create_data` | Data | Call module `.create*()` |
+| `read_data` | Data | Query via `query.graph()` |
+| `update_data` | Data | Call module `.update*()` |
+| `delete_data` | Data | Call module `.delete*()` |
+| `bulk_update_data` | Data | Batch update records |
+| `http_request` | Integration | External HTTP calls |
+| `trigger_workflow` | Integration | Run any registered Medusa workflow |
+| `trigger_flow` | Integration | Invoke another visual flow |
+| `ai_extract` | Integration | Ask LLM to extract structured JSON |
+| `send_email` | Communication | Send email via Resend |
+| `notification` | Communication | Admin notification |
+| `sleep` | Utility | Delay execution |
+| `log` | Utility | Log to execution trace |
+| `aggregate_product_analytics` | Analytics | Analytics aggregation |
 
 ### 3. Trigger Types
 
@@ -358,7 +363,7 @@ const OperationNode = ({ data, selected }) => {
 ```
 src/
 ├── modules/
-│   └── visual-flows/
+│   └── visual_flows/
 │       ├── index.ts
 │       ├── models/
 │       │   ├── visual-flow.ts
@@ -372,17 +377,22 @@ src/
 │       └── operations/
 │           ├── index.ts
 │           ├── condition.ts
+│           ├── execute-code.ts
+│           ├── transform.ts
 │           ├── create-data.ts
 │           ├── read-data.ts
 │           ├── update-data.ts
 │           ├── delete-data.ts
+│           ├── bulk-update-data.ts
 │           ├── http-request.ts
-│           ├── run-script.ts
+│           ├── trigger-workflow.ts
+│           ├── trigger-flow.ts
+│           ├── ai-extract.ts
 │           ├── send-email.ts
 │           ├── notification.ts
-│           ├── transform.ts
-│           ├── trigger-workflow.ts
-│           └── sleep.ts
+│           ├── sleep.ts
+│           ├── log.ts
+│           └── aggregate-product-analytics.ts
 ├── api/
 │   ├── admin/
 │   │   └── visual-flows/
@@ -429,37 +439,37 @@ src/
 
 ## Implementation Phases
 
-### Phase 1: Foundation (Week 1-2)
-- [ ] Create visual-flows module with data models
-- [ ] Implement basic CRUD service
-- [ ] Create operation registry with core operations
-- [ ] Build basic API routes
+### Phase 1: Foundation ✅
+- [x] Create visual-flows module with data models
+- [x] Implement basic CRUD service
+- [x] Create operation registry with core operations
+- [x] Build basic API routes
 
-### Phase 2: Execution Engine (Week 2-3)
-- [ ] Implement execution engine
-- [ ] Add data chain and variable interpolation
-- [ ] Create execution logging
-- [ ] Add error handling and rollback
+### Phase 2: Execution Engine ✅
+- [x] Implement execution engine
+- [x] Add data chain and variable interpolation
+- [x] Create execution logging
+- [x] Add error handling and rollback
 
-### Phase 3: Visual Editor (Week 3-4)
-- [ ] Set up React Flow in admin
-- [ ] Create custom node components
-- [ ] Build operations sidebar
-- [ ] Implement properties panel
-- [ ] Add canvas state persistence
+### Phase 3: Visual Editor ✅
+- [x] Set up React Flow in admin
+- [x] Create custom node components
+- [x] Build operations sidebar
+- [x] Implement properties panel
+- [x] Add canvas state persistence
 
-### Phase 4: Triggers & Integration (Week 4-5)
-- [ ] Implement webhook triggers
-- [ ] Add event-based triggers (workflow hooks)
-- [ ] Create scheduled flow job
-- [ ] Integrate with existing MedusaJS workflows
+### Phase 4: Triggers & Integration ✅
+- [x] Implement webhook triggers
+- [x] Add event-based triggers (workflow hooks)
+- [x] Create scheduled flow job
+- [x] Integrate with existing MedusaJS workflows
 
-### Phase 5: Polish & Testing (Week 5-6)
-- [ ] Add execution logs viewer
-- [ ] Implement flow testing/debugging
-- [ ] Add flow import/export
-- [ ] Write integration tests
-- [ ] Documentation
+### Phase 5: Polish & Testing ✅
+- [x] Add execution logs viewer
+- [x] Implement flow testing/debugging
+- [x] Add flow import/export
+- [x] Write integration tests
+- [x] Documentation
 
 ## Key Dependencies
 

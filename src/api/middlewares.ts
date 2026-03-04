@@ -91,6 +91,7 @@ import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[t
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
+import { StoreTryOnReqSchema } from "./store/ai/tryon/validators";
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
 import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/confirm/validators";
 import { listPublicPersonsQuerySchema } from "./web/persons/validators";
@@ -886,6 +887,22 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(syncInboundEmailsSchema))],
     },
+    // Static sub-routes must come before /:id to prevent dynamic segment shadowing in prod
+    {
+      matcher: "/admin/inbound-emails/test-connection",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/inbound-emails/actions",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/inbound-emails/setup-resend-webhook",
+      method: "POST",
+      middlewares: [],
+    },
     {
       matcher: "/admin/inbound-emails/:id/extract",
       method: "POST",
@@ -1014,6 +1031,14 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("customer", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(StoreGenerateAiImageReqSchema)),
+      ],
+    },
+    {
+      matcher: "/store/ai/tryon",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(StoreTryOnReqSchema)),
       ],
     },
     // Store design endpoints - cost estimation and checkout

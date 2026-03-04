@@ -1,9 +1,10 @@
 /dist
 .env
 .env.development
-.DS_Store
+**/.DS_Store
 /uploads
 /node_modules
+"node_modules 2"/
 yarn-error.log
 .env.railway.worker
 
@@ -56,15 +57,12 @@ test_logs.txt
 src/partner/.next
 src/partner/.env
 src/partner/node_modules/*
-src/partner/.DS_Store
 # Local Netlify folder
 .netlify
 .yarn
 
 
 debug/
-
-src/.DS_Store
 
 # Local patches (not committed)
 patches/

@@ -59,7 +59,7 @@ export const updateAgreementResponseStep = createStep(
       previous_status: existingResponse.status,
     });
   },
-  async (compensationData: { response_id: string; previous_status: string }, { container }) => {
+  async (compensationData: { response_id: string; previous_status: string } | undefined, { container }) => {
     if (!compensationData) return;
 
     const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);

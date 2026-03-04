@@ -59,6 +59,7 @@
     "@emoji-mart/data": "1.2.1",
     "@excalidraw/excalidraw": "^0.18.0",
     "@faker-js/faker": "^9.7.0",
+    "@fal-ai/client": "^1.9.4",
     "@floating-ui/react": "^0.27.14",
     "@hookform/error-message": "^2.0.1",
     "@hookform/resolvers": "^5.0.1",
