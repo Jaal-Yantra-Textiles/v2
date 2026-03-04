@@ -559,7 +559,7 @@ export function EditorSidebar({
                         onClick={() => toggleMobileTab("add")}
                         className="flex h-12 w-12 -translate-y-3 items-center justify-center rounded-full bg-black text-white shadow-lg transition-transform active:scale-95 flex-shrink-0"
                     >
-                        <Plus className="h-5 w-5" />
+                        <Plus className="h-7 w-7" style={{ strokeWidth: 3 }} />
                     </button>
 
                     {/* Right half */}
