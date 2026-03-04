@@ -112,18 +112,25 @@ export function TextLayer({ layer, isSelected, onSelect, onChange, stageRef }: T
     <>
       <KonvaText
         ref={shapeRef}
+        id={layer.id}
         text={layer.text || "Text"}
         x={layer.x}
         y={layer.y}
         fontSize={layer.fontSize || 24}
         fontFamily={layer.fontFamily || "Arial"}
         fontStyle={layer.fontStyle || "normal"}
+        textDecoration={layer.textDecoration || ""}
+        align={layer.textAlign || "left"}
+        letterSpacing={layer.letterSpacing ?? 0}
+        lineHeight={layer.lineHeight ?? 1.2}
         fill={layer.fill || "#000000"}
         rotation={layer.rotation}
         scaleX={layer.scaleX}
         scaleY={layer.scaleY}
         opacity={layer.opacity}
-        draggable={layer.draggable}
+        globalCompositeOperation={(layer.blendMode as any) || "source-over"}
+        draggable={layer.draggable && !layer.locked}
+        listening={layer.opacity > 0}
         onClick={onSelect}
         onTap={onSelect}
         onDblClick={handleDblClick}

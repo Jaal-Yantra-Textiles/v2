@@ -181,6 +181,8 @@ export function useDesignEditor({
         },
     })
     const [isGeneratingBase, setIsGeneratingBase] = useState(false)
+    const [showPrintZone, setShowPrintZone] = useState(false)
+    const togglePrintZone = useCallback(() => setShowPrintZone(p => !p), [])
 
     const [desktopSidebarOffset, setDesktopSidebarOffset] = useState(24)
 
@@ -481,6 +483,126 @@ export function useDesignEditor({
             return updated
         })
     }
+
+    // Add rect layer
+    const addRectLayer = useCallback(() => {
+        const bd = getBaseImageDimensions()
+        const size = Math.min(bd.width, bd.height) * 0.3
+        const newLayer: DesignLayer = {
+            id: `layer-${Date.now()}`,
+            type: "rect",
+            x: bd.x + bd.width / 2 - size / 2,
+            y: bd.y + bd.height / 2 - size / 2,
+            width: size,
+            height: size,
+            rotation: 0,
+            scaleX: 1,
+            scaleY: 1,
+            fill: "#6366f1",
+            strokeWidth: 0,
+            cornerRadius: 8,
+            draggable: true,
+            opacity: 1,
+        }
+        setDesign((prev) => {
+            const updated: DesignState = { ...prev, layers: [...prev.layers, newLayer], selectedId: newLayer.id }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [getBaseImageDimensions, recordSnapshot])
+
+    // Add circle layer
+    const addCircleLayer = useCallback(() => {
+        const bd = getBaseImageDimensions()
+        const radius = Math.min(bd.width, bd.height) * 0.15
+        const newLayer: DesignLayer = {
+            id: `layer-${Date.now()}`,
+            type: "circle",
+            x: bd.x + bd.width / 2,
+            y: bd.y + bd.height / 2,
+            width: radius * 2,
+            height: radius * 2,
+            rotation: 0,
+            scaleX: 1,
+            scaleY: 1,
+            fill: "#f59e0b",
+            strokeWidth: 0,
+            draggable: true,
+            opacity: 1,
+        }
+        setDesign((prev) => {
+            const updated: DesignState = { ...prev, layers: [...prev.layers, newLayer], selectedId: newLayer.id }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [getBaseImageDimensions, recordSnapshot])
+
+    // Align selected layer relative to the base image area
+    const alignLayer = useCallback((direction: "left" | "centerH" | "right" | "top" | "centerV" | "bottom") => {
+        const bd = getBaseImageDimensions()
+        const selectedId = design.selectedId
+        if (!selectedId) return
+        const layer = design.layers.find((l) => l.id === selectedId)
+        if (!layer) return
+
+        // Get actual bounding box from Konva for accuracy
+        let layerW = (layer.width ?? 100) * Math.abs(layer.scaleX)
+        let layerH = (layer.height ?? 100) * Math.abs(layer.scaleY)
+        if (stageRef.current) {
+            const node = stageRef.current.findOne(`#${selectedId}`)
+            if (node) {
+                const rect = node.getClientRect()
+                const s = stageRef.current.scaleX()
+                layerW = rect.width / s
+                layerH = rect.height / s
+            }
+        }
+
+        let newX = layer.x
+        let newY = layer.y
+        switch (direction) {
+            case "left":    newX = bd.x; break
+            case "centerH": newX = bd.x + (bd.width - layerW) / 2; break
+            case "right":   newX = bd.x + bd.width - layerW; break
+            case "top":     newY = bd.y; break
+            case "centerV": newY = bd.y + (bd.height - layerH) / 2; break
+            case "bottom":  newY = bd.y + bd.height - layerH; break
+        }
+
+        setDesign((prev) => {
+            const updated: DesignState = {
+                ...prev,
+                layers: prev.layers.map((l) => (l.id === selectedId ? { ...l, x: newX, y: newY } : l)),
+            }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [design.selectedId, design.layers, getBaseImageDimensions, recordSnapshot, stageRef])
+
+    // Flip selected layer horizontally / vertically
+    const flipLayerH = useCallback(() => {
+        setDesign((prev) => {
+            if (!prev.selectedId) return prev
+            const updated: DesignState = {
+                ...prev,
+                layers: prev.layers.map((l) => l.id === prev.selectedId ? { ...l, scaleX: -l.scaleX } : l),
+            }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [recordSnapshot])
+
+    const flipLayerV = useCallback(() => {
+        setDesign((prev) => {
+            if (!prev.selectedId) return prev
+            const updated: DesignState = {
+                ...prev,
+                layers: prev.layers.map((l) => l.id === prev.selectedId ? { ...l, scaleY: -l.scaleY } : l),
+            }
+            recordSnapshot(updated)
+            return updated
+        })
+    }, [recordSnapshot])
 
     // Update layer
     const updateLayer = (id: string, attrs: Partial<DesignLayer>) => {
@@ -864,12 +986,20 @@ export function useDesignEditor({
 
         addImageLayer,
         addTextLayer,
+        addRectLayer,
+        addCircleLayer,
         updateLayer,
         deleteSelectedLayer,
         duplicateSelectedLayer,
         moveLayerUp,
         moveLayerDown,
         toggleLayerVisibility,
+        alignLayer,
+        flipLayerH,
+        flipLayerV,
+
+        showPrintZone,
+        togglePrintZone,
 
         // AI Generation
         isGeneratingAi,

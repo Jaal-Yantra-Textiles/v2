@@ -47,7 +47,7 @@ export type CustomerInfo = {
 
 export type DesignLayer = {
   id: string
-  type: "image" | "text"
+  type: "image" | "text" | "rect" | "circle"
   x: number
   y: number
   width?: number
@@ -55,14 +55,28 @@ export type DesignLayer = {
   rotation: number
   scaleX: number
   scaleY: number
+  // image
   src?: string
+  // text
   text?: string
   fontSize?: number
   fontFamily?: string
   fontStyle?: string
+  textDecoration?: string
+  textAlign?: "left" | "center" | "right"
+  letterSpacing?: number
+  lineHeight?: number
+  // text + shape
   fill?: string
+  // shape
+  strokeColor?: string
+  strokeWidth?: number
+  cornerRadius?: number
+  // all layers
   draggable: boolean
   opacity: number
+  locked?: boolean
+  blendMode?: string
 }
 
 export type DesignState = {
@@ -70,6 +84,7 @@ export type DesignState = {
   layers: DesignLayer[]
   selectedId: string | null
   baseImage: HTMLImageElement | null
+  backgroundColor?: string
 }
 
 export type ViewState = {

@@ -4,6 +4,7 @@ import { Stage, Layer, Image as KonvaImage, Rect } from "react-konva"
 import Konva from "konva"
 import { ImageLayer } from "./image-layer"
 import { TextLayer } from "./text-layer"
+import { ShapeLayer } from "./shape-layer"
 import { DesignLayer, DesignState, ViewState, Partner } from "../types"
 import { RawMaterial } from "@lib/data/raw-materials"
 
@@ -32,8 +33,8 @@ type EditorCanvasProps = {
     setShowMaterialModal: (show: boolean) => void
     selectedPartner: Partner | null
     setShowPartnerModal: (show: boolean) => void
-    // AI Generation
     isGeneratingAi?: boolean
+    showPrintZone?: boolean
 }
 
 export function EditorCanvas({
@@ -62,6 +63,7 @@ export function EditorCanvas({
     selectedPartner,
     setShowPartnerModal,
     isGeneratingAi,
+    showPrintZone = false,
 }: EditorCanvasProps) {
     const showLoaderOverlay = baseImageStatus === "loading" || isGeneratingBase
     const showErrorOverlay = baseImageStatus === "error" && !isGeneratingBase
@@ -69,13 +71,10 @@ export function EditorCanvas({
 
     return (
         <div className={`flex flex-1 flex-col min-h-0 ${isMobileLayout ? "order-1" : "order-first"}`}>
-            {/* Canvas Container - clips the larger stage */}
             <div
                 ref={containerRef}
                 className="flex-1 min-h-0 overflow-hidden relative"
-                style={{
-                    cursor: activeTool === "pan" || isPanning ? "grab" : "default",
-                }}
+                style={{ cursor: activeTool === "pan" || isPanning ? "grab" : "default" }}
             >
                 <Stage
                     ref={stageRef}
@@ -92,25 +91,26 @@ export function EditorCanvas({
                     onTouchStart={handleStageMouseDown}
                     onTouchMove={handleStageMouseMove}
                     onTouchEnd={handleStageMouseUp}
-                    style={{
-                        position: "absolute",
-                        left: -CANVAS_EXTEND,
-                        top: -CANVAS_EXTEND,
-                    }}
+                    style={{ position: "absolute", left: -CANVAS_EXTEND, top: -CANVAS_EXTEND }}
                 >
-                    {/* Background - covers entire extended canvas */}
+                    {/* Outer background */}
+                    <Layer listening={false}>
+                        <Rect x={0} y={0} width={stageSize.width} height={stageSize.height} fill="#f1f5f9" />
+                    </Layer>
+
+                    {/* Canvas background color (inside print zone area) */}
                     <Layer listening={false}>
                         <Rect
-                            x={0}
-                            y={0}
-                            width={stageSize.width}
-                            height={stageSize.height}
-                            fill="#ffffff"
+                            x={baseDims.x}
+                            y={baseDims.y}
+                            width={baseDims.width}
+                            height={baseDims.height}
+                            fill={design.backgroundColor ?? "#ffffff"}
                         />
                     </Layer>
 
                     {/* Base Product Image */}
-                    <Layer>
+                    <Layer listening={false}>
                         {baseImage && (
                             <KonvaImage
                                 image={baseImage}
@@ -148,17 +148,45 @@ export function EditorCanvas({
                                     />
                                 )
                             }
+                            if (layer.type === "rect" || layer.type === "circle") {
+                                return (
+                                    <ShapeLayer
+                                        key={layer.id}
+                                        layer={layer}
+                                        isSelected={design.selectedId === layer.id}
+                                        onSelect={() => setDesign((prev) => ({ ...prev, selectedId: layer.id }))}
+                                        onChange={(attrs) => updateLayer(layer.id, attrs)}
+                                    />
+                                )
+                            }
                             return null
                         })}
-
                     </Layer>
+
+                    {/* Print zone overlay */}
+                    {showPrintZone && (
+                        <Layer listening={false}>
+                            <Rect
+                                x={baseDims.x}
+                                y={baseDims.y}
+                                width={baseDims.width}
+                                height={baseDims.height}
+                                fill="transparent"
+                                stroke="#6366f1"
+                                strokeWidth={2}
+                                dash={[8, 6]}
+                                cornerRadius={4}
+                            />
+                        </Layer>
+                    )}
                 </Stage>
-                {/* Mobile zoom indicator - compact floating button */}
+
                 {isMobileLayout && (
                     <div className="absolute top-3 right-3 z-20 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium shadow-md border border-gray-200 backdrop-blur-sm">
                         {Math.round(view.scale * 100)}%
                     </div>
                 )}
+
                 {(showLoaderOverlay || showErrorOverlay) && (
                     <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-white/85 backdrop-blur-sm">
                         {showLoaderOverlay && (
@@ -186,28 +214,21 @@ export function EditorCanvas({
                     </div>
                 )}
 
-                {/* AI Generation Overlay */}
                 {showAiOverlay && (
                     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-purple-500/10 to-blue-500/10 backdrop-blur-sm">
                         <div className="flex flex-col items-center gap-4 rounded-3xl border border-purple-200/50 bg-white/90 p-8 shadow-2xl">
-                            {/* Animated sparkle icon */}
                             <div className="relative">
                                 <div className="h-16 w-16 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 p-[2px]">
                                     <div className="flex h-full w-full items-center justify-center rounded-full bg-white">
-                                        <svg
-                                            className="h-8 w-8 animate-pulse text-purple-600"
-                                            fill="currentColor"
-                                            viewBox="0 0 24 24"
-                                        >
+                                        <svg className="h-8 w-8 animate-pulse text-purple-600" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z" />
                                         </svg>
                                     </div>
                                 </div>
-                                {/* Orbiting dots */}
-                                <div className="absolute inset-0 animate-spin" style={{ animationDuration: '3s' }}>
+                                <div className="absolute inset-0 animate-spin" style={{ animationDuration: "3s" }}>
                                     <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-purple-400" />
                                 </div>
-                                <div className="absolute inset-0 animate-spin" style={{ animationDuration: '4s', animationDirection: 'reverse' }}>
+                                <div className="absolute inset-0 animate-spin" style={{ animationDuration: "4s", animationDirection: "reverse" }}>
                                     <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-blue-400" />
                                 </div>
                             </div>
@@ -215,9 +236,7 @@ export function EditorCanvas({
                                 <p className="text-lg font-semibold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                                     Generating with AI
                                 </p>
-                                <p className="mt-1 text-sm text-gray-500">
-                                    Creating your unique design base...
-                                </p>
+                                <p className="mt-1 text-sm text-gray-500">Creating your unique design base...</p>
                             </div>
                         </div>
                     </div>

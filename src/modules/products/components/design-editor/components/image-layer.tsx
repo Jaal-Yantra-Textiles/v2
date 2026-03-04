@@ -32,6 +32,7 @@ export function ImageLayer({ layer, isSelected, onSelect, onChange }: ImageLayer
     <>
       <KonvaImage
         ref={shapeRef}
+        id={layer.id}
         image={image}
         x={layer.x}
         y={layer.y}
@@ -41,7 +42,9 @@ export function ImageLayer({ layer, isSelected, onSelect, onChange }: ImageLayer
         scaleX={layer.scaleX}
         scaleY={layer.scaleY}
         opacity={layer.opacity}
-        draggable={layer.draggable}
+        globalCompositeOperation={(layer.blendMode as any) || "source-over"}
+        draggable={layer.draggable && !layer.locked}
+        listening={layer.opacity > 0}
         onClick={onSelect}
         onTap={onSelect}
         onDragEnd={(e) => {
