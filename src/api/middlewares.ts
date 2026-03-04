@@ -1037,9 +1037,13 @@ export default defineMiddlewares({
     {
       matcher: "/store/ai/tryon",
       method: "POST",
+      bodyParser: false,
       middlewares: [
         authenticate("customer", ["session", "bearer"]),
-        validateAndTransformBody(wrapSchema(StoreTryOnReqSchema)),
+        adaptMulter(upload.fields([
+          { name: "garment_image", maxCount: 1 },
+          { name: "face_image", maxCount: 1 },
+        ])),
       ],
     },
     // Store design endpoints - cost estimation and checkout
