@@ -1,3 +1,15 @@
+# [9.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.2.0...v9.3.0) (2026-03-04)
+
+
+### Bug Fixes
+
+* **api:** inbound-mails ([807b90b](https://github.com/Jaal-Yantra-Textiles/v2/commit/807b90b50b0319c4185a9053594af4053f68e10f))
+
+
+### Features
+
+* **api:** inbound-emails ([2add2a0](https://github.com/Jaal-Yantra-Textiles/v2/commit/2add2a0242d97db79856d4de82268c89e0e71405))
+
 # [9.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.1.1...v9.2.0) (2026-03-04)
 
 
