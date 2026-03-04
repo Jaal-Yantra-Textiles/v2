@@ -139,19 +139,37 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
       return { filterRule: {} }
     }
 
-    const withoutMustache = trimmed.replace(/^\{\{\s*|\s*\}\}$/g, "").trim()
-    const match = withoutMustache.match(/^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/)
-    if (!match) {
-      return {
-        error:
-          "Unsupported expression. Use a simple comparison like $last.count > 0 or {{ $last.count }} > 0.",
-      }
-    }
-
     const stripMustache = (value: string) => {
       const v = value.trim()
       const m = v.match(/^\{\{\s*([^}]+)\s*\}\}$/)
       return m ? m[1].trim() : v
+    }
+
+    const withoutMustache = trimmed.replace(/^\{\{\s*|\s*\}\}$/g, "").trim()
+
+    // Handle "in" operator: `field in ["a", "b"]` or `field not in ["a", "b"]`
+    const inMatch = withoutMustache.match(/^(.+?)\s+(not\s+in|in)\s+(\[.+\])$/i)
+    if (inMatch) {
+      const left = stripMustache(inMatch[1])
+      const isNot = inMatch[2].toLowerCase().startsWith("not")
+      const op = isNot ? "_nin" : "_in"
+      let expected: any[]
+      try {
+        expected = JSON.parse(inMatch[3])
+        if (!Array.isArray(expected)) throw new Error()
+      } catch {
+        return { error: `Invalid array for "in" operator. Use JSON format: ["a", "b"]` }
+      }
+      return { filterRule: { [left]: { [op]: expected } } }
+    }
+
+    // Handle binary operators: `field == value`, `field > 0`, etc.
+    const match = withoutMustache.match(/^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/)
+    if (!match) {
+      return {
+        error:
+          'Unsupported expression. Use comparisons like:\n• $last.count > 0\n• extracted.object.email_type == "order_received"\n• extracted.object.email_type in ["order_received", "confirmation"]',
+      }
     }
 
     const left = stripMustache(match[1])
@@ -223,6 +241,8 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
       try {
         const parsedOptions = JSON.parse(advancedJson)
         setJsonError(null)
+        // Sync options state so switching back to simple mode doesn't overwrite with stale values
+        setOptions(parsedOptions)
         onUpdate({
           label,
           operationKey,
@@ -762,7 +782,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
                   updateOption("filter_rule", parsed.filterRule)
                 }
               }}
-              placeholder="e.g., $last.count > 0"
+              placeholder='e.g., extracted.object.email_type in ["order_received", "confirmation"]'
             />
             {conditionExpressionError && (
               <Text className="text-xs text-ui-fg-error mt-1">
