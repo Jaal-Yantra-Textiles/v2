@@ -84,3 +84,6 @@ specs/**
 yalc.lock
 
 .yarnrc.yml
+
+src/.DS_Store
+src/**/*.DS_Store
