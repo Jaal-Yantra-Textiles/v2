@@ -273,7 +273,7 @@ const maybeMediaMulterArray = (field: string) => {
 }
 
 // Adapter function to make multer middleware compatible with Medusa's middleware signature
-const adaptMulter = (multerMiddleware) => {
+const adaptMulter = (multerMiddleware: any) => {
   return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
     // Call multer middleware and capture the next function
     return multerMiddleware(req as any, res as any, (err: any) => {

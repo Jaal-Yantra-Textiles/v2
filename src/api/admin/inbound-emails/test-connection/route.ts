@@ -40,7 +40,7 @@ export const POST = async (
 
     // Try to open the mailbox to verify access
     const mailboxInfo = await client.getMailboxLock(mailbox || "INBOX")
-    const messageCount = client.mailbox ?? 0
+    const messageCount = Number((client.mailbox as any)?.exists ?? 0)
     mailboxInfo.release()
 
     await client.logout()
