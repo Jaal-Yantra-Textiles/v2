@@ -1,3 +1,20 @@
+# [9.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.1.1...v9.2.0) (2026-03-04)
+
+
+### Bug Fixes
+
+* **api:** Try on stuff with the working api ([5de1119](https://github.com/Jaal-Yantra-Textiles/v2/commit/5de1119bdddca47fa9603bc8084f6e717f68b26b))
+
+
+### Features
+
+* **AI:** trying on API's ([d0600d3](https://github.com/Jaal-Yantra-Textiles/v2/commit/d0600d3603d3d444476e99e9dae5fb3e1b475f5b))
+
+
+### Reverts
+
+* **CI:** Some work was added which was not intentional ([edfa0b3](https://github.com/Jaal-Yantra-Textiles/v2/commit/edfa0b34bda081b14c752a702d12838984b55920))
+
 ## [9.1.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.1.0...v9.1.1) (2026-03-03)
 
 
