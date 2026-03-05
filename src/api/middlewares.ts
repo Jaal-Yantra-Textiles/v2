@@ -55,6 +55,7 @@ import { addressSchema } from "./admin/persons/[id]/addresses/validators";
 import { contactSchema } from "./admin/persons/[id]/contacts/validators";
 import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators";
 import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
+import { splitInventorySchema } from "./admin/inventory-items/[id]/split/validators";
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
 import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
@@ -824,6 +825,13 @@ export default defineMiddlewares({
       method: "DELETE",
       middlewares: [],
     },
+    // Inventory Split
+    {
+      matcher: "/admin/inventory-items/:id/split",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(splitInventorySchema))],
+    },
+
     // Inventory Associations
 
     {
@@ -1344,6 +1352,11 @@ export default defineMiddlewares({
       matcher: "/web/persons",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(listPublicPersonsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/products/:id/hang-tag",
+      method: "GET",
+      middlewares: [],
     },
     {
       matcher: "/admin/products/:id/linkDesign",

@@ -334,6 +334,57 @@ export interface InventoryWithRawMaterialsResponse {
   limit?: number
 }
 
+export interface SplitInventoryItemPayload {
+  quantity: number
+  new_title: string
+  raw_material_overrides?: {
+    name?: string
+    color?: string
+    composition?: string
+    grade?: string
+    description?: string
+    extra?: Record<string, string>
+  }
+}
+
+export interface SplitInventoryItemResponse {
+  inventory_item: { id: string; title: string }
+  raw_material: { id: string; name: string } | null
+}
+
+export const useSplitInventoryItem = (
+  inventoryItemId: string,
+  options?: UseMutationOptions<
+    SplitInventoryItemResponse,
+    FetchError,
+    SplitInventoryItemPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: SplitInventoryItemPayload) => {
+      const response = await sdk.client.fetch<SplitInventoryItemResponse>(
+        `/admin/inventory-items/${inventoryItemId}/split`,
+        {
+          method: "POST",
+          body: payload,
+        }
+      )
+      return response
+    },
+    onSuccess: async (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: inventoryItemsRawMaterialQueryKeys.detail(inventoryItemId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: inventoryItemsRawMaterialQueryKeys.list(),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
 export const useInventoryWithRawMaterials = (
   query?: Record<string, any>,
   options?: Omit<
