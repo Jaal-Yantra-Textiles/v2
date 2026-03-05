@@ -1,3 +1,21 @@
+# [9.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.3.2...v9.4.0) (2026-03-05)
+
+
+### Bug Fixes
+
+* **Mastra:** Model rotator ([6f7bd32](https://github.com/Jaal-Yantra-Textiles/v2/commit/6f7bd3255f463c5c54b3e3f88498e85370859f99))
+* **api:** Try on stuff with the working api ([297ab96](https://github.com/Jaal-Yantra-Textiles/v2/commit/297ab968c1b75a5b6f89ef6595bec4923cf5d368))
+
+
+### Features
+
+* **Models:** rotators are now working ([04aebaa](https://github.com/Jaal-Yantra-Textiles/v2/commit/04aebaa0478861753b794de6434ef114f7fc5256))
+
+
+### Reverts
+
+* **CI:** Some work was added which was not intentional ([c47060e](https://github.com/Jaal-Yantra-Textiles/v2/commit/c47060e9824c219aba734b35fb5514a2fbcc66d2))
+
 ## [9.3.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.3.1...v9.3.2) (2026-03-04)
 
 
