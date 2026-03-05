@@ -294,11 +294,12 @@ export function useDuplicateVisualFlow() {
  */
 export function useExecuteVisualFlow(id: string) {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
     mutationFn: async (data?: {
       trigger_data?: Record<string, any>
       metadata?: Record<string, any>
+      replay_execution_id?: string
     }) => {
       const response = await sdk.client.fetch<{
         execution_id: string
@@ -317,7 +318,8 @@ export function useExecuteVisualFlow(id: string) {
 }
 
 /**
- * List executions for a flow
+ * List executions for a flow.
+ * Automatically polls every 2s while any execution is pending or running.
  */
 export function useVisualFlowExecutions(
   flowId: string,
@@ -340,6 +342,14 @@ export function useVisualFlowExecutions(
       return response
     },
     enabled: !!flowId,
+    // Poll every 2s while any execution is active, stop when all are settled
+    refetchInterval: (query) => {
+      const executions = query.state.data?.executions ?? []
+      const hasActive = executions.some(
+        (e) => e.status === "running" || e.status === "pending"
+      )
+      return hasActive ? 2000 : false
+    },
   })
 }
 

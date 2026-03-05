@@ -1,7 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { InboundEmailAction, InboundEmailRecord, registerAction } from "./index"
-import { parseOrderEmail, ExtractedOrderData } from "../parse-order-email"
-import { createInventoryOrderWorkflow } from "../../workflows/inventory_orders/create-inventory-orders"
+import { parseOrderEmail, ExtractedOrderData } from "../utils/parse-order-email"
+import { createInventoryOrderWorkflow } from "../../inventory_orders/create-inventory-orders"
 
 export interface CreateInventoryOrderParams {
   stock_location_id: string

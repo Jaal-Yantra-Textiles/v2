@@ -149,29 +149,48 @@ const executeOperationsStep = createStep(
     const canvasState = input.flow.canvas_state || { nodes: [], edges: [] }
     const canvasNodes = canvasState.nodes || []
     const canvasEdges = canvasState.edges || []
-    
+
+    // Build a lookup from operation_key → DB operation so that canvas nodes
+    // created by seed scripts (which don't embed options in their data) still
+    // run with the correct options stored in the visual_flow_operation table.
+    const dbOpByKey = new Map<string, any>()
+    for (const dbOp of (input.flow.operations || [])) {
+      dbOpByKey.set(dbOp.operation_key, dbOp)
+    }
+
     // Build a map from canvas node ID to operation data
     // Canvas nodes have id like "op_1765170602021" and data.operationKey like "read_data_1765170602021"
     const nodeIdToOperation: Map<string, any> = new Map()
-    
+
     for (const node of canvasNodes) {
       if (node.id === "trigger") continue // Skip trigger node
-      
+
       // The node data contains operationType and operationKey
       const nodeData = node.data || {}
+      const opKey = nodeData.operationKey || node.id
+      const dbOp = dbOpByKey.get(opKey)
+
+      // Canvas node options take precedence; fall back to DB operation options.
+      // This ensures seed scripts (which store options only in the DB) work
+      // without needing to embed them inside canvas_state node data.
+      const hasCanvasOptions = nodeData.options && Object.keys(nodeData.options).length > 0
+      const resolvedOptions = hasCanvasOptions ? nodeData.options : (dbOp?.options || {})
+
       nodeIdToOperation.set(node.id, {
         id: node.id, // Use canvas node ID for graph traversal
-        operation_key: nodeData.operationKey || node.id,
-        operation_type: nodeData.operationType || "unknown",
-        name: nodeData.label || nodeData.operationKey,
-        options: nodeData.options || {},
+        operation_key: opKey,
+        operation_type: nodeData.operationType || dbOp?.operation_type || "unknown",
+        name: nodeData.label || opKey,
+        options: resolvedOptions,
         position_x: node.position?.x || 0,
         position_y: node.position?.y || 0,
         sort_order: 0, // Will be determined by execution order
       })
     }
-    
-    // Build connections from canvas edges
+
+    // Build connections from canvas edges.
+    // Also synthesise a trigger→first-op connection when the canvas was seeded
+    // without an explicit trigger node/edge (seed scripts often omit it).
     const connections = canvasEdges.map((edge: any) => ({
       source_id: edge.source,
       target_id: edge.target,
@@ -182,6 +201,25 @@ const executeOperationsStep = createStep(
           ? edge.sourceHandle
           : "default",
     }))
+
+    // If no trigger connection exists, find the topologically first operation
+    // (one that has no incoming edges from other operations) and treat it as
+    // the implicit entry point — identical to connecting it from the trigger.
+    const hasTriggerConnection = connections.some((c: any) => c.source_id === "trigger")
+    if (!hasTriggerConnection && connections.length > 0) {
+      const targetIds = new Set(connections.map((c: any) => c.target_id))
+      const nodeIds = Array.from(nodeIdToOperation.keys())
+      const roots = nodeIds.filter(id => !targetIds.has(id))
+      for (const rootId of roots) {
+        connections.push({
+          source_id: "trigger",
+          target_id: rootId,
+          source_handle: "default",
+          target_handle: "default",
+          connection_type: "default",
+        })
+      }
+    }
     
     // Convert map to array for operations
     const operations = Array.from(nodeIdToOperation.values())
@@ -340,22 +378,26 @@ async function executeSingleOperation(
     operationKey: operation.operation_key,
   }
 
-  // Interpolate variables in options
-  const resolvedOptions = interpolateVariables(operation.options || {}, dataChain)
+  // Pre-resolve options only for logging — operations do their own interpolation
+  // internally so they can access per-item context ($item, $index, etc.).
+  // Passing raw options prevents double-interpolation killing templates like
+  // {{ item.name }} before the operation's own loop runs.
+  const rawOptions = operation.options || {}
+  const resolvedOptionsForLog = interpolateVariables(rawOptions, dataChain)
 
   // Log operation start - use null for operation_id since we're using canvas node IDs
   await service.addExecutionLog({
     execution_id: executionId,
     operation_key: operation.operation_key,
     status: "running",
-    input_data: resolvedOptions,
+    input_data: resolvedOptionsForLog,
   })
 
   const startTime = Date.now()
 
   try {
-    // Execute the operation
-    const result = await handler.execute(resolvedOptions, context)
+    // Execute the operation with raw options so each operation controls its own interpolation
+    const result = await handler.execute(rawOptions, context)
     const duration = Date.now() - startTime
 
     if (result.success) {
@@ -368,7 +410,7 @@ async function executeSingleOperation(
         execution_id: executionId,
         operation_key: operation.operation_key,
         status: "success",
-        input_data: resolvedOptions,
+        input_data: resolvedOptionsForLog,
         output_data: result.data,
         duration_ms: duration,
       })
@@ -380,7 +422,7 @@ async function executeSingleOperation(
         execution_id: executionId,
         operation_key: operation.operation_key,
         status: "failure",
-        input_data: resolvedOptions,
+        input_data: resolvedOptionsForLog,
         error: result.error,
         error_stack: result.errorStack,
         duration_ms: duration,
@@ -396,7 +438,7 @@ async function executeSingleOperation(
       execution_id: executionId,
       operation_key: operation.operation_key,
       status: "failure",
-      input_data: resolvedOptions,
+      input_data: resolvedOptionsForLog,
       error: error.message,
       error_stack: error.stack,
       duration_ms: duration,

@@ -1,11 +1,11 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { INBOUND_EMAIL_MODULE } from "../../../../../modules/inbound_emails"
-import { getAction } from "../../../../../utils/inbound-email-actions"
+import { getAction } from "../../../../../workflows/inbound-emails/actions"
 import { ExecuteInboundEmailBody } from "../../validators"
 
 // Ensure actions are registered
-import "../../../../../utils/inbound-email-actions/create-inventory-order"
+import "../../../../../workflows/inbound-emails/actions/create-inventory-order"
 
 export const POST = async (
   req: MedusaRequest<ExecuteInboundEmailBody>,

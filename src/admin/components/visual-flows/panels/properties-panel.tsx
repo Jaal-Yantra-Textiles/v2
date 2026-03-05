@@ -4,6 +4,7 @@ import { Edge, Node } from "@xyflow/react"
 import { useState, useEffect, useMemo } from "react"
 import { useFlowMetadata, EntityMetadata, WorkflowInputField } from "../../../hooks/api/visual-flows"
 import { CodeEditorModal } from "../code-editor-modal"
+import { JsonEditorModal } from "../json-editor-modal"
 import { StackedFocusModal } from "../../modal/stacked-modal/stacked-focused-modal"
 
 interface PropertiesPanelProps {
@@ -21,9 +22,6 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
   const [label, setLabel] = useState(String(node.data.label || ""))
   const [operationKey, setOperationKey] = useState(String(node.data.operationKey || ""))
   const [options, setOptions] = useState<Record<string, any>>(node.data.options || {})
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [advancedJson, setAdvancedJson] = useState("")
-  const [jsonError, setJsonError] = useState<string | null>(null)
   const [conditionExpressionError, setConditionExpressionError] = useState<string | null>(null)
   const [workflowSearch, setWorkflowSearch] = useState("")
   const [showRawWorkflowJson, setShowRawWorkflowJson] = useState(false)
@@ -124,8 +122,6 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
     setLabel(String(node.data.label || ""))
     setOperationKey(String(node.data.operationKey || ""))
     setOptions(node.data.options || {})
-    setAdvancedJson(JSON.stringify(node.data.options || {}, null, 2))
-    setJsonError(null)
     setConditionExpressionError(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id])
@@ -216,7 +212,6 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
   const updateOption = (key: string, value: any) => {
     setOptions(prev => {
       const newOptions = { ...prev, [key]: value }
-      setAdvancedJson(JSON.stringify(newOptions, null, 2))
       // Auto-apply changes to parent
       onUpdate({
         label,
@@ -226,39 +221,21 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
       return newOptions
     })
   }
-  
+
   const updateOptions = (updates: Record<string, any>) => {
     setOptions(prev => {
       const newOptions = { ...prev, ...updates }
-      setAdvancedJson(JSON.stringify(newOptions, null, 2))
       onUpdate({ label, operationKey, options: newOptions })
       return newOptions
     })
   }
 
   const handleSave = () => {
-    if (showAdvanced) {
-      try {
-        const parsedOptions = JSON.parse(advancedJson)
-        setJsonError(null)
-        // Sync options state so switching back to simple mode doesn't overwrite with stale values
-        setOptions(parsedOptions)
-        onUpdate({
-          label,
-          operationKey,
-          options: parsedOptions,
-        })
-      } catch (e) {
-        setJsonError("Invalid JSON")
-        return
-      }
-    } else {
-      onUpdate({
-        label,
-        operationKey,
-        options,
-      })
-    }
+    onUpdate({
+      label,
+      operationKey,
+      options,
+    })
   }
 
   const isTrigger = node.type === "trigger"
@@ -432,7 +409,6 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
                               fields: nextFields.length ? nextFields : undefined,
                             }
 
-                            setAdvancedJson(JSON.stringify(newOptions, null, 2))
                             onUpdate({
                               label,
                               operationKey,
@@ -558,27 +534,16 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
             )}
 
             <div>
-              <Label htmlFor="data">Data (JSON)</Label>
-              <Textarea
-                id="data"
-                value={typeof options.data === "string" ? options.data : JSON.stringify(options.data || {}, null, 2)}
-                onChange={(e) => {
-                  try {
-                    updateOption("data", JSON.parse(e.target.value))
-                  } catch {
-                    updateOption("data", e.target.value)
-                  }
-                }}
-                rows={6}
-                className="font-mono text-xs"
-                placeholder={`{
-  "name": "{{ $trigger.name }}",
-  "status": "active"
-}`}
+              <Label>Data (JSON)</Label>
+              <JsonEditorModal
+                modalId={`${node.id}-create-data-editor`}
+                title="Create Data"
+                hint='Use {{ variable }} for dynamic values'
+                value={typeof options.data === "object" && options.data !== null ? options.data : {}}
+                onChange={(v) => updateOption("data", v)}
+                triggerLabel="Edit data..."
+                rootName="data"
               />
-              <Text className="text-xs text-ui-fg-subtle mt-1">
-                Use {"{{ variable }}"} for dynamic values
-              </Text>
             </div>
           </>
         )
@@ -657,23 +622,15 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
             )}
 
             <div>
-              <Label htmlFor="data">Update Data (JSON)</Label>
-              <Textarea
-                id="data"
-                value={typeof options.data === "string" ? options.data : JSON.stringify(options.data || {}, null, 2)}
-                onChange={(e) => {
-                  try {
-                    updateOption("data", JSON.parse(e.target.value))
-                  } catch {
-                    updateOption("data", e.target.value)
-                  }
-                }}
-                rows={6}
-                className="font-mono text-xs"
-                placeholder={`{
-  "status": "completed",
-  "updated_by": "{{ $trigger.user_id }}"
-}`}
+              <Label>Update Data (JSON)</Label>
+              <JsonEditorModal
+                modalId={`${node.id}-update-data-editor`}
+                title="Update Data"
+                hint='Use {{ variable }} for dynamic values'
+                value={typeof options.data === "object" && options.data !== null ? options.data : {}}
+                onChange={(v) => updateOption("data", v)}
+                triggerLabel="Edit data..."
+                rootName="data"
               />
             </div>
           </>
@@ -760,40 +717,265 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
           </div>
         )
 
-      case "condition":
+      case "condition": {
+        const condMode: "expression" | "keyword_match" = options.condition_mode || "expression"
+
+        // ── helpers for keyword match ──────────────────────────────────────
+        const kmKeywords: string[] = options.km_keywords || []
+        // km_fields: list of variable paths to search in, e.g.
+        //   ["read_data_xxx.records[0].subject", "read_data_xxx.records[0].text_body"]
+        // Falls back to legacy km_source mapping for old nodes.
+        const kmFields: string[] = options.km_fields
+          || (options.km_source === "subject"
+            ? ["$trigger.subject"]
+            : options.km_source === "body"
+              ? ["$trigger.text_body"]
+              : options.km_source === "both"
+                ? ["$trigger.subject", "$trigger.text_body"]
+                : [])
+        const kmMatch: "any" | "all" = options.km_match || "any"
+
+        /** Compile keyword-match settings → filter_rule and store everything */
+        const applyKeywordMatch = (
+          keywords: string[],
+          fields: string[],
+          match: "any" | "all",
+        ) => {
+          const clauses = keywords.flatMap(kw =>
+            fields.map(src => ({ [src]: { _contains: kw.toLowerCase() } }))
+          )
+
+          const filterRule = clauses.length === 0
+            ? {}
+            : match === "any"
+              ? { _or: clauses }
+              : { _and: clauses }
+
+          updateOptions({
+            condition_mode: "keyword_match",
+            km_keywords: keywords,
+            km_fields: fields,
+            km_match: match,
+            filter_rule: filterRule,
+          })
+        }
+
         return (
-          <div>
-            <Label htmlFor="expression">Condition Expression</Label>
-            <Input
-              id="expression"
-              value={options.expression || ""}
-              onChange={(e) => {
-                const expression = e.target.value
-                updateOption("expression", expression)
+          <>
+            {/* Mode toggle */}
+            <div>
+              <Label>Mode</Label>
+              <div className="flex mt-1 border border-ui-border-base rounded-md overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => updateOption("condition_mode", "expression")}
+                  className={[
+                    "flex-1 py-1.5 text-xs font-medium transition-colors",
+                    condMode === "expression"
+                      ? "bg-ui-bg-base text-ui-fg-base shadow-sm"
+                      : "bg-ui-bg-subtle text-ui-fg-muted hover:text-ui-fg-base",
+                  ].join(" ")}
+                >
+                  Expression
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateOption("condition_mode", "keyword_match")
+                    // Compile current keywords so filter_rule is in sync
+                    applyKeywordMatch(kmKeywords, kmFields, kmMatch)
+                  }}
+                  className={[
+                    "flex-1 py-1.5 text-xs font-medium transition-colors border-l border-ui-border-base",
+                    condMode === "keyword_match"
+                      ? "bg-ui-bg-base text-ui-fg-base shadow-sm"
+                      : "bg-ui-bg-subtle text-ui-fg-muted hover:text-ui-fg-base",
+                  ].join(" ")}
+                >
+                  Keyword Match
+                </button>
+              </div>
+            </div>
 
-                const parsed = parseConditionExpressionToFilterRule(expression)
-                if (parsed.error) {
-                  setConditionExpressionError(parsed.error)
-                  return
-                }
-
-                setConditionExpressionError(null)
-                if (parsed.filterRule) {
-                  updateOption("filter_rule", parsed.filterRule)
-                }
-              }}
-              placeholder='e.g., extracted.object.email_type in ["order_received", "confirmation"]'
-            />
-            {conditionExpressionError && (
-              <Text className="text-xs text-ui-fg-error mt-1">
-                {conditionExpressionError}
-              </Text>
+            {/* ── Expression mode ── */}
+            {condMode === "expression" && (
+              <div>
+                <Label htmlFor="expression">Condition Expression</Label>
+                <Input
+                  id="expression"
+                  value={options.expression || ""}
+                  onChange={(e) => {
+                    const expression = e.target.value
+                    updateOption("expression", expression)
+                    const parsed = parseConditionExpressionToFilterRule(expression)
+                    if (parsed.error) {
+                      setConditionExpressionError(parsed.error)
+                      return
+                    }
+                    setConditionExpressionError(null)
+                    if (parsed.filterRule) {
+                      updateOption("filter_rule", parsed.filterRule)
+                    }
+                  }}
+                  placeholder='e.g., $last.count > 0'
+                />
+                {conditionExpressionError && (
+                  <Text className="text-xs text-ui-fg-error mt-1">
+                    {conditionExpressionError}
+                  </Text>
+                )}
+                <Text className="text-xs text-ui-fg-subtle mt-1">
+                  Supports: <code className="bg-ui-bg-subtle px-1">==  !=  &gt;  &lt;  in  not in</code>
+                </Text>
+              </div>
             )}
-            <Text className="text-xs text-ui-fg-subtle mt-1">
-              Saved as <code className="bg-ui-bg-subtle px-1">filter_rule</code> for runtime branching
-            </Text>
-          </div>
+
+            {/* ── Keyword Match mode ── */}
+            {condMode === "keyword_match" && (
+              <>
+                {/* Field paths */}
+                <div>
+                  <Label>Search in (variable paths)</Label>
+                  {kmFields.length > 0 && (
+                    <div className="flex flex-col gap-1 mt-1 mb-2">
+                      {kmFields.map((f, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <code className="flex-1 text-xs bg-ui-bg-subtle px-2 py-1 rounded font-mono truncate border border-ui-border-base">
+                            {f}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = kmFields.filter((_, j) => j !== i)
+                              applyKeywordMatch(kmKeywords, next, kmMatch)
+                            }}
+                            className="text-ui-fg-muted hover:text-ui-fg-base text-sm leading-none shrink-0"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Input
+                    id="km-add-field"
+                    placeholder="e.g. read_data_xxx.records[0].subject"
+                    className="text-xs font-mono"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        const val = (e.target as HTMLInputElement).value.trim()
+                        if (val && !kmFields.includes(val)) {
+                          applyKeywordMatch(kmKeywords, [...kmFields, val], kmMatch)
+                        }
+                        ;(e.target as HTMLInputElement).value = ""
+                      }
+                    }}
+                  />
+                  <div className="flex gap-2 mt-1">
+                    <Text className="text-xs text-ui-fg-subtle">Quick add:</Text>
+                    {[
+                      { label: "$trigger.subject", val: "$trigger.subject" },
+                      { label: "$trigger.body", val: "$trigger.text_body" },
+                    ].map(({ label: lbl, val }) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => {
+                          if (!kmFields.includes(val)) {
+                            applyKeywordMatch(kmKeywords, [...kmFields, val], kmMatch)
+                          }
+                        }}
+                        className="text-xs text-ui-fg-interactive hover:underline font-mono"
+                      >
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                  <Text className="text-xs text-ui-fg-subtle mt-0.5">
+                    Type a path and press Enter. Use upstream step keys, e.g. <code className="bg-ui-bg-subtle px-1">read_data_xxx.records[0].subject</code>
+                  </Text>
+                </div>
+
+                {/* Match type */}
+                <div>
+                  <Label>Match</Label>
+                  <Select
+                    value={kmMatch}
+                    onValueChange={(v) => applyKeywordMatch(kmKeywords, kmFields, v as any)}
+                  >
+                    <Select.Trigger>
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Content>
+                      <Select.Item value="any">Contains any keyword</Select.Item>
+                      <Select.Item value="all">Contains all keywords</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </div>
+
+                {/* Keywords */}
+                <div>
+                  <Label>Keywords</Label>
+                  {kmKeywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                      {kmKeywords.map((kw, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-ui-tag-blue-bg text-ui-tag-blue-text border border-ui-tag-blue-border"
+                        >
+                          {kw}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = kmKeywords.filter((_, j) => j !== i)
+                              applyKeywordMatch(next, kmFields, kmMatch)
+                            }}
+                            className="ml-0.5 text-ui-tag-blue-text hover:opacity-60"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-1">
+                    <Input
+                      id="km-add"
+                      placeholder="Type keyword and press Enter"
+                      className="text-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          const val = (e.target as HTMLInputElement).value.trim().toLowerCase()
+                          if (val && !kmKeywords.includes(val)) {
+                            const next = [...kmKeywords, val]
+                            applyKeywordMatch(next, kmFields, kmMatch)
+                          }
+                          ;(e.target as HTMLInputElement).value = ""
+                        }
+                      }}
+                    />
+                  </div>
+                  <Text className="text-xs text-ui-fg-subtle mt-1">
+                    Matching is case-insensitive
+                  </Text>
+                </div>
+
+                {/* Preview of compiled filter_rule */}
+                {(kmKeywords.length > 0 || kmFields.length > 0) && (
+                  <div className="p-2 rounded bg-ui-bg-subtle border border-ui-border-base">
+                    <Text className="text-xs text-ui-fg-muted font-medium mb-1">Compiled filter</Text>
+                    <pre className="text-xs text-ui-fg-subtle overflow-x-auto whitespace-pre-wrap break-all">
+                      {JSON.stringify(options.filter_rule || {}, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )
+      }
 
       case "http_request":
         const showBody = ["POST", "PUT", "PATCH"].includes(options.method || "GET")
@@ -828,26 +1010,16 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
             </div>
             {showBody && (
               <div>
-                <Label htmlFor="body">Request Body (JSON)</Label>
-                <Textarea
-                  id="body"
-                  value={typeof options.body === "string" ? options.body : JSON.stringify(options.body || {}, null, 2)}
-                  onChange={(e) => {
-                    try {
-                      const parsed = JSON.parse(e.target.value)
-                      updateOption("body", parsed)
-                    } catch {
-                      // Keep as string if not valid JSON
-                      updateOption("body", e.target.value)
-                    }
-                  }}
-                  rows={4}
-                  className="font-mono text-xs"
-                  placeholder={'{\n  "key": "{{ $last.value }}"\n}'}
+                <Label>Request Body (JSON)</Label>
+                <JsonEditorModal
+                  modalId={`${node.id}-http-body-editor`}
+                  title="Request Body"
+                  hint='Use {{ variable }} for dynamic values. Leave empty to auto-send $last as body.'
+                  value={typeof options.body === "object" && options.body !== null ? options.body : {}}
+                  onChange={(v) => updateOption("body", v)}
+                  triggerLabel="Edit body..."
+                  rootName="body"
                 />
-                <Text className="text-xs text-ui-fg-subtle mt-1">
-                  Leave empty to auto-send <code className="bg-ui-bg-subtle px-1">$last</code> as body
-                </Text>
               </div>
             )}
             <div>
@@ -978,20 +1150,15 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
               />
             </div>
             <div>
-              <Label htmlFor="data">Additional Data (JSON)</Label>
-              <Textarea
-                id="data"
-                value={typeof options.data === "string" ? options.data : JSON.stringify(options.data || {}, null, 2)}
-                onChange={(e) => {
-                  try {
-                    updateOption("data", JSON.parse(e.target.value))
-                  } catch {
-                    updateOption("data", e.target.value)
-                  }
-                }}
-                rows={3}
-                className="font-mono text-xs"
-                placeholder='{ "action_url": "{{ $trigger.url }}" }'
+              <Label>Additional Data (JSON)</Label>
+              <JsonEditorModal
+                modalId={`${node.id}-notification-data-editor`}
+                title="Additional Data"
+                hint='Use {{ variable }} for dynamic values'
+                value={typeof options.data === "object" && options.data !== null ? options.data : {}}
+                onChange={(v) => updateOption("data", v)}
+                triggerLabel="Edit data..."
+                rootName="data"
               />
             </div>
           </>
@@ -1352,33 +1519,11 @@ return {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <Label>Workflow Input</Label>
-                    <button
-                      type="button"
-                      onClick={() => setShowRawWorkflowJson((v) => !v)}
-                      className="text-xs text-ui-fg-interactive hover:underline"
-                    >
-                      {showRawWorkflowJson ? "Field mapper" : "Raw JSON"}
-                    </button>
                   </div>
 
-                  {showRawWorkflowJson ? (
-                    <div>
-                      <Textarea
-                        value={typeof options.input === "string" ? options.input : JSON.stringify(options.input || {}, null, 2)}
-                        onChange={(e) => {
-                          try { updateOption("input", JSON.parse(e.target.value)) }
-                          catch { updateOption("input", e.target.value) }
-                        }}
-                        rows={8}
-                        className="font-mono text-xs"
-                        placeholder={'{\n  "id": "{{ $last.id }}"\n}'}
-                      />
-                      <Text className="text-xs text-ui-fg-subtle mt-1">
-                        Use {"{{ step_key.field }}"} for dynamic values
-                      </Text>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
+                  {/* Field mapper for known schemas */}
+                  {fields.length > 0 && (
+                    <div className="space-y-2 mb-3">
                       {fields.map((field) => (
                         <div key={field.name} className="border border-ui-border-base rounded-md px-3 py-2 space-y-1">
                           <div className="flex items-center gap-2">
@@ -1407,18 +1552,244 @@ return {
                           />
                         </div>
                       ))}
-                      {fields.length === 0 && (
-                        <Text className="text-xs text-ui-fg-subtle italic">
-                          No input schema defined for this workflow.
-                        </Text>
-                      )}
                     </div>
                   )}
+
+                  {/* Full JSON editor modal */}
+                  <JsonEditorModal
+                    modalId="trigger-workflow-input-editor"
+                    title="Workflow Input"
+                    hint='Use {{ step_key.field }} for dynamic values'
+                    value={inputObj}
+                    onChange={(v) => updateOption("input", v)}
+                    triggerLabel="Edit full input JSON…"
+                    rootName="input"
+                  />
                 </div>
               )
             })()}
           </>
         )
+
+      case "bulk_trigger_workflow": {
+        // Reuses the same workflow picker + field mapper as trigger_workflow,
+        // but adds an "items" array source and uses input_template instead of input.
+        const btwWorkflowValue = options.workflow_name || ""
+        const btwSelectedWorkflow = workflows.find((w: any) => w.name === btwWorkflowValue)
+
+        return (
+          <>
+            {/* ── Workflow picker ── */}
+            <div>
+              <Label htmlFor="workflow">Workflow</Label>
+              {metadataLoading ? (
+                <Text size="small" className="text-ui-fg-muted py-2">Loading workflows...</Text>
+              ) : workflows.length === 0 ? (
+                <Text size="small" className="text-ui-fg-muted py-2">No workflows found</Text>
+              ) : (
+                <StackedFocusModal id="bulk-workflow-picker">
+                  <StackedFocusModal.Trigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm border border-ui-border-base rounded-md bg-ui-bg-field hover:bg-ui-bg-field-hover text-left"
+                    >
+                      <span className={btwWorkflowValue ? "text-ui-fg-base" : "text-ui-fg-muted"}>
+                        {btwWorkflowValue || "Select workflow..."}
+                      </span>
+                      <MagnifyingGlass className="text-ui-fg-muted w-4 h-4 shrink-0" />
+                    </button>
+                  </StackedFocusModal.Trigger>
+                  <StackedFocusModal.Content>
+                    <StackedFocusModal.Header>
+                      <Text weight="plus">Select Workflow</Text>
+                    </StackedFocusModal.Header>
+                    <div className="px-4 py-3 border-b border-ui-border-base">
+                      <div className="relative">
+                        <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-muted w-4 h-4" />
+                        <Input
+                          autoFocus
+                          value={workflowSearch}
+                          onChange={(e) => setWorkflowSearch(e.target.value)}
+                          placeholder="Search workflows..."
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
+                    <StackedFocusModal.Body className="p-0 overflow-y-auto max-h-[60vh]">
+                      {(() => {
+                        const q = workflowSearch.toLowerCase()
+                        const filtered = workflows.filter((wf: any) =>
+                          !q ||
+                          wf.name?.toLowerCase().includes(q) ||
+                          wf.description?.toLowerCase().includes(q) ||
+                          wf.category?.toLowerCase().includes(q)
+                        )
+                        const grouped = filtered.reduce((acc: Record<string, any[]>, wf: any) => {
+                          const cat = wf.category || "general"
+                          if (!acc[cat]) acc[cat] = []
+                          acc[cat].push(wf)
+                          return acc
+                        }, {})
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="flex items-center justify-center py-12">
+                              <Text className="text-ui-fg-muted">No workflows match "{workflowSearch}"</Text>
+                            </div>
+                          )
+                        }
+
+                        return Object.entries(grouped).map(([category, wfs]) => (
+                          <div key={category}>
+                            <div className="px-4 py-2 bg-ui-bg-subtle border-b border-ui-border-base sticky top-0">
+                              <Text className="text-xs font-medium text-ui-fg-muted uppercase tracking-wide capitalize">{category}</Text>
+                            </div>
+                            {(wfs as any[]).map((wf: any) => (
+                              <StackedFocusModal.Close key={wf.name} asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateOptions({
+                                      workflow_name: wf.name,
+                                      input_template: {},
+                                    })
+                                    setWorkflowSearch("")
+                                  }}
+                                  className={[
+                                    "w-full text-left px-4 py-3 border-b border-ui-border-base",
+                                    "hover:bg-ui-bg-subtle transition-colors",
+                                    wf.name === btwWorkflowValue ? "bg-ui-bg-highlight" : "",
+                                  ].join(" ")}
+                                >
+                                  <Text className="text-sm font-medium text-ui-fg-base">{wf.name}</Text>
+                                  {wf.description && (
+                                    <Text className="text-xs text-ui-fg-subtle mt-0.5 line-clamp-1">{wf.description}</Text>
+                                  )}
+                                  {wf.requiredModules?.length > 0 && (
+                                    <div className="flex gap-1 mt-1 flex-wrap">
+                                      {wf.requiredModules.map((m: string) => (
+                                        <Badge key={m} size="2xsmall" color="grey">{m}</Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </button>
+                              </StackedFocusModal.Close>
+                            ))}
+                          </div>
+                        ))
+                      })()}
+                    </StackedFocusModal.Body>
+                  </StackedFocusModal.Content>
+                </StackedFocusModal>
+              )}
+              {btwSelectedWorkflow?.description && (
+                <Text className="text-xs text-ui-fg-subtle mt-1">{btwSelectedWorkflow.description}</Text>
+              )}
+            </div>
+
+            {/* ── Items array source ── */}
+            <div>
+              <Label htmlFor="btw-items">Items Array</Label>
+              <Input
+                id="btw-items"
+                value={typeof options.items === "string" ? options.items : JSON.stringify(options.items ?? [])}
+                onChange={(e) => updateOption("items", e.target.value)}
+                placeholder='{{ previous_step.records }}'
+                className="font-mono text-xs mt-1"
+              />
+              <Text className="text-xs text-ui-fg-subtle mt-1">
+                Array to iterate — one workflow call per element. Use <code className="bg-ui-bg-subtle px-1 rounded">{"{{ step.records }}"}</code>
+              </Text>
+            </div>
+
+            {/* ── Input template per item ── */}
+            {(() => {
+              const fields: WorkflowInputField[] = btwSelectedWorkflow?.inputSchema || []
+              const templateObj: Record<string, any> =
+                typeof options.input_template === "object" && options.input_template !== null
+                  ? options.input_template
+                  : {}
+
+              const setField = (name: string, value: string) =>
+                updateOption("input_template", { ...templateObj, [name]: value })
+
+              const TYPE_COLORS: Record<string, "blue" | "green" | "orange" | "purple" | "grey"> = {
+                string: "blue", number: "green", boolean: "orange",
+                date: "purple", array: "grey", object: "grey", id: "grey",
+              }
+
+              return (
+                <div className="space-y-3">
+                  <Label>Input Template <span className="text-ui-fg-muted font-normal">(per item)</span></Label>
+
+                  {/* Field mapper for known schemas */}
+                  {fields.length > 0 && (
+                    <div className="space-y-2">
+                      {fields.map((field) => (
+                        <div key={field.name} className="border border-ui-border-base rounded-md px-3 py-2 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Text className="text-xs font-mono font-medium text-ui-fg-base flex-1">{field.name}</Text>
+                            <Badge size="2xsmall" color={TYPE_COLORS[field.type] ?? "grey"}>{field.type}</Badge>
+                            {field.required && <Badge size="2xsmall" color="orange">required</Badge>}
+                          </div>
+                          {field.description && (
+                            <Text className="text-xs text-ui-fg-subtle">{field.description}</Text>
+                          )}
+                          <Input
+                            value={templateObj[field.name] !== undefined
+                              ? (typeof templateObj[field.name] === "object"
+                                  ? JSON.stringify(templateObj[field.name])
+                                  : String(templateObj[field.name]))
+                              : ""}
+                            onChange={(e) => setField(field.name, e.target.value)}
+                            placeholder={field.placeholder ?? `{{ item.${field.name} }}`}
+                            className="text-xs font-mono mt-1"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Full JSON editor modal */}
+                  <JsonEditorModal
+                    modalId="btw-input-template-editor"
+                    title="Input Template (per item)"
+                    hint='Use {{ item.field }} for the current element and $index for positional references'
+                    value={templateObj}
+                    onChange={(v) => updateOption("input_template", v)}
+                    triggerLabel="Edit full input template JSON…"
+                    rootName="input_template"
+                  />
+                </div>
+              )
+            })()}
+
+            {/* ── Settings ── */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="btw-continue-on-error"
+                  checked={options.continue_on_error !== false}
+                  onCheckedChange={(v) => updateOption("continue_on_error", Boolean(v))}
+                />
+                <Label htmlFor="btw-continue-on-error" className="font-normal cursor-pointer">
+                  Continue on error
+                </Label>
+              </div>
+              <div>
+                <Label htmlFor="btw-max-items">Max items</Label>
+                <Input
+                  id="btw-max-items"
+                  type="number"
+                  value={options.max_items ?? 100}
+                  onChange={(e) => updateOption("max_items", Number(e.target.value))}
+                  className="mt-1 w-24"
+                />
+              </div>
+            </div>
+          </>
+        )
+      }
 
       case "trigger_flow":
         const triggerableFlows = metadata?.triggerableFlows || []
@@ -1826,41 +2197,25 @@ return {
             </div>
 
             {/* Operation-specific fields */}
-            {!showAdvanced && renderOperationFields()}
+            {renderOperationFields()}
 
-            {/* Advanced JSON editor toggle */}
+            {/* Advanced JSON editor */}
             <div className="pt-2">
-              <Button
-                variant="transparent"
-                size="small"
-                onClick={() => {
-                  setShowAdvanced(!showAdvanced)
-                  if (!showAdvanced) {
-                    setAdvancedJson(JSON.stringify(options, null, 2))
-                  }
+              <Label className="mb-1 block">All Options (JSON)</Label>
+              <JsonEditorModal
+                modalId={`${node.id}-advanced-options-editor`}
+                title="All Options"
+                hint="Edit all operation options as JSON. Use {{ variable }} for dynamic values."
+                value={options}
+                onChange={(v) => {
+                  setOptions(v)
+                  onUpdate({ label, operationKey, options: v })
                 }}
-              >
-                {showAdvanced ? "← Simple Mode" : "Advanced (JSON) →"}
-              </Button>
+                triggerLabel="Edit all options (advanced)..."
+                rootName="options"
+                collapse={1}
+              />
             </div>
-
-            {showAdvanced && (
-              <div>
-                <Label htmlFor="options">Options (JSON)</Label>
-                <Textarea
-                  id="options"
-                  value={advancedJson}
-                  onChange={(e) => setAdvancedJson(e.target.value)}
-                  rows={10}
-                  className="font-mono text-xs"
-                />
-                {jsonError && (
-                  <Text className="text-ui-fg-error text-xs mt-1">
-                    {jsonError}
-                  </Text>
-                )}
-              </div>
-            )}
 
             <div className="flex gap-2 pt-4">
               <Button onClick={handleSave} className="flex-1">

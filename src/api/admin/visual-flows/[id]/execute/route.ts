@@ -59,31 +59,50 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "@medusajs/framework/zod"
 import { executeVisualFlowWorkflow } from "../../../../../workflows/visual-flows"
+import { VISUAL_FLOWS_MODULE } from "../../../../../modules/visual_flows"
 
 const executeSchema = z.object({
   trigger_data: z.record(z.any()).optional(),
   metadata: z.record(z.any()).optional(),
+  /** When set, copies trigger_data from the referenced execution instead of running fresh. */
+  replay_execution_id: z.string().optional(),
 })
 
 /**
  * POST /admin/visual-flows/:id/execute
- * Manually execute a visual flow using workflow
+ * Manually execute a visual flow using workflow.
+ * Pass replay_execution_id to replay a previous execution's trigger context.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const { id } = req.params
     const data = executeSchema.parse(req.body)
-    
-    // Get user info for accountability
     const userId = (req as any).auth_context?.actor_id
-    
+
+    // Replay: copy trigger_data from a previous execution
+    let triggerData = data.trigger_data || {}
+    let replayedFrom: string | undefined
+    if (data.replay_execution_id) {
+      const service = req.scope.resolve(VISUAL_FLOWS_MODULE) as any
+      const prev = await service.retrieveVisualFlowExecution(data.replay_execution_id, {
+        select: ["id", "trigger_data"],
+      }).catch(() => null)
+      if (prev?.trigger_data) {
+        triggerData = prev.trigger_data
+        replayedFrom = data.replay_execution_id
+      }
+    }
+
     // Execute the flow using workflow
     const { result, errors } = await executeVisualFlowWorkflow(req.scope).run({
       input: {
         flowId: id,
-        triggerData: data.trigger_data || {},
+        triggerData,
         triggeredBy: userId || "manual",
-        metadata: data.metadata,
+        metadata: {
+          ...data.metadata,
+          ...(replayedFrom ? { replayed_from: replayedFrom } : {}),
+        },
       },
     })
     

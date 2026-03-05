@@ -9,7 +9,8 @@ import { visualFlowCodegenWorkflow } from "./workflows/visualFlowCodegen";
 import { multiStepApiRequestWorkflow } from "./workflows/multiStepApiRequest";
 import { aiChatWorkflow } from "./workflows/aiChat";
 import { imageGenerationWorkflow } from "./workflows/imagegen";
-import { textileProductExtractionWorkflow } from "./workflows/textileProductExtraction";
+import { textileProductExtractionWorkflow } from "./workflows/textileProductExtraction"
+import { extractionEvalWorkflow } from "./workflows/extractionEval";
 import { sharedStorage } from "./memory";
 import {
     seoAgent,
@@ -45,6 +46,7 @@ export const mastra = new Mastra({
         multiStepApiRequestWorkflow,
         imageGenerationWorkflow,
         textileProductExtractionWorkflow,
+        extractionEvalWorkflow,
     },
     ...(sharedStorage
         ? { storage: sharedStorage }

@@ -3,6 +3,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider"
 import { generateText } from "ai"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { interpolateString } from "./utils"
+import { extractionEvalWorkflow } from "../../../mastra/workflows/extractionEval"
 
 interface SchemaField {
   name: string
@@ -66,7 +67,7 @@ export const aiExtractOperation: OperationDefinition = {
   optionsSchema: z.object({
     model: z
       .string()
-      .default("google/gemini-2.0-flash-exp:free")
+      .default("google/gemini-2.5-flash-preview")
       .describe("OpenRouter model ID"),
     input: z
       .string()
@@ -91,10 +92,21 @@ export const aiExtractOperation: OperationDefinition = {
       .boolean()
       .default(false)
       .describe("Return empty object instead of failing the flow on error"),
+    mock_response: z
+      .record(z.any())
+      .optional()
+      .describe("If set, skip the AI call and return this object directly (useful for testing)"),
+    use_mastra_eval: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Run the extraction through the Mastra extraction-eval workflow: scores quality, " +
+        "triggers a refinement pass if below threshold, and returns the best result"
+      ),
   }),
 
   defaultOptions: {
-    model: "google/gemini-2.0-flash-exp:free",
+    model: "google/gemini-2.5-flash-preview",
     input: "",
     system_prompt: "Extract order information from this email.",
     schema_fields: [],
@@ -102,10 +114,61 @@ export const aiExtractOperation: OperationDefinition = {
   },
 
   execute: async (options, context: OperationContext): Promise<OperationResult> => {
+    // Short-circuit: return mock data without calling the AI model
+    if (options.mock_response) {
+      console.log("[ai_extract] Using mock_response:", options.mock_response)
+      return { success: true, data: options.mock_response }
+    }
+
+    // Mastra eval path: extract → score → refine → return best result
+    if (options.use_mastra_eval) {
+      try {
+        const input = interpolateString(options.input, context.dataChain)
+        console.log("[ai_extract] Delegating to extractionEvalWorkflow")
+
+        const run = extractionEvalWorkflow.createRun()
+        const { result } = await run.start({
+          inputData: {
+            input,
+            system_prompt: options.system_prompt,
+            schema_fields: options.schema_fields ?? [],
+            model: options.model,
+          },
+        })
+
+        console.log("[ai_extract] extractionEvalWorkflow result:", {
+          quality: result.quality,
+          score: result.score,
+          was_refined: result.was_refined,
+          missing: result.missing_fields,
+        })
+
+        // Surface eval metadata as top-level keys alongside the extracted fields
+        return {
+          success: true,
+          data: {
+            ...result.extraction,
+            _eval: {
+              score: result.score,
+              quality: result.quality,
+              was_refined: result.was_refined,
+              missing_fields: result.missing_fields,
+            },
+          },
+        }
+      } catch (evalErr: any) {
+        console.error("[ai_extract] extractionEvalWorkflow failed:", evalErr.message)
+        if (options.fallback_on_error) {
+          return { success: true, data: {} }
+        }
+        return { success: false, error: evalErr.message, errorStack: evalErr.stack }
+      }
+    }
+
     try {
       const fields: SchemaField[] = options.schema_fields || []
       const input = interpolateString(options.input, context.dataChain)
-      const modelId: string = options.model || "google/gemini-2.0-flash-exp:free"
+      const modelId: string = options.model || "google/gemini-2.5-flash-preview"
 
       // Build the full system prompt: user instructions + JSON shape hint from fields
       const systemPrompt = [
@@ -139,7 +202,7 @@ export const aiExtractOperation: OperationDefinition = {
 
       return {
         success: true,
-        data: { object, usage: result.usage },
+        data: object,
       }
     } catch (error: any) {
       const message =
@@ -147,7 +210,7 @@ export const aiExtractOperation: OperationDefinition = {
       console.error("[ai_extract] Error:", message)
 
       if (options.fallback_on_error) {
-        return { success: true, data: { object: {}, usage: null } }
+        return { success: true, data: {} }
       }
 
       return { success: false, error: message, errorStack: error?.stack }

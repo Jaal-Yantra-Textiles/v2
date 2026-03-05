@@ -17,10 +17,18 @@ export const conditionOperation: OperationDefinition = {
   
   optionsSchema: z.object({
     filter_rule: z.record(z.any()).describe("Filter rule to evaluate"),
+    // UI-only fields for the keyword-match builder — ignored at runtime
+    condition_mode: z.enum(["expression", "keyword_match"]).optional(),
+    expression: z.string().optional(),
+    km_keywords: z.array(z.string()).optional(),
+    km_fields: z.array(z.string()).optional(),
+    km_source: z.enum(["subject", "body", "both"]).optional(), // legacy, use km_fields
+    km_match: z.enum(["any", "all"]).optional(),
   }),
-  
+
   defaultOptions: {
     filter_rule: {},
+    condition_mode: "expression",
   },
   
   execute: async (options, context: OperationContext): Promise<OperationResult> => {

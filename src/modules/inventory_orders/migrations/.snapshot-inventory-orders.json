@@ -57,7 +57,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "length": 6,
           "mappedType": "datetime"
         },
@@ -67,7 +67,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "length": 6,
           "mappedType": "datetime"
         },
@@ -151,7 +151,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_inventory_orders_deleted_at\" ON \"inventory_orders\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_inventory_orders_deleted_at\" ON \"inventory_orders\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "inventory_orders_pkey",
@@ -267,7 +267,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_inventory_order_line_inventory_orders_id\" ON \"inventory_order_line\" (inventory_orders_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_inventory_order_line_inventory_orders_id\" ON \"inventory_order_line\" (\"inventory_orders_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_inventory_order_line_deleted_at",
@@ -276,7 +276,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_inventory_order_line_deleted_at\" ON \"inventory_order_line\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_inventory_order_line_deleted_at\" ON \"inventory_order_line\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "inventory_order_line_pkey",

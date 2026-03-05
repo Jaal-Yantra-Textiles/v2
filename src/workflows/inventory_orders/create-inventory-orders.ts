@@ -70,7 +70,7 @@ export const createInventoryOrderWithLinesStep = createStep(
 
     // Prepare order and order lines for the service
     const { order_lines, ...orderData } = input;
-    
+
     // Map to service's expected order line shape
     const orderLinesForService = order_lines.map(line => ({
       inventory_id: line.inventory_item_id,
@@ -79,7 +79,28 @@ export const createInventoryOrderWithLinesStep = createStep(
       metadata: line.metadata
     }));
 
-    const created = await inventoryOrderService.createInvWithLines(orderData, orderLinesForService);
+    // Compute defaults for fields that may be undefined when called from a visual flow
+    const totalFromLines = orderLinesForService.reduce(
+      (sum, l) => sum + (Number(l.price) || 0) * (Number(l.quantity) || 0),
+      0
+    )
+    const quantityFromLines = orderLinesForService.reduce(
+      (sum, l) => sum + (Number(l.quantity) || 0),
+      0
+    )
+
+    const processedOrderData = {
+      ...orderData,
+      // Fall back to computed values if top-level quantity/total_price are missing
+      quantity: orderData.quantity != null ? Number(orderData.quantity) : quantityFromLines,
+      total_price: orderData.total_price != null ? Number(orderData.total_price) : totalFromLines,
+      // Accept metadata as either an object or a JSON string
+      metadata: typeof orderData.metadata === "string"
+        ? (() => { try { return JSON.parse(orderData.metadata as unknown as string) } catch { return {} } })()
+        : (orderData.metadata ?? null),
+    }
+
+    const created = await inventoryOrderService.createInvWithLines(processedOrderData, orderLinesForService);
     return new StepResponse(created);
   }
 );
@@ -176,22 +197,30 @@ export const createInventoryOrderWorkflow = createWorkflow(
     store: true,
   },
   (input: CreateInventoryOrderInput) => {
-    // Step 1: Validate inventory items
-    const validated = validateInventoryStep(input);
-
-    // Step 2: Create inventory order and lines
+    // Step 1: Create inventory order and lines
+    // (validateInventoryStep removed — it ran independently of this step so Medusa
+    //  could execute the transform before validation completed, causing crashes.
+    //  Invalid inventory items will be caught by linkInventoryItemsWithLinesStep.)
     const created = createInventoryOrderWithLinesStep(input);
 
-    // Step 3: Use transform to shape input for linking step
+    // Step 2: Use transform to shape input for linking step
     const linkInput = transform(
       { created, input },
-      ({ created, input }) => ({
-        order_id: created.order.id,
-        orderline_ids: created.orderLines.map((ol: any) => ol.id),
-        inventory_item_ids: input.order_lines.map((ol: any) => ol.inventory_item_id),
-        order: created.order,
-        orderLines: created.orderLines,
-      })
+      ({ created, input }) => {
+        if (!created?.order) {
+          throw new Error(
+            "createInventoryOrderWithLinesStep did not return an order. " +
+            "Check that all order_lines have valid inventory_item_id values and positive quantities."
+          )
+        }
+        return {
+          order_id: created.order.id,
+          orderline_ids: created.orderLines.map((ol: any) => ol.id),
+          inventory_item_ids: input.order_lines.map((ol: any) => ol.inventory_item_id),
+          order: created.order,
+          orderLines: created.orderLines,
+        }
+      }
     );
     const links = linkInventoryItemsWithLinesStep(linkInput);
 
@@ -202,23 +231,24 @@ export const createInventoryOrderWorkflow = createWorkflow(
 
     // Always link TO location (required by validator)
     linkInventoryOrderWithStockLocation({
-      order_id: created.order.id,
+      order_id: linkInput.order_id,
       stock_location_id: toLocationId as any,
     });
 
     // Conditionally link FROM location using when()
     when(input, (i) => Boolean(i.from_stock_location_id)).then(() => {
       linkInventoryOrderWithFromStockLocation({
-        order_id: created.order.id,
+        order_id: linkInput.order_id,
         from_stock_location_id: input.from_stock_location_id as string,
       });
     });
-    // Step 4: Use transform to shape the final response
+
+    // Step 3: Use transform to shape the final response
     const response = transform(
-      { links, created },
-      ({ links, created }) => ({
-        order: created.order,
-        orderLines: created.orderLines,
+      { links, linkInput },
+      ({ links, linkInput }) => ({
+        order: linkInput.order,
+        orderLines: linkInput.orderLines,
         links,
       })
     );

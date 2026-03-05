@@ -158,11 +158,11 @@ function evaluateOperator(operator: string, value: any, expected: any): boolean 
     case "_nin":
       return Array.isArray(expected) && !expected.includes(value)
     case "_contains":
-      return typeof value === "string" && value.includes(expected)
+      return typeof value === "string" && value.toLowerCase().includes(String(expected).toLowerCase())
     case "_starts_with":
-      return typeof value === "string" && value.startsWith(expected)
+      return typeof value === "string" && value.toLowerCase().startsWith(String(expected).toLowerCase())
     case "_ends_with":
-      return typeof value === "string" && value.endsWith(expected)
+      return typeof value === "string" && value.toLowerCase().endsWith(String(expected).toLowerCase())
     case "_null":
       return expected ? value === null || value === undefined : value !== null && value !== undefined
     case "_empty":

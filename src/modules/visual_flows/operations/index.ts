@@ -19,6 +19,9 @@ export { sendEmailOperation } from "./send-email"
 export { executeCodeOperation } from "./execute-code"
 export { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
 export { bulkUpdateDataOperation } from "./bulk-update-data"
+export { bulkCreateDataOperation } from "./bulk-create-data"
+export { bulkHttpRequestOperation } from "./bulk-http-request"
+export { bulkTriggerWorkflowOperation } from "./bulk-trigger-workflow"
 export { aiExtractOperation } from "./ai-extract"
 
 // Import all operations and register them
@@ -39,6 +42,9 @@ import { sendEmailOperation } from "./send-email"
 import { executeCodeOperation } from "./execute-code"
 import { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
 import { bulkUpdateDataOperation } from "./bulk-update-data"
+import { bulkCreateDataOperation } from "./bulk-create-data"
+import { bulkHttpRequestOperation } from "./bulk-http-request"
+import { bulkTriggerWorkflowOperation } from "./bulk-trigger-workflow"
 import { aiExtractOperation } from "./ai-extract"
 
 // Register all built-in operations
@@ -52,6 +58,9 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(updateDataOperation)
   operationRegistry.register(deleteDataOperation)
   operationRegistry.register(bulkUpdateDataOperation)
+  operationRegistry.register(bulkCreateDataOperation)
+  operationRegistry.register(bulkHttpRequestOperation)
+  operationRegistry.register(bulkTriggerWorkflowOperation)
   
   // Communication operations
   operationRegistry.register(sendEmailOperation)

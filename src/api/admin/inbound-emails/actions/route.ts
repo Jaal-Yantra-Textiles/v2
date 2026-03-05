@@ -1,8 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { listActions } from "../../../../utils/inbound-email-actions"
+import { listActions } from "../../../../workflows/inbound-emails/actions"
 
 // Ensure actions are registered
-import "../../../../utils/inbound-email-actions/create-inventory-order"
+import "../../../../workflows/inbound-emails/actions/create-inventory-order"
 
 export const GET = async (
   _req: MedusaRequest,

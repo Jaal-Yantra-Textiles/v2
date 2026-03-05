@@ -1,10 +1,10 @@
 import { memo } from "react"
 import { Handle, Position, NodeProps } from "@xyflow/react"
 import { Badge, Text } from "@medusajs/ui"
-import { 
-  PlusMini, 
-  MagnifyingGlass, 
-  PencilSquare, 
+import {
+  PlusMini,
+  MagnifyingGlass,
+  PencilSquare,
   Trash,
   ArrowPath,
   Clock,
@@ -14,6 +14,9 @@ import {
   PlaySolid,
   DocumentText,
   Funnel,
+  Sparkles,
+  CommandLineSolid,
+  SquaresPlus,
 } from "@medusajs/icons"
 
 interface OperationNodeData {
@@ -35,6 +38,9 @@ const operationIcons: Record<string, React.ComponentType<any>> = {
   notification: BellAlert,
   transform: ArrowPath,
   trigger_workflow: PlaySolid,
+  bulk_trigger_workflow: SquaresPlus,
+  ai_extract: Sparkles,
+  execute_code: CommandLineSolid,
   sleep: Clock,
   log: DocumentText,
 }
@@ -51,6 +57,9 @@ const operationColors: Record<string, string> = {
   notification: "bg-amber-500",
   transform: "bg-indigo-500",
   trigger_workflow: "bg-violet-500",
+  bulk_trigger_workflow: "bg-fuchsia-500",
+  ai_extract: "bg-rose-500",
+  execute_code: "bg-teal-500",
   sleep: "bg-gray-500",
   log: "bg-slate-500",
 }

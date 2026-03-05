@@ -16,3 +16,119 @@
 .jer-value-main-row {
   max-width: none !important;
 }
+
+/* ─── Dark-mode input visibility fix ───────────────────────────────────────────
+ *
+ * monoDarkTheme doesn't define `input` styles so json-edit-react falls back to
+ * the default theme's dark text (#292929) which is invisible on the dark
+ * container background (#1a1a1a).
+ *
+ * We can't reliably use .dark because the editor sits inside a Radix modal
+ * portal that may or may not carry the dark class.  Instead we scope by the
+ * container's own background — but the safest universal approach is to target
+ * the input elements inside any jer-editor-container that lives under a .dark
+ * ancestor OR under a container whose background matches the dark theme.
+ *
+ * Both `.dark` class (Medusa) and `[data-theme="dark"]` are covered.
+ */
+
+.dark .jer-input-text,
+.dark .jer-input-number,
+.dark .jer-input-new-key,
+.dark .jer-key-edit,
+.dark .jer-collection-text-area,
+[data-theme="dark"] .jer-input-text,
+[data-theme="dark"] .jer-input-number,
+[data-theme="dark"] .jer-input-new-key,
+[data-theme="dark"] .jer-key-edit,
+[data-theme="dark"] .jer-collection-text-area {
+  color: #e5e5e5 !important;
+  background-color: #2a2a2a !important;
+  border-color: #444 !important;
+  caret-color: #e5e5e5 !important;
+}
+
+.dark .jer-input-text:focus,
+.dark .jer-input-number:focus,
+.dark .jer-input-new-key:focus,
+.dark .jer-key-edit:focus,
+.dark .jer-collection-text-area:focus,
+[data-theme="dark"] .jer-input-text:focus,
+[data-theme="dark"] .jer-input-number:focus,
+[data-theme="dark"] .jer-input-new-key:focus,
+[data-theme="dark"] .jer-key-edit:focus,
+[data-theme="dark"] .jer-collection-text-area:focus {
+  outline-color: #666 !important;
+  border-color: #666 !important;
+}
+
+/* Select dropdowns (type picker, enum picker) */
+.dark .jer-select,
+.dark .jer-select-inner,
+.dark .jer-select-enums,
+[data-theme="dark"] .jer-select,
+[data-theme="dark"] .jer-select-inner,
+[data-theme="dark"] .jer-select-enums {
+  color: #e5e5e5 !important;
+  background-color: #2a2a2a !important;
+  border-color: #444 !important;
+}
+
+.dark .jer-select option,
+[data-theme="dark"] .jer-select option {
+  background-color: #2a2a2a;
+  color: #e5e5e5;
+}
+
+/* Form border indicators used by the visual editor */
+.dark .jer-form-border,
+[data-theme="dark"] .jer-form-border {
+  border-color: #444 !important;
+}
+
+.dark .jer-form-border-focus,
+[data-theme="dark"] .jer-form-border-focus {
+  border-color: #888 !important;
+}
+
+/* Boolean checkbox */
+.dark .jer-input-boolean,
+[data-theme="dark"] .jer-input-boolean {
+  accent-color: #888 !important;
+}
+
+/* System-level dark mode fallback (when no .dark class is present) */
+@media (prefers-color-scheme: dark) {
+  .jer-input-text,
+  .jer-input-number,
+  .jer-input-new-key,
+  .jer-key-edit,
+  .jer-collection-text-area {
+    color: #e5e5e5 !important;
+    background-color: #2a2a2a !important;
+    border-color: #444 !important;
+    caret-color: #e5e5e5 !important;
+  }
+
+  .jer-input-text:focus,
+  .jer-input-number:focus,
+  .jer-input-new-key:focus,
+  .jer-key-edit:focus,
+  .jer-collection-text-area:focus {
+    outline-color: #666 !important;
+    border-color: #666 !important;
+  }
+
+  .jer-select,
+  .jer-select-inner,
+  .jer-select-enums {
+    color: #e5e5e5 !important;
+    background-color: #2a2a2a !important;
+    border-color: #444 !important;
+  }
+
+  .jer-select option {
+    background-color: #2a2a2a;
+    color: #e5e5e5;
+  }
+}

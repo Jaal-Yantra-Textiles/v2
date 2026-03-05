@@ -13,8 +13,8 @@ const InventoryOrder = model.define("inventory_orders", {
     "Cancelled",
     "Partial"
   ]).default("Pending"),
-  expected_delivery_date: model.dateTime(),
-  order_date: model.dateTime(),
+  expected_delivery_date: model.dateTime().nullable(),
+  order_date: model.dateTime().nullable(),
   orderlines: model.hasMany(() => OrderLine),
   metadata: model.json().nullable(),
   shipping_address: model.json().nullable(),
