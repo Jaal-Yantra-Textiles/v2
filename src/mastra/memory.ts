@@ -39,7 +39,7 @@ try {
       memory = new Memory({
         storage: sharedStorage,
         vector: new PgVector({ id: "mastra-memory-vector", connectionString }),
-        embedder: google.textEmbeddingModel("text-embedding-004", { outputDimensionality: 768 }),
+        embedder: google.textEmbeddingModel("gemini-embedding-001", { outputDimensionality: 768 }),
         options: {
           workingMemory: { enabled: true },
           lastMessages: 10,
