@@ -825,6 +825,18 @@ export default defineMiddlewares({
       method: "DELETE",
       middlewares: [],
     },
+    // Hang tag settings
+    {
+      matcher: "/admin/hang-tag-settings",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/hang-tag-settings",
+      method: "PUT",
+      middlewares: [],
+    },
+
     // Inventory Split
     {
       matcher: "/admin/inventory-items/:id/split",

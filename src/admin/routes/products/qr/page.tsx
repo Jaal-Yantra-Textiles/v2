@@ -21,6 +21,7 @@ import { Tag } from "@medusajs/icons"
 import { useProducts } from "../../../hooks/api/products"
 import { getProductUrlFromHandle } from "../../../lib/storefront-url"
 import { sdk } from "../../../lib/config"
+import { DEFAULT_HANG_TAG_CONFIG, HangTagConfig, useHangTagSettings } from "../../../hooks/api/hang-tag-settings"
 
 // Minimal shape we rely on in the table
 type AdminProductRow = {
@@ -98,13 +99,12 @@ function wrapText(text: string, font: any, size: number, maxWidth: number): stri
   return lines
 }
 
-async function generateHangTagPdf(data: HangTagData): Promise<Uint8Array> {
+async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAULT_HANG_TAG_CONFIG): Promise<Uint8Array> {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib")
   const { toDataURL } = await import("qrcode")
 
-  // Tag dimensions: 55mm × 90mm (standard clothing hang tag)
-  const W = mm(55)
-  const H = mm(90)
+  const W = mm(cfg.width_mm)
+  const H = mm(cfg.height_mm)
   const MARGIN = mm(4)
   const INNER_W = W - MARGIN * 2
 
@@ -117,15 +117,24 @@ async function generateHangTagPdf(data: HangTagData): Promise<Uint8Array> {
 
   const { product } = data
 
+  // ── Helpers: hex → pdf-lib rgb ──────────────────────────────────────────────
+  const hexToRgb = (hex: string) => {
+    const h = hex.replace("#", "")
+    const r = parseInt(h.slice(0, 2), 16) / 255
+    const g = parseInt(h.slice(2, 4), 16) / 255
+    const b = parseInt(h.slice(4, 6), 16) / 255
+    return rgb(isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b)
+  }
+
   // ── Background ──────────────────────────────────────────────────────────────
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(1, 1, 1) })
 
-  // ── Top accent bar ──────────────────────────────────────────────────────────
+  // ── Header bar (bottom of page = visually top when printed) ─────────────────
   const BAR_H = mm(8)
-  page.drawRectangle({ x: 0, y: H - BAR_H, width: W, height: BAR_H, color: rgb(0.05, 0.05, 0.05) })
+  page.drawRectangle({ x: 0, y: H - BAR_H, width: W, height: BAR_H, color: hexToRgb(cfg.header_color) })
 
-  // Brand / store name in bar
-  const brandName = "JYT"
+  // Brand name in bar
+  const brandName = cfg.brand_name || "BRAND"
   const brandSize = 10
   const brandW = fontBold.widthOfTextAtSize(brandName, brandSize)
   page.drawText(brandName, {
@@ -133,12 +142,14 @@ async function generateHangTagPdf(data: HangTagData): Promise<Uint8Array> {
     y: H - BAR_H + (BAR_H - brandSize) / 2 + 1,
     size: brandSize,
     font: fontBold,
-    color: rgb(1, 1, 1),
+    color: hexToRgb(cfg.header_text_color),
   })
 
-  // Punch hole circle (visual only)
-  page.drawCircle({ x: W / 2, y: H - BAR_H - mm(5), size: mm(2), color: rgb(0.85, 0.85, 0.85) })
-  page.drawCircle({ x: W / 2, y: H - BAR_H - mm(5), size: mm(2), borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 0.5 })
+  // Punch hole
+  if (cfg.show_punch_hole) {
+    page.drawCircle({ x: W / 2, y: H - BAR_H - mm(5), size: mm(2), color: rgb(0.85, 0.85, 0.85) })
+    page.drawCircle({ x: W / 2, y: H - BAR_H - mm(5), size: mm(2), borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 0.5 })
+  }
 
   let y = H - BAR_H - mm(12)
 
@@ -149,13 +160,17 @@ async function generateHangTagPdf(data: HangTagData): Promise<Uint8Array> {
     y -= 11
   }
 
-  // ── Status badge (small label) ──────────────────────────────────────────────
-  if (product.status) {
+  const accentColor = hexToRgb(cfg.accent_color)
+  const subtleGray = rgb(0.5, 0.5, 0.5)
+  const darkText = rgb(0.1, 0.1, 0.1)
+
+  // ── Status badge ─────────────────────────────────────────────────────────────
+  if (cfg.show_status_badge && product.status) {
     const statusLabel = product.status.charAt(0).toUpperCase() + product.status.slice(1)
     const sSize = 6.5
     const sW = fontRegular.widthOfTextAtSize(statusLabel, sSize) + mm(3)
     const sH = mm(3.5)
-    page.drawRectangle({ x: MARGIN, y: y - sH + mm(1), width: sW, height: sH, color: rgb(0.9, 0.9, 0.9) })
+    page.drawRectangle({ x: MARGIN, y: y - sH + mm(1), width: sW, height: sH, color: accentColor })
     page.drawText(statusLabel, { x: MARGIN + mm(1.5), y: y - sH + mm(1.5), size: sSize, font: fontRegular, color: rgb(0.3, 0.3, 0.3) })
     y -= sH + mm(3)
   } else {
@@ -163,80 +178,71 @@ async function generateHangTagPdf(data: HangTagData): Promise<Uint8Array> {
   }
 
   // ── Divider ─────────────────────────────────────────────────────────────────
-  page.drawLine({ start: { x: MARGIN, y }, end: { x: W - MARGIN, y }, thickness: 0.4, color: rgb(0.85, 0.85, 0.85) })
+  page.drawLine({ start: { x: MARGIN, y }, end: { x: W - MARGIN, y }, thickness: 0.4, color: accentColor })
   y -= mm(3)
 
   // ── Designs section ─────────────────────────────────────────────────────────
   const designs = product.designs ?? []
-  if (designs.length > 0) {
+  if (cfg.show_design_info && designs.length > 0) {
     const d = designs[0]
 
-    // Label
-    page.drawText("Design", { x: MARGIN, y, size: 6, font: fontBold, color: rgb(0.5, 0.5, 0.5) })
+    page.drawText("Design", { x: MARGIN, y, size: 6, font: fontBold, color: subtleGray })
     y -= mm(3.5)
 
-    // Design name
     const dName = truncate(d.name ?? "", fontBold, 8, INNER_W)
-    page.drawText(dName, { x: MARGIN, y, size: 8, font: fontBold, color: rgb(0.1, 0.1, 0.1) })
+    page.drawText(dName, { x: MARGIN, y, size: 8, font: fontBold, color: darkText })
     y -= 10
 
-    // Design type
     if (d.design_type) {
       page.drawText(d.design_type.replace(/_/g, " "), { x: MARGIN, y, size: 6.5, font: fontOblique, color: rgb(0.45, 0.45, 0.45) })
       y -= 9
     }
 
-    // Partners
-    const partners = d.partners ?? []
-    if (partners.length > 0) {
-      page.drawText("Made by", { x: MARGIN, y, size: 6, font: fontBold, color: rgb(0.5, 0.5, 0.5) })
-      y -= mm(3.5)
-      for (const p of partners.slice(0, 2)) {
-        const pName = truncate(p.name ?? "", fontRegular, 7.5, INNER_W)
-        page.drawText(pName, { x: MARGIN, y, size: 7.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) })
-        y -= 9
-
-        // Partner people
-        const people = p.people ?? []
-        for (const person of people.slice(0, 2)) {
-          const pPersonName = [person.first_name, person.last_name].filter(Boolean).join(" ")
-          if (pPersonName) {
-            const personLine = truncate(`> ${pPersonName}`, fontRegular, 6.5, INNER_W - mm(2))
-            page.drawText(personLine, { x: MARGIN + mm(2), y, size: 6.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) })
-            y -= 8
+    if (cfg.show_partner_info) {
+      const partners = d.partners ?? []
+      if (partners.length > 0) {
+        page.drawText("Made by", { x: MARGIN, y, size: 6, font: fontBold, color: subtleGray })
+        y -= mm(3.5)
+        for (const p of partners.slice(0, 2)) {
+          const pName = truncate(p.name ?? "", fontRegular, 7.5, INNER_W)
+          page.drawText(pName, { x: MARGIN, y, size: 7.5, font: fontRegular, color: darkText })
+          y -= 9
+          const people = p.people ?? []
+          for (const person of people.slice(0, 2)) {
+            const pPersonName = [person.first_name, person.last_name].filter(Boolean).join(" ")
+            if (pPersonName) {
+              const personLine = truncate(`> ${pPersonName}`, fontRegular, 6.5, INNER_W - mm(2))
+              page.drawText(personLine, { x: MARGIN + mm(2), y, size: 6.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) })
+              y -= 8
+            }
           }
         }
       }
     }
 
-    // Color palette dots
-    const palette = d.color_palette ?? []
-    if (palette.length > 0) {
-      y -= mm(1)
-      const DOT = mm(2.5)
-      let cx = MARGIN
-      for (const c of palette.slice(0, 8)) {
-        const hex = c.code ?? c.value ?? "#cccccc"
-        const hexClean = hex.replace("#", "")
-        const r = parseInt(hexClean.slice(0, 2), 16) / 255
-        const g = parseInt(hexClean.slice(2, 4), 16) / 255
-        const b = parseInt(hexClean.slice(4, 6), 16) / 255
-        const safeR = isNaN(r) ? 0.8 : r
-        const safeG = isNaN(g) ? 0.8 : g
-        const safeB = isNaN(b) ? 0.8 : b
-        page.drawCircle({ x: cx + DOT / 2, y: y - DOT / 2, size: DOT / 2, color: rgb(safeR, safeG, safeB) })
-        page.drawCircle({ x: cx + DOT / 2, y: y - DOT / 2, size: DOT / 2, borderColor: rgb(0.7, 0.7, 0.7), borderWidth: 0.3 })
-        cx += DOT + mm(1)
+    if (cfg.show_color_palette) {
+      const palette = d.color_palette ?? []
+      if (palette.length > 0) {
+        y -= mm(1)
+        const DOT = mm(2.5)
+        let cx = MARGIN
+        for (const c of palette.slice(0, 8)) {
+          const dotColor = hexToRgb(c.code ?? c.value ?? "#cccccc")
+          page.drawCircle({ x: cx + DOT / 2, y: y - DOT / 2, size: DOT / 2, color: dotColor })
+          page.drawCircle({ x: cx + DOT / 2, y: y - DOT / 2, size: DOT / 2, borderColor: rgb(0.7, 0.7, 0.7), borderWidth: 0.3 })
+          cx += DOT + mm(1)
+        }
+        y -= DOT + mm(2)
       }
-      y -= DOT + mm(2)
     }
 
-    // Design tags
-    const dTags = Array.isArray(d.tags) ? d.tags : []
-    if (dTags.length > 0) {
-      const tagStr = truncate(dTags.slice(0, 4).join("  ·  "), fontOblique, 6, INNER_W)
-      page.drawText(tagStr, { x: MARGIN, y, size: 6, font: fontOblique, color: rgb(0.5, 0.5, 0.5) })
-      y -= 8
+    if (cfg.show_design_tags) {
+      const dTags = Array.isArray(d.tags) ? d.tags : []
+      if (dTags.length > 0) {
+        const tagStr = truncate(dTags.slice(0, 4).join("  .  "), fontOblique, 6, INNER_W)
+        page.drawText(tagStr, { x: MARGIN, y, size: 6, font: fontOblique, color: subtleGray })
+        y -= 8
+      }
     }
 
     y -= mm(1)
@@ -244,13 +250,13 @@ async function generateHangTagPdf(data: HangTagData): Promise<Uint8Array> {
 
   // ── Direct people linked to product ─────────────────────────────────────────
   const directPeople = (product.people ?? []).slice(0, 2)
-  if (directPeople.length > 0) {
-    page.drawText("Collaborators", { x: MARGIN, y, size: 6, font: fontBold, color: rgb(0.5, 0.5, 0.5) })
+  if (cfg.show_collaborators && directPeople.length > 0) {
+    page.drawText("Collaborators", { x: MARGIN, y, size: 6, font: fontBold, color: subtleGray })
     y -= mm(3.5)
     for (const person of directPeople) {
       const name = [person.first_name, person.last_name].filter(Boolean).join(" ")
       if (name) {
-        page.drawText(truncate(name, fontRegular, 7, INNER_W), { x: MARGIN, y, size: 7, font: fontRegular, color: rgb(0.2, 0.2, 0.2) })
+        page.drawText(truncate(name, fontRegular, 7, INNER_W), { x: MARGIN, y, size: 7, font: fontRegular, color: rgb(0.2, 0.2, 0.2), maxWidth: INNER_W })
         y -= 9
       }
     }
@@ -261,55 +267,58 @@ async function generateHangTagPdf(data: HangTagData): Promise<Uint8Array> {
   const QR_SIZE = mm(18)
   const QR_Y = MARGIN + mm(1)
 
-  // QR code
-  const qrDataUrl: string = await toDataURL(product.storefront_url, {
-    width: 200,
-    margin: 1,
-    color: { dark: "#111111", light: "#ffffff" },
-  })
-  const qrBase64 = qrDataUrl.split(",")[1]
-  const qrImageBytes = Uint8Array.from(atob(qrBase64), (c) => c.charCodeAt(0))
-  const qrImage = await pdfDoc.embedPng(qrImageBytes)
-  page.drawImage(qrImage, { x: W - MARGIN - QR_SIZE, y: QR_Y, width: QR_SIZE, height: QR_SIZE })
+  if (cfg.show_qr_code) {
+    const qrDataUrl: string = await toDataURL(product.storefront_url, {
+      width: 200,
+      margin: 1,
+      color: { dark: cfg.header_color, light: "#ffffff" },
+    })
+    const qrBase64 = qrDataUrl.split(",")[1]
+    const qrImageBytes = Uint8Array.from(atob(qrBase64), (c) => c.charCodeAt(0))
+    const qrImage = await pdfDoc.embedPng(qrImageBytes)
+    page.drawImage(qrImage, { x: W - MARGIN - QR_SIZE, y: QR_Y, width: QR_SIZE, height: QR_SIZE })
 
-  // Handle text beneath QR
-  const handleStr = `/${product.handle}`
-  const handleSize = 5
-  const handleW = fontRegular.widthOfTextAtSize(handleStr, handleSize)
-  page.drawText(handleStr, {
-    x: W - MARGIN - QR_SIZE + (QR_SIZE - handleW) / 2,
-    y: QR_Y - mm(2.5),
-    size: handleSize,
-    font: fontOblique,
-    color: rgb(0.5, 0.5, 0.5),
-  })
+    const handleStr = `/${product.handle}`
+    const handleSize = 5
+    const handleW = fontRegular.widthOfTextAtSize(handleStr, handleSize)
+    page.drawText(handleStr, {
+      x: W - MARGIN - QR_SIZE + (QR_SIZE - handleW) / 2,
+      y: QR_Y - mm(2.5),
+      size: handleSize,
+      font: fontOblique,
+      color: subtleGray,
+    })
 
-  // "Scan me" label above QR
-  const scanLabel = "scan me"
-  const scanSize = 5.5
-  const scanW = fontOblique.widthOfTextAtSize(scanLabel, scanSize)
-  page.drawText(scanLabel, {
-    x: W - MARGIN - QR_SIZE + (QR_SIZE - scanW) / 2,
-    y: QR_Y + QR_SIZE + mm(1),
-    size: scanSize,
-    font: fontOblique,
-    color: rgb(0.5, 0.5, 0.5),
-  })
+    const scanLabel = cfg.scan_label || "scan me"
+    const scanSize = 5.5
+    const scanW = fontOblique.widthOfTextAtSize(scanLabel, scanSize)
+    page.drawText(scanLabel, {
+      x: W - MARGIN - QR_SIZE + (QR_SIZE - scanW) / 2,
+      y: QR_Y + QR_SIZE + mm(1),
+      size: scanSize,
+      font: fontOblique,
+      color: subtleGray,
+    })
+  }
 
-  // Bottom divider line
+  // Bottom divider
   page.drawLine({
     start: { x: MARGIN, y: QR_Y + QR_SIZE + mm(4) },
     end: { x: W - MARGIN, y: QR_Y + QR_SIZE + mm(4) },
     thickness: 0.4,
-    color: rgb(0.85, 0.85, 0.85),
+    color: accentColor,
   })
 
-  // "Handcrafted with care" tagline (bottom left, next to QR)
-  const taglines = ["Handcrafted", "with care"]
-  let tY = QR_Y + QR_SIZE - 1
-  for (const line of taglines) {
-    page.drawText(line, { x: MARGIN, y: tY, size: 6.5, font: fontOblique, color: rgb(0.4, 0.4, 0.4) })
-    tY -= 8
+  // Tagline
+  if (cfg.show_tagline && cfg.tagline) {
+    const taglineWords = cfg.tagline.split(" ")
+    const mid = Math.ceil(taglineWords.length / 2)
+    const taglineLines = [taglineWords.slice(0, mid).join(" "), taglineWords.slice(mid).join(" ")].filter(Boolean)
+    let tY = QR_Y + QR_SIZE - 1
+    for (const line of taglineLines) {
+      page.drawText(line, { x: MARGIN, y: tY, size: 6.5, font: fontOblique, color: rgb(0.4, 0.4, 0.4) })
+      tY -= 8
+    }
   }
 
   return pdfDoc.save()
@@ -325,6 +334,7 @@ const QRGeneratorPage = () => {
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
   const [isGeneratingQR, setIsGeneratingQR] = useState(false)
   const [isGeneratingTags, setIsGeneratingTags] = useState(false)
+  const { config: hangTagConfig } = useHangTagSettings()
 
   // Defensive: ensure body never stays with pointer-events: none due to overlay race conditions
   useEffect(() => {
@@ -578,7 +588,7 @@ const QRGeneratorPage = () => {
           toast.error(`Failed to fetch data for "${valid[0].title}"`)
           return
         }
-        const pdfBytes = await generateHangTagPdf(result.value)
+        const pdfBytes = await generateHangTagPdf(result.value, hangTagConfig)
         const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" })
         const url = URL.createObjectURL(blob)
         window.open(url, "_blank")
@@ -595,7 +605,7 @@ const QRGeneratorPage = () => {
             continue
           }
           try {
-            const pdfBytes = await generateHangTagPdf(result.value)
+            const pdfBytes = await generateHangTagPdf(result.value, hangTagConfig)
             const tagDoc = await PDFDocument.load(pdfBytes)
             const [page] = await mergedDoc.copyPages(tagDoc, [0])
             mergedDoc.addPage(page)

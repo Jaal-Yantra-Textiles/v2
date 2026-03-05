@@ -61,7 +61,7 @@ const getSourceDataStep = createStep(
     { container }
   ) => {
     const inventoryService = container.resolve(Modules.INVENTORY)
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     // Get inventory item
     let item: any
@@ -210,7 +210,7 @@ const createSplitInventoryItemStep = createStep(
     ])
     return new StepResponse(newItem, newItem.id)
   },
-  async (newItemId: string, { container }) => {
+  async (newItemId: string | undefined, { container }) => {
     if (!newItemId) return
     const inventoryService = container.resolve(Modules.INVENTORY)
     await (inventoryService as any).deleteInventoryItems([newItemId])
@@ -239,7 +239,7 @@ const createSplitInventoryLevelsStep = createStep(
     )
     return new StepResponse(created, ids)
   },
-  async (levelIds: string[], { container }) => {
+  async (levelIds: string[] | undefined, { container }) => {
     if (!levelIds || !levelIds.length) return
     const inventoryService = container.resolve(Modules.INVENTORY)
     await (inventoryService as any).deleteInventoryLevels(levelIds)
@@ -267,7 +267,7 @@ const decrementSourceLevelsStep = createStep(
     await (inventoryService as any).updateInventoryLevels(input.updates)
     return new StepResponse(null, input.originals)
   },
-  async (originals: LevelUpdate[], { container }) => {
+  async (originals: LevelUpdate[] | undefined, { container }) => {
     if (!originals || !originals.length) return
     const inventoryService = container.resolve(Modules.INVENTORY)
     await (inventoryService as any).updateInventoryLevels(originals)

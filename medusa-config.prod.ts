@@ -225,5 +225,8 @@ module.exports = defineConfig({
     {
     resolve: "./src/modules/inbound_emails",
   },
+   {
+      resolve: "./src/modules/hang_tag_settings",
+    },
 ],
 });

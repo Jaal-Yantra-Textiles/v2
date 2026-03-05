@@ -76,6 +76,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/production_policy",
     },
     {
+      resolve: "./src/modules/hang_tag_settings",
+    },
+    {
       resolve: "./src/modules/notes",
     },
     {

@@ -81,7 +81,7 @@ export const createInventoryOrderWithLinesStep = createStep(
 
     // Compute defaults for fields that may be undefined when called from a visual flow
     const totalFromLines = orderLinesForService.reduce(
-      (sum, l) => sum + (Number(l.price) || 0) * (Number(l.quantity) || 0),
+      (sum, l) => sum + (Number(l.price) || 0),
       0
     )
     const quantityFromLines = orderLinesForService.reduce(

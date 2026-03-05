@@ -126,8 +126,9 @@ export const aiExtractOperation: OperationDefinition = {
         const input = interpolateString(options.input, context.dataChain)
         console.log("[ai_extract] Delegating to extractionEvalWorkflow")
 
-        const run = extractionEvalWorkflow.createRun()
-        const { result } = await run.start({
+        const run = await extractionEvalWorkflow.createRun();
+        
+        const  result  = await run.start({
           inputData: {
             input,
             system_prompt: options.system_prompt,
@@ -136,23 +137,16 @@ export const aiExtractOperation: OperationDefinition = {
           },
         })
 
-        console.log("[ai_extract] extractionEvalWorkflow result:", {
-          quality: result.quality,
-          score: result.score,
-          was_refined: result.was_refined,
-          missing: result.missing_fields,
-        })
-
         // Surface eval metadata as top-level keys alongside the extracted fields
         return {
           success: true,
           data: {
-            ...result.extraction,
+            ...result.steps.extracted_data, // The extracted JSON object from the model
             _eval: {
-              score: result.score,
-              quality: result.quality,
-              was_refined: result.was_refined,
-              missing_fields: result.missing_fields,
+              score: result.steps.score,
+              quality: result.steps.quality,
+              was_refined: result.steps.was_refined,
+              missing_fields: result.steps.missing_fields,
             },
           },
         }
