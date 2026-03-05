@@ -2,6 +2,7 @@
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import { Agent } from "@mastra/core/agent";
+import { dynamicFreeTextModel } from "../../providers/dynamic-text-model";
 
 // Import provider modules
 import {
@@ -49,9 +50,10 @@ import {
  */
 
 // Create a dedicated agent for prompt enhancement (text generation only)
+// Uses the dynamic free text model so expired/paid models are never used by accident.
 const promptEnhancerAgent = new Agent({
   name: "prompt-enhancer-agent",
-  model: "mistral/mistral-medium-latest",
+  model: dynamicFreeTextModel,
   instructions:
     "You are an expert fashion design AI assistant. " +
     "When given style preferences, materials, and reference images, you enhance and optimize prompts for fashion design image generation. " +

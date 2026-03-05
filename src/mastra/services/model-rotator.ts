@@ -495,6 +495,18 @@ export async function executeWithModelRotation<T>(
       lastError = error
       log.error("Model failed for step", { step, modelId, error: error?.message || String(error) })
 
+      // Permanently expired free tier — evict from the in-process cache and continue
+      if (isExpiredModelError(error)) {
+        log.warn("Model free tier has ended — evicting permanently", { modelId })
+        markModelRateLimited(modelId) // also rate-limit so rotator skips it
+        // Also evict from the dynamic provider cache
+        try {
+          const { markModelExpired } = await import("../providers/dynamic-text-model")
+          markModelExpired(modelId)
+        } catch (_) { /* dynamic provider may not be loaded */ }
+        continue
+      }
+
       // Check if it's a rate limit error
       if (isRateLimitError(error)) {
         markModelRateLimited(modelId)
@@ -540,6 +552,21 @@ export function isRateLimitError(error: any): boolean {
   }
 
   return false
+}
+
+/**
+ * Check if an error indicates a model's free tier has permanently ended.
+ * These models should be evicted from the free-model pool entirely.
+ */
+export function isExpiredModelError(error: any): boolean {
+  if (!error) return false
+  const msg = String(error?.message || error || "").toLowerCase()
+  return (
+    msg.includes("period has ended") ||
+    msg.includes("migrate to the paid") ||
+    msg.includes("no longer available for free") ||
+    (msg.includes("free") && msg.includes("ended"))
+  )
 }
 
 /**

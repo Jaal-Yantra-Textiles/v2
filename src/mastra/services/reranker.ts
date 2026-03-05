@@ -47,8 +47,8 @@ const CONFIG = {
   // Fast, free model via OpenRouter for reranking
   model: "google/gemini-2.0-flash-exp:free",
   fallbackModels: [
-    "mistralai/devstral-2512:free",
     "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-3-27b-it:free",
   ],
   maxTokens: 2000,
   // Weighting for final score: original * (1-weight) + rerank * weight

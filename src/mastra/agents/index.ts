@@ -1,11 +1,27 @@
 // @ts-nocheck - Ignore all TypeScript errors in this file
-import { openai } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
-import { anthropic } from "@ai-sdk/anthropic";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { createAnswerRelevancyScorer, createPromptAlignmentScorerLLM } from "@mastra/evals/scorers/prebuilt";
 import { memory } from "../memory";
-import { getVisionModelId, getTextModelId } from "../providers/openrouter";
+import { getVisionModelId } from "../providers/openrouter";
+import { dynamicFreeTextModel } from "../providers/dynamic-text-model";
+
+// OpenRouter provider (used for vision agents only — text agents use dynamicFreeTextModel)
+const openrouter = createOpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
+
+const scorerSampleRate = (() => {
+  const rateRaw = Number(process.env.MASTRA_SCORING_SAMPLE_RATE ?? "0.1")
+  if (!Number.isFinite(rateRaw)) {
+    return 0.1
+  }
+  return Math.max(0, Math.min(1, rateRaw))
+})()
+
+// Judge model for scorers — uses the dynamic free model so expired models are
+// handled automatically without redeployment.
+const judgeModel = dynamicFreeTextModel
 
 export const seoAgent = new Agent({
   name: "seo-agent",
@@ -19,7 +35,7 @@ export const seoAgent = new Agent({
     "\n- Schema markup: Keep it focused and under 500 characters" +
     "\nPrioritize brevity while maintaining impact. Always stay well within character limits " +
     "to ensure validation passes. Quality over quantity - each word must serve a purpose.",
-  model: openai("gpt-4o-mini"),
+  model: dynamicFreeTextModel,
 });
 
 export const modelAgent = new Agent({
@@ -27,32 +43,16 @@ export const modelAgent = new Agent({
   instructions:
     "You are an expert in understanding the structure of a given data model. " +
     "Your role is to create properties and metadata that are relevant to the given domain or data model.",
-  model: anthropic("claude-3-5-sonnet-20240620")
+  model: dynamicFreeTextModel,
 });
 
 
 export const designAgent = new Agent({
   name: "design-agent",
   instructions:'You are a design assitant for the designer',
-  model: openai("gpt-4o-mini")
+  model: dynamicFreeTextModel,
 });
 
-
-
-// Initialize OpenRouter provider
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-const scorerSampleRate = (() => {
-  const rateRaw = Number(process.env.MASTRA_SCORING_SAMPLE_RATE ?? "0.1")
-  if (!Number.isFinite(rateRaw)) {
-    return 0.1
-  }
-  return Math.max(0, Math.min(1, rateRaw))
-})()
-
-const judgeModel = openrouter("mistralai/devstral-2512:free") as any
 
 // Default vision model (fallback, will be dynamically updated)
 const DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-exp:free"
@@ -82,7 +82,7 @@ export async function createProductDescriptionAgent(): Promise<Agent> {
 
 
 export const visualFlowCodegenAgent = new Agent({
-  model: openrouter("mistralai/devstral-2512:free"),
+  model: dynamicFreeTextModel,
   name: "visual-flow-codegen-agent",
   instructions:
     "You generate JavaScript code snippets for a Visual Flow execute_code node. " +
@@ -128,7 +128,7 @@ export async function createImageExtractionAgent(): Promise<Agent> {
 // General chat agent for conversational tasks (text-only)
 export const generalChatAgent = new Agent({
   name: "general-chat-agent",
-  model: openrouter("nex-agi/deepseek-v3.1-nex-n1:free"),
+  model: dynamicFreeTextModel,
   instructions:
     "You are a concise, helpful assistant for a textile commerce platform. " +
     "Answer briefly and propose actions when appropriate.",
