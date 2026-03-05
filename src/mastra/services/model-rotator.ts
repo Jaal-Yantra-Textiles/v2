@@ -501,7 +501,7 @@ export async function executeWithModelRotation<T>(
         markModelRateLimited(modelId) // also rate-limit so rotator skips it
         // Also evict from the dynamic provider cache
         try {
-          const { markModelExpired } = await import("../providers/dynamic-text-model")
+          const { markModelExpired } = await import("../providers/dynamic-text-model.js")
           markModelExpired(modelId)
         } catch (_) { /* dynamic provider may not be loaded */ }
         continue
