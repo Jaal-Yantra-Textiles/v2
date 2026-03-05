@@ -1,3 +1,10 @@
+## [9.4.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.4.0...v9.4.1) (2026-03-05)
+
+
+### Bug Fixes
+
+* **api:** Visual Flow ([aec10bf](https://github.com/Jaal-Yantra-Textiles/v2/commit/aec10bf4d82135a7d229dafd384feb4ab32e0fa5))
+
 # [9.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.3.2...v9.4.0) (2026-03-05)
 
 
