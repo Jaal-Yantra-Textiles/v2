@@ -21,7 +21,7 @@ import { Tag } from "@medusajs/icons"
 import { useProducts } from "../../../hooks/api/products"
 import { getProductUrlFromHandle } from "../../../lib/storefront-url"
 import { sdk } from "../../../lib/config"
-import { CanvasEl, DEFAULT_HANG_TAG_CONFIG, HangTagConfig, useHangTagSettings } from "../../../hooks/api/hang-tag-settings"
+import { CanvasEl, DEFAULT_HANG_TAG_CONFIG, HangTagConfig, computeFrontLayout, computeBackLayout, useHangTagSettings } from "../../../hooks/api/hang-tag-settings"
 
 // Minimal shape we rely on in the table
 type AdminProductRow = {
@@ -218,27 +218,33 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
     }
   }
 
+  // ── Compute layout (respects user position overrides) ──────────────────────
+  const frontL = computeFrontLayout(cfg)
+  const backL = computeBackLayout(cfg)
+
+  // Helper: convert mm layout (y from top) to pdf-lib y (from bottom) for bottom edge of rect
+  const pdfY = (yMm: number, hMm = 0) => H - mm(yMm + hMm)
+
   // ── PAGE 1: FRONT ──────────────────────────────────────────────────────────
-  // Layout (pdf-lib: y=0 bottom, y=H top):
-  //  - Punch hole near very top
-  //  - Brand band just below hole (~26% of height)
-  //  - Product title + status badge below band
-  //  - Tagline near bottom
 
   const front = pdfDoc.addPage([W, H])
   front.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(1, 1, 1) })
 
-  const HOLE_R = mm(2.2)
-  const HOLE_TOP_MARGIN = mm(2.5)
-  const HOLE_CY = H - HOLE_TOP_MARGIN - HOLE_R
+  const FL_BAND = frontL["band"]
+  const FL_HOLE = frontL["punch-hole"]
+  const FL_TAGLINE = frontL["tagline"]
+  const FL_DIVIDER = frontL["divider"]
+  const FL_TITLE = frontL["title"]
+  const FL_BADGE = frontL["status-badge"]
 
-  const BAND_H = H * 0.26
-  const BAND_GAP = mm(4)
-  const BAND_TOP = HOLE_CY - HOLE_R - BAND_GAP   // top edge of band (in pdf-lib coords = high y)
-  const BAND_BOTTOM = BAND_TOP - BAND_H           // bottom edge
+  const HOLE_R = mm(FL_HOLE.r ?? 2.2)
+  const HOLE_CY = H - mm(FL_HOLE.y)
+
+  const BAND_H = mm(FL_BAND.h)
+  const BAND_BOTTOM = pdfY(FL_BAND.y, FL_BAND.h)
 
   // Brand band
-  front.drawRectangle({ x: 0, y: BAND_BOTTOM, width: W, height: BAND_H, color: headerColor })
+  front.drawRectangle({ x: mm(FL_BAND.x), y: BAND_BOTTOM, width: mm(FL_BAND.w), height: BAND_H, color: headerColor })
 
   // Logo or brand name in band
   if (cfg.logo_url) {
@@ -266,13 +272,13 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
 
   // Punch hole (drawn after band so it appears on top)
   if (cfg.show_punch_hole) {
-    front.drawCircle({ x: W / 2, y: HOLE_CY, size: HOLE_R + mm(0.8), color: headerColor })
-    front.drawCircle({ x: W / 2, y: HOLE_CY, size: HOLE_R, color: rgb(0.88, 0.88, 0.88) })
-    front.drawCircle({ x: W / 2, y: HOLE_CY, size: HOLE_R, borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 0.5 })
+    front.drawCircle({ x: mm(FL_HOLE.x), y: HOLE_CY, size: HOLE_R + mm(0.8), color: headerColor })
+    front.drawCircle({ x: mm(FL_HOLE.x), y: HOLE_CY, size: HOLE_R, color: rgb(0.88, 0.88, 0.88) })
+    front.drawCircle({ x: mm(FL_HOLE.x), y: HOLE_CY, size: HOLE_R, borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 0.5 })
   }
 
   // Product title below band
-  let fy = BAND_BOTTOM - mm(8)
+  let fy = H - mm(FL_TITLE.y) - mm(4)
   const titleFontSize = 9
   const titleLines = wrapText(product.title ?? "Untitled", fontBold, titleFontSize, INNER_W)
   for (const line of titleLines.slice(0, 2)) {
@@ -286,18 +292,16 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
     const statusLabel = product.status.charAt(0).toUpperCase() + product.status.slice(1)
     const sSize = 6.5
     const sW = fontRegular.widthOfTextAtSize(statusLabel, sSize) + mm(3)
-    const sH = mm(3.5)
-    const sX = (W - sW) / 2
-    fy -= mm(1)
-    front.drawRectangle({ x: sX, y: fy - sH + mm(1), width: sW, height: sH, color: accentColor })
-    front.drawText(statusLabel, { x: sX + mm(1.5), y: fy - sH + mm(1.5), size: sSize, font: fontRegular, color: rgb(0.3, 0.3, 0.3) })
-    fy -= sH + mm(2)
+    const sH = mm(FL_BADGE.h)
+    const sX = mm(FL_BADGE.x)
+    front.drawRectangle({ x: sX, y: pdfY(FL_BADGE.y, FL_BADGE.h), width: mm(FL_BADGE.w), height: sH, color: accentColor })
+    front.drawText(statusLabel, { x: sX + mm(1.5), y: pdfY(FL_BADGE.y, FL_BADGE.h) + mm(0.5), size: sSize, font: fontRegular, color: rgb(0.3, 0.3, 0.3) })
   }
 
-  // Short accent line (centered)
+  // Accent divider line
   front.drawLine({
-    start: { x: W * 0.3, y: fy - mm(3) },
-    end: { x: W * 0.7, y: fy - mm(3) },
+    start: { x: mm(FL_DIVIDER.x), y: pdfY(FL_DIVIDER.y) },
+    end:   { x: mm(FL_DIVIDER.x + FL_DIVIDER.w), y: pdfY(FL_DIVIDER.y) },
     thickness: 0.5,
     color: accentColor,
   })
@@ -305,11 +309,12 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
   // Tagline near bottom (centered)
   if (cfg.show_tagline && cfg.tagline) {
     const taglineSize = 6.5
+    const taglineY = pdfY(FL_TAGLINE.y)
     const taglineW = fontOblique.widthOfTextAtSize(cfg.tagline, taglineSize)
     if (taglineW <= INNER_W) {
       front.drawText(cfg.tagline, {
         x: (W - taglineW) / 2,
-        y: MARGIN + mm(2),
+        y: taglineY,
         size: taglineSize,
         font: fontOblique,
         color: rgb(0.6, 0.6, 0.6),
@@ -318,7 +323,7 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
       const words = cfg.tagline.split(" ")
       const mid = Math.ceil(words.length / 2)
       const lines = [words.slice(0, mid).join(" "), words.slice(mid).join(" ")].filter(Boolean)
-      let tY = MARGIN + mm(2) + (lines.length - 1) * 8
+      let tY = taglineY + (lines.length - 1) * 8
       for (const line of lines) {
         const lW = fontOblique.widthOfTextAtSize(line, taglineSize)
         front.drawText(line, { x: (W - lW) / 2, y: tY, size: taglineSize, font: fontOblique, color: rgb(0.6, 0.6, 0.6) })
@@ -333,18 +338,19 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
   }
 
   // ── PAGE 2: BACK ───────────────────────────────────────────────────────────
-  // Layout:
-  //  - Thin brand strip at very top
-  //  - Punch hole within top strip
-  //  - Product details (design, partner, palette, tags, collaborators)
-  //  - Divider
-  //  - QR code centered at bottom + tagline
 
   const back = pdfDoc.addPage([W, H])
   back.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(1, 1, 1) })
 
-  const STRIP_H = mm(7)
-  // Thin brand strip at top
+  const BL_STRIP = backL["strip"]
+  const BL_HOLE = backL["punch-hole"]
+  const BL_QR = backL["qr-code"]
+  const BL_DIVIDER = backL["divider"]
+  const BL_TAGLINE = backL["tagline"]
+  const BL_SCAN = backL["scan-label"]
+
+  const STRIP_H = mm(BL_STRIP.h)
+  // Brand strip at top
   back.drawRectangle({ x: 0, y: H - STRIP_H, width: W, height: STRIP_H, color: headerColor })
 
   // Brand name left-aligned in strip
@@ -366,12 +372,12 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
     opacity: 0.35,
   })
 
-  // Punch hole in strip
+  // Punch hole
   if (cfg.show_punch_hole) {
-    const bHoleCY = H - STRIP_H / 2
-    back.drawCircle({ x: W / 2, y: bHoleCY, size: HOLE_R + mm(0.8), color: headerColor })
-    back.drawCircle({ x: W / 2, y: bHoleCY, size: HOLE_R, color: rgb(0.88, 0.88, 0.88) })
-    back.drawCircle({ x: W / 2, y: bHoleCY, size: HOLE_R, borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 0.5 })
+    const bHoleCY = H - mm(BL_HOLE.y)
+    back.drawCircle({ x: mm(BL_HOLE.x), y: bHoleCY, size: HOLE_R + mm(0.8), color: headerColor })
+    back.drawCircle({ x: mm(BL_HOLE.x), y: bHoleCY, size: HOLE_R, color: rgb(0.88, 0.88, 0.88) })
+    back.drawCircle({ x: mm(BL_HOLE.x), y: bHoleCY, size: HOLE_R, borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 0.5 })
   }
 
   // Content: starts just below strip
@@ -455,16 +461,17 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
     by -= mm(1)
   }
 
-  // QR + tagline at bottom
-  const QR_SIZE = mm(18)
-  const QR_BOTTOM = MARGIN + mm(8)  // bottom edge of QR image
-  const QR_Y = QR_BOTTOM
-  const DIV_Y = QR_Y + QR_SIZE + mm(4)
-
   // Divider above QR area
-  back.drawLine({ start: { x: MARGIN, y: DIV_Y }, end: { x: W - MARGIN, y: DIV_Y }, thickness: 0.4, color: accentColor })
+  back.drawLine({
+    start: { x: mm(BL_DIVIDER.x), y: pdfY(BL_DIVIDER.y) },
+    end:   { x: mm(BL_DIVIDER.x + BL_DIVIDER.w), y: pdfY(BL_DIVIDER.y) },
+    thickness: 0.4,
+    color: accentColor,
+  })
 
   if (cfg.show_qr_code) {
+    const QR_SIZE = mm(BL_QR.w)
+    const QR_Y = pdfY(BL_QR.y, BL_QR.h)
     const qrDataUrl: string = await toDataURL(product.storefront_url, {
       width: 200, margin: 1, color: { dark: cfg.header_color, light: "#ffffff" },
     })
@@ -472,15 +479,13 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
     const qrImageBytes = Uint8Array.from(atob(qrBase64), (c) => c.charCodeAt(0))
     const qrImage = await pdfDoc.embedPng(qrImageBytes)
 
-    // Center QR horizontally
-    const qrX = (W - QR_SIZE) / 2
-    back.drawImage(qrImage, { x: qrX, y: QR_Y, width: QR_SIZE, height: QR_SIZE })
+    back.drawImage(qrImage, { x: mm(BL_QR.x), y: QR_Y, width: QR_SIZE, height: QR_SIZE })
 
     // Scan label above QR
     const scanLabel = cfg.scan_label || "scan me"
     const scanSize = 5.5
     const scanW = fontOblique.widthOfTextAtSize(scanLabel, scanSize)
-    back.drawText(scanLabel, { x: (W - scanW) / 2, y: QR_Y + QR_SIZE + mm(1.5), size: scanSize, font: fontOblique, color: subtleGray })
+    back.drawText(scanLabel, { x: (W - scanW) / 2, y: pdfY(BL_SCAN.y), size: scanSize, font: fontOblique, color: subtleGray })
 
     // Handle below QR
     const handleStr = `/${product.handle}`
@@ -494,7 +499,7 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
     const taglineSize = 6
     const taglineW = fontOblique.widthOfTextAtSize(cfg.tagline, taglineSize)
     if (taglineW <= INNER_W) {
-      back.drawText(cfg.tagline, { x: (W - taglineW) / 2, y: MARGIN - mm(1), size: taglineSize, font: fontOblique, color: rgb(0.6, 0.6, 0.6) })
+      back.drawText(cfg.tagline, { x: (W - taglineW) / 2, y: pdfY(BL_TAGLINE.y), size: taglineSize, font: fontOblique, color: rgb(0.6, 0.6, 0.6) })
     }
   }
 

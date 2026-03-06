@@ -1,28 +1,43 @@
 /**
  * HangTagCanvasEditor
  *
- * SVG-based interactive canvas for free-form hang tag design.
- * Elements are stored in mm coordinates matching the tag dimensions.
- * Pointer events handle drag-to-move. Properties panel handles resize.
+ * SVG-based interactive canvas for hang tag design.
+ * Supports both free-form elements and interactive template elements.
+ * All coordinates are in mm matching the tag dimensions.
  */
 
 import { useCallback, useRef, useState } from "react"
-import { Button, Input, Label, Text } from "@medusajs/ui"
-import { Plus, Trash, PencilSquare } from "@medusajs/icons"
-import { CanvasEl, CanvasElType, HangTagConfig, makeEl } from "../../hooks/api/hang-tag-settings"
+import { Button, Input, Label, Switch, Text } from "@medusajs/ui"
+import { Trash } from "@medusajs/icons"
+import { CanvasEl, CanvasElType, HangTagConfig, LayoutPos, makeEl } from "../../hooks/api/hang-tag-settings"
 import ProductMediaModal from "../media/product-media-modal"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Tool = "select" | CanvasElType
 
+export type TemplateEl = {
+  id: string
+  label: string
+  x: number
+  y: number
+  w: number
+  h: number
+  r?: number
+  /** Config keys to show in the template properties panel */
+  configKeys: (keyof HangTagConfig)[]
+  /** If set, element can be toggled visible/hidden via this config key */
+  showKey?: keyof HangTagConfig
+}
+
 interface Props {
   cfg: HangTagConfig
-  /** All elements on this canvas side */
+  onCfgChange: (patch: Partial<HangTagConfig>) => void
+  templateEls: TemplateEl[]
+  onLayoutChange: (id: string, pos: { x?: number; y?: number }) => void
+  onResetElementLayout: (id: string) => void
   elements: CanvasEl[]
   onChange: (elements: CanvasEl[]) => void
-  /** Render the static tag template as SVG background */
-  background: React.ReactNode
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -72,7 +87,7 @@ function ToolBtn({
   )
 }
 
-// ── Properties panel ──────────────────────────────────────────────────────────
+// ── Shared form primitives ─────────────────────────────────────────────────────
 
 function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -126,6 +141,8 @@ function ColorInput({ value, onChange }: { value: string; onChange: (v: string) 
     </div>
   )
 }
+
+// ── Free-form element properties panel ────────────────────────────────────────
 
 function PropertiesPanel({
   el,
@@ -260,9 +277,276 @@ function PropertiesPanel({
   )
 }
 
+// ── Template element properties panel ─────────────────────────────────────────
+
+const CONFIG_KEY_LABELS: Partial<Record<keyof HangTagConfig, string>> = {
+  header_color: "Band color",
+  header_text_color: "Text color",
+  accent_color: "Accent color",
+  brand_name: "Brand name",
+  tagline: "Tagline text",
+  scan_label: "QR caption",
+  logo_url: "Logo image",
+  show_punch_hole: "Show punch hole",
+  show_status_badge: "Show status badge",
+  show_design_info: "Show design info",
+  show_partner_info: "Show partner info",
+  show_color_palette: "Show color palette",
+  show_design_tags: "Show design tags",
+  show_collaborators: "Show collaborators",
+  show_qr_code: "Show QR code",
+  show_tagline: "Show tagline",
+}
+
+function TemplatePropertiesPanel({
+  el,
+  cfg,
+  onCfgChange,
+  onLayoutChange,
+  onResetPosition,
+}: {
+  el: TemplateEl
+  cfg: HangTagConfig
+  onCfgChange: (patch: Partial<HangTagConfig>) => void
+  onLayoutChange: (id: string, pos: { x?: number; y?: number }) => void
+  onResetPosition: (id: string) => void
+}) {
+  const [mediaOpen, setMediaOpen] = useState(false)
+
+  return (
+    <div className="flex flex-col gap-y-2 border-t border-ui-border-base pt-3 mt-2">
+      <div className="flex items-center justify-between">
+        <Text size="xsmall" weight="plus">
+          {el.label}
+        </Text>
+        <Button
+          variant="transparent"
+          size="small"
+          onClick={() => onResetPosition(el.id)}
+          className="text-ui-fg-subtle hover:text-ui-fg-base text-[11px] h-6 px-1"
+        >
+          Reset pos
+        </Button>
+      </div>
+
+      {/* Position */}
+      <PropRow label="X (mm)">
+        <NumberInput value={Math.round(el.x * 10) / 10} onChange={(v) => onLayoutChange(el.id, { x: v })} />
+      </PropRow>
+      <PropRow label="Y (mm)">
+        <NumberInput value={Math.round(el.y * 10) / 10} onChange={(v) => onLayoutChange(el.id, { y: v })} />
+      </PropRow>
+
+      {/* Config key controls */}
+      {el.configKeys.map((key) => {
+        const keyStr = key as string
+        const label = CONFIG_KEY_LABELS[key] ?? keyStr
+
+        if (keyStr.startsWith("show_")) {
+          return (
+            <PropRow key={keyStr} label={label}>
+              <Switch
+                checked={!!(cfg[key] as boolean)}
+                onCheckedChange={(v) => onCfgChange({ [key]: v })}
+              />
+            </PropRow>
+          )
+        }
+
+        if (keyStr.endsWith("_color")) {
+          return (
+            <PropRow key={keyStr} label={label}>
+              <ColorInput
+                value={(cfg[key] as string) || "#000000"}
+                onChange={(v) => onCfgChange({ [key]: v })}
+              />
+            </PropRow>
+          )
+        }
+
+        if (key === "logo_url") {
+          return (
+            <PropRow key={keyStr} label={label}>
+              <Button
+                variant="secondary"
+                size="small"
+                onClick={() => setMediaOpen(true)}
+                className="w-full text-xs h-7"
+              >
+                {cfg.logo_url ? "Change logo" : "Choose logo"}
+              </Button>
+            </PropRow>
+          )
+        }
+
+        // Default: text input
+        return (
+          <PropRow key={keyStr} label={label}>
+            <Input
+              value={(cfg[key] as string) ?? ""}
+              onChange={(e) => onCfgChange({ [key]: e.target.value })}
+              className="h-7 text-xs"
+            />
+          </PropRow>
+        )
+      })}
+
+      {/* Logo media modal */}
+      {el.configKeys.includes("logo_url") && (
+        <>
+          {cfg.logo_url && (
+            <img src={cfg.logo_url} alt="" className="h-12 w-full object-contain rounded border border-ui-border-base" />
+          )}
+          <ProductMediaModal
+            open={mediaOpen}
+            onOpenChange={setMediaOpen}
+            initialUrls={cfg.logo_url ? [cfg.logo_url] : []}
+            onSave={(urls) => {
+              if (urls[0]) onCfgChange({ logo_url: urls[0] })
+              setMediaOpen(false)
+            }}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Template element visual rendering ─────────────────────────────────────────
+
+function renderTemplateEl(
+  el: TemplateEl,
+  cfg: HangTagConfig,
+  isSelected: boolean,
+  tool: Tool,
+  onPointerDown: (e: React.PointerEvent<SVGElement>, el: TemplateEl) => void
+): React.ReactNode {
+  const isHidden = el.showKey ? !cfg[el.showKey as keyof HangTagConfig] : false
+  const elOpacity = isHidden ? 0.3 : 1
+  const cursor = tool === "select" ? ("move" as const) : ("default" as const)
+
+  // Hit area bounds
+  const isCircle = el.r !== undefined
+  const hitX = isCircle ? el.x - (el.r ?? 0) - 0.5 : el.x - 0.5
+  const hitY = isCircle ? el.y - (el.r ?? 0) - 0.5 : el.y - 0.5
+  const hitW = isCircle ? (el.r ?? 0) * 2 + 1 : Math.max(el.w, 2) + 1
+  const hitH = isCircle ? (el.r ?? 0) * 2 + 1 : Math.max(el.h, 2) + 1
+
+  // Visual content
+  let visual: React.ReactNode
+
+  if (el.id === "punch-hole") {
+    const r = el.r ?? 2.2
+    visual = (
+      <>
+        <circle cx={el.x} cy={el.y} r={r + 0.25} fill={cfg.header_color || "#111"} style={{ pointerEvents: "none" }} />
+        <circle cx={el.x} cy={el.y} r={r} fill="#e4e4e4" stroke="#bbb" strokeWidth={0.15} style={{ pointerEvents: "none" }} />
+      </>
+    )
+  } else if (el.id === "band" || el.id === "strip") {
+    visual = (
+      <rect x={el.x} y={el.y} width={el.w} height={el.h} fill={cfg.header_color || "#111"} style={{ pointerEvents: "none" }} />
+    )
+  } else if (el.id === "logo") {
+    visual = cfg.logo_url ? (
+      <image href={cfg.logo_url} x={el.x} y={el.y} width={el.w} height={el.h} preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
+    ) : (
+      <text x={el.x + el.w / 2} y={el.y + el.h / 2 + 1.5} textAnchor="middle" fontSize={3} fontWeight="bold" fill={cfg.header_text_color || "#fff"} fontFamily="sans-serif" style={{ pointerEvents: "none" }}>
+        {cfg.brand_name || "BRAND"}
+      </text>
+    )
+  } else if (el.id === "brand-text") {
+    visual = (
+      <text x={el.x} y={el.y + el.h * 0.75} fontSize={2} fontWeight="bold" fill={cfg.header_text_color || "#fff"} fontFamily="sans-serif" style={{ pointerEvents: "none" }}>
+        {cfg.brand_name || "BRAND"}
+      </text>
+    )
+  } else if (el.id === "title") {
+    visual = (
+      <text x={el.x} y={el.y + el.h * 0.75} textAnchor="middle" fontSize={3} fontWeight="bold" fill="#111" fontFamily="sans-serif" style={{ pointerEvents: "none" }}>
+        Product Title
+      </text>
+    )
+  } else if (el.id === "status-badge") {
+    visual = (
+      <>
+        <rect x={el.x} y={el.y} width={el.w} height={el.h} fill={cfg.accent_color || "#eee"} rx={0.5} style={{ pointerEvents: "none" }} />
+        <text x={el.x + el.w / 2} y={el.y + el.h * 0.72} textAnchor="middle" fontSize={2} fill="#555" fontFamily="sans-serif" style={{ pointerEvents: "none" }}>Published</text>
+      </>
+    )
+  } else if (el.id === "divider") {
+    visual = (
+      <line x1={el.x} y1={el.y} x2={el.x + el.w} y2={el.y} stroke={cfg.accent_color || "#eee"} strokeWidth={0.2} style={{ pointerEvents: "none" }} />
+    )
+  } else if (el.id === "tagline") {
+    visual = (
+      <text x={el.x} y={el.y + el.h * 0.75} textAnchor="middle" fontSize={2} fill="#aaa" fontFamily="sans-serif" fontStyle="italic" style={{ pointerEvents: "none" }}>
+        {cfg.tagline || "(tagline)"}
+      </text>
+    )
+  } else if (el.id === "scan-label") {
+    visual = (
+      <text x={el.x} y={el.y + el.h * 0.75} textAnchor="middle" fontSize={2} fill="#bbb" fontFamily="sans-serif" fontStyle="italic" style={{ pointerEvents: "none" }}>
+        {cfg.scan_label || "scan me"}
+      </text>
+    )
+  } else if (el.id === "qr-code") {
+    visual = (
+      <>
+        <rect x={el.x} y={el.y} width={el.w} height={el.h} fill={cfg.accent_color || "#eee"} rx={0.5} style={{ pointerEvents: "none" }} />
+        <text x={el.x + el.w / 2} y={el.y + el.h / 2 + 1.5} textAnchor="middle" fontSize={3} fill="#aaa" fontFamily="sans-serif" style={{ pointerEvents: "none" }}>QR</text>
+      </>
+    )
+  } else {
+    // Generic placeholder (design-info, partner-info, palette, design-tags, collaborators)
+    visual = (
+      <>
+        <rect x={el.x} y={el.y} width={el.w} height={el.h} fill="none" stroke="#ddd" strokeWidth={0.2} strokeDasharray="1,1" rx={0.3} style={{ pointerEvents: "none" }} />
+        <text x={el.x + 1} y={el.y + Math.min(el.h * 0.7, 3)} fontSize={2} fill="#ccc" fontFamily="sans-serif" style={{ pointerEvents: "none" }}>
+          {el.label}
+        </text>
+      </>
+    )
+  }
+
+  return (
+    <g key={el.id} style={{ opacity: elOpacity }}>
+      {visual}
+      {/* Selection outline */}
+      {isSelected && (
+        <rect
+          x={hitX} y={hitY}
+          width={hitW} height={hitH}
+          fill="none"
+          stroke="#3b82f6"
+          strokeWidth={0.4}
+          strokeDasharray="1.5,1"
+          style={{ pointerEvents: "none" }}
+        />
+      )}
+      {/* Transparent hit area */}
+      <rect
+        x={hitX} y={hitY}
+        width={hitW} height={hitH}
+        fill="transparent"
+        style={{ cursor, opacity: 0 }}
+        onPointerDown={(e) => onPointerDown(e, el)}
+      />
+    </g>
+  )
+}
+
 // ── Main editor ───────────────────────────────────────────────────────────────
 
-export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Props) {
+export function HangTagCanvasEditor({
+  cfg,
+  onCfgChange,
+  templateEls,
+  onLayoutChange,
+  onResetElementLayout,
+  elements,
+  onChange,
+}: Props) {
   const [tool, setTool] = useState<Tool>("select")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -270,13 +554,15 @@ export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Pro
   // Drag state stored in a ref (no re-render on move)
   const drag = useRef<{
     id: string
-    startMx: number   // mouse X at drag start
-    startMy: number   // mouse Y at drag start
-    elemX: number     // element x at drag start (mm)
-    elemY: number     // element y at drag start (mm)
+    isTemplate: boolean
+    startMx: number
+    startMy: number
+    elemX: number
+    elemY: number
   } | null>(null)
 
-  const selected = elements.find((e) => e.id === selectedId) ?? null
+  const selectedFreeEl = elements.find((e) => e.id === selectedId) ?? null
+  const selectedTemplateEl = templateEls.find((e) => e.id === selectedId) ?? null
 
   const update = useCallback(
     (id: string, patch: Partial<CanvasEl>) => {
@@ -300,10 +586,7 @@ export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Pro
     if (!svgRef.current) return
     e.stopPropagation()
     const { x, y } = svgMm(e, svgRef.current, cfg.width_mm, cfg.height_mm)
-    if (tool === "image") {
-      // image needs media picker — handled by toolbar button directly
-      return
-    }
+    if (tool === "image") return
     const el = makeEl(tool, x, y)
     onChange([...elements, el])
     setSelectedId(el.id)
@@ -320,7 +603,18 @@ export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Pro
     e.stopPropagation()
     setSelectedId(id)
     ;(e.currentTarget as SVGElement).setPointerCapture(e.pointerId)
-    drag.current = { id, startMx: e.clientX, startMy: e.clientY, elemX, elemY }
+    drag.current = { id, isTemplate: false, startMx: e.clientX, startMy: e.clientY, elemX, elemY }
+  }
+
+  const onTemplateElemPointerDown = (
+    e: React.PointerEvent<SVGElement>,
+    el: TemplateEl
+  ) => {
+    if (tool !== "select") return
+    e.stopPropagation()
+    setSelectedId(el.id)
+    ;(e.currentTarget as SVGElement).setPointerCapture(e.pointerId)
+    drag.current = { id: el.id, isTemplate: true, startMx: e.clientX, startMy: e.clientY, elemX: el.x, elemY: el.y }
   }
 
   const onSvgPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -332,7 +626,12 @@ export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Pro
     const dy = (e.clientY - drag.current.startMy) * scaleY
     const newX = clamp(drag.current.elemX + dx, 0, cfg.width_mm)
     const newY = clamp(drag.current.elemY + dy, 0, cfg.height_mm)
-    update(drag.current.id, { x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 })
+    const pos = { x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 }
+    if (drag.current.isTemplate) {
+      onLayoutChange(drag.current.id, pos)
+    } else {
+      update(drag.current.id, pos)
+    }
   }
 
   const onSvgPointerUp = () => {
@@ -342,7 +641,7 @@ export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Pro
   // ── Keyboard handler ───────────────────────────────────────────────────────
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
+    if ((e.key === "Delete" || e.key === "Backspace") && selectedId && !selectedTemplateEl) {
       e.preventDefault()
       deleteEl(selectedId)
     }
@@ -352,13 +651,10 @@ export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Pro
     }
   }
 
-  // ── Render element ─────────────────────────────────────────────────────────
+  // ── Render free-form element ────────────────────────────────────────────────
 
   function renderEl(el: CanvasEl) {
     const isSelected = el.id === selectedId
-    const W = cfg.width_mm
-    const H = cfg.height_mm
-    // Normalize coords to viewBox 0..W, 0..H (in mm, but SVG viewBox is also in mm units here)
     const sel = isSelected
       ? { outline: "2px solid #3b82f6", cursor: "move" as const }
       : { cursor: tool === "select" ? ("move" as const) : ("crosshair" as const) }
@@ -388,7 +684,7 @@ export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Pro
             <text
               x={el.x}
               y={el.y}
-              fontSize={(el.fontSize ?? 8) * 0.352778} // pt → mm
+              fontSize={(el.fontSize ?? 8) * 0.352778}
               fontWeight={el.bold ? "bold" : "normal"}
               fontStyle={el.italic ? "italic" : "normal"}
               fill={el.color ?? "#111111"}
@@ -510,19 +806,17 @@ export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Pro
         </ToolBtn>
 
         {elements.length > 0 && (
-          <>
-            <div className="ml-auto flex items-center gap-x-1">
-              <Text size="xsmall" className="text-ui-fg-subtle">{elements.length} element{elements.length !== 1 ? "s" : ""}</Text>
-              <Button
-                variant="transparent"
-                size="small"
-                onClick={() => { onChange([]); setSelectedId(null) }}
-                className="text-ui-fg-subtle hover:text-ui-fg-error text-[11px] h-6 px-1"
-              >
-                Clear all
-              </Button>
-            </div>
-          </>
+          <div className="ml-auto flex items-center gap-x-1">
+            <Text size="xsmall" className="text-ui-fg-subtle">{elements.length} element{elements.length !== 1 ? "s" : ""}</Text>
+            <Button
+              variant="transparent"
+              size="small"
+              onClick={() => { onChange([]); setSelectedId(null) }}
+              className="text-ui-fg-subtle hover:text-ui-fg-error text-[11px] h-6 px-1"
+            >
+              Clear all
+            </Button>
+          </div>
         )}
       </div>
 
@@ -544,26 +838,42 @@ export function HangTagCanvasEditor({ cfg, elements, onChange, background }: Pro
           onPointerMove={onSvgPointerMove}
           onPointerUp={onSvgPointerUp}
         >
-          {/* Tag template background — passed from parent */}
-          {background}
+          {/* White background */}
+          <rect width={cfg.width_mm} height={cfg.height_mm} fill="#fff" style={{ pointerEvents: "none" }} />
 
-          {/* Canvas elements */}
+          {/* Template elements — rendered below free-form elements */}
+          {templateEls.map((el) =>
+            renderTemplateEl(el, cfg, el.id === selectedId, tool, onTemplateElemPointerDown)
+          )}
+
+          {/* Free-form canvas elements */}
           {elements.map(renderEl)}
         </svg>
       </div>
 
-      {/* Properties panel for selected element */}
-      {selected && (
+      {/* Properties panel for selected free-form element */}
+      {selectedFreeEl && (
         <PropertiesPanel
-          el={selected}
-          onUpdate={(patch) => update(selected.id, patch)}
-          onDelete={() => deleteEl(selected.id)}
+          el={selectedFreeEl}
+          onUpdate={(patch) => update(selectedFreeEl.id, patch)}
+          onDelete={() => deleteEl(selectedFreeEl.id)}
         />
       )}
 
-      {!selected && elements.length === 0 && (
+      {/* Properties panel for selected template element */}
+      {selectedTemplateEl && (
+        <TemplatePropertiesPanel
+          el={selectedTemplateEl}
+          cfg={cfg}
+          onCfgChange={onCfgChange}
+          onLayoutChange={onLayoutChange}
+          onResetPosition={onResetElementLayout}
+        />
+      )}
+
+      {!selectedFreeEl && !selectedTemplateEl && (
         <Text size="xsmall" className="text-ui-fg-muted text-center py-2">
-          Pick a tool above and click the canvas to add elements
+          Click a template element to configure it, or pick a tool to add new elements
         </Text>
       )}
 

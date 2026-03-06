@@ -16,10 +16,12 @@ import {
   CanvasEl,
   DEFAULT_HANG_TAG_CONFIG,
   HangTagConfig,
+  computeFrontLayout,
+  computeBackLayout,
   useHangTagSettings,
   useUpdateHangTagSettings,
 } from "../../../hooks/api/hang-tag-settings"
-import { HangTagCanvasEditor } from "../../../components/hang-tag/canvas-editor"
+import { HangTagCanvasEditor, TemplateEl } from "../../../components/hang-tag/canvas-editor"
 import ProductMediaModal from "../../../components/media/product-media-modal"
 
 // ── SVG hang tag components ───────────────────────────────────────────────────
@@ -412,85 +414,37 @@ function HangTagBack({ cfg }: { cfg: HangTagConfig }) {
   )
 }
 
-// ── Canvas editor backgrounds (mm viewBox) ────────────────────────────────────
+// ── Template element builders ─────────────────────────────────────────────────
 
-function FrontBgMm({ cfg }: { cfg: HangTagConfig }) {
-  const W = cfg.width_mm
-  const H = cfg.height_mm
-  const HOLE_R_MM = 2.2
-  const MARGIN_MM = 4
-  const HOLE_CY_MM = HOLE_R_MM + 2.5
-  const BAND_Y_MM = HOLE_CY_MM + HOLE_R_MM + 4
-  const BAND_H_MM = H * 0.26
-  const BAND_MID_MM = BAND_Y_MM + BAND_H_MM / 2
-  const brandFontSize = Math.min(3.87, BAND_H_MM * 0.38)
-  const headerBg = cfg.header_color || "#111"
-  const headerFg = cfg.header_text_color || "#fff"
-  const accentBg = cfg.accent_color || "#eee"
-
-  return (
-    <>
-      <rect width={W} height={H} fill="#fff" style={{ pointerEvents: "none" }} />
-      <rect x={0} y={BAND_Y_MM} width={W} height={BAND_H_MM} fill={headerBg} style={{ pointerEvents: "none" }} />
-      {cfg.logo_url ? (
-        <image href={cfg.logo_url} x={MARGIN_MM} y={BAND_Y_MM + BAND_H_MM * 0.1} width={W - MARGIN_MM * 2} height={BAND_H_MM * 0.8} preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
-      ) : (
-        <text x={W / 2} y={BAND_MID_MM + brandFontSize * 0.36} textAnchor="middle" fontSize={brandFontSize} fontWeight="bold" fill={headerFg} fontFamily="sans-serif" letterSpacing={0.5} style={{ pointerEvents: "none" }}>
-          {cfg.brand_name || "BRAND"}
-        </text>
-      )}
-      {cfg.show_punch_hole && (
-        <>
-          <circle cx={W / 2} cy={HOLE_CY_MM} r={HOLE_R_MM + 0.25} fill={headerBg} style={{ pointerEvents: "none" }} />
-          <circle cx={W / 2} cy={HOLE_CY_MM} r={HOLE_R_MM} fill="#e4e4e4" stroke="#bbb" strokeWidth={0.15} style={{ pointerEvents: "none" }} />
-        </>
-      )}
-      <text x={W / 2} y={BAND_Y_MM + BAND_H_MM + 3.5} textAnchor="middle" fontSize={3} fontWeight="bold" fill="#111" fontFamily="sans-serif" style={{ pointerEvents: "none" }}>Sample Product</text>
-      <line x1={W * 0.2} y1={H * 0.72} x2={W * 0.8} y2={H * 0.72} stroke={accentBg} strokeWidth={0.2} style={{ pointerEvents: "none" }} />
-      {cfg.show_tagline && cfg.tagline && (
-        <text x={W / 2} y={H - 2} textAnchor="middle" fontSize={2} fill="#aaa" fontFamily="sans-serif" fontStyle="italic" style={{ pointerEvents: "none" }}>{cfg.tagline}</text>
-      )}
-    </>
-  )
+function buildFrontTemplateEls(cfg: HangTagConfig): TemplateEl[] {
+  const L = computeFrontLayout(cfg)
+  return [
+    { id: "band",         label: "Brand Band",    ...L["band"],         configKeys: ["header_color", "header_text_color"] },
+    { id: "punch-hole",   label: "Punch Hole",    ...L["punch-hole"],   showKey: "show_punch_hole",   configKeys: ["show_punch_hole"] },
+    { id: "logo",         label: "Logo / Brand",  ...L["logo"],         configKeys: ["logo_url", "brand_name", "header_text_color"] },
+    { id: "title",        label: "Product Title", ...L["title"],        configKeys: [] },
+    { id: "status-badge", label: "Status Badge",  ...L["status-badge"], showKey: "show_status_badge", configKeys: ["show_status_badge", "accent_color"] },
+    { id: "divider",      label: "Divider",       ...L["divider"],      configKeys: ["accent_color"] },
+    { id: "tagline",      label: "Tagline",       ...L["tagline"],      showKey: "show_tagline",      configKeys: ["show_tagline", "tagline"] },
+  ]
 }
 
-function BackBgMm({ cfg }: { cfg: HangTagConfig }) {
-  const W = cfg.width_mm
-  const H = cfg.height_mm
-  const HOLE_R_MM = 2.2
-  const MARGIN_MM = 4
-  const STRIP_H_MM = 7
-  const headerBg = cfg.header_color || "#111"
-  const headerFg = cfg.header_text_color || "#fff"
-  const accentBg = cfg.accent_color || "#eee"
-  const QR_SIZE_MM = 15
-  const QR_BOTTOM_MM = 5
-  const QR_Y_MM = H - QR_BOTTOM_MM - QR_SIZE_MM
-  const HOLE_CY_MM = HOLE_R_MM + 2.5
-
-  return (
-    <>
-      <rect width={W} height={H} fill="#fff" style={{ pointerEvents: "none" }} />
-      <rect x={0} y={0} width={W} height={STRIP_H_MM} fill={headerBg} style={{ pointerEvents: "none" }} />
-      <text x={MARGIN_MM} y={STRIP_H_MM / 2 + 1} fontSize={2} fontWeight="bold" fill={headerFg} fontFamily="sans-serif" style={{ pointerEvents: "none" }}>{cfg.brand_name || "BRAND"}</text>
-      {cfg.show_punch_hole && (
-        <>
-          <circle cx={W / 2} cy={HOLE_CY_MM} r={HOLE_R_MM + 0.25} fill={headerBg} style={{ pointerEvents: "none" }} />
-          <circle cx={W / 2} cy={HOLE_CY_MM} r={HOLE_R_MM} fill="#e4e4e4" stroke="#bbb" strokeWidth={0.15} style={{ pointerEvents: "none" }} />
-        </>
-      )}
-      <line x1={MARGIN_MM} y1={QR_Y_MM - 4} x2={W - MARGIN_MM} y2={QR_Y_MM - 4} stroke={accentBg} strokeWidth={0.15} style={{ pointerEvents: "none" }} />
-      {cfg.show_qr_code && (
-        <g style={{ pointerEvents: "none" }}>
-          <rect x={W / 2 - QR_SIZE_MM / 2} y={QR_Y_MM} width={QR_SIZE_MM} height={QR_SIZE_MM} fill={accentBg} rx={0.5} />
-          <text x={W / 2} y={QR_Y_MM + QR_SIZE_MM * 0.58} textAnchor="middle" fontSize={2} fill="#aaa" fontFamily="sans-serif">QR</text>
-        </g>
-      )}
-      {cfg.show_tagline && cfg.tagline && (
-        <text x={W / 2} y={H - 0.5} textAnchor="middle" fontSize={2} fill="#aaa" fontFamily="sans-serif" fontStyle="italic" style={{ pointerEvents: "none" }}>{cfg.tagline}</text>
-      )}
-    </>
-  )
+function buildBackTemplateEls(cfg: HangTagConfig): TemplateEl[] {
+  const L = computeBackLayout(cfg)
+  return [
+    { id: "strip",        label: "Brand Strip",   ...L["strip"],        configKeys: ["header_color", "header_text_color"] },
+    { id: "brand-text",   label: "Brand Text",    ...L["brand-text"],   configKeys: ["brand_name", "header_text_color"] },
+    { id: "punch-hole",   label: "Punch Hole",    ...L["punch-hole"],   showKey: "show_punch_hole",   configKeys: ["show_punch_hole"] },
+    { id: "design-info",  label: "Design Info",   ...L["design-info"],  showKey: "show_design_info",  configKeys: ["show_design_info"] },
+    { id: "partner-info", label: "Partner Info",  ...L["partner-info"], showKey: "show_partner_info", configKeys: ["show_partner_info"] },
+    { id: "palette",      label: "Color Palette", ...L["palette"],      showKey: "show_color_palette",configKeys: ["show_color_palette"] },
+    { id: "design-tags",  label: "Design Tags",   ...L["design-tags"],  showKey: "show_design_tags",  configKeys: ["show_design_tags"] },
+    { id: "collaborators",label: "Collaborators", ...L["collaborators"],showKey: "show_collaborators",configKeys: ["show_collaborators"] },
+    { id: "divider",      label: "Divider",       ...L["divider"],      configKeys: ["accent_color"] },
+    { id: "qr-code",      label: "QR Code",       ...L["qr-code"],      showKey: "show_qr_code",      configKeys: ["show_qr_code", "scan_label", "accent_color"] },
+    { id: "scan-label",   label: "QR Caption",    ...L["scan-label"],   configKeys: ["scan_label"] },
+    { id: "tagline",      label: "Tagline",       ...L["tagline"],      showKey: "show_tagline",      configKeys: ["show_tagline", "tagline"] },
+  ]
 }
 
 // ── Toggle row helper ─────────────────────────────────────────────────────────
@@ -816,14 +770,42 @@ const HangTagSettingsPage = () => {
                 {/* Front canvas editor */}
                 {previewTab === "front-canvas" && (
                   <div className="p-4">
-                    <Text size="xsmall" className="text-ui-fg-subtle mb-3 block">
-                      Add free-form elements on top of the front side template. Drag to reposition.
-                    </Text>
+                    <div className="flex items-center justify-between mb-3">
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Click template elements to configure. Drag to reposition. Add new elements with the toolbar.
+                      </Text>
+                      <Button
+                        variant="transparent"
+                        size="small"
+                        onClick={() => set("front_layout", {})}
+                        className="text-ui-fg-subtle hover:text-ui-fg-base text-[11px] h-6 px-1 shrink-0 ml-2"
+                      >
+                        Reset layout
+                      </Button>
+                    </div>
                     <HangTagCanvasEditor
                       cfg={cfg}
+                      onCfgChange={(patch) => { setCfg(p => ({ ...p, ...patch })); setDirty(true) }}
+                      templateEls={buildFrontTemplateEls(cfg)}
+                      onLayoutChange={(id, pos) => {
+                        setCfg(p => ({
+                          ...p,
+                          front_layout: {
+                            ...(p.front_layout ?? {}),
+                            [id]: { ...(p.front_layout?.[id] ?? {}), ...pos },
+                          },
+                        }))
+                        setDirty(true)
+                      }}
+                      onResetElementLayout={(id) => {
+                        setCfg(p => {
+                          const { [id]: _, ...rest } = p.front_layout ?? {}
+                          return { ...p, front_layout: rest }
+                        })
+                        setDirty(true)
+                      }}
                       elements={frontElements}
                       onChange={(els) => set("front_canvas", els)}
-                      background={<FrontBgMm cfg={cfg} />}
                     />
                   </div>
                 )}
@@ -831,14 +813,42 @@ const HangTagSettingsPage = () => {
                 {/* Back canvas editor */}
                 {previewTab === "back-canvas" && (
                   <div className="p-4">
-                    <Text size="xsmall" className="text-ui-fg-subtle mb-3 block">
-                      Add free-form elements on top of the back side template. Drag to reposition.
-                    </Text>
+                    <div className="flex items-center justify-between mb-3">
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Click template elements to configure. Drag to reposition. Add new elements with the toolbar.
+                      </Text>
+                      <Button
+                        variant="transparent"
+                        size="small"
+                        onClick={() => set("back_layout", {})}
+                        className="text-ui-fg-subtle hover:text-ui-fg-base text-[11px] h-6 px-1 shrink-0 ml-2"
+                      >
+                        Reset layout
+                      </Button>
+                    </div>
                     <HangTagCanvasEditor
                       cfg={cfg}
+                      onCfgChange={(patch) => { setCfg(p => ({ ...p, ...patch })); setDirty(true) }}
+                      templateEls={buildBackTemplateEls(cfg)}
+                      onLayoutChange={(id, pos) => {
+                        setCfg(p => ({
+                          ...p,
+                          back_layout: {
+                            ...(p.back_layout ?? {}),
+                            [id]: { ...(p.back_layout?.[id] ?? {}), ...pos },
+                          },
+                        }))
+                        setDirty(true)
+                      }}
+                      onResetElementLayout={(id) => {
+                        setCfg(p => {
+                          const { [id]: _, ...rest } = p.back_layout ?? {}
+                          return { ...p, back_layout: rest }
+                        })
+                        setDirty(true)
+                      }}
                       elements={backElements}
                       onChange={(els) => set("back_canvas", els)}
-                      background={<BackBgMm cfg={cfg} />}
                     />
                   </div>
                 )}
