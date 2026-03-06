@@ -66,6 +66,11 @@ export type CreateDesignInput = {
   tags?: string[]
 }
 
+// Request body for updating a design (all fields optional)
+export type UpdateDesignInput = Partial<Omit<CreateDesignInput, "name">> & {
+  name?: string
+}
+
 // Response types
 export type CreateDesignResponse = {
   design: Design
@@ -155,6 +160,34 @@ export const listDesigns = async ({
       offset,
       limit,
     }
+  }
+}
+
+/**
+ * Updates an existing design owned by the authenticated customer
+ */
+export const updateDesign = async (
+  designId: string,
+  input: UpdateDesignInput
+): Promise<{ design: Design }> => {
+  const headers = {
+    ...(await getAuthHeaders()),
+    "Content-Type": "application/json",
+  }
+
+  try {
+    const data = await sdk.client.fetch<{ design: Design }>(
+      `/store/custom/designs/${designId}`,
+      {
+        method: "PUT",
+        body: input,
+        headers,
+      }
+    )
+    return data
+  } catch (error) {
+    console.error("Error updating design:", error)
+    throw error
   }
 }
 
