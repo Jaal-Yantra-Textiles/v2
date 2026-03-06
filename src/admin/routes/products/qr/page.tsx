@@ -21,7 +21,7 @@ import { Tag } from "@medusajs/icons"
 import { useProducts } from "../../../hooks/api/products"
 import { getProductUrlFromHandle } from "../../../lib/storefront-url"
 import { sdk } from "../../../lib/config"
-import { DEFAULT_HANG_TAG_CONFIG, HangTagConfig, useHangTagSettings } from "../../../hooks/api/hang-tag-settings"
+import { CanvasEl, DEFAULT_HANG_TAG_CONFIG, HangTagConfig, useHangTagSettings } from "../../../hooks/api/hang-tag-settings"
 
 // Minimal shape we rely on in the table
 type AdminProductRow = {
@@ -109,15 +109,12 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
   const INNER_W = W - MARGIN * 2
 
   const pdfDoc = await PDFDocument.create()
-  const page = pdfDoc.addPage([W, H])
-
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique)
 
   const { product } = data
 
-  // ── Helpers: hex → pdf-lib rgb ──────────────────────────────────────────────
   const hexToRgb = (hex: string) => {
     const h = hex.replace("#", "")
     const r = parseInt(h.slice(0, 2), 16) / 255
@@ -126,94 +123,291 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
     return rgb(isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b)
   }
 
-  // ── Background ──────────────────────────────────────────────────────────────
-  page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(1, 1, 1) })
-
-  // ── Header bar (bottom of page = visually top when printed) ─────────────────
-  const BAR_H = mm(8)
-  page.drawRectangle({ x: 0, y: H - BAR_H, width: W, height: BAR_H, color: hexToRgb(cfg.header_color) })
-
-  // Brand name in bar
-  const brandName = cfg.brand_name || "BRAND"
-  const brandSize = 10
-  const brandW = fontBold.widthOfTextAtSize(brandName, brandSize)
-  page.drawText(brandName, {
-    x: (W - brandW) / 2,
-    y: H - BAR_H + (BAR_H - brandSize) / 2 + 1,
-    size: brandSize,
-    font: fontBold,
-    color: hexToRgb(cfg.header_text_color),
-  })
-
-  // Punch hole
-  if (cfg.show_punch_hole) {
-    page.drawCircle({ x: W / 2, y: H - BAR_H - mm(5), size: mm(2), color: rgb(0.85, 0.85, 0.85) })
-    page.drawCircle({ x: W / 2, y: H - BAR_H - mm(5), size: mm(2), borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 0.5 })
-  }
-
-  let y = H - BAR_H - mm(12)
-
-  // ── Product title ───────────────────────────────────────────────────────────
-  const titleLines = wrapText(product.title ?? "Untitled", fontBold, 9, INNER_W)
-  for (const line of titleLines.slice(0, 2)) {
-    page.drawText(line, { x: MARGIN, y, size: 9, font: fontBold, color: rgb(0.05, 0.05, 0.05) })
-    y -= 11
-  }
-
   const accentColor = hexToRgb(cfg.accent_color)
   const subtleGray = rgb(0.5, 0.5, 0.5)
   const darkText = rgb(0.1, 0.1, 0.1)
+  const headerColor = hexToRgb(cfg.header_color)
+  const headerTextColor = hexToRgb(cfg.header_text_color)
+  const brandName = cfg.brand_name || "BRAND"
 
-  // ── Status badge ─────────────────────────────────────────────────────────────
+  // ── Image embed helper ─────────────────────────────────────────────────────
+  async function embedUrl(url: string) {
+    try {
+      const res = await fetch(url)
+      const buf = await res.arrayBuffer()
+      const bytes = new Uint8Array(buf)
+      const mime = res.headers.get("content-type") ?? ""
+      if (mime.includes("png") || url.toLowerCase().endsWith(".png")) {
+        return await pdfDoc.embedPng(bytes)
+      }
+      return await pdfDoc.embedJpg(bytes)
+    } catch {
+      return null
+    }
+  }
+
+  // ── Draw canvas elements on a page ────────────────────────────────────────
+  async function drawCanvasEls(page: any, elements: CanvasEl[]) {
+    for (const el of elements) {
+      const op = el.opacity ?? 1
+      const elColor = hexToRgb(el.color ?? "#111111")
+      const elFill = hexToRgb(el.fill ?? "#eeeeee")
+
+      // Convert mm coords: pdf-lib y=0 is bottom, so flip y
+      const px = mm(el.x)
+      const py = H - mm(el.y)
+
+      switch (el.type) {
+        case "text": {
+          const fontSize = el.fontSize ?? 8
+          const font = el.bold ? fontBold : el.italic ? fontOblique : fontRegular
+          const safeText = (el.text ?? "").replace(/[^\x20-\x7E]/g, "?")
+          if (!safeText) break
+          const textW = font.widthOfTextAtSize(safeText, fontSize)
+          page.drawText(safeText, {
+            x: px,
+            y: py - fontSize * 0.352778,
+            size: fontSize,
+            font,
+            color: elColor,
+            opacity: op,
+            maxWidth: W - px,
+          })
+          break
+        }
+        case "rect": {
+          page.drawRectangle({
+            x: px,
+            y: py - mm(el.h),
+            width: mm(el.w),
+            height: mm(el.h),
+            color: el.fill && el.fill !== "none" ? elFill : undefined,
+            borderColor: el.color && el.color !== "none" ? elColor : undefined,
+            borderWidth: mm(el.strokeWidth ?? 0),
+            opacity: op,
+          })
+          break
+        }
+        case "circle": {
+          const r = mm(el.r ?? 5)
+          page.drawCircle({
+            x: px,
+            y: py,
+            size: r,
+            color: el.fill && el.fill !== "none" ? elFill : undefined,
+            borderColor: el.color && el.color !== "none" ? elColor : undefined,
+            borderWidth: mm(el.strokeWidth ?? 0),
+            opacity: op,
+          })
+          break
+        }
+        case "image": {
+          if (!el.url) break
+          const img = await embedUrl(el.url)
+          if (!img) break
+          page.drawImage(img, {
+            x: px,
+            y: py - mm(el.h),
+            width: mm(el.w),
+            height: mm(el.h),
+            opacity: op,
+          })
+          break
+        }
+      }
+    }
+  }
+
+  // ── PAGE 1: FRONT ──────────────────────────────────────────────────────────
+  // Layout (pdf-lib: y=0 bottom, y=H top):
+  //  - Punch hole near very top
+  //  - Brand band just below hole (~26% of height)
+  //  - Product title + status badge below band
+  //  - Tagline near bottom
+
+  const front = pdfDoc.addPage([W, H])
+  front.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(1, 1, 1) })
+
+  const HOLE_R = mm(2.2)
+  const HOLE_TOP_MARGIN = mm(2.5)
+  const HOLE_CY = H - HOLE_TOP_MARGIN - HOLE_R
+
+  const BAND_H = H * 0.26
+  const BAND_GAP = mm(4)
+  const BAND_TOP = HOLE_CY - HOLE_R - BAND_GAP   // top edge of band (in pdf-lib coords = high y)
+  const BAND_BOTTOM = BAND_TOP - BAND_H           // bottom edge
+
+  // Brand band
+  front.drawRectangle({ x: 0, y: BAND_BOTTOM, width: W, height: BAND_H, color: headerColor })
+
+  // Logo or brand name in band
+  if (cfg.logo_url) {
+    const logoImg = await embedUrl(cfg.logo_url)
+    if (logoImg) {
+      const logoPad = BAND_H * 0.1
+      front.drawImage(logoImg, {
+        x: MARGIN + logoPad,
+        y: BAND_BOTTOM + logoPad,
+        width: W - MARGIN * 2 - logoPad * 2,
+        height: BAND_H - logoPad * 2,
+      })
+    }
+  } else {
+    const brandFontSize = Math.min(12, BAND_H * 0.38)
+    const brandTextW = fontBold.widthOfTextAtSize(brandName, brandFontSize)
+    front.drawText(brandName, {
+      x: (W - brandTextW) / 2,
+      y: BAND_BOTTOM + (BAND_H - brandFontSize) / 2 + 1,
+      size: brandFontSize,
+      font: fontBold,
+      color: headerTextColor,
+    })
+  }
+
+  // Punch hole (drawn after band so it appears on top)
+  if (cfg.show_punch_hole) {
+    front.drawCircle({ x: W / 2, y: HOLE_CY, size: HOLE_R + mm(0.8), color: headerColor })
+    front.drawCircle({ x: W / 2, y: HOLE_CY, size: HOLE_R, color: rgb(0.88, 0.88, 0.88) })
+    front.drawCircle({ x: W / 2, y: HOLE_CY, size: HOLE_R, borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 0.5 })
+  }
+
+  // Product title below band
+  let fy = BAND_BOTTOM - mm(8)
+  const titleFontSize = 9
+  const titleLines = wrapText(product.title ?? "Untitled", fontBold, titleFontSize, INNER_W)
+  for (const line of titleLines.slice(0, 2)) {
+    const lineW = fontBold.widthOfTextAtSize(line, titleFontSize)
+    front.drawText(line, { x: (W - lineW) / 2, y: fy, size: titleFontSize, font: fontBold, color: rgb(0.05, 0.05, 0.05) })
+    fy -= 12
+  }
+
+  // Status badge (centered)
   if (cfg.show_status_badge && product.status) {
     const statusLabel = product.status.charAt(0).toUpperCase() + product.status.slice(1)
     const sSize = 6.5
     const sW = fontRegular.widthOfTextAtSize(statusLabel, sSize) + mm(3)
     const sH = mm(3.5)
-    page.drawRectangle({ x: MARGIN, y: y - sH + mm(1), width: sW, height: sH, color: accentColor })
-    page.drawText(statusLabel, { x: MARGIN + mm(1.5), y: y - sH + mm(1.5), size: sSize, font: fontRegular, color: rgb(0.3, 0.3, 0.3) })
-    y -= sH + mm(3)
-  } else {
-    y -= mm(2)
+    const sX = (W - sW) / 2
+    fy -= mm(1)
+    front.drawRectangle({ x: sX, y: fy - sH + mm(1), width: sW, height: sH, color: accentColor })
+    front.drawText(statusLabel, { x: sX + mm(1.5), y: fy - sH + mm(1.5), size: sSize, font: fontRegular, color: rgb(0.3, 0.3, 0.3) })
+    fy -= sH + mm(2)
   }
 
-  // ── Divider ─────────────────────────────────────────────────────────────────
-  page.drawLine({ start: { x: MARGIN, y }, end: { x: W - MARGIN, y }, thickness: 0.4, color: accentColor })
-  y -= mm(3)
+  // Short accent line (centered)
+  front.drawLine({
+    start: { x: W * 0.3, y: fy - mm(3) },
+    end: { x: W * 0.7, y: fy - mm(3) },
+    thickness: 0.5,
+    color: accentColor,
+  })
 
-  // ── Designs section ─────────────────────────────────────────────────────────
+  // Tagline near bottom (centered)
+  if (cfg.show_tagline && cfg.tagline) {
+    const taglineSize = 6.5
+    const taglineW = fontOblique.widthOfTextAtSize(cfg.tagline, taglineSize)
+    if (taglineW <= INNER_W) {
+      front.drawText(cfg.tagline, {
+        x: (W - taglineW) / 2,
+        y: MARGIN + mm(2),
+        size: taglineSize,
+        font: fontOblique,
+        color: rgb(0.6, 0.6, 0.6),
+      })
+    } else {
+      const words = cfg.tagline.split(" ")
+      const mid = Math.ceil(words.length / 2)
+      const lines = [words.slice(0, mid).join(" "), words.slice(mid).join(" ")].filter(Boolean)
+      let tY = MARGIN + mm(2) + (lines.length - 1) * 8
+      for (const line of lines) {
+        const lW = fontOblique.widthOfTextAtSize(line, taglineSize)
+        front.drawText(line, { x: (W - lW) / 2, y: tY, size: taglineSize, font: fontOblique, color: rgb(0.6, 0.6, 0.6) })
+        tY -= 8
+      }
+    }
+  }
+
+  // ── Front canvas elements ───────────────────────────────────────────────────
+  if (cfg.front_canvas?.length) {
+    await drawCanvasEls(front, cfg.front_canvas)
+  }
+
+  // ── PAGE 2: BACK ───────────────────────────────────────────────────────────
+  // Layout:
+  //  - Thin brand strip at very top
+  //  - Punch hole within top strip
+  //  - Product details (design, partner, palette, tags, collaborators)
+  //  - Divider
+  //  - QR code centered at bottom + tagline
+
+  const back = pdfDoc.addPage([W, H])
+  back.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(1, 1, 1) })
+
+  const STRIP_H = mm(7)
+  // Thin brand strip at top
+  back.drawRectangle({ x: 0, y: H - STRIP_H, width: W, height: STRIP_H, color: headerColor })
+
+  // Brand name left-aligned in strip
+  const smallBrandSize = 7
+  back.drawText(brandName, {
+    x: MARGIN,
+    y: H - STRIP_H + (STRIP_H - smallBrandSize) / 2 + 0.5,
+    size: smallBrandSize,
+    font: fontBold,
+    color: headerTextColor,
+  })
+  // Decorative line to the right of brand name
+  const bNameW = fontBold.widthOfTextAtSize(brandName, smallBrandSize)
+  back.drawLine({
+    start: { x: MARGIN + bNameW + mm(2), y: H - STRIP_H / 2 },
+    end: { x: W - MARGIN, y: H - STRIP_H / 2 },
+    thickness: 0.4,
+    color: headerTextColor,
+    opacity: 0.35,
+  })
+
+  // Punch hole in strip
+  if (cfg.show_punch_hole) {
+    const bHoleCY = H - STRIP_H / 2
+    back.drawCircle({ x: W / 2, y: bHoleCY, size: HOLE_R + mm(0.8), color: headerColor })
+    back.drawCircle({ x: W / 2, y: bHoleCY, size: HOLE_R, color: rgb(0.88, 0.88, 0.88) })
+    back.drawCircle({ x: W / 2, y: bHoleCY, size: HOLE_R, borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 0.5 })
+  }
+
+  // Content: starts just below strip
+  let by = H - STRIP_H - mm(6)
+
   const designs = product.designs ?? []
+
   if (cfg.show_design_info && designs.length > 0) {
     const d = designs[0]
 
-    page.drawText("Design", { x: MARGIN, y, size: 6, font: fontBold, color: subtleGray })
-    y -= mm(3.5)
+    back.drawText("DESIGN", { x: MARGIN, y: by, size: 5.5, font: fontBold, color: rgb(0.6, 0.6, 0.6) })
+    by -= mm(3)
 
     const dName = truncate(d.name ?? "", fontBold, 8, INNER_W)
-    page.drawText(dName, { x: MARGIN, y, size: 8, font: fontBold, color: darkText })
-    y -= 10
+    back.drawText(dName, { x: MARGIN, y: by, size: 8, font: fontBold, color: darkText })
+    by -= 10
 
     if (d.design_type) {
-      page.drawText(d.design_type.replace(/_/g, " "), { x: MARGIN, y, size: 6.5, font: fontOblique, color: rgb(0.45, 0.45, 0.45) })
-      y -= 9
+      back.drawText(d.design_type.replace(/_/g, " "), { x: MARGIN, y: by, size: 6.5, font: fontOblique, color: rgb(0.45, 0.45, 0.45) })
+      by -= 9
     }
 
     if (cfg.show_partner_info) {
       const partners = d.partners ?? []
       if (partners.length > 0) {
-        page.drawText("Made by", { x: MARGIN, y, size: 6, font: fontBold, color: subtleGray })
-        y -= mm(3.5)
+        by -= mm(1)
+        back.drawText("MADE BY", { x: MARGIN, y: by, size: 5.5, font: fontBold, color: rgb(0.6, 0.6, 0.6) })
+        by -= mm(3)
         for (const p of partners.slice(0, 2)) {
-          const pName = truncate(p.name ?? "", fontRegular, 7.5, INNER_W)
-          page.drawText(pName, { x: MARGIN, y, size: 7.5, font: fontRegular, color: darkText })
-          y -= 9
-          const people = p.people ?? []
-          for (const person of people.slice(0, 2)) {
-            const pPersonName = [person.first_name, person.last_name].filter(Boolean).join(" ")
-            if (pPersonName) {
-              const personLine = truncate(`> ${pPersonName}`, fontRegular, 6.5, INNER_W - mm(2))
-              page.drawText(personLine, { x: MARGIN + mm(2), y, size: 6.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) })
-              y -= 8
+          back.drawText(truncate(p.name ?? "", fontRegular, 7.5, INNER_W), { x: MARGIN, y: by, size: 7.5, font: fontRegular, color: darkText })
+          by -= 9
+          for (const person of (p.people ?? []).slice(0, 2)) {
+            const name = [person.first_name, person.last_name].filter(Boolean).join(" ")
+            if (name) {
+              back.drawText(truncate(`> ${name}`, fontRegular, 6.5, INNER_W - mm(2)), { x: MARGIN + mm(2), y: by, size: 6.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) })
+              by -= 8
             }
           }
         }
@@ -223,102 +417,90 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
     if (cfg.show_color_palette) {
       const palette = d.color_palette ?? []
       if (palette.length > 0) {
-        y -= mm(1)
-        const DOT = mm(2.5)
+        by -= mm(1.5)
+        const DOT = mm(2.4)
         let cx = MARGIN
         for (const c of palette.slice(0, 8)) {
           const dotColor = hexToRgb(c.code ?? c.value ?? "#cccccc")
-          page.drawCircle({ x: cx + DOT / 2, y: y - DOT / 2, size: DOT / 2, color: dotColor })
-          page.drawCircle({ x: cx + DOT / 2, y: y - DOT / 2, size: DOT / 2, borderColor: rgb(0.7, 0.7, 0.7), borderWidth: 0.3 })
-          cx += DOT + mm(1)
+          back.drawCircle({ x: cx + DOT / 2, y: by - DOT / 2, size: DOT / 2, color: dotColor })
+          back.drawCircle({ x: cx + DOT / 2, y: by - DOT / 2, size: DOT / 2, borderColor: rgb(0.7, 0.7, 0.7), borderWidth: 0.3 })
+          cx += DOT + mm(0.9)
         }
-        y -= DOT + mm(2)
+        by -= DOT + mm(2)
       }
     }
 
     if (cfg.show_design_tags) {
       const dTags = Array.isArray(d.tags) ? d.tags : []
       if (dTags.length > 0) {
-        const tagStr = truncate(dTags.slice(0, 4).join("  .  "), fontOblique, 6, INNER_W)
-        page.drawText(tagStr, { x: MARGIN, y, size: 6, font: fontOblique, color: subtleGray })
-        y -= 8
+        back.drawText(truncate(dTags.slice(0, 4).join("  .  "), fontOblique, 6, INNER_W), { x: MARGIN, y: by, size: 6, font: fontOblique, color: subtleGray })
+        by -= 8
       }
     }
 
-    y -= mm(1)
+    by -= mm(1)
   }
 
-  // ── Direct people linked to product ─────────────────────────────────────────
   const directPeople = (product.people ?? []).slice(0, 2)
   if (cfg.show_collaborators && directPeople.length > 0) {
-    page.drawText("Collaborators", { x: MARGIN, y, size: 6, font: fontBold, color: subtleGray })
-    y -= mm(3.5)
+    back.drawText("COLLABORATORS", { x: MARGIN, y: by, size: 5.5, font: fontBold, color: rgb(0.6, 0.6, 0.6) })
+    by -= mm(3)
     for (const person of directPeople) {
       const name = [person.first_name, person.last_name].filter(Boolean).join(" ")
       if (name) {
-        page.drawText(truncate(name, fontRegular, 7, INNER_W), { x: MARGIN, y, size: 7, font: fontRegular, color: rgb(0.2, 0.2, 0.2), maxWidth: INNER_W })
-        y -= 9
+        back.drawText(truncate(name, fontRegular, 7, INNER_W), { x: MARGIN, y: by, size: 7, font: fontRegular, color: rgb(0.2, 0.2, 0.2) })
+        by -= 9
       }
     }
-    y -= mm(1)
+    by -= mm(1)
   }
 
-  // ── Bottom section: QR code ─────────────────────────────────────────────────
+  // QR + tagline at bottom
   const QR_SIZE = mm(18)
-  const QR_Y = MARGIN + mm(1)
+  const QR_BOTTOM = MARGIN + mm(8)  // bottom edge of QR image
+  const QR_Y = QR_BOTTOM
+  const DIV_Y = QR_Y + QR_SIZE + mm(4)
+
+  // Divider above QR area
+  back.drawLine({ start: { x: MARGIN, y: DIV_Y }, end: { x: W - MARGIN, y: DIV_Y }, thickness: 0.4, color: accentColor })
 
   if (cfg.show_qr_code) {
     const qrDataUrl: string = await toDataURL(product.storefront_url, {
-      width: 200,
-      margin: 1,
-      color: { dark: cfg.header_color, light: "#ffffff" },
+      width: 200, margin: 1, color: { dark: cfg.header_color, light: "#ffffff" },
     })
     const qrBase64 = qrDataUrl.split(",")[1]
     const qrImageBytes = Uint8Array.from(atob(qrBase64), (c) => c.charCodeAt(0))
     const qrImage = await pdfDoc.embedPng(qrImageBytes)
-    page.drawImage(qrImage, { x: W - MARGIN - QR_SIZE, y: QR_Y, width: QR_SIZE, height: QR_SIZE })
 
-    const handleStr = `/${product.handle}`
-    const handleSize = 5
-    const handleW = fontRegular.widthOfTextAtSize(handleStr, handleSize)
-    page.drawText(handleStr, {
-      x: W - MARGIN - QR_SIZE + (QR_SIZE - handleW) / 2,
-      y: QR_Y - mm(2.5),
-      size: handleSize,
-      font: fontOblique,
-      color: subtleGray,
-    })
+    // Center QR horizontally
+    const qrX = (W - QR_SIZE) / 2
+    back.drawImage(qrImage, { x: qrX, y: QR_Y, width: QR_SIZE, height: QR_SIZE })
 
+    // Scan label above QR
     const scanLabel = cfg.scan_label || "scan me"
     const scanSize = 5.5
     const scanW = fontOblique.widthOfTextAtSize(scanLabel, scanSize)
-    page.drawText(scanLabel, {
-      x: W - MARGIN - QR_SIZE + (QR_SIZE - scanW) / 2,
-      y: QR_Y + QR_SIZE + mm(1),
-      size: scanSize,
-      font: fontOblique,
-      color: subtleGray,
-    })
+    back.drawText(scanLabel, { x: (W - scanW) / 2, y: QR_Y + QR_SIZE + mm(1.5), size: scanSize, font: fontOblique, color: subtleGray })
+
+    // Handle below QR
+    const handleStr = `/${product.handle}`
+    const handleSize = 5
+    const handleW = fontRegular.widthOfTextAtSize(handleStr, handleSize)
+    back.drawText(handleStr, { x: (W - handleW) / 2, y: QR_Y - mm(3), size: handleSize, font: fontOblique, color: subtleGray })
   }
 
-  // Bottom divider
-  page.drawLine({
-    start: { x: MARGIN, y: QR_Y + QR_SIZE + mm(4) },
-    end: { x: W - MARGIN, y: QR_Y + QR_SIZE + mm(4) },
-    thickness: 0.4,
-    color: accentColor,
-  })
-
-  // Tagline
+  // Tagline at very bottom
   if (cfg.show_tagline && cfg.tagline) {
-    const taglineWords = cfg.tagline.split(" ")
-    const mid = Math.ceil(taglineWords.length / 2)
-    const taglineLines = [taglineWords.slice(0, mid).join(" "), taglineWords.slice(mid).join(" ")].filter(Boolean)
-    let tY = QR_Y + QR_SIZE - 1
-    for (const line of taglineLines) {
-      page.drawText(line, { x: MARGIN, y: tY, size: 6.5, font: fontOblique, color: rgb(0.4, 0.4, 0.4) })
-      tY -= 8
+    const taglineSize = 6
+    const taglineW = fontOblique.widthOfTextAtSize(cfg.tagline, taglineSize)
+    if (taglineW <= INNER_W) {
+      back.drawText(cfg.tagline, { x: (W - taglineW) / 2, y: MARGIN - mm(1), size: taglineSize, font: fontOblique, color: rgb(0.6, 0.6, 0.6) })
     }
+  }
+
+  // ── Back canvas elements ────────────────────────────────────────────────────
+  if (cfg.back_canvas?.length) {
+    await drawCanvasEls(back, cfg.back_canvas)
   }
 
   return pdfDoc.save()
@@ -592,7 +774,7 @@ const QRGeneratorPage = () => {
         const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" })
         const url = URL.createObjectURL(blob)
         window.open(url, "_blank")
-        toast.success("Hang tag opened for printing")
+        toast.success("Hang tag opened for printing (2 pages: front + back)")
       } else {
         // Multiple: merge all tags into one printable PDF and download
         const mergedDoc = await PDFDocument.create()
@@ -607,8 +789,9 @@ const QRGeneratorPage = () => {
           try {
             const pdfBytes = await generateHangTagPdf(result.value, hangTagConfig)
             const tagDoc = await PDFDocument.load(pdfBytes)
-            const [page] = await mergedDoc.copyPages(tagDoc, [0])
-            mergedDoc.addPage(page)
+            const [frontPage, backPage] = await mergedDoc.copyPages(tagDoc, [0, 1])
+            mergedDoc.addPage(frontPage)
+            mergedDoc.addPage(backPage)
             successCount++
           } catch (err) {
             toast.warning(`Skipped "${valid[i].title}" — failed to generate tag`)
