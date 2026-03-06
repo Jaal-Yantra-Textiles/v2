@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 const getStorefrontBase = () =>
-  (process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || "").replace(/\/$/, "")
+  (process.env.VITE_STOREFRONT_URL || process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || process.env.FRONTEND_URL || "").replace(/\/$/, "")
 
 /**
  * GET /admin/products/:id/hang-tag
