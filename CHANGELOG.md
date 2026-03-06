@@ -1,3 +1,15 @@
+# [9.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.6.0...v9.7.0) (2026-03-06)
+
+
+### Bug Fixes
+
+* increase body size limit to 5MB for design create route ([2cc4792](https://github.com/Jaal-Yantra-Textiles/v2/commit/2cc4792acac95726480b238100c0164dd31ca35e))
+
+
+### Features
+
+* switch file provider from file-local to file-s3 ([1094405](https://github.com/Jaal-Yantra-Textiles/v2/commit/109440539d800f6bd526388cafb6f97fecdf6a38))
+
 # [9.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.5.0...v9.6.0) (2026-03-06)
 
 
