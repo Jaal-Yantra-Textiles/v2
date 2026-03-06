@@ -1062,6 +1062,14 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(StoreTryOnReqSchema)),
       ],
     },
+    // Store upload presign — authenticated customers can get presigned URLs for design layer images
+    {
+      matcher: "/store/uploads/presign",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["session", "bearer"]),
+      ],
+    },
     // Store design endpoints - cost estimation and checkout
     {
       matcher: "/store/custom/designs/:id/estimate",
