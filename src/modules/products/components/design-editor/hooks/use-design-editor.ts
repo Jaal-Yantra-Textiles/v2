@@ -1030,23 +1030,43 @@ export function useDesignEditor({
 
         setIsSaving(true)
         try {
-            // Export thumbnail as compressed JPEG at 1x to keep payload small.
-            // pixelRatio:2 PNG can exceed 4MB; JPEG at 0.7 quality + 1x is ~100-300KB.
-            let thumbnailUrl: string | undefined
+            // Generate thumbnail and upload it to S3 to avoid sending a data URL in the JSON body.
+            // A base64 JPEG can be 100-400KB which easily exceeds the 100KB JSON body limit.
+            let thumbnailUrl: string | undefined = product.thumbnail || undefined
             try {
                 const raw = stageRef.current?.toDataURL({
                     pixelRatio: 1,
                     mimeType: "image/jpeg",
-                    quality: 0.7,
+                    quality: 0.6,
                 })
-                // Safety cap: if still >400KB as base64, fall back to product thumbnail
-                if (raw && raw.length < 400_000) {
-                    thumbnailUrl = raw
-                } else {
-                    thumbnailUrl = product.thumbnail || undefined
+                if (raw) {
+                    // Convert data URL to Blob and upload via presigned URL
+                    const byteStr = atob(raw.split(",")[1])
+                    const bytes = new Uint8Array(byteStr.length)
+                    for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i)
+                    const blob = new Blob([bytes], { type: "image/jpeg" })
+
+                    const presignResult = await presignDesignImageUpload({
+                        name: `thumbnail-${Date.now()}.jpg`,
+                        type: "image/jpeg",
+                        size: blob.size,
+                    })
+
+                    if (presignResult.presign) {
+                        const { url: presignedUrl, public_url } = presignResult.presign
+                        const uploadRes = await fetch(presignedUrl, {
+                            method: "PUT",
+                            body: blob,
+                            headers: { "Content-Type": "image/jpeg" },
+                        })
+                        if (uploadRes.ok) {
+                            thumbnailUrl = public_url
+                        }
+                    }
+                    // If presign fails (not auth'd or upload error), thumbnailUrl stays as product.thumbnail
                 }
             } catch {
-                thumbnailUrl = product.thumbnail || undefined
+                // Keep product.thumbnail as fallback
             }
 
             // Strip temporary src from image layers before saving.
