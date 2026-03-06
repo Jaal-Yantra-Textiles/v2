@@ -331,4 +331,48 @@ export default class FacebookService {
 
     return await feedResp.json()
   }
+
+  /**
+   * Publish a video post to a Facebook Page
+   *
+   * Uses the /{page-id}/videos endpoint. Facebook handles video processing
+   * asynchronously but the API call returns immediately with the video ID.
+   * No polling required.
+   *
+   * @param pageId - Facebook Page ID
+   * @param input - Video data with file URL and optional description
+   * @param pageAccessToken - Page access token
+   * @returns Object with video id
+   */
+  async createPageVideoPost(
+    pageId: string,
+    input: { description?: string; file_url: string },
+    pageAccessToken: string
+  ) {
+    if (!pageId || !pageAccessToken) {
+      throw new MedusaError(MedusaError.Types.INVALID_ARGUMENT, "FacebookService: missing pageId or pageAccessToken")
+    }
+    if (!input.file_url) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, "file_url is required for video posts")
+    }
+
+    const body = new URLSearchParams()
+    body.set("file_url", input.file_url)
+    if (input.description) body.set("description", input.description)
+    body.set("access_token", pageAccessToken)
+
+    const resp = await fetch(`https://graph.facebook.com/v24.0/${encodeURIComponent(pageId)}/videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    })
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}))
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Facebook create video post failed: ${resp.status} - ${JSON.stringify(err)}`
+      )
+    }
+    return await resp.json()
+  }
 }

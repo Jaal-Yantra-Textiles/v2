@@ -97,6 +97,15 @@ const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
         })
       }
     }
+    if (data.post_type === "reel") {
+      if (urls.length !== 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["media_urls"],
+          message: "Select exactly one video",
+        })
+      }
+    }
     return
   }
   
@@ -125,6 +134,16 @@ const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
           code: z.ZodIssueCode.custom,
           path: ["message"],
           message: "Message is required for feed posts",
+        })
+      }
+    }
+    if (data.post_type === "reel") {
+      const urls = data.media_urls ?? []
+      if (urls.length !== 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["media_urls"],
+          message: "Select exactly one video",
         })
       }
     }
@@ -323,6 +342,7 @@ export const CreateSocialPostComponent = () => {
                           <Select.Content>
                             <Select.Item value="photo">Photo</Select.Item>
                             <Select.Item value="feed">Feed (text/link)</Select.Item>
+                            <Select.Item value="reel">Video</Select.Item>
                           </Select.Content>
                         </Select>
                       </Form.Control>
@@ -437,7 +457,6 @@ export const CreateSocialPostComponent = () => {
                             ))}
                             <FileModal
                               onSave={(picked: string[]) => {
-                                // Allow multiple images (up to 10 for carousel)
                                 const next = Array.isArray(picked) ? picked.slice(0, 10) : []
                                 onChange(next)
                               }}
@@ -446,6 +465,45 @@ export const CreateSocialPostComponent = () => {
                           </div>
                           <Text size="small" className="text-ui-fg-subtle mt-2">
                             Select 1-10 images. Single image = photo post, multiple images = album.
+                          </Text>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )
+                    }}
+                  />
+                )}
+
+                {/* Media picker for video posts */}
+                {postType === "reel" && (
+                  <Form.Field
+                    control={form.control}
+                    name="media_urls"
+                    render={({ field: { value, onChange } }) => {
+                      const urls = Array.isArray(value) ? value : []
+                      return (
+                        <Form.Item>
+                          <Form.Label>Video</Form.Label>
+                          <div className="mt-2 flex flex-wrap items-center gap-3">
+                            {urls.map((url, index) => (
+                              <div key={index} className="relative h-20 w-20 overflow-hidden rounded-md border bg-ui-bg-subtle flex items-center justify-center">
+                                <video src={url} className="h-full w-full object-cover" muted playsInline />
+                                <div className="absolute top-1 right-1 flex items-center justify-center rounded-full bg-white/50 p-0.5">
+                                  <XMark
+                                    className="text-ui-fg-muted hover:text-ui-fg-subtle cursor-pointer"
+                                    onClick={() => onChange(urls.filter((u) => u !== url))}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                            <FileModal
+                              onSave={(picked: string[]) => {
+                                onChange(picked.slice(0, 1))
+                              }}
+                              initialUrls={urls}
+                            />
+                          </div>
+                          <Text size="small" className="text-ui-fg-subtle mt-2">
+                            Select one video file (mp4, mov). Facebook processes it asynchronously.
                           </Text>
                           <Form.ErrorMessage />
                         </Form.Item>
@@ -504,13 +562,11 @@ export const CreateSocialPostComponent = () => {
                           </Select.Trigger>
                           <Select.Content>
                             <Select.Item value="photo">Photo</Select.Item>
+                            <Select.Item value="reel">Video / Reel</Select.Item>
                           </Select.Content>
                         </Select>
                       </Form.Control>
                       <Form.ErrorMessage />
-                      <Text size="small" className="text-ui-fg-subtle mt-1">
-                        Note: Only photo posts are currently supported.
-                      </Text>
                     </Form.Item>
                   )}
                 />
@@ -616,7 +672,6 @@ export const CreateSocialPostComponent = () => {
                             ))}
                             <FileModal
                               onSave={(picked: string[]) => {
-                                // Allow multiple images (up to 10 for carousel)
                                 const next = Array.isArray(picked) ? picked.slice(0, 10) : []
                                 onChange(next)
                               }}
@@ -625,6 +680,45 @@ export const CreateSocialPostComponent = () => {
                           </div>
                           <Text size="small" className="text-ui-fg-subtle mt-2">
                             Select 1-10 images. Single image = photo post, multiple images = carousel/album. All images automatically transformed for Instagram.
+                          </Text>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )
+                    }}
+                  />
+                )}
+
+                {/* Media picker for video / reel posts */}
+                {postType === "reel" && (
+                  <Form.Field
+                    control={form.control}
+                    name="media_urls"
+                    render={({ field: { value, onChange } }) => {
+                      const urls = Array.isArray(value) ? value : []
+                      return (
+                        <Form.Item>
+                          <Form.Label>Video</Form.Label>
+                          <div className="mt-2 flex flex-wrap items-center gap-3">
+                            {urls.map((url, index) => (
+                              <div key={index} className="relative h-20 w-20 overflow-hidden rounded-md border bg-ui-bg-subtle flex items-center justify-center">
+                                <video src={url} className="h-full w-full object-cover" muted playsInline />
+                                <div className="absolute top-1 right-1 flex items-center justify-center rounded-full bg-white/50 p-0.5">
+                                  <XMark
+                                    className="text-ui-fg-muted hover:text-ui-fg-subtle cursor-pointer"
+                                    onClick={() => onChange(urls.filter((u) => u !== url))}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                            <FileModal
+                              onSave={(picked: string[]) => {
+                                onChange(picked.slice(0, 1))
+                              }}
+                              initialUrls={urls}
+                            />
+                          </div>
+                          <Text size="small" className="text-ui-fg-subtle mt-2">
+                            Select one video. Published as a Facebook Video and Instagram Reel on their respective platforms.
                           </Text>
                           <Form.ErrorMessage />
                         </Form.Item>
@@ -729,20 +823,25 @@ export const CreateSocialPostComponent = () => {
                   )}
                 />
 
-                {/* Media picker - photo (image) or reel (video). UI picker returns images; if video URLs needed, paste manually via modal or future enhancement */}
+                {/* Media picker - photo (image) or reel (video) */}
                 <Form.Field
                   control={form.control}
                   name="media_urls"
                   render={({ field: { value, onChange } }) => {
                     const urls = Array.isArray(value) ? value : []
+                    const isReel = postType === "reel"
                     return (
                       <Form.Item>
                         <Form.Label>Media</Form.Label>
                         <div className="mt-2 flex flex-wrap items-center gap-3">
                           {urls.map((url, index) => (
-                            <div key={index} className="relative h-20 w-20 overflow-hidden rounded-md border">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={url} alt={`Selected media ${index + 1}`} className="h-full w-full object-cover" />
+                            <div key={index} className="relative h-20 w-20 overflow-hidden rounded-md border bg-ui-bg-subtle flex items-center justify-center">
+                              {isReel ? (
+                                <video src={url} className="h-full w-full object-cover" muted playsInline />
+                              ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={url} alt={`Selected media ${index + 1}`} className="h-full w-full object-cover" />
+                              )}
                               <div className="absolute top-1 right-1 flex items-center justify-center rounded-full bg-white/50 p-0.5">
                                 <XMark
                                   className="text-ui-fg-muted hover:text-ui-fg-subtle cursor-pointer"
@@ -753,17 +852,16 @@ export const CreateSocialPostComponent = () => {
                           ))}
                           <FileModal
                             onSave={(picked: string[]) => {
-                              // Allow multiple images (up to 10 for carousel)
-                              const next = Array.isArray(picked) ? picked.slice(0, 10) : []
+                              const next = isReel ? picked.slice(0, 1) : picked.slice(0, 10)
                               onChange(next)
                             }}
                             initialUrls={urls}
                           />
                         </div>
                         <Text size="small" className="text-ui-fg-subtle">
-                          {postType === "reel" 
-                            ? "For reels, provide a video URL supported by Instagram. Media library video selection can be added later."
-                            : `Select 1-10 images. Single image = photo post, multiple images = carousel. All images are automatically transformed to 1:1 square (1080x1080) for Instagram compatibility.`}
+                          {isReel
+                            ? "Select one video file (mp4, mov). Instagram requires a publicly accessible video URL."
+                            : "Select 1-10 images. Single image = photo post, multiple images = carousel. All images are automatically transformed to 1:1 square (1080x1080) for Instagram compatibility."}
                         </Text>
                         <Form.ErrorMessage />
                       </Form.Item>

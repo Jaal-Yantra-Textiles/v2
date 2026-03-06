@@ -40,14 +40,6 @@ export const validateContentCompatibilityStep = createStep(
       )
     }
 
-    // Video to both platforms not yet supported (only for FBINSTA)
-    if (input.content_type === "reel" && input.publish_target === "both" && isInstagramPlatform) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        "Video/reel posts to both platforms are not yet supported. Please publish to Instagram separately."
-      )
-    }
-
     // Validate target accounts for Facebook/Instagram
     if (
       input.platform_name === "facebook" ||

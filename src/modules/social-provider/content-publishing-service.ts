@@ -140,8 +140,19 @@ export default class ContentPublishingService {
           break
 
         case "video":
-          // Facebook video posts would go here (not yet implemented in FacebookService)
-          throw new Error("Video posts not yet implemented for Facebook")
+        case "reel":
+          if (!input.content.video_url) {
+            throw new Error("video_url is required for video posts")
+          }
+          response = await this.facebookService.createPageVideoPost(
+            input.pageId,
+            {
+              description: input.content.message,
+              file_url: input.content.video_url,
+            },
+            pageAccessToken
+          )
+          break
 
         case "text":
           if (!input.content.message) {
