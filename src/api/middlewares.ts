@@ -1070,10 +1070,19 @@ export default defineMiddlewares({
         authenticate("customer", ["session", "bearer"]),
       ],
     },
-    // Store design create/update — allow larger bodies for thumbnail data URLs
+    // Store design create — allow larger bodies for thumbnail data URLs
     {
       matcher: "/store/custom/designs",
       method: "POST",
+      bodyParser: { sizeLimit: "5mb" },
+      middlewares: [
+        authenticate("customer", ["session", "bearer"]),
+      ],
+    },
+    // Store design update
+    {
+      matcher: "/store/custom/designs/:id",
+      method: "PUT",
       bodyParser: { sizeLimit: "5mb" },
       middlewares: [
         authenticate("customer", ["session", "bearer"]),
