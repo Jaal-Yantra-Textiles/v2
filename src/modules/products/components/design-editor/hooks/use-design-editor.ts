@@ -985,16 +985,34 @@ export function useDesignEditor({
 
         setIsSaving(true)
         try {
-            // Try to export canvas as image (thumbnail)
-            // This may fail due to CORS/tainted canvas issues with external images
-            let dataUrl: string | undefined
+            // Export thumbnail as compressed JPEG at 1x to keep payload small.
+            // pixelRatio:2 PNG can exceed 4MB; JPEG at 0.7 quality + 1x is ~100-300KB.
+            let thumbnailUrl: string | undefined
             try {
-                dataUrl = stageRef.current?.toDataURL({ pixelRatio: 2 })
-            } catch (canvasError) {
-                console.warn("Could not export canvas as image (tainted canvas):", canvasError)
-                // Use product thumbnail as fallback
-                dataUrl = product.thumbnail || undefined
+                const raw = stageRef.current?.toDataURL({
+                    pixelRatio: 1,
+                    mimeType: "image/jpeg",
+                    quality: 0.7,
+                })
+                // Safety cap: if still >400KB as base64, fall back to product thumbnail
+                if (raw && raw.length < 400_000) {
+                    thumbnailUrl = raw
+                } else {
+                    thumbnailUrl = product.thumbnail || undefined
+                }
+            } catch {
+                thumbnailUrl = product.thumbnail || undefined
             }
+
+            // Strip base64 src from image layers — inline images bloat the payload.
+            // Keep all other layer properties so position/size/transform is preserved.
+            const layersForStorage = design.layers.map((layer) => {
+                if (layer.type === "image" && layer.src?.startsWith("data:")) {
+                    const { src: _src, ...rest } = layer as any
+                    return rest
+                }
+                return layer
+            })
 
             // Collect inventory IDs to link
             // Priority: selected material's inventory > existing product design inventory items
@@ -1031,9 +1049,9 @@ export function useDesignEditor({
             const designInput: CreateDesignInput = {
                 name: design.name,
                 description: `Custom design for ${product.title}`,
-                thumbnail_url: dataUrl,
+                thumbnail_url: thumbnailUrl,
                 metadata: {
-                    layers: design.layers,
+                    layers: layersForStorage,
                     base_product_id: product.id,
                     base_product_thumbnail: product.thumbnail || undefined,
                     customer_id: customer.id,
