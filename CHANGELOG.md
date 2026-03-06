@@ -1,3 +1,10 @@
+# [9.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.4.1...v9.5.0) (2026-03-06)
+
+
+### Features
+
+* **admin:** Hang Tags QR Gen ([f43878c](https://github.com/Jaal-Yantra-Textiles/v2/commit/f43878c26cb8805746ca58060990a10f2bcca6ae))
+
 ## [9.4.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.4.0...v9.4.1) (2026-03-05)
 
 
