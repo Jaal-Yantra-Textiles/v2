@@ -1,3 +1,18 @@
+# [9.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.5.0...v9.6.0) (2026-03-06)
+
+
+### Bug Fixes
+
+* **api:** env var ([ca77c5d](https://github.com/Jaal-Yantra-Textiles/v2/commit/ca77c5d38bff3b9900a5f16152cda0ea0e6b3dae))
+* **api:** Fashion Lib moodboard ([a3a6962](https://github.com/Jaal-Yantra-Textiles/v2/commit/a3a69623708b6bad25a1c05312c992a497abc20a))
+* **admin:** Fixed social media upload for video support ([0cdf193](https://github.com/Jaal-Yantra-Textiles/v2/commit/0cdf193f8cb8ea6ff929662b8c2375c08a234636))
+
+
+### Features
+
+* add store-level presigned upload endpoint for design layer images ([9e96492](https://github.com/Jaal-Yantra-Textiles/v2/commit/9e96492302609b143666bd44e2e28c7f2787a5ba))
+* **api:** Analytics and QR Generator ([883f727](https://github.com/Jaal-Yantra-Textiles/v2/commit/883f727a79eb57771e40b6432e396c3d1a5b06a4))
+
 # [9.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.4.1...v9.5.0) (2026-03-06)
 
 
