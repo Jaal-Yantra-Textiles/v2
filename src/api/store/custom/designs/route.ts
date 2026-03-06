@@ -323,6 +323,9 @@ interface StoreCreateDesignBody {
   
   // Optional: thumbnail URL of the final design
   thumbnail_url?: string;
+
+  // Optional: Excalidraw mood board data (stored on design.moodboard for designers)
+  moodboard?: Record<string, any>;
   
   // Optional: inventory items to link (from selected materials)
   inventory_ids?: string[];
@@ -382,6 +385,7 @@ export async function POST(
       custom_sizes: body.custom_sizes,
       tags: body.tags || ["custom", "customer-design"],
       metadata: body.metadata || {},
+      moodboard: body.moodboard,
       origin_source: "manual" as const,
       customer_id_for_link: customerId,
     };

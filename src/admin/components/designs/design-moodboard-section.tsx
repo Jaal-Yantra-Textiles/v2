@@ -1,10 +1,12 @@
 import { Excalidraw } from "@excalidraw/excalidraw";
-import "@excalidraw/excalidraw/index.css"; 
+import "@excalidraw/excalidraw/index.css";
+import { useState } from "react";
 import { Route, useNavigate, useParams } from "react-router-dom";
 import { useDesign } from "../../hooks/api/designs";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
 import { useMoodboard } from "../../hooks/use-moodboard";
 import { Button } from "@medusajs/ui";
+import { FashionPanel } from "./fashion-panel";
 
 export function DesignMoodboardSection() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +21,8 @@ export function DesignMoodboardSection() {
     navigate(-1);
   };
   
+  const [fashionPanelOpen, setFashionPanelOpen] = useState(false);
+
   const {
     isSaving,
     hasChanges,
@@ -31,6 +35,18 @@ export function DesignMoodboardSection() {
     designId: id,
     onClose
   });
+
+  function getCanvasCenter() {
+    const api = excalidrawAPIRef.current;
+    if (!api) return { x: 0, y: 0 };
+    const appState = api.getAppState();
+    const { scrollX, scrollY, zoom, width, height } = appState as any;
+    const zoomValue = typeof zoom === "object" ? zoom.value : zoom;
+    return {
+      x: (width / 2 - scrollX) / zoomValue,
+      y: (height / 2 - scrollY) / zoomValue,
+    };
+  }
 
   return (
     <RouteNonFocusModal>
@@ -52,9 +68,16 @@ export function DesignMoodboardSection() {
         </div>
       </RouteNonFocusModal.Header>
       <RouteNonFocusModal.Body>
-        <div 
-          className="relative h-[700px]" 
-        >
+        <div className="relative h-[700px]">
+          {fashionPanelOpen && (
+            <div className="absolute top-14 right-2 z-50 w-72">
+              <FashionPanel
+                excalidrawAPI={excalidrawAPIRef.current}
+                getCanvasCenter={getCanvasCenter}
+                onClose={() => setFashionPanelOpen(false)}
+              />
+            </div>
+          )}
           <Excalidraw
             excalidrawAPI={api => {
               excalidrawAPIRef.current = api;
@@ -63,12 +86,14 @@ export function DesignMoodboardSection() {
               const savedFiles = (design?.moodboard as any)?.files;
               if (savedFiles && Object.keys(savedFiles).length > 0) {
                 // Create a simplified version of the files to restore
-                const filesToRestore = Object.entries(savedFiles).map(([id, file]: [string, any]) => {  
-                  const dataURL = file.dataURL && file.dataURL.startsWith('http') ? file.dataURL : null;
-                  
+                const filesToRestore = Object.entries(savedFiles).map(([id, file]: [string, any]) => {
+                  const raw = file.dataURL ?? ''
+                  // Accept http(s) remote URLs and inline data: URIs (SVG, PNG, etc.)
+                  const dataURL = raw.startsWith('http') || raw.startsWith('data:') ? raw : null;
+
                   return {
                     id,
-                    dataURL: dataURL || 'placeholder', // Placeholder to avoid errors, will be replaced
+                    dataURL: dataURL || 'placeholder',
                     mimeType: file.mimeType || 'image/png',
                     created: file.created || Date.now(),
                     lastRetrieved: Date.now()
@@ -103,6 +128,15 @@ export function DesignMoodboardSection() {
               files: (design?.moodboard as any)?.files ?? {}
             }}
             onChange={handleExcalidrawChange}
+            renderTopRightUI={() => (
+              <button
+                className="rounded px-3 py-1 text-sm font-medium bg-ui-bg-subtle border border-ui-border-base hover:bg-ui-bg-base"
+                onClick={() => setFashionPanelOpen(v => !v)}
+                title="Fashion Library"
+              >
+                Fashion Library
+              </button>
+            )}
             UIOptions={{
               canvasActions: {
                 // Disable elements that may conflict with modal

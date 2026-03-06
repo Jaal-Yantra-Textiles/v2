@@ -72,7 +72,22 @@ export const useMoodboardFiles = (saveCallback: () => Promise<void>): UseMoodboa
         
         if (needsUpload && !isFileProcessed(el.fileId)) {
           const fileData = fileExists || { dataURL: el.src, mimeType: el.mimeType || 'image/png' };
-          
+
+          // SVG inline assets — store data URL directly, skip CDN upload
+          const isSvg = fileData.mimeType === 'image/svg+xml' ||
+            fileData.dataURL?.startsWith('data:image/svg+xml');
+          if (isSvg) {
+            formattedFiles[el.fileId] = {
+              id: el.fileId,
+              mimeType: 'image/svg+xml',
+              dataURL: fileData.dataURL,
+              created: Date.now(),
+              lastRetrieved: Date.now(),
+            };
+            processedFiles.current[el.fileId] = true;
+            continue;
+          }
+
           const uploadPromise = new Promise<void>((resolve) => {
             try {
               const mimeMatch = fileData.dataURL.match(/^data:([\w\/+]+);/); 
@@ -167,7 +182,14 @@ export const useMoodboardFiles = (saveCallback: () => Promise<void>): UseMoodboa
           if (dataURL.startsWith('http')) {
             return;
           }
-          
+
+          // SVG inline assets (croquis, cut patterns) — store data URL directly, no CDN upload
+          if (mimeType === 'image/svg+xml' || dataURL.startsWith('data:image/svg+xml')) {
+            fileUrlMappingRef.current[fileKey] = dataURL;
+            saveCallback().catch(console.error);
+            return;
+          }
+
           const blob = base64toBlob(dataURL, mimeType);
           const file = new File([blob], fileKey, { type: mimeType });
           

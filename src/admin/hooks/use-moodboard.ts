@@ -110,13 +110,16 @@ export const useMoodboard = ({
       
       const processedFiles = { ...formattedFiles };
       Object.entries(fileUrlMappingRef.current).forEach(([fileId, url]) => {
-        processedFiles[fileId] = processedFiles[fileId] || {
-          id: fileId,
-          dataURL: url,
-          mimeType: 'image/png',
-          created: Date.now(),
-          lastRetrieved: Date.now()
-        };
+        if (!processedFiles[fileId]) {
+          const mimeMatch = url.startsWith('data:') ? url.match(/^data:([\w/+]+);/) : null;
+          processedFiles[fileId] = {
+            id: fileId,
+            dataURL: url,
+            mimeType: mimeMatch ? mimeMatch[1] : 'image/png',
+            created: Date.now(),
+            lastRetrieved: Date.now()
+          };
+        }
       });
       
       const excalidrawData = {

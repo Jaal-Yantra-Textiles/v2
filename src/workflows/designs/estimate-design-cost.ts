@@ -28,7 +28,7 @@ type MaterialCostItem = {
   name: string;
   cost: number;
   quantity: number;
-  cost_source: "order_history" | "estimated";
+  cost_source: "order_history" | "unit_cost" | "estimated";
 };
 
 type EstimateCostInput = {
@@ -91,9 +91,27 @@ const getDesignWithInventoryStep = createStep(
       inventoryItemIds = (design.inventory_items || []).map((item: any) => item.id);
     }
 
+    // Query design-inventory link to get planned_quantity per item
+    const plannedQuantityMap: Record<string, number> = {};
+    try {
+      const { data: designInventoryLinks } = await query.graph({
+        entity: "design_inventory_item",
+        filters: { design_id: input.design_id },
+        fields: ["inventory_item_id", "planned_quantity"],
+      });
+      for (const link of designInventoryLinks || []) {
+        if (link.inventory_item_id && link.planned_quantity != null) {
+          plannedQuantityMap[link.inventory_item_id] = Number(link.planned_quantity) || 1;
+        }
+      }
+    } catch {
+      // Link table may not exist yet — fall back to quantity 1 per item
+    }
+
     return new StepResponse({
       design,
       inventoryItemIds,
+      plannedQuantityMap,
     });
   }
 );
@@ -104,7 +122,7 @@ const getDesignWithInventoryStep = createStep(
 const getMaterialCostsStep = createStep(
   "get-material-costs-step",
   async (
-    input: { inventoryItemIds: string[] },
+    input: { inventoryItemIds: string[]; plannedQuantityMap: Record<string, number> },
     { container }
   ) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any;
@@ -114,11 +132,11 @@ const getMaterialCostsStep = createStep(
       return new StepResponse({ materials, hasExactCosts: false });
     }
 
-    // Get inventory items with their details
+    // Get inventory items with their details, including unit_cost as fallback
     const { data: inventoryItems } = await query.graph({
       entity: "inventory_item",
       filters: { id: input.inventoryItemIds },
-      fields: ["id", "title", "sku"],
+      fields: ["id", "title", "sku", "unit_cost"],
     });
 
     // For each inventory item, find the most recent order line price
@@ -136,7 +154,7 @@ const getMaterialCostsStep = createStep(
         ],
       });
 
-      // Find the most recent delivered order line
+      // Find the most recent non-cancelled order line
       let latestPrice: number | null = null;
       let latestDate: Date | null = null;
 
@@ -147,23 +165,40 @@ const getMaterialCostsStep = createStep(
         const order = orderLine.inventory_orders;
         if (!order || order.status === "Cancelled") continue;
 
-        const orderDate = new Date(order.order_date);
+        const orderDate = order.order_date ? new Date(order.order_date) : new Date(0);
         if (!latestDate || orderDate > latestDate) {
           latestDate = orderDate;
           latestPrice = Number(orderLine.price) || 0;
         }
       }
 
+      // Determine cost source: order history → unit_cost → estimated (0)
+      let cost: number;
+      let cost_source: MaterialCostItem["cost_source"];
+      if (latestPrice !== null && latestPrice > 0) {
+        cost = latestPrice;
+        cost_source = "order_history";
+      } else if (item.unit_cost != null && Number(item.unit_cost) > 0) {
+        cost = Number(item.unit_cost);
+        cost_source = "unit_cost";
+      } else {
+        cost = 0;
+        cost_source = "estimated";
+      }
+
+      // Use planned_quantity from design-inventory link, fall back to 1
+      const quantity = input.plannedQuantityMap[item.id] ?? 1;
+
       materials.push({
         inventory_item_id: item.id,
         name: item.title || item.sku || item.id,
-        cost: latestPrice || 0,
-        quantity: 1, // Default quantity, could be from design-inventory link
-        cost_source: latestPrice !== null ? "order_history" : "estimated",
+        cost,
+        quantity,
+        cost_source,
       });
     }
 
-    const hasExactCosts = materials.every((m) => m.cost_source === "order_history");
+    const hasExactCosts = materials.every((m) => m.cost_source === "order_history" || m.cost_source === "unit_cost");
 
     return new StepResponse({ materials, hasExactCosts });
   }
@@ -310,6 +345,7 @@ export const estimateDesignCostWorkflow = createWorkflow(
     // Step 2: Get material costs from order history
     const materialsResult = getMaterialCostsStep({
       inventoryItemIds: designResult.inventoryItemIds as unknown as string[],
+      plannedQuantityMap: designResult.plannedQuantityMap as unknown as Record<string, number>,
     });
 
     // Step 3: Find similar designs for reference
