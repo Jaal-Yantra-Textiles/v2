@@ -971,9 +971,9 @@ export function useDesignEditor({
             // Save draft to local storage first
             persistDraftSnapshot()
 
-            // Redirect to login page with return URL
+            // Redirect to login page with redirect_to so user returns to editor after login
             const currentPath = window.location.pathname
-            const loginUrl = `/${countryCode || 'us'}/account`
+            const loginUrl = `/${countryCode || 'us'}/account?redirect_to=${encodeURIComponent(currentPath)}`
 
             // Use setTimeout to ensure localStorage is saved before redirect
             setTimeout(() => {
@@ -1038,8 +1038,8 @@ export function useDesignEditor({
                     base_product_thumbnail: product.thumbnail || undefined,
                     customer_id: customer.id,
                     badges: badgePreferences,
-                    excalidraw: excalidrawData, // Include Excalidraw data for mood board
                 },
+                moodboard: excalidrawData, // Saved to design.moodboard for designer access
                 inventory_ids: inventoryIds.length > 0 ? inventoryIds : undefined,
                 partner_id: selectedPartner?.id,
                 tags: ["custom", "customer-design", product.handle],

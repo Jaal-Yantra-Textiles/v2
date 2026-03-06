@@ -58,6 +58,7 @@ export type CreateDesignInput = {
   description?: string
   thumbnail_url?: string
   metadata?: DesignMetadata
+  moodboard?: any // Excalidraw-format mood board data stored on design.moodboard
   inventory_ids?: string[]
   partner_id?: string
   color_palette?: Array<{ name: string; code: string }>
