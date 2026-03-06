@@ -23,6 +23,8 @@ export type HangTagConfig = {
   show_qr_code: boolean
   show_tagline: boolean
   show_punch_hole: boolean
+  // QR tracking parameters
+  qr_params?: Array<{ key: string; value: string }>
 }
 
 const DEFAULT_KEY = "default"

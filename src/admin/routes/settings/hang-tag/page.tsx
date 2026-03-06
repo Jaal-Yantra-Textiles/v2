@@ -696,6 +696,61 @@ const HangTagSettingsPage = () => {
                 </div>
               </Container>
 
+              {/* QR Tracking Parameters */}
+              <Container className="divide-y p-0">
+                <div className="px-6 py-4">
+                  <Heading level="h2">QR Tracking Parameters</Heading>
+                  <Text className="text-ui-fg-subtle" size="small">
+                    Default query params appended to all QR code URLs (e.g. <span className="font-mono">source=hangtag</span>). You can override these per generation.
+                  </Text>
+                </div>
+                <div className="px-6 py-4 flex flex-col gap-y-2">
+                  {(cfg.qr_params ?? []).map((param, idx) => (
+                    <div key={idx} className="flex items-center gap-x-2">
+                      <Input
+                        placeholder="key"
+                        value={param.key}
+                        onChange={(e) => {
+                          const updated = [...(cfg.qr_params ?? [])]
+                          updated[idx] = { ...updated[idx], key: e.target.value }
+                          set("qr_params", updated)
+                        }}
+                        className="font-mono text-xs flex-1"
+                      />
+                      <span className="text-ui-fg-muted text-xs">=</span>
+                      <Input
+                        placeholder="value"
+                        value={param.value}
+                        onChange={(e) => {
+                          const updated = [...(cfg.qr_params ?? [])]
+                          updated[idx] = { ...updated[idx], value: e.target.value }
+                          set("qr_params", updated)
+                        }}
+                        className="font-mono text-xs flex-1"
+                      />
+                      <button
+                        onClick={() => {
+                          const updated = (cfg.qr_params ?? []).filter((_, i) => i !== idx)
+                          set("qr_params", updated)
+                        }}
+                        className="text-ui-fg-muted hover:text-ui-fg-error text-xs px-1"
+                        title="Remove"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="transparent"
+                    size="small"
+                    onClick={() => set("qr_params", [...(cfg.qr_params ?? []), { key: "", value: "" }])}
+                    className="self-start text-ui-fg-subtle hover:text-ui-fg-base mt-1"
+                  >
+                    + Add parameter
+                  </Button>
+                </div>
+              </Container>
+
               {/* Sections */}
               <Container className="divide-y p-0">
                 <div className="px-6 py-4">

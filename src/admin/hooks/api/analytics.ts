@@ -33,15 +33,39 @@ export interface WebsiteAnalyticsResponse {
   }>;
 }
 
+export interface AnalyticsFilters {
+  days?: number
+  from?: string        // ISO date string
+  to?: string          // ISO date string
+  utm_source?: string
+  utm_medium?: string
+  utm_campaign?: string
+  pathname?: string
+  qr_key?: string
+  qr_value?: string
+}
+
 // Hook to fetch website analytics overview
-export const useWebsiteAnalytics = (websiteId: string, days: number = 30) => {
+export const useWebsiteAnalytics = (websiteId: string, filters: AnalyticsFilters | number = { days: 30 }) => {
+  // Support legacy numeric `days` argument for backwards compat
+  const resolvedFilters: AnalyticsFilters = typeof filters === "number" ? { days: filters } : filters
+
   return useQuery({
-    queryKey: ["website-analytics", websiteId, days],
+    queryKey: ["website-analytics", websiteId, resolvedFilters],
     queryFn: async () => {
+      const params = new URLSearchParams()
+      if (resolvedFilters.days != null) params.set("days", String(resolvedFilters.days))
+      if (resolvedFilters.from) params.set("from", resolvedFilters.from)
+      if (resolvedFilters.to) params.set("to", resolvedFilters.to)
+      if (resolvedFilters.utm_source) params.set("utm_source", resolvedFilters.utm_source)
+      if (resolvedFilters.utm_medium) params.set("utm_medium", resolvedFilters.utm_medium)
+      if (resolvedFilters.utm_campaign) params.set("utm_campaign", resolvedFilters.utm_campaign)
+      if (resolvedFilters.pathname) params.set("pathname", resolvedFilters.pathname)
+      if (resolvedFilters.qr_key) params.set("qr_key", resolvedFilters.qr_key)
+      if (resolvedFilters.qr_value) params.set("qr_value", resolvedFilters.qr_value)
       const res = await sdk.client.fetch<WebsiteAnalyticsResponse>(
-        `/admin/websites/${websiteId}/analytics?days=${days}`
+        `/admin/websites/${websiteId}/analytics?${params.toString()}`
       );
-      // The response is the data directly, not wrapped in body
       return res as WebsiteAnalyticsResponse;
     },
     enabled: !!websiteId,

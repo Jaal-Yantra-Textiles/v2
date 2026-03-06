@@ -30,24 +30,38 @@ import { getWebsiteAnalyticsOverviewWorkflow } from "../../../../../workflows/an
 
 /**
  * GET /admin/websites/:id/analytics
- * 
+ *
  * Get analytics overview for a website using the read-only module link.
- * This demonstrates the power of graph queries - single query gets website + analytics!
- * 
+ *
  * Query params:
  * - days: Number of days to include (default: 30)
+ * - from: ISO date string — start of range (overrides days)
+ * - to: ISO date string — end of range (defaults to now)
+ * - utm_source, utm_medium, utm_campaign: UTM filter strings
+ * - pathname: Substring match on pathname
+ * - qr_key: Query param key to find in query_string
+ * - qr_value: Corresponding value for qr_key
  */
 export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
   const { id } = req.params;
-  const days = parseInt(req.query.days as string) || 30;
+  const q = req.query as Record<string, string>;
+  const days = parseInt(q.days) || 30;
 
   const { result } = await getWebsiteAnalyticsOverviewWorkflow(req.scope).run({
     input: {
       website_id: id,
       days,
+      from: q.from || undefined,
+      to: q.to || undefined,
+      utm_source: q.utm_source || undefined,
+      utm_medium: q.utm_medium || undefined,
+      utm_campaign: q.utm_campaign || undefined,
+      pathname: q.pathname || undefined,
+      qr_key: q.qr_key || undefined,
+      qr_value: q.qr_value || undefined,
     },
   });
 

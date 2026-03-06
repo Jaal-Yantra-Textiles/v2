@@ -71,6 +71,8 @@ export type HangTagConfig = {
   show_punch_hole: boolean
   // Logo
   logo_url?: string
+  // QR tracking parameters appended to QR code URLs
+  qr_params?: Array<{ key: string; value: string }>
   // Free-form canvas layers (per side)
   front_canvas?: CanvasEl[]
   back_canvas?: CanvasEl[]
@@ -98,6 +100,7 @@ export const DEFAULT_HANG_TAG_CONFIG: HangTagConfig = {
   show_tagline: true,
   show_punch_hole: true,
   logo_url: undefined,
+  qr_params: [],
   front_canvas: [],
   back_canvas: [],
   front_layout: {},

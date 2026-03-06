@@ -11,6 +11,9 @@ import {
   Badge,
   toast,
   createDataTableFilterHelper,
+  Button,
+  Input,
+  FocusModal,
 } from "@medusajs/ui"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Outlet } from "react-router-dom"
@@ -511,6 +514,96 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
   return pdfDoc.save()
 }
 
+// ─── QR Params Modal ─────────────────────────────────────────────────────────
+
+type QrParam = { key: string; value: string }
+
+function QrParamsModal({
+  open,
+  defaultParams,
+  onGenerate,
+  onCancel,
+}: {
+  open: boolean
+  defaultParams: QrParam[]
+  onGenerate: (params: QrParam[]) => void
+  onCancel: () => void
+}) {
+  const [params, setParams] = useState<QrParam[]>(defaultParams)
+
+  // Sync params when modal opens
+  useEffect(() => {
+    if (open) setParams(defaultParams.map((p) => ({ ...p })))
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <FocusModal open={open} onOpenChange={(v) => { if (!v) onCancel() }}>
+      <FocusModal.Content className="flex flex-col max-w-lg">
+        <FocusModal.Header>
+          <Heading>QR Tracking Parameters</Heading>
+        </FocusModal.Header>
+        <FocusModal.Body className="flex flex-col gap-y-4 p-6 overflow-y-auto">
+          <Text size="small" className="text-ui-fg-subtle">
+            These query parameters will be appended to the QR code URL for this generation.
+            Pre-filled from your saved defaults — edit as needed.
+          </Text>
+          <div className="flex flex-col gap-y-2">
+            {params.map((param, idx) => (
+              <div key={idx} className="flex items-center gap-x-2">
+                <Input
+                  placeholder="key"
+                  value={param.key}
+                  onChange={(e) => {
+                    const updated = [...params]
+                    updated[idx] = { ...updated[idx], key: e.target.value }
+                    setParams(updated)
+                  }}
+                  className="font-mono text-xs flex-1"
+                />
+                <span className="text-ui-fg-muted text-xs">=</span>
+                <Input
+                  placeholder="value"
+                  value={param.value}
+                  onChange={(e) => {
+                    const updated = [...params]
+                    updated[idx] = { ...updated[idx], value: e.target.value }
+                    setParams(updated)
+                  }}
+                  className="font-mono text-xs flex-1"
+                />
+                <button
+                  onClick={() => setParams(params.filter((_, i) => i !== idx))}
+                  className="text-ui-fg-muted hover:text-ui-fg-error text-xs px-1"
+                  title="Remove"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <Button
+              variant="transparent"
+              size="small"
+              onClick={() => setParams([...params, { key: "", value: "" }])}
+              className="self-start text-ui-fg-subtle hover:text-ui-fg-base"
+            >
+              + Add parameter
+            </Button>
+          </div>
+          {params.length === 0 && (
+            <Text size="xsmall" className="text-ui-fg-muted">
+              No parameters — QR codes will use the plain product URL.
+            </Text>
+          )}
+        </FocusModal.Body>
+        <div className="flex items-center justify-end gap-x-2 px-6 py-4 border-t border-ui-border-base">
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button onClick={() => onGenerate(params)}>Generate</Button>
+        </div>
+      </FocusModal.Content>
+    </FocusModal>
+  )
+}
+
 // ─── Main page component ──────────────────────────────────────────────────────
 
 const QRGeneratorPage = () => {
@@ -521,6 +614,9 @@ const QRGeneratorPage = () => {
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
   const [isGeneratingQR, setIsGeneratingQR] = useState(false)
   const [isGeneratingTags, setIsGeneratingTags] = useState(false)
+  const [qrParamsModalOpen, setQrParamsModalOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<"qr" | "tags" | null>(null)
+  const [sessionParams, setSessionParams] = useState<{ key: string; value: string }[]>([])
   const { config: hangTagConfig } = useHangTagSettings()
 
   // Defensive: ensure body never stays with pointer-events: none due to overlay race conditions
@@ -711,8 +807,17 @@ const QRGeneratorPage = () => {
     rowSelection: { state: rowSelection, onRowSelectionChange: setRowSelection },
   })
 
-  // ── Action: generate QR ZIP (original) ───────────────────────────────────────
-  const generateQRCodes = async () => {
+  // ── URL builder with QR params ────────────────────────────────────────────────
+  const buildQrUrl = (handle: string, params: { key: string; value: string }[]) => {
+    const base = getProductUrlFromHandle(handle)
+    const validParams = params.filter((p) => p.key)
+    if (!validParams.length) return base
+    const qs = validParams.map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join("&")
+    return `${base}?${qs}`
+  }
+
+  // ── Action: generate QR ZIP ───────────────────────────────────────────────────
+  const generateQRCodes = async (params: { key: string; value: string }[]) => {
     const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id])
     if (selectedIds.length === 0) return
 
@@ -729,7 +834,7 @@ const QRGeneratorPage = () => {
       const { toDataURL } = await import("qrcode")
       const zip = new JSZip()
       for (const item of valid) {
-        const url = getProductUrlFromHandle(item.handle as string)
+        const url = buildQrUrl(item.handle as string, params)
         const dataUrl: string = await toDataURL(url, { width: 512, margin: 2 })
         const base64 = dataUrl.split(",")[1]
         zip.file(`${item.handle}.png`, base64, { base64: true })
@@ -747,7 +852,7 @@ const QRGeneratorPage = () => {
   }
 
   // ── Action: generate hang tags PDF ───────────────────────────────────────────
-  const generateHangTags = async () => {
+  const generateHangTags = async (params: { key: string; value: string }[]) => {
     const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id])
     if (selectedIds.length === 0) return
 
@@ -768,6 +873,13 @@ const QRGeneratorPage = () => {
         valid.map((p) => fetchHangTagData(p.id))
       )
 
+      // Helper: inject QR params into hang tag data
+      const withParams = (data: HangTagData) => {
+        if (!params.length) return data
+        const url = buildQrUrl(data.product.handle, params)
+        return { ...data, product: { ...data.product, storefront_url: url } }
+      }
+
       if (valid.length === 1) {
         // Single product: open print preview in new tab
         const result = tagDataResults[0]
@@ -775,7 +887,7 @@ const QRGeneratorPage = () => {
           toast.error(`Failed to fetch data for "${valid[0].title}"`)
           return
         }
-        const pdfBytes = await generateHangTagPdf(result.value, hangTagConfig)
+        const pdfBytes = await generateHangTagPdf(withParams(result.value), hangTagConfig)
         const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" })
         const url = URL.createObjectURL(blob)
         window.open(url, "_blank")
@@ -792,7 +904,7 @@ const QRGeneratorPage = () => {
             continue
           }
           try {
-            const pdfBytes = await generateHangTagPdf(result.value, hangTagConfig)
+            const pdfBytes = await generateHangTagPdf(withParams(result.value), hangTagConfig)
             const tagDoc = await PDFDocument.load(pdfBytes)
             const [frontPage, backPage] = await mergedDoc.copyPages(tagDoc, [0, 1])
             mergedDoc.addPage(frontPage)
@@ -837,20 +949,43 @@ const QRGeneratorPage = () => {
             <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
             <CommandBar.Seperator />
             <CommandBar.Command
-              action={generateHangTags}
+              action={() => {
+                setSessionParams([...(hangTagConfig.qr_params ?? [])])
+                setPendingAction("tags")
+                setQrParamsModalOpen(true)
+              }}
               label={isGeneratingTags ? "Generating…" : "Hang Tags (PDF)"}
               disabled={isBusy}
               shortcut="h"
             />
             <CommandBar.Seperator />
             <CommandBar.Command
-              action={generateQRCodes}
+              action={() => {
+                setSessionParams([...(hangTagConfig.qr_params ?? [])])
+                setPendingAction("qr")
+                setQrParamsModalOpen(true)
+              }}
               label={isGeneratingQR ? "Generating…" : "QR Codes (ZIP)"}
               disabled={isBusy}
               shortcut="g"
             />
           </CommandBar.Bar>
         </CommandBar>
+
+        <QrParamsModal
+          open={qrParamsModalOpen}
+          defaultParams={sessionParams}
+          onGenerate={(params) => {
+            setQrParamsModalOpen(false)
+            if (pendingAction === "qr") generateQRCodes(params)
+            else if (pendingAction === "tags") generateHangTags(params)
+            setPendingAction(null)
+          }}
+          onCancel={() => {
+            setQrParamsModalOpen(false)
+            setPendingAction(null)
+          }}
+        />
 
         <DataTable instance={table}>
           <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
