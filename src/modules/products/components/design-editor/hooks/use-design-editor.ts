@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Konva from "konva"
 import { createDesign, CreateDesignInput } from "@lib/data/designs"
+import { presignDesignImageUpload } from "@lib/data/uploads"
 import {
     AiGenerationHistoryItem,
     BadgeCategory,
@@ -562,9 +563,13 @@ export function useDesignEditor({
         })
     }, [view])
 
-    // Add image layer
-    const addImageLayer = (file: File) => {
-        const url = URL.createObjectURL(file)
+    // Add image layer — upload to S3 first, then store the persistent public URL
+    const addImageLayer = async (file: File) => {
+        // Use a local blob URL only as a preview while uploading
+        const blobUrl = URL.createObjectURL(file)
+
+        // Add layer immediately with blob URL for instant preview
+        const layerId = `layer-${Date.now()}`
         const img = new window.Image()
 
         img.onload = () => {
@@ -572,7 +577,7 @@ export function useDesignEditor({
             const scale = Math.min(150 / img.width, 150 / img.height)
 
             const newLayer: DesignLayer = {
-                id: `layer-${Date.now()}`,
+                id: layerId,
                 type: "image",
                 x: baseDims.x + baseDims.width / 2 - (img.width * scale) / 2,
                 y: baseDims.y + baseDims.height / 2 - (img.height * scale) / 2,
@@ -581,7 +586,7 @@ export function useDesignEditor({
                 rotation: 0,
                 scaleX: scale,
                 scaleY: scale,
-                src: url,
+                src: blobUrl,
                 draggable: true,
                 opacity: 1,
             }
@@ -597,7 +602,47 @@ export function useDesignEditor({
             })
         }
 
-        img.src = url
+        img.src = blobUrl
+
+        // Upload to S3 in the background and swap the src with the persistent URL
+        try {
+            const result = await presignDesignImageUpload({
+                name: file.name,
+                type: file.type || "image/jpeg",
+                size: file.size,
+            })
+
+            if (result.presign) {
+                const { url: presignedUrl, public_url } = result.presign
+
+                // Upload directly to S3 via presigned URL
+                const uploadRes = await fetch(presignedUrl, {
+                    method: "PUT",
+                    body: file,
+                    headers: { "Content-Type": file.type || "image/jpeg" },
+                })
+
+                if (uploadRes.ok) {
+                    // Replace the temporary blob URL with the persistent public URL
+                    setDesign((prev) => ({
+                        ...prev,
+                        layers: prev.layers.map((layer) =>
+                            layer.id === layerId
+                                ? { ...layer, src: public_url }
+                                : layer
+                        ),
+                    }))
+                    URL.revokeObjectURL(blobUrl)
+                } else {
+                    console.warn("S3 upload failed, layer will use blob URL (session-only)")
+                }
+            } else if (result.error?.code === "AUTH_REQUIRED") {
+                // Not logged in — keep blob URL for the session, will be stripped on save
+                console.warn("Not authenticated: image layer will not persist across sessions")
+            }
+        } catch (err) {
+            console.warn("Image upload failed, layer will use blob URL:", err)
+        }
     }
 
     // Add text layer - positioned at top of base image
@@ -1004,10 +1049,15 @@ export function useDesignEditor({
                 thumbnailUrl = product.thumbnail || undefined
             }
 
-            // Strip base64 src from image layers — inline images bloat the payload.
-            // Keep all other layer properties so position/size/transform is preserved.
+            // Strip temporary src from image layers before saving.
+            // - data: (base64) — would bloat the payload to several MB
+            // - blob: (object URL) — session-only, not persistent; strip to avoid broken images on reload
+            // Layers with proper https:// URLs (successfully uploaded to S3) are kept as-is.
             const layersForStorage = design.layers.map((layer) => {
-                if (layer.type === "image" && layer.src?.startsWith("data:")) {
+                if (
+                    layer.type === "image" &&
+                    (layer.src?.startsWith("data:") || layer.src?.startsWith("blob:"))
+                ) {
                     const { src: _src, ...rest } = layer as any
                     return rest
                 }
