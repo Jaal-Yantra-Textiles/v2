@@ -23,17 +23,17 @@ async function blobToBase64DataUrl(blob: Blob, mimeType: string): Promise<string
 export const generateTryOn = async (
   input: GenerateTryOnInput
 ): Promise<GenerateTryOnResponse> => {
-  const authHeaders = await getAuthHeaders()
-  if (!authHeaders || Object.keys(authHeaders).length === 0) {
-    return {
-      error: {
-        code: "AUTH_REQUIRED",
-        message: "Authentication required to use Virtual Try-On",
-      },
-    }
-  }
-
   try {
+    const authHeaders = await getAuthHeaders()
+    if (!authHeaders || Object.keys(authHeaders).length === 0) {
+      return {
+        error: {
+          code: "AUTH_REQUIRED",
+          message: "Authentication required to use Virtual Try-On",
+        },
+      }
+    }
+
     const faceMime = input.faceFile.type || "image/jpeg"
     const faceBase64 = await blobToBase64DataUrl(input.faceFile, faceMime)
 
@@ -47,7 +47,7 @@ export const generateTryOn = async (
       throw new Error("Either garmentFile or garmentUrl is required")
     }
 
-    const backendUrl = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL
+    const backendUrl = process.env.MEDUSA_BACKEND_URL ?? process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL
 
     const response = await fetch(`${backendUrl}/store/ai/tryon`, {
       method: "POST",
@@ -82,7 +82,7 @@ export const generateTryOn = async (
       return { error: { code: "AUTH_REQUIRED", message: "Authentication required to use Virtual Try-On" } }
     }
 
-    console.error("Error generating try-on:", error)
+    console.error("[ai-tryon] Error:", error?.message ?? error)
     return {
       error: {
         code: "UNKNOWN",
