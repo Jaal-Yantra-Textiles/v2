@@ -16,14 +16,14 @@ export type ConfirmAiAccessFeeResponse = {
 
 export const createAiAccessFeeIntent =
   async (): Promise<CreateAiAccessFeeIntentResponse> => {
-    const authHeaders = await getAuthHeaders()
-    if (!authHeaders || Object.keys(authHeaders).length === 0) {
-      return { clientSecret: null, sessionId: null, alreadyPaid: false, error: "Authentication required" }
-    }
-
     try {
+      const authHeaders = await getAuthHeaders()
+      if (!authHeaders || Object.keys(authHeaders).length === 0) {
+        return { clientSecret: null, sessionId: null, alreadyPaid: false, error: "Authentication required" }
+      }
+
       const backendUrl =
-        process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL
+        process.env.MEDUSA_BACKEND_URL ?? process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL
 
       const response = await fetch(`${backendUrl}/store/ai/accessfee`, {
         method: "POST",
@@ -53,14 +53,14 @@ export const createAiAccessFeeIntent =
 export const confirmAiAccessFee = async (
   sessionId: string
 ): Promise<ConfirmAiAccessFeeResponse> => {
-  const authHeaders = await getAuthHeaders()
-  if (!authHeaders || Object.keys(authHeaders).length === 0) {
-    return { success: false, error: "Authentication required" }
-  }
-
   try {
+    const authHeaders = await getAuthHeaders()
+    if (!authHeaders || Object.keys(authHeaders).length === 0) {
+      return { success: false, error: "Authentication required" }
+    }
+
     const backendUrl =
-      process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL
+      process.env.MEDUSA_BACKEND_URL ?? process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL
 
     const response = await fetch(`${backendUrl}/store/ai/accessfee/confirm`, {
       method: "POST",

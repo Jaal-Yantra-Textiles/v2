@@ -154,19 +154,25 @@ export function AiPaymentModal({ isOpen, onClose, onSuccess }: AiPaymentModalPro
     }
 
     setIsLoading(true)
-    createAiAccessFeeIntent().then((result) => {
-      if (result.alreadyPaid) {
-        onSuccess()
-        return
-      }
-      if (result.error) {
-        setError(result.error)
-      } else {
-        setClientSecret(result.clientSecret)
-        setSessionId(result.sessionId)
-      }
-      setIsLoading(false)
-    })
+    createAiAccessFeeIntent()
+      .then((result) => {
+        if (result.alreadyPaid) {
+          onSuccess()
+          setIsLoading(false)
+          return
+        }
+        if (result.error) {
+          setError(result.error)
+        } else {
+          setClientSecret(result.clientSecret)
+          setSessionId(result.sessionId)
+        }
+        setIsLoading(false)
+      })
+      .catch((err: any) => {
+        setError(err?.message || "Failed to initialize payment. Please try again.")
+        setIsLoading(false)
+      })
   }, [isOpen])
 
   if (!isOpen) return null
