@@ -93,6 +93,7 @@ import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/t
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
 import { StoreTryOnReqSchema } from "./store/ai/tryon/validators";
+import { AccessFeeConfirmSchema } from "./store/ai/access-fee/validators";
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
 import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/confirm/validators";
 import { listPublicPersonsQuerySchema } from "./web/persons/validators";
@@ -1050,6 +1051,21 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(CreateDesignLLMSchema))],
     },
 
+    // Store AI access fee endpoints
+    {
+      matcher: "/store/ai/access-fee",
+      method: "POST",
+      middlewares: [authenticate("customer", ["session", "bearer"])],
+    },
+    {
+      matcher: "/store/ai/access-fee/confirm",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(AccessFeeConfirmSchema)),
+      ],
+    },
+
     // Store AI endpoints
     {
       matcher: "/store/ai/imagegen",
@@ -1062,6 +1078,7 @@ export default defineMiddlewares({
     {
       matcher: "/store/ai/tryon",
       method: "POST",
+      bodyParser: { sizeLimit: "20mb" },
       middlewares: [
         authenticate("customer", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(StoreTryOnReqSchema)),

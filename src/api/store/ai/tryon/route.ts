@@ -2,7 +2,7 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { StoreTryOnReq } from "./validators"
 import { tryOnGarmentWorkflow } from "../../../../workflows/ai/try-on-garment"
 
@@ -57,6 +57,17 @@ export const POST = async (
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Customer auth required")
   }
 
+  const customerService = req.scope.resolve(Modules.CUSTOMER) as any
+  const [customer] = await customerService.listCustomers({ id: [customerId] })
+  if (!customer?.metadata?.ai_features_paid) {
+    return res.status(402).json({
+      error: {
+        code: "PAYMENT_REQUIRED",
+        message: "AI features require a one-time €2 verification fee",
+      },
+    })
+  }
+
   const { garment_image_url, garment_image_base64, face_image_base64, cloth_type, gender, model_preset } =
     req.validatedBody
 
@@ -83,7 +94,6 @@ export const POST = async (
       face_image_base64,
       cloth_type,
       gender,
-      model_preset,
     },
   })
 

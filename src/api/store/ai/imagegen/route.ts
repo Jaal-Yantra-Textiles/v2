@@ -76,7 +76,7 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { StoreGenerateAiImageReq } from "./validators"
 import { generateDesignAiImageWorkflow } from "../../../../workflows/ai/generate-design-image"
 
@@ -88,6 +88,17 @@ export const POST = async (
 
   if (!customerId) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Customer auth required")
+  }
+
+  const customerService = req.scope.resolve(Modules.CUSTOMER) as any
+  const [customer] = await customerService.listCustomers({ id: [customerId] })
+  if (!customer?.metadata?.ai_features_paid) {
+    return res.status(402).json({
+      error: {
+        code: "PAYMENT_REQUIRED",
+        message: "AI features require a one-time €2 verification fee",
+      },
+    })
   }
 
   const { result, errors } = await generateDesignAiImageWorkflow(req.scope).run({
