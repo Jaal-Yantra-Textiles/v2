@@ -281,7 +281,10 @@ export const fetchAiGenerationHistory = async (
       }
     })
   } catch (error: any) {
-    console.error("Error fetching AI generation history:", error)
+    // 401 is expected when session is expired — don't log as error
+    if (error?.status !== 401 && error?.status !== 403) {
+      console.error("Error fetching AI generation history:", error)
+    }
     return []
   }
 }

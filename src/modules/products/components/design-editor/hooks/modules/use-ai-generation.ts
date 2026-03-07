@@ -171,8 +171,10 @@ export const useAiGeneration = ({
           setGenerationHistory(uiHistory)
           onHistoryChange?.(uiHistory)
         }
-      } catch (error) {
-        console.error("[AI Generation] Failed to load history:", error)
+      } catch (error: any) {
+        if (error?.status !== 401 && error?.status !== 403) {
+          console.error("[AI Generation] Failed to load history:", error)
+        }
       } finally {
         setIsLoadingHistory(false)
       }

@@ -15,6 +15,26 @@ import {
   setAuthToken,
 } from "./cookies"
 
+/**
+ * Fresh (no-cache) customer fetch — use this for auth-sensitive UI where
+ * stale cached data from retrieveCustomer() could cause false "not logged in" states.
+ */
+export const retrieveCustomerFresh =
+  async (): Promise<HttpTypes.StoreCustomer | null> => {
+    const authHeaders = await getAuthHeaders()
+    if (!authHeaders || Object.keys(authHeaders).length === 0) return null
+
+    return await sdk.client
+      .fetch<{ customer: HttpTypes.StoreCustomer }>(`/store/customers/me`, {
+        method: "GET",
+        query: { fields: "+metadata" },
+        headers: { ...authHeaders },
+        cache: "no-store",
+      })
+      .then(({ customer }) => customer)
+      .catch(() => null)
+  }
+
 export const retrieveCustomer =
   async (): Promise<HttpTypes.StoreCustomer | null> => {
     const authHeaders = await getAuthHeaders()
@@ -33,7 +53,7 @@ export const retrieveCustomer =
       .fetch<{ customer: HttpTypes.StoreCustomer }>(`/store/customers/me`, {
         method: "GET",
         query: {
-          fields: "*orders",
+          fields: "*orders,+metadata",
         },
         headers,
         next,
