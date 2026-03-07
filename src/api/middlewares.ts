@@ -93,7 +93,7 @@ import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/t
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
 import { StoreTryOnReqSchema } from "./store/ai/tryon/validators";
-import { AccessFeeConfirmSchema } from "./store/ai/access-fee/validators";
+import { AccessFeeConfirmSchema } from "./store/ai/accessfee/validators";
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
 import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/confirm/validators";
 import { listPublicPersonsQuerySchema } from "./web/persons/validators";
@@ -1053,12 +1053,12 @@ export default defineMiddlewares({
 
     // Store AI access fee endpoints
     {
-      matcher: "/store/ai/access-fee",
+      matcher: "/store/ai/accessfee",
       method: "POST",
       middlewares: [authenticate("customer", ["session", "bearer"])],
     },
     {
-      matcher: "/store/ai/access-fee/confirm",
+      matcher: "/store/ai/accessfee/confirm",
       method: "POST",
       middlewares: [
         authenticate("customer", ["session", "bearer"]),
