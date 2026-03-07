@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import Konva from "konva"
-import { createDesign, CreateDesignInput } from "@lib/data/designs"
+import { createDesign, updateDesign, CreateDesignInput } from "@lib/data/designs"
 import { presignDesignImageUpload } from "@lib/data/uploads"
 import {
     AiGenerationHistoryItem,
@@ -1069,20 +1069,58 @@ export function useDesignEditor({
                 // Keep product.thumbnail as fallback
             }
 
-            // Strip temporary src from image layers before saving.
-            // - data: (base64) — would bloat the payload to several MB
-            // - blob: (object URL) — session-only, not persistent; strip to avoid broken images on reload
-            // Layers with proper https:// URLs (successfully uploaded to S3) are kept as-is.
-            const layersForStorage = design.layers.map((layer) => {
-                if (
-                    layer.type === "image" &&
-                    (layer.src?.startsWith("data:") || layer.src?.startsWith("blob:"))
-                ) {
+            // For image layers that still have blob: or data: URLs, attempt to re-upload
+            // via the Konva stage before stripping. The stage still holds the rendered pixels
+            // even if the original File object is gone.
+            const layersForStorage = await Promise.all(
+                design.layers.map(async (layer) => {
+                    if (
+                        layer.type !== "image" ||
+                        !layer.src ||
+                        layer.src.startsWith("http")
+                    ) {
+                        return layer // already persistent or non-image
+                    }
+
+                    // Try to recover image data from the Konva stage node
+                    try {
+                        const node = stageRef.current?.findOne(`#${layer.id}`) as Konva.Image | undefined
+                        if (node) {
+                            const dataUrl = node.toDataURL({ mimeType: "image/jpeg", quality: 0.8 })
+                            const byteStr = atob(dataUrl.split(",")[1])
+                            const bytes = new Uint8Array(byteStr.length)
+                            for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i)
+                            const blob = new Blob([bytes], { type: "image/jpeg" })
+
+                            const presignResult = await presignDesignImageUpload({
+                                name: `layer-${layer.id}-${Date.now()}.jpg`,
+                                type: "image/jpeg",
+                                size: blob.size,
+                            })
+
+                            if (presignResult.presign) {
+                                const { url: presignedUrl, public_url } = presignResult.presign
+                                const uploadRes = await fetch(presignedUrl, {
+                                    method: "PUT",
+                                    body: blob,
+                                    headers: { "Content-Type": "image/jpeg" },
+                                })
+                                if (uploadRes.ok) {
+                                    // Revoke the old blob URL and swap in the persistent URL
+                                    if (layer.src?.startsWith("blob:")) URL.revokeObjectURL(layer.src)
+                                    return { ...layer, src: public_url } as typeof layer
+                                }
+                            }
+                        }
+                    } catch {
+                        // Fall through to strip
+                    }
+
+                    // Could not upload — strip the src so the payload stays small
                     const { src: _src, ...rest } = layer as any
                     return rest
-                }
-                return layer
-            })
+                })
+            )
 
             // Collect inventory IDs to link
             // Priority: selected material's inventory > existing product design inventory items
@@ -1105,9 +1143,19 @@ export function useDesignEditor({
                 })
             }
 
-            // Generate Excalidraw data for designers
+            // Sync any newly uploaded layer URLs back into editor state
+            // so the canvas continues showing images after save
+            const uploadedLayers = layersForStorage as DesignLayer[]
+            const hasNewUploads = uploadedLayers.some(
+                (ul, i) => ul.src && ul.src !== design.layers[i]?.src
+            )
+            if (hasNewUploads) {
+                setDesign((prev) => ({ ...prev, layers: uploadedLayers }))
+            }
+
+            // Generate Excalidraw data using the resolved layers (with S3 URLs where possible)
             const excalidrawData = convertToExcalidraw(
-                design.layers,
+                uploadedLayers,
                 product.thumbnail || undefined,
                 baseDims,
                 design.name || product.title,
@@ -1127,19 +1175,27 @@ export function useDesignEditor({
                     customer_id: customer.id,
                     badges: badgePreferences,
                 },
-                moodboard: excalidrawData, // Saved to design.moodboard for designer access
+                moodboard: excalidrawData,
                 inventory_ids: inventoryIds.length > 0 ? inventoryIds : undefined,
                 partner_id: selectedPartner?.id,
                 tags: ["custom", "customer-design", product.handle],
             }
 
-            const result = await createDesign(designInput)
+            // Create or update depending on whether the design has already been saved
+            let savedId: string
+            if (savedDesignId) {
+                const result = await updateDesign(savedDesignId, designInput)
+                savedId = result.design.id
+            } else {
+                const result = await createDesign(designInput)
+                savedId = result.design.id
+            }
 
             // Clear any draft after successful save
             clearDraftSnapshot()
 
             // Show checkout modal
-            setSavedDesignId(result.design.id)
+            setSavedDesignId(savedId)
             setShowCheckoutModal(true)
         } catch (error) {
             console.error("Failed to save:", error)
