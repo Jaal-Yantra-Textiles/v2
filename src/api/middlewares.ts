@@ -982,6 +982,11 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(designSchema))],
     },
     {
+      matcher: "/admin/designs/orders",
+      method: "GET",
+      middlewares: [authenticate("user", ["session", "bearer"])],
+    },
+    {
       matcher: "/admin/designs/:id",
       method: "PUT",
       middlewares: [validateAndTransformBody(wrapSchema(UpdateDesignSchema))],
@@ -1515,6 +1520,11 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(AdminSendPersonAgreementReq))],
     },
     {
+      matcher: "/admin/designs/:id/approve",
+      method: "POST",
+      middlewares: [authenticate("user", ["session", "bearer"])],
+    },
+    {
       matcher: "/admin/designs/:id/partner",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(LinkDesignPartnerSchema))],
@@ -1758,6 +1768,11 @@ export default defineMiddlewares({
       matcher: "/admin/meta-ads/remote/ads",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(CreateRemoteAdSchema))],
+    },
+    {
+      matcher: "/admin/orders/:id/design",
+      method: "GET",
+      middlewares: [authenticate("user", ["session", "bearer"])],
     },
   ],
   errorHandler: ((

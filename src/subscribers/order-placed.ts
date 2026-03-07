@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IOrderModuleService, Logger } from "@medusajs/types"
 import { sendOrderConfirmationWorkflow } from "../workflows/email/send-notification-email"
 import { createProductionRunWorkflow } from "../workflows/production-runs/create-production-run"
+import designLineItemLink from "../links/design-line-item-link"
+import { DESIGN_MODULE } from "../modules/designs"
 
 export default async function orderPlacedHandler({
   event: { data },
@@ -111,6 +113,48 @@ export default async function orderPlacedHandler({
   } catch (e: any) {
     logger.warn(
       `[order.placed] Failed to create production runs for order ${data.id}: ${e?.message || e}`
+    )
+  }
+
+  // Create design → order link by traversing: cart_id → cart_line_items → designLineItemLink
+  try {
+    const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const orderId = data.id
+    const orders = await orderService.listOrders(
+      { id: [orderId] } as any,
+      { select: ["id", "cart_id"] as any }
+    )
+    const cartId: string | undefined = (orders as any[])?.[0]?.cart_id
+
+    if (cartId) {
+      const cartService = container.resolve(Modules.CART) as any
+      const cartLineItems = await cartService.listLineItems({ cart_id: [cartId] }, { select: ["id"] })
+      const lineItemIds = (cartLineItems || []).map((li: any) => li.id)
+
+      if (lineItemIds.length > 0) {
+        const { data: designLinks } = await query.graph({
+          entity: designLineItemLink.entryPoint,
+          filters: { line_item_id: lineItemIds },
+          fields: ["design_id"],
+        })
+
+        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
+        for (const dl of designLinks) {
+          if (dl.design_id) {
+            await remoteLink.create({
+              [DESIGN_MODULE]: { design_id: dl.design_id },
+              [Modules.ORDER]: { order_id: orderId },
+            }).catch((err: any) =>
+              logger.warn(`[order-placed] design-order link failed: ${err.message}`)
+            )
+          }
+        }
+      }
+    }
+  } catch (e: any) {
+    logger.warn(
+      `[order.placed] Failed to create design-order links for order ${data.id}: ${e?.message || e}`
     )
   }
 }
