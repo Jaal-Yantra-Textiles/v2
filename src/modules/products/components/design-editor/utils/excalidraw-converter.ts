@@ -233,66 +233,99 @@ export function convertToExcalidraw(
                 textAlign: "left",
                 verticalAlign: "top",
             })
-        } else if (layer.type === "image" && layer.src) {
-            // For images, create a placeholder rectangle with label
-            // (Excalidraw requires base64 for embedded images, which we can't easily get due to CORS)
+        } else if (layer.type === "image") {
             const imgWidth = (layer.width || 100) * layer.scaleX
             const imgHeight = (layer.height || 100) * layer.scaleY
 
-            // Add rectangle placeholder for image
-            elements.push({
-                id: elementId,
-                type: "rectangle",
-                x: offsetX + layer.x,
-                y: offsetY + layer.y,
-                width: imgWidth,
-                height: imgHeight,
-                angle: (layer.rotation * Math.PI) / 180,
-                strokeColor: "#6366f1",
-                backgroundColor: "#e0e7ff",
-                fillStyle: "cross-hatch",
-                strokeWidth: 2,
-                roughness: 1,
-                opacity: layer.opacity * 100,
-                seed: generateSeed(),
-                version: 1,
-                versionNonce: generateSeed(),
-                isDeleted: false,
-                boundElements: null,
-                updated: now,
-                link: null,
-                locked: false,
-            })
-
-            // Add label for the image
-            elements.push({
-                id: `${elementId}-label`,
-                type: "text",
-                x: offsetX + layer.x + 5,
-                y: offsetY + layer.y + 5,
-                width: imgWidth - 10,
-                height: 20,
-                angle: 0,
-                strokeColor: "#4338ca",
-                backgroundColor: "transparent",
-                fillStyle: "solid",
-                strokeWidth: 1,
-                roughness: 0,
-                opacity: 100,
-                seed: generateSeed(),
-                version: 1,
-                versionNonce: generateSeed(),
-                isDeleted: false,
-                boundElements: null,
-                updated: now,
-                link: null,
-                locked: false,
-                text: `[Image ${index + 1}]`,
-                fontSize: 12,
-                fontFamily: 2,
-                textAlign: "left",
-                verticalAlign: "top",
-            })
+            if (layer.src && layer.src.startsWith("http")) {
+                // Persistent S3 URL — add as a real Excalidraw image element
+                const fileId = `file-${layer.id}`
+                files[fileId] = {
+                    mimeType: "image/jpeg",
+                    id: fileId,
+                    dataURL: layer.src as any,
+                    created: now,
+                }
+                elements.push({
+                    id: elementId,
+                    type: "image",
+                    x: offsetX + layer.x,
+                    y: offsetY + layer.y,
+                    width: imgWidth,
+                    height: imgHeight,
+                    angle: (layer.rotation * Math.PI) / 180,
+                    strokeColor: "transparent",
+                    backgroundColor: "transparent",
+                    fillStyle: "solid",
+                    strokeWidth: 0,
+                    roughness: 0,
+                    opacity: layer.opacity * 100,
+                    seed: generateSeed(),
+                    version: 1,
+                    versionNonce: generateSeed(),
+                    isDeleted: false,
+                    boundElements: null,
+                    updated: now,
+                    link: layer.src,
+                    locked: false,
+                    fileId,
+                    status: "saved",
+                    scale: [1, 1],
+                })
+            } else {
+                // Blob or missing src — placeholder rectangle
+                elements.push({
+                    id: elementId,
+                    type: "rectangle",
+                    x: offsetX + layer.x,
+                    y: offsetY + layer.y,
+                    width: imgWidth,
+                    height: imgHeight,
+                    angle: (layer.rotation * Math.PI) / 180,
+                    strokeColor: "#6366f1",
+                    backgroundColor: "#e0e7ff",
+                    fillStyle: "cross-hatch",
+                    strokeWidth: 2,
+                    roughness: 1,
+                    opacity: layer.opacity * 100,
+                    seed: generateSeed(),
+                    version: 1,
+                    versionNonce: generateSeed(),
+                    isDeleted: false,
+                    boundElements: null,
+                    updated: now,
+                    link: null,
+                    locked: false,
+                })
+                elements.push({
+                    id: `${elementId}-label`,
+                    type: "text",
+                    x: offsetX + layer.x + 5,
+                    y: offsetY + layer.y + 5,
+                    width: imgWidth - 10,
+                    height: 20,
+                    angle: 0,
+                    strokeColor: "#4338ca",
+                    backgroundColor: "transparent",
+                    fillStyle: "solid",
+                    strokeWidth: 1,
+                    roughness: 0,
+                    opacity: 100,
+                    seed: generateSeed(),
+                    version: 1,
+                    versionNonce: generateSeed(),
+                    isDeleted: false,
+                    boundElements: null,
+                    updated: now,
+                    link: null,
+                    locked: false,
+                    text: `[Image ${index + 1} — not yet uploaded]`,
+                    fontSize: 12,
+                    fontFamily: 2,
+                    textAlign: "left",
+                    verticalAlign: "top",
+                })
+            }
         }
     })
 

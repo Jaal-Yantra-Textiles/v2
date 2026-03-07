@@ -23,6 +23,8 @@ type DesignCheckoutModalProps = {
   designId: string | null
   designName: string
   countryCode: string
+  hasMaterial?: boolean
+  hasPartner?: boolean
 }
 
 export function DesignCheckoutModal({
@@ -31,7 +33,10 @@ export function DesignCheckoutModal({
   designId,
   designName,
   countryCode,
+  hasMaterial = false,
+  hasPartner = false,
 }: DesignCheckoutModalProps) {
+  const missingSetup = !hasMaterial || !hasPartner
   const router = useRouter()
   const [estimate, setEstimate] = useState<CostEstimate | null>(null)
   const [isLoadingEstimate, setIsLoadingEstimate] = useState(false)
@@ -39,9 +44,9 @@ export function DesignCheckoutModal({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // Fetch estimate when modal opens
+  // Fetch estimate when modal opens — only if material and partner are set
   useEffect(() => {
-    if (isOpen && designId && !estimate) {
+    if (isOpen && designId && !estimate && !missingSetup) {
       setIsLoadingEstimate(true)
       setError(null)
       getDesignEstimate(designId)
@@ -56,7 +61,7 @@ export function DesignCheckoutModal({
           setIsLoadingEstimate(false)
         })
     }
-  }, [isOpen, designId, estimate])
+  }, [isOpen, designId, estimate, missingSetup])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -191,8 +196,37 @@ export function DesignCheckoutModal({
             </div>
           )}
 
+          {/* Nudge: missing material or partner */}
+          {missingSetup && !success && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <Text weight="plus" className="text-sm text-amber-800">
+                Price breakdown not available yet
+              </Text>
+              <Text size="small" className="text-amber-700">
+                To see a full price breakdown, go back and add:
+              </Text>
+              <ul className="space-y-1.5 text-sm text-amber-700">
+                {!hasMaterial && (
+                  <li className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full border-2 border-amber-400 flex items-center justify-center text-[10px] flex-shrink-0">○</span>
+                    A material (fabric, thread, etc.)
+                  </li>
+                )}
+                {!hasPartner && (
+                  <li className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full border-2 border-amber-400 flex items-center justify-center text-[10px] flex-shrink-0">○</span>
+                    A production partner
+                  </li>
+                )}
+              </ul>
+              <Text size="xsmall" className="text-amber-600">
+                You can still save the design and add these details later.
+              </Text>
+            </div>
+          )}
+
           {/* Price breakdown */}
-          {estimate && !isLoadingEstimate && !success && (
+          {estimate && !missingSetup && !isLoadingEstimate && !success && (
             <div className="rounded-2xl border border-gray-200 bg-gray-50/50 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-200 bg-white/50">
                 <Text weight="plus" className="text-sm text-gray-700">
@@ -275,7 +309,7 @@ export function DesignCheckoutModal({
           </Button>
           <Button
             onClick={handleAddToCart}
-            disabled={isAddingToCart || isLoadingEstimate || success || !!error}
+            disabled={isAddingToCart || isLoadingEstimate || success || !!error || missingSetup}
             className="flex-1 rounded-full shadow-lg disabled:shadow-none"
           >
             {isAddingToCart ? (

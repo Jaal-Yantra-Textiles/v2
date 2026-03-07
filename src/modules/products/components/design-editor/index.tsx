@@ -388,6 +388,8 @@ export default function DesignEditor({
         designId={editor.savedDesignId}
         designName={editor.designName || editor.design.name || ""}
         countryCode={countryCode || "us"}
+        hasMaterial={!!editor.selectedMaterial}
+        hasPartner={!!editor.selectedPartner}
       />
 
       {/* Virtual Try-On Modal */}
