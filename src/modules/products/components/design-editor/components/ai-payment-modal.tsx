@@ -50,13 +50,28 @@ function PaymentForm({ clientSecret, sessionId, onSuccess, onClose }: PaymentFor
       return
     }
 
-    const { error: stripeError } = await stripe.confirmCardPayment(
+    const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
       clientSecret,
       { payment_method: { card: cardElement } }
     )
 
     if (stripeError) {
-      setError(stripeError.message ?? "Payment failed")
+      // requires_capture means Stripe authorized but Medusa will capture — treat as success
+      if (
+        stripeError.payment_intent?.status === "requires_capture" ||
+        stripeError.payment_intent?.status === "succeeded"
+      ) {
+        // fall through to confirm below
+      } else {
+        setError(stripeError.message ?? "Payment failed")
+        setIsProcessing(false)
+        return
+      }
+    }
+
+    const piStatus = paymentIntent?.status ?? stripeError?.payment_intent?.status
+    if (piStatus !== "succeeded" && piStatus !== "requires_capture") {
+      setError("Payment not completed. Please try again.")
       setIsProcessing(false)
       return
     }
