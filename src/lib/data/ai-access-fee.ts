@@ -25,7 +25,7 @@ export const createAiAccessFeeIntent =
       const backendUrl =
         process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL
 
-      const response = await fetch(`${backendUrl}/store/ai/access-fee`, {
+      const response = await fetch(`${backendUrl}/store/ai/accessfee`, {
         method: "POST",
         headers: {
           ...authHeaders,
@@ -62,7 +62,7 @@ export const confirmAiAccessFee = async (
     const backendUrl =
       process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL
 
-    const response = await fetch(`${backendUrl}/store/ai/access-fee/confirm`, {
+    const response = await fetch(`${backendUrl}/store/ai/accessfee/confirm`, {
       method: "POST",
       body: JSON.stringify({ session_id: sessionId }),
       headers: {
