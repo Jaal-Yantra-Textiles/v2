@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { XMark, Sparkles } from "@medusajs/icons"
 import { CustomerInfo } from "../types"
 import { generateTryOn } from "@lib/data/ai-tryon"
@@ -11,6 +11,8 @@ type TryOnModalProps = {
   onClose: () => void
   stageRef: React.RefObject<Konva.Stage | null>
   customer?: CustomerInfo | null
+  productImages?: string[]
+  onPaymentRequired?: () => void
 }
 
 type ClothType = "upper_body" | "lower_body" | "dress"
@@ -22,23 +24,51 @@ const CLOTH_TYPE_OPTIONS: { value: ClothType; label: string }[] = [
   { value: "dress", label: "Full Dress" },
 ]
 
-export function TryOnModal({ isOpen, onClose, stageRef, customer }: TryOnModalProps) {
-  const [faceFile, setFaceFile] = useState<File | null>(null)
+export function TryOnModal({
+  isOpen,
+  onClose,
+  stageRef,
+  customer,
+  productImages,
+  onPaymentRequired,
+}: TryOnModalProps) {
+  const [faceBlob, setFaceBlob] = useState<Blob | null>(null)
   const [facePreview, setFacePreview] = useState<string | null>(null)
+  const [faceSavedFromStorage, setFaceSavedFromStorage] = useState(false)
   const [clothType, setClothType] = useState<ClothType>("upper_body")
   const [gender, setGender] = useState<Gender>("female")
+  const [selectedGarmentUrl, setSelectedGarmentUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const storageKey = customer ? `_jyt_face_${customer.id}` : null
+
+  // On mount: restore saved face from localStorage
+  useEffect(() => {
+    if (!storageKey || !isOpen) return
+    const saved = localStorage.getItem(storageKey)
+    if (saved && !faceBlob) {
+      setFacePreview(saved)
+      setFaceSavedFromStorage(true)
+      // Convert data URL back to blob
+      fetch(saved)
+        .then(r => r.blob())
+        .then(blob => setFaceBlob(blob))
+        .catch(() => {})
+    }
+  }, [isOpen, storageKey])
+
   if (!isOpen) return null
 
   const handleClose = () => {
-    setFaceFile(null)
+    setFaceBlob(null)
     setFacePreview(null)
+    setFaceSavedFromStorage(false)
     setClothType("upper_body")
     setGender("female")
+    setSelectedGarmentUrl(null)
     setIsLoading(false)
     setResultUrl(null)
     setError(null)
@@ -48,34 +78,60 @@ export function TryOnModal({ isOpen, onClose, stageRef, customer }: TryOnModalPr
   const handleFaceFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    setFaceFile(file)
+    setFaceBlob(file)
     setResultUrl(null)
     setError(null)
+    setFaceSavedFromStorage(false)
     const reader = new FileReader()
-    reader.onload = (ev) => setFacePreview(ev.target?.result as string)
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string
+      setFacePreview(dataUrl)
+      if (storageKey) {
+        try { localStorage.setItem(storageKey, dataUrl) } catch {}
+      }
+    }
     reader.readAsDataURL(file)
   }
 
+  const handleClearSavedFace = () => {
+    if (storageKey) localStorage.removeItem(storageKey)
+    setFaceBlob(null)
+    setFacePreview(null)
+    setFaceSavedFromStorage(false)
+  }
+
   const handleGenerate = async () => {
-    if (!faceFile || !stageRef.current) return
+    if (!faceBlob) return
     setIsLoading(true)
     setError(null)
     setResultUrl(null)
 
     try {
-      // Convert Konva canvas to a Blob (multipart-friendly, no base64 inflation)
-      const garmentBlob = await stageRef.current.toBlob({ pixelRatio: 1.5 })
-      if (!garmentBlob) throw new Error("Canvas export failed")
+      let garmentPayload: { garmentFile?: Blob; garmentUrl?: string }
+
+      if (selectedGarmentUrl) {
+        garmentPayload = { garmentUrl: selectedGarmentUrl }
+      } else {
+        if (!stageRef.current) throw new Error("Canvas not ready")
+        const garmentBlob = (await stageRef.current.toBlob({ pixelRatio: 1.5 })) as Blob | null
+        if (!garmentBlob) throw new Error("Canvas export failed")
+        garmentPayload = { garmentFile: garmentBlob }
+      }
 
       const response = await generateTryOn({
-        garmentFile: garmentBlob,
-        faceFile,
+        ...garmentPayload,
+        faceFile: faceBlob,
         cloth_type: clothType,
         gender,
       })
 
       if (response.error) {
-        setError(response.error.message)
+        if (response.error.code === "PAYMENT_REQUIRED") {
+          onPaymentRequired?.()
+          handleClose()
+        } else {
+          setError(response.error.message)
+        }
       } else if (response.tryon?.result_url) {
         setResultUrl(response.tryon.result_url)
       } else {
@@ -88,9 +144,12 @@ export function TryOnModal({ isOpen, onClose, stageRef, customer }: TryOnModalPr
     }
   }
 
+  const hasProductImages = productImages && productImages.length > 0
+  const canGenerate = !!faceBlob && !isLoading
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm px-4">
-      <div className="w-full max-w-md rounded-3xl border border-white/30 bg-white/95 p-6 shadow-2xl backdrop-blur-xl">
+      <div className="w-full max-w-md rounded-3xl border border-white/30 bg-white/95 p-6 shadow-2xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
@@ -114,14 +173,78 @@ export function TryOnModal({ isOpen, onClose, stageRef, customer }: TryOnModalPr
               Sign in to use Virtual Try-On and see yourself wearing this design.
             </p>
             <button
-              onClick={handleClose}
-              className="rounded-full border border-slate-300 px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              onClick={() => {
+                const returnTo = encodeURIComponent(
+                  window.location.pathname + window.location.search +
+                  (window.location.search ? "&tryon=1" : "?tryon=1")
+                )
+                window.location.href = `/account?redirect_to=${returnTo}`
+              }}
+              className="rounded-full bg-violet-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 transition-colors"
             >
-              Close
+              Sign In to Try On
+            </button>
+            <button
+              onClick={handleClose}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Cancel
             </button>
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Garment selection */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-2">
+                Garment
+              </label>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {/* "Use my design" option */}
+                <button
+                  onClick={() => setSelectedGarmentUrl(null)}
+                  className={`flex-shrink-0 relative h-16 w-16 rounded-xl border-2 flex items-center justify-center text-center transition-colors ${
+                    selectedGarmentUrl === null
+                      ? "border-violet-500 bg-violet-50"
+                      : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                  }`}
+                >
+                  {selectedGarmentUrl === null && (
+                    <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-violet-500 text-white text-[8px] font-bold">
+                      ✓
+                    </span>
+                  )}
+                  <span className="text-[9px] font-medium text-slate-600 leading-tight px-1">
+                    My design
+                  </span>
+                </button>
+
+                {/* Product images */}
+                {hasProductImages && productImages.map((url, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedGarmentUrl(url)}
+                    className={`flex-shrink-0 relative h-16 w-16 rounded-xl border-2 overflow-hidden transition-colors ${
+                      selectedGarmentUrl === url
+                        ? "border-violet-500"
+                        : "border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    {selectedGarmentUrl === url && (
+                      <span className="absolute top-0.5 right-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-violet-500 text-white text-[8px] font-bold">
+                        ✓
+                      </span>
+                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt={`Product image ${i + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Face photo upload */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-2">
@@ -129,6 +252,7 @@ export function TryOnModal({ isOpen, onClose, stageRef, customer }: TryOnModalPr
               </label>
               <div className="flex items-center gap-3">
                 {facePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={facePreview}
                     alt="Face preview"
@@ -146,9 +270,18 @@ export function TryOnModal({ isOpen, onClose, stageRef, customer }: TryOnModalPr
                     onClick={() => fileInputRef.current?.click()}
                     className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                   >
-                    {faceFile ? "Change photo" : "Upload photo"}
+                    {faceBlob ? "Change photo" : "Upload photo"}
                   </button>
-                  <p className="text-[10px] text-gray-400">Clear face photo works best</p>
+                  {faceSavedFromStorage ? (
+                    <button
+                      onClick={handleClearSavedFace}
+                      className="text-[10px] text-gray-400 hover:text-red-500 transition-colors text-left"
+                    >
+                      Clear saved photo
+                    </button>
+                  ) : (
+                    <p className="text-[10px] text-gray-400">Clear face photo works best</p>
+                  )}
                 </div>
               </div>
               <input
@@ -221,6 +354,7 @@ export function TryOnModal({ isOpen, onClose, stageRef, customer }: TryOnModalPr
             {/* Result */}
             {resultUrl && (
               <div className="space-y-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={resultUrl}
                   alt="Try-on result"
@@ -239,9 +373,9 @@ export function TryOnModal({ isOpen, onClose, stageRef, customer }: TryOnModalPr
             {/* Generate button */}
             <button
               onClick={handleGenerate}
-              disabled={!faceFile || isLoading}
+              disabled={!canGenerate}
               className={`w-full rounded-full px-4 py-2.5 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
-                !faceFile || isLoading
+                !canGenerate
                   ? "cursor-not-allowed bg-slate-100 text-slate-400"
                   : "bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow hover:from-violet-700 hover:to-blue-700"
               }`}

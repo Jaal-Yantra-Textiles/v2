@@ -17,6 +17,7 @@ import { PartnerDetailModal } from "./components/partner-detail-modal"
 import { AiLoginPrompt } from "./components/ai-login-prompt"
 import { DesignCheckoutModal } from "./components/design-checkout-modal"
 import { TryOnModal } from "./components/try-on-modal"
+import { AiPaymentModal } from "./components/ai-payment-modal"
 
 interface DesignEditorProps {
   product: DesignProduct
@@ -39,6 +40,19 @@ export default function DesignEditor({
     checkMobile()
     window.addEventListener("resize", checkMobile)
     return () => window.removeEventListener("resize", checkMobile)
+  }, [])
+
+  // Auto-open try-on modal when returning from sign-in with ?tryon=1
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("tryon") === "1") {
+      editor.setShowTryOnModal(true)
+      // Clean up the param from the URL without triggering a navigation
+      params.delete("tryon")
+      const newSearch = params.toString()
+      const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "")
+      window.history.replaceState(null, "", newUrl)
+    }
   }, [])
 
   const editor = useDesignEditor({
@@ -398,6 +412,18 @@ export default function DesignEditor({
         onClose={() => editor.setShowTryOnModal(false)}
         stageRef={editor.stageRef}
         customer={customer}
+        productImages={product.images}
+        onPaymentRequired={() => {
+          editor.setShowTryOnModal(false)
+          editor.setShowAiPaymentModal(true)
+        }}
+      />
+
+      {/* AI Payment Modal */}
+      <AiPaymentModal
+        isOpen={editor.showAiPaymentModal}
+        onClose={() => editor.setShowAiPaymentModal(false)}
+        onSuccess={editor.handleAiPaymentSuccess}
       />
     </div>
   )

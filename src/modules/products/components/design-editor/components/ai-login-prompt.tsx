@@ -32,7 +32,7 @@ export function AiLoginPrompt({ isOpen, onLogin, onCancel }: AiLoginPromptProps)
           {/* Content */}
           <div className="text-center space-y-2">
             <Text weight="plus" className="text-lg text-gray-900">
-              Sign in to use AI
+              Sign in to use AI(Not really AI, just a fun placeholder 😉)
             </Text>
             <Text size="small" className="text-gray-600">
               Create an account or sign in to generate AI-powered design images.

@@ -53,8 +53,13 @@ export default async function DesignPage({ params }: { params: PageParams }) {
         description: product.description || undefined,
         designs: (product as any).designs || [],
         metadata: product.metadata || {},
+        images: product.images?.map((i: any) => i.url) ?? [],
       }}
-      customer={customer ? { id: customer.id, email: customer.email } : null}
+      customer={customer ? {
+        id: customer.id,
+        email: customer.email,
+        aiFeaturesPaid: customer.metadata?.ai_features_paid === true,
+      } : null}
       countryCode={params.countryCode}
     />
   )

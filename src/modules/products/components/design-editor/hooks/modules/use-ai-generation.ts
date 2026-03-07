@@ -92,6 +92,7 @@ type UseAiGenerationArgs = {
   // For restoring history from draft
   initialHistory?: AiGenerationHistoryItem[]
   onHistoryChange?: (history: AiGenerationHistoryItem[]) => void
+  onPaymentRequired?: () => void
 }
 
 // Hook return type
@@ -133,6 +134,7 @@ export const useAiGeneration = ({
   onBaseImageGenerated,
   initialHistory = [],
   onHistoryChange,
+  onPaymentRequired,
 }: UseAiGenerationArgs): UseAiGenerationResult => {
   const router = useRouter()
   const pathname = usePathname()
@@ -265,6 +267,9 @@ export const useAiGeneration = ({
 
         if (code === "AUTH_REQUIRED") {
           setShowLoginPrompt(true)
+          setAiGenerationError(null)
+        } else if (code === "PAYMENT_REQUIRED") {
+          onPaymentRequired?.()
           setAiGenerationError(null)
         } else if (code === "QUOTA_EXCEEDED") {
           setAiGenerationError(message)

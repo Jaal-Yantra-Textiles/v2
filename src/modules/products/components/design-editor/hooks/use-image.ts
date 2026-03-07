@@ -19,6 +19,7 @@ export function useImage(src?: string | null): [HTMLImageElement | null, "loadin
     setStatus("loading")
 
     const img = new window.Image()
+    img.crossOrigin = "anonymous"
 
     img.onload = () => {
       setImage(img)

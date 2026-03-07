@@ -15,7 +15,6 @@ import {
   checkoutDesign,
   CostEstimate,
 } from "@lib/data/designs"
-import { addToCart } from "@lib/data/cart"
 
 type DesignCheckoutModalProps = {
   isOpen: boolean
@@ -79,17 +78,13 @@ export function DesignCheckoutModal({
     setError(null)
 
     try {
-      // 1. Checkout design to create product/variant
+      // Checkout adds the custom line item directly to the cart
       const result = await checkoutDesign(designId, { currency_code: "usd" })
 
-      // 2. Add variant to cart
-      await addToCart({
-        variantId: result.variant_id,
-        quantity: 1,
-        countryCode,
-      })
+      if (!result.line_item_id) {
+        throw new Error("Checkout did not return a line item")
+      }
 
-      // 3. Show success briefly then redirect
       setSuccess(true)
       setTimeout(() => {
         router.push(`/${countryCode}/cart`)

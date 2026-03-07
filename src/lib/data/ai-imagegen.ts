@@ -57,7 +57,7 @@ export type GenerateAiImageResponse = {
   }
   // Error field for structured error handling (avoids Next.js Server Action error suppression)
   error?: {
-    code: "AUTH_REQUIRED" | "QUOTA_EXCEEDED" | "OUT_OF_CREDITS" | "UNKNOWN"
+    code: "AUTH_REQUIRED" | "QUOTA_EXCEEDED" | "OUT_OF_CREDITS" | "PAYMENT_REQUIRED" | "UNKNOWN"
     message: string
   }
 }
@@ -152,6 +152,20 @@ export const generateAiImage = async (
     return data
   } catch (error: any) {
     // Handle specific error types - return structured errors instead of throwing
+    if (error?.status === 402) {
+      return {
+        generation: {
+          mode: input.mode,
+          prompt_used: "",
+          generated_at: new Date().toISOString(),
+        },
+        error: {
+          code: "PAYMENT_REQUIRED",
+          message: "AI features require a one-time €2 verification fee",
+        },
+      }
+    }
+
     if (error?.status === 401 || error?.message?.includes("unauthorized")) {
       return {
         generation: {

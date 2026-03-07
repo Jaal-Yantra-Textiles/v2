@@ -64,9 +64,16 @@ export function useDesignEditor({
     // Checkout modal state (shown after design is saved)
     const [showCheckoutModal, setShowCheckoutModal] = useState(false)
     const [showTryOnModal, setShowTryOnModal] = useState(false)
+    const [showAiPaymentModal, setShowAiPaymentModal] = useState(false)
+    const [aiFeaturesPaid, setAiFeaturesPaid] = useState(customer?.aiFeaturesPaid ?? false)
     const [savedDesignId, setSavedDesignId] = useState<string | null>(null)
     const [saveError, setSaveError] = useState<string | null>(null)
     const clearSaveError = useCallback(() => setSaveError(null), [])
+
+    const handleAiPaymentSuccess = useCallback(() => {
+        setAiFeaturesPaid(true)
+        setShowAiPaymentModal(false)
+    }, [])
 
     // Tool state
     const [activeTool, setActiveTool] = useState<"select" | "pan">("select")
@@ -184,6 +191,9 @@ export function useDesignEditor({
         onHistoryChange: (history) => {
             setAiGenerationHistory(history)
         },
+        onPaymentRequired: () => {
+            setShowAiPaymentModal(true)
+        },
     })
     const [isGeneratingBase, setIsGeneratingBase] = useState(false)
     const [showPrintZone, setShowPrintZone] = useState(false)
@@ -197,11 +207,6 @@ export function useDesignEditor({
     const [baseImage, baseImageStatus] = useImage(baseImageSrc)
 
     const regenerateBaseImage = useCallback(() => {
-        if (product.thumbnail) {
-            // force reload by clearing generated base state
-            setGeneratedBase(null)
-            return
-        }
         if (isGeneratingBase) return
         if (typeof window === "undefined") return
 
@@ -1248,6 +1253,13 @@ export function useDesignEditor({
         // Try-on modal
         showTryOnModal,
         setShowTryOnModal,
+
+        // AI payment modal
+        showAiPaymentModal,
+        setShowAiPaymentModal,
+        aiFeaturesPaid,
+        handleAiPaymentSuccess,
+
         savedDesignId,
         saveError,
         clearSaveError,

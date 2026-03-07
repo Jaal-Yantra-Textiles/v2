@@ -5,20 +5,22 @@ import HeroScrollButton from "./hero-scroll-button"
 import ThreeScene from "./three-scene"
 
 const Hero = async () => {
-  const { medias } = await listPublicMedia({
+  const isDev = process.env.NODE_ENV === "development"
+
+  const heroImages: Array<{ id: string; url: string; alt: string }> = isDev ? [] : await listPublicMedia({
     limit: 18,
     type: "image",
     random: true,
     offset: 0,
-  }).catch(() => ({ medias: [], count: 0, total: 0 }))
-
-  const heroImages = medias
-    .map((m) => ({
-      id: m.id,
-      url: buildPublicMediaUrl(m.file_path),
-      alt: m.alt_text || m.title || m.filename || "",
-    }))
-    .filter((m) => Boolean(m.url)) as Array<{ id: string; url: string; alt: string }>
+  }).catch(() => ({ medias: [], count: 0, total: 0 })).then(({ medias }) =>
+    medias
+      .map((m) => ({
+        id: m.id,
+        url: buildPublicMediaUrl(m.file_path),
+        alt: m.alt_text || m.title || m.filename || "",
+      }))
+      .filter((m) => Boolean(m.url))
+  )
 
   return (
     <div className="min-h-screen sm:h-[75vh] w-full border-b border-ui-border-base relative bg-gray-900 overflow-hidden">

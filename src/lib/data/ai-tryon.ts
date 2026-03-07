@@ -3,25 +3,23 @@
 import { getAuthHeaders } from "./cookies"
 
 export type GenerateTryOnInput = {
-  garmentFile: File | Blob
-  faceFile: File
+  garmentFile?: File | Blob
+  garmentUrl?: string
+  faceFile: File | Blob
   cloth_type: "upper_body" | "lower_body" | "dress"
   gender: "female" | "male"
 }
 
 export type GenerateTryOnResponse = {
   tryon?: { result_url: string; media_id?: string }
-  error?: { code: "AUTH_REQUIRED" | "UNKNOWN"; message: string }
+  error?: { code: "AUTH_REQUIRED" | "PAYMENT_REQUIRED" | "UNKNOWN"; message: string }
 }
 
-/**
- * Generates a virtual try-on image by combining a garment design with a face photo.
- * Sends images as multipart/form-data to avoid JSON body size limits.
- *
- * NOTE: Returns errors in the response object instead of throwing them.
- * This is because Next.js Server Actions suppress error messages in production for security,
- * which would prevent the client from detecting AUTH_REQUIRED errors.
- */
+async function blobToBase64DataUrl(blob: Blob, mimeType: string): Promise<string> {
+  const buffer = Buffer.from(await blob.arrayBuffer())
+  return `data:${mimeType};base64,${buffer.toString("base64")}`
+}
+
 export const generateTryOn = async (
   input: GenerateTryOnInput
 ): Promise<GenerateTryOnResponse> => {
@@ -36,41 +34,44 @@ export const generateTryOn = async (
   }
 
   try {
-    // Reconstruct as proper Blob/File instances on the server side.
-    // When passed through a Next.js Server Action boundary, Blob/File objects are
-    // serialized as binary data and may lose their instanceof type, causing
-    // FormData.append(name, blob, filename) to throw "parameter 2 is not of type 'Blob'".
-    const garmentBlob = new Blob([await input.garmentFile.arrayBuffer()], {
-      type: input.garmentFile.type || "image/png",
-    })
-    const faceBlob = new File(
-      [await input.faceFile.arrayBuffer()],
-      input.faceFile.name ?? "face.jpg",
-      { type: input.faceFile.type || "image/jpeg" }
-    )
+    const faceMime = input.faceFile.type || "image/jpeg"
+    const faceBase64 = await blobToBase64DataUrl(input.faceFile, faceMime)
 
-    const formData = new FormData()
-    formData.append("garment_image", garmentBlob, "garment.png")
-    formData.append("face_image", faceBlob, faceBlob.name)
-    formData.append("cloth_type", input.cloth_type)
-    formData.append("gender", input.gender)
+    let garmentPayload: { garment_image_url?: string; garment_image_base64?: string }
+    if (input.garmentUrl) {
+      garmentPayload = { garment_image_url: input.garmentUrl }
+    } else if (input.garmentFile) {
+      const garmentMime = input.garmentFile.type || "image/png"
+      garmentPayload = { garment_image_base64: await blobToBase64DataUrl(input.garmentFile, garmentMime) }
+    } else {
+      throw new Error("Either garmentFile or garmentUrl is required")
+    }
 
-    // Use native fetch — don't set Content-Type, let it be set automatically with multipart boundary
     const backendUrl = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL
+
     const response = await fetch(`${backendUrl}/store/ai/tryon`, {
       method: "POST",
-      body: formData,
+      body: JSON.stringify({
+        ...garmentPayload,
+        face_image_base64: faceBase64,
+        cloth_type: input.cloth_type,
+        gender: input.gender,
+      }),
       headers: {
         ...authHeaders,
-        // Do NOT set Content-Type here — fetch sets it automatically with the correct boundary
+        "Content-Type": "application/json",
+        "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? "",
       },
     })
 
     if (!response.ok) {
-      const text = await response.text()
       if (response.status === 401) {
         return { error: { code: "AUTH_REQUIRED", message: "Authentication required to use Virtual Try-On" } }
       }
+      if (response.status === 402) {
+        return { error: { code: "PAYMENT_REQUIRED", message: "AI features require a one-time €2 verification fee" } }
+      }
+      const text = await response.text()
       throw new Error(text || `HTTP ${response.status}`)
     }
 
@@ -78,16 +79,10 @@ export const generateTryOn = async (
     return data
   } catch (error: any) {
     if (error?.status === 401 || error?.message?.includes("unauthorized")) {
-      return {
-        error: {
-          code: "AUTH_REQUIRED",
-          message: "Authentication required to use Virtual Try-On",
-        },
-      }
+      return { error: { code: "AUTH_REQUIRED", message: "Authentication required to use Virtual Try-On" } }
     }
 
     console.error("Error generating try-on:", error)
-
     return {
       error: {
         code: "UNKNOWN",

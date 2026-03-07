@@ -1,7 +1,7 @@
 "use server"
 
 import { sdk } from "@lib/config"
-import { getAuthHeaders, getCacheOptions } from "./cookies"
+import { getAuthHeaders, getCacheOptions, getCartId } from "./cookies"
 
 // Layer type for canvas elements
 export type DesignLayer = {
@@ -217,10 +217,8 @@ export type CostEstimate = {
 }
 
 export type CheckoutDesignResponse = {
-  product_id: string
-  variant_id: string
+  line_item_id: string
   price: number
-  is_new_product: boolean
   cost_estimate: CostEstimate["costs"] & {
     breakdown: CostEstimate["breakdown"]
   }
@@ -253,23 +251,26 @@ export const getDesignEstimate = async (
 }
 
 /**
- * Checks out a design - creates a product/variant that can be added to cart
+ * Checks out a design - adds a custom line item to the cart (no product created yet).
+ * Admin approval creates the real product/variant.
  */
 export const checkoutDesign = async (
   designId: string,
-  options?: { currency_code?: string }
+  options?: { currency_code?: string; countryCode?: string }
 ): Promise<CheckoutDesignResponse> => {
   const headers = {
     ...(await getAuthHeaders()),
     "Content-Type": "application/json",
   }
 
+  const cartId = await getCartId()
+
   try {
     const data = await sdk.client.fetch<CheckoutDesignResponse>(
       `/store/custom/designs/${designId}/checkout`,
       {
         method: "POST",
-        body: options || {},
+        body: { ...(options || {}), cart_id: cartId },
         headers,
       }
     )

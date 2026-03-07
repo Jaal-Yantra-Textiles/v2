@@ -38,11 +38,13 @@ export type DesignProduct = {
   description?: string
   designs?: Design[]
   metadata?: Record<string, any>
+  images?: string[]
 }
 
 export type CustomerInfo = {
   id: string
   email: string
+  aiFeaturesPaid?: boolean
 }
 
 export type DesignLayer = {
