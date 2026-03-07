@@ -1,3 +1,10 @@
+# [9.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.7.0...v9.8.0) (2026-03-07)
+
+
+### Features
+
+* add PUT /store/custom/designs/:id for customer design updates ([974d9bd](https://github.com/Jaal-Yantra-Textiles/v2/commit/974d9bdaeeb0c60b4f3f9ac05613f97437a38322))
+
 # [9.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.6.0...v9.7.0) (2026-03-06)
 
 
