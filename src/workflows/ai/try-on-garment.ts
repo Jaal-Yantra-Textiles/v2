@@ -29,7 +29,7 @@ const CATVTON_CLOTH_TYPE_MAP: Record<string, string> = {
 // ---------------------------------------------------------------------------
 async function uploadBase64ToFal(base64DataUrl: string): Promise<string> {
   const { fal } = await import("@fal-ai/client")
-  fal.config({ credentials: process.env.FAL_KEY })
+  fal.config({ credentials: process.env.FAL_KEY! })
 
   const match = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/)
   if (!match) throw new Error("Invalid base64 data URL")
@@ -50,6 +50,9 @@ async function uploadBase64ToFal(base64DataUrl: string): Promise<string> {
 const catVtonStep = createStep(
   "cat-vton-step",
   async (input: TryOnGarmentInput): Promise<StepResponse<{ result_url: string }, null>> => {
+    if (!process.env.FAL_KEY) {
+      throw new Error("FAL_KEY environment variable is not set")
+    }
     const { fal } = await import("@fal-ai/client")
     fal.config({ credentials: process.env.FAL_KEY })
 

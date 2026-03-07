@@ -28,7 +28,9 @@ export const POST = async (
     provider_id: "pp_stripe_stripe",
     currency_code: "eur",
     amount: 200,
-    data: {},
+    data: {
+      payment_intent_options: { capture_method: "automatic" },
+    },
     context: {
       customer: { id: customerId },
     },
