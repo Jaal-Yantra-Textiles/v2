@@ -1,3 +1,10 @@
+# [9.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.8.0...v9.9.0) (2026-03-07)
+
+
+### Features
+
+* **api:** AI try on ([387ef22](https://github.com/Jaal-Yantra-Textiles/v2/commit/387ef2203a1650487ac32e5590485db0a3849149))
+
 # [9.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.7.0...v9.8.0) (2026-03-07)
 
 
