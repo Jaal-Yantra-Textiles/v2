@@ -2,43 +2,110 @@ name: Deploy to Railway
 
 on:
   push:
-    branches: [ main, master ]  # Trigger on push to main or master branch
-  workflow_dispatch:  # Allow manual triggering
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      force_migrate:
+        description: "Force DB migrations even if no schema files changed"
+        type: boolean
+        default: false
+      skip_migrate:
+        description: "Skip DB migrations entirely (e.g. hotfix deploy)"
+        type: boolean
+        default: false
+
+# Cancel any in-progress deploy on the same branch when a new push arrives
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1. Detect what actually changed so downstream jobs can skip work
+  # ─────────────────────────────────────────────────────────────────────────
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      deps: ${{ steps.filter.outputs.deps }}
+      db:   ${{ steps.filter.outputs.db }}
+      src:  ${{ steps.filter.outputs.src }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            deps:
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+              - '.npmrc'
+            db:
+              - 'src/modules/**/migrations/**'
+              - 'src/links/**'
+              - 'pnpm-lock.yaml'
+            src:
+              - 'src/**'
+              - 'medusa-config.ts'
+              - 'medusa-config.prod.ts'
+              - 'package.json'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. Build — with two cache layers (node_modules + compiled output)
+  # ─────────────────────────────────────────────────────────────────────────
   build:
     name: Build Application
     runs-on: ubuntu-latest
-
+    needs: changes
+    outputs:
+      build_cached: ${{ steps.build_cache.outputs.cache-hit }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
+
+      # Layer 1: node_modules — keyed on lockfile hash.
+      # Exact hit → pnpm install is completely skipped (~2 min saved).
+      - name: Restore node_modules
+        id: nm_cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: nm-${{ runner.os }}-
 
       - name: Install dependencies
+        if: steps.nm_cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Replace medusa-config.ts with production version
-        run: |
-          cp medusa-config.prod.ts medusa-config.ts
-          echo "✅ Production configuration copied to medusa-config.ts"
+      - name: Use production config
+        run: cp medusa-config.prod.ts medusa-config.ts
 
-      - name: Build Medusa with production config
-        run: |
-          pnpm medusa build
-          echo "✅ Medusa built with production configuration"
+      # Layer 2: compiled output — keyed on all source + config.
+      # Exact hit → medusa build is skipped (~3 min saved).
+      - name: Restore build cache
+        id: build_cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .medusa/
+            workflow-schemas.json
+          key: build-${{ runner.os }}-${{ hashFiles('src/**', 'medusa-config.prod.ts', 'package.json') }}
 
-      - name: Prepare deployment files
+      - name: Build Medusa
+        if: steps.build_cache.outputs.cache-hit != 'true'
+        run: pnpm medusa build
+
+      - name: Prepare Railway packages
         run: |
-          # Run the deployment script for both server and worker
           node deploy-railway.js --mode=server --ci
           node deploy-railway.js --mode=worker --ci
 
@@ -52,17 +119,104 @@ jobs:
             pnpm-lock.yaml
             .env.railway.*
             medusa-config.ts
+            workflow-schemas.json
+          retention-days: 1
 
-  deploy-server:
-    name: Deploy Server to Railway
+      - name: Build summary
+        run: |
+          echo "### Build" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| node_modules cached | ${{ steps.nm_cache.outputs.cache-hit == 'true' && '✅ yes' || '⬇️ installed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| build cached | ${{ steps.build_cache.outputs.cache-hit == 'true' && '✅ yes' || '🔨 compiled' }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 3. DB Migrations — runs only when migration/link files changed,
+  #    or when force_migrate is set via workflow_dispatch.
+  #    Skipped entirely when skip_migrate is set.
+  #
+  #    Requires GitHub secret: DATABASE_URL
+  #    (Railway → PostgreSQL service → Connect → Public TCP URL)
+  # ─────────────────────────────────────────────────────────────────────────
+  migrate:
+    name: Run DB Migrations
     runs-on: ubuntu-latest
-    needs: build
+    needs: [changes, build]
+    # On push:             inputs.* is empty → skip_migrate='', force_migrate=''
+    # workflow_dispatch:   inputs.* reflects what the user chose
+    #
+    # Run when: not skipped AND (db files changed OR force=true)
+    if: >-
+      inputs.skip_migrate != 'true' &&
+      (needs.changes.outputs.db == 'true' || inputs.force_migrate == 'true')
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Restore node_modules
+        id: nm_cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies (cache miss fallback)
+        if: steps.nm_cache.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: medusa-build
+
+      - name: Use production config
+        run: cp medusa-config.prod.ts medusa-config.ts
+
+      - name: Run module migrations
+        run: npx medusa db:migrate
+
+      - name: Sync links (safe — never drops tables)
+        run: npx medusa db:sync-links --execute-safe
+
+      - name: Migration summary
+        if: always()
+        run: |
+          echo "### Migrations" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| DB files changed | ${{ needs.changes.outputs.db }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Forced | ${{ inputs.force_migrate }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Skipped | ${{ inputs.skip_migrate }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 4a & 4b. Deploy Server + Worker in parallel.
+  #
+  # Both wait for migrate to finish (or be skipped) before deploying.
+  # Replaces the old sleep 120 / sleep 60 approach.
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy-server:
+    name: Deploy Server
+    runs-on: ubuntu-latest
+    needs: [build, migrate]
+    if: >-
+      always() &&
+      needs.build.result == 'success' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -76,23 +230,29 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
-          args: "railway up --service=medusa-server --detach"
+          args: railway up --service=medusa-server --detach
 
-      - name: Wait for migrations to complete
+      - name: Deploy summary
         run: |
-          echo "Waiting for migrations to complete before health checks start..."
-          sleep 120 # Wait 2 minutes for migrations to complete
+          echo "### Server Deploy" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | medusa-server |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build cached | ${{ needs.build.outputs.build_cached }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Migrations | ${{ needs.migrate.result }} |" >> $GITHUB_STEP_SUMMARY
 
   deploy-worker:
-    name: Deploy Worker to Railway
+    name: Deploy Worker
     runs-on: ubuntu-latest
-    needs: build # Run in parallel with deploy-server
+    needs: [build, migrate]
+    if: >-
+      always() &&
+      needs.build.result == 'success' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -106,9 +266,12 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
-          args: "railway up --service=medusa-worker --detach"
+          args: railway up --service=medusa-worker --detach
 
-      - name: Wait for worker initialization
+      - name: Deploy summary
         run: |
-          echo "Waiting for worker initialization to complete..."
-          sleep 60 # Wait 60 seconds for worker to initialize
+          echo "### Worker Deploy" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | medusa-worker |" >> $GITHUB_STEP_SUMMARY
+          echo "| Migrations | ${{ needs.migrate.result }} |" >> $GITHUB_STEP_SUMMARY
