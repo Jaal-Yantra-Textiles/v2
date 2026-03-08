@@ -3,6 +3,7 @@ import {
   Heading,
   Input,
   Label,
+  Switch,
   Text,
   Badge,
   FocusModal,
@@ -12,7 +13,7 @@ import { ShoppingBag, ThumbnailBadge } from "@medusajs/icons"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { MediaFile } from "../../hooks/api/media-folders"
-import { useCreateProductFromMedia } from "../../hooks/api/use-create-product-from-media"
+import { useCreateProductFromMedia, SizeQuantities } from "../../hooks/api/use-create-product-from-media"
 import { getThumbUrl } from "../../lib/media"
 import { Spinner } from "../ui/spinner"
 
@@ -35,6 +36,8 @@ export const CreateProductFromMediaModal = ({
 }: CreateProductFromMediaModalProps) => {
   const [title, setTitle] = useState("")
   const [price, setPrice] = useState("")
+  const [manageInventory, setManageInventory] = useState(false)
+  const [quantities, setQuantities] = useState<SizeQuantities>({ S: undefined, M: undefined, L: undefined })
   const navigate = useNavigate()
   const createMutation = useCreateProductFromMedia()
 
@@ -44,6 +47,8 @@ export const CreateProductFromMediaModal = ({
   const handleClose = () => {
     setTitle("")
     setPrice("")
+    setManageInventory(false)
+    setQuantities({ S: undefined, M: undefined, L: undefined })
     onOpenChange(false)
   }
 
@@ -63,6 +68,8 @@ export const CreateProductFromMediaModal = ({
         mediaFiles,
         folderId,
         price: priceAmount,
+        manageInventory,
+        quantities: manageInventory ? quantities : undefined,
       })
 
       toast.success(`Draft product "${product.title}" created`, {
@@ -173,6 +180,55 @@ export const CreateProductFromMediaModal = ({
               </Text>
             </div>
 
+            {/* Inventory */}
+            <div className="flex flex-col gap-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-y-0.5">
+                  <Label className="text-ui-fg-base">Manage inventory</Label>
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    Track stock levels per size. Requires a stock location to be configured.
+                  </Text>
+                </div>
+                <Switch
+                  checked={manageInventory}
+                  onCheckedChange={setManageInventory}
+                />
+              </div>
+
+              {manageInventory && (
+                <div className="rounded-xl border border-ui-border-base bg-ui-bg-subtle p-4 flex flex-col gap-y-3">
+                  <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
+                    Initial stock quantity per size
+                  </Text>
+                  {(["S", "M", "L"] as const).map((size) => (
+                    <div key={size} className="flex items-center gap-x-3">
+                      <span className="w-6 text-sm font-medium text-ui-fg-base text-center">{size}</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="0"
+                        value={quantities[size] ?? ""}
+                        onChange={(e) =>
+                          setQuantities((prev) => ({
+                            ...prev,
+                            [size]: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                          }))
+                        }
+                        className="flex-1"
+                      />
+                      <Text size="xsmall" className="text-ui-fg-muted w-6">
+                        pcs
+                      </Text>
+                    </div>
+                  ))}
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    Stock is added to your first configured stock location.
+                  </Text>
+                </div>
+              )}
+            </div>
+
             {/* Info */}
             <div className="rounded-xl border border-ui-border-base bg-ui-bg-subtle px-4 py-3 flex flex-col gap-y-1">
               <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
@@ -182,6 +238,7 @@ export const CreateProductFromMediaModal = ({
                 {[
                   "Draft product — not visible to customers until published",
                   "Size option with S, M, L variants",
+                  manageInventory ? "Inventory tracked per size at your stock location" : "Inventory untracked — enable above to set stock",
                   "Photos attached as product images",
                   "Linked back to this media folder in metadata",
                 ].map((item) => (

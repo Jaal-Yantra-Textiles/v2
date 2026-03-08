@@ -22,17 +22,30 @@ export const useDefaultSalesChannel = () => {
 
 const SIZES = ["S", "M", "L"] as const
 
+export type SizeQuantities = { S?: number; M?: number; L?: number }
+
 export type CreateProductFromMediaPayload = {
   title: string
   mediaFiles: Array<{ id: string; url: string }>
   folderId: string
   /** Price in dollars (e.g. 29.99). Applied to all size variants in USD. */
   price?: number
+  /** Whether to enable inventory tracking for all variants. */
+  manageInventory?: boolean
+  /** Per-size stock quantities. Only used when manageInventory=true. */
+  quantities?: SizeQuantities
 }
 
 export const useCreateProductFromMedia = () => {
   return useMutation({
-    mutationFn: async ({ title, mediaFiles, folderId, price }: CreateProductFromMediaPayload) => {
+    mutationFn: async ({
+      title,
+      mediaFiles,
+      folderId,
+      price,
+      manageInventory = false,
+      quantities,
+    }: CreateProductFromMediaPayload) => {
       // Resolve sales channel — use first active channel
       const { sales_channels } = await sdk.admin.salesChannel.list({
         limit: 10,
@@ -63,7 +76,7 @@ export const useCreateProductFromMedia = () => {
         variants: SIZES.map((size) => ({
           title: size,
           options: { Size: size },
-          manage_inventory: false,
+          manage_inventory: manageInventory,
           prices: priceAmount ? [{ amount: priceAmount, currency_code: "usd" }] : [],
         })),
       }
@@ -73,10 +86,50 @@ export const useCreateProductFromMedia = () => {
       }
 
       const result = await sdk.admin.product.create(payload)
-      return result.product
+      const product = result.product
+
+      // Set inventory levels if manage_inventory is on and any quantity was provided
+      if (manageInventory && quantities && Object.values(quantities).some((q) => q != null && q > 0)) {
+        await setInventoryLevels(product, quantities)
+      }
+
+      return product
     },
     onError: (error: any) => {
       toast.error(error?.message || "Failed to create product")
     },
   })
+}
+
+async function setInventoryLevels(product: any, quantities: SizeQuantities) {
+  // Get first stock location
+  const { stock_locations } = await sdk.admin.stockLocation.list({ limit: 1 })
+  const locationId = stock_locations?.[0]?.id
+  if (!locationId) return
+
+  // Fetch product with inventory item IDs per variant
+  const { product: full } = await sdk.admin.product.retrieve(product.id, {
+    fields: "+variants.inventory_items.*",
+  })
+
+  for (const variant of full?.variants ?? []) {
+    const size = variant.title as keyof SizeQuantities
+    const qty = quantities[size]
+    if (!qty || qty <= 0) continue
+
+    const inventoryItemId = variant.inventory_items?.[0]?.inventory_item_id ?? variant.inventory_items?.[0]?.id
+    if (!inventoryItemId) continue
+
+    try {
+      // Try to create a new level first
+      await sdk.admin.inventoryItem.batchInventoryItemLocationLevels(inventoryItemId, {
+        create: [{ location_id: locationId, stocked_quantity: qty }],
+      })
+    } catch {
+      // Level already exists — update it
+      await sdk.admin.inventoryItem.updateLevel(inventoryItemId, locationId, {
+        stocked_quantity: qty,
+      })
+    }
+  }
 }
