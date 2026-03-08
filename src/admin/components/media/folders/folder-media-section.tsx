@@ -1,7 +1,7 @@
 import { Button, CommandBar, Container, Heading, Text, Tooltip, clx, toast } from "@medusajs/ui";
 import { AdminMediaFolder, MediaFile } from "../../../hooks/api/media-folders";
 import { Link } from "react-router-dom";
-import { MediaPlay, ThumbnailBadge, Sparkles } from "@medusajs/icons";
+import { MediaPlay, ThumbnailBadge, Sparkles, ShoppingBag } from "@medusajs/icons";
 import { ActionMenu } from "../../common/action-menu";
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -9,6 +9,9 @@ import { sdk } from "../../../lib/config";
 import { mediaFolderDetailQueryKeys } from "../../../hooks/api/media-folders/use-media-folder-detail";
 import { getThumbUrl } from "../../../lib/media";
 import { TextileExtractionModal } from "../textile-extraction-modal";
+import { CreateProductFromMediaModal } from "../create-product-from-media-modal";
+
+const MAX_PRODUCT_PHOTOS = 4
 
 interface FolderMediaSectionProps {
   folder: AdminMediaFolder;
@@ -18,6 +21,7 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
   const [selection, setSelection] = useState<Record<string, true>>({})
   const [extractionModalOpen, setExtractionModalOpen] = useState(false)
   const [extractionMediaIds, setExtractionMediaIds] = useState<string[]>([])
+  const [createProductModalOpen, setCreateProductModalOpen] = useState(false)
   const queryClient = useQueryClient()
   const selectedCount = useMemo(() => Object.keys(selection).length, [selection])
 
@@ -93,6 +97,25 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
   const handleExtractionSuccess = async () => {
     clearSelection()
     await queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) })
+  }
+
+  const selectedImageMedia = useMemo(() => {
+    if (!folder.media_files) return []
+    return folder.media_files.filter(
+      (m) => selection[m.id] && m.file_type === "image"
+    )
+  }, [selection, folder.media_files])
+
+  const handleCreateProduct = () => {
+    if (selectedImageMedia.length === 0) {
+      toast.error("Select at least 1 image to create a product.")
+      return
+    }
+    if (selectedImageMedia.length > MAX_PRODUCT_PHOTOS) {
+      toast.error(`Select up to ${MAX_PRODUCT_PHOTOS} photos only.`)
+      return
+    }
+    setCreateProductModalOpen(true)
   }
 
   return (
@@ -203,7 +226,17 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
         <CommandBar.Bar>
           <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
           <CommandBar.Seperator />
-          <CommandBar.Command action={handleExtractSelected} label="Extract Features" shortcut="e" />
+          <CommandBar.Command
+            action={handleCreateProduct}
+            label={
+              selectedImageMedia.length > MAX_PRODUCT_PHOTOS
+                ? `Create product (max ${MAX_PRODUCT_PHOTOS})`
+                : "Create product"
+            }
+            shortcut="p"
+          />
+          <CommandBar.Seperator />
+          <CommandBar.Command action={handleExtractSelected} label="Extract features" shortcut="e" />
           <CommandBar.Seperator />
           <CommandBar.Command action={handleDeleteSelected} label="Delete" shortcut="d" />
           <CommandBar.Seperator />
@@ -215,6 +248,13 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
         onOpenChange={setExtractionModalOpen}
         mediaIds={extractionMediaIds}
         onSuccess={handleExtractionSuccess}
+      />
+      <CreateProductFromMediaModal
+        open={createProductModalOpen}
+        onOpenChange={setCreateProductModalOpen}
+        selectedMedia={selectedImageMedia.slice(0, MAX_PRODUCT_PHOTOS)}
+        folderId={folder.id}
+        onSuccess={clearSelection}
       />
     </Container>
   );

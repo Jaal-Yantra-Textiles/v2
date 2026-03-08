@@ -30,12 +30,14 @@ export type TextileProductExtractionInput = {
   media_id: string;
   image_url: string;
   hints?: string[];
+  gender?: "female" | "male" | "unisex";
   persist?: boolean;
   threadId?: string;
   resourceId?: string;
 };
 
 export type TextileProductExtractionOutput = {
+  // Garment / product catalog fields
   title: string;
   description: string;
   designer?: string | null;
@@ -52,6 +54,28 @@ export type TextileProductExtractionOutput = {
   seo_keywords?: string[];
   target_audience?: string | null;
   confidence?: number;
+
+  // Raw internal fields — not for customer display
+  face_raw?: {
+    estimated_age_range?: string | null;
+    skin_tone?: string | null;
+    hair_color?: string | null;
+    hair_style?: string | null;
+    eye_color?: string | null;
+    facial_features?: string[];
+  } | null;
+  body_raw?: {
+    body_type?: string | null;
+    estimated_height?: string | null;
+    pose?: string | null;
+    skin_tone?: string | null;
+  } | null;
+  model_characteristics?: {
+    gender_presentation?: string | null;
+    styling?: string | null;
+    overall_vibe?: string | null;
+    shot_type?: string | null;
+  } | null;
 };
 
 export type TextileExtractionSummary = {
@@ -92,7 +116,7 @@ export const waitConfirmationTextileExtractionStep = createStep(
  */
 const runMastraTextileExtractionStep = createStep(
   "run-mastra-textile-extraction",
-  async (input: { image_url: string; hints?: string[]; threadId?: string; resourceId?: string }) => {
+  async (input: { image_url: string; hints?: string[]; gender?: string; threadId?: string; resourceId?: string }) => {
     try {
       // Get the Mastra workflow
       const workflow = mastra.getWorkflow("textileProductExtractionWorkflow");
@@ -107,6 +131,7 @@ const runMastraTextileExtractionStep = createStep(
         inputData: {
           image_url: input.image_url,
           hints: input.hints || [],
+          gender: (input.gender as any) || "unisex",
           threadId,
           resourceId,
         },
@@ -209,6 +234,7 @@ const persistExtractionResultsStep = createStep(
 type TextileExtractionProcessingInput = {
   image_url: string;
   hints?: string[];
+  gender?: string;
   threadId?: string;
   resourceId?: string;
   media_id: string;
@@ -226,6 +252,7 @@ export const textileExtractionProcessingWorkflow = createWorkflow(
     const extractionInput = transform({ input }, (data) => ({
       image_url: data.input.image_url,
       hints: data.input.hints,
+      gender: data.input.gender,
       threadId: data.input.threadId,
       resourceId: data.input.resourceId,
     }));
@@ -310,6 +337,7 @@ export const textileProductExtractionMedusaWorkflow = createWorkflow(
     const extractionInput = transform({ input }, (data) => ({
       image_url: data.input.image_url,
       hints: data.input.hints,
+      gender: data.input.gender,
       threadId: data.input.threadId,
       resourceId: data.input.resourceId,
       media_id: data.input.media_id,

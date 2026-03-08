@@ -68,7 +68,7 @@ export const POST = async (
       throw new MedusaError(MedusaError.Types.INVALID_DATA, message || "Invalid request body");
     }
 
-    const { media_id, hints, persist } = parsed.data;
+    const { media_id, hints, gender, persist } = parsed.data;
 
     // Resolve media service to fetch the media file
     const mediaService = req.scope.resolve("media") as any;
@@ -102,6 +102,7 @@ export const POST = async (
         media_id,
         image_url: mediaFile.file_path,
         hints,
+        gender,
         persist,
       },
     });

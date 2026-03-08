@@ -9,6 +9,7 @@ import { mediaFolderDetailQueryKeys } from "./media-folders/use-media-folder-det
 export type ExtractFeaturesRequest = {
   media_id: string;
   hints?: string[];
+  gender?: "female" | "male" | "unisex";
   persist?: boolean;
 };
 
@@ -26,22 +27,45 @@ export type ConfirmExtractionResponse = {
 };
 
 export type TextileExtractionResult = {
+  // Garment / product catalog
   title: string;
   description: string;
-  designer?: string;
-  model_name?: string;
-  cloth_type?: string;
-  pattern?: string;
-  fabric_weight?: string;
-  care_instructions?: string;
-  season?: string;
-  occasion?: string;
+  designer?: string | null;
+  model_name?: string | null;
+  cloth_type?: string | null;
+  pattern?: string | null;
+  fabric_weight?: string | null;
+  care_instructions?: string[];
+  season?: string[];
+  occasion?: string[];
   colors?: string[];
-  category?: string;
-  suggested_price?: number;
+  category?: string | null;
+  suggested_price?: { amount: number; currency: string } | null;
   seo_keywords?: string[];
-  target_audience?: string;
+  target_audience?: string | null;
   confidence?: number;
+
+  // Raw internal fields
+  face_raw?: {
+    estimated_age_range?: string | null;
+    skin_tone?: string | null;
+    hair_color?: string | null;
+    hair_style?: string | null;
+    eye_color?: string | null;
+    facial_features?: string[];
+  } | null;
+  body_raw?: {
+    body_type?: string | null;
+    estimated_height?: string | null;
+    pose?: string | null;
+    skin_tone?: string | null;
+  } | null;
+  model_characteristics?: {
+    gender_presentation?: string | null;
+    styling?: string | null;
+    overall_vibe?: string | null;
+    shot_type?: string | null;
+  } | null;
 };
 
 /**
@@ -123,11 +147,13 @@ export const useBatchExtractTextileFeatures = () => {
     mutationFn: async ({
       media_ids,
       hints,
+      gender,
       persist,
       autoConfirm = true,
     }: {
       media_ids: string[];
       hints?: string[];
+      gender?: "female" | "male" | "unisex";
       persist?: boolean;
       autoConfirm?: boolean;
     }) => {
@@ -143,6 +169,7 @@ export const useBatchExtractTextileFeatures = () => {
           const extractResult = await extractMutation.mutateAsync({
             media_id,
             hints,
+            gender,
             persist,
           });
 

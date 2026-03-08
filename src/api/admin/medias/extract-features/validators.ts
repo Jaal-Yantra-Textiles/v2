@@ -9,6 +9,8 @@ export const ExtractFeaturesRequestSchema = z.object({
   media_id: z.string().min(1, "media_id is required"),
   /** Optional hints to guide the extraction process */
   hints: z.array(z.string()).optional(),
+  /** Gender context for correct interpretation of sizing, fit, and target audience */
+  gender: z.enum(["female", "male", "unisex"]).optional().default("unisex"),
   /** Whether to persist extraction results to media metadata */
   persist: z.boolean().optional().default(false),
 });
@@ -37,9 +39,42 @@ export type ExtractFeaturesStatusResponse = {
 };
 
 /**
+ * Raw face details extracted from model — internal use only
+ */
+export type FaceRaw = {
+  estimated_age_range?: string | null;
+  skin_tone?: string | null;
+  hair_color?: string | null;
+  hair_style?: string | null;
+  eye_color?: string | null;
+  facial_features?: string[];
+};
+
+/**
+ * Raw body details extracted from model — internal use only
+ */
+export type BodyRaw = {
+  body_type?: string | null;
+  estimated_height?: string | null;
+  pose?: string | null;
+  skin_tone?: string | null;
+};
+
+/**
+ * Shot/styling characteristics — internal use only
+ */
+export type ModelCharacteristics = {
+  gender_presentation?: string | null;
+  styling?: string | null;
+  overall_vibe?: string | null;
+  shot_type?: string | null;
+};
+
+/**
  * Textile extraction result structure
  */
 export type TextileExtractionResult = {
+  // Garment / product catalog fields
   title: string;
   description: string;
   designer?: string | null;
@@ -56,4 +91,9 @@ export type TextileExtractionResult = {
   seo_keywords?: string[];
   target_audience?: string | null;
   confidence?: number;
+
+  // Raw internal fields — NOT for customer display
+  face_raw?: FaceRaw | null;
+  body_raw?: BodyRaw | null;
+  model_characteristics?: ModelCharacteristics | null;
 };

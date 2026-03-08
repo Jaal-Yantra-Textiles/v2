@@ -37,12 +37,49 @@ export const triggerSchema = z.object({
       { message: "image_url must be a valid URL or a data URI of type png/jpeg/webp/gif" }
     ),
   hints: z.array(z.string()).optional().default([]),
+  gender: z.enum(["female", "male", "unisex"]).optional().default("unisex"),
   threadId: z.string().optional(),
   resourceId: z.string().optional(),
 });
 
+// Raw face details — internal use only, never shown to customers
+const faceRawSchema = z
+  .object({
+    estimated_age_range: z.string().nullable().optional(),
+    skin_tone: z.string().nullable().optional(),
+    hair_color: z.string().nullable().optional(),
+    hair_style: z.string().nullable().optional(),
+    eye_color: z.string().nullable().optional(),
+    facial_features: z.array(z.string()).optional().default([]),
+  })
+  .nullable()
+  .optional();
+
+// Raw body details — internal use only
+const bodyRawSchema = z
+  .object({
+    body_type: z.string().nullable().optional(),
+    estimated_height: z.string().nullable().optional(),
+    pose: z.string().nullable().optional(),
+    skin_tone: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+// Overall model/shot characteristics — internal use only
+const modelCharacteristicsSchema = z
+  .object({
+    gender_presentation: z.string().nullable().optional(),
+    styling: z.string().nullable().optional(),
+    overall_vibe: z.string().nullable().optional(),
+    shot_type: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
 // Output schema for textile product extraction
 export const textileProductSchema = z.object({
+  // ── Garment / product catalog fields ─────────────────────────
   title: z.string(),
   description: z.string(),
   designer: z.string().nullable().optional(),
@@ -65,6 +102,11 @@ export const textileProductSchema = z.object({
   seo_keywords: z.array(z.string()).optional().default([]),
   target_audience: z.string().nullable().optional(),
   confidence: z.number().min(0).max(1).optional(),
+
+  // ── Raw internal fields — NOT for customer display ────────────
+  face_raw: faceRawSchema,
+  body_raw: bodyRawSchema,
+  model_characteristics: modelCharacteristicsSchema,
 });
 
 export type TextileProductExtractionInput = z.infer<typeof triggerSchema>;
@@ -92,7 +134,7 @@ const extractTextileFeaturesStep = createStep({
   inputSchema: triggerSchema,
   outputSchema: textileProductSchema,
   execute: async ({ inputData }) => {
-    const { image_url, hints, threadId, resourceId } = inputData;
+    const { image_url, hints, gender, threadId, resourceId } = inputData;
 
     logger.info(`[TextileExtraction] Starting extraction for image: ${image_url.substring(0, 50)}...`);
 
@@ -109,7 +151,6 @@ const extractTextileFeaturesStep = createStep({
         const resp = await fetch(image_url);
         const buf = Buffer.from(await resp.arrayBuffer());
 
-        // Detect from magic bytes
         const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
         const isJpeg = buf[0] === 0xff && buf[1] === 0xd8;
         const isGif = buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38;
@@ -134,8 +175,61 @@ const extractTextileFeaturesStep = createStep({
 
     if (!mimeType) mimeType = "image/jpeg";
 
-    // Build prompt with hints
-    const hintsText = hints && hints.length > 0 ? `\n\nAdditional hints: ${hints.join(", ")}` : "";
+    const hintsText = hints && hints.length > 0 ? `\n\nAdditional hints:\n${hints.map((h) => `- ${h}`).join("\n")}` : "";
+    const genderContext = gender !== "unisex" ? `\nGender context: ${gender} — use this to interpret sizing, fit, and target audience correctly.` : "";
+
+    const prompt = `You are a fashion and textile analysis expert. Analyze this image and return a single JSON object with ALL of the following fields.
+
+---
+## PART 1 — Garment & Product Catalog Data
+Extract accurate product information for e-commerce listing:
+
+- **title**: Short, marketable product name (e.g. "Slim-fit Cotton Oxford Shirt")
+- **description**: Rich product description (2–3 sentences, mentions fabric feel, fit, styling)
+- **designer**: Brand or designer label visible in the image, or null
+- **model_name**: Specific model/SKU name if visible, or null
+- **cloth_type**: Primary garment type (e.g. "shirt", "dress", "jacket", "trousers")
+- **pattern**: Surface pattern (e.g. "solid", "stripes", "floral", "checks", "abstract"), or null
+- **fabric_weight**: Perceived weight (e.g. "lightweight", "medium-weight", "heavyweight"), or null
+- **care_instructions**: Array of care symbols/instructions visible or inferable from fabric
+- **season**: Array of seasons (e.g. ["spring", "summer"])
+- **occasion**: Array of occasions (e.g. ["casual", "formal", "workwear"])
+- **colors**: Array of all visible colors (be specific: "navy blue", "off-white")
+- **category**: Broad clothing category ("tops", "bottoms", "outerwear", "dresses", "accessories")
+- **suggested_price**: Object { amount: number, currency: "USD" } based on perceived quality/brand, or null
+- **seo_keywords**: Array of 5–10 keywords for search optimization
+- **target_audience**: Description of intended customer (e.g. "women aged 25–40, professional")
+- **confidence**: Float 0–1 representing extraction confidence${genderContext}
+
+---
+## PART 2 — Raw Internal Data (for internal analysis only, NOT shown to customers)
+Extract observable characteristics of any person/model visible in the image:
+
+- **face_raw**: If a person's face is visible, extract:
+  - estimated_age_range (e.g. "22–28", "30–35"), or null
+  - skin_tone (e.g. "fair", "medium-fair", "medium", "medium-dark", "dark"), or null
+  - hair_color (e.g. "dark brown", "blonde", "black"), or null
+  - hair_style (e.g. "straight long", "curly short", "bun"), or null
+  - eye_color (e.g. "brown", "blue", "green"), or null
+  - facial_features: array of notable observable features (e.g. ["defined cheekbones"])
+  If no face is visible, set face_raw to null.
+
+- **body_raw**: If a person's body is visible, extract:
+  - body_type (e.g. "slim", "athletic", "petite", "curvy", "tall-lean"), or null
+  - estimated_height (e.g. "tall", "medium", "short") based on proportions, or null
+  - pose (e.g. "standing front", "standing side", "sitting", "walking"), or null
+  - skin_tone (e.g. "fair", "medium", "dark"), or null
+  If no body is visible, set body_raw to null.
+
+- **model_characteristics**: Overall shot/styling context:
+  - gender_presentation (e.g. "feminine", "masculine", "androgynous"), or null
+  - styling (e.g. "editorial high-fashion", "casual street", "clean minimalist"), or null
+  - overall_vibe (e.g. "luxury", "sporty", "bohemian", "classic"), or null
+  - shot_type (e.g. "full body", "half body", "flat lay", "detail shot"), or null
+  If no model is in the image (e.g. flat lay), set non-applicable fields to null.${hintsText}
+
+---
+Return ONLY a valid JSON object. Do not include markdown, commentary, or any text outside the JSON.`;
 
     const messages = [
       {
@@ -148,7 +242,7 @@ const extractTextileFeaturesStep = createStep({
           },
           {
             type: "text" as const,
-            text: `Analyze this textile product image and extract comprehensive product information for e-commerce cataloging.${hintsText}`,
+            text: prompt,
           },
         ],
       },
@@ -163,23 +257,19 @@ const extractTextileFeaturesStep = createStep({
     let lastError: any = null;
     let modelIndex = 0;
 
-    // Try each model with retries
     while (modelIndex < availableModels.length) {
       const currentModel = availableModels[modelIndex];
       let retryCount = 0;
 
       while (retryCount < MAX_RETRIES) {
         try {
-          // Create agent without memory for one-shot extraction (better performance)
           const agent = await createTextileAgentWithModel(currentModel, false);
           logger.info(`[TextileExtraction] Attempting with model: ${currentModel} (attempt ${retryCount + 1})`);
 
-          // No need to pass threadId/resourceId when not using memory
           const response = await agent.generate(messages, {
             output: textileProductSchema,
           } as any);
 
-          // Parse response
           let parsed: TextileProductExtractionOutput;
 
           if (response.object) {
@@ -189,12 +279,10 @@ const extractTextileFeaturesStep = createStep({
             try {
               parsed = JSON.parse(text);
             } catch {
-              // Try extracting JSON from markdown code blocks
               const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
               if (jsonMatch) {
                 parsed = JSON.parse(jsonMatch[1].trim());
               } else {
-                // Try to find JSON object in the text
                 const objectMatch = text.match(/\{[\s\S]*?"title"[\s\S]*?\}/);
                 if (objectMatch) {
                   parsed = JSON.parse(objectMatch[0]);
@@ -252,8 +340,8 @@ const validateExtractionStep = createStep({
   execute: async ({ inputData }) => {
     logger.info(`[TextileExtraction] Validating extraction results...`);
 
-    // Normalize and clean up the data
     const normalized: TextileProductExtractionOutput = {
+      // Garment fields
       title: inputData.title || "Untitled Product",
       description: inputData.description || "",
       designer: inputData.designer || null,
@@ -278,9 +366,36 @@ const validateExtractionStep = createStep({
         typeof inputData.confidence === "number"
           ? Math.max(0, Math.min(1, inputData.confidence))
           : undefined,
+
+      // Raw internal fields — normalize but keep as-is
+      face_raw: inputData.face_raw
+        ? {
+            estimated_age_range: inputData.face_raw.estimated_age_range || null,
+            skin_tone: inputData.face_raw.skin_tone || null,
+            hair_color: inputData.face_raw.hair_color || null,
+            hair_style: inputData.face_raw.hair_style || null,
+            eye_color: inputData.face_raw.eye_color || null,
+            facial_features: Array.isArray(inputData.face_raw.facial_features) ? inputData.face_raw.facial_features : [],
+          }
+        : null,
+      body_raw: inputData.body_raw
+        ? {
+            body_type: inputData.body_raw.body_type || null,
+            estimated_height: inputData.body_raw.estimated_height || null,
+            pose: inputData.body_raw.pose || null,
+            skin_tone: inputData.body_raw.skin_tone || null,
+          }
+        : null,
+      model_characteristics: inputData.model_characteristics
+        ? {
+            gender_presentation: inputData.model_characteristics.gender_presentation || null,
+            styling: inputData.model_characteristics.styling || null,
+            overall_vibe: inputData.model_characteristics.overall_vibe || null,
+            shot_type: inputData.model_characteristics.shot_type || null,
+          }
+        : null,
     };
 
-    // Log warnings for missing important fields
     if (!normalized.title || normalized.title === "Untitled Product") {
       logger.warn("[TextileExtraction] Missing product title");
     }
