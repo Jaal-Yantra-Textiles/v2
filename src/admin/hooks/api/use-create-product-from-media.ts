@@ -20,15 +20,19 @@ export const useDefaultSalesChannel = () => {
   })
 }
 
+const SIZES = ["S", "M", "L"] as const
+
 export type CreateProductFromMediaPayload = {
   title: string
   mediaFiles: Array<{ id: string; url: string }>
   folderId: string
+  /** Price in dollars (e.g. 29.99). Applied to all size variants in USD. */
+  price?: number
 }
 
 export const useCreateProductFromMedia = () => {
   return useMutation({
-    mutationFn: async ({ title, mediaFiles, folderId }: CreateProductFromMediaPayload) => {
+    mutationFn: async ({ title, mediaFiles, folderId, price }: CreateProductFromMediaPayload) => {
       // Resolve sales channel — use first active channel
       const { sales_channels } = await sdk.admin.salesChannel.list({
         limit: 10,
@@ -39,6 +43,9 @@ export const useCreateProductFromMedia = () => {
 
       const thumbnail = mediaFiles[0]?.url
       const images = mediaFiles.map((f) => ({ url: f.url }))
+
+      // Convert dollars → cents (Medusa stores amounts in smallest currency unit)
+      const priceAmount = price != null && price > 0 ? Math.round(price * 100) : null
 
       const payload: any = {
         title,
@@ -52,13 +59,13 @@ export const useCreateProductFromMedia = () => {
           folder_id: folderId,
           media_ids: mediaFiles.map((f) => f.id),
         },
-        variants: [
-          {
-            title: "Default",
-            manage_inventory: false,
-            prices: [],
-          },
-        ],
+        options: [{ title: "Size", values: [...SIZES] }],
+        variants: SIZES.map((size) => ({
+          title: size,
+          options: { Size: size },
+          manage_inventory: false,
+          prices: priceAmount ? [{ amount: priceAmount, currency_code: "usd" }] : [],
+        })),
       }
 
       if (salesChannelId) {

@@ -34,6 +34,7 @@ export const CreateProductFromMediaModal = ({
   onSuccess,
 }: CreateProductFromMediaModalProps) => {
   const [title, setTitle] = useState("")
+  const [price, setPrice] = useState("")
   const navigate = useNavigate()
   const createMutation = useCreateProductFromMedia()
 
@@ -42,6 +43,7 @@ export const CreateProductFromMediaModal = ({
 
   const handleClose = () => {
     setTitle("")
+    setPrice("")
     onOpenChange(false)
   }
 
@@ -54,10 +56,13 @@ export const CreateProductFromMediaModal = ({
     const mediaFiles = media.map((m) => ({ id: m.id, url: m.file_path }))
 
     try {
+      const priceAmount = price.trim() ? parseFloat(price.trim()) : undefined
+
       const product = await createMutation.mutateAsync({
         title: title.trim(),
         mediaFiles,
         folderId,
+        price: priceAmount,
       })
 
       toast.success(`Draft product "${product.title}" created`, {
@@ -145,6 +150,29 @@ export const CreateProductFromMediaModal = ({
               />
             </div>
 
+            {/* Price */}
+            <div className="flex flex-col gap-y-2">
+              <Label htmlFor="product-price" className="text-ui-fg-base">
+                Price (USD)
+              </Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ui-fg-muted text-sm">$</span>
+                <Input
+                  id="product-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="pl-7"
+                />
+              </div>
+              <Text size="xsmall" className="text-ui-fg-muted">
+                Applied to all sizes (S, M, L). Leave blank to set pricing later.
+              </Text>
+            </div>
+
             {/* Info */}
             <div className="rounded-xl border border-ui-border-base bg-ui-bg-subtle px-4 py-3 flex flex-col gap-y-1">
               <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
@@ -153,7 +181,7 @@ export const CreateProductFromMediaModal = ({
               <ul className="flex flex-col gap-y-0.5 list-disc list-inside">
                 {[
                   "Draft product — not visible to customers until published",
-                  "Default variant with no price — set pricing after creation",
+                  "Size option with S, M, L variants",
                   "Photos attached as product images",
                   "Linked back to this media folder in metadata",
                 ].map((item) => (
