@@ -1,7 +1,7 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
 import path from "path";
 
-loadEnv(process.env.NODE_ENV || "development", process.cwd());
+loadEnv("production", process.cwd());
 
 module.exports = defineConfig({
   projectConfig: {
@@ -13,26 +13,39 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     },
-    
+    redisUrl: process.env.REDIS_URL,
+    workerMode: process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server",
   },
 
   admin: {
     vite: () => ({
-       // Keep Medusa's default config
-      resolve: {
-        alias: {
-          '@/components': path.resolve(__dirname, './src/admin/components'),
-          '@/lib/utils': path.resolve(__dirname, './src/admin/lib/utils'),
-
-        },
-        
-        // Keep Medusa's existing resolve options
+      // Keep Medusa's default config
+       resolve: {
+              alias: {
+                "@": path.resolve(__dirname, "./src/admin"),
+              }
+              // Keep Medusa's existing resolve options
+            },
+            css: {
+        preprocessorOptions: {
+          scss: {
+            api: 'modern-compiler' // or "modern"
+          }
+        }
       }
-    })
+    }),
+    disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
+    backendUrl: process.env.MEDUSA_BACKEND_URL,
+    
+  },
+  featureFlags: {
+     translation: true,
+     index_engine: true,
+     view_configrations: true,
   },
 
-
   modules: [
+    // Custom app modules
     {
       resolve: "./src/modules/person",
     },
@@ -62,35 +75,158 @@ module.exports = defineConfig({
       resolve: "./src/modules/tasks",
     },
     {
-      resolve: "./src/modules/production_policy",
-    },
-    {
       resolve: "./src/modules/notes",
     },
     {
       resolve: "./src/modules/partner",
     },
+    {
+      resolve: "./src/modules/custom-s3-provider",
+    },
+    {
+      resolve: "./src/modules/socials",
+    },
+    {
+      resolve: "./src/modules/social-provider",
+    },
+
+    // Production-ready modules
+    {
+      resolve: "@medusajs/medusa/cache-redis",
+      options: {
+        redisUrl: process.env.REDIS_URL,
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/event-bus-redis",
+      options: {
+        redisUrl: process.env.REDIS_URL,
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/workflow-engine-redis",
+      options: {
+        redis: {
+          redisUrl: process.env.REDIS_URL,
+        },
+      },
+    },
 
     {
       resolve: "@medusajs/medusa/notification",
       options: {
-        providers: [{
-          resolve: "@medusajs/medusa/notification-local",
-          id: "local",
-          options: {
-            channels: ["email"],
+        providers: [
+          {
+            resolve: "./src/modules/resend",
+            id: "resend",
+            options: {
+              channels: ["email"],
+              api_key: process.env.RESEND_API_KEY,
+              from: process.env.RESEND_FROM_EMAIL,
+            },
           },
-        }]
-      }
-    }
-
-    // {
-    //   resolve: "@medusajs/medusa/workflow-engine-redis",
-    //   options: {
-    //     redis: {
-    //       url: process.env.REDIS_URL,
-    //     },
-    //   },
-    // },
-  ],
+          {
+            resolve: "@medusajs/medusa/notification-local",
+            id: "local",
+            options: {
+              channels: ["feed"],
+            },
+          },
+        ],
+      },
+    }, 
+    {
+      resolve: "@medusajs/medusa/file",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/file-s3",
+            id: "s3",
+            options: {
+              file_url: process.env.S3_FILE_URL,
+              access_key_id: process.env.S3_ACCESS_KEY_ID,
+              secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+              region: process.env.S3_REGION,
+              bucket: process.env.S3_BUCKET,
+              endpoint: process.env.S3_ENDPOINT,
+            },
+          },
+        ],
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/payment",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/payment-stripe",
+            id: "stripe",
+            options: {
+              apiKey: process.env.STRIPE_API_KEY,
+            },
+          },
+        ],
+      },
+    },
+  {
+    resolve: "./src/modules/email_templates",
+  },
+  {
+    resolve: "./src/modules/agreements",
+  },
+  {
+    resolve: "./src/modules/media",
+  },
+  {
+    resolve: "./src/modules/fullfilled_orders",
+  },
+  {
+    resolve: "@medusajs/index",
+  },
+  {
+    resolve: "./src/modules/feedback",
+  },
+  {
+    resolve: "./src/modules/analytics",
+  },
+  {
+    resolve: "./src/modules/etsysync",
+  },
+  {
+    resolve: "./src/modules/external_stores",
+  },
+  {
+    resolve: "./src/modules/encryption",
+  },
+  {
+    resolve: "./src/modules/visual_flows",
+  },
+  {
+    resolve: "./src/modules/aivtwo",
+  },
+  {
+    resolve: "./src/modules/forms",
+  },
+  {
+      resolve: "./src/modules/production_runs",
+  },
+  {
+    resolve: "./src/modules/production_policy",
+  },
+  {
+    resolve: "./src/modules/ad-planning",
+  },
+  {
+    resolve: "./src/modules/spec_store",
+  },
+   {
+      resolve: "@medusajs/medusa/translation",
+    },
+    {
+    resolve: "./src/modules/inbound_emails",
+  },
+   {
+      resolve: "./src/modules/hang_tag_settings",
+    },
+],
 });

@@ -148,10 +148,16 @@ let packageJson;
 try {
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   
+  const expectedPredeploy = 'medusa db:migrate && medusa db:sync-links --execute-safe';
   if (!packageJson.scripts.predeploy) {
-    packageJson.scripts.predeploy = 'medusa db:migrate';
+    packageJson.scripts.predeploy = expectedPredeploy;
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
     console.log('✅ Added predeploy script to package.json');
+  } else if (!packageJson.scripts.predeploy.includes('db:sync-links')) {
+    // Upgrade stale predeploy that only ran db:migrate
+    packageJson.scripts.predeploy = expectedPredeploy;
+    fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+    console.log('✅ Upgraded predeploy to include db:sync-links --execute-safe');
   } else {
     console.log('✅ predeploy script already exists in package.json');
   }
@@ -228,8 +234,11 @@ try {
 // Step 5: Generate custom start commands
 console.log('Generating deployment commands...');
 
+// Server: runs predeploy (db:migrate + db:sync-links --execute-safe) as a safety net
+// before starting. Non-interactive thanks to --execute-safe.
+// Worker: skips predeploy entirely — migrations are the server's responsibility.
 const serverStartCommand = 'cd .medusa/server && pnpm install && pnpm predeploy && pnpm run start';
-const workerStartCommand = 'cd .medusa/server && pnpm install && pnpm predeploy && pnpm run start';
+const workerStartCommand = 'cd .medusa/server && pnpm install && pnpm run start';
 const startCommand = mode === 'server' ? serverStartCommand : workerStartCommand;
 
 console.log('\n✅ Deployment preparation complete!');
@@ -239,6 +248,8 @@ console.log(`Use the content of .env.railway.${mode} in Railway's Raw Editor.`);
 console.log(`Try running: cat .env.railway.${mode}`);
 console.log('\nCustom Start Command for Railway:');
 console.log(startCommand);
+console.log('\nNote: Server runs db:migrate + db:sync-links --execute-safe on start (idempotent).');
+console.log('      Worker skips migrations — only server manages the DB schema.');
 console.log('\nMake sure to update the placeholder values with your actual values before deployment.');
 console.log('======================================================================\n');
 
