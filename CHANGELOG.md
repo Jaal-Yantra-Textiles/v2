@@ -1,3 +1,18 @@
+# [9.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.9.0...v9.10.0) (2026-03-08)
+
+
+### Bug Fixes
+
+* **docs:** Docs fix ([aefcd37](https://github.com/Jaal-Yantra-Textiles/v2/commit/aefcd373af0867ab934bc501707f05496fb4de77))
+* **api:** Fixed some build errors ([8cff26e](https://github.com/Jaal-Yantra-Textiles/v2/commit/8cff26e7f54aa8f4da0ee1302ea7a8ace62e4990))
+
+
+### Features
+
+* **api:** Ad Planning ([ceb4a1e](https://github.com/Jaal-Yantra-Textiles/v2/commit/ceb4a1eef665e3fa462b26d9034472a81c01fe3d))
+* **api:** Product can be created from the Media now ([c08249e](https://github.com/Jaal-Yantra-Textiles/v2/commit/c08249ec1d25beeb87d43ea4a26192b3f0d7304d))
+* **api:** Product Creation from Design ([a9de071](https://github.com/Jaal-Yantra-Textiles/v2/commit/a9de071dd2470e95a59f5b5cb7491c7d32722e00))
+
 # [9.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.8.0...v9.9.0) (2026-03-07)
 
 
