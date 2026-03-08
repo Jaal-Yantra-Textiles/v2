@@ -6,11 +6,15 @@ export const useDefaultSalesChannel = () => {
   return useQuery({
     queryKey: ["store-default-sales-channel"],
     queryFn: async () => {
-      const { store } = await sdk.admin.store.retrieve()
-      const channels = (store as any).default_sales_channel_id
-        ? [{ id: (store as any).default_sales_channel_id }]
-        : []
-      return channels
+      // store.retrieve() requires an explicit store ID and doesn't reliably return
+      // default_sales_channel_id without it — go straight to salesChannel.list()
+      const { sales_channels } = await sdk.admin.salesChannel.list({
+        limit: 10,
+        fields: "id,name,is_disabled",
+      })
+      // Prefer an enabled channel
+      const active = sales_channels?.find((sc: any) => !sc.is_disabled) ?? sales_channels?.[0]
+      return active ? [{ id: active.id }] : []
     },
     staleTime: 5 * 60 * 1000,
   })
@@ -25,9 +29,13 @@ export type CreateProductFromMediaPayload = {
 export const useCreateProductFromMedia = () => {
   return useMutation({
     mutationFn: async ({ title, mediaFiles, folderId }: CreateProductFromMediaPayload) => {
-      // Fetch store for sales channel
-      const { store } = await sdk.admin.store.retrieve()
-      const salesChannelId = (store as any).default_sales_channel_id
+      // Resolve sales channel — use first active channel
+      const { sales_channels } = await sdk.admin.salesChannel.list({
+        limit: 10,
+        fields: "id,is_disabled",
+      })
+      const activeChannel = sales_channels?.find((sc: any) => !sc.is_disabled) ?? sales_channels?.[0]
+      const salesChannelId = activeChannel?.id
 
       const thumbnail = mediaFiles[0]?.url
       const images = mediaFiles.map((f) => ({ url: f.url }))
