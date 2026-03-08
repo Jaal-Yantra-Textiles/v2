@@ -1,0 +1,8 @@
+{
+  "label": "Media",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "Guides for managing media folders, linking designs to photoshoots, and automating product creation from media."
+  }
+}

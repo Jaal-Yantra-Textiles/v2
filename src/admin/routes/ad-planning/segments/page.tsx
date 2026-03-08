@@ -454,7 +454,7 @@ const SegmentsPage = () => {
               isLoading={createSegment.isPending}
               disabled={!formData.name}
             >
-              Create Segment
+              Create
             </Button>
           </FocusModal.Footer>
         </FocusModal.Content>
