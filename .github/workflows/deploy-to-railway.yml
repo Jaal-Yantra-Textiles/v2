@@ -241,6 +241,62 @@ jobs:
           echo "| Build cached | ${{ needs.build.outputs.build_cached }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Migrations | ${{ needs.migrate.result }} |" >> $GITHUB_STEP_SUMMARY
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # 5. Health-check the server after Railway has had time to boot.
+  #
+  #    Railway build + migration + Medusa init typically takes 4-8 min
+  #    after the deploy signal. We wait 3 min before the first probe, then
+  #    retry every 30 s for up to 15 min total.
+  #
+  #    Requires GitHub secret: MEDUSA_BACKEND_URL  (e.g. https://api.example.com)
+  # ─────────────────────────────────────────────────────────────────────────
+  health-check-server:
+    name: Health Check — Server
+    runs-on: ubuntu-latest
+    needs: deploy-server
+    if: always() && needs.deploy-server.result == 'success'
+    steps:
+      - name: Wait for Railway boot (migrations + server init)
+        run: |
+          echo "Giving Railway 3 min to build and start the container..."
+          sleep 180
+
+      - name: Poll /health until ready
+        env:
+          BACKEND_URL: ${{ secrets.MEDUSA_BACKEND_URL }}
+        run: |
+          MAX_ATTEMPTS=30
+          INTERVAL=30
+          ATTEMPT=0
+          HEALTH_URL="${BACKEND_URL%/}/health"
+
+          echo "Polling ${HEALTH_URL} (max ${MAX_ATTEMPTS} × ${INTERVAL}s = $((MAX_ATTEMPTS * INTERVAL))s)"
+
+          until [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HEALTH_URL" || echo "000")
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Server healthy (attempt ${ATTEMPT}, HTTP ${HTTP_CODE})"
+              exit 0
+            fi
+
+            echo "⏳ Attempt ${ATTEMPT}/${MAX_ATTEMPTS} — HTTP ${HTTP_CODE}. Retrying in ${INTERVAL}s..."
+            sleep "$INTERVAL"
+          done
+
+          echo "❌ Server did not become healthy after $((MAX_ATTEMPTS * INTERVAL + 180))s"
+          exit 1
+
+      - name: Health check summary
+        if: always()
+        run: |
+          echo "### Server Health Check" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| URL | \`${{ secrets.MEDUSA_BACKEND_URL }}/health\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Result | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+
   deploy-worker:
     name: Deploy Worker
     runs-on: ubuntu-latest
