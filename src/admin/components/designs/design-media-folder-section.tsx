@@ -7,7 +7,7 @@ import {
   clx,
   toast,
 } from "@medusajs/ui"
-import { Photos, Trash, ArrowPath } from "@medusajs/icons"
+import { Photo, Trash, ArrowPath } from "@medusajs/icons"
 import { useState } from "react"
 import {
   useDesignMediaFolder,
@@ -80,7 +80,7 @@ function FolderPickerModal({
                     alt=""
                   />
                 ) : (
-                  <Photos className="text-ui-fg-muted" />
+                  <Photo className="text-ui-fg-muted" />
                 )}
               </div>
               <div className="flex flex-col min-w-0">
@@ -152,7 +152,7 @@ export const DesignMediaFolderSection = ({ design }: DesignMediaFolderSectionPro
               onClick={() => setPickerOpen(true)}
               disabled={isBusy}
             >
-              {folder ? <ArrowPath /> : <Photos />}
+              {folder ? <ArrowPath /> : <Photo />}
               {folder ? "Change" : "Link folder"}
             </Button>
           </div>
@@ -167,7 +167,7 @@ export const DesignMediaFolderSection = ({ design }: DesignMediaFolderSectionPro
         {!isLoading && !folder && (
           <div className="flex flex-col items-center gap-y-2 py-8 px-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-ui-bg-subtle">
-              <Photos className="text-ui-fg-muted" />
+              <Photo className="text-ui-fg-muted" />
             </div>
             <Text size="small" weight="plus" className="text-ui-fg-subtle">
               No media folder linked
@@ -191,7 +191,7 @@ export const DesignMediaFolderSection = ({ design }: DesignMediaFolderSectionPro
                     alt=""
                   />
                 ) : (
-                  <Photos className="text-ui-fg-muted" />
+                  <Photo className="text-ui-fg-muted" />
                 )}
               </div>
               <div>

@@ -44,7 +44,7 @@ import type { RemoteQueryFunction } from "@medusajs/types";
     store: true,
    },
     (input: ListPersonWorkFlowInput) => {
-      const result = listSinglePersonStep(input);
+      const result = listSinglePersonStep(input) as any;
       return new WorkflowResponse(result);
     },
   );

@@ -14,12 +14,18 @@ type PromoteDesignToProductInput = {
 
 type PromoteDesignToProductOutput = {
   skipped: boolean
-  skip_reason?: string
-  product_id?: string
-  is_new_product?: boolean
+  skip_reason: string | null
+  product_id: string | null
+  is_new_product: boolean
 }
 
-const promoteDesignStep = createStep(
+type PromoteDesignStepCompensation = { product_id: string; design_id: string } | null
+
+const promoteDesignStep = createStep<
+  PromoteDesignToProductInput,
+  PromoteDesignToProductOutput,
+  PromoteDesignStepCompensation
+>(
   "promote-design-to-product-step",
   async ({ design_id }: PromoteDesignToProductInput, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
@@ -54,8 +60,8 @@ const promoteDesignStep = createStep(
 
     // Idempotency — skip if already has a linked product
     if (design.products?.length > 0) {
-      return new StepResponse(
-        { skipped: true, skip_reason: "Design already has a linked product" },
+      return new StepResponse<PromoteDesignToProductOutput, PromoteDesignStepCompensation>(
+        { skipped: true, skip_reason: "Design already has a linked product", product_id: null, is_new_product: false },
         null
       )
     }
@@ -63,8 +69,8 @@ const promoteDesignStep = createStep(
     // Must have a linked media folder
     const folder = design.folders?.[0]
     if (!folder) {
-      return new StepResponse(
-        { skipped: true, skip_reason: "No media folder linked to this design" },
+      return new StepResponse<PromoteDesignToProductOutput, PromoteDesignStepCompensation>(
+        { skipped: true, skip_reason: "No media folder linked to this design", product_id: null, is_new_product: false },
         null
       )
     }
@@ -76,8 +82,8 @@ const promoteDesignStep = createStep(
       )
 
     if (!imageFiles.length) {
-      return new StepResponse(
-        { skipped: true, skip_reason: "Linked media folder has no image files" },
+      return new StepResponse<PromoteDesignToProductOutput, PromoteDesignStepCompensation>(
+        { skipped: true, skip_reason: "Linked media folder has no image files", product_id: null, is_new_product: false },
         null
       )
     }
@@ -144,8 +150,8 @@ const promoteDesignStep = createStep(
       [DESIGN_MODULE]: { design_id: design.id },
     })
 
-    return new StepResponse(
-      { skipped: false, product_id: product.id, is_new_product: true },
+    return new StepResponse<PromoteDesignToProductOutput, PromoteDesignStepCompensation>(
+      { skipped: false, skip_reason: null, product_id: product.id, is_new_product: true },
       { product_id: product.id, design_id: design.id }
     )
   },

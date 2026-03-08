@@ -49,13 +49,8 @@ const SegmentRuleSchema = z.object({
   value: z.any(),
 });
 
-type SegmentGroupInput = {
-  logic: "AND" | "OR" | "NOT";
-  rules?: z.infer<typeof SegmentRuleSchema>[];
-  groups?: SegmentGroupInput[];
-};
-
-const SegmentGroupSchema: z.ZodType<SegmentGroupInput> = z.lazy(() =>
+// z.ZodType<any> used because z.lazy + z.default causes input/output type divergence
+const SegmentGroupSchema: z.ZodType<any> = z.lazy(() =>
   z.object({
     logic: z.enum(["AND", "OR", "NOT"]).default("AND"),
     rules: z.array(SegmentRuleSchema).optional().default([]),

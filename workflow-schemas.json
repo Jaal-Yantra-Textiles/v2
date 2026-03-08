@@ -963,6 +963,12 @@
         "placeholder": "{{ $last.hints }}"
       },
       {
+        "name": "gender",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.gender }}"
+      },
+      {
         "name": "persist",
         "type": "boolean",
         "required": false,
@@ -1021,12 +1027,6 @@
         "type": "string",
         "required": true,
         "placeholder": "{{ $last.gender }}"
-      },
-      {
-        "name": "model_preset",
-        "type": "string",
-        "required": false,
-        "placeholder": "{{ $last.model_preset }}"
       }
     ],
     "source": "custom_ts",
@@ -1153,6 +1153,54 @@
         "type": "number",
         "required": false,
         "placeholder": "0"
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.from }}"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.to }}"
+      },
+      {
+        "name": "utm_source",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.utm_source }}"
+      },
+      {
+        "name": "utm_medium",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.utm_medium }}"
+      },
+      {
+        "name": "utm_campaign",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.utm_campaign }}"
+      },
+      {
+        "name": "pathname",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.pathname }}"
+      },
+      {
+        "name": "qr_key",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.qr_key }}"
+      },
+      {
+        "name": "qr_value",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.qr_value }}"
       }
     ],
     "source": "custom_ts",
@@ -1812,6 +1860,18 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/designs/partner/link-design-to-partner.ts"
+  },
+  "promote-design-to-product": {
+    "fields": [
+      {
+        "name": "design_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.design_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/designs/promote-design-to-product.ts"
   },
   "update-design-task": {
     "fields": [
@@ -2916,6 +2976,30 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/internal_payments/update-payment.ts"
+  },
+  "split-inventory-item": {
+    "fields": [
+      {
+        "name": "sourceInventoryItemId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.sourceInventoryItemId }}"
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      },
+      {
+        "name": "newTitle",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.newTitle }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inventory/split-inventory-item.ts"
   },
   "create-inventory-order-tasks-from-templates": {
     "fields": [

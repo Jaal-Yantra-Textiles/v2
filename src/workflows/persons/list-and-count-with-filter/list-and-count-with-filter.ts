@@ -47,7 +47,7 @@ const listAndCountPersonsWithFilterStep = createStep(
 export const listAndCountPersonsWithFilterWorkflow = createWorkflow(
     "list-and-count-persons-with-filter",
     (input: ListAndCountPersonsWithFilterWorkFlowInput) => {
-        const result = listAndCountPersonsWithFilterStep(input);
+        const result = listAndCountPersonsWithFilterStep(input) as any;
         return new WorkflowResponse(result);
     },
 );
