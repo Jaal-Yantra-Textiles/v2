@@ -45,18 +45,37 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   });
 };
 
+const SegmentRuleSchema = z.object({
+  field: z.string(),
+  operator: z.enum([
+    ">=", "<=", ">", "<", "==", "!=",
+    "contains", "not_contains",
+    "in", "not_in",
+    "between",
+    "within_last_days", "older_than_days",
+  ]),
+  value: z.any(),
+});
+
+type SegmentGroupInput = {
+  logic: "AND" | "OR" | "NOT";
+  rules?: z.infer<typeof SegmentRuleSchema>[];
+  groups?: SegmentGroupInput[];
+};
+
+const SegmentGroupSchema: z.ZodType<SegmentGroupInput> = z.lazy(() =>
+  z.object({
+    logic: z.enum(["AND", "OR", "NOT"]).default("AND"),
+    rules: z.array(SegmentRuleSchema).optional().default([]),
+    groups: z.array(SegmentGroupSchema).optional(),
+  })
+);
+
 const CreateSegmentSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   segment_type: z.enum(["behavioral", "demographic", "rfm", "custom"]).default("custom"),
-  criteria: z.object({
-    rules: z.array(z.object({
-      field: z.string(),
-      operator: z.enum([">=", "<=", ">", "<", "==", "!=", "contains", "not_contains"]),
-      value: z.any(),
-    })),
-    logic: z.enum(["AND", "OR"]).default("AND"),
-  }),
+  criteria: SegmentGroupSchema,
   is_active: z.boolean().default(true),
   auto_update: z.boolean().default(true),
   color: z.string().optional(),

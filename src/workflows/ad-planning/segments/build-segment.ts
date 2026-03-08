@@ -10,6 +10,7 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
+import { Modules } from "@medusajs/framework/utils";
 import { AD_PLANNING_MODULE } from "../../../modules/ad-planning";
 import type AdPlanningService from "../../../modules/ad-planning/service";
 import { PERSON_MODULE } from "../../../modules/person";
@@ -19,13 +20,17 @@ type BuildSegmentInput = {
   segment_id: string;
 };
 
+/** Unified criteria format stored in DB and used throughout the system */
+type SegmentRule = {
+  field: string;
+  operator: string;
+  value: any;
+};
+
 type SegmentCriteria = {
-  type: "and" | "or";
-  conditions: Array<{
-    field: string;
-    operator: "equals" | "not_equals" | "contains" | "greater_than" | "less_than" | "between" | "in" | "not_in";
-    value: any;
-  }>;
+  logic: "AND" | "OR" | "NOT";
+  rules?: SegmentRule[];
+  groups?: SegmentCriteria[];
 };
 
 /**
@@ -47,7 +52,7 @@ const getSegmentStep = createStep(
 );
 
 /**
- * Step 2: Fetch all potential customers
+ * Step 2: Fetch all potential customers with full demographic + behavioral enrichment
  */
 const fetchCustomersStep = createStep(
   "fetch-customers",
@@ -55,47 +60,130 @@ const fetchCustomersStep = createStep(
     const personService: PersonService = container.resolve(PERSON_MODULE);
     const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
 
-    // Get all persons
+    // --- Person data ---
     const persons = await (personService as any).listPeople({});
-
-    // Get customer scores for each person
     const personIds = persons.map((p: any) => p.id);
+
+    // --- Scores + conversions ---
     const scores = await adPlanningService.listCustomerScores({
       person_id: { $in: personIds },
     });
-
-    // Get conversions for each person
     const conversions = await adPlanningService.listConversions({
       person_id: { $in: personIds },
     });
 
-    // Build enriched customer data
+    // --- Person addresses (demographic: country, city, state) ---
+    const addresses = personIds.length > 0
+      ? await (personService as any).listPersonAddresses({ person_id: { $in: personIds } }).catch(() => [])
+      : [];
+    const addressByPerson = new Map<string, any>();
+    for (const addr of addresses) {
+      // Use first address per person
+      if (!addressByPerson.has(addr.person_id)) {
+        addressByPerson.set(addr.person_id, addr);
+      }
+    }
+
+    // --- Medusa Customer data (match by email) ---
+    const emails = persons.map((p: any) => p.email).filter(Boolean);
+    let medusaCustomerMap = new Map<string, any>(); // keyed by email
+    let orderCountByCustomerId = new Map<string, number>();
+
+    if (emails.length > 0) {
+      try {
+        const customerModule = container.resolve(Modules.CUSTOMER);
+        const medusaCustomers: any[] = await (customerModule as any).listCustomers(
+          { email: { $in: emails } },
+          { select: ["id", "email", "has_account", "created_at"] }
+        );
+        for (const c of medusaCustomers) {
+          medusaCustomerMap.set(c.email, c);
+        }
+
+        // Order counts for matched customers
+        const customerIds = medusaCustomers.map((c: any) => c.id);
+        if (customerIds.length > 0) {
+          const orderModule = container.resolve(Modules.ORDER);
+          const orders: any[] = await (orderModule as any).listOrders(
+            { customer_id: { $in: customerIds } },
+            { select: ["customer_id"] }
+          );
+          for (const order of orders) {
+            orderCountByCustomerId.set(
+              order.customer_id,
+              (orderCountByCustomerId.get(order.customer_id) || 0) + 1
+            );
+          }
+        }
+      } catch {
+        // Customer / Order module might not have data — non-fatal
+      }
+    }
+
+    const now = new Date();
+
+    // --- Build enriched customer data ---
     const customerData = persons.map((person: any) => {
       const personScores = scores.filter((s: any) => s.person_id === person.id);
-      const personConversions = conversions.filter((c: any) => c.person_id === person.id);
+      const personConversions = conversions.filter((c: any) => c.conversion_type === "purchase"
+        ? c.person_id === person.id
+        : c.person_id === person.id);
+      const purchases = personConversions.filter((c: any) => c.conversion_type === "purchase");
+      const addr = addressByPerson.get(person.id);
+      const medusaCustomer = medusaCustomerMap.get(person.email);
+
+      // Compute age from date_of_birth
+      let age: number | null = null;
+      if (person.date_of_birth) {
+        const dob = new Date(person.date_of_birth);
+        age = Math.floor((now.getTime() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+      }
+
+      // Compute customer_since_days
+      let customer_since_days: number | null = null;
+      if (medusaCustomer?.created_at) {
+        const createdAt = new Date(medusaCustomer.created_at);
+        customer_since_days = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+      }
 
       return {
         person_id: person.id,
         email: person.email,
         created_at: person.created_at,
-        // Scores
-        nps_score: personScores.find((s: any) => s.score_type === "nps")?.score_value || null,
-        engagement_score: personScores.find((s: any) => s.score_type === "engagement")?.score_value || null,
-        clv_score: personScores.find((s: any) => s.score_type === "clv")?.score_value || null,
-        churn_risk: personScores.find((s: any) => s.score_type === "churn_risk")?.score_value || null,
-        // Conversion metrics
-        total_purchases: personConversions.filter((c: any) => c.conversion_type === "purchase").length,
-        total_revenue: personConversions
-          .filter((c: any) => c.conversion_type === "purchase")
-          .reduce((sum: number, c: any) => sum + (Number(c.conversion_value) || 0), 0),
-        last_purchase_date: personConversions
-          .filter((c: any) => c.conversion_type === "purchase")
-          .sort((a: any, b: any) => new Date(b.converted_at).getTime() - new Date(a.converted_at).getTime())[0]
-          ?.converted_at || null,
+
+        // Behavioral scores
+        nps_score: personScores.find((s: any) => s.score_type === "nps")?.score_value ?? null,
+        engagement_score: personScores.find((s: any) => s.score_type === "engagement")?.score_value ?? null,
+        clv_score: personScores.find((s: any) => s.score_type === "clv")?.score_value ?? null,
+        churn_risk: personScores.find((s: any) => s.score_type === "churn_risk")?.score_value ?? null,
+
+        // Purchase / conversion metrics
+        total_purchases: purchases.length,
+        total_revenue: purchases.reduce((sum: number, c: any) => sum + (Number(c.conversion_value) || 0), 0),
+        last_purchase_date: purchases.sort(
+          (a: any, b: any) => new Date(b.converted_at).getTime() - new Date(a.converted_at).getTime()
+        )[0]?.converted_at ?? null,
         total_conversions: personConversions.length,
+
+        // Demographic — from Person
+        date_of_birth: person.date_of_birth ?? null,
+        age,
+        country: addr?.country ?? null,
+        city: addr?.city ?? null,
+        state: addr?.state ?? null,
+
         // Tags and metadata from person
         tags: person.tags?.map((t: any) => t.name || t.value) || [],
         metadata: person.metadata || {},
+        person_state: person.state ?? null,
+
+        // Medusa Customer fields
+        has_account: medusaCustomer?.has_account ?? false,
+        customer_since_days,
+        customer_created_at: medusaCustomer?.created_at ?? null,
+        customer_order_count: medusaCustomer
+          ? (orderCountByCustomerId.get(medusaCustomer.id) ?? 0)
+          : 0,
       };
     });
 
@@ -120,26 +208,24 @@ const evaluateCriteriaStep = createStep(
     const matchingCustomers: string[] = [];
 
     for (const customer of input.customers) {
-      // Convert criteria format to service expected format
-      const serviceCriteria = {
-        rules: (input.criteria as any).conditions?.map((c: any) => ({
-          field: c.field,
-          operator: c.operator === "equals" ? "==" :
-                   c.operator === "not_equals" ? "!=" :
-                   c.operator === "greater_than" ? ">" :
-                   c.operator === "less_than" ? "<" :
-                   c.operator,
-          value: c.value,
-        })) || [],
-        logic: ((input.criteria as any).type?.toUpperCase() || "AND") as "AND" | "OR",
-      };
+      // Normalize: handle legacy flat format { rules, logic } stored before schema update
+      const criteria = input.criteria as any;
+      const normalized: SegmentCriteria = criteria.logic && (criteria.rules || criteria.groups)
+        ? criteria
+        : {
+            logic: (criteria.type?.toUpperCase() || "AND") as "AND",
+            rules: (criteria.conditions || criteria.rules || []).map((c: any) => ({
+              field: c.field,
+              operator: c.operator === "equals" ? "==" :
+                       c.operator === "not_equals" ? "!=" :
+                       c.operator === "greater_than" ? ">" :
+                       c.operator === "less_than" ? "<" :
+                       c.operator,
+              value: c.value,
+            })),
+          };
 
-      const matches = adPlanningService.evaluateSegmentCriteria(
-        serviceCriteria,
-        customer
-      );
-
-      if (matches) {
+      if (adPlanningService.evaluateSegmentCriteria(normalized, customer)) {
         matchingCustomers.push(customer.person_id);
       }
     }
