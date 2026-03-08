@@ -1,3 +1,23 @@
+# [10.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.10.0...v10.0.0) (2026-03-08)
+
+
+### Bug Fixes
+
+* **CI:** Fixed the CI healthcheck ([fa74193](https://github.com/Jaal-Yantra-Textiles/v2/commit/fa7419343d32cbeb5792bb0e2cf1de36c88e7f46))
+* **admin:** Fixed the design creation from the media toggle ([655fc0c](https://github.com/Jaal-Yantra-Textiles/v2/commit/655fc0c251ba83d99f6f93c43175b1889d51361a))
+* **api:** Media Product ([7dfdbe3](https://github.com/Jaal-Yantra-Textiles/v2/commit/7dfdbe3bbaf1f4c985cc4becfe10f699e4861b36))
+* sync pnpm-lock.yaml with qs ^6.14.2 in partner-ui ([f5d9f99](https://github.com/Jaal-Yantra-Textiles/v2/commit/f5d9f99ca6ae792f74faebc9d9cdee0c48115c79))
+
+
+### Features
+
+* **admin:** Fixed product creation ([070fbb5](https://github.com/Jaal-Yantra-Textiles/v2/commit/070fbb591c1de75b49cc6b2563433c67d4b5c149))
+
+
+### BREAKING CHANGES
+
+* **admin:**
+
 # [9.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.9.0...v9.10.0) (2026-03-08)
 
 
