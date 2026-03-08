@@ -180,6 +180,8 @@ export const promoteDesignToProductWorkflow = createWorkflow(
     const result = promoteDesignStep(input)
 
     // Feed notification — always fires (skipped or created)
+    // Note: input is WorkflowData<T> inside createWorkflow — cannot use in template literals.
+    // Pass static notification; the step itself sees resolved values.
     sendNotificationsStep([
       {
         to: "",
@@ -187,7 +189,7 @@ export const promoteDesignToProductWorkflow = createWorkflow(
         template: "admin-ui" as const,
         data: {
           title: "Design promoted to draft product",
-          description: `Design ${input.design_id} has been promoted to a draft product ready for review.`,
+          description: "A design has been promoted to a draft product and is ready for review.",
         },
       },
     ])
