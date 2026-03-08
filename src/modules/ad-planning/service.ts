@@ -187,52 +187,109 @@ class AdPlanningService extends MedusaService({
   }
 
   /**
-   * Evaluate segment criteria against customer data
+   * Evaluate segment criteria against customer data.
+   *
+   * Supports two formats (backward compatible):
+   *   Old: { rules: [...], logic: "AND" | "OR" }
+   *   New: { logic: "AND" | "OR" | "NOT", rules?: [...], groups?: [...] }
+   *
+   * logic: "AND"  → all rules + groups must match
+   * logic: "OR"   → any rule or group must match
+   * logic: "NOT"  → the combined AND result is negated (exclusion group)
+   *
+   * Operators:
+   *   Comparison:    >=, <=, >, <, ==, !=
+   *   String:        contains, not_contains
+   *   Array:         in, not_in
+   *   Range:         between  (value: [min, max])
+   *   Date-relative: within_last_days, older_than_days  (value: number of days)
    */
   evaluateSegmentCriteria(
     criteria: {
-      rules: Array<{
+      logic: "AND" | "OR" | "NOT";
+      rules?: Array<{
         field: string;
-        operator: ">=" | "<=" | ">" | "<" | "==" | "!=" | "contains" | "not_contains";
+        operator: string;
         value: any;
       }>;
-      logic: "AND" | "OR";
+      groups?: any[];
     },
     customerData: Record<string, any>
   ): boolean {
-    const evaluateRule = (rule: typeof criteria.rules[0]): boolean => {
+    const evaluateRule = (rule: { field: string; operator: string; value: any }): boolean => {
       const fieldValue = customerData[rule.field];
-
-      if (fieldValue === undefined) {
-        return false;
-      }
 
       switch (rule.operator) {
         case ">=":
-          return fieldValue >= rule.value;
+          return fieldValue !== undefined && fieldValue >= rule.value;
         case "<=":
-          return fieldValue <= rule.value;
+          return fieldValue !== undefined && fieldValue <= rule.value;
         case ">":
-          return fieldValue > rule.value;
+          return fieldValue !== undefined && fieldValue > rule.value;
         case "<":
-          return fieldValue < rule.value;
+          return fieldValue !== undefined && fieldValue < rule.value;
         case "==":
-          return fieldValue === rule.value;
+          // eslint-disable-next-line eqeqeq
+          return fieldValue == rule.value;
         case "!=":
-          return fieldValue !== rule.value;
+          // eslint-disable-next-line eqeqeq
+          return fieldValue != rule.value;
         case "contains":
-          return String(fieldValue).toLowerCase().includes(String(rule.value).toLowerCase());
+          return fieldValue !== undefined &&
+            String(fieldValue).toLowerCase().includes(String(rule.value).toLowerCase());
         case "not_contains":
-          return !String(fieldValue).toLowerCase().includes(String(rule.value).toLowerCase());
+          return fieldValue === undefined ||
+            !String(fieldValue).toLowerCase().includes(String(rule.value).toLowerCase());
+        case "in": {
+          if (fieldValue === undefined) return false;
+          const arr = Array.isArray(rule.value) ? rule.value : [rule.value];
+          return arr.includes(fieldValue);
+        }
+        case "not_in": {
+          if (fieldValue === undefined) return true;
+          const arr = Array.isArray(rule.value) ? rule.value : [rule.value];
+          return !arr.includes(fieldValue);
+        }
+        case "between": {
+          if (fieldValue === undefined) return false;
+          const [min, max] = Array.isArray(rule.value) ? rule.value : [rule.value[0], rule.value[1]];
+          return fieldValue >= min && fieldValue <= max;
+        }
+        case "within_last_days": {
+          if (!fieldValue) return false;
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - Number(rule.value));
+          return new Date(fieldValue) >= cutoff;
+        }
+        case "older_than_days": {
+          if (!fieldValue) return false;
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - Number(rule.value));
+          return new Date(fieldValue) < cutoff;
+        }
         default:
           return false;
       }
     };
 
-    if (criteria.logic === "AND") {
-      return criteria.rules.every(evaluateRule);
-    } else {
-      return criteria.rules.some(evaluateRule);
+    const ruleResults = (criteria.rules || []).map(evaluateRule);
+    const groupResults = (criteria.groups || []).map((g: any) =>
+      this.evaluateSegmentCriteria(g, customerData)
+    );
+    const all = [...ruleResults, ...groupResults];
+
+    if (all.length === 0) return true; // empty criteria matches everyone
+
+    switch (criteria.logic) {
+      case "AND":
+        return all.every(Boolean);
+      case "OR":
+        return all.some(Boolean);
+      case "NOT":
+        // NOT group: true when the combined AND result is false (exclusion)
+        return !all.every(Boolean);
+      default:
+        return all.every(Boolean);
     }
   }
 }
