@@ -4,6 +4,7 @@ import { DesignGeneralSection } from "../../../components/designs/design-general
 import { DesignPartnerSection } from "../../../components/designs/design-partner-section";
 import { DesignTasksSection } from "../../../components/designs/design-tasks-section";
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
+import { DesignMediaFolderSection } from "../../../components/designs/design-media-folder-section";
 import { DesignMoodboardSidebarSection } from "../../../components/designs/design-moodboard-sidebar-section";
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
 import { DesignSizesSection } from "../../../components/designs/design-sizes-section";
@@ -71,6 +72,7 @@ const DesignDetailPage = () => {
           <DesignColorPaletteSection design={design} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
+          <DesignMediaFolderSection design={design} />
           <DesignMediaSection design={design} />
           <DesignMoodboardSidebarSection design={design} />
           <DesignTasksSection design={design} />

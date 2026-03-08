@@ -1051,6 +1051,18 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(CreateDesignLLMSchema))],
     },
 
+    // Media folder linking on designs
+    {
+      matcher: "/admin/designs/:id/link-media-folder",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/designs/:id/link-media-folder",
+      method: "DELETE",
+      middlewares: [],
+    },
+
     // Store AI access fee endpoints
     {
       matcher: "/store/ai/accessfee",
