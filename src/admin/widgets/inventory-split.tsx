@@ -15,8 +15,9 @@ import { Plus, Trash, ArrowUpDown } from "@medusajs/icons"
 import { useFieldArray, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "@medusajs/framework/zod"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useInventoryItem, useSplitInventoryItem } from "../hooks/api/raw-materials"
+import { useStockLocations } from "../hooks/api/stock_location"
 
 type AdminInventory = {
   id: string
@@ -26,6 +27,7 @@ type AdminInventory = {
 const splitFormSchema = z.object({
   quantity: z.number().int().positive("Quantity must be a positive integer"),
   new_title: z.string().min(1, "Title is required"),
+  location_id: z.string().min(1, "Stock location is required"),
   name: z.string().optional(),
   color: z.string().optional(),
   composition: z.string().optional(),
@@ -48,6 +50,8 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
     fields: "+raw_materials.*,+raw_materials.material_type.*,+location_levels.*",
   })
 
+  const { stock_locations = [] } = useStockLocations({ limit: 50 })
+
   const { mutate: splitInventory, isPending: isSplitting } =
     useSplitInventoryItem(data.id)
 
@@ -59,9 +63,23 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
     stocked_quantity: number
   }> = sourceItem?.location_levels ?? []
 
+  // Map location_id → human name
+  const locationNameMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const loc of stock_locations as any[]) {
+      map[loc.id] = loc.name ?? loc.id
+    }
+    return map
+  }, [stock_locations])
+
   const totalStocked = locationLevels.reduce(
     (sum, l) => sum + (Number(l.stocked_quantity) || 0),
     0
+  )
+
+  // Levels that actually have stock (only these are selectable)
+  const stockedLevels = locationLevels.filter(
+    (l) => Number(l.stocked_quantity) > 0
   )
 
   // Extract custom properties from source raw material specifications
@@ -72,11 +90,14 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
         .map(([key, value]) => ({ key, value: String(value) }))
     : []
 
+  const defaultLocationId = stockedLevels[0]?.location_id ?? ""
+
   const form = useForm<SplitFormValues>({
     resolver: zodResolver(splitFormSchema),
     defaultValues: {
       quantity: 1,
       new_title: sourceItem?.title ? `${sourceItem.title} (Split)` : "(Split)",
+      location_id: defaultLocationId,
       name: rawMaterial?.name ?? "",
       color: rawMaterial?.color ?? "",
       composition: rawMaterial?.composition ?? "",
@@ -92,6 +113,7 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
     form.reset({
       quantity: 1,
       new_title: sourceItem.title ? `${sourceItem.title} (Split)` : "(Split)",
+      location_id: stockedLevels[0]?.location_id ?? "",
       name: rawMaterial?.name ?? "",
       color: rawMaterial?.color ?? "",
       composition: rawMaterial?.composition ?? "",
@@ -110,6 +132,7 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
     form.reset({
       quantity: 1,
       new_title: sourceItem?.title ? `${sourceItem.title} (Split)` : "(Split)",
+      location_id: stockedLevels[0]?.location_id ?? "",
       name: rawMaterial?.name ?? "",
       color: rawMaterial?.color ?? "",
       composition: rawMaterial?.composition ?? "",
@@ -119,6 +142,12 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
     })
     setOpen(true)
   }
+
+  const selectedLocationId = form.watch("location_id")
+  const selectedLevel = locationLevels.find(
+    (l) => l.location_id === selectedLocationId
+  )
+  const availableAtLocation = Number(selectedLevel?.stocked_quantity) || 0
 
   const onSubmit = (values: SplitFormValues) => {
     const extra: Record<string, string> = {}
@@ -132,6 +161,7 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
       {
         quantity: values.quantity,
         new_title: values.new_title,
+        location_id: values.location_id,
         raw_material_overrides: {
           name: values.name || undefined,
           color: values.color || undefined,
@@ -155,6 +185,7 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
 
   const quantityValue = form.watch("quantity")
   const quantityError = form.formState.errors.quantity
+  const locationError = form.formState.errors.location_id
 
   return (
     <>
@@ -185,7 +216,7 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
                 key={lvl.location_id}
                 className="inline-flex items-center rounded-full border border-ui-border-base bg-ui-bg-subtle px-2.5 py-0.5 text-xs text-ui-fg-base"
               >
-                {lvl.location_id} × {lvl.stocked_quantity}
+                {locationNameMap[lvl.location_id] ?? lvl.location_id} × {lvl.stocked_quantity}
               </span>
             ))}
           </div>
@@ -207,21 +238,51 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
               </Heading>
 
               <div className="grid grid-cols-1 gap-4">
+                {/* Stock location */}
+                <div className="flex flex-col gap-y-1">
+                  <Label htmlFor="location_id" className="text-sm font-medium">
+                    Stock location
+                  </Label>
+                  {stockedLevels.length === 0 ? (
+                    <Text className="text-ui-fg-error text-xs">
+                      No locations have stock available.
+                    </Text>
+                  ) : (
+                    <select
+                      id="location_id"
+                      {...form.register("location_id")}
+                      className="flex h-8 w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1 text-sm text-ui-fg-base shadow-buttons-neutral outline-none transition-all focus:border-ui-border-interactive focus:shadow-borders-focus disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {stockedLevels.map((lvl) => (
+                        <option key={lvl.location_id} value={lvl.location_id}>
+                          {locationNameMap[lvl.location_id] ?? lvl.location_id} — {lvl.stocked_quantity} in stock
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {locationError && (
+                    <Text className="text-ui-fg-error text-xs">
+                      {locationError.message}
+                    </Text>
+                  )}
+                </div>
+
+                {/* Quantity */}
                 <div className="flex flex-col gap-y-1">
                   <Label htmlFor="quantity" className="text-sm font-medium">
-                    Quantity
+                    Quantity to split
                   </Label>
                   <div className="flex items-center gap-x-2">
                     <Input
                       id="quantity"
                       type="number"
                       min={1}
-                      max={totalStocked}
+                      max={availableAtLocation}
                       {...form.register("quantity", { valueAsNumber: true })}
                       className="max-w-[120px]"
                     />
                     <Text className="text-ui-fg-subtle text-sm">
-                      Available: {totalStocked} unit{totalStocked !== 1 ? "s" : ""}
+                      Available at location: {availableAtLocation} unit{availableAtLocation !== 1 ? "s" : ""}
                     </Text>
                   </div>
                   {quantityError && (
@@ -229,13 +290,14 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
                       {quantityError.message}
                     </Text>
                   )}
-                  {!quantityError && quantityValue > totalStocked && (
+                  {!quantityError && quantityValue > availableAtLocation && (
                     <Text className="text-ui-fg-error text-xs">
-                      Cannot split more than available stock ({totalStocked})
+                      Cannot split more than available at this location ({availableAtLocation})
                     </Text>
                   )}
                 </div>
 
+                {/* New title */}
                 <div className="flex flex-col gap-y-1">
                   <Label htmlFor="new_title" className="text-sm font-medium">
                     New Title
@@ -251,22 +313,6 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
                     </Text>
                   )}
                 </div>
-
-                {locationLevels.length > 0 && (
-                  <div className="flex flex-col gap-y-1">
-                    <Label className="text-sm font-medium">Locations</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {locationLevels.map((lvl) => (
-                        <span
-                          key={lvl.location_id}
-                          className="inline-flex items-center rounded-full border border-ui-border-base bg-ui-bg-subtle px-2.5 py-0.5 text-xs text-ui-fg-base"
-                        >
-                          {lvl.location_id} × {lvl.stocked_quantity}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </section>
 
@@ -417,7 +463,7 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
               <Button
                 type="button"
                 variant="primary"
-                disabled={isSplitting || quantityValue > totalStocked}
+                disabled={isSplitting || quantityValue > availableAtLocation || !selectedLocationId}
                 isLoading={isSplitting}
                 onClick={form.handleSubmit(onSubmit)}
               >

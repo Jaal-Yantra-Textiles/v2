@@ -12,6 +12,8 @@ export type SplitInventoryItemInput = {
   sourceInventoryItemId: string
   quantity: number
   newTitle: string
+  /** When set, split is taken from this location only instead of proportionally across all. */
+  locationId?: string
   rawMaterialOverrides?: {
     name?: string
     color?: string
@@ -57,7 +59,7 @@ type SourceData = {
 const getSourceDataStep = createStep(
   "get-source-data-step",
   async (
-    input: { sourceInventoryItemId: string; quantity: number },
+    input: { sourceInventoryItemId: string; quantity: number; locationId?: string },
     { container }
   ) => {
     const inventoryService = container.resolve(Modules.INVENTORY)
@@ -132,50 +134,81 @@ const getSourceDataStep = createStep(
       // No raw material linked — that's fine
     }
 
-    // Compute proportional split portions
+    // Compute split portions — pinned to one location or proportional across all
     const qty = input.quantity
-    const sortedLevels = [...levels].sort(
-      (a: any, b: any) =>
-        (Number(b.stocked_quantity) || 0) - (Number(a.stocked_quantity) || 0)
-    )
-
-    let remaining = qty
     const portions: SourceData["splitPortions"] = []
 
-    for (let i = 0; i < sortedLevels.length; i++) {
-      const lvl = sortedLevels[i]
-      const stocked = Number(lvl.stocked_quantity) || 0
-      const isLast = i === sortedLevels.length - 1
-
-      let portion: number
-      if (isLast) {
-        portion = remaining
-      } else {
-        portion = Math.min(Math.floor((qty * stocked) / totalStocked), remaining)
+    if (input.locationId) {
+      // Pinned: take the entire split from the selected location
+      const pinned = levels.find((l: any) => l.location_id === input.locationId)
+      if (!pinned) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_FOUND,
+          `Location ${input.locationId} has no stock level for this inventory item`
+        )
       }
+      const stocked = Number(pinned.stocked_quantity) || 0
+      if (qty > stocked) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `Cannot split ${qty} units from this location — only ${stocked} stocked there`
+        )
+      }
+      // Only the pinned level is split; all others are left untouched (portion = 0)
+      for (const lvl of levels) {
+        const isPinned = lvl.location_id === input.locationId
+        const s = Number(lvl.stocked_quantity) || 0
+        portions.push({
+          location_id: lvl.location_id,
+          levelId: lvl.id,
+          sourceInventoryItemId: input.sourceInventoryItemId,
+          portion: isPinned ? qty : 0,
+          newSourceQuantity: isPinned ? s - qty : s,
+        })
+      }
+    } else {
+      // Proportional: distribute split across all locations weighted by their stock
+      const sortedLevels = [...levels].sort(
+        (a: any, b: any) =>
+          (Number(b.stocked_quantity) || 0) - (Number(a.stocked_quantity) || 0)
+      )
 
-      portions.push({
-        location_id: lvl.location_id,
-        levelId: lvl.id,
-        sourceInventoryItemId: input.sourceInventoryItemId,
-        portion,
-        newSourceQuantity: stocked - portion,
-      })
+      let remaining = qty
 
-      remaining -= portion
-      if (remaining <= 0) {
-        // Fill remaining locations with 0 split
-        for (let j = i + 1; j < sortedLevels.length; j++) {
-          const l = sortedLevels[j]
-          portions.push({
-            location_id: l.location_id,
-            levelId: l.id,
-            sourceInventoryItemId: input.sourceInventoryItemId,
-            portion: 0,
-            newSourceQuantity: Number(l.stocked_quantity) || 0,
-          })
+      for (let i = 0; i < sortedLevels.length; i++) {
+        const lvl = sortedLevels[i]
+        const stocked = Number(lvl.stocked_quantity) || 0
+        const isLast = i === sortedLevels.length - 1
+
+        let portion: number
+        if (isLast) {
+          portion = remaining
+        } else {
+          portion = Math.min(Math.floor((qty * stocked) / totalStocked), remaining)
         }
-        break
+
+        portions.push({
+          location_id: lvl.location_id,
+          levelId: lvl.id,
+          sourceInventoryItemId: input.sourceInventoryItemId,
+          portion,
+          newSourceQuantity: stocked - portion,
+        })
+
+        remaining -= portion
+        if (remaining <= 0) {
+          for (let j = i + 1; j < sortedLevels.length; j++) {
+            const l = sortedLevels[j]
+            portions.push({
+              location_id: l.location_id,
+              levelId: l.id,
+              sourceInventoryItemId: input.sourceInventoryItemId,
+              portion: 0,
+              newSourceQuantity: Number(l.stocked_quantity) || 0,
+            })
+          }
+          break
+        }
       }
     }
 
@@ -281,6 +314,7 @@ export const splitInventoryItemWorkflow = createWorkflow(
     const sourceData = getSourceDataStep({
       sourceInventoryItemId: input.sourceInventoryItemId,
       quantity: input.quantity,
+      locationId: input.locationId,
     })
 
     // Step 2: Create new inventory item

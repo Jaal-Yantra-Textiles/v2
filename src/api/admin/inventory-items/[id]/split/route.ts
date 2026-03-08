@@ -5,6 +5,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const body = req.validatedBody as {
     quantity: number
     new_title: string
+    location_id?: string
     raw_material_overrides?: {
       name?: string
       color?: string
@@ -20,6 +21,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       sourceInventoryItemId: req.params.id,
       quantity: body.quantity,
       newTitle: body.new_title,
+      locationId: body.location_id,
       rawMaterialOverrides: body.raw_material_overrides,
     },
   })

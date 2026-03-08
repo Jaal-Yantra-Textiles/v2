@@ -3,6 +3,8 @@ import { z } from "@medusajs/framework/zod"
 export const splitInventorySchema = z.object({
   quantity: z.number().int().positive(),
   new_title: z.string().min(1),
+  /** When set, split is taken from this specific location only (not proportional). */
+  location_id: z.string().optional(),
   raw_material_overrides: z
     .object({
       name: z.string().optional(),

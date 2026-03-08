@@ -337,6 +337,8 @@ export interface InventoryWithRawMaterialsResponse {
 export interface SplitInventoryItemPayload {
   quantity: number
   new_title: string
+  /** When set, split is taken from this location only. */
+  location_id?: string
   raw_material_overrides?: {
     name?: string
     color?: string
