@@ -2,23 +2,112 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { sdk } from "../../lib/config";
 import { toast } from "@medusajs/ui";
 
-export const useDefaultSalesChannel = () => {
-  return useQuery({
-    queryKey: ["store-default-sales-channel"],
+// ─── Store currencies ─────────────────────────────────────────────────────────
+
+export type StoreCurrencyInfo = {
+  currencies: string[]
+  defaultCurrency: string
+}
+
+/** Fetches all supported currency codes for the store. Default currency is first. */
+export const useStoreCurrencies = () => {
+  return useQuery<StoreCurrencyInfo>({
+    queryKey: ["store-currencies"],
     queryFn: async () => {
-      // store.retrieve() requires an explicit store ID and doesn't reliably return
-      // default_sales_channel_id without it — go straight to salesChannel.list()
-      const { sales_channels } = await sdk.admin.salesChannel.list({
-        limit: 10,
-        fields: "id,name,is_disabled",
+      const { stores } = await sdk.admin.store.list({
+        fields: "id,*supported_currencies,supported_currencies.currency.*",
       })
-      // Prefer an enabled channel
-      const active = sales_channels?.find((sc: any) => !sc.is_disabled) ?? sales_channels?.[0]
-      return active ? [{ id: active.id }] : []
+      const store = stores?.[0]
+      if (!store?.supported_currencies?.length) {
+        return { currencies: ["usd"], defaultCurrency: "usd" }
+      }
+
+      const sorted = [...store.supported_currencies].sort((a: any, b: any) =>
+        (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0)
+      )
+      const defaultCurrency =
+        (sorted.find((sc: any) => sc.is_default)?.currency_code ??
+          sorted[0]?.currency_code ??
+          "usd") as string
+
+      return {
+        currencies: sorted.map((sc: any) => sc.currency_code as string),
+        defaultCurrency,
+      }
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
   })
 }
+
+// ─── Exchange rates (Frankfurter — ECB data, no API key) ─────────────────────
+
+export type ExchangeRates = {
+  base: string
+  rates: Record<string, number>
+}
+
+/**
+ * Fetches live exchange rates from Frankfurter (api.frankfurter.app).
+ * Rates are from `baseCurrency` to all other store currencies.
+ * Only fetches when baseCurrency and targetCurrencies are known.
+ */
+export const useExchangeRates = (
+  baseCurrency: string | undefined,
+  targetCurrencies: string[]
+) => {
+  const targets = targetCurrencies.filter(
+    (c) => c.toUpperCase() !== baseCurrency?.toUpperCase()
+  )
+
+  return useQuery<ExchangeRates>({
+    queryKey: ["exchange-rates", baseCurrency, targets.sort().join(",")],
+    queryFn: async () => {
+      const base = baseCurrency!.toUpperCase()
+      const url =
+        targets.length > 0
+          ? `https://api.frankfurter.app/latest?from=${base}&to=${targets.map((c) => c.toUpperCase()).join(",")}`
+          : `https://api.frankfurter.app/latest?from=${base}`
+
+      const res = await fetch(url)
+      if (!res.ok) throw new Error("Failed to fetch exchange rates")
+      const data = await res.json()
+      return { base: data.base, rates: data.rates ?? {} } as ExchangeRates
+    },
+    enabled: !!baseCurrency && targetCurrencies.length > 1,
+    staleTime: 5 * 60 * 1000, // rates are fresh for 5 min (ECB updates once a day)
+    retry: 1,
+  })
+}
+
+/**
+ * Given a base amount, base currency, and exchange rates, returns a map of
+ * currency_code → converted amount (rounded to the nearest whole unit).
+ */
+export function buildConvertedPrices(
+  amount: number,
+  baseCurrency: string,
+  allCurrencies: string[],
+  rates: Record<string, number>
+): Array<{ currency_code: string; amount: number }> {
+  return allCurrencies.map((code) => {
+    const upper = code.toUpperCase()
+    const baseUpper = baseCurrency.toUpperCase()
+
+    if (upper === baseUpper) {
+      return { currency_code: code, amount: Math.round(amount) }
+    }
+
+    const rate = rates[upper]
+    if (rate == null) {
+      // Currency not in Frankfurter — fall back to same amount
+      return { currency_code: code, amount: Math.round(amount) }
+    }
+
+    return { currency_code: code, amount: Math.round(amount * rate) }
+  })
+}
+
+// ─── Product creation ─────────────────────────────────────────────────────────
 
 const SIZES = ["S", "M", "L"] as const
 
@@ -28,7 +117,10 @@ export type CreateProductFromMediaPayload = {
   title: string
   mediaFiles: Array<{ id: string; url: string }>
   folderId: string
-  /** Price in dollars (e.g. 29.99). Applied to all size variants in USD. */
+  /**
+   * Price in the store's default currency (major unit, e.g. 200 for €200).
+   * Converted to all other store currencies via live Frankfurter exchange rates.
+   */
   price?: number
   /** Whether to enable inventory tracking for all variants. */
   manageInventory?: boolean
@@ -46,19 +138,59 @@ export const useCreateProductFromMedia = () => {
       manageInventory = false,
       quantities,
     }: CreateProductFromMediaPayload) => {
-      // Resolve sales channel — use first active channel
-      const { sales_channels } = await sdk.admin.salesChannel.list({
-        limit: 10,
-        fields: "id,is_disabled",
-      })
-      const activeChannel = sales_channels?.find((sc: any) => !sc.is_disabled) ?? sales_channels?.[0]
+      // Fetch sales channels + store currencies in parallel
+      const [{ sales_channels }, { stores }] = await Promise.all([
+        sdk.admin.salesChannel.list({ limit: 10, fields: "id,is_disabled" }),
+        sdk.admin.store.list({
+          fields: "id,*supported_currencies,supported_currencies.currency.*",
+        }),
+      ])
+
+      const activeChannel =
+        sales_channels?.find((sc: any) => !sc.is_disabled) ?? sales_channels?.[0]
       const salesChannelId = activeChannel?.id
+
+      const store = stores?.[0]
+      const supportedCurrencies: string[] =
+        store?.supported_currencies?.map((sc: any) => sc.currency_code as string) ?? []
+
+      const defaultCurrency =
+        (store?.supported_currencies
+          ?.find((sc: any) => sc.is_default)
+          ?.currency_code ?? supportedCurrencies[0] ?? "usd") as string
+
+      // Build price entries for all currencies with live exchange rate conversion
+      let priceEntries: Array<{ currency_code: string; amount: number }> = []
+
+      if (price != null && price > 0 && supportedCurrencies.length) {
+        const amount = Math.round(price)
+        const otherCurrencies = supportedCurrencies.filter(
+          (c) => c.toUpperCase() !== defaultCurrency.toUpperCase()
+        )
+
+        let rates: Record<string, number> = {}
+
+        if (otherCurrencies.length > 0) {
+          try {
+            const base = defaultCurrency.toUpperCase()
+            const targets = otherCurrencies.map((c) => c.toUpperCase()).join(",")
+            const res = await fetch(
+              `https://api.frankfurter.app/latest?from=${base}&to=${targets}`
+            )
+            if (res.ok) {
+              const data = await res.json()
+              rates = data.rates ?? {}
+            }
+          } catch {
+            // Network failure — fall back to same amount for all currencies
+          }
+        }
+
+        priceEntries = buildConvertedPrices(amount, defaultCurrency, supportedCurrencies, rates)
+      }
 
       const thumbnail = mediaFiles[0]?.url
       const images = mediaFiles.map((f) => ({ url: f.url }))
-
-      // Convert dollars → cents (Medusa stores amounts in smallest currency unit)
-      const priceAmount = price != null && price > 0 ? Math.round(price * 100) : null
 
       const payload: any = {
         title,
@@ -77,7 +209,7 @@ export const useCreateProductFromMedia = () => {
           title: size,
           options: { Size: size },
           manage_inventory: manageInventory,
-          prices: priceAmount ? [{ amount: priceAmount, currency_code: "usd" }] : [],
+          prices: priceEntries,
         })),
       }
 
@@ -88,8 +220,11 @@ export const useCreateProductFromMedia = () => {
       const result = await sdk.admin.product.create(payload)
       const product = result.product
 
-      // Set inventory levels if manage_inventory is on and any quantity was provided
-      if (manageInventory && quantities && Object.values(quantities).some((q) => q != null && q > 0)) {
+      if (
+        manageInventory &&
+        quantities &&
+        Object.values(quantities).some((q) => q != null && q > 0)
+      ) {
         await setInventoryLevels(product, quantities)
       }
 
@@ -102,12 +237,10 @@ export const useCreateProductFromMedia = () => {
 }
 
 async function setInventoryLevels(product: any, quantities: SizeQuantities) {
-  // Get first stock location
   const { stock_locations } = await sdk.admin.stockLocation.list({ limit: 1 })
   const locationId = stock_locations?.[0]?.id
   if (!locationId) return
 
-  // Fetch product with inventory item IDs per variant
   const { product: full } = await sdk.admin.product.retrieve(product.id, {
     fields: "+variants.inventory_items.*",
   })
@@ -117,16 +250,16 @@ async function setInventoryLevels(product: any, quantities: SizeQuantities) {
     const qty = quantities[size]
     if (!qty || qty <= 0) continue
 
-    const inventoryItemId = variant.inventory_items?.[0]?.inventory_item_id ?? variant.inventory_items?.[0]?.id
+    const inventoryItemId =
+      variant.inventory_items?.[0]?.inventory_item_id ??
+      variant.inventory_items?.[0]?.id
     if (!inventoryItemId) continue
 
     try {
-      // Try to create a new level first
       await sdk.admin.inventoryItem.batchInventoryItemLocationLevels(inventoryItemId, {
         create: [{ location_id: locationId, stocked_quantity: qty }],
       })
     } catch {
-      // Level already exists — update it
       await sdk.admin.inventoryItem.updateLevel(inventoryItemId, locationId, {
         stocked_quantity: qty,
       })

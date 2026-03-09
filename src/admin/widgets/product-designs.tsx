@@ -6,7 +6,7 @@ import { ActionMenu } from "../components/common/action-menu"
 import { PencilSquare, Plus, Trash } from "@medusajs/icons"
 import { useProduct, useUnlinkProductDesign } from "../hooks/api/products"
 import { useDesignInventory } from "../hooks/api/designs"
-import { useProductionRuns } from "../hooks/api/production-runs"
+import { AdminProductionRun, useProductionRuns } from "../hooks/api/production-runs"
 
 const designStatusColor = (status: string): "green" | "blue" | "orange" | "grey" | "red" | "purple" => {
   switch (status) {
@@ -55,14 +55,6 @@ type InventoryItem = {
   sku?: string
   planned_quantity?: number
   consumed_quantity?: number
-  [key: string]: any
-}
-
-type ProductionRun = {
-  id: string
-  status: string
-  quantity: number
-  partner_id?: string | null
   [key: string]: any
 }
 
@@ -127,7 +119,7 @@ function DesignInventorySection({ designId }: { designId: string }) {
   )
 }
 
-function DesignProductionRunsSection({ designId }: { designId: string }) {
+function DesignAdminProductionRunsSection({ designId }: { designId: string }) {
   const { production_runs: runs = [], isLoading } = useProductionRuns({ design_id: designId, limit: 20 })
 
   if (isLoading) return <Skeleton className="h-16 w-full" />
@@ -137,12 +129,12 @@ function DesignProductionRunsSection({ designId }: { designId: string }) {
   )
 
   const totalProduced = runs
-    .filter((r: ProductionRun) => r.status === "completed")
-    .reduce((sum: number, r: ProductionRun) => sum + (r.quantity ?? 0), 0)
+    .filter((r: AdminProductionRun) => r.status === "completed")
+    .reduce((sum: number, r: AdminProductionRun) => sum + (r.quantity ?? 0), 0)
 
   const inProgress = runs
-    .filter((r: ProductionRun) => ["in_progress", "sent_to_partner", "approved"].includes(r.status))
-    .reduce((sum: number, r: ProductionRun) => sum + (r.quantity ?? 0), 0)
+    .filter((r: AdminProductionRun) => ["in_progress", "sent_to_partner", "approved"].includes(r.status ?? ""))
+    .reduce((sum: number, r: AdminProductionRun) => sum + (r.quantity ?? 0), 0)
 
   return (
     <div className="flex flex-col gap-y-3">
@@ -172,10 +164,10 @@ function DesignProductionRunsSection({ designId }: { designId: string }) {
           <Text size="xsmall" weight="plus" className="text-ui-fg-subtle text-right">Quantity</Text>
           <Text size="xsmall" weight="plus" className="text-ui-fg-subtle text-right">Partner</Text>
         </div>
-        {(runs as ProductionRun[]).map((run) => (
+        {(runs as AdminProductionRun[]).map((run) => (
           <div key={run.id} className="grid grid-cols-3 px-3 py-2 items-center">
-            <StatusBadge color={RUN_STATUS_COLOR[run.status] ?? "grey"}>
-              {runStatusLabel(run.status)}
+            <StatusBadge color={RUN_STATUS_COLOR[run.status ?? ""] ?? "grey"}>
+              {runStatusLabel(run.status ?? "")}
             </StatusBadge>
             <Text size="xsmall" className="text-right">{(run.quantity ?? 0).toLocaleString()}</Text>
             <Text size="xsmall" className="text-right text-ui-fg-muted">
@@ -345,7 +337,7 @@ const ProductDesignsWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
                     <Text size="xsmall" weight="plus" className="text-ui-fg-subtle uppercase tracking-wide">
                       Production Runs
                     </Text>
-                    <DesignProductionRunsSection designId={design.id} />
+                    <DesignAdminProductionRunsSection designId={design.id} />
                   </div>
                   <div className="flex flex-col gap-y-2">
                     <Text size="xsmall" weight="plus" className="text-ui-fg-subtle uppercase tracking-wide">
