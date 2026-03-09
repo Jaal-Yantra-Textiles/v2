@@ -1,12 +1,12 @@
-import { 
-  Heading, 
-  Text, 
-  DataTable, 
-  useDataTable, 
-  createDataTableFilterHelper, 
-  DataTablePaginationState, 
-  DataTableFilteringState, 
-  CommandBar, 
+import {
+  Heading,
+  Text,
+  DataTable,
+  useDataTable,
+  createDataTableFilterHelper,
+  DataTablePaginationState,
+  DataTableFilteringState,
+  CommandBar,
   toast
 } from "@medusajs/ui"
 import { useParams } from "react-router-dom"
@@ -25,36 +25,51 @@ const filterHelper = createDataTableFilterHelper<AdminDesign>()
 export const LinkDesignForm = ({ productId }: LinkDesignFormProps) => {
   const { id } = useParams()
   const actualProductId = productId || id
-  
+
   if (!actualProductId) {
     throw new Error("Product ID is required")
   }
 
-  // Pagination state (declare before data hooks that depend on it)
   const [pagination, setPagination] = useState<DataTablePaginationState>({
     pageIndex: 0,
     pageSize: 10,
   })
+  const [search, setSearch] = useState("")
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
+  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
+
+  // Reset to first page whenever search changes
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value)
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+  }, [])
+
+  // Pass search (q) and active filters to the server — always global, never per-page
+  const serverFilters = useMemo(() => {
+    const f: Record<string, any> = {}
+    if (filtering["status"]) f.status = filtering["status"]
+    if (filtering["design_type"]) f.design_type = filtering["design_type"]
+    if (filtering["priority"]) f.priority = filtering["priority"]
+    return f
+  }, [filtering])
 
   const { designs, count: totalCount = 0, isLoading: designsLoading } = useDesigns({
     limit: pagination.pageSize,
     offset: pagination.pageIndex * pagination.pageSize,
+    q: search || undefined,
+    ...serverFilters,
   })
+
   const { product, isLoading: productLoading } = useProduct(actualProductId, {
     fields: "*designs"
   })
   const { mutateAsync: linkDesign, isPending: isLinking } = useLinkProductDesign()
-  
-  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
-  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
-  const [search, setSearch] = useState("")
-  const [filtering, setFiltering] = useState<DataTableFilteringState>({})
 
   const isLoading = designsLoading || productLoading || isLinking
 
   // Get already linked design IDs
   const linkedDesignIds = useMemo<Set<string>>(() => {
-    // Check if product has designs property (it might be extended with relations)
     const productWithDesigns = product as any
     if (!productWithDesigns?.designs || !Array.isArray(productWithDesigns.designs)) {
       return new Set<string>()
@@ -62,47 +77,11 @@ export const LinkDesignForm = ({ productId }: LinkDesignFormProps) => {
     return new Set<string>(productWithDesigns.designs.map((d: any) => d.id))
   }, [product])
 
-  // Filter designs to exclude already linked ones
+  // Exclude already-linked designs from the table (server already filtered by search)
   const availableDesigns = useMemo(() => {
     if (!designs || !Array.isArray(designs)) return []
-    
-    return designs.filter((design: AdminDesign) => {
-      return !linkedDesignIds.has(design.id)
-    })
+    return designs.filter((design: AdminDesign) => !linkedDesignIds.has(design.id))
   }, [designs, linkedDesignIds])
-
-  // Apply search and filtering
-  const filteredItems = useMemo(() => {
-    let filtered = [...availableDesigns]
-
-    // Apply search
-    if (search) {
-      const query = search.toLowerCase()
-      filtered = filtered.filter((design) => {
-        return (
-          design.name?.toLowerCase().includes(query) ||
-          design.status?.toLowerCase().includes(query) ||
-          design.design_type?.toLowerCase().includes(query) ||
-          design.description?.toLowerCase().includes(query)
-        )
-      })
-    }
-
-    // Apply filters
-    filtered = filtered.filter((item) => {
-      return Object.entries(filtering).every(([key, value]) => {
-        if (!value) {
-          return true
-        }
-        
-        // Get the actual value based on the key
-        const itemValue = item[key as keyof AdminDesign]
-        return itemValue === value
-      })
-    })
-
-    return filtered
-  }, [availableDesigns, search, filtering])
 
   const handleRowSelect = useCallback((id: string) => {
     setSelectedRows(prev => ({
@@ -111,7 +90,6 @@ export const LinkDesignForm = ({ productId }: LinkDesignFormProps) => {
     }))
   }, [])
 
-  // Create filters
   const filters = [
     filterHelper.accessor("status", {
       type: "select",
@@ -144,21 +122,16 @@ export const LinkDesignForm = ({ productId }: LinkDesignFormProps) => {
     }),
   ]
 
-  // Server-side pagination: data is already limited by useDesigns(limit, offset)
-
-  // Create columns
   const columns = useDesignColumns(selectedRows, handleRowSelect, linkedDesignIds)
 
-  // Create table
   const table = useDataTable({
-    columns: columns,
-    data: filteredItems,
+    columns,
+    data: availableDesigns,
     getRowId: (row) => row.id,
     rowCount: totalCount,
     onRowClick: (_, row) => {
-      const rowId = row.id
-      if (!linkedDesignIds.has(rowId)) {
-        handleRowSelect(rowId)
+      if (!linkedDesignIds.has(row.id)) {
+        handleRowSelect(row.id)
       }
     },
     isLoading,
@@ -169,60 +142,49 @@ export const LinkDesignForm = ({ productId }: LinkDesignFormProps) => {
     },
     search: {
       state: search,
-      onSearchChange: setSearch
+      onSearchChange: handleSearchChange,
     },
     filtering: {
       state: filtering,
-      onFilteringChange: setFiltering,
+      onFilteringChange: (next) => {
+        setFiltering(next)
+        setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+      },
     },
   })
 
-  // Update command bar visibility when selections change
   useEffect(() => {
-    const hasSelections = Object.keys(selectedRows).length > 0
-    setIsCommandBarOpen(hasSelections)
+    setIsCommandBarOpen(Object.keys(selectedRows).length > 0)
   }, [selectedRows])
 
-  // Add escape key handler to clear selections
   useEffect(() => {
-    const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isCommandBarOpen) {
+    if (!isCommandBarOpen) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
         setSelectedRows({})
         setIsCommandBarOpen(false)
-        // Prevent default behavior to avoid conflicts with other handlers
-        event.preventDefault()
+        e.preventDefault()
       }
     }
-
-    // Add the event listener when the command bar is open
-    if (isCommandBarOpen) {
-      window.addEventListener('keydown', handleEscapeKey)
-    }
-    
-    return () => {
-      window.removeEventListener('keydown', handleEscapeKey)
-    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
   }, [isCommandBarOpen])
 
   const linkDesignsToProduct = async () => {
     const selectedDesignIds = Object.keys(selectedRows).filter(id => selectedRows[id])
-    
     if (selectedDesignIds.length === 0) return
 
     try {
       for (const designId of selectedDesignIds) {
-        await linkDesign({ 
-          productId: actualProductId, 
-          payload: { designId } 
+        await linkDesign({
+          productId: actualProductId,
+          payload: { designId }
         })
       }
-      
       toast.success("Designs linked successfully")
-      
-      // Clear selections and close command bar
       setSelectedRows({})
       setIsCommandBarOpen(false)
-    } catch (error) {
+    } catch {
       toast.error("Failed to link designs to product")
     }
   }

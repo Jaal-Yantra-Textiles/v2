@@ -17,6 +17,8 @@ export type Design = InferTypeOf<typeof Design>
 
 export type ListDesignsStepInput = {
   filters?: {
+    /** Full-text search across name and description */
+    q?: string;
     name?: string;
     design_type?: "Original" | "Derivative" | "Custom" | "Collaboration";
     status?: "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold";
@@ -49,12 +51,21 @@ export const listDesignsStep = createStep(
 
     const {
       partner_id,
+      q,
       ...restFilters
     } = input.filters || {}
 
     const normalizeFilters = (filters: typeof restFilters) => {
       const normalized: Record<string, any> = {}
-      if (filters?.name && filters.name.trim().length > 0) {
+
+      // Global search: match against name or description
+      if (q && q.trim().length > 0) {
+        const term = `%${q.trim()}%`
+        normalized.$or = [
+          { name: { $ilike: term } },
+          { description: { $ilike: term } },
+        ]
+      } else if (filters?.name && filters.name.trim().length > 0) {
         normalized.name = { $ilike: `%${filters.name.trim()}%` }
       }
       if (filters?.design_type) {

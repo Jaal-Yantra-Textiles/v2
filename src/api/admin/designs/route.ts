@@ -190,6 +190,8 @@ export const GET = async (
     query: {
       offset?: number;
       limit?: number;
+      /** Global full-text search across name and description */
+      q?: string;
       name?: string;
       design_type?: "Original" | "Derivative" | "Custom" | "Collaboration";
       status?: "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold";
@@ -211,6 +213,7 @@ export const GET = async (
           limit: Number(req.query.limit) || 10,
         },
         filters: {
+          q: req.query.q,
           name: req.query.name,
           design_type: req.query.design_type,
           status: req.query.status,
