@@ -4,6 +4,10 @@ import { listProducts } from "@lib/data/products"
 import { getRegion, listRegions } from "@lib/data/regions"
 import ProductTemplate from "@modules/products/templates"
 
+// Revalidate product pages every hour so newly published products become
+// accessible without requiring a full redeploy.
+export const revalidate = 3600
+
 type Props = {
   params: Promise<{ countryCode: string; handle: string }>
 }
