@@ -1,3 +1,11 @@
+## [10.0.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.0.0...v10.0.1) (2026-03-09)
+
+
+### Bug Fixes
+
+* **admin:** Fixed the admin layouts ([5d5e128](https://github.com/Jaal-Yantra-Textiles/v2/commit/5d5e128f0147845739adbb7ea6f0da3a0d0b72b5))
+* **admin:** Qr code fixer ([0f02d1d](https://github.com/Jaal-Yantra-Textiles/v2/commit/0f02d1d7eaf18ba0b1b2cb88af6b00cd78cff150))
+
 # [10.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v9.10.0...v10.0.0) (2026-03-08)
 
 
