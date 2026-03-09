@@ -1,8 +1,9 @@
-import { Select, Switch, Text, Heading, Textarea, Badge } from "@medusajs/ui"
-import { Control, useWatch } from "react-hook-form"
+import { Select, Switch, Text, Heading, Textarea, Badge, Button } from "@medusajs/ui"
+import { Control, useWatch, useController } from "react-hook-form"
 import { Form } from "../../common/form"
 import { CreateSocialPostForm, ContentRule } from "./types"
 import { useMemo } from "react"
+import FileModal from "../../../routes/inventory/[id]/raw-materials/create/media/page"
 
 interface CampaignSettingsStepProps {
   control: Control<CreateSocialPostForm>
@@ -56,6 +57,8 @@ export const CampaignSettingsStep = ({
   const customTemplate = useWatch({ control, name: "custom_caption_template" })
   const intervalHours = useWatch({ control, name: "interval_hours" }) || 24
   const startAt = useWatch({ control, name: "start_at" })
+  const imageSelection = useWatch({ control, name: "content_rule.image_selection" })
+  const { field: overrideUrlsField } = useController({ control, name: "content_rule.override_media_urls", defaultValue: [] })
   
   const platform = platformName.toLowerCase()
   const defaultTemplate = defaultContentRule?.caption_template || DEFAULT_TEMPLATES[platform] || DEFAULT_TEMPLATES.instagram
@@ -196,6 +199,9 @@ export const CampaignSettingsStep = ({
                       <Select.Item value="featured">
                         Featured/Thumbnail
                       </Select.Item>
+                      <Select.Item value="custom">
+                        Custom Media (from library)
+                      </Select.Item>
                     </Select.Content>
                   </Select>
                 </Form.Control>
@@ -206,6 +212,34 @@ export const CampaignSettingsStep = ({
               </Form.Item>
             )}
           />
+
+          {/* Custom media picker — shown when image_selection === "custom" */}
+          {imageSelection === "custom" && (
+            <div className="flex flex-col gap-y-2">
+              <Text size="small" weight="plus">Media Files</Text>
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                These files will be used for every post in the campaign instead of product images.
+              </Text>
+              <div className="flex flex-wrap gap-2">
+                {(overrideUrlsField.value ?? []).map((url: string, i: number) => (
+                  <div key={i} className="relative h-16 w-16 rounded-lg overflow-hidden border border-ui-border-base">
+                    <img src={url} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => overrideUrlsField.onChange((overrideUrlsField.value ?? []).filter((_: string, j: number) => j !== i))}
+                      className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-ui-bg-overlay text-ui-fg-on-color text-[10px] flex items-center justify-center leading-none"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <FileModal
+                initialUrls={overrideUrlsField.value ?? []}
+                onSave={(urls) => overrideUrlsField.onChange(urls)}
+              />
+            </div>
+          )}
 
           {/* Include Options */}
           <div className="space-y-4">

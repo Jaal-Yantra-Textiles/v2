@@ -90,7 +90,7 @@ export const useMediaFolders = (
   const { data, ...rest } = useQuery({
     queryFn: async () =>
       sdk.client.fetch<PaginatedResponse<AdminMediaFoldersResponse>>(
-        `/admin/medias/folder`,
+        `/admin/medias/folders`,
         {
           method: "GET",
           query,

@@ -43,10 +43,16 @@ export interface ContentRule {
   custom_hashtags: string[]
   
   /** Image selection strategy */
-  image_selection: "thumbnail" | "first" | "all" | "featured"
-  
+  image_selection: "thumbnail" | "first" | "all" | "featured" | "custom"
+
   /** Maximum number of images (platform limits apply) */
   max_images: number
+
+  /**
+   * Explicit media URLs to use when image_selection is "custom".
+   * These override product images entirely.
+   */
+  override_media_urls?: string[]
 }
 
 /**

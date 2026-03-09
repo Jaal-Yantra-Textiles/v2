@@ -158,6 +158,11 @@ export class ContentGeneratorService {
       return media
     }
     
+    // "custom" — use the override URLs directly, ignoring product images
+    if (rule.image_selection === "custom") {
+      return (rule.override_media_urls ?? []).map((url) => ({ type: "image" as const, url }))
+    }
+
     switch (rule.image_selection) {
       case "thumbnail":
         if (product.thumbnail) {

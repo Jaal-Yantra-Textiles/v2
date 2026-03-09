@@ -10,8 +10,9 @@ export const ContentRuleSchema = z.object({
   include_design: z.boolean().optional(),
   hashtag_strategy: z.enum(["from_product", "from_design", "custom", "none"]).optional(),
   custom_hashtags: z.array(z.string()).optional(),
-  image_selection: z.enum(["thumbnail", "first", "all", "featured"]).optional(),
+  image_selection: z.enum(["thumbnail", "first", "all", "featured", "custom"]).optional(),
   max_images: z.number().optional(),
+  override_media_urls: z.array(z.string()).optional(),
 }).optional()
 
 export type ContentRule = z.infer<typeof ContentRuleSchema>

@@ -249,6 +249,7 @@ const DesignsPage = () => {
         { label: "Sample Production", value: "Sample_Production" },
         { label: "Revision", value: "Revision" },
         { label: "Approved", value: "Approved" },
+        { label: "Commerce Ready", value: "Commerce_Ready" },
         { label: "Rejected", value: "Rejected" },
         { label: "On Hold", value: "On_Hold" },
       ],
