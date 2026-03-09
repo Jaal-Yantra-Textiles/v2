@@ -38,6 +38,12 @@ html {
   animation: floatY 7s ease-in-out infinite;
 }
 
+/* Nav: keep links white on hover when dark hero is active */
+[data-dark="true"] nav a:hover,
+[data-dark="true"] nav button:hover {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
 @layer utilities {
   /* Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
