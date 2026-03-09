@@ -104,7 +104,7 @@ function wrapText(text: string, font: any, size: number, maxWidth: number): stri
 
 async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAULT_HANG_TAG_CONFIG): Promise<Uint8Array> {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib")
-  const { toDataURL } = await import("qrcode")
+  const QRCode = await import("qrcode")
 
   const W = mm(cfg.width_mm)
   const H = mm(cfg.height_mm)
@@ -254,11 +254,16 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
     const logoImg = await embedUrl(cfg.logo_url)
     if (logoImg) {
       const logoPad = BAND_H * 0.1
+      const maxW = W - MARGIN * 2 - logoPad * 2
+      const maxH = BAND_H - logoPad * 2
+      const scale = Math.min(maxW / logoImg.width, maxH / logoImg.height)
+      const drawW = logoImg.width * scale
+      const drawH = logoImg.height * scale
       front.drawImage(logoImg, {
-        x: MARGIN + logoPad,
-        y: BAND_BOTTOM + logoPad,
-        width: W - MARGIN * 2 - logoPad * 2,
-        height: BAND_H - logoPad * 2,
+        x: (W - drawW) / 2,
+        y: BAND_BOTTOM + (BAND_H - drawH) / 2,
+        width: drawW,
+        height: drawH,
       })
     }
   } else {
@@ -484,9 +489,11 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
       const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
       return luminance > 0.5 ? "#000000" : cfg.header_color
     })()
-    const qrDataUrl: string = await toDataURL(product.storefront_url, {
+    const qrCanvas = document.createElement("canvas")
+    await (QRCode as any).toCanvas(qrCanvas, product.storefront_url, {
       width: 200, margin: 1, color: { dark: qrDarkColor, light: "#ffffff" },
     })
+    const qrDataUrl = qrCanvas.toDataURL("image/png")
     const qrBase64 = qrDataUrl.split(",")[1]
     const qrImageBytes = Uint8Array.from(atob(qrBase64), (c) => c.charCodeAt(0))
     const qrImage = await pdfDoc.embedPng(qrImageBytes)
@@ -840,11 +847,13 @@ const QRGeneratorPage = () => {
     try {
       const { default: JSZip } = await import("jszip")
       const { saveAs } = await import("file-saver")
-      const { toDataURL } = await import("qrcode")
+      const QRCodeZip = await import("qrcode")
       const zip = new JSZip()
       for (const item of valid) {
         const url = buildQrUrl(item.handle as string, params)
-        const dataUrl: string = await toDataURL(url, { width: 512, margin: 2 })
+        const qrCanvas = document.createElement("canvas")
+        await (QRCodeZip as any).toCanvas(qrCanvas, url, { width: 512, margin: 2 })
+        const dataUrl = qrCanvas.toDataURL("image/png")
         const base64 = dataUrl.split(",")[1]
         zip.file(`${item.handle}.png`, base64, { base64: true })
       }

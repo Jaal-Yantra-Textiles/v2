@@ -26,6 +26,9 @@ module.exports = defineConfig({
               }
               // Keep Medusa's existing resolve options
             },
+            optimizeDeps: {
+        include: ["pdf-lib", "qrcode"],
+      },
             css: {
         preprocessorOptions: {
           scss: {
