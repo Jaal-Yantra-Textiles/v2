@@ -1,3 +1,10 @@
+## [10.1.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.3...v10.1.4) (2026-03-09)
+
+
+### Bug Fixes
+
+* **admin:** Media listing from the design ([055dd56](https://github.com/Jaal-Yantra-Textiles/v2/commit/055dd56ef146767842ebfaf85011c16dd55112e2))
+
 ## [10.1.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.2...v10.1.3) (2026-03-09)
 
 
