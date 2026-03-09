@@ -1,3 +1,11 @@
+## [10.1.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.1...v10.1.2) (2026-03-09)
+
+
+### Bug Fixes
+
+* **admin:** QR fixer ([7a36d05](https://github.com/Jaal-Yantra-Textiles/v2/commit/7a36d05be1872a3e86e65bf938aaa7cebf2cd37c))
+* **api:** Search for designs ([8484a5f](https://github.com/Jaal-Yantra-Textiles/v2/commit/8484a5f5d82c12a39a4e24c15648865af44b050d))
+
 ## [10.1.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.0...v10.1.1) (2026-03-09)
 
 
