@@ -134,30 +134,29 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
   const brandName = cfg.brand_name || "BRAND"
 
   // ── Image embed helper ─────────────────────────────────────────────────────
-  // Converts any browser-displayable image (PNG, JPEG, WebP, SVG…) to a PNG
-  // embedded in the PDF. Uses a canvas rasterisation so it works regardless of
-  // the image format and without relying on CORS headers for fetch().
+  // Routes the fetch through the server-side proxy so CORS on the source host
+  // is never a problem. Falls back to a direct fetch for same-origin URLs.
   async function embedUrl(url: string) {
-    try {
-      const img = new Image()
-      img.crossOrigin = "anonymous"
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve()
-        img.onerror = () => reject(new Error("img load failed"))
-        img.src = url
-      })
-      const canvas = document.createElement("canvas")
-      canvas.width = img.naturalWidth || 400
-      canvas.height = img.naturalHeight || 200
-      const ctx = canvas.getContext("2d")!
-      ctx.drawImage(img, 0, 0)
-      const dataUrl = canvas.toDataURL("image/png")
-      const base64 = dataUrl.split(",")[1]
-      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
-      return await pdfDoc.embedPng(bytes)
-    } catch {
-      return null
+    const proxyUrl = `/admin/images/proxy?url=${encodeURIComponent(url)}`
+    for (const target of [proxyUrl, url]) {
+      try {
+        const res = await fetch(target)
+        if (!res.ok) continue
+        const buf = await res.arrayBuffer()
+        const bytes = new Uint8Array(buf)
+        const mime = res.headers.get("content-type") ?? ""
+        if (mime.includes("png") || url.toLowerCase().endsWith(".png")) {
+          return await pdfDoc.embedPng(bytes)
+        }
+        if (mime.includes("jpeg") || mime.includes("jpg") || /\.(jpg|jpeg)$/i.test(url)) {
+          return await pdfDoc.embedJpg(bytes)
+        }
+        // Unknown MIME — try PNG then JPEG
+        try { return await pdfDoc.embedPng(bytes) } catch { /* fall through */ }
+        return await pdfDoc.embedJpg(bytes)
+      } catch { /* try next */ }
     }
+    return null
   }
 
   // ── Draw canvas elements on a page ────────────────────────────────────────
