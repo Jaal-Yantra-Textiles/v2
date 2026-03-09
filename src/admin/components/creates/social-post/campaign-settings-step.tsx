@@ -310,7 +310,7 @@ export const CampaignSettingsStep = ({
                   .replace(/\{\{price\}\}/g, "$99.00")
                   .replace(/\{\{design_name\}\}/g, "Design Name")
                   .replace(/\{\{hashtags\}\}/g, "#fashion #style #new")
-                  .replace(/\{\{url\}\}/g, "https://store.com/product")
+                  .replace(/\{\{url\}\}/g, "https://cicilabel.com/product")
                   .replace(/\{\{#if\s+\w+\}\}/g, "")
                   .replace(/\{\{\/if\}\}/g, "")
                 }

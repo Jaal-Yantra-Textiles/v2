@@ -89,11 +89,22 @@ export class ContentGeneratorService {
     const hashtagList = this.generateHashtags(product, design, rule)
     const hashtags = hashtagList.map(h => h.startsWith("#") ? h : `#${h}`).join(" ")
     
+    const storefrontBase = (
+      process.env.VITE_STOREFRONT_URL ||
+      process.env.NEXT_PUBLIC_STOREFRONT_URL ||
+      process.env.STOREFRONT_URL ||
+      process.env.FRONTEND_URL ||
+      ""
+    ).replace(/\/$/, "")
+    const url = product.handle && storefrontBase
+      ? `${storefrontBase}/products/${product.handle}`
+      : (product.metadata?.url as string || null)
+
     return {
       title: product.title,
       description,
       price: rule.include_price ? price : null,
-      url: product.metadata?.url as string || null,
+      url,
       design_name: rule.include_design && design ? design.name : null,
       design_description: rule.include_design && design 
         ? this.truncateText(design.description || "", 100) 
@@ -325,6 +336,7 @@ export class ContentGeneratorService {
 interface ProductData {
   id: string
   title: string
+  handle?: string
   description?: string
   thumbnail?: string
   images?: Array<{ url: string }>

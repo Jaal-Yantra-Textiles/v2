@@ -21,6 +21,7 @@ export const loadProductWithDesignStep = createStep(
       fields: [
         "id",
         "title",
+        "handle",
         "description",
         "thumbnail",
         "images.*",
