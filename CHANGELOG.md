@@ -1,3 +1,10 @@
+## [10.1.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.0...v10.1.1) (2026-03-09)
+
+
+### Bug Fixes
+
+* **Index:** removing it for now ([4fdfd69](https://github.com/Jaal-Yantra-Textiles/v2/commit/4fdfd6992e481cedc737beebcfe392020a01575b))
+
 # [10.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.0.1...v10.1.0) (2026-03-09)
 
 
