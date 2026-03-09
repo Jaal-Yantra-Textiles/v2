@@ -475,8 +475,17 @@ async function generateHangTagPdf(data: HangTagData, cfg: HangTagConfig = DEFAUL
   if (cfg.show_qr_code) {
     const QR_SIZE = mm(BL_QR.w)
     const QR_Y = pdfY(BL_QR.y, BL_QR.h)
+    // Use black for QR dark modules — header_color may be white/light making QR invisible
+    const qrDarkColor = (() => {
+      const h = (cfg.header_color ?? "#000000").replace("#", "")
+      const r = parseInt(h.slice(0, 2), 16) || 0
+      const g = parseInt(h.slice(2, 4), 16) || 0
+      const b = parseInt(h.slice(4, 6), 16) || 0
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+      return luminance > 0.5 ? "#000000" : cfg.header_color
+    })()
     const qrDataUrl: string = await toDataURL(product.storefront_url, {
-      width: 200, margin: 1, color: { dark: cfg.header_color, light: "#ffffff" },
+      width: 200, margin: 1, color: { dark: qrDarkColor, light: "#ffffff" },
     })
     const qrBase64 = qrDataUrl.split(",")[1]
     const qrImageBytes = Uint8Array.from(atob(qrBase64), (c) => c.charCodeAt(0))
