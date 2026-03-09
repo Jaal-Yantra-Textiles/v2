@@ -9,11 +9,15 @@ interface HeroVisualProps {
   floatingImageUrl: string | null
 }
 
+function nextImg(url: string, w: 384 | 640 | 750 | 1080, q = 85) {
+  return `/_next/image?url=${encodeURIComponent(url)}&w=${w}&q=${q}`
+}
+
 export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisualProps) {
   return (
     <div className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-[#0a0a0a] select-none">
 
-      {/* Subtle noise overlay */}
+      {/* Noise overlay */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.025]"
         style={{
@@ -29,6 +33,50 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         animate={{ scaleX: 1 }}
         transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
         className="absolute top-[18%] left-0 right-0 h-px bg-white/10 origin-left pointer-events-none"
+      />
+
+      {/* ── MAIN IMAGE — behind everything, z-0 ── */}
+      {imageUrl && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+          className="absolute z-0 blob-morph overflow-hidden shadow-2xl"
+          style={{
+            width: "clamp(240px, 42vh, 400px)",
+            aspectRatio: "3/4",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -52%)",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={nextImg(imageUrl, 640)}
+            alt={alt || "Cici Label model"}
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
+          {/* Dark vignette so text stays readable */}
+          <div
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(to bottom, rgba(10,10,10,0.15) 0%, rgba(10,10,10,0.5) 100%)" }}
+          />
+        </motion.div>
+      )}
+
+      {/* Purple glow behind image */}
+      <div
+        className="absolute z-0 pointer-events-none"
+        style={{
+          width: "clamp(300px, 50vh, 500px)",
+          aspectRatio: "1",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -52%)",
+          background: "radial-gradient(ellipse, rgba(155,114,207,0.25) 0%, transparent 70%)",
+          filter: "blur(40px)",
+        }}
       />
 
       {/* Floating image — top-left, emerges from top of hero */}
@@ -49,39 +97,35 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`/_next/image?url=${encodeURIComponent(floatingImageUrl)}&w=400&q=85`}
+              src={nextImg(floatingImageUrl, 384)}
               alt=""
               className="w-full h-full object-cover object-top"
               draggable={false}
             />
           </div>
-          {/* Fade to black at the bottom */}
+          {/* Fade to black at bottom */}
           <div
             className="absolute bottom-0 left-0 right-0 h-1/3 pointer-events-none"
             style={{ background: "linear-gradient(to bottom, transparent, #0a0a0a)" }}
           />
-          {/* Faint purple glow */}
-          <div
-            className="absolute -bottom-4 left-0 right-0 h-24 -z-10 blur-3xl opacity-25"
-            style={{ background: "radial-gradient(ellipse, #c084fc 0%, transparent 70%)" }}
-          />
         </motion.div>
       )}
 
-      {/* CICI — large stroke text layered behind the main image */}
+      {/* ── TEXT STACK — all in front of image (z-20+) ── */}
+
+      {/* CICI — outline stroke */}
       <motion.div
         initial={{ opacity: 0, y: -32 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1.1, ease: "easeOut", delay: 0.25 }}
         aria-hidden
-        className="absolute z-10 flex items-center justify-center w-full pointer-events-none"
-        style={{ top: "calc(50% - 4vw)" }}
+        className="relative z-20 pointer-events-none"
       >
         <span
           className="font-serif leading-none tracking-tighter"
           style={{
             fontSize: "clamp(72px, 22vw, 260px)",
-            WebkitTextStroke: "1.5px rgba(255,255,255,0.12)",
+            WebkitTextStroke: "1.5px rgba(255,255,255,0.55)",
             color: "transparent",
           }}
         >
@@ -89,43 +133,16 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         </span>
       </motion.div>
 
-      {/* Main model image in morphing blob */}
-      <motion.div
-        initial={{ opacity: 0, y: 56, scale: 0.88 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 1.3, ease: [0.16, 1, 0.3, 1], delay: 0.45 }}
-        className="relative z-20"
-        style={{ width: "clamp(200px, 36vh, 340px)", aspectRatio: "3/4" }}
-      >
-        <div className="blob-morph w-full h-full overflow-hidden shadow-2xl">
-          {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/_next/image?url=${encodeURIComponent(imageUrl)}&w=640&q=85`}
-              alt={alt || "Cici Label model"}
-              className="w-full h-full object-cover"
-              draggable={false}
-            />
-          ) : (
-            <div className="w-full h-full bg-white/5 flex items-center justify-center">
-              <span className="text-white/20 font-serif text-2xl tracking-widest">CICI</span>
-            </div>
-          )}
-        </div>
-        {/* Glow behind image */}
-        <div
-          className="absolute inset-0 -z-10 blur-3xl opacity-30 rounded-full"
-          style={{ background: "radial-gradient(ellipse, #9b72cf 0%, transparent 70%)" }}
-        />
-      </motion.div>
+      {/* Spacer to push LABEL down over the image */}
+      <div className="relative z-20" style={{ height: "clamp(160px, 28vh, 280px)" }} />
 
-      {/* LABEL — solid white, overlaps image bottom */}
+      {/* LABEL — solid white */}
       <motion.div
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1, ease: "easeOut", delay: 0.7 }}
         aria-hidden
-        className="relative z-30 pointer-events-none"
+        className="relative z-20 pointer-events-none"
         style={{ marginTop: "clamp(-20px, -3vh, -28px)" }}
       >
         <span
@@ -141,7 +158,7 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
         transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.9 }}
-        className="relative z-30 h-px w-24 bg-white/25 mt-6 origin-center"
+        className="relative z-20 h-px w-24 bg-white/25 mt-6 origin-center"
       />
 
       {/* Tagline */}
@@ -149,7 +166,7 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.9, ease: "easeOut", delay: 1.05 }}
-        className="relative z-30 mt-5"
+        className="relative z-20 mt-5"
       >
         <p className="text-white/40 text-xs tracking-[0.25em] uppercase font-sans text-center">
           Unique pieces with artists across the globe
@@ -161,7 +178,7 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.9, ease: "easeOut", delay: 1.15 }}
-        className="relative z-30 flex items-center gap-4 mt-5"
+        className="relative z-20 flex items-center gap-4 mt-5"
       >
         <a
           href="/design"
