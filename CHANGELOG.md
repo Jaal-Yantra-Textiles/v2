@@ -1,3 +1,10 @@
+## [10.1.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.2...v10.1.3) (2026-03-09)
+
+
+### Bug Fixes
+
+* **admin:** QR GEN ([b637e36](https://github.com/Jaal-Yantra-Textiles/v2/commit/b637e36edd8bada017cc48d8f5a1650488b93e39))
+
 ## [10.1.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.1...v10.1.2) (2026-03-09)
 
 
