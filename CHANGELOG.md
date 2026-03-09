@@ -1,3 +1,10 @@
+# [10.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.0.1...v10.1.0) (2026-03-09)
+
+
+### Features
+
+* **admin:** Currency default converter ([aa822b6](https://github.com/Jaal-Yantra-Textiles/v2/commit/aa822b6b65d9ace36bc4287059c86b0b02a9f07c))
+
 ## [10.0.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.0.0...v10.0.1) (2026-03-09)
 
 
