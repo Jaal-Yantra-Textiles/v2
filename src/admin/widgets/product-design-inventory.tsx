@@ -184,43 +184,8 @@ function DesignSection({ design }: { design: { id: string; name: string } }) {
 
 // ─── Widget ───────────────────────────────────────────────────────────────────
 
-const ProductDesignInventoryWidget = ({ data }: DetailWidgetProps<{ id: string }>) => {
-  const { product, isPending } = useProduct(data.id, { fields: "+designs.*" }) as {
-    product?: ProductWithDesigns
-    isPending: boolean
-  }
-
-  if (isPending) {
-    return (
-      <Container className="p-6">
-        <Skeleton className="h-40 w-full" />
-      </Container>
-    )
-  }
-
-  const designs: Array<{ id: string; name: string }> = product?.designs ?? []
-
-  if (!designs.length) return null
-
-  return (
-    <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-x-3">
-          <Heading level="h2">Design Inventory & Production</Heading>
-          <Badge size="2xsmall" color="blue">
-            {designs.length} design{designs.length !== 1 ? "s" : ""}
-          </Badge>
-        </div>
-      </div>
-
-      <div className="divide-y divide-ui-border-base">
-        {designs.map((design) => (
-          <DesignSection key={design.id} design={design} />
-        ))}
-      </div>
-    </Container>
-  )
-}
+// Merged into product-designs.tsx — this widget is intentionally disabled.
+const ProductDesignInventoryWidget = (_: DetailWidgetProps<{ id: string }>) => null
 
 export const config = defineWidgetConfig({
   zone: "product.details.before",

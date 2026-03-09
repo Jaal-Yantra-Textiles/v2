@@ -13,7 +13,7 @@ import {
   createDataTableFilterHelper,
   Button,
   Input,
-  FocusModal,
+  Drawer,
 } from "@medusajs/ui"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Outlet } from "react-router-dom"
@@ -546,12 +546,12 @@ function QrParamsModal({
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <FocusModal open={open} onOpenChange={(v) => { if (!v) onCancel() }}>
-      <FocusModal.Content className="flex flex-col max-w-lg">
-        <FocusModal.Header>
-          <Heading>QR Tracking Parameters</Heading>
-        </FocusModal.Header>
-        <FocusModal.Body className="flex flex-col gap-y-4 p-6 overflow-y-auto">
+    <Drawer open={open} onOpenChange={(v) => { if (!v) onCancel() }}>
+      <Drawer.Content>
+        <Drawer.Header>
+          <Drawer.Title>QR Tracking Parameters</Drawer.Title>
+        </Drawer.Header>
+        <Drawer.Body className="flex flex-col gap-y-4 p-6 overflow-y-auto">
           <Text size="small" className="text-ui-fg-subtle">
             These query parameters will be appended to the QR code URL for this generation.
             Pre-filled from your saved defaults — edit as needed.
@@ -603,13 +603,13 @@ function QrParamsModal({
               No parameters — QR codes will use the plain product URL.
             </Text>
           )}
-        </FocusModal.Body>
-        <div className="flex items-center justify-end gap-x-2 px-6 py-4 border-t border-ui-border-base">
+        </Drawer.Body>
+        <Drawer.Footer>
           <Button variant="secondary" onClick={onCancel}>Cancel</Button>
           <Button onClick={() => onGenerate(params)}>Generate</Button>
-        </div>
-      </FocusModal.Content>
-    </FocusModal>
+        </Drawer.Footer>
+      </Drawer.Content>
+    </Drawer>
   )
 }
 
