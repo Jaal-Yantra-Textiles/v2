@@ -1,6 +1,5 @@
 "use client"
 
-import { Button, Text } from "@medusajs/ui"
 import { Sparkles } from "@medusajs/icons"
 
 type AiLoginPromptProps = {
@@ -20,43 +19,43 @@ export function AiLoginPrompt({ isOpen, onLogin, onCancel }: AiLoginPromptProps)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm px-4">
-      <div className="w-full max-w-sm rounded-3xl border border-white/30 bg-white/95 p-6 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <div className="space-y-5">
           {/* Icon */}
           <div className="flex justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-neutral-100 to-neutral-200">
-              <Sparkles className="h-7 w-7 text-neutral-600" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-md bg-neutral-100">
+              <Sparkles className="h-5 w-5 text-neutral-700" />
             </div>
           </div>
 
           {/* Content */}
           <div className="text-center space-y-2">
-            <Text weight="plus" className="text-lg text-gray-900">
-              Sign in to use AI(Not really AI, just a fun placeholder 😉)
-            </Text>
-            <Text size="small" className="text-gray-600">
+            <p className="text-sm font-semibold uppercase tracking-widest text-neutral-900">
+              Sign in to use AI
+            </p>
+            <p className="text-xs text-neutral-500 leading-relaxed">
               Create an account or sign in to generate AI-powered design images.
               Your current work will be saved automatically.
-            </Text>
+            </p>
           </div>
 
           {/* Benefits list */}
-          <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-4">
-            <ul className="space-y-2 text-xs text-gray-600">
+          <div className="rounded-md border border-neutral-100 bg-neutral-50 p-4">
+            <ul className="space-y-2 text-xs text-neutral-600">
               <li className="flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-600 text-[10px]">
+                <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-neutral-200 text-neutral-700 text-[10px] font-bold">
                   ✓
                 </span>
                 Generate unique design bases with AI
               </li>
               <li className="flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-600 text-[10px]">
+                <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-neutral-200 text-neutral-700 text-[10px] font-bold">
                   ✓
                 </span>
                 Save and manage your designs
               </li>
               <li className="flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-600 text-[10px]">
+                <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-neutral-200 text-neutral-700 text-[10px] font-bold">
                   ✓
                 </span>
                 Get personalized style recommendations
@@ -66,25 +65,24 @@ export function AiLoginPrompt({ isOpen, onLogin, onCancel }: AiLoginPromptProps)
 
           {/* Actions */}
           <div className="flex flex-col gap-2">
-            <Button
+            <button
               onClick={onLogin}
-              className="w-full rounded-md bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg hover:from-violet-700 hover:to-indigo-700"
+              className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-xs font-medium uppercase tracking-widest text-white hover:bg-black transition-colors"
             >
               Sign in to continue
-            </Button>
-            <Button
-              variant="secondary"
+            </button>
+            <button
               onClick={onCancel}
-              className="w-full rounded-full"
+              className="w-full rounded-md border border-neutral-200 px-4 py-2.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50 transition-colors"
             >
               Maybe later
-            </Button>
+            </button>
           </div>
 
           {/* Footer note */}
-          <Text size="small" className="text-center text-[11px] text-gray-400">
+          <p className="text-center text-[11px] text-neutral-400">
             Your design will be saved and restored after signing in.
-          </Text>
+          </p>
         </div>
       </div>
     </div>

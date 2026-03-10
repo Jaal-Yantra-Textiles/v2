@@ -149,18 +149,18 @@ export function TryOnModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm px-4">
-      <div className="w-full max-w-md rounded-3xl border border-white/30 bg-white/95 p-6 shadow-2xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-md rounded-xl border border-neutral-200 bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100">
-              <Sparkles className="text-violet-600" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-neutral-100">
+              <Sparkles className="text-neutral-700" />
             </div>
-            <span className="text-base font-semibold text-gray-900">Virtual Try-On</span>
+            <span className="text-sm font-semibold uppercase tracking-widest text-neutral-900">Virtual Try-On</span>
           </div>
           <button
             onClick={handleClose}
-            className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 transition-colors"
           >
             <XMark />
           </button>
@@ -169,7 +169,7 @@ export function TryOnModal({
         {/* Not logged in */}
         {!customer ? (
           <div className="flex flex-col items-center gap-4 py-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-neutral-600">
               Sign in to use Virtual Try-On and see yourself wearing this design.
             </p>
             <button
@@ -180,13 +180,13 @@ export function TryOnModal({
                 )
                 window.location.href = `/account?redirect_to=${returnTo}`
               }}
-              className="rounded-full bg-violet-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 transition-colors"
+              className="rounded-md bg-neutral-900 px-6 py-2.5 text-xs font-medium tracking-widest uppercase text-white hover:bg-black transition-colors"
             >
               Sign In to Try On
             </button>
             <button
               onClick={handleClose}
-              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
             >
               Cancel
             </button>
@@ -195,25 +195,25 @@ export function TryOnModal({
           <div className="space-y-4">
             {/* Garment selection */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-2">
+              <label className="block text-[10px] font-semibold uppercase tracking-widest text-neutral-400 mb-2">
                 Garment
               </label>
               <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                 {/* "Use my design" option */}
                 <button
                   onClick={() => setSelectedGarmentUrl(null)}
-                  className={`flex-shrink-0 relative h-16 w-16 rounded-xl border-2 flex items-center justify-center text-center transition-colors ${
+                  className={`flex-shrink-0 relative h-16 w-16 rounded-md border-2 flex items-center justify-center text-center transition-colors ${
                     selectedGarmentUrl === null
-                      ? "border-violet-500 bg-violet-50"
-                      : "border-neutral-200 bg-neutral-50 hover:border-neutral-300"
+                      ? "border-neutral-900 bg-neutral-900"
+                      : "border-neutral-200 bg-neutral-50 hover:border-neutral-400"
                   }`}
                 >
                   {selectedGarmentUrl === null && (
-                    <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-violet-500 text-white text-[8px] font-bold">
+                    <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-sm bg-white text-neutral-900 text-[8px] font-bold">
                       ✓
                     </span>
                   )}
-                  <span className="text-[9px] font-medium text-neutral-600 leading-tight px-1">
+                  <span className={`text-[9px] font-medium leading-tight px-1 ${selectedGarmentUrl === null ? "text-white" : "text-neutral-600"}`}>
                     My design
                   </span>
                 </button>
@@ -223,14 +223,14 @@ export function TryOnModal({
                   <button
                     key={i}
                     onClick={() => setSelectedGarmentUrl(url)}
-                    className={`flex-shrink-0 relative h-16 w-16 rounded-xl border-2 overflow-hidden transition-colors ${
+                    className={`flex-shrink-0 relative h-16 w-16 rounded-md border-2 overflow-hidden transition-colors ${
                       selectedGarmentUrl === url
-                        ? "border-violet-500"
-                        : "border-neutral-200 hover:border-neutral-300"
+                        ? "border-neutral-900"
+                        : "border-neutral-200 hover:border-neutral-400"
                     }`}
                   >
                     {selectedGarmentUrl === url && (
-                      <span className="absolute top-0.5 right-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-violet-500 text-white text-[8px] font-bold">
+                      <span className="absolute top-0.5 right-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-sm bg-neutral-900 text-white text-[8px] font-bold">
                         ✓
                       </span>
                     )}
@@ -247,7 +247,7 @@ export function TryOnModal({
 
             {/* Face photo upload */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-2">
+              <label className="block text-[10px] font-semibold uppercase tracking-widest text-neutral-400 mb-2">
                 Your Photo
               </label>
               <div className="flex items-center gap-3">
@@ -256,11 +256,11 @@ export function TryOnModal({
                   <img
                     src={facePreview}
                     alt="Face preview"
-                    className="h-16 w-16 rounded-xl object-cover border border-gray-200 flex-shrink-0"
+                    className="h-16 w-16 rounded-md object-cover border border-neutral-200 flex-shrink-0"
                   />
                 ) : (
-                  <div className="h-16 w-16 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center flex-shrink-0 bg-gray-50">
-                    <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <div className="h-16 w-16 rounded-md border-2 border-dashed border-neutral-300 flex items-center justify-center flex-shrink-0 bg-neutral-50">
+                    <svg className="h-6 w-6 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
                   </div>
@@ -268,19 +268,19 @@ export function TryOnModal({
                 <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+                    className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
                   >
                     {faceBlob ? "Change photo" : "Upload photo"}
                   </button>
                   {faceSavedFromStorage ? (
                     <button
                       onClick={handleClearSavedFace}
-                      className="text-[10px] text-gray-400 hover:text-red-500 transition-colors text-left"
+                      className="text-[10px] text-neutral-400 hover:text-red-500 transition-colors text-left"
                     >
                       Clear saved photo
                     </button>
                   ) : (
-                    <p className="text-[10px] text-gray-400">Clear face photo works best</p>
+                    <p className="text-[10px] text-neutral-400">Clear face photo works best</p>
                   )}
                 </div>
               </div>
@@ -295,7 +295,7 @@ export function TryOnModal({
 
             {/* Cloth type */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-2">
+              <label className="block text-[10px] font-semibold uppercase tracking-widest text-neutral-400 mb-2">
                 Garment Type
               </label>
               <div className="flex gap-2">
@@ -303,10 +303,10 @@ export function TryOnModal({
                   <button
                     key={opt.value}
                     onClick={() => setClothType(opt.value)}
-                    className={`flex-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
                       clothType === opt.value
-                        ? "border-violet-500 bg-violet-50 text-violet-700"
-                        : "border-neutral-300 text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50"
+                        ? "border-neutral-900 bg-neutral-900 text-white"
+                        : "border-neutral-200 text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50"
                     }`}
                   >
                     {opt.label}
@@ -317,7 +317,7 @@ export function TryOnModal({
 
             {/* Gender */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-2">
+              <label className="block text-[10px] font-semibold uppercase tracking-widest text-neutral-400 mb-2">
                 Gender
               </label>
               <div className="flex gap-2">
@@ -325,10 +325,10 @@ export function TryOnModal({
                   <button
                     key={g}
                     onClick={() => setGender(g)}
-                    className={`flex-1 rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+                    className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
                       gender === g
-                        ? "border-violet-500 bg-violet-50 text-violet-700"
-                        : "border-neutral-300 text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50"
+                        ? "border-neutral-900 bg-neutral-900 text-white"
+                        : "border-neutral-200 text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50"
                     }`}
                   >
                     {g}
@@ -339,14 +339,14 @@ export function TryOnModal({
 
             {/* Error */}
             {error && (
-              <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 border border-red-200">
+              <p className="text-xs text-red-600 bg-red-50 rounded-md px-3 py-2 border border-red-200">
                 {error}
               </p>
             )}
 
             {/* Loading hint */}
             {isLoading && (
-              <p className="text-xs text-gray-400 text-center">
+              <p className="text-xs text-neutral-400 text-center">
                 This takes ~20 seconds…
               </p>
             )}
@@ -358,12 +358,12 @@ export function TryOnModal({
                 <img
                   src={resultUrl}
                   alt="Try-on result"
-                  className="w-full rounded-2xl object-cover border border-gray-200"
+                  className="w-full rounded-md object-cover border border-neutral-200"
                 />
                 <a
                   href={resultUrl}
                   download="try-on-result.jpg"
-                  className="flex items-center justify-center gap-1.5 rounded-md border border-neutral-300 px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+                  className="flex items-center justify-center gap-1.5 rounded-md border border-neutral-200 px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
                 >
                   Download
                 </a>
@@ -374,10 +374,10 @@ export function TryOnModal({
             <button
               onClick={handleGenerate}
               disabled={!canGenerate}
-              className={`w-full rounded-full px-4 py-2.5 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+              className={`w-full rounded-md px-4 py-2.5 text-xs font-medium uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
                 !canGenerate
                   ? "cursor-not-allowed bg-neutral-100 text-neutral-400"
-                  : "bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow hover:from-violet-700 hover:to-blue-700"
+                  : "bg-neutral-900 text-white hover:bg-black"
               }`}
             >
               {isLoading ? (

@@ -107,14 +107,14 @@ function PaymentForm({ clientSecret, sessionId, onSuccess, onClose }: PaymentFor
           type="button"
           onClick={onClose}
           disabled={isProcessing}
-          className="flex-1 rounded-md border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors disabled:opacity-50"
+          className="flex-1 rounded-md border border-neutral-200 px-4 py-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-colors disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={isProcessing || !stripe}
-          className="flex-1 rounded-full bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow hover:from-violet-700 hover:to-blue-700 transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2"
+          className="flex-1 rounded-md bg-neutral-900 px-4 py-2.5 text-xs font-medium text-white hover:bg-black transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {isProcessing ? (
             <>
@@ -179,30 +179,30 @@ export function AiPaymentModal({ isOpen, onClose, onSuccess }: AiPaymentModalPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm px-4">
-      <div className="w-full max-w-md rounded-3xl border border-white/30 bg-white/95 p-6 shadow-2xl backdrop-blur-xl">
+      <div className="w-full max-w-md rounded-xl border border-neutral-200 bg-white p-6 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100">
-              <span className="text-violet-600 text-base">✦</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-neutral-100">
+              <span className="text-neutral-700 text-base">✦</span>
             </div>
-            <span className="text-base font-semibold text-gray-900">Verify your account</span>
+            <span className="text-sm font-semibold uppercase tracking-widest text-neutral-900">Verify your account</span>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 transition-colors"
           >
             <XMark />
           </button>
         </div>
 
         {/* Description */}
-        <div className="mb-5 rounded-2xl bg-violet-50 border border-violet-100 px-4 py-3">
+        <div className="mb-5 rounded-md bg-neutral-50 border border-neutral-200 px-4 py-3">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex-shrink-0 rounded-full bg-violet-600 px-2 py-0.5 text-[11px] font-bold text-white">
+            <div className="mt-0.5 flex-shrink-0 rounded-sm bg-neutral-900 px-2 py-0.5 text-[11px] font-bold text-white">
               €2
             </div>
-            <p className="text-xs text-violet-800 leading-relaxed">
+            <p className="text-xs text-neutral-700 leading-relaxed">
               One-time non-refundable access fee. Unlocks <strong>Virtual Try-On</strong> and <strong>AI image generation</strong> permanently.
             </p>
           </div>
@@ -210,7 +210,7 @@ export function AiPaymentModal({ isOpen, onClose, onSuccess }: AiPaymentModalPro
 
         {isLoading && (
           <div className="flex items-center justify-center py-8">
-            <svg className="h-6 w-6 animate-spin text-violet-500" viewBox="0 0 24 24">
+            <svg className="h-6 w-6 animate-spin text-neutral-500" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
