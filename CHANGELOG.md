@@ -1,3 +1,11 @@
+## [10.1.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.4...v10.1.5) (2026-03-10)
+
+
+### Bug Fixes
+
+* **admin:** Fixing the send loading on the command bar ([892aaf7](https://github.com/Jaal-Yantra-Textiles/v2/commit/892aaf710bebd3eef62111d913b2b36618c042a2))
+* **api:** Partner being sent ([0f30178](https://github.com/Jaal-Yantra-Textiles/v2/commit/0f3017826b65d486ba81b8fb76d440bc77c59410))
+
 ## [10.1.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.3...v10.1.4) (2026-03-09)
 
 
