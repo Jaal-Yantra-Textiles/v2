@@ -205,7 +205,7 @@ export function TryOnModal({
                   className={`flex-shrink-0 relative h-16 w-16 rounded-xl border-2 flex items-center justify-center text-center transition-colors ${
                     selectedGarmentUrl === null
                       ? "border-violet-500 bg-violet-50"
-                      : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                      : "border-neutral-200 bg-neutral-50 hover:border-neutral-300"
                   }`}
                 >
                   {selectedGarmentUrl === null && (
@@ -213,7 +213,7 @@ export function TryOnModal({
                       ✓
                     </span>
                   )}
-                  <span className="text-[9px] font-medium text-slate-600 leading-tight px-1">
+                  <span className="text-[9px] font-medium text-neutral-600 leading-tight px-1">
                     My design
                   </span>
                 </button>
@@ -226,7 +226,7 @@ export function TryOnModal({
                     className={`flex-shrink-0 relative h-16 w-16 rounded-xl border-2 overflow-hidden transition-colors ${
                       selectedGarmentUrl === url
                         ? "border-violet-500"
-                        : "border-slate-200 hover:border-slate-300"
+                        : "border-neutral-200 hover:border-neutral-300"
                     }`}
                   >
                     {selectedGarmentUrl === url && (
@@ -268,7 +268,7 @@ export function TryOnModal({
                 <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
                   >
                     {faceBlob ? "Change photo" : "Upload photo"}
                   </button>
@@ -306,7 +306,7 @@ export function TryOnModal({
                     className={`flex-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                       clothType === opt.value
                         ? "border-violet-500 bg-violet-50 text-violet-700"
-                        : "border-slate-300 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                        : "border-neutral-300 text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50"
                     }`}
                   >
                     {opt.label}
@@ -328,7 +328,7 @@ export function TryOnModal({
                     className={`flex-1 rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
                       gender === g
                         ? "border-violet-500 bg-violet-50 text-violet-700"
-                        : "border-slate-300 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                        : "border-neutral-300 text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50"
                     }`}
                   >
                     {g}
@@ -363,7 +363,7 @@ export function TryOnModal({
                 <a
                   href={resultUrl}
                   download="try-on-result.jpg"
-                  className="flex items-center justify-center gap-1.5 rounded-full border border-slate-300 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="flex items-center justify-center gap-1.5 rounded-md border border-neutral-300 px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
                 >
                   Download
                 </a>
@@ -376,7 +376,7 @@ export function TryOnModal({
               disabled={!canGenerate}
               className={`w-full rounded-full px-4 py-2.5 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                 !canGenerate
-                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  ? "cursor-not-allowed bg-neutral-100 text-neutral-400"
                   : "bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow hover:from-violet-700 hover:to-blue-700"
               }`}
             >

@@ -1,6 +1,5 @@
 "use client"
 
-import { Text } from "@medusajs/ui"
 import { ArrowUturnLeft, ArrowsPointingOutMini, MinusMini, PlusMini } from "@medusajs/icons"
 import clsx from "clsx"
 import { ViewState } from "../types"
@@ -19,7 +18,7 @@ type ZoomControlsProps = {
 }
 
 const iconButtonClasses =
-  "rounded-full p-1.5 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:opacity-40"
+  "rounded-md p-1.5 transition-colors text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none disabled:opacity-40"
 
 export function ZoomControls({
   view,
@@ -37,7 +36,7 @@ export function ZoomControls({
     return (
       <div
         className={clsx(
-          "flex items-center gap-3 rounded-full border border-slate-200 bg-white/95 px-4 py-2 shadow-[0_20px_45px_rgba(15,23,42,0.15)] backdrop-blur",
+          "flex items-center gap-3 rounded-md border border-neutral-200 bg-white/95 px-4 py-2 shadow-lg backdrop-blur",
           className
         )}
       >
@@ -59,11 +58,11 @@ export function ZoomControls({
             <ArrowUturnLeft className="h-4 w-4 -scale-x-100" />
           </button>
         </div>
-        <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1">
+        <div className="flex items-center gap-2 rounded-md bg-neutral-50 px-3 py-1">
           <button onClick={zoomOut} className={iconButtonClasses} title="Zoom Out">
             <MinusMini className="h-4 w-4" />
           </button>
-          <span className="min-w-[50px] text-center text-sm font-medium text-slate-700">
+          <span className="min-w-[50px] text-center text-sm font-medium text-neutral-700">
             {Math.round(view.scale * 100)}%
           </span>
           <button onClick={zoomIn} className={iconButtonClasses} title="Zoom In">
@@ -80,7 +79,7 @@ export function ZoomControls({
   return (
     <div
       className={clsx(
-        "flex items-center justify-between border-t border-slate-100 bg-white px-4 py-2",
+        "flex items-center justify-between border-t border-neutral-100 bg-white px-4 py-2",
         className
       )}
     >
@@ -107,7 +106,7 @@ export function ZoomControls({
         <button onClick={zoomOut} className={iconButtonClasses} title="Zoom Out">
           <MinusMini className="h-4 w-4" />
         </button>
-        <span className="min-w-[60px] text-center text-sm text-gray-600">
+        <span className="min-w-[60px] text-center text-sm text-neutral-600">
           {Math.round(view.scale * 100)}%
         </span>
         <button onClick={zoomIn} className={iconButtonClasses} title="Zoom In">
@@ -122,9 +121,7 @@ export function ZoomControls({
         </button>
       </div>
 
-      <Text size="small" className="text-gray-400">
-        Scroll to zoom
-      </Text>
+      <span className="text-xs text-neutral-400">Scroll to zoom</span>
     </div>
   )
 }

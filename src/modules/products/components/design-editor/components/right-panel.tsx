@@ -125,18 +125,18 @@ export function RightPanel({
   }, [design.selectedId])
 
   return (
-    <div className="flex h-full w-[300px] flex-shrink-0 flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
+    <div className="flex h-full w-[300px] flex-shrink-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
       {/* Tab bar */}
-      <div className="flex h-10 flex-shrink-0 items-center border-b border-slate-100 px-2">
+      <div className="flex h-10 flex-shrink-0 items-center border-b border-neutral-100 px-2">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={clsx(
-              "flex-1 rounded-lg py-1.5 text-xs font-medium transition-all",
+              "flex-1 rounded-md py-1.5 text-xs font-medium transition-all",
               activeTab === tab.id
-                ? "bg-slate-100 text-slate-900"
-                : "text-slate-400 hover:text-slate-700"
+                ? "bg-neutral-100 text-neutral-900"
+                : "text-neutral-400 hover:text-neutral-700"
             )}
           >
             {tab.label}

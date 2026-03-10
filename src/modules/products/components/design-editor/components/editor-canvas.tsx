@@ -194,10 +194,10 @@ export function EditorCanvas({
                             const mediaArray = Array.isArray((selectedMaterial as any).media) ? (selectedMaterial as any).media : []
                             const thumb = mediaArray.find((m: any) => m.isThumbnail)?.url || mediaArray[0]?.url
                             return thumb ? (
-                                <img src={thumb} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
+                                <img src={thumb} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-cover ring-1 ring-neutral-200" />
                             ) : (
                                 <div
-                                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sm ring-1 ring-slate-200"
+                                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sm ring-1 ring-neutral-200"
                                     style={{ backgroundColor: (selectedMaterial as any).color || "#f3f4f6" }}
                                 >
                                     🧵
@@ -205,10 +205,10 @@ export function EditorCanvas({
                             )
                         })()}
                         <div className="min-w-0">
-                            <p className="truncate text-[11px] font-semibold leading-tight text-slate-800">
+                            <p className="truncate text-[11px] font-semibold leading-tight text-neutral-800">
                                 {selectedMaterial.name || (selectedMaterial as any).material_type?.name || "Material"}
                             </p>
-                            <p className="truncate text-[10px] leading-tight text-slate-500">
+                            <p className="truncate text-[10px] leading-tight text-neutral-500">
                                 {(selectedMaterial as any).material_type?.category || "Material"}
                             </p>
                         </div>
@@ -223,15 +223,15 @@ export function EditorCanvas({
                         className="absolute bottom-3 right-3 z-10 flex max-w-[180px] items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2 shadow-lg backdrop-blur-sm transition-shadow hover:shadow-xl"
                     >
                         {(selectedPartner as any).logo_url ? (
-                            <img src={(selectedPartner as any).logo_url} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-contain ring-1 ring-slate-200" />
+                            <img src={(selectedPartner as any).logo_url} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-contain ring-1 ring-neutral-200" />
                         ) : (
-                            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-sm ring-1 ring-emerald-200">
+                            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-50 text-sm ring-1 ring-neutral-200">
                                 🏭
                             </div>
                         )}
                         <div className="min-w-0 text-left">
-                            <p className="text-[10px] font-medium leading-tight text-slate-500">Made by</p>
-                            <p className="truncate text-[11px] font-semibold leading-tight text-slate-800">
+                            <p className="text-[10px] font-medium leading-tight text-neutral-500">Made by</p>
+                            <p className="truncate text-[11px] font-semibold leading-tight text-neutral-800">
                                 {selectedPartner.company_name || selectedPartner.name}
                             </p>
                         </div>
@@ -266,25 +266,25 @@ export function EditorCanvas({
                 )}
 
                 {showAiOverlay && (
-                    <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-purple-500/10 to-blue-500/10 backdrop-blur-sm">
+                    <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-violet-500/10 to-indigo-500/10 backdrop-blur-sm">
                         <div className="flex flex-col items-center gap-4 rounded-3xl border border-purple-200/50 bg-white/90 p-8 shadow-2xl">
                             <div className="relative">
-                                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 p-[2px]">
+                                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 p-[2px]">
                                     <div className="flex h-full w-full items-center justify-center rounded-full bg-white">
-                                        <svg className="h-8 w-8 animate-pulse text-purple-600" fill="currentColor" viewBox="0 0 24 24">
+                                        <svg className="h-8 w-8 animate-pulse text-violet-600" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z" />
                                         </svg>
                                     </div>
                                 </div>
                                 <div className="absolute inset-0 animate-spin" style={{ animationDuration: "3s" }}>
-                                    <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-purple-400" />
+                                    <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-violet-400" />
                                 </div>
                                 <div className="absolute inset-0 animate-spin" style={{ animationDuration: "4s", animationDirection: "reverse" }}>
-                                    <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-blue-400" />
+                                    <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-indigo-400" />
                                 </div>
                             </div>
                             <div className="text-center">
-                                <p className="text-lg font-semibold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                                <p className="text-lg font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
                                     Generating with AI
                                 </p>
                                 <p className="mt-1 text-sm text-gray-500">Creating your unique design base...</p>

@@ -271,7 +271,7 @@ export function EditorSidebar({
     const PreferenceSummaryCard = ({ className }: { className?: string }) => (
         <div
             className={clsx(
-                "rounded-2xl border border-ui-border-base bg-white/90 p-4 shadow-sm backdrop-blur",
+                "rounded-md border border-neutral-200 bg-white/90 p-4 shadow-sm backdrop-blur",
                 className
             )}
         >
@@ -348,7 +348,7 @@ export function EditorSidebar({
                 />
 
                 {/* Compact mobile header with product info and preferences */}
-                <div className="px-3 py-2 flex items-center gap-3 bg-white/80 backdrop-blur-sm border-b border-ui-border-base">
+                <div className="px-3 py-2 flex items-center gap-3 bg-white/80 backdrop-blur-sm border-b border-neutral-200">
                     {/* Product thumbnail */}
                     {product.thumbnail && (
                         <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
@@ -376,7 +376,7 @@ export function EditorSidebar({
 
                 {/* Mobile Active Tab Overlay (Sheet) */}
                 {mobileActiveTab && (
-                    <div className="fixed bottom-[60px] left-0 right-0 z-20 mx-2 mb-2 max-h-[50vh] overflow-y-auto rounded-xl border border-ui-border-base bg-white/95 p-4 shadow-2xl backdrop-blur transition-all animate-in slide-in-from-bottom-5">
+                    <div className="fixed bottom-[60px] left-0 right-0 z-20 mx-2 mb-2 max-h-[50vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white/95 p-4 shadow-2xl backdrop-blur transition-all animate-in slide-in-from-bottom-5">
                         <div className="flex items-center justify-between mb-3 border-b pb-2">
                             <Text weight="plus" className="capitalize">{mobileActiveTab}</Text>
                             <button onClick={() => setMobileActiveTab(null)}><XMark /></button>
@@ -390,9 +390,9 @@ export function EditorSidebar({
                                         fileInputRef.current?.click()
                                         setMobileActiveTab(null)
                                     }}
-                                    className="flex items-center gap-3 rounded-lg bg-ui-bg-subtle p-3 hover:bg-ui-bg-base"
+                                    className="flex items-center gap-3 rounded-md bg-neutral-50 p-3 hover:bg-neutral-100"
                                 >
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-neutral-900">
                                         <Plus />
                                     </div>
                                     <Text>Upload Image</Text>
@@ -402,9 +402,9 @@ export function EditorSidebar({
                                         addTextLayer()
                                         setMobileActiveTab(null)
                                     }}
-                                    className="flex items-center gap-3 rounded-lg bg-ui-bg-subtle p-3 hover:bg-ui-bg-base"
+                                    className="flex items-center gap-3 rounded-md bg-neutral-50 p-3 hover:bg-neutral-100"
                                 >
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-neutral-900">
                                         <Plus />
                                     </div>
                                     <Text>Add Text</Text>
@@ -425,7 +425,7 @@ export function EditorSidebar({
                                                 setSelectedMaterial(selectedMaterial?.id === material.id ? null : material)
                                                 // Don't close immediately so they can browse
                                             }}
-                                            className={`aspect-square rounded-lg overflow-hidden border-2 relative ${selectedMaterial?.id === material.id ? 'border-blue-500' : 'border-transparent'
+                                            className={`aspect-square rounded-md overflow-hidden border-2 relative ${selectedMaterial?.id === material.id ? 'border-neutral-900' : 'border-transparent'
                                                 }`}
                                         >
                                             {thumbnail ? (
@@ -463,7 +463,7 @@ export function EditorSidebar({
                                         "w-full rounded-xl px-4 py-3 text-sm font-medium transition-all flex items-center justify-center gap-2",
                                         isGeneratingAi
                                             ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                            : "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                                            : "bg-gradient-to-r from-violet-600 to-indigo-600 text-white"
                                     )}
                                 >
                                     {isGeneratingAi ? (
@@ -516,7 +516,7 @@ export function EditorSidebar({
                                                         onSelectFromHistory?.(item)
                                                         setMobileActiveTab(null)
                                                     }}
-                                                    className="aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-purple-400 bg-gray-50"
+                                                    className="aspect-square rounded-md overflow-hidden border-2 border-transparent hover:border-neutral-400 bg-gray-50"
                                                 >
                                                     <img
                                                         src={item.preview_url}
@@ -536,7 +536,7 @@ export function EditorSidebar({
                 {/* Bottom Toolbar
                     Layout: [left-half: Undo + AI] [Plus, truly centred] [right-half: Edit + Save]
                     Two equal flex-1 halves flank the Plus so it lands on the exact screen centre. */}
-                <div className="fixed bottom-0 left-0 right-0 z-30 flex h-[60px] items-center border-t border-ui-border-base bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                <div className="fixed bottom-0 left-0 right-0 z-30 flex h-[60px] items-center border-t border-neutral-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
                     {/* Left half */}
                     <div className="flex flex-1 items-center justify-around">
                         <button
@@ -549,7 +549,7 @@ export function EditorSidebar({
                         </button>
                         <button
                             onClick={() => toggleMobileTab("ai")}
-                            className={`flex flex-col items-center gap-0.5 px-3 py-2 ${mobileActiveTab === "ai" ? "text-purple-600" : "text-gray-500"}`}
+                            className={`flex flex-col items-center gap-0.5 px-3 py-2 ${mobileActiveTab === "ai" ? "text-neutral-900" : "text-gray-500"}`}
                         >
                             <Sparkles className="h-5 w-5" />
                             <span className="text-[10px] font-medium">AI</span>
@@ -570,7 +570,7 @@ export function EditorSidebar({
                     <div className="flex flex-1 items-center justify-around">
                         <button
                             onClick={() => toggleMobileTab("layers")}
-                            className={`flex flex-col items-center gap-0.5 px-3 py-2 ${mobileActiveTab === "layers" ? "text-blue-600" : "text-gray-500"}`}
+                            className={`flex flex-col items-center gap-0.5 px-3 py-2 ${mobileActiveTab === "layers" ? "text-neutral-900" : "text-gray-500"}`}
                         >
                             <ArrowsPointingOutMini className="h-5 w-5" />
                             <span className="text-[10px] font-medium">Edit</span>
@@ -679,7 +679,7 @@ export function EditorSidebar({
             />
 
             <div
-                className="relative flex h-full flex-1 overflow-hidden rounded-3xl border border-ui-border-base bg-white/95 shadow-2xl backdrop-blur transition-all duration-300"
+                className="relative flex h-full flex-1 overflow-hidden rounded-xl border border-neutral-200 bg-white/95 shadow-2xl backdrop-blur transition-all duration-300"
                 style={{
                     transform: "translate3d(0, 0, 0)",
                     WebkitTransform: "translate3d(0, 0, 0)",
@@ -730,21 +730,21 @@ export function EditorSidebar({
                     {sidebarExpanded ? (
                         <div className="flex flex-1 flex-col overflow-hidden">
                             {(selectedMaterial || selectedPartner) && (
-                                <div className="flex-shrink-0 border-b border-ui-border-base bg-white px-4 py-3">
+                                <div className="flex-shrink-0 border-b border-neutral-200 bg-white px-4 py-3">
                                     <div className="flex flex-col gap-2">
                                         {selectedMaterial && (
-                                            <div className="flex items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-3 py-2">
+                                            <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 bg-neutral-50/70 px-3 py-2">
                                                 <div className="min-w-0">
-                                                    <Text weight="plus" size="small" className="truncate text-blue-900">
+                                                    <Text weight="plus" size="small" className="truncate text-neutral-900">
                                                         {selectedMaterial.name || selectedMaterial.material_type?.name || "Selected material"}
                                                     </Text>
-                                                    <Text size="small" className="text-[11px] text-blue-700">
+                                                    <Text size="small" className="text-[11px] text-neutral-700">
                                                         {selectedMaterial.material_type?.category || "Material selection"}
                                                     </Text>
                                                 </div>
                                                 <button
                                                     onClick={() => setSelectedMaterial(null)}
-                                                    className="text-blue-500 hover:text-blue-700"
+                                                    className="text-neutral-400 hover:text-neutral-700"
                                                     aria-label="Clear material selection"
                                                 >
                                                     <XMark className="h-4 w-4" />
@@ -752,18 +752,18 @@ export function EditorSidebar({
                                             </div>
                                         )}
                                         {selectedPartner && (
-                                            <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+                                            <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2">
                                                 <div className="min-w-0">
-                                                    <Text weight="plus" size="small" className="truncate text-emerald-900">
+                                                    <Text weight="plus" size="small" className="truncate text-neutral-900">
                                                         {selectedPartner.company_name || selectedPartner.name || "Selected partner"}
                                                     </Text>
-                                                    <Text size="small" className="text-[11px] text-emerald-700">
+                                                    <Text size="small" className="text-[11px] text-neutral-600">
                                                         {selectedPartner.location || "Production partner"}
                                                     </Text>
                                                 </div>
                                                 <button
                                                     onClick={() => setSelectedPartner(null)}
-                                                    className="text-emerald-500 hover:text-emerald-700"
+                                                    className="text-neutral-400 hover:text-neutral-700"
                                                     aria-label="Clear partner selection"
                                                 >
                                                     <XMark className="h-4 w-4" />
@@ -784,7 +784,7 @@ export function EditorSidebar({
                                     {/* Product / Design Profile Section */}
                                     <section ref={sectionRefs.product} data-section-id="product">
                                         <div className="px-4 pt-4 space-y-3">
-                                            <div className="rounded-2xl border border-ui-border-base bg-white/95 p-4 shadow-sm">
+                                            <div className="rounded-md border border-neutral-200 bg-white/95 p-4 shadow-sm">
                                                 <Text size="small" className="text-[11px] uppercase tracking-wide text-gray-400">
                                                     Base product
                                                 </Text>
@@ -814,7 +814,7 @@ export function EditorSidebar({
                                                         "flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
                                                         activeTool === "select"
                                                             ? "border-black bg-black text-white"
-                                                            : "border-ui-border-base bg-gray-50 hover:bg-gray-100"
+                                                            : "border-neutral-200 bg-gray-50 hover:bg-gray-100"
                                                     )}
                                                 >
                                                     Select
@@ -825,7 +825,7 @@ export function EditorSidebar({
                                                         "flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
                                                         activeTool === "pan"
                                                             ? "border-black bg-black text-white"
-                                                            : "border-ui-border-base bg-gray-50 hover:bg-gray-100"
+                                                            : "border-neutral-200 bg-gray-50 hover:bg-gray-100"
                                                     )}
                                                 >
                                                     Pan
@@ -844,10 +844,10 @@ export function EditorSidebar({
                                                 onClick={onGenerateAi}
                                                 disabled={isGeneratingAi || !onGenerateAi}
                                                 className={clsx(
-                                                    "w-full rounded-2xl px-4 py-3 text-sm font-medium transition-all flex items-center justify-center gap-2",
+                                                    "w-full rounded-md px-4 py-3 text-sm font-medium transition-all flex items-center justify-center gap-2",
                                                     isGeneratingAi
                                                         ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                        : "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:from-purple-700 hover:to-blue-700 hover:shadow-xl"
+                                                        : "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg hover:from-violet-700 hover:to-indigo-700 hover:shadow-xl"
                                                 )}
                                             >
                                                 {isGeneratingAi ? (
@@ -920,7 +920,7 @@ export function EditorSidebar({
                                                             <button
                                                                 key={item.id}
                                                                 onClick={() => onSelectFromHistory?.(item)}
-                                                                className="group relative aspect-square rounded-xl overflow-hidden border-2 border-transparent hover:border-purple-400 transition-all bg-gray-50"
+                                                                className="group relative aspect-square rounded-md overflow-hidden border-2 border-transparent hover:border-neutral-400 transition-all bg-gray-50"
                                                                 title={`Generated: ${new Date(item.generated_at).toLocaleString()}`}
                                                             >
                                                                 <img
@@ -950,13 +950,13 @@ export function EditorSidebar({
                                         <div className="px-4 pb-4 grid grid-cols-2 gap-3">
                                             <button
                                                 onClick={() => fileInputRef.current?.click()}
-                                                className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                                                className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
                                             >
                                                 + Image
                                             </button>
                                             <button
                                                 onClick={addTextLayer}
-                                                className="rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                                                className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
                                             >
                                                 + Text
                                             </button>
@@ -995,9 +995,9 @@ export function EditorSidebar({
                                                                     <button
                                                                         onClick={() => setSelectedMaterial(isSelected ? null : material)}
                                                                         className={clsx(
-                                                                            "relative aspect-square rounded-xl border-2 transition-all",
+                                                                            "relative aspect-square rounded-md border-2 transition-all",
                                                                             isSelected
-                                                                                ? "border-blue-500 ring-2 ring-blue-200"
+                                                                                ? "border-neutral-900 ring-1 ring-neutral-200"
                                                                                 : "border-transparent hover:border-gray-200"
                                                                         )}
                                                                     >
@@ -1024,7 +1024,7 @@ export function EditorSidebar({
                                             )}
 
                                             {selectedMaterial && (
-                                                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
+                                                <div className="mt-3 rounded-md border border-neutral-200 bg-neutral-50 p-3">
                                                     <div className="flex items-center justify-between">
                                                         <div>
                                                             <Text weight="plus" size="small">
@@ -1069,9 +1069,9 @@ export function EditorSidebar({
                                                                     <button
                                                                         onClick={() => setSelectedPartner(isSelected ? null : partner)}
                                                                         className={clsx(
-                                                                            "relative rounded-xl border-2 p-3 text-left transition-all",
+                                                                            "relative rounded-md border-2 p-3 text-left transition-all",
                                                                             isSelected
-                                                                                ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
+                                                                                ? "border-neutral-900 bg-neutral-50 ring-1 ring-neutral-200"
                                                                                 : "border-transparent bg-gray-50 hover:border-gray-200"
                                                                         )}
                                                                     >
@@ -1092,7 +1092,7 @@ export function EditorSidebar({
                                             )}
 
                                             {selectedPartner && (
-                                                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
+                                                <div className="mt-3 rounded-md border border-neutral-200 bg-neutral-50 p-3">
                                                     <div className="flex items-center justify-between">
                                                         <div>
                                                             <Text weight="plus" size="small">
@@ -1133,7 +1133,7 @@ export function EditorSidebar({
                                                             className={clsx(
                                                                 "flex items-center gap-2 rounded-xl border p-2 cursor-pointer transition-all",
                                                                 design.selectedId === layer.id
-                                                                    ? "border-blue-500 bg-blue-50"
+                                                                    ? "border-neutral-900 bg-neutral-50"
                                                                     : "border-gray-200 bg-gray-50 hover:border-gray-300"
                                                             )}
                                                         >
@@ -1206,7 +1206,7 @@ export function EditorSidebar({
                                                     const layer = design.layers.find((l) => l.id === design.selectedId)
                                                     if (!layer) return null
                                                     return (
-                                                        <div className="rounded-2xl border border-ui-border-base bg-gray-50 p-4">
+                                                        <div className="rounded-md border border-neutral-200 bg-gray-50 p-4">
                                                             <LayerProperties layer={layer} onChange={updateLayer} />
                                                         </div>
                                                     )

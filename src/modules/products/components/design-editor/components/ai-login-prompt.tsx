@@ -24,8 +24,8 @@ export function AiLoginPrompt({ isOpen, onLogin, onCancel }: AiLoginPromptProps)
         <div className="space-y-5">
           {/* Icon */}
           <div className="flex justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-purple-100 to-blue-100">
-              <Sparkles className="h-7 w-7 text-purple-600" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-neutral-100 to-neutral-200">
+              <Sparkles className="h-7 w-7 text-neutral-600" />
             </div>
           </div>
 
@@ -68,7 +68,7 @@ export function AiLoginPrompt({ isOpen, onLogin, onCancel }: AiLoginPromptProps)
           <div className="flex flex-col gap-2">
             <Button
               onClick={onLogin}
-              className="w-full rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:from-purple-700 hover:to-blue-700"
+              className="w-full rounded-md bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg hover:from-violet-700 hover:to-indigo-700"
             >
               Sign in to continue
             </Button>

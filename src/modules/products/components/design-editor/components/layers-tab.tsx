@@ -50,14 +50,14 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 function LayerThumbnail({ type, src, fill }: { type: string; src?: string; fill?: string }) {
   if (type === "image" && src) {
     return (
-      <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+      <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-md border border-neutral-200 bg-neutral-50">
         <img src={src} alt="" className="h-full w-full object-cover" />
       </div>
     )
   }
   return (
     <div
-      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-500"
+      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-500"
       style={type === "rect" || type === "circle" ? { backgroundColor: fill ?? "#e2e8f0" } : { backgroundColor: "#f8fafc" }}
     >
       {TYPE_ICONS[type] ?? TYPE_ICONS.image}
@@ -71,7 +71,7 @@ function IconBtn({ title, onClick, disabled, children }: { title: string; onClic
       onClick={onClick}
       title={title}
       disabled={disabled}
-      className="flex h-6 w-6 items-center justify-center rounded text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:pointer-events-none disabled:opacity-30"
+      className="flex h-6 w-6 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 disabled:pointer-events-none disabled:opacity-30"
     >
       {children}
     </button>
@@ -102,29 +102,29 @@ export function LayersTab({
     <div className="flex h-full flex-col">
       {/* Resources section — pinned at top when material/partner selected */}
       {hasResources && (
-        <div className="flex-shrink-0 border-b border-slate-100 px-3 pb-3 pt-3">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Resources</p>
+        <div className="flex-shrink-0 border-b border-neutral-100 px-3 pb-3 pt-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Resources</p>
           <div className="space-y-1.5">
             {selectedMaterial && (() => {
               const mediaArray = Array.isArray((selectedMaterial as any).media) ? (selectedMaterial as any).media : []
               const thumb = mediaArray.find((m: any) => m.isThumbnail)?.url || mediaArray[0]?.url
               return (
-                <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-2.5 py-2">
+                <div className="flex items-center gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-2">
                   {thumb ? (
-                    <img src={thumb} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-cover ring-1 ring-blue-200" />
+                    <img src={thumb} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-cover ring-1 ring-neutral-200" />
                   ) : (
                     <div
-                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sm ring-1 ring-blue-200"
+                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sm ring-1 ring-neutral-200"
                       style={{ backgroundColor: (selectedMaterial as any).color || "#e0f2fe" }}
                     >
                       🧵
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-slate-800">
+                    <p className="truncate text-xs font-semibold text-neutral-800">
                       {selectedMaterial.name || (selectedMaterial as any).material_type?.name || "Material"}
                     </p>
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-neutral-500">
                       {(selectedMaterial as any).material_type?.category || "Material"} · visible on canvas
                     </p>
                   </div>
@@ -132,19 +132,19 @@ export function LayersTab({
               )
             })()}
             {selectedPartner && (
-              <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-2.5 py-2">
+              <div className="flex items-center gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-2">
                 {(selectedPartner as any).logo_url ? (
-                  <img src={(selectedPartner as any).logo_url} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-contain ring-1 ring-emerald-200" />
+                  <img src={(selectedPartner as any).logo_url} alt="" className="h-7 w-7 flex-shrink-0 rounded-lg object-contain ring-1 ring-neutral-200" />
                 ) : (
-                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-sm ring-1 ring-emerald-200">
+                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-sm ring-1 ring-neutral-200">
                     🏭
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-slate-800">
+                  <p className="truncate text-xs font-semibold text-neutral-800">
                     {selectedPartner.company_name || selectedPartner.name}
                   </p>
-                  <p className="text-[10px] text-slate-500">Production partner · visible on canvas</p>
+                  <p className="text-[10px] text-neutral-500">Production partner · visible on canvas</p>
                 </div>
               </div>
             )}
@@ -156,9 +156,9 @@ export function LayersTab({
       <div className="flex-1 overflow-y-auto p-3" data-lenis-prevent>
         {layers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="mb-3 rounded-2xl border border-dashed border-slate-200 p-5">
-              <p className="text-sm font-medium text-slate-400">No layers yet</p>
-              <p className="mt-1 text-xs text-slate-400">Add an element below to get started</p>
+            <div className="mb-3 rounded-md border border-dashed border-neutral-200 p-5">
+              <p className="text-sm font-medium text-neutral-400">No layers yet</p>
+              <p className="mt-1 text-xs text-neutral-400">Add an element below to get started</p>
             </div>
           </div>
         ) : (
@@ -182,19 +182,19 @@ export function LayersTab({
                   key={layer.id}
                   onClick={() => setDesign((prev) => ({ ...prev, selectedId: layer.id }))}
                   className={clsx(
-                    "group flex cursor-pointer items-center gap-2 rounded-xl border p-2 transition-all",
+                    "group flex cursor-pointer items-center gap-2 rounded-md border p-2 transition-all",
                     isSelected
-                      ? "border-slate-300 bg-slate-100 shadow-sm"
-                      : "border-transparent hover:border-slate-200 hover:bg-slate-50"
+                      ? "border-neutral-300 bg-neutral-100 shadow-sm"
+                      : "border-transparent hover:border-neutral-200 hover:bg-neutral-50"
                   )}
                 >
                   <LayerThumbnail type={layer.type} src={layer.src} fill={layer.fill} />
 
                   <div className="min-w-0 flex-1">
-                    <p className={clsx("truncate text-xs font-medium", isHidden ? "text-slate-400 line-through" : "text-slate-800")}>
+                    <p className={clsx("truncate text-xs font-medium", isHidden ? "text-neutral-400 line-through" : "text-neutral-800")}>
                       {labelText}
                     </p>
-                    <p className="text-[10px] text-slate-400 capitalize">{layer.type}</p>
+                    <p className="text-[10px] text-neutral-400 capitalize">{layer.type}</p>
                   </div>
 
                   {/* Actions (shown on hover or when selected) */}
@@ -257,12 +257,12 @@ export function LayersTab({
       </div>
 
       {/* Add element buttons */}
-      <div className="border-t border-slate-100 p-3">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Add element</p>
+      <div className="border-t border-neutral-100 p-3">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Add element</p>
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100"
+            className="flex items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="1" y="1" width="14" height="14" rx="2" />
@@ -273,7 +273,7 @@ export function LayersTab({
           </button>
           <button
             onClick={onAddText}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-100"
+            className="flex items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
               <path d="M2 3h5v2H5v6h2v2H4V5H2V3zm7 0h5v2h-2v8h-1V5h-2V3z" />
@@ -282,7 +282,7 @@ export function LayersTab({
           </button>
           <button
             onClick={onAddRect}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+            className="flex items-center justify-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <rect x="2" y="4" width="12" height="8" rx="1.5" />
@@ -291,7 +291,7 @@ export function LayersTab({
           </button>
           <button
             onClick={onAddCircle}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100"
+            className="flex items-center justify-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100"
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
               <circle cx="8" cy="8" r="6" />

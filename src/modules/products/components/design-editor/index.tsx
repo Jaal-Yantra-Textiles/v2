@@ -71,10 +71,10 @@ export default function DesignEditor({
 
   if (showBlockingLoader) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-4 rounded-3xl border border-slate-200 bg-white px-10 py-8 shadow-lg">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-slate-500" />
-          <Text className="text-sm text-slate-600">Preparing your base design…</Text>
+      <div className="flex h-screen items-center justify-center bg-neutral-50">
+        <div className="flex flex-col items-center gap-4 rounded-3xl border border-neutral-200 bg-white px-10 py-8 shadow-lg">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-neutral-200 border-t-neutral-500" />
+          <Text className="text-sm text-neutral-600">Preparing your base design…</Text>
         </div>
       </div>
     )
@@ -82,14 +82,14 @@ export default function DesignEditor({
 
   if (showBlockingError) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="flex max-w-md flex-col items-center gap-6 rounded-3xl border border-slate-200 bg-white px-10 py-10 text-center shadow-lg">
-          <div className="rounded-full bg-slate-100 p-4 text-slate-500">⚠️</div>
+      <div className="flex h-screen items-center justify-center bg-neutral-50 px-4">
+        <div className="flex max-w-md flex-col items-center gap-6 rounded-3xl border border-neutral-200 bg-white px-10 py-10 text-center shadow-lg">
+          <div className="rounded-full bg-neutral-100 p-4 text-neutral-500">⚠️</div>
           <div>
-            <Text weight="plus" className="text-slate-900">
+            <Text weight="plus" className="text-neutral-900">
               We couldn&apos;t load a base design
             </Text>
-            <Text size="small" className="mt-2 text-slate-600">
+            <Text size="small" className="mt-2 text-neutral-600">
               We&apos;ll generate a neutral template so you can keep customizing.
             </Text>
           </div>
@@ -108,7 +108,7 @@ export default function DesignEditor({
   return (
     <div
       className={clsx(
-        "bg-slate-50/70",
+        "bg-neutral-50/70",
         isMobileLayout ? "h-[100dvh] overflow-hidden" : "h-[calc(100vh-64px)]"
       )}
     >

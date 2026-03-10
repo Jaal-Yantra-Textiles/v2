@@ -23,7 +23,7 @@ export function MaterialDetailModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
             <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
                 {/* Modal Header */}
-                <div className="bg-blue-500 text-white px-6 py-4 flex items-center justify-between">
+                <div className="bg-neutral-900 text-white px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-2xl">🧵</span>
                         <div>
@@ -31,11 +31,11 @@ export function MaterialDetailModal({
                                 {material.name || material.material_type?.name || 'Material'}
                             </h3>
                             {material.material_type?.category && (
-                                <p className="text-blue-100 text-sm">{material.material_type.category}</p>
+                                <p className="text-neutral-300 text-sm">{material.material_type.category}</p>
                             )}
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-1 hover:bg-blue-600 rounded">
+                    <button onClick={onClose} className="p-1 hover:bg-neutral-800 rounded">
                         <XMark className="h-5 w-5" />
                     </button>
                 </div>

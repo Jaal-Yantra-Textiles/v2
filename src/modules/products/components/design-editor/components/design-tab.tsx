@@ -43,7 +43,7 @@ type DesignTabProps = {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+    <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
       {children}
     </p>
   )
@@ -94,13 +94,13 @@ export function DesignTab({
       {/* Design Profile / Badge Preferences */}
       <section>
         <SectionHeading>Design Profile</SectionHeading>
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="rounded-md border border-neutral-200 bg-white p-3 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="text-xs text-slate-500">Guides cost estimates &amp; AI generation</p>
+            <p className="text-xs text-neutral-500">Guides cost estimates &amp; AI generation</p>
             <button
               type="button"
               onClick={onEditPreferences}
-              className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow hover:bg-black"
+              className="rounded-md bg-neutral-900 px-3 py-1 text-[11px] font-semibold text-white shadow hover:bg-black"
             >
               Edit
             </button>
@@ -111,12 +111,12 @@ export function DesignTab({
                 .filter((item) => item.values.length > 0)
                 .map((item) => (
                   <div key={item.label}>
-                    <p className="text-[10px] uppercase tracking-wide text-slate-400">{item.label}</p>
+                    <p className="text-[10px] uppercase tracking-wide text-neutral-400">{item.label}</p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {item.values.map((value) => (
                         <span
                           key={`${item.label}-${value}`}
-                          className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 shadow-sm"
+                          className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-xs font-medium text-neutral-700 shadow-sm"
                         >
                           {value}
                         </span>
@@ -126,8 +126,8 @@ export function DesignTab({
                 ))}
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center">
-              <p className="text-xs text-slate-400">No preferences yet. Add them to improve AI results.</p>
+            <div className="rounded-md border border-dashed border-neutral-200 bg-neutral-50 p-3 text-center">
+              <p className="text-xs text-neutral-400">No preferences yet. Add them to improve AI results.</p>
             </div>
           )}
         </div>
@@ -141,10 +141,10 @@ export function DesignTab({
             onClick={onGenerateAi}
             disabled={isGeneratingAi}
             className={clsx(
-              "w-full rounded-2xl px-4 py-3 text-sm font-medium transition-all flex items-center justify-center gap-2",
+              "w-full rounded-md px-4 py-3 text-sm font-medium transition-all flex items-center justify-center gap-2",
               isGeneratingAi
-                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-lg hover:from-violet-700 hover:to-blue-700"
+                ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg hover:from-violet-700 hover:to-indigo-700"
             )}
           >
             {isGeneratingAi ? (
@@ -164,13 +164,13 @@ export function DesignTab({
           </button>
 
           {quotaRemaining != null && (
-            <p className="text-center text-[11px] text-slate-400">
+            <p className="text-center text-[11px] text-neutral-400">
               {quotaRemaining} generations remaining today
             </p>
           )}
 
           {aiGenerationError && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+            <div className="rounded-md border border-red-200 bg-red-50 p-3">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-xs text-red-600">{aiGenerationError}</p>
                 <button onClick={onClearAiError} className="text-red-400 hover:text-red-600 flex-shrink-0">
@@ -180,18 +180,18 @@ export function DesignTab({
             </div>
           )}
 
-          <p className="text-center text-[11px] text-slate-400">
+          <p className="text-center text-[11px] text-neutral-400">
             Uses your style preferences to generate a unique design base
           </p>
         </div>
 
         {generationHistory.length > 0 && (
-          <div className="mt-4 border-t border-slate-100 pt-3">
+          <div className="mt-4 border-t border-neutral-100 pt-3">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-[10px] uppercase tracking-wider text-slate-400">Previous</p>
+              <p className="text-[10px] uppercase tracking-widest text-neutral-400">Previous</p>
               <button
                 onClick={onClearHistory}
-                className="text-[10px] text-slate-400 hover:text-red-500 transition-colors"
+                className="text-[10px] text-neutral-400 hover:text-red-500 transition-colors"
               >
                 Clear all
               </button>
@@ -201,7 +201,7 @@ export function DesignTab({
                 <button
                   key={item.id}
                   onClick={() => onSelectFromHistory(item)}
-                  className="group relative aspect-square overflow-hidden rounded-xl border-2 border-transparent bg-slate-50 transition-all hover:border-violet-400"
+                  className="group relative aspect-square overflow-hidden rounded-md border-2 border-transparent bg-neutral-50 transition-all hover:border-neutral-400"
                   title={`Generated: ${new Date(item.generated_at).toLocaleString()}`}
                 >
                   <img src={item.preview_url} alt="AI Generated" className="h-full w-full object-cover" />
@@ -217,7 +217,7 @@ export function DesignTab({
       <section>
         <div className="mb-2 flex items-center justify-between">
           <SectionHeading>Materials</SectionHeading>
-          {materialsLoading && <p className="text-[10px] text-slate-400">Loading…</p>}
+          {materialsLoading && <p className="text-[10px] text-neutral-400">Loading…</p>}
         </div>
         {materialsError && <p className="text-xs text-red-500">{materialsError}</p>}
         {!materialsLoading && externalMaterials.length > 0 && (
@@ -234,10 +234,10 @@ export function DesignTab({
                     <button
                       onClick={() => setSelectedMaterial(isSelected ? null : material)}
                       className={clsx(
-                        "relative aspect-square rounded-xl border-2 transition-all",
+                        "relative aspect-square rounded-md border-2 transition-all",
                         isSelected
-                          ? "border-blue-500 ring-2 ring-blue-200"
-                          : "border-transparent hover:border-slate-200"
+                          ? "border-neutral-900 ring-1 ring-neutral-200"
+                          : "border-transparent hover:border-neutral-200"
                       )}
                     >
                       {thumbnail ? (
@@ -248,7 +248,7 @@ export function DesignTab({
                         />
                       ) : (
                         <div
-                          className="flex h-full w-full items-center justify-center rounded-[10px] bg-slate-50 text-lg"
+                          className="flex h-full w-full items-center justify-center rounded-md bg-neutral-50 text-lg"
                           style={{ backgroundColor: (material as any).color || "#f3f4f6" }}
                         >
                           🧵
@@ -262,22 +262,22 @@ export function DesignTab({
           </TooltipProvider>
         )}
         {!materialsLoading && externalMaterials.length === 0 && !materialsError && (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center">
-            <p className="text-xs text-slate-400">No materials available</p>
+          <div className="rounded-md border border-dashed border-neutral-200 bg-neutral-50 p-3 text-center">
+            <p className="text-xs text-neutral-400">No materials available</p>
           </div>
         )}
         {selectedMaterial && (
-          <div className="mt-2 rounded-2xl border border-blue-100 bg-blue-50 p-3">
+          <div className="mt-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-800">
+                <p className="text-xs font-semibold text-neutral-800">
                   {selectedMaterial.name || (selectedMaterial as any).material_type?.name}
                 </p>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-neutral-500">
                   {(selectedMaterial as any).material_type?.category || "Material"}
                 </p>
               </div>
-              <button onClick={() => setSelectedMaterial(null)} className="text-slate-400 hover:text-red-500">
+              <button onClick={() => setSelectedMaterial(null)} className="text-neutral-400 hover:text-red-500">
                 <XMark className="h-4 w-4" />
               </button>
             </div>
@@ -289,7 +289,7 @@ export function DesignTab({
       <section>
         <div className="mb-2 flex items-center justify-between">
           <SectionHeading>Production Partners</SectionHeading>
-          {partnersLoading && <p className="text-[10px] text-slate-400">Loading…</p>}
+          {partnersLoading && <p className="text-[10px] text-neutral-400">Loading…</p>}
         </div>
         {!partnersLoading && externalPartners.length > 0 && (
           <TooltipProvider>
@@ -301,17 +301,17 @@ export function DesignTab({
                     <button
                       onClick={() => setSelectedPartner(isSelected ? null : partner)}
                       className={clsx(
-                        "rounded-xl border-2 p-2.5 text-left transition-all",
+                        "rounded-md border-2 p-2.5 text-left transition-all",
                         isSelected
-                          ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                          : "border-transparent bg-slate-50 hover:border-slate-200"
+                          ? "border-neutral-900 bg-neutral-50 ring-1 ring-neutral-200"
+                          : "border-transparent bg-neutral-50 hover:border-neutral-200"
                       )}
                     >
-                      <p className="truncate text-xs font-semibold text-slate-800">
+                      <p className="truncate text-xs font-semibold text-neutral-800">
                         {partner.company_name || partner.name}
                       </p>
                       {partner.location && (
-                        <p className="truncate text-[11px] text-slate-500">{partner.location}</p>
+                        <p className="truncate text-[11px] text-neutral-500">{partner.location}</p>
                       )}
                     </button>
                   </Tooltip>
@@ -321,22 +321,22 @@ export function DesignTab({
           </TooltipProvider>
         )}
         {!partnersLoading && externalPartners.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center">
-            <p className="text-xs text-slate-400">No partners available</p>
+          <div className="rounded-md border border-dashed border-neutral-200 bg-neutral-50 p-3 text-center">
+            <p className="text-xs text-neutral-400">No partners available</p>
           </div>
         )}
         {selectedPartner && (
-          <div className="mt-2 rounded-2xl border border-blue-100 bg-blue-50 p-3">
+          <div className="mt-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-800">
+                <p className="text-xs font-semibold text-neutral-800">
                   {selectedPartner.company_name || selectedPartner.name}
                 </p>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-neutral-500">
                   {selectedPartner.location || "Production Partner"}
                 </p>
               </div>
-              <button onClick={() => setSelectedPartner(null)} className="text-slate-400 hover:text-red-500">
+              <button onClick={() => setSelectedPartner(null)} className="text-neutral-400 hover:text-red-500">
                 <XMark className="h-4 w-4" />
               </button>
             </div>

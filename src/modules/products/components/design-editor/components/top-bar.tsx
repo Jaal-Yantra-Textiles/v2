@@ -21,7 +21,7 @@ type TopBarProps = {
 }
 
 const iconBtn =
-  "flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-30"
+  "flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-900 disabled:pointer-events-none disabled:opacity-30"
 
 export function TopBar({
   designName,
@@ -42,9 +42,7 @@ export function TopBar({
   const [draft, setDraft] = useState(designName)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    setDraft(designName)
-  }, [designName])
+  useEffect(() => { setDraft(designName) }, [designName])
 
   const commit = () => {
     const trimmed = draft.trim()
@@ -54,11 +52,11 @@ export function TopBar({
   }
 
   return (
-    <div className="flex h-[52px] flex-shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 shadow-sm">
+    <div className="flex h-[52px] flex-shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-4">
       {/* Product + design name */}
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="truncate text-sm font-medium text-slate-400">{productTitle}</span>
-        <span className="text-slate-200">·</span>
+      <div className="flex min-w-0 flex-1 items-center gap-2 font-sans">
+        <span className="truncate text-xs uppercase tracking-widest text-neutral-400">{productTitle}</span>
+        <span className="text-neutral-200">/</span>
         {editing ? (
           <input
             ref={inputRef}
@@ -69,16 +67,16 @@ export function TopBar({
               if (e.key === "Enter") commit()
               if (e.key === "Escape") { setDraft(designName); setEditing(false) }
             }}
-            className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 py-0.5 text-sm font-medium text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+            className="min-w-0 flex-1 rounded border border-neutral-300 bg-white px-2 py-0.5 text-sm text-neutral-900 outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-300"
             autoFocus
           />
         ) : (
           <button
             onClick={() => { setDraft(designName); setEditing(true) }}
-            className="group flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-sm font-medium text-slate-800 hover:bg-slate-100"
+            className="group flex min-w-0 items-center gap-1.5 rounded px-1.5 py-0.5 text-sm font-medium text-neutral-800 hover:bg-neutral-100"
           >
             <span className="truncate">{designName || "Untitled Design"}</span>
-            <span className="text-[10px] text-slate-400 opacity-0 group-hover:opacity-100">✏</span>
+            <span className="text-[10px] text-neutral-300 opacity-0 group-hover:opacity-100">✏</span>
           </button>
         )}
       </div>
@@ -93,7 +91,7 @@ export function TopBar({
         </button>
       </div>
 
-      <div className="h-5 w-px bg-slate-200" />
+      <div className="h-4 w-px bg-neutral-200" />
 
       {/* AI Generate */}
       {onGenerateAi && (
@@ -102,10 +100,10 @@ export function TopBar({
           disabled={isGeneratingAi}
           title={quotaRemaining != null ? `${quotaRemaining} generations remaining` : "Generate with AI"}
           className={clsx(
-            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+            "flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium tracking-wide transition-all",
             isGeneratingAi
-              ? "cursor-not-allowed bg-slate-100 text-slate-400"
-              : "bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow hover:from-violet-700 hover:to-blue-700"
+              ? "cursor-not-allowed bg-neutral-100 text-neutral-400"
+              : "bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-700 hover:to-indigo-700"
           )}
         >
           {isGeneratingAi ? (
@@ -116,7 +114,7 @@ export function TopBar({
           ) : (
             <Sparkles className="h-3.5 w-3.5" />
           )}
-          {isGeneratingAi ? "Generating…" : "Generate"}
+          {isGeneratingAi ? "Generating…" : "AI Generate"}
         </button>
       )}
 
@@ -124,9 +122,10 @@ export function TopBar({
       {onTryOn && (
         <button
           onClick={onTryOn}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all hover:border-slate-400 hover:bg-slate-50"
+          className="flex items-center gap-1.5 rounded border border-neutral-200 px-3 py-1.5 text-xs font-medium tracking-wide text-neutral-700 transition-all hover:bg-neutral-50"
         >
-          <Sparkles className="h-3.5 w-3.5" /> Try On
+          <Sparkles className="h-3.5 w-3.5" />
+          Try On
         </button>
       )}
 
@@ -135,10 +134,10 @@ export function TopBar({
         onClick={onSave}
         disabled={isSaving}
         className={clsx(
-          "rounded-lg px-4 py-1.5 text-xs font-semibold transition-all",
+          "rounded px-4 py-1.5 text-xs font-medium tracking-widest uppercase transition-all",
           isSaving
-            ? "cursor-not-allowed bg-slate-100 text-slate-400"
-            : "bg-slate-900 text-white hover:bg-black"
+            ? "cursor-not-allowed bg-neutral-100 text-neutral-400"
+            : "bg-neutral-900 text-white hover:bg-black"
         )}
       >
         {isSaving ? "Saving…" : "Save"}
