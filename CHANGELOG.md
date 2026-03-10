@@ -1,3 +1,10 @@
+# [10.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.5...v10.2.0) (2026-03-10)
+
+
+### Features
+
+* **admin:** Changes in the meta ads ([fa79360](https://github.com/Jaal-Yantra-Textiles/v2/commit/fa793608bf4a932baf5bd7ca2f88c21c7b0c03b6))
+
 ## [10.1.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.4...v10.1.5) (2026-03-10)
 
 
