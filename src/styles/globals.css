@@ -38,10 +38,16 @@ html {
   animation: floatY 7s ease-in-out infinite;
 }
 
-/* Nav: keep links white on hover when dark hero is active */
-[data-dark="true"] nav a:hover,
-[data-dark="true"] nav button:hover {
-  color: rgba(255, 255, 255, 0.8) !important;
+/* Nav: dark mode — white text overriding Medusa CSS variables */
+[data-dark="true"] header nav,
+[data-dark="true"] header nav a,
+[data-dark="true"] header nav button,
+[data-dark="true"] header nav span {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+[data-dark="true"] header nav a:hover,
+[data-dark="true"] header nav button:hover {
+  color: white !important;
 }
 
 @layer utilities {
