@@ -1,3 +1,10 @@
+## [10.2.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.2.0...v10.2.1) (2026-03-10)
+
+
+### Bug Fixes
+
+* **api:** design now be bundled ([9381583](https://github.com/Jaal-Yantra-Textiles/v2/commit/9381583d82013c0ac4b896ede4c2fa3fc9e2a2e6))
+
 # [10.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.1.5...v10.2.0) (2026-03-10)
 
 
