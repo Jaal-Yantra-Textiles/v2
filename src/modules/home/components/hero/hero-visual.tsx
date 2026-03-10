@@ -15,7 +15,7 @@ function nextImg(url: string, w: 384 | 640 | 750 | 1080, q = 85) {
 
 export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisualProps) {
   return (
-    <div className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-[#0a0a0a] select-none">
+    <div id="hero-section" className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-[#0a0a0a] select-none">
 
       {/* Noise overlay */}
       <div
@@ -132,9 +132,6 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
           CICI
         </span>
       </motion.div>
-
-      {/* Spacer to push LABEL down over the image */}
-      <div className="relative z-20" style={{ height: "clamp(160px, 28vh, 280px)" }} />
 
       {/* LABEL — solid white */}
       <motion.div

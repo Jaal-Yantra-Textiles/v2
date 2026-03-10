@@ -12,7 +12,7 @@ export default async function Nav() {
 
   return (
     <NavScrollHeader>
-      <nav className="content-container txt-xsmall-plus flex items-center justify-between w-full h-full text-small-regular">
+      <nav className="content-container txt-xsmall-plus text-ui-fg-subtle flex items-center justify-between w-full h-full text-small-regular">
         <div className="flex-1 basis-0 h-full flex items-center">
           <div className="h-full">
             <SideMenu regions={regions} />
@@ -22,7 +22,7 @@ export default async function Nav() {
         <div className="flex items-center h-full">
           <LocalizedClientLink
             href="/"
-            className="txt-compact-xlarge-plus uppercase opacity-90 hover:opacity-100 transition-opacity"
+            className="txt-compact-xlarge-plus hover:text-ui-fg-base uppercase"
             data-testid="nav-store-link"
           >
             Cici Label Store
@@ -32,8 +32,8 @@ export default async function Nav() {
         <div className="flex items-center gap-x-6 h-full flex-1 basis-0 justify-end">
           <div className="hidden small:flex items-center gap-x-6 h-full">
             <LocalizedClientLink
+              className="hover:text-ui-fg-base"
               href="/account"
-              className="opacity-75 hover:opacity-100 transition-opacity"
               data-testid="nav-account-link"
             >
               Account
@@ -42,7 +42,7 @@ export default async function Nav() {
           <Suspense
             fallback={
               <LocalizedClientLink
-                className="opacity-75 hover:opacity-100 flex gap-2"
+                className="hover:text-ui-fg-base flex gap-2"
                 href="/cart"
                 data-testid="nav-cart-link"
               >
