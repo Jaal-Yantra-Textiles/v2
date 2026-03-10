@@ -1,119 +1,17 @@
-import { Container, Heading, Text, Badge, Button, Input, Select, toast } from "@medusajs/ui"
+import { Container, Heading, Text, Badge, Button, toast } from "@medusajs/ui"
 import { Link, useNavigate } from "react-router-dom"
 import { Plus, Trash, TriangleRightMini } from "@medusajs/icons"
-import { useState } from "react"
 import { ActionMenu } from "../common/action-menu"
 import {
   AdminDesign,
   useDesignComponents,
   useDesignUsedIn,
-  useAddDesignComponent,
   useRemoveDesignComponent,
   DesignComponentLink,
 } from "../../hooks/api/designs"
-import { useDesigns } from "../../hooks/api/designs"
 
 interface DesignComponentsSectionProps {
   design: AdminDesign
-}
-
-const ROLE_OPTIONS = [
-  { label: "Embroidery", value: "embroidery" },
-  { label: "Lining", value: "lining" },
-  { label: "Trim", value: "trim" },
-  { label: "Main Fabric", value: "main_fabric" },
-  { label: "Print", value: "print" },
-  { label: "Patch", value: "patch" },
-  { label: "Other", value: "other" },
-]
-
-const AddComponentForm = ({
-  designId,
-  onClose,
-}: {
-  designId: string
-  onClose: () => void
-}) => {
-  const [search, setSearch] = useState("")
-  const [selectedDesignId, setSelectedDesignId] = useState("")
-  const [quantity, setQuantity] = useState(1)
-  const [role, setRole] = useState("")
-  const [notes, setNotes] = useState("")
-
-  const { designs } = useDesigns({ q: search || undefined, limit: 20 })
-  const { mutateAsync: addComponent, isPending } = useAddDesignComponent(designId)
-
-  const handleAdd = async () => {
-    if (!selectedDesignId) {
-      toast.error("Please select a design")
-      return
-    }
-    try {
-      await addComponent({
-        component_design_id: selectedDesignId,
-        quantity,
-        role: role || undefined,
-        notes: notes || undefined,
-      })
-      toast.success("Component added")
-      onClose()
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to add component")
-    }
-  }
-
-  const filteredDesigns = designs.filter((d) => d.id !== designId)
-
-  return (
-    <div className="border-t border-ui-border-base px-6 py-4 flex flex-col gap-3">
-      <Text size="small" className="font-medium text-ui-fg-base">Add Component Design</Text>
-
-      <div>
-        <Text size="xsmall" className="text-ui-fg-subtle mb-1">Search design</Text>
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name..." size="small" />
-      </div>
-
-      {filteredDesigns.length > 0 && (
-        <div>
-          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Select design</Text>
-          <Select value={selectedDesignId} onValueChange={setSelectedDesignId}>
-            <Select.Trigger size="small"><Select.Value placeholder="Select a design..." /></Select.Trigger>
-            <Select.Content>
-              {filteredDesigns.map((d) => (
-                <Select.Item key={d.id} value={d.id}>{d.name}</Select.Item>
-              ))}
-            </Select.Content>
-          </Select>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Quantity</Text>
-          <Input type="number" size="small" min={1} value={String(quantity)} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))} />
-        </div>
-        <div>
-          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Role</Text>
-          <Select value={role} onValueChange={setRole}>
-            <Select.Trigger size="small"><Select.Value placeholder="Optional role..." /></Select.Trigger>
-            <Select.Content>
-              {ROLE_OPTIONS.map((r) => <Select.Item key={r.value} value={r.value}>{r.label}</Select.Item>)}
-            </Select.Content>
-          </Select>
-        </div>
-      </div>
-
-      <div>
-        <Text size="xsmall" className="text-ui-fg-subtle mb-1">Notes</Text>
-        <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes..." size="small" />
-      </div>
-
-      <div className="flex gap-2">
-        <Button size="small" variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button size="small" onClick={handleAdd} isLoading={isPending} disabled={!selectedDesignId}>Add</Button>
-      </div>
-    </div>
-  )
 }
 
 const ComponentRow = ({ item, designId }: { item: DesignComponentLink; designId: string }) => {
@@ -156,9 +54,11 @@ const ComponentRow = ({ item, designId }: { item: DesignComponentLink; designId:
 }
 
 export const DesignComponentsSection = ({ design }: DesignComponentsSectionProps) => {
-  const [showAddForm, setShowAddForm] = useState(false)
+  const navigate = useNavigate()
   const { components, isLoading } = useDesignComponents(design.id)
   const { used_in, isLoading: loadingUsedIn } = useDesignUsedIn(design.id)
+
+  const openAddModal = () => navigate("add-component")
 
   return (
     <Container className="p-0">
@@ -168,7 +68,7 @@ export const DesignComponentsSection = ({ design }: DesignComponentsSectionProps
           <Text className="text-ui-fg-subtle" size="small">Designs bundled into this design</Text>
         </div>
         <ActionMenu
-          groups={[{ actions: [{ label: "Add component", icon: <Plus />, onClick: () => setShowAddForm(true) }] }]}
+          groups={[{ actions: [{ label: "Add component", icon: <Plus />, to: "add-component" }] }]}
         />
       </div>
 
@@ -178,7 +78,7 @@ export const DesignComponentsSection = ({ design }: DesignComponentsSectionProps
         ) : components.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-4 gap-2">
             <Text className="text-ui-fg-subtle">No components yet</Text>
-            <Button size="small" variant="secondary" onClick={() => setShowAddForm(true)}>
+            <Button size="small" variant="secondary" onClick={openAddModal}>
               <Plus className="mr-1" />Add component
             </Button>
           </div>
@@ -188,8 +88,6 @@ export const DesignComponentsSection = ({ design }: DesignComponentsSectionProps
           ))
         )}
       </div>
-
-      {showAddForm && <AddComponentForm designId={design.id} onClose={() => setShowAddForm(false)} />}
 
       {(loadingUsedIn || used_in.length > 0) && (
         <>
