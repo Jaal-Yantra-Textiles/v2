@@ -1,3 +1,10 @@
+## [10.2.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.2.2...v10.2.3) (2026-03-10)
+
+
+### Bug Fixes
+
+* **admin:** Design Component fix ([6123e68](https://github.com/Jaal-Yantra-Textiles/v2/commit/6123e68b8890ddebb03cf6b42abeee6cbb83a988))
+
 ## [10.2.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.2.1...v10.2.2) (2026-03-10)
 
 
