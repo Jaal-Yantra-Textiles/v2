@@ -6,29 +6,17 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
-/**
- * Cost Estimation Workflow
- *
- * Estimates the cost of producing a design based on:
- * 1. Material costs from inventory order history
- * 2. Production costs (from design.estimated_cost or 30% default)
- * 3. Similar designs as reference (optional)
- *
- * Confidence levels:
- * - "exact": Both material and production costs are known from history
- * - "estimated": Some costs derived from historical data
- * - "guesstimate": Using defaults (30% production cost)
- */
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-// Types
 type ConfidenceLevel = "exact" | "estimated" | "guesstimate";
 
-type MaterialCostItem = {
-  inventory_item_id: string;
+export type MaterialCostItem = {
+  inventory_item_id?: string;
+  component_design_id?: string;
   name: string;
   cost: number;
   quantity: number;
-  cost_source: "order_history" | "unit_cost" | "estimated";
+  cost_source: "order_history" | "unit_cost" | "component_design" | "estimated";
 };
 
 type EstimateCostInput = {
@@ -36,7 +24,7 @@ type EstimateCostInput = {
   inventory_item_ids?: string[];
 };
 
-type EstimateCostOutput = {
+export type EstimateCostOutput = {
   design_id: string;
   material_cost: number;
   production_cost: number;
@@ -53,18 +41,124 @@ type EstimateCostOutput = {
   }>;
 };
 
-// Default production cost as percentage of material cost
+// Default production overhead as percentage of material cost
 const DEFAULT_PRODUCTION_PERCENT = 30;
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// ─── Pure functions (exported for unit testing) ───────────────────────────────
+
 /**
- * Step 1: Get design and linked inventory items
+ * Resolve the cost and source for a single inventory item given its order history.
  */
+export function resolveItemCost(
+  item: { id: string; title?: string; sku?: string; unit_cost?: number | null },
+  orderLineLinks: Array<{
+    inventory_order_line?: {
+      price?: number;
+      inventory_orders?: { order_date?: string; status?: string };
+    };
+  }>
+): Pick<MaterialCostItem, "cost" | "cost_source"> {
+  let latestPrice: number | null = null;
+  let latestDate: Date | null = null;
+
+  for (const link of orderLineLinks) {
+    const orderLine = link.inventory_order_line;
+    if (!orderLine) continue;
+    const order = orderLine.inventory_orders;
+    if (!order || order.status === "Cancelled") continue;
+    const orderDate = order.order_date ? new Date(order.order_date) : new Date(0);
+    if (!latestDate || orderDate > latestDate) {
+      latestDate = orderDate;
+      latestPrice = Number(orderLine.price) || 0;
+    }
+  }
+
+  if (latestPrice !== null && latestPrice > 0) {
+    return { cost: latestPrice, cost_source: "order_history" };
+  }
+  if (item.unit_cost != null && Number(item.unit_cost) > 0) {
+    return { cost: Number(item.unit_cost), cost_source: "unit_cost" };
+  }
+  return { cost: 0, cost_source: "estimated" };
+}
+
+/**
+ * Core cost calculation — pure function with no I/O.
+ * Exported for unit testing.
+ */
+export function computeCostBreakdown(input: {
+  designId: string;
+  adminEstimate: number | null;
+  materials: MaterialCostItem[];
+  hasExactMaterialCosts: boolean;
+  similarDesigns: Array<{ id: string; name: string; estimated_cost: number }>;
+}): EstimateCostOutput {
+  const materialCost = input.materials.reduce((sum, m) => sum + m.cost * m.quantity, 0);
+  const { adminEstimate, similarDesigns } = input;
+
+  let productionCost: number;
+  let productionPercent: number;
+  let productionIsEstimated = true;
+
+  if (adminEstimate != null && adminEstimate > 0 && materialCost > 0) {
+    productionCost = Math.max(0, adminEstimate - materialCost);
+    productionPercent = (productionCost / materialCost) * 100;
+  } else if (adminEstimate != null && adminEstimate > 0 && materialCost === 0) {
+    const materialShare = adminEstimate / (1 + DEFAULT_PRODUCTION_PERCENT / 100);
+    productionCost = adminEstimate - materialShare;
+    productionPercent = DEFAULT_PRODUCTION_PERCENT;
+  } else if (similarDesigns.length > 0 && materialCost > 0) {
+    const avgSimilarCost =
+      similarDesigns.reduce((s, d) => s + d.estimated_cost, 0) / similarDesigns.length;
+    const impliedProduction = Math.max(avgSimilarCost - materialCost, materialCost * 0.1);
+    productionCost = Math.min(impliedProduction, materialCost * 0.6);
+    productionPercent = (productionCost / materialCost) * 100;
+  } else {
+    productionCost = materialCost * (DEFAULT_PRODUCTION_PERCENT / 100);
+    productionPercent = DEFAULT_PRODUCTION_PERCENT;
+  }
+
+  const totalEstimated = materialCost + productionCost;
+
+  const hasAnyRealData = input.materials.some(
+    (m) =>
+      m.cost_source === "order_history" ||
+      m.cost_source === "unit_cost" ||
+      m.cost_source === "component_design"
+  );
+
+  let confidence: ConfidenceLevel;
+  if (input.hasExactMaterialCosts && !productionIsEstimated) {
+    confidence = "exact";
+  } else if (hasAnyRealData || similarDesigns.length > 0 || adminEstimate != null) {
+    confidence = "estimated";
+  } else {
+    confidence = "guesstimate";
+  }
+
+  return {
+    design_id: input.designId,
+    material_cost: round2(materialCost),
+    production_cost: round2(productionCost),
+    total_estimated: round2(totalEstimated),
+    confidence,
+    breakdown: {
+      materials: input.materials,
+      production_percent: Math.round(productionPercent),
+    },
+    similar_designs: similarDesigns.length > 0 ? similarDesigns : undefined,
+  };
+}
+
+// ─── Step 1: Get design, linked inventory items, and components ───────────────
+
 const getDesignWithInventoryStep = createStep(
   "get-design-with-inventory-step",
   async (input: EstimateCostInput, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any;
 
-    // Get design with its linked inventory items
     const { data: designs } = await query.graph({
       entity: "design",
       filters: { id: input.design_id },
@@ -75,6 +169,13 @@ const getDesignWithInventoryStep = createStep(
         "estimated_cost",
         "tags",
         "inventory_items.*",
+        // Pull component links with the sub-design's cost
+        "components.id",
+        "components.quantity",
+        "components.role",
+        "components.component_design.id",
+        "components.component_design.name",
+        "components.component_design.estimated_cost",
       ],
     });
 
@@ -84,14 +185,13 @@ const getDesignWithInventoryStep = createStep(
 
     const design = designs[0];
 
-    // If specific inventory_item_ids provided, use those
-    // Otherwise use the linked inventory items from the design
+    // Resolve inventory item IDs: explicit override → linked items
     let inventoryItemIds = input.inventory_item_ids;
     if (!inventoryItemIds || inventoryItemIds.length === 0) {
       inventoryItemIds = (design.inventory_items || []).map((item: any) => item.id);
     }
 
-    // Query design-inventory link to get planned_quantity per item
+    // Build planned-quantity map from design-inventory link
     const plannedQuantityMap: Record<string, number> = {};
     try {
       const { data: designInventoryLinks } = await query.graph({
@@ -108,120 +208,154 @@ const getDesignWithInventoryStep = createStep(
       // Link table may not exist yet — fall back to quantity 1 per item
     }
 
+    // Collect component designs with their costs
+    const componentItems: Array<{
+      component_design_id: string;
+      name: string;
+      estimated_cost: number | null;
+      quantity: number;
+    }> = (design.components || []).map((link: any) => ({
+      component_design_id: link.component_design?.id ?? link.component_design_id,
+      name: link.component_design?.name ?? link.component_design_id,
+      estimated_cost: link.component_design?.estimated_cost != null
+        ? Number(link.component_design.estimated_cost)
+        : null,
+      quantity: link.quantity ?? 1,
+    }));
+
     return new StepResponse({
       design,
       inventoryItemIds,
       plannedQuantityMap,
+      componentItems,
     });
   }
 );
 
-/**
- * Step 2: Get material costs from inventory order history
- */
+// ─── Step 2: Get material costs from inventory order history + component costs ─
+
 const getMaterialCostsStep = createStep(
   "get-material-costs-step",
   async (
-    input: { inventoryItemIds: string[]; plannedQuantityMap: Record<string, number> },
+    input: {
+      inventoryItemIds: string[];
+      plannedQuantityMap: Record<string, number>;
+      componentItems: Array<{
+        component_design_id: string;
+        name: string;
+        estimated_cost: number | null;
+        quantity: number;
+      }>;
+    },
     { container }
   ) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any;
     const materials: MaterialCostItem[] = [];
+    let allExact = true;
 
-    if (!input.inventoryItemIds || input.inventoryItemIds.length === 0) {
-      return new StepResponse({ materials, hasExactCosts: false });
-    }
-
-    // Get inventory items with their details, including unit_cost as fallback
-    const { data: inventoryItems } = await query.graph({
-      entity: "inventory_item",
-      filters: { id: input.inventoryItemIds },
-      fields: ["id", "title", "sku", "unit_cost"],
-    });
-
-    // For each inventory item, find the most recent order line price
-    for (const item of inventoryItems || []) {
-      // Query order lines linked to this inventory item
-      const { data: orderLineLinks } = await query.graph({
-        entity: "inventory_order_line_inventory_item",
-        filters: { inventory_item_id: item.id },
-        fields: [
-          "inventory_order_line.id",
-          "inventory_order_line.price",
-          "inventory_order_line.quantity",
-          "inventory_order_line.inventory_orders.order_date",
-          "inventory_order_line.inventory_orders.status",
-        ],
+    // ── Inventory item costs ──────────────────────────────────────────────────
+    if (input.inventoryItemIds && input.inventoryItemIds.length > 0) {
+      const { data: inventoryItems } = await query.graph({
+        entity: "inventory_item",
+        filters: { id: input.inventoryItemIds },
+        fields: ["id", "title", "sku", "unit_cost"],
       });
 
-      // Find the most recent non-cancelled order line
-      let latestPrice: number | null = null;
-      let latestDate: Date | null = null;
+      for (const item of inventoryItems || []) {
+        // Find most recent non-cancelled order line price
+        let latestPrice: number | null = null;
+        let latestDate: Date | null = null;
 
-      for (const link of orderLineLinks || []) {
-        const orderLine = (link as any).inventory_order_line;
-        if (!orderLine) continue;
+        const { data: orderLineLinks } = await query.graph({
+          entity: "inventory_order_line_inventory_item",
+          filters: { inventory_item_id: item.id },
+          fields: [
+            "inventory_order_line.id",
+            "inventory_order_line.price",
+            "inventory_order_line.inventory_orders.order_date",
+            "inventory_order_line.inventory_orders.status",
+          ],
+        });
 
-        const order = orderLine.inventory_orders;
-        if (!order || order.status === "Cancelled") continue;
-
-        const orderDate = order.order_date ? new Date(order.order_date) : new Date(0);
-        if (!latestDate || orderDate > latestDate) {
-          latestDate = orderDate;
-          latestPrice = Number(orderLine.price) || 0;
+        for (const link of orderLineLinks || []) {
+          const orderLine = (link as any).inventory_order_line;
+          if (!orderLine) continue;
+          const order = orderLine.inventory_orders;
+          if (!order || order.status === "Cancelled") continue;
+          const orderDate = order.order_date ? new Date(order.order_date) : new Date(0);
+          if (!latestDate || orderDate > latestDate) {
+            latestDate = orderDate;
+            latestPrice = Number(orderLine.price) || 0;
+          }
         }
+
+        let cost: number;
+        let cost_source: MaterialCostItem["cost_source"];
+        if (latestPrice !== null && latestPrice > 0) {
+          cost = latestPrice;
+          cost_source = "order_history";
+        } else if (item.unit_cost != null && Number(item.unit_cost) > 0) {
+          cost = Number(item.unit_cost);
+          cost_source = "unit_cost";
+          allExact = false;
+        } else {
+          cost = 0;
+          cost_source = "estimated";
+          allExact = false;
+        }
+
+        const quantity = input.plannedQuantityMap[item.id] ?? 1;
+        materials.push({
+          inventory_item_id: item.id,
+          name: item.title || item.sku || item.id,
+          cost,
+          quantity,
+          cost_source,
+        });
       }
-
-      // Determine cost source: order history → unit_cost → estimated (0)
-      let cost: number;
-      let cost_source: MaterialCostItem["cost_source"];
-      if (latestPrice !== null && latestPrice > 0) {
-        cost = latestPrice;
-        cost_source = "order_history";
-      } else if (item.unit_cost != null && Number(item.unit_cost) > 0) {
-        cost = Number(item.unit_cost);
-        cost_source = "unit_cost";
-      } else {
-        cost = 0;
-        cost_source = "estimated";
-      }
-
-      // Use planned_quantity from design-inventory link, fall back to 1
-      const quantity = input.plannedQuantityMap[item.id] ?? 1;
-
-      materials.push({
-        inventory_item_id: item.id,
-        name: item.title || item.sku || item.id,
-        cost,
-        quantity,
-        cost_source,
-      });
     }
 
-    const hasExactCosts = materials.every((m) => m.cost_source === "order_history" || m.cost_source === "unit_cost");
+    // ── Component design costs ────────────────────────────────────────────────
+    // Each bundled sub-design contributes its estimated_cost × quantity
+    for (const comp of input.componentItems || []) {
+      if (comp.estimated_cost != null && comp.estimated_cost > 0) {
+        materials.push({
+          component_design_id: comp.component_design_id,
+          name: comp.name,
+          cost: comp.estimated_cost,
+          quantity: comp.quantity,
+          cost_source: "component_design",
+        });
+        // Component costs are always "estimated" unless we recursively resolve them
+        allExact = false;
+      } else {
+        // Component has no cost set — include at 0 so caller knows it exists
+        materials.push({
+          component_design_id: comp.component_design_id,
+          name: comp.name,
+          cost: 0,
+          quantity: comp.quantity,
+          cost_source: "estimated",
+        });
+        allExact = false;
+      }
+    }
 
-    return new StepResponse({ materials, hasExactCosts });
+    return new StepResponse({ materials, hasExactCosts: allExact && materials.length > 0 });
   }
 );
 
-/**
- * Step 3: Find similar designs for cost reference
- */
+// ─── Step 3: Find similar designs for production overhead reference ───────────
+
 const findSimilarDesignsStep = createStep(
   "find-similar-designs-step",
-  async (
-    input: { design: any },
-    { container }
-  ) => {
+  async (input: { design: any }, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any;
 
-    // Find designs with similar characteristics that have estimated_cost
     const filters: any = {
       id: { $ne: input.design.id },
       estimated_cost: { $ne: null },
     };
-
-    // Add design_type filter if available
     if (input.design.design_type) {
       filters.design_type = input.design.design_type;
     }
@@ -229,7 +363,7 @@ const findSimilarDesignsStep = createStep(
     const { data: similarDesigns } = await query.graph({
       entity: "design",
       filters,
-      fields: ["id", "name", "estimated_cost", "design_type", "tags"],
+      fields: ["id", "name", "estimated_cost", "design_type"],
       pagination: { take: 5 },
     });
 
@@ -243,122 +377,58 @@ const findSimilarDesignsStep = createStep(
   }
 );
 
-/**
- * Step 4: Calculate total cost estimate
- */
+// ─── Step 4: Calculate total cost estimate ────────────────────────────────────
+
 const calculateTotalCostStep = createStep(
   "calculate-total-cost-step",
-  async (
-    input: {
-      design: any;
-      materials: MaterialCostItem[];
-      hasExactMaterialCosts: boolean;
-      similarDesigns: Array<{ id: string; name: string; estimated_cost: number }>;
-    },
-    { container }
-  ) => {
-    // Calculate material cost
-    const materialCost = input.materials.reduce(
-      (sum, m) => sum + m.cost * m.quantity,
-      0
-    );
-
-    // Determine production cost
-    let productionCost: number;
-    let productionPercent = DEFAULT_PRODUCTION_PERCENT;
-    let hasExactProductionCost = false;
-
-    // Check if design has an estimated_cost (includes production)
-    if (input.design.estimated_cost) {
-      // If design has estimated_cost, it might include production cost
-      // Use it as reference if material cost is unknown
-      const designEstimate = Number(input.design.estimated_cost);
-      if (materialCost > 0) {
-        // Production cost = total - materials, but cap at 50% of materials
-        productionCost = Math.min(
-          designEstimate - materialCost,
-          materialCost * 0.5
-        );
-        productionCost = Math.max(productionCost, 0);
-        productionPercent = materialCost > 0 ? (productionCost / materialCost) * 100 : DEFAULT_PRODUCTION_PERCENT;
-        hasExactProductionCost = true;
-      } else {
-        // Use design estimate as total, guesstimate split
-        productionCost = designEstimate * (DEFAULT_PRODUCTION_PERCENT / 100);
-        productionPercent = DEFAULT_PRODUCTION_PERCENT;
-      }
-    } else if (input.similarDesigns.length > 0 && materialCost > 0) {
-      // Use similar designs to estimate production cost ratio
-      const avgSimilarCost =
-        input.similarDesigns.reduce((sum, d) => sum + d.estimated_cost, 0) /
-        input.similarDesigns.length;
-
-      // Estimate production percent based on similar designs
-      // Assume similar design cost = material + production, solve for production %
-      productionCost = materialCost * (DEFAULT_PRODUCTION_PERCENT / 100);
-      productionPercent = DEFAULT_PRODUCTION_PERCENT;
-    } else {
-      // Default: 30% of material cost
-      productionCost = materialCost * (DEFAULT_PRODUCTION_PERCENT / 100);
-      productionPercent = DEFAULT_PRODUCTION_PERCENT;
-    }
-
-    // Calculate total
-    const totalEstimated = materialCost + productionCost;
-
-    // Determine confidence level
-    let confidence: ConfidenceLevel;
-    if (input.hasExactMaterialCosts && hasExactProductionCost) {
-      confidence = "exact";
-    } else if (input.hasExactMaterialCosts || hasExactProductionCost) {
-      confidence = "estimated";
-    } else {
-      confidence = "guesstimate";
-    }
-
-    const result: EstimateCostOutput = {
-      design_id: input.design.id,
-      material_cost: Math.round(materialCost * 100) / 100,
-      production_cost: Math.round(productionCost * 100) / 100,
-      total_estimated: Math.round(totalEstimated * 100) / 100,
-      confidence,
-      breakdown: {
-        materials: input.materials,
-        production_percent: Math.round(productionPercent),
-      },
-      similar_designs: input.similarDesigns.length > 0 ? input.similarDesigns : undefined,
-    };
-
+  async (input: {
+    design: any;
+    materials: MaterialCostItem[];
+    hasExactMaterialCosts: boolean;
+    similarDesigns: Array<{ id: string; name: string; estimated_cost: number }>;
+  }) => {
+    const result = computeCostBreakdown({
+      designId: input.design.id,
+      adminEstimate: input.design.estimated_cost ? Number(input.design.estimated_cost) : null,
+      materials: input.materials,
+      hasExactMaterialCosts: input.hasExactMaterialCosts,
+      similarDesigns: input.similarDesigns,
+    });
     return new StepResponse(result);
   }
 );
 
-/**
- * Main workflow: Estimate Design Cost
- */
+// ─── Workflow ─────────────────────────────────────────────────────────────────
+
 export const estimateDesignCostWorkflow = createWorkflow(
   "estimate-design-cost",
   (input: EstimateCostInput) => {
-    // Step 1: Get design and inventory items
     const designResult = getDesignWithInventoryStep(input);
 
-    // Step 2: Get material costs from order history
     const materialsResult = getMaterialCostsStep({
       inventoryItemIds: designResult.inventoryItemIds as unknown as string[],
       plannedQuantityMap: designResult.plannedQuantityMap as unknown as Record<string, number>,
+      componentItems: designResult.componentItems as unknown as Array<{
+        component_design_id: string;
+        name: string;
+        estimated_cost: number | null;
+        quantity: number;
+      }>,
     });
 
-    // Step 3: Find similar designs for reference
     const similarResult = findSimilarDesignsStep({
       design: designResult.design,
     });
 
-    // Step 4: Calculate total cost
     const result = calculateTotalCostStep({
       design: designResult.design,
       materials: materialsResult.materials as unknown as MaterialCostItem[],
       hasExactMaterialCosts: materialsResult.hasExactCosts as unknown as boolean,
-      similarDesigns: similarResult.similarDesigns as unknown as Array<{ id: string; name: string; estimated_cost: number }>,
+      similarDesigns: similarResult.similarDesigns as unknown as Array<{
+        id: string;
+        name: string;
+        estimated_cost: number;
+      }>,
     });
 
     return new WorkflowResponse(result);
