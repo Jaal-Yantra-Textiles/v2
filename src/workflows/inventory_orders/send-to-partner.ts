@@ -33,25 +33,38 @@ const validateInventoryOrderStep = createStep(
     "validate-inventory-order",
     async (input: SendInventoryOrderToPartnerInput, { container }) => {
         const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
-        
+
         const { data: orders } = await query.graph({
             entity: "inventory_orders",
-            fields: ["*"],
+            fields: ["*", "tasks.*"],
             filters: {
                 id: input.inventoryOrderId
             }
         })
-        
+
         if (!orders || orders.length === 0) {
             throw new MedusaError(MedusaError.Types.NOT_FOUND, `Inventory order ${input.inventoryOrderId} not found`)
         }
-        
-        const order = orders[0]
-        
+
+        const order = orders[0] as any
+
         if (order.status !== 'Pending') {
             throw new MedusaError(MedusaError.Types.INVALID_DATA, `Inventory order must be in Pending status to send to partner. Current status: ${order.status}`)
         }
-        
+
+        // Idempotency guard: reject if partner workflow tasks already exist
+        const tasks: any[] = Array.isArray(order.tasks) ? order.tasks : []
+        const PARTNER_TASK_NAMES = ["partner-order-sent", "partner-order-received", "partner-order-shipped"]
+        const existingPartnerTask = tasks.find(
+            (t) => PARTNER_TASK_NAMES.includes(t?.title) && t?.transaction_id
+        )
+        if (existingPartnerTask) {
+            throw new MedusaError(
+                MedusaError.Types.INVALID_DATA,
+                `Inventory order ${input.inventoryOrderId} is already assigned to a partner (transaction: ${existingPartnerTask.transaction_id}). Use the existing workflow or cancel it before reassigning.`
+            )
+        }
+
         return new StepResponse(order)
     }
 )

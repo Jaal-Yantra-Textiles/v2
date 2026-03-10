@@ -182,39 +182,9 @@ export const GET = async (
 
     // Get insights for this campaign using meta_campaign_id
     const metaCampaignId = (campaign as any).meta_campaign_id
-    let insights: any[] = []
-    
-    // List all insights and filter by meta_campaign_id or campaign_id
-    const allInsights = await socials.listAdInsights({} as any)
-    console.log(`Total insights in DB: ${(allInsights as any[]).length}`)
-    
-    // Debug: log first few insights to see their structure
-    if ((allInsights as any[]).length > 0) {
-      const sample = (allInsights as any[])[0]
-      console.log(`Sample insight fields: meta_campaign_id=${sample.meta_campaign_id}, campaign_id=${sample.campaign_id}, level=${sample.level}, meta_account_id=${sample.meta_account_id}`)
-    }
-    
-    if (metaCampaignId) {
-      insights = (allInsights as any[]).filter((i: any) => {
-        // Match by meta_campaign_id or by internal campaign_id
-        const matches = i.meta_campaign_id === metaCampaignId || i.campaign_id === id
-        return matches
-      })
-    }
-    
-    // If no insights found by campaign, try to get all insights for the account
-    if (insights.length === 0 && (campaign as any).ad_account_id) {
-      const adAccount = await socials.retrieveAdAccount((campaign as any).ad_account_id)
-      if (adAccount) {
-        const metaAccountId = (adAccount as any).meta_account_id
-        console.log(`No campaign insights, trying account ${metaAccountId}`)
-        insights = (allInsights as any[]).filter((i: any) => 
-          i.meta_account_id === metaAccountId
-        )
-      }
-    }
-
-    console.log(`Found ${insights.length} insights for campaign ${metaCampaignId}`)
+    const insights: any[] = metaCampaignId
+      ? await socials.listAdInsights({ meta_campaign_id: metaCampaignId } as any)
+      : []
 
     res.json({
       campaign: {

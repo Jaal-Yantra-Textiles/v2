@@ -313,6 +313,17 @@ export default defineMiddlewares({
       bodyParser: false, // Need raw body for Svix signature verification
     },
     {
+      matcher: "/webhooks/meta-ads/leadgen",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/webhooks/meta-ads/leadgen",
+      method: "POST",
+      middlewares: [],
+      bodyParser: true,
+    },
+    {
       matcher: "/partners*",
       middlewares: [
         createCorsPartnerMiddleware(),

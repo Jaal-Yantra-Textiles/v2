@@ -48,32 +48,53 @@
  * - 500 Internal Server Error: workflow start failure
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import type { RemoteQueryFunction } from "@medusajs/types";
 import { sendInventoryOrderToPartnerWorkflow } from "../../../../../workflows/inventory_orders/send-to-partner";
 import { SendInventoryOrderToPartnerInput } from "./validators";
 
-
+const PARTNER_TASK_NAMES = ["partner-order-sent", "partner-order-received", "partner-order-shipped"]
 
 export async function POST(
     req: AuthenticatedMedusaRequest<SendInventoryOrderToPartnerInput>,
     res: MedusaResponse
 ) {
     const inventoryOrderId = req.params.id;
-    
-
     const { partnerId, notes } = req.validatedBody;
-        // Start the workflow and get the transaction (don't wait for completion)
-        const { transaction } = await sendInventoryOrderToPartnerWorkflow(req.scope).run({
-            input: {
-                inventoryOrderId,
-                partnerId,
-                notes
-            }
-        });
 
-        res.status(200).json({
-            message: "Inventory order sent to partner successfully",
+    // Idempotency pre-check: reject before starting the workflow if already assigned.
+    // This is the first line of defence — fast and avoids spawning orphaned workflows.
+    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
+    const { data: orders } = await query.graph({
+        entity: "inventory_orders",
+        fields: ["id", "tasks.*"],
+        filters: { id: inventoryOrderId },
+    })
+    const tasks: any[] = (orders?.[0] as any)?.tasks ?? []
+    const existingAssignment = tasks.find(
+        (t) => PARTNER_TASK_NAMES.includes(t?.title) && t?.transaction_id
+    )
+    if (existingAssignment) {
+        return res.status(409).json({
+            error: "Inventory order is already assigned to a partner",
+            message: `Active send-to-partner workflow found (transaction: ${existingAssignment.transaction_id}). Cancel the existing workflow before reassigning.`,
+            transactionId: existingAssignment.transaction_id,
+        })
+    }
+
+    // Start the workflow and return immediately (long-running async)
+    const { transaction } = await sendInventoryOrderToPartnerWorkflow(req.scope).run({
+        input: {
             inventoryOrderId,
             partnerId,
-            transactionId: transaction.transactionId
-        });
+            notes
+        }
+    });
+
+    res.status(200).json({
+        message: "Inventory order sent to partner successfully",
+        inventoryOrderId,
+        partnerId,
+        transactionId: transaction.transactionId
+    });
 }
