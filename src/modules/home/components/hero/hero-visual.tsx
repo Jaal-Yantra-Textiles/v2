@@ -15,7 +15,7 @@ function nextImg(url: string, w: 384 | 640 | 750 | 1080, q = 85) {
 
 export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisualProps) {
   return (
-    <div id="hero-section" className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-[#0a0a0a] select-none">
+    <div id="hero-section" className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-[#0a0a0a] select-none px-4 sm:px-0">
 
       {/* Noise overlay */}
       <div
@@ -43,7 +43,7 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
           transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
           className="absolute z-0 blob-morph overflow-hidden shadow-2xl"
           style={{
-            width: "clamp(240px, 42vh, 400px)",
+            width: "clamp(180px, 38vw, 400px)",
             aspectRatio: "3/4",
             top: "50%",
             left: "50%",
@@ -60,7 +60,7 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
           {/* Dark vignette so text stays readable */}
           <div
             className="absolute inset-0"
-            style={{ background: "linear-gradient(to bottom, rgba(10,10,10,0.15) 0%, rgba(10,10,10,0.5) 100%)" }}
+            style={{ background: "linear-gradient(to bottom, rgba(10,10,10,0.15) 0%, rgba(10,10,10,0.55) 100%)" }}
           />
         </motion.div>
       )}
@@ -69,7 +69,7 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
       <div
         className="absolute z-0 pointer-events-none"
         style={{
-          width: "clamp(300px, 50vh, 500px)",
+          width: "clamp(200px, 50vw, 500px)",
           aspectRatio: "1",
           top: "50%",
           left: "50%",
@@ -79,19 +79,19 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         }}
       />
 
-      {/* Floating image — top-left, emerges from top of hero */}
+      {/* Floating image — top-left, hidden on mobile */}
       {floatingImageUrl && (
         <motion.div
           initial={{ opacity: 0, y: -60 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
-          className="absolute left-[3%] top-0 z-10 pointer-events-none float-image"
-          style={{ width: "clamp(120px, 16vw, 220px)" }}
+          className="absolute left-[3%] top-0 z-10 pointer-events-none float-image hidden sm:block"
+          style={{ width: "clamp(120px, 14vw, 200px)" }}
         >
           <div
             className="w-full overflow-hidden shadow-2xl"
             style={{
-              height: "clamp(200px, 55vh, 480px)",
+              height: "clamp(200px, 50vh, 440px)",
               borderRadius: "0 0 50% 50% / 0 0 40% 40%",
             }}
           >
@@ -124,7 +124,7 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         <span
           className="font-serif leading-none tracking-tighter"
           style={{
-            fontSize: "clamp(72px, 22vw, 260px)",
+            fontSize: "clamp(64px, 20vw, 260px)",
             WebkitTextStroke: "1.5px rgba(255,255,255,0.55)",
             color: "transparent",
           }}
@@ -140,11 +140,11 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         transition={{ duration: 1, ease: "easeOut", delay: 0.7 }}
         aria-hidden
         className="relative z-20 pointer-events-none"
-        style={{ marginTop: "clamp(-20px, -3vh, -28px)" }}
+        style={{ marginTop: "clamp(-16px, -2.5vh, -28px)" }}
       >
         <span
           className="font-serif leading-none tracking-tighter text-white"
-          style={{ fontSize: "clamp(52px, 14vw, 180px)" }}
+          style={{ fontSize: "clamp(44px, 13vw, 180px)" }}
         >
           LABEL
         </span>
@@ -155,7 +155,7 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
         transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.9 }}
-        className="relative z-20 h-px w-24 bg-white/25 mt-6 origin-center"
+        className="relative z-20 h-px w-16 sm:w-24 bg-white/25 mt-4 sm:mt-6 origin-center"
       />
 
       {/* Tagline */}
@@ -163,23 +163,23 @@ export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisu
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.9, ease: "easeOut", delay: 1.05 }}
-        className="relative z-20 mt-5"
+        className="relative z-20 mt-4 sm:mt-5 px-6"
       >
-        <p className="text-white/40 text-xs tracking-[0.25em] uppercase font-sans text-center">
+        <p className="text-white/40 text-[10px] sm:text-xs tracking-[0.2em] sm:tracking-[0.25em] uppercase font-sans text-center">
           Unique pieces with artists across the globe
         </p>
       </motion.div>
 
-      {/* CTA row — Design + Scroll side by side */}
+      {/* CTA — stacked on mobile, side-by-side on sm+ */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.9, ease: "easeOut", delay: 1.15 }}
-        className="relative z-20 flex items-center gap-4 mt-5"
+        className="relative z-20 flex flex-col sm:flex-row items-center gap-3 mt-5 sm:mt-5 w-full max-w-xs sm:max-w-none sm:w-auto"
       >
         <a
           href="/design"
-          className="px-8 py-3 border border-white/25 text-white text-xs tracking-[0.2em] uppercase font-sans transition-all duration-300 hover:bg-white hover:text-black hover:border-white"
+          className="w-full sm:w-auto text-center px-6 sm:px-8 py-3 border border-white/25 text-white text-xs tracking-[0.18em] sm:tracking-[0.2em] uppercase font-sans transition-all duration-300 hover:bg-white hover:text-black hover:border-white"
         >
           Design your first piece
         </a>
