@@ -1,6 +1,7 @@
-import { Tabs } from "@medusajs/ui"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChartBar } from "@medusajs/icons"
+import { Heading, Text } from "@medusajs/ui"
+import { Fragment } from "react"
 import { useSearchParams } from "react-router-dom"
 import { OverviewTab } from "./_components/overview-tab"
 import { CampaignsTab } from "./_components/campaigns-tab"
@@ -8,6 +9,12 @@ import { LeadsTab } from "./_components/leads-tab"
 
 const TAB_PARAM = "tab"
 const DEFAULT_TAB = "overview"
+
+const TABS = [
+  { value: "overview", label: "Overview" },
+  { value: "campaigns", label: "Campaigns" },
+  { value: "leads", label: "Leads" },
+]
 
 const MetaAdsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -18,24 +25,40 @@ const MetaAdsPage = () => {
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={handleTabChange}>
-      <div className="px-4 md:px-6 pt-4 border-b border-ui-border-base bg-ui-bg-base sticky top-0 z-10">
-        <Tabs.List>
-          <Tabs.Trigger value="overview">Overview</Tabs.Trigger>
-          <Tabs.Trigger value="campaigns">Campaigns</Tabs.Trigger>
-          <Tabs.Trigger value="leads">Leads</Tabs.Trigger>
-        </Tabs.List>
+    <div>
+      <div className="flex items-center gap-3 px-6 py-4">
+        <div>
+          <Heading>Meta Ads</Heading>
+          <Text className="text-ui-fg-subtle" size="small">
+            Manage your Meta advertising campaigns and leads
+          </Text>
+        </div>
+        <div className="flex items-center gap-2">
+          {TABS.map((tab, i) => (
+            <Fragment key={tab.value}>
+              {i > 0 && <span className="text-ui-fg-muted text-xs select-none">|</span>}
+              <button
+                type="button"
+                onClick={() => handleTabChange(tab.value)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                  activeTab === tab.value
+                    ? "border-ui-border-strong bg-ui-bg-subtle text-ui-fg-base"
+                    : "border-transparent bg-ui-bg-base text-ui-fg-subtle hover:text-ui-fg-base"
+                }`}
+              >
+                {tab.label}
+              </button>
+            </Fragment>
+          ))}
+        </div>
       </div>
-      <Tabs.Content value="overview" className="mt-0">
-        <OverviewTab />
-      </Tabs.Content>
-      <Tabs.Content value="campaigns" className="mt-0">
-        <CampaignsTab />
-      </Tabs.Content>
-      <Tabs.Content value="leads" className="mt-0">
-        <LeadsTab />
-      </Tabs.Content>
-    </Tabs>
+
+      <div>
+        {activeTab === "overview" && <OverviewTab />}
+        {activeTab === "campaigns" && <CampaignsTab />}
+        {activeTab === "leads" && <LeadsTab />}
+      </div>
+    </div>
   )
 }
 
