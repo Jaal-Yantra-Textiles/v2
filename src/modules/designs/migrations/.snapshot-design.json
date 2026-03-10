@@ -447,6 +447,187 @@
           "nullable": false,
           "mappedType": "text"
         },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "1",
+          "mappedType": "integer"
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "0",
+          "mappedType": "integer"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
+        "parent_design_id": {
+          "name": "parent_design_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "component_design_id": {
+          "name": "component_design_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        }
+      },
+      "name": "design_component",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "IDX_design_component_parent_design_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_design_component_parent_design_id\" ON \"design_component\" (\"parent_design_id\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_design_component_component_design_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_design_component_component_design_id\" ON \"design_component\" (\"component_design_id\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_design_component_deleted_at",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_design_component_deleted_at\" ON \"design_component\" (\"deleted_at\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "design_component_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {
+        "design_component_parent_design_id_foreign": {
+          "constraintName": "design_component_parent_design_id_foreign",
+          "columnNames": [
+            "parent_design_id"
+          ],
+          "localTableName": "public.design_component",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.design",
+          "deleteRule": "cascade",
+          "updateRule": "cascade"
+        },
+        "design_component_component_design_id_foreign": {
+          "constraintName": "design_component_component_design_id_foreign",
+          "columnNames": [
+            "component_design_id"
+          ],
+          "localTableName": "public.design_component",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.design",
+          "deleteRule": "cascade",
+          "updateRule": "cascade"
+        }
+      },
+      "nativeEnums": {}
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
         "size_label": {
           "name": "size_label",
           "type": "text",

@@ -22,16 +22,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import {
-  MetaAdsOverviewBreakdownRow,
-  MetaAdsOverviewLevel,
-  useAdAccounts,
-  useAdCampaigns,
-  useAdSets,
-  useAds,
-  useMetaAdsOverview,
-} from "../../../../hooks/api/meta-ads"
-import { useSocialPlatforms } from "../../../../hooks/api/social-platforms"
+import { MetaAdsOverviewBreakdownRow, MetaAdsOverviewLevel, useAdAccounts, useAdCampaigns, useAds, useAdSets, useMetaAdsOverview } from "@/hooks/api/meta-ads"
+import { useSocialPlatforms } from "@/hooks/api/social-platforms"
+
 
 const LEVELS: Array<{ label: string; value: MetaAdsOverviewLevel }> = [
   { label: "Account", value: "account" },

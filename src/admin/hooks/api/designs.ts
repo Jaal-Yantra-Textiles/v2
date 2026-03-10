@@ -464,3 +464,104 @@ export const useCreateDesignLLM = (
     ...options,
   });
 };
+
+// ─── Design Components (bundling) ───────────────────────────────────────────
+
+export interface DesignComponentLink {
+  id: string;
+  quantity: number;
+  role?: string | null;
+  notes?: string | null;
+  order: number;
+  metadata?: Record<string, any> | null;
+  parent_design_id: string;
+  component_design_id: string;
+  component_design?: AdminDesign;
+  parent_design?: AdminDesign;
+}
+
+export interface AddDesignComponentPayload {
+  component_design_id: string;
+  quantity?: number;
+  role?: string;
+  notes?: string;
+  order?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateDesignComponentPayload {
+  quantity?: number;
+  role?: string | null;
+  notes?: string | null;
+  order?: number;
+  metadata?: Record<string, any> | null;
+}
+
+const designComponentsKey = (designId: string) => ["designs", designId, "components"] as const;
+const designUsedInKey = (designId: string) => ["designs", designId, "used-in"] as const;
+
+export const useDesignComponents = (designId: string) => {
+  const { data, ...rest } = useQuery({
+    queryKey: designComponentsKey(designId),
+    queryFn: () =>
+      sdk.client.fetch<{ components: DesignComponentLink[]; count: number }>(
+        `/admin/designs/${designId}/components`
+      ),
+    enabled: !!designId,
+  });
+  return { components: data?.components || [], count: data?.count || 0, ...rest };
+};
+
+export const useDesignUsedIn = (designId: string) => {
+  const { data, ...rest } = useQuery({
+    queryKey: designUsedInKey(designId),
+    queryFn: () =>
+      sdk.client.fetch<{ used_in: DesignComponentLink[]; count: number }>(
+        `/admin/designs/${designId}/used-in`
+      ),
+    enabled: !!designId,
+  });
+  return { used_in: data?.used_in || [], count: data?.count || 0, ...rest };
+};
+
+export const useAddDesignComponent = (designId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: AddDesignComponentPayload) =>
+      sdk.client.fetch<{ component: DesignComponentLink }>(
+        `/admin/designs/${designId}/components`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: designComponentsKey(designId) });
+    },
+  });
+};
+
+export const useUpdateDesignComponent = (designId: string, componentId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: UpdateDesignComponentPayload) =>
+      sdk.client.fetch<{ component: DesignComponentLink }>(
+        `/admin/designs/${designId}/components/${componentId}`,
+        { method: "PATCH", body: payload }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: designComponentsKey(designId) });
+    },
+  });
+};
+
+export const useRemoveDesignComponent = (designId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (componentId: string) =>
+      sdk.client.fetch(
+        `/admin/designs/${designId}/components/${componentId}`,
+        { method: "DELETE" }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: designComponentsKey(designId) });
+    },
+  });
+};

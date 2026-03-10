@@ -13,22 +13,15 @@ import {
   Select,
   Badge,
 } from "@medusajs/ui"
-import {
-  useAdCampaigns,
-  useAdAccounts,
-  useSyncAdAccounts,
-  useSyncCampaigns,
-  useSyncInsights,
-  useCampaignTotals,
-  AdCampaign,
-} from "../../../../hooks/api/meta-ads"
-import { useSocialPlatforms } from "../../../../hooks/api/social-platforms"
-import { useDefaultStore } from "../../../../hooks/api/stores"
+
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { ChartBar, ArrowPath } from "@medusajs/icons"
 import { useCallback, useMemo, useState } from "react"
 import debounce from "lodash/debounce"
 import { createColumnHelper } from "@tanstack/react-table"
+import { AdCampaign, useAdAccounts, useAdCampaigns, useCampaignTotals, useSyncAdAccounts, useSyncCampaigns, useSyncInsights } from "@/hooks/api/meta-ads"
+import { useSocialPlatforms } from "@/hooks/api/social-platforms"
+import { useDefaultStore } from "@/hooks/api/stores"
 
 const PAGE_SIZE = 20
 

@@ -12,13 +12,13 @@ import {
   toast,
   Select,
 } from "@medusajs/ui"
-import { useLeads, Lead, LeadStatus, useSyncLeads } from "../../../../hooks/api/meta-ads"
-import { useSocialPlatforms } from "../../../../hooks/api/social-platforms"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowPath } from "@medusajs/icons"
 import { useCallback, useMemo, useState } from "react"
 import debounce from "lodash/debounce"
 import { createColumnHelper } from "@tanstack/react-table"
+import { Lead, LeadStatus, useLeads, useSyncLeads } from "@/hooks/api/meta-ads"
+import { useSocialPlatforms } from "@/hooks/api/social-platforms"
 
 const PAGE_SIZE = 10
 

@@ -321,7 +321,6 @@ export default defineMiddlewares({
       matcher: "/webhooks/meta-ads/leadgen",
       method: "POST",
       middlewares: [],
-      bodyParser: true,
     },
     {
       matcher: "/partners*",
@@ -1581,6 +1580,32 @@ export default defineMiddlewares({
       middlewares: [
         validateAndTransformBody(wrapSchema(AdminCreateDesignProductionRunSchema)),
       ],
+    },
+    // Design components (bundling)
+    {
+      matcher: "/admin/designs/:id/components",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/designs/:id/components",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/designs/:id/components/:componentId",
+      method: "PATCH",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/designs/:id/components/:componentId",
+      method: "DELETE",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/designs/:id/used-in",
+      method: "GET",
+      middlewares: [],
     },
     // Partner Designs APIs
     {
