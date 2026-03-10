@@ -28,6 +28,7 @@ export const SendToPartnerForm = ({ entityId, entityType, onSuccess }: SendToPar
   const { mutateAsync: sendToPartner } = useSendInventoryOrderToPartner(entityId || "")
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
+  const [isSending, setIsSending] = useState(false)
   const [pagination, setPagination] = useState<DataTablePaginationState>({
     pageIndex: 0,
     pageSize: 10,
@@ -170,8 +171,8 @@ export const SendToPartnerForm = ({ entityId, entityType, onSuccess }: SendToPar
       return
     }
 
+    setIsSending(true)
     try {
-      // Send to each selected partner
       for (const partnerId of selectedPartnerIds) {
         await sendToPartner({ partnerId })
       }
@@ -180,6 +181,8 @@ export const SendToPartnerForm = ({ entityId, entityType, onSuccess }: SendToPar
       handleSuccess()
     } catch (error: any) {
       toast.error(error?.message || "Failed to send to partners")
+    } finally {
+      setIsSending(false)
     }
   }, [selectedPartnerIds, selectedCount, entityId, sendToPartner, onSuccess])
 
@@ -191,8 +194,9 @@ export const SendToPartnerForm = ({ entityId, entityType, onSuccess }: SendToPar
           <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
           <CommandBar.Command
             action={handleSend}
-            label="Send"
+            label={isSending ? "Sending..." : "Send"}
             shortcut="s"
+            disabled={isSending}
           />
         </CommandBar.Bar>
       </CommandBar>
