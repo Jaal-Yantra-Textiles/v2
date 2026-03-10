@@ -2,6 +2,8 @@ import { Metadata } from "next"
 
 import FeaturedProducts from "@modules/home/components/featured-products"
 import Hero from "@modules/home/components/hero"
+import HolidaySection from "@modules/home/components/holidays"
+import ScrollStage from "@modules/home/components/scroll-stage"
 import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
 
@@ -30,7 +32,10 @@ export default async function Home(props: {
 
   return (
     <>
-      <Hero />
+      <ScrollStage
+        hero={<Hero />}
+        holiday={<HolidaySection countryCode={countryCode} />}
+      />
       <div className="mx-auto mt-10 w-full max-w-3xl px-4 sm:px-0">
         <label className="sr-only" htmlFor="coming-soon-search">
           Coming soon search
