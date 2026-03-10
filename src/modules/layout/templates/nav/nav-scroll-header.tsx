@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 
 export default function NavScrollHeader({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [dark, setDark] = useState(false)
+  const [dark, setDark] = useState(true)
 
   // useLayoutEffect runs synchronously before paint — no white flash
   useLayoutEffect(() => {
