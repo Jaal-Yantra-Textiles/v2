@@ -1,10 +1,10 @@
-import { 
-  Button, 
-  Container, 
-  DataTable, 
-  DataTablePaginationState, 
-  Heading, 
-  Text, 
+import {
+  Button,
+  Container,
+  DataTable,
+  DataTablePaginationState,
+  Heading,
+  Text,
   useDataTable,
   StatusBadge,
   createDataTableFilterHelper,
@@ -12,9 +12,9 @@ import {
   toast,
   Select,
 } from "@medusajs/ui"
-import { useLeads, Lead, LeadStatus, useSyncLeads } from "../../../hooks/api/meta-ads"
-import { useSocialPlatforms } from "../../../hooks/api/social-platforms"
-import { useNavigate, useSearchParams, LoaderFunctionArgs } from "react-router-dom"
+import { useLeads, Lead, LeadStatus, useSyncLeads } from "../../../../hooks/api/meta-ads"
+import { useSocialPlatforms } from "../../../../hooks/api/social-platforms"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowPath } from "@medusajs/icons"
 import { useCallback, useMemo, useState } from "react"
 import debounce from "lodash/debounce"
@@ -22,7 +22,6 @@ import { createColumnHelper } from "@tanstack/react-table"
 
 const PAGE_SIZE = 10
 
-// Helper to parse URL params to filter state
 const parseFiltersFromParams = (searchParams: URLSearchParams): DataTableFilteringState => {
   const filters: DataTableFilteringState = {}
   const status = searchParams.get("status")
@@ -34,19 +33,16 @@ const parseFiltersFromParams = (searchParams: URLSearchParams): DataTableFilteri
   return filters
 }
 
-// Helper to build URL params from filter state
 const buildParamsFromFilters = (
   filters: DataTableFilteringState,
   pagination: DataTablePaginationState
 ): URLSearchParams => {
   const params = new URLSearchParams()
-  
   if (filters.status) params.set("status", filters.status as string)
   if (filters.platform_id) params.set("platform_id", filters.platform_id as string)
   if (filters.q) params.set("q", filters.q as string)
   if (pagination.pageIndex > 0) params.set("page", String(pagination.pageIndex + 1))
   if (pagination.pageSize !== PAGE_SIZE) params.set("limit", String(pagination.pageSize))
-  
   return params
 }
 
@@ -65,23 +61,20 @@ const getStatusBadgeColor = (status: LeadStatus): "green" | "orange" | "blue" | 
   }
 }
 
-const LeadsPage = () => {
+export const LeadsTab = () => {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [syncPlatformId, setSyncPlatformId] = useState<string | null>(null)
-  
-  // Parse pagination from URL
+
   const pageFromUrl = parseInt(searchParams.get("page") || "1", 10)
   const limitFromUrl = parseInt(searchParams.get("limit") || String(PAGE_SIZE), 10)
-  
+
   const pagination: DataTablePaginationState = {
     pageIndex: Math.max(0, pageFromUrl - 1),
     pageSize: limitFromUrl,
   }
-  
-  // Parse filters from URL
+
   const filtering = parseFiltersFromParams(searchParams)
-  
   const offset = pagination.pageIndex * pagination.pageSize
 
   const { data, isLoading, isError, error } = useLeads({
@@ -91,17 +84,15 @@ const LeadsPage = () => {
     platform_id: filtering.platform_id as string | undefined,
     q: filtering.q as string | undefined,
   })
-  
+
   const { socialPlatforms } = useSocialPlatforms({ limit: 100 })
   const syncMutation = useSyncLeads()
-  
-  // Update URL when pagination changes
+
   const handlePaginationChange = useCallback((newPagination: DataTablePaginationState) => {
     const params = buildParamsFromFilters(filtering, newPagination)
     setSearchParams(params, { replace: true })
   }, [filtering, setSearchParams])
-  
-  // Update URL when filters change
+
   const handleFilterChange = useCallback(
     debounce((newFilters: DataTableFilteringState) => {
       const params = buildParamsFromFilters(newFilters, { pageIndex: 0, pageSize: pagination.pageSize })
@@ -110,10 +101,9 @@ const LeadsPage = () => {
     [pagination.pageSize, setSearchParams]
   )
 
-  // Filter to only show Facebook/Instagram platforms (Meta platforms)
   const metaPlatforms = useMemo(() => {
-    return socialPlatforms?.filter(p => 
-      p.name.toLowerCase().includes('facebook') || 
+    return socialPlatforms?.filter(p =>
+      p.name.toLowerCase().includes('facebook') ||
       p.name.toLowerCase().includes('instagram') ||
       p.name.toLowerCase().includes('meta')
     ) || []
@@ -124,22 +114,17 @@ const LeadsPage = () => {
       toast.error("Please select a platform to sync from")
       return
     }
-    
     try {
       const result = await syncMutation.mutateAsync({ platform_id: syncPlatformId })
       const { synced, errors, error_messages } = result.results
-      
       if (errors > 0 && synced === 0) {
-        // All failed
         toast.error(error_messages?.[0] || "Failed to sync leads")
       } else if (errors > 0) {
-        // Partial success
         toast.warning(`Synced ${synced} leads, ${errors} failed`)
       } else {
         toast.success(`Synced ${synced} leads from Meta`)
       }
     } catch (e: any) {
-      // Extract error message from response if available
       const errorMsg = e.body?.results?.error_messages?.[0] || e.message || "Failed to sync leads"
       toast.error(errorMsg)
     }
@@ -178,14 +163,6 @@ const LeadsPage = () => {
         )
       },
     }),
-    // columnHelper.accessor("campaign_name", {
-    //   header: "Campaign",
-    //   cell: ({ getValue }) => getValue() || "—",
-    // }),
-    // columnHelper.accessor("ad_name", {
-    //   header: "Ad",
-    //   cell: ({ getValue }) => getValue() || "—",
-    // }),
     columnHelper.accessor("created_time", {
       header: "Received",
       cell: ({ getValue }) => {
@@ -219,30 +196,18 @@ const LeadsPage = () => {
     columns,
     rowCount: count,
     filters,
-    filtering: {
-      state: filtering,
-      onFilteringChange: handleFilterChange,
-    },
+    filtering: { state: filtering, onFilteringChange: handleFilterChange },
     search: {
       state: filtering.q as string || "",
-      onSearchChange: (value) => {
-        handleFilterChange({ ...filtering, q: value })
-      },
+      onSearchChange: (value) => handleFilterChange({ ...filtering, q: value }),
     },
     getRowId: (row) => row.id,
-    onRowClick: (_, row) => {
-      navigate(`/meta-ads/leads/${row.id}`)
-    },
+    onRowClick: (_, row) => navigate(`/meta-ads/leads/${row.id}`),
     isLoading,
-    pagination: {
-      state: pagination,
-      onPaginationChange: handlePaginationChange,
-    },
+    pagination: { state: pagination, onPaginationChange: handlePaginationChange },
   })
 
-  if (isError) {
-    throw error
-  }
+  if (isError) throw error
 
   return (
     <Container className="divide-y p-0">
@@ -250,32 +215,25 @@ const LeadsPage = () => {
         <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 w-full px-6 py-4">
           <div>
             <Heading>Meta Leads</Heading>
-            <Text className="text-ui-fg-subtle" size="small">
-              Manage leads from Meta Lead Ads
-            </Text>
+            <Text className="text-ui-fg-subtle" size="small">Manage leads from Meta Lead Ads</Text>
           </div>
           <div className="flex items-center gap-x-2">
             <DataTable.FilterMenu tooltip="Filter leads" />
             <DataTable.Search placeholder="Search leads..." />
           </div>
         </DataTable.Toolbar>
+
         {/* Sync controls row */}
         <div className="flex items-center justify-between gap-x-2 w-full px-6 py-4">
           <div className="flex items-center gap-x-2">
             <Text size="small" className="text-ui-fg-subtle whitespace-nowrap">Sync from:</Text>
-            <Select 
-              size="small"
-              value={syncPlatformId || ""}
-              onValueChange={(value) => setSyncPlatformId(value)}
-            >
+            <Select size="small" value={syncPlatformId || ""} onValueChange={(value) => setSyncPlatformId(value)}>
               <Select.Trigger className="w-[300px]">
                 <Select.Value placeholder="Select platform..." />
               </Select.Trigger>
               <Select.Content>
                 {metaPlatforms.map((platform) => (
-                  <Select.Item key={platform.id} value={platform.id}>
-                    {platform.name}
-                  </Select.Item>
+                  <Select.Item key={platform.id} value={platform.id}>{platform.name}</Select.Item>
                 ))}
               </Select.Content>
             </Select>
@@ -292,20 +250,10 @@ const LeadsPage = () => {
             Sync
           </Button>
         </div>
+
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
     </Container>
   )
 }
-
-export const handle = {
-  breadcrumb: () => "Meta Leads",
-}
-
-export async function loader(args: LoaderFunctionArgs) {
-  const { leadsLoader } = await import("./loader")
-  return leadsLoader(args)
-}
-
-export default LeadsPage

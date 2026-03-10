@@ -11,8 +11,6 @@ import {
   Toaster,
   useDataTable,
 } from "@medusajs/ui"
-import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ChartBar } from "@medusajs/icons"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createColumnHelper } from "@tanstack/react-table"
 import { useNavigate, type LoaderFunctionArgs } from "react-router-dom"
@@ -1084,12 +1082,6 @@ const MetaAdsOverviewPage = () => {
     </>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Meta Ads Overview",
-  nested: "/promotions",
-  icon: ChartBar,
-})
 
 export const handle = {
   breadcrumb: () => "Meta Ads Overview",
