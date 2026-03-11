@@ -1,3 +1,10 @@
+# [10.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.2.3...v10.3.0) (2026-03-11)
+
+
+### Features
+
+* **api:** Price estimation API ([16e377e](https://github.com/Jaal-Yantra-Textiles/v2/commit/16e377eb2ec5f8fc56b3c02818e43db8dd4f926e))
+
 ## [10.2.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.2.2...v10.2.3) (2026-03-10)
 
 
