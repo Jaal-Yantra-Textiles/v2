@@ -4,18 +4,18 @@ loadEnv("test", process.cwd());
 module.exports = {
   setupFiles: ["./integration-tests/setup.js"],
   transform: {
-    "^.+\\.[jt]s$": [
+    "^.+\\.[jt]sx?$": [
       "@swc/jest",
       {
         jsc: {
-          parser: { syntax: "typescript", decorators: true },
+          parser: { syntax: "typescript", tsx: true, decorators: true },
           target: "es5",
         },
       },
     ],
   },
   testEnvironment: "node",
-  moduleFileExtensions: ["js", "ts", "json"],
+  moduleFileExtensions: ["js", "ts", "tsx", "jsx", "json"],
   modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],
 };
 

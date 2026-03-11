@@ -119,6 +119,12 @@ import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/v
 import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]/validators";
 import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSchema } from "./admin/payments/persons/[id]/methods/validators";
 import { ListPaymentMethodsByPartnerQuerySchema, CreatePaymentMethodForPartnerSchema } from "./admin/payments/partners/[id]/methods/validators";
+import {
+  ReportingQuerySchema,
+  CreatePaymentReportSchema,
+  ListPaymentReportsQuerySchema,
+  UpdatePaymentReportSchema,
+} from "./admin/payment_reports/validators";
 import { AdminRagSearchQuery } from "./admin/ai/rag/search/validators";
 import { AdminAiChatResolveReq, AdminAiChatResolveQuery } from "./admin/ai/chat/resolve/validators";
 import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
@@ -657,7 +663,45 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(CreatePaymentMethodForPartnerSchema))],
     },
 
-    // Payment and its methods 
+    // ── Payment Reports ──────────────────────────────────────────────────────
+    // Static sub-routes MUST come before /:id to avoid shadowing
+    {
+      matcher: "/admin/payment_reports/summary",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ReportingQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/payment_reports/by-partner",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ReportingQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/payment_reports/by-person",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ReportingQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/payment_reports",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListPaymentReportsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/payment_reports",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreatePaymentReportSchema))],
+    },
+    {
+      matcher: "/admin/payment_reports/:id",
+      method: "PATCH",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdatePaymentReportSchema))],
+    },
+    {
+      matcher: "/admin/payment_reports/:id",
+      method: "DELETE",
+      middlewares: [],
+    },
+
+    // Payment and its methods
     {
       matcher: "/admin/persons",
       method: "POST",

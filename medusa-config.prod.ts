@@ -228,5 +228,8 @@ module.exports = defineConfig({
    {
       resolve: "./src/modules/hang_tag_settings",
     },
+  {
+    resolve: "./src/modules/payment_reports",
+  },
 ],
 });

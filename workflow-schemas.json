@@ -3813,6 +3813,108 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partners/list-partners.ts"
   },
+  "create-payment-report": {
+    "fields": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.name }}"
+      },
+      {
+        "name": "period_start",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.period_start }}"
+      },
+      {
+        "name": "period_end",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.period_end }}"
+      },
+      {
+        "name": "entity_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.entity_type }}"
+      },
+      {
+        "name": "entity_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.entity_id }}"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.status }}"
+      },
+      {
+        "name": "payment_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.payment_type }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_reports/create-payment_reports.ts"
+  },
+  "delete-payment-report": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_reports/delete-payment_report.ts"
+  },
+  "list-payment-reports": {
+    "fields": [
+      {
+        "name": "filters",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_reports/list-payment_reports.ts"
+  },
+  "update-payment-report": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.name }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_reports/update-payment_report.ts"
+  },
   "create-person-type": {
     "fields": [
       {
