@@ -1,3 +1,10 @@
+## [10.4.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.4.0...v10.4.1) (2026-03-12)
+
+
+### Bug Fixes
+
+* **admin:** Fixed the layout of the reports ([08c40d1](https://github.com/Jaal-Yantra-Textiles/v2/commit/08c40d123a7935ec5d48653b7faea32cbb3942b4))
+
 # [10.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.3.0...v10.4.0) (2026-03-11)
 
 
