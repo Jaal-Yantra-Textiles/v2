@@ -1,3 +1,15 @@
+# [10.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.4.1...v10.5.0) (2026-03-12)
+
+
+### Bug Fixes
+
+* **admin:** Fixed the @ direction ([21c78bb](https://github.com/Jaal-Yantra-Textiles/v2/commit/21c78bbe509235d0c5681e1b0b5514252985a499))
+
+
+### Features
+
+* **api:** Admin-User-Design Full Flow ([adefa3e](https://github.com/Jaal-Yantra-Textiles/v2/commit/adefa3e17cb7d7dacad61c6fe843ed7a4536a776))
+
 ## [10.4.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.4.0...v10.4.1) (2026-03-12)
 
 
