@@ -68,6 +68,8 @@ export const designSchema = z.object({
   colors: z.array(designColorSchema).optional(),
   size_sets: z.array(designSizeSetSchema).optional(),
   origin_source: z.enum(["manual", "ai-mistral", "ai-other"]).optional(),
+  // Optional: link the new design to a customer at creation time
+  customer_id_for_link: z.string().optional(),
 });
 
 export const UpdateDesignSchema = designSchema.partial();

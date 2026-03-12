@@ -566,3 +566,23 @@ export const useRemoveDesignComponent = (designId: string) => {
     },
   });
 };
+
+export interface NotifyDesignCustomerResponse {
+  message: string
+  design_id: string
+  customer_id: string
+}
+
+export const useNotifyDesignCustomer = (
+  designId: string,
+  options?: UseMutationOptions<NotifyDesignCustomerResponse, FetchError, void>
+) => {
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<NotifyDesignCustomerResponse>(
+        `/admin/designs/${designId}/notify-customer`,
+        { method: "POST" }
+      ),
+    ...options,
+  });
+};

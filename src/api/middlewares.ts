@@ -1105,6 +1105,13 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(CreateDesignLLMSchema))],
     },
 
+    // Customer notification for designs
+    {
+      matcher: "/admin/designs/:id/notify-customer",
+      method: "POST",
+      middlewares: [],
+    },
+
     // Media folder linking on designs
     {
       matcher: "/admin/designs/:id/link-media-folder",

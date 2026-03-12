@@ -1,10 +1,10 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
-import { Container, Text, Badge, StatusBadge, Skeleton, Heading, Button } from "@medusajs/ui"
+import { Container, Text, Badge, StatusBadge, Skeleton, Heading, Button, toast } from "@medusajs/ui"
 import { DetailWidgetProps } from "@medusajs/framework/types"
 import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../components/common/action-menu"
-import { PencilSquare, Plus } from "@medusajs/icons"
-import { useDesigns } from "../hooks/api/designs"
+import { BellAlert, PencilSquare, Plus } from "@medusajs/icons"
+import { useDesigns, useNotifyDesignCustomer } from "../hooks/api/designs"
 
 const designStatusColor = (status: string): "green" | "blue" | "orange" | "grey" | "red" | "purple" => {
   switch (status) {
@@ -20,12 +20,24 @@ const designStatusColor = (status: string): "green" | "blue" | "orange" | "grey"
 
 type Customer = { id: string }
 
-const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
-  const navigate = useNavigate()
+/**
+ * Per-row component so each design has its own notify mutation instance.
+ */
+const DesignRow = ({ design }: { design: any }) => {
+  const { mutate: notifyCustomer, isPending: isNotifying } = useNotifyDesignCustomer(design.id, {
+    onSuccess: () => {
+      toast.success("Notification sent", {
+        description: `Customer has been notified about "${design.name}".`,
+      })
+    },
+    onError: (err: any) => {
+      toast.error("Failed to send notification", {
+        description: err?.message || "An unexpected error occurred.",
+      })
+    },
+  })
 
-  const { designs, isLoading, isError, error } = useDesigns({ customer_id: data.id } as any)
-
-  const getDesignActionGroups = (design: any) => [
+  const actionGroups = [
     {
       actions: [
         {
@@ -38,9 +50,49 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
           icon: <PencilSquare />,
           to: `/designs/${design.id}/moodboard`,
         },
+        {
+          label: isNotifying ? "Sending…" : "Notify Customer",
+          icon: <BellAlert />,
+          onClick: () => notifyCustomer(),
+          disabled: isNotifying,
+        },
       ],
     },
   ]
+
+  return (
+    <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex flex-col">
+        <Text size="small" weight="plus" className="mb-1">
+          {design.name}
+        </Text>
+        {design.description && (
+          <Text size="xsmall" className="text-ui-fg-subtle line-clamp-1">
+            {design.description}
+          </Text>
+        )}
+        <div className="flex items-center gap-x-2 mt-2">
+          {design.status && (
+            <StatusBadge color={designStatusColor(design.status)}>
+              {design.status}
+            </StatusBadge>
+          )}
+          {design.design_type && (
+            <Badge size="2xsmall" color="grey">
+              {design.design_type}
+            </Badge>
+          )}
+        </div>
+      </div>
+      <ActionMenu groups={actionGroups} />
+    </div>
+  )
+}
+
+const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
+  const navigate = useNavigate()
+
+  const { designs, isLoading, isError, error } = useDesigns({ customer_id: data.id } as any)
 
   if (isLoading) {
     return <Skeleton className="h-32" />
@@ -92,31 +144,7 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
         ) : (
           <div className="divide-y">
             {designs.map((design: any) => (
-              <div key={design.id} className="flex items-center justify-between px-6 py-4">
-                <div className="flex flex-col">
-                  <Text size="small" weight="plus" className="mb-1">
-                    {design.name}
-                  </Text>
-                  {design.description && (
-                    <Text size="xsmall" className="text-ui-fg-subtle line-clamp-1">
-                      {design.description}
-                    </Text>
-                  )}
-                  <div className="flex items-center gap-x-2 mt-2">
-                    {design.status && (
-                      <StatusBadge color={designStatusColor(design.status)}>
-                        {design.status}
-                      </StatusBadge>
-                    )}
-                    {design.design_type && (
-                      <Badge size="2xsmall" color="grey">
-                        {design.design_type}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <ActionMenu groups={getDesignActionGroups(design)} />
-              </div>
+              <DesignRow key={design.id} design={design} />
             ))}
           </div>
         )}

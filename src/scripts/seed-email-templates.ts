@@ -733,6 +733,52 @@ const emailTemplatesData = [
     template_type: "shipment_update",
     is_active: true
   },
+  {
+    name: "Design Assigned to Customer",
+    template_key: "design-assigned",
+    from: "designs@jyt.com",
+    subject: "Your custom design is ready: {{design_name}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #6366f1; font-size: 24px; margin-bottom: 20px;">Your Design Is Ready</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">
+            Hi {{customer_name}},
+          </p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            Our design team has created a personalised design brief for you: <strong>{{design_name}}</strong>.
+          </p>
+          <p style="color: #666666; font-size: 15px; line-height: 1.5; margin-bottom: 24px;">
+            Log in to your account to view the design details, explore the moodboard, and open the interactive design editor to customise it further.
+          </p>
+          {{#if design_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{design_url}}" style="background-color: #6366f1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px;">
+              Open Design Editor
+            </a>
+          </div>
+          {{/if}}
+          <div style="margin-top: 20px; padding: 16px; background-color: #f0f0ff; border-radius: 6px; border-left: 4px solid #6366f1;">
+            <p style="color: #4338ca; font-size: 14px; margin: 0; line-height: 1.5;">
+              <strong>Design:</strong> {{design_name}}<br/>
+              {{#if design_status}}<strong>Status:</strong> {{design_status}}{{/if}}
+            </p>
+          </div>
+          <p style="color: #999999; font-size: 14px; margin-top: 24px; line-height: 1.5;">
+            If you have any questions about your design, reply to this email or contact our support team.
+          </p>
+        </div>
+      </div>
+    `,
+    variables: {
+      customer_name: "Customer's first name",
+      design_name: "Name of the assigned design",
+      design_url: "URL to the design editor (optional)",
+      design_status: "Current status of the design (optional)",
+    },
+    template_type: "design_assigned",
+    is_active: true
+  },
 ]
 
 export default async function seedEmailTemplates({ container }: { container: any }) {
