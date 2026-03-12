@@ -8,6 +8,61 @@ import { linkDesignInventoryWorkflow } from "../../../../../workflows/designs/in
 import { linkDesignPartnerWorkflow } from "../../../../../workflows/designs/partner/link-design-to-partner"
 import designCustomerLink from "../../../../../links/design-customer-link"
 
+/**
+ * GET /store/custom/designs/:id
+ *
+ * Returns full design detail for the authenticated customer who owns it.
+ */
+export async function GET(
+  req: AuthenticatedMedusaRequest,
+  res: MedusaResponse
+): Promise<void> {
+  try {
+    const customerId = req.auth_context?.actor_id
+    const designId = req.params.id
+
+    if (!customerId) {
+      res.status(401).json({ message: "Customer authentication required" })
+      return
+    }
+
+    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+    // Verify ownership
+    const { data: links } = await query.graph({
+      entity: designCustomerLink.entryPoint,
+      filters: { customer_id: customerId, design_id: designId },
+      fields: ["design_id"],
+    })
+
+    if (!links?.length) {
+      res.status(404).json({ message: "Design not found" })
+      return
+    }
+
+    const { data: designs } = await query.graph({
+      entity: "design",
+      filters: { id: designId },
+      fields: [
+        "*",
+        "inventory_items.*",
+        "partners.*",
+        "specifications.*",
+        "colors.*",
+        "size_sets.*",
+      ],
+    })
+
+    res.status(200).json({ design: designs?.[0] })
+  } catch (error) {
+    console.error("[Store] Error fetching design:", error)
+    res.status(500).json({
+      message: "Failed to fetch design",
+      error: error instanceof Error ? error.message : "Unknown error",
+    })
+  }
+}
+
 interface StoreUpdateDesignBody {
   name?: string
   description?: string

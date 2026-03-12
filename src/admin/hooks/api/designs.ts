@@ -99,6 +99,7 @@ export interface AdminDesignsQuery {
   priority?: AdminDesign["priority"];
   tags?: string[];
   partner_id?: string;
+  customer_id?: string;
   created_at?: DateComparisonOperator;
   target_completion_date?: DateComparisonOperator;
   q?: string;

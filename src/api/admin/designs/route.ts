@@ -151,6 +151,8 @@ import createDesignWorkflow from "../../../workflows/designs/create-design";
 import listDesignsWorkflow from "../../../workflows/designs/list-designs";
 import { DesignAllowedFields, refetchDesign } from "./helpers";
 import { DateComparisonOperator } from "@medusajs/types";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import designCustomerLink from "../../../links/design-customer-link";
 
 // Create new design
 export const POST = async (
@@ -198,6 +200,7 @@ export const GET = async (
       priority?: "Low" | "Medium" | "High" | "Urgent";
       tags?: string[];
       partner_id?: string;
+      customer_id?: string;
       created_at?: DateComparisonOperator;
       target_completion_date?: DateComparisonOperator;
     };
@@ -206,6 +209,43 @@ export const GET = async (
 ) => {
 
   try {
+    // If customer_id is provided, fetch designs directly via the link table (bypassing the
+    // workflow which doesn't support id-array filtering natively)
+    if (req.query.customer_id) {
+      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const offset = Number(req.query.offset) || 0
+      const limit = Number(req.query.limit) || 10
+
+      const { data: linkedDesigns } = await query.graph({
+        entity: designCustomerLink.entryPoint,
+        filters: { customer_id: req.query.customer_id },
+        fields: [
+          "design.id",
+          "design.name",
+          "design.description",
+          "design.status",
+          "design.design_type",
+          "design.priority",
+          "design.thumbnail_url",
+          "design.metadata",
+          "design.origin_source",
+          "design.created_at",
+          "design.updated_at",
+        ],
+        pagination: { skip: 0, take: 1000 },
+      })
+
+      const allDesigns = (linkedDesigns || []).map((l: any) => l.design).filter(Boolean)
+      const paginated = allDesigns.slice(offset, offset + limit)
+
+      return res.status(200).json({
+        designs: paginated,
+        count: allDesigns.length,
+        offset,
+        limit,
+      })
+    }
+
     const { result, errors } = await listDesignsWorkflow(req.scope).run({
       input: {
         pagination: {

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useCreateDesign } from "../../hooks/api/designs";
@@ -14,6 +14,7 @@ import { Form } from "../common/form";
 const designSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().min(1, "Description is required"),
+  base_product_handle: z.string().optional(),
   aiPrompt: z.string().optional(),
 });
 
@@ -22,8 +23,12 @@ type DesignFormValues = z.infer<typeof designSchema>;
 export function CreateDesign() {
   const [mode, setMode] = useState<'ai' | 'manual'>('manual');
   const navigate = useNavigate();
+  const location = useLocation();
   const { handleSuccess } = useRouteModal();
   const { mutateAsync, isPending } = useCreateDesign();
+
+  // Read customer_id pre-fill from navigation state (set by customer-designs widget)
+  const prefilledCustomerId = (location.state as any)?.customer_id as string | undefined;
 
   // Initialize form with validation
   const form = useForm<DesignFormValues>({
@@ -31,6 +36,7 @@ export function CreateDesign() {
     defaultValues: {
       name: "",
       description: "",
+      base_product_handle: "",
       aiPrompt: "",
     },
   });
@@ -49,11 +55,14 @@ export function CreateDesign() {
           description: data.description,
           status: "Conceptual",
           target_completion_date: new Date().toISOString(),
-          // If in AI mode, include the prompt
-          ...(mode === 'ai' && data.aiPrompt ? { 
-            metadata: { ai_prompt: data.aiPrompt } 
-          } : {}),
-        },
+          // Store base_product_handle in metadata for storefront link building
+          metadata: {
+            ...(data.base_product_handle ? { base_product_handle: data.base_product_handle } : {}),
+            ...(mode === 'ai' && data.aiPrompt ? { ai_prompt: data.aiPrompt } : {}),
+          },
+          // Link to customer if pre-filled from customer detail page
+          ...(prefilledCustomerId ? { customer_id_for_link: prefilledCustomerId } : {}),
+        } as any,
         {
           onSuccess: ({ design }) => {
             toast.success(`Design ${design.name} created successfully`);
@@ -127,6 +136,15 @@ export function CreateDesign() {
               {/* Fields for Manual mode */}
               {mode === 'manual' && (
                 <>
+                  {/* Customer pre-fill notice */}
+                  {prefilledCustomerId && (
+                    <div className="px-3 py-2 bg-ui-bg-subtle border border-ui-border-base rounded-lg">
+                      <Text size="small" className="text-ui-fg-subtle">
+                        This design will be linked to customer <span className="font-medium text-ui-fg-base">{prefilledCustomerId}</span>
+                      </Text>
+                    </div>
+                  )}
+
                   {/* Name field */}
                   <Form.Field
                     control={form.control}
@@ -136,8 +154,8 @@ export function CreateDesign() {
                         <Form.Item>
                           <Form.Label>Name</Form.Label>
                           <Form.Control>
-                            <Input 
-                              placeholder="Enter design name" 
+                            <Input
+                              placeholder="Enter design name"
                               {...field}
                             />
                           </Form.Control>
@@ -148,7 +166,7 @@ export function CreateDesign() {
                       )
                     }}
                   />
-                  
+
                   {/* Description field */}
                   <Form.Field
                     control={form.control}
@@ -158,8 +176,8 @@ export function CreateDesign() {
                         <Form.Item>
                           <Form.Label>Description</Form.Label>
                           <Form.Control>
-                            <Textarea 
-                              placeholder="Enter design description" 
+                            <Textarea
+                              placeholder="Enter design description"
                               rows={4}
                               {...field}
                             />
@@ -167,6 +185,28 @@ export function CreateDesign() {
                           {errors.description && (
                             <Form.ErrorMessage>{errors.description.message}</Form.ErrorMessage>
                           )}
+                        </Form.Item>
+                      )
+                    }}
+                  />
+
+                  {/* Base product handle field */}
+                  <Form.Field
+                    control={form.control}
+                    name="base_product_handle"
+                    render={({ field }) => {
+                      return (
+                        <Form.Item>
+                          <Form.Label optional>Base Product Handle</Form.Label>
+                          <Form.Control>
+                            <Input
+                              placeholder="e.g. kurta-cotton"
+                              {...field}
+                            />
+                          </Form.Control>
+                          <Form.Hint>
+                            Product handle from the storefront. Used to build the design editor link for the customer (e.g. 'kurta-cotton').
+                          </Form.Hint>
                         </Form.Item>
                       )
                     }}
