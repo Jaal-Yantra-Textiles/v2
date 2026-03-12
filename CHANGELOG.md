@@ -1,3 +1,10 @@
+# [10.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.5.0...v10.6.0) (2026-03-12)
+
+
+### Features
+
+* **api:** design lifecycle ([b33f728](https://github.com/Jaal-Yantra-Textiles/v2/commit/b33f728def0de567ec53e0f2ff14e4f54e8db4d1))
+
 # [10.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.4.1...v10.5.0) (2026-03-12)
 
 
