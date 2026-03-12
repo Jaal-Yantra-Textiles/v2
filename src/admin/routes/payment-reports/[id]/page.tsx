@@ -62,7 +62,7 @@ const PaymentReportDetailPage = () => {
                     {
                       icon: <PencilSquare />,
                       label: "Edit",
-                      to: "@edit",
+                      to: "edit",
                     },
                     {
                       icon: <Trash />,

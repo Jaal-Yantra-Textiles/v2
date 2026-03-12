@@ -36,7 +36,7 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
         {
           label: "Open Moodboard",
           icon: <PencilSquare />,
-          to: `/designs/${design.id}/@moodboard`,
+          to: `/designs/${design.id}/moodboard`,
         },
       ],
     },
