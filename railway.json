@@ -5,7 +5,7 @@
     "buildCommand": "pnpm install && node deploy-railway.js --mode=$MEDUSA_WORKER_MODE --ci"
   },
   "deploy": {
-    "startCommand": "cd .medusa/server && pnpm predeploy && pnpm run start",
+    "startCommand": "cd .medusa/server && pnpm predeploy:force && pnpm run start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 900,
     "restartPolicyType": "ON_FAILURE",
