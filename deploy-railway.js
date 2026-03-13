@@ -148,18 +148,18 @@ let packageJson;
 try {
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   
-  const expectedPredeploy = 'medusa db:migrate && medusa db:sync-links --execute-safe';
-  if (!packageJson.scripts.predeploy) {
-    packageJson.scripts.predeploy = expectedPredeploy;
+  const expectedPredeploy = 'medusa db:migrate && medusa db:sync-links --execute-all';
+  if (!packageJson.scripts['predeploy:force']) {
+    packageJson.scripts['predeploy:force'] = expectedPredeploy;
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-    console.log('✅ Added predeploy script to package.json');
-  } else if (!packageJson.scripts.predeploy.includes('db:sync-links')) {
-    // Upgrade stale predeploy that only ran db:migrate
-    packageJson.scripts.predeploy = expectedPredeploy;
+    console.log('✅ Added predeploy:force script to package.json');
+  } else if (!packageJson.scripts['predeploy:force'].includes('--execute-all')) {
+    // Upgrade stale predeploy:force
+    packageJson.scripts['predeploy:force'] = expectedPredeploy;
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-    console.log('✅ Upgraded predeploy to include db:sync-links --execute-safe');
+    console.log('✅ Upgraded predeploy:force to use --execute-all');
   } else {
-    console.log('✅ predeploy script already exists in package.json');
+    console.log('✅ predeploy:force script already exists in package.json');
   }
 } catch (error) {
   console.error('Error modifying package.json:', error.message);
@@ -234,10 +234,10 @@ try {
 // Step 5: Generate custom start commands
 console.log('Generating deployment commands...');
 
-// Server: runs predeploy (db:migrate + db:sync-links --execute-safe) as a safety net
-// before starting. Non-interactive thanks to --execute-safe.
+// Server: runs predeploy:force (db:migrate + db:sync-links --execute-all) before starting.
+// --execute-all auto-accepts destructive link operations (e.g. table drops for removed links).
 // Worker: skips predeploy entirely — migrations are the server's responsibility.
-const serverStartCommand = 'cd .medusa/server && pnpm install && pnpm predeploy && pnpm run start';
+const serverStartCommand = 'cd .medusa/server && pnpm install && pnpm predeploy:force && pnpm run start';
 const workerStartCommand = 'cd .medusa/server && pnpm install && pnpm run start';
 const startCommand = mode === 'server' ? serverStartCommand : workerStartCommand;
 
