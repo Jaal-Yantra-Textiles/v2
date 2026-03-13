@@ -147,6 +147,15 @@ import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-item
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq } from "./partners/products/validators";
 import {
+  PartnerCreateRegionReq,
+  PartnerUpdateRegionReq,
+  PartnerUpdateLocationReq,
+  PartnerCreateFulfillmentSetReq,
+  PartnerUpdateFulfillmentProvidersReq,
+  PartnerCreateShippingOptionReq,
+  PartnerUpdateShippingOptionReq,
+} from "./partners/stores/[id]/validators";
+import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
   executeInboundEmailSchema,
@@ -508,6 +517,170 @@ export default defineMiddlewares({
 
     {
       matcher: "/partners/stores/:id/products",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Store Regions
+    {
+      matcher: "/partners/stores/:id/regions",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/regions",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateRegionReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/regions/:regionId",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/regions/:regionId",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateRegionReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/regions/:regionId",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Store Locations
+    {
+      matcher: "/partners/stores/:id/locations",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/locations/:locationId",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/locations/:locationId",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateLocationReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/locations/:locationId/fulfillment-sets",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateFulfillmentSetReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/locations/:locationId/fulfillment-providers",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateFulfillmentProvidersReq)),
+      ],
+    },
+    // Partner Store Shipping Options
+    {
+      matcher: "/partners/stores/:id/shipping-options",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/shipping-options",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateShippingOptionReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/shipping-options/:optionId",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/shipping-options/:optionId",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateShippingOptionReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/shipping-options/:optionId",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Shipping Profiles
+    {
+      matcher: "/partners/shipping-profiles",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/shipping-profiles",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Fulfillment Providers
+    {
+      matcher: "/partners/fulfillment-providers",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/fulfillment-providers/:providerId/options",
       method: "GET",
       middlewares: [
         createCorsPartnerMiddleware(),

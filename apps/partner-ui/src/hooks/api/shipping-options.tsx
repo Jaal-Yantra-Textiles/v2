@@ -12,6 +12,7 @@ import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 import { stockLocationsQueryKeys } from "./stock-locations"
+import { usePartnerStores } from "./partner-stores"
 
 const SHIPPING_OPTIONS_QUERY_KEY = "shipping_options" as const
 export const shippingOptionsQueryKeys = queryKeysFactory(
@@ -28,9 +29,17 @@ export const useShippingOption = (
     QueryKey
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.shippingOption.retrieve(id, query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionResponse>(
+        `/partners/stores/${storeId}/shipping-options/${id}`,
+        { method: "GET" }
+      ),
     queryKey: shippingOptionsQueryKeys.detail(id),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -49,9 +58,17 @@ export const useShippingOptions = (
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.shippingOption.list(query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionListResponse>(
+        `/partners/stores/${storeId}/shipping-options`,
+        { method: "GET" }
+      ),
     queryKey: shippingOptionsQueryKeys.list(query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -65,8 +82,15 @@ export const useCreateShippingOptions = (
     HttpTypes.AdminCreateShippingOption
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.shippingOption.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionResponse>(
+        `/partners/stores/${storeId}/shipping-options`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.all,
@@ -88,8 +112,15 @@ export const useUpdateShippingOptions = (
     HttpTypes.AdminUpdateShippingOption
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.shippingOption.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionResponse>(
+        `/partners/stores/${storeId}/shipping-options/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.all,
@@ -111,8 +142,15 @@ export const useDeleteShippingOption = (
     void
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: () => sdk.admin.shippingOption.delete(optionId),
+    mutationFn: () =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionDeleteResponse>(
+        `/partners/stores/${storeId}/shipping-options/${optionId}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.all,

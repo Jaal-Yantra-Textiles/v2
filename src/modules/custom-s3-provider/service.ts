@@ -15,7 +15,7 @@ class S3ListingServiceModule extends MedusaService({
   protected fileListingService_: FileListingServiceInterface;
   protected logger_;
 
-  constructor(container) { // Medusa services typically receive the container for DI
+  constructor(container : any) { // Medusa services typically receive the container for DI
     super(container);
     this.logger_ = container.logger || logger; // Use injected logger or fallback
 

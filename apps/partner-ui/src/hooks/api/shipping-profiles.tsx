@@ -25,7 +25,11 @@ export const useCreateShippingProfile = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.shippingProfile.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminShippingProfileResponse>(
+        `/partners/shipping-profiles`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: shippingProfileQueryKeys.lists(),
@@ -72,7 +76,11 @@ export const useShippingProfiles = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.shippingProfile.list(query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminShippingProfileListResponse>(
+        `/partners/shipping-profiles`,
+        { method: "GET" }
+      ),
     queryKey: shippingProfileQueryKeys.list(query),
     ...options,
   })

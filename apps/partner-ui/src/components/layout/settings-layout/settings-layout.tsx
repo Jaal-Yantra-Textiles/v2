@@ -28,6 +28,22 @@ const useSettingRoutes = (): INavItem[] => {
         to: "/settings/store",
       },
       {
+        label: "Regions",
+        to: "/settings/regions",
+      },
+      {
+        label: "Locations & Shipping",
+        to: "/settings/locations",
+      },
+      {
+        label: "Sales Channels",
+        to: "/settings/sales-channels",
+      },
+      {
+        label: "Tax Regions",
+        to: "/settings/tax-regions",
+      },
+      {
         label: "Onboarding",
         to: "/settings/onboarding",
       },

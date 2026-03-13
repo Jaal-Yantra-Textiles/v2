@@ -12,6 +12,7 @@ import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 import { fulfillmentProvidersQueryKeys } from "./fulfillment-providers"
+import { usePartnerStores } from "./partner-stores"
 
 const STOCK_LOCATIONS_QUERY_KEY = "stock_locations" as const
 export const stockLocationsQueryKeys = queryKeysFactory(
@@ -31,9 +32,17 @@ export const useStockLocation = (
     "queryKey" | "queryFn"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.stockLocation.retrieve(id, query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminStockLocationResponse>(
+        `/partners/stores/${storeId}/locations/${id}`,
+        { method: "GET" }
+      ),
     queryKey: stockLocationsQueryKeys.detail(id, query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -52,9 +61,17 @@ export const useStockLocations = (
     "queryKey" | "queryFn"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.stockLocation.list(query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminStockLocationListResponse>(
+        `/partners/stores/${storeId}/locations`,
+        { method: "GET" }
+      ),
     queryKey: stockLocationsQueryKeys.list(query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -89,8 +106,15 @@ export const useUpdateStockLocation = (
     HttpTypes.AdminUpdateStockLocation
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.stockLocation.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminStockLocationResponse>(
+        `/partners/stores/${storeId}/locations/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.details(),
@@ -162,9 +186,15 @@ export const useCreateStockLocationFulfillmentSet = (
     HttpTypes.AdminCreateStockLocationFulfillmentSet
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.stockLocation.createFulfillmentSet(locationId, payload),
+      sdk.client.fetch<HttpTypes.AdminStockLocationResponse>(
+        `/partners/stores/${storeId}/locations/${locationId}/fulfillment-sets`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.all,
@@ -184,9 +214,15 @@ export const useUpdateStockLocationFulfillmentProviders = (
     HttpTypes.AdminBatchLink
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: async (payload) =>
-      await sdk.admin.stockLocation.updateFulfillmentProviders(id, payload),
+      await sdk.client.fetch<HttpTypes.AdminStockLocationResponse>(
+        `/partners/stores/${storeId}/locations/${id}/fulfillment-providers`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.details(),

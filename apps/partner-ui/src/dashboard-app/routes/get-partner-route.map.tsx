@@ -1,11 +1,14 @@
+import { HttpTypes } from "@medusajs/types"
 import type { UIMatch } from "react-router-dom"
-import { RouteObject } from "react-router-dom"
+import { Outlet, RouteObject } from "react-router-dom"
 
 import { ProtectedRoute } from "../../components/authentication/protected-route"
 import { MainLayout } from "../../components/layout/main-layout"
 import { SettingsLayout } from "../../components/layout/settings-layout"
 import { PublicLayout } from "../../components/layout/public-layout"
 import { ErrorBoundary } from "../../components/utilities/error-boundary"
+import { TaxRegionDetailBreadcrumb } from "../../routes/tax-regions/tax-region-detail/breadcrumb"
+import { taxRegionLoader } from "../../routes/tax-regions/tax-region-detail/loader"
 
 export function getPartnerRouteMap(): RouteObject[] {
   return [
@@ -245,6 +248,399 @@ export function getPartnerRouteMap(): RouteObject[] {
                       path: "create",
                       lazy: () =>
                         import("../../routes/settings/payments/payments-create"),
+                    },
+                  ],
+                },
+                // Regions
+                {
+                  path: "regions",
+                  errorElement: <ErrorBoundary />,
+                  element: <Outlet />,
+                  handle: {
+                    breadcrumb: () => "Regions",
+                  },
+                  children: [
+                    {
+                      path: "",
+                      lazy: () => import("../../routes/regions/region-list"),
+                      children: [
+                        {
+                          path: "create",
+                          lazy: () => import("../../routes/regions/region-create"),
+                        },
+                      ],
+                    },
+                    {
+                      path: ":id",
+                      lazy: async () => {
+                        const { Component, Breadcrumb, loader } = await import(
+                          "../../routes/regions/region-detail"
+                        )
+                        return {
+                          Component,
+                          loader,
+                          handle: {
+                            breadcrumb: (match: UIMatch<HttpTypes.AdminRegionResponse>) =>
+                              <Breadcrumb {...match} />,
+                          },
+                        }
+                      },
+                      children: [
+                        {
+                          path: "edit",
+                          lazy: () => import("../../routes/regions/region-edit"),
+                        },
+                        {
+                          path: "countries/add",
+                          lazy: () => import("../../routes/regions/region-add-countries"),
+                        },
+                        {
+                          path: "metadata/edit",
+                          lazy: () => import("../../routes/regions/region-metadata"),
+                        },
+                      ],
+                    },
+                  ],
+                },
+                // Locations & Shipping
+                {
+                  path: "locations",
+                  errorElement: <ErrorBoundary />,
+                  element: <Outlet />,
+                  handle: {
+                    breadcrumb: () => "Locations & Shipping",
+                  },
+                  children: [
+                    {
+                      path: "",
+                      lazy: () => import("../../routes/locations/location-list"),
+                    },
+                    {
+                      path: "create",
+                      lazy: () => import("../../routes/locations/location-create"),
+                    },
+                    {
+                      path: "shipping-profiles",
+                      element: <Outlet />,
+                      handle: {
+                        breadcrumb: () => "Shipping Profiles",
+                      },
+                      children: [
+                        {
+                          path: "",
+                          lazy: () =>
+                            import("../../routes/shipping-profiles/shipping-profiles-list"),
+                          children: [
+                            {
+                              path: "create",
+                              lazy: () =>
+                                import("../../routes/shipping-profiles/shipping-profile-create"),
+                            },
+                          ],
+                        },
+                        {
+                          path: ":shipping_profile_id",
+                          lazy: async () => {
+                            const { Component, Breadcrumb, loader } = await import(
+                              "../../routes/shipping-profiles/shipping-profile-detail"
+                            )
+                            return {
+                              Component,
+                              loader,
+                              handle: {
+                                breadcrumb: (
+                                  match: UIMatch<HttpTypes.AdminShippingProfileResponse>
+                                ) => <Breadcrumb {...match} />,
+                              },
+                            }
+                          },
+                          children: [
+                            {
+                              path: "metadata/edit",
+                              lazy: () =>
+                                import("../../routes/shipping-profiles/shipping-profile-metadata"),
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      path: "shipping-option-types",
+                      errorElement: <ErrorBoundary />,
+                      element: <Outlet />,
+                      handle: {
+                        breadcrumb: () => "Shipping Option Types",
+                      },
+                      children: [
+                        {
+                          path: "",
+                          lazy: () =>
+                            import("../../routes/shipping-option-types/shipping-option-type-list"),
+                          children: [
+                            {
+                              path: "create",
+                              lazy: () =>
+                                import("../../routes/shipping-option-types/shipping-option-type-create"),
+                            },
+                          ],
+                        },
+                        {
+                          path: ":id",
+                          lazy: async () => {
+                            const { Component, Breadcrumb, loader } = await import(
+                              "../../routes/shipping-option-types/shipping-option-type-detail"
+                            )
+                            return {
+                              Component,
+                              loader,
+                              handle: {
+                                breadcrumb: (
+                                  match: UIMatch<HttpTypes.AdminShippingOptionTypeResponse>
+                                ) => <Breadcrumb {...match} />,
+                              },
+                            }
+                          },
+                          children: [
+                            {
+                              path: "edit",
+                              lazy: () =>
+                                import("../../routes/shipping-option-types/shipping-option-type-edit"),
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      path: ":location_id",
+                      lazy: async () => {
+                        const { Component, Breadcrumb, loader } = await import(
+                          "../../routes/locations/location-detail"
+                        )
+                        return {
+                          Component,
+                          loader,
+                          handle: {
+                            breadcrumb: (match: UIMatch<HttpTypes.AdminStockLocationResponse>) =>
+                              <Breadcrumb {...match} />,
+                          },
+                        }
+                      },
+                      children: [
+                        {
+                          path: "edit",
+                          lazy: () => import("../../routes/locations/location-edit"),
+                        },
+                        {
+                          path: "sales-channels",
+                          lazy: () => import("../../routes/locations/location-sales-channels"),
+                        },
+                        {
+                          path: "fulfillment-providers",
+                          lazy: () =>
+                            import("../../routes/locations/location-fulfillment-providers"),
+                        },
+                        {
+                          path: "fulfillment-set/:fset_id",
+                          children: [
+                            {
+                              path: "service-zones/create",
+                              lazy: () =>
+                                import("../../routes/locations/location-service-zone-create"),
+                            },
+                            {
+                              path: "service-zone/:zone_id",
+                              children: [
+                                {
+                                  path: "edit",
+                                  lazy: () =>
+                                    import("../../routes/locations/location-service-zone-edit"),
+                                },
+                                {
+                                  path: "areas",
+                                  lazy: () =>
+                                    import("../../routes/locations/location-service-zone-manage-areas"),
+                                },
+                                {
+                                  path: "shipping-option",
+                                  children: [
+                                    {
+                                      path: "create",
+                                      lazy: () =>
+                                        import("../../routes/locations/location-service-zone-shipping-option-create"),
+                                    },
+                                    {
+                                      path: ":so_id",
+                                      children: [
+                                        {
+                                          path: "edit",
+                                          lazy: () =>
+                                            import("../../routes/locations/location-service-zone-shipping-option-edit"),
+                                        },
+                                        {
+                                          path: "pricing",
+                                          lazy: () =>
+                                            import("../../routes/locations/location-service-zone-shipping-option-pricing"),
+                                        },
+                                      ],
+                                    },
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                // Sales Channels
+                {
+                  path: "sales-channels",
+                  errorElement: <ErrorBoundary />,
+                  element: <Outlet />,
+                  handle: {
+                    breadcrumb: () => "Sales Channels",
+                  },
+                  children: [
+                    {
+                      path: "",
+                      lazy: () => import("../../routes/sales-channels/sales-channel-list"),
+                      children: [
+                        {
+                          path: "create",
+                          lazy: () => import("../../routes/sales-channels/sales-channel-create"),
+                        },
+                      ],
+                    },
+                    {
+                      path: ":id",
+                      lazy: async () => {
+                        const { Component, Breadcrumb, loader } = await import(
+                          "../../routes/sales-channels/sales-channel-detail"
+                        )
+                        return {
+                          Component,
+                          loader,
+                          handle: {
+                            breadcrumb: (match: UIMatch<HttpTypes.AdminSalesChannelResponse>) =>
+                              <Breadcrumb {...match} />,
+                          },
+                        }
+                      },
+                      children: [
+                        {
+                          path: "edit",
+                          lazy: () => import("../../routes/sales-channels/sales-channel-edit"),
+                        },
+                        {
+                          path: "add-products",
+                          lazy: () => import("../../routes/sales-channels/sales-channel-add-products"),
+                        },
+                        {
+                          path: "metadata/edit",
+                          lazy: () => import("../../routes/sales-channels/sales-channel-metadata"),
+                        },
+                      ],
+                    },
+                  ],
+                },
+                // Tax Regions
+                {
+                  path: "tax-regions",
+                  element: <Outlet />,
+                  handle: {
+                    breadcrumb: () => "Tax Regions",
+                  },
+                  children: [
+                    {
+                      path: "",
+                      lazy: () => import("../../routes/tax-regions/tax-region-list"),
+                      children: [
+                        {
+                          path: "create",
+                          lazy: () => import("../../routes/tax-regions/tax-region-create"),
+                        },
+                      ],
+                    },
+                    {
+                      path: ":id",
+                      Component: Outlet,
+                      loader: taxRegionLoader,
+                      handle: {
+                        breadcrumb: (match: UIMatch<HttpTypes.AdminTaxRegionResponse>) =>
+                          <TaxRegionDetailBreadcrumb {...match} />,
+                      },
+                      children: [
+                        {
+                          path: "",
+                          lazy: async () => {
+                            const { Component } = await import(
+                              "../../routes/tax-regions/tax-region-detail"
+                            )
+                            return { Component }
+                          },
+                          children: [
+                            {
+                              path: "edit",
+                              lazy: () => import("../../routes/tax-regions/tax-region-edit"),
+                            },
+                            {
+                              path: "provinces/create",
+                              lazy: () => import("../../routes/tax-regions/tax-region-province-create"),
+                            },
+                            {
+                              path: "overrides/create",
+                              lazy: () => import("../../routes/tax-regions/tax-region-tax-override-create"),
+                            },
+                            {
+                              path: "overrides/:tax_rate_id/edit",
+                              lazy: () => import("../../routes/tax-regions/tax-region-tax-override-edit"),
+                            },
+                            {
+                              path: "tax-rates/create",
+                              lazy: () => import("../../routes/tax-regions/tax-region-tax-rate-create"),
+                            },
+                            {
+                              path: "tax-rates/:tax_rate_id/edit",
+                              lazy: () => import("../../routes/tax-regions/tax-region-tax-rate-edit"),
+                            },
+                          ],
+                        },
+                        {
+                          path: "provinces/:province_id",
+                          lazy: async () => {
+                            const { Component, Breadcrumb, loader } = await import(
+                              "../../routes/tax-regions/tax-region-province-detail"
+                            )
+                            return {
+                              Component,
+                              loader,
+                              handle: {
+                                breadcrumb: (match: UIMatch<HttpTypes.AdminTaxRegionResponse>) =>
+                                  <Breadcrumb {...match} />,
+                              },
+                            }
+                          },
+                          children: [
+                            {
+                              path: "tax-rates/create",
+                              lazy: () => import("../../routes/tax-regions/tax-region-tax-rate-create"),
+                            },
+                            {
+                              path: "tax-rates/:tax_rate_id/edit",
+                              lazy: () => import("../../routes/tax-regions/tax-region-tax-rate-edit"),
+                            },
+                            {
+                              path: "overrides/create",
+                              lazy: () => import("../../routes/tax-regions/tax-region-tax-override-create"),
+                            },
+                            {
+                              path: "overrides/:tax_rate_id/edit",
+                              lazy: () => import("../../routes/tax-regions/tax-region-tax-override-edit"),
+                            },
+                          ],
+                        },
+                      ],
                     },
                   ],
                 },

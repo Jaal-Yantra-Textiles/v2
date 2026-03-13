@@ -11,6 +11,7 @@ import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 import { pricePreferencesQueryKeys } from "./price-preferences"
 import { FetchError } from "@medusajs/js-sdk"
+import { usePartnerStores } from "./partner-stores"
 
 const REGIONS_QUERY_KEY = "regions" as const
 export const regionsQueryKeys = queryKeysFactory(REGIONS_QUERY_KEY)
@@ -28,9 +29,17 @@ export const useRegion = (
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
     queryKey: regionsQueryKeys.detail(id, query),
-    queryFn: async () => sdk.admin.region.retrieve(id, query),
+    queryFn: async () =>
+      sdk.client.fetch<{ region: HttpTypes.AdminRegion }>(
+        `/partners/stores/${storeId}/regions/${id}`,
+        { method: "GET" }
+      ),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -49,9 +58,17 @@ export const useRegions = (
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.region.list(query),
+    queryFn: () =>
+      sdk.client.fetch<PaginatedResponse<{ regions: HttpTypes.AdminRegion[] }>>(
+        `/partners/stores/${storeId}/regions`,
+        { method: "GET" }
+      ),
     queryKey: regionsQueryKeys.list(query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -65,8 +82,15 @@ export const useCreateRegion = (
     HttpTypes.AdminCreateRegion
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.region.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ region: HttpTypes.AdminRegion }>(
+        `/partners/stores/${storeId}/regions`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: regionsQueryKeys.lists() })
 
@@ -91,8 +115,15 @@ export const useUpdateRegion = (
     HttpTypes.AdminUpdateRegion
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.region.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ region: HttpTypes.AdminRegion }>(
+        `/partners/stores/${storeId}/regions/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: regionsQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: regionsQueryKeys.details() })
@@ -118,8 +149,15 @@ export const useDeleteRegion = (
     void
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: () => sdk.admin.region.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<HttpTypes.AdminRegionDeleteResponse>(
+        `/partners/stores/${storeId}/regions/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: regionsQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: regionsQueryKeys.detail(id) })

@@ -1,5 +1,5 @@
 import { MedusaContainer } from "@medusajs/framework"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 export const refetchPartner = async (
     partnerId: string,
@@ -31,4 +31,37 @@ export const getPartnerFromAuthContext = async (
 
     const partner = await refetchPartner(partnerId, container)
     return partner || null
+}
+
+export const validatePartnerStoreAccess = async (
+    authContext: { actor_id?: string | null } | undefined,
+    storeId: string,
+    container: MedusaContainer,
+): Promise<{ partner: any; store: any }> => {
+    const partner = await getPartnerFromAuthContext(authContext, container)
+    if (!partner) {
+        throw new MedusaError(
+            MedusaError.Types.UNAUTHORIZED,
+            "No partner associated with this account"
+        )
+    }
+
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+        entity: "partners",
+        fields: ["id", "stores.*"],
+        filters: { id: partner.id },
+    })
+
+    const stores = (data?.[0]?.stores || []) as any[]
+    const store = stores.find((s: any) => s.id === storeId)
+
+    if (!store) {
+        throw new MedusaError(
+            MedusaError.Types.UNAUTHORIZED,
+            `Store ${storeId} is not associated with this partner`
+        )
+    }
+
+    return { partner, store }
 }
