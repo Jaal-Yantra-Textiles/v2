@@ -5,23 +5,11 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import { PARTNER_MODULE } from "../../modules/partner"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import PartnerService from "../../modules/partner/service"
 
 type DeletePartnerInput = {
   id: string
 }
-
-const dismissPartnerLinksStep = createStep(
-  "dismiss-partner-links-step",
-  async (input: DeletePartnerInput, { container }) => {
-    const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
-    await remoteLink.dismiss({
-      [PARTNER_MODULE]: { partner_id: input.id },
-    })
-    return new StepResponse(undefined)
-  }
-)
 
 const deletePartnerAdminsStep = createStep(
   "delete-partner-admins-step",
@@ -31,40 +19,36 @@ const deletePartnerAdminsStep = createStep(
       partner_id: input.id,
     })
     if (admins.length) {
-      await partnerService.deletePartnerAdmins(admins.map((a: any) => a.id))
+      await partnerService.softDeletePartnerAdmins(admins.map((a: any) => a.id))
     }
-    return new StepResponse({ admins }, { admins })
+    return new StepResponse({ count: admins.length }, { adminIds: admins.map((a: any) => a.id) })
   },
-  async (data: { admins: any[] } | undefined, { container }) => {
-    if (!data?.admins?.length) return
+  async (data: { adminIds: string[] } | undefined, { container }) => {
+    if (!data?.adminIds?.length) return
     const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
-    for (const admin of data.admins) {
-      await partnerService.createPartnerAdmins(admin)
-    }
+    await partnerService.restorePartnerAdmins(data.adminIds)
   }
 )
 
-const deletePartnerStep = createStep(
-  "delete-partner-step",
+const softDeletePartnerStep = createStep(
+  "soft-delete-partner-step",
   async (input: DeletePartnerInput, { container }) => {
     const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
-    const partner = await partnerService.retrievePartner(input.id)
-    await partnerService.deletePartners(input.id)
-    return new StepResponse({ id: input.id }, { originalData: partner })
+    await partnerService.softDeletePartners(input.id)
+    return new StepResponse({ id: input.id }, { id: input.id })
   },
-  async (data: { originalData: any } | undefined, { container }) => {
-    if (!data?.originalData) return
+  async (data: { id: string } | undefined, { container }) => {
+    if (!data?.id) return
     const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
-    await partnerService.createPartners(data.originalData)
+    await partnerService.restorePartners(data.id)
   }
 )
 
 export const deletePartnerWorkflow = createWorkflow(
   "delete-partner",
   (input: DeletePartnerInput) => {
-    dismissPartnerLinksStep(input)
     deletePartnerAdminsStep(input)
-    const result = deletePartnerStep(input)
+    const result = softDeletePartnerStep(input)
     return new WorkflowResponse(result)
   }
 )
