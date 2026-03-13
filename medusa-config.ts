@@ -43,7 +43,7 @@ module.exports = defineConfig({
   },
   featureFlags: {
      translation: true,
-     index_engine: false,
+     index_engine: true,
      view_configrations: true,
   },
 

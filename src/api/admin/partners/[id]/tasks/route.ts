@@ -153,7 +153,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     try {
         // Query all tasks linked to this partner
-        const { data: partnerData } = await query.graph({
+        const { data: partnerData } = await query.index({
             entity: 'partner',
             fields: [ 'tasks.*'],
             filters: {
