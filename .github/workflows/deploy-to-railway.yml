@@ -186,8 +186,8 @@ jobs:
       - name: Run module migrations
         run: npx medusa db:migrate
 
-      - name: Sync links (safe — never drops tables)
-        run: npx medusa db:sync-links --execute-safe
+      - name: Sync links (auto-accept destructive ops like table drops)
+        run: npx medusa db:sync-links --execute-all
 
       - name: Migration summary
         if: always()
