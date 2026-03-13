@@ -92,11 +92,22 @@ module.exports = defineConfig({
 
     // Production-ready modules
     {
-      resolve: "@medusajs/medusa/cache-redis",
+      resolve: "@medusajs/medusa/caching",
       options: {
-        redisUrl: process.env.REDIS_URL,
+        providers: [
+          {
+            resolve: "@medusajs/caching-redis",
+            id: "caching-redis",
+            // Optional, makes this the default caching provider
+            is_default: true,
+            options: {
+              redisUrl: process.env.REDIS_URL,
+              // more options...
+            },
+          },
+        ],
       },
-    },
+    },  
     {
       resolve: "@medusajs/medusa/event-bus-redis",
       options: {

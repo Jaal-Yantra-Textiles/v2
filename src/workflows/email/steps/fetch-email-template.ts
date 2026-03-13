@@ -88,7 +88,6 @@ export const fetchEmailTemplateStep = createStep(
             return obj
           }, {} as Record<string, any>)
         
-        console.log('Processing template with data:', Object.keys(filteredData))
         
         // Compile and render the HTML template
         const htmlTemplate = Handlebars.compile(template.html_content)
