@@ -1,3 +1,11 @@
+## [10.8.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.8.1...v10.8.2) (2026-03-13)
+
+
+### Bug Fixes
+
+* **workflows:** Dismiss all remote links before deleting a design ([8dc8aa5](https://github.com/Jaal-Yantra-Textiles/v2/commit/8dc8aa5d9a8351b3d8e57204383e60ef7f1f431a))
+* **links:** Remove dead agreement links and restore feedback indexing ([9b046c9](https://github.com/Jaal-Yantra-Textiles/v2/commit/9b046c9a8c9037c93e9a9266ebcd68e16e09c94f))
+
 ## [10.8.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.8.0...v10.8.1) (2026-03-13)
 
 
