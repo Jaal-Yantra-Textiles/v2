@@ -183,8 +183,8 @@ jobs:
       - name: Use production config
         run: cp medusa-config.prod.ts medusa-config.ts
 
-      - name: Run module migrations
-        run: npx medusa db:migrate
+      - name: Run module migrations (skip link sync — handled separately)
+        run: npx medusa db:migrate --skip-links
 
       - name: Sync links (auto-accept destructive ops like table drops)
         run: npx medusa db:sync-links --execute-all

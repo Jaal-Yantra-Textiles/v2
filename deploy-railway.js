@@ -148,7 +148,7 @@ let packageJson;
 try {
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   
-  const expectedPredeploy = 'medusa db:migrate && medusa db:sync-links --execute-all';
+  const expectedPredeploy = 'medusa db:migrate --execute-all';
   if (!packageJson.scripts['predeploy:force']) {
     packageJson.scripts['predeploy:force'] = expectedPredeploy;
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
