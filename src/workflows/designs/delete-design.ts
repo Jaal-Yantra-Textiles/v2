@@ -6,10 +6,22 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import DesignService from "../../modules/designs/service";
 import { DESIGN_MODULE } from "../../modules/designs";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
 type DeleteDesignStepInput = {
   id: string;
 };
+
+const dismissDesignLinksStep = createStep(
+  "dismiss-design-links-step",
+  async (input: DeleteDesignStepInput, { container }) => {
+    const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK);
+    await remoteLink.dismiss({
+      [DESIGN_MODULE]: { design_id: input.id },
+    });
+    return new StepResponse(undefined);
+  }
+);
 
 export const deleteDesignStep = createStep(
   "delete-design-step",
@@ -34,6 +46,7 @@ type DeleteDesignWorkFlowInput = {
 export const deleteDesignWorkflow = createWorkflow(
   "delete-design",
   (input: DeleteDesignWorkFlowInput) => {
+    dismissDesignLinksStep(input);
     const result = deleteDesignStep(input);
     return new WorkflowResponse(result);
   },
