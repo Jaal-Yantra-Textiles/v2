@@ -105,9 +105,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
-import PersonAgreementLink from "../../../../../links/person-agreements";
-import PersonAgreementResponseLink from "../../../../../links/person-agreement-responses";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
 // GET /admin/persons/:id/agreements - Fetch all agreements for a person
 export const GET = async (
@@ -116,14 +114,15 @@ export const GET = async (
 ) => {
   const { id: person_id } = req.params;
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
-  // 1) Fetch agreements for this person via module link (graph)
-  const { data: agreementData } = await query.graph({
-    entity: PersonAgreementLink.entryPoint,
-    fields: ["agreement.*", "person.*"],
-    filters: { person_id },
+
+  // 1) Get person info
+  const { data: persons } = await query.graph({
+    entity: "person",
+    fields: ["id", "first_name", "last_name", "email"],
+    filters: { id: person_id },
   });
 
-  if (!agreementData || agreementData.length === 0) {
+  if (!persons || persons.length === 0) {
     return res.status(200).json({
       person_id,
       person_name: "",
@@ -133,20 +132,39 @@ export const GET = async (
     });
   }
 
-  const personInfo = agreementData[0].person;
-  const agreements = agreementData.map((rec: any) => rec.agreement);
+  const personInfo = persons[0];
 
-  // 2) Fetch agreement responses for this person via module link (graph)
-  const { data: responseData } = await query.graph({
-    entity: PersonAgreementResponseLink.entryPoint,
-    fields: ["agreement_response.*", "person.*"],
-    filters: { person_id },
+  // 2) Fetch agreements linked to this person via Index Module
+  const { data: agreements } = await query.index({
+    entity: "agreement",
+    fields: ["*"],
+    filters: {
+      people: { id: person_id },
+    },
   });
 
-  // Group responses by agreement_id for easier access
+  if (!agreements || agreements.length === 0) {
+    return res.status(200).json({
+      person_id: personInfo.id,
+      person_name: `${personInfo.first_name || ""} ${personInfo.last_name || ""}`.trim(),
+      person_email: personInfo.email,
+      agreements: [],
+      count: 0,
+    });
+  }
+
+  // 3) Fetch agreement responses linked to this person via Index Module
+  const { data: responses } = await query.index({
+    entity: "agreementResponse",
+    fields: ["*"],
+    filters: {
+      person: { id: person_id },
+    },
+  });
+
+  // Group responses by agreement_id
   const responsesByAgreement: Record<string, any[]> = {};
-  for (const rec of responseData || []) {
-    const ar = rec.agreement_response;
+  for (const ar of responses || []) {
     const agreementId = ar.agreement_id;
     if (!responsesByAgreement[agreementId]) {
       responsesByAgreement[agreementId] = [];

@@ -2,7 +2,7 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
 import AgreementsService from "../../../modules/agreements/service";
-import PersonAgreementLink from "../../../links/person-agreements";
+import PersonAgreementResponseLink from "../../../links/person-agreement-responses";
 import { RemoteQueryFunction } from "@medusajs/types";
 
 type Query = Omit<RemoteQueryFunction, symbol>;
@@ -40,19 +40,16 @@ export const fetchAgreementResponseStep = createStep(
       );
     }
 
+    // Resolve person through the response link (not the agreement link)
     const { data: linkedData } = await query.graph({
-      entity: PersonAgreementLink.entryPoint,
-      fields: ["*"],
-      filters: { agreement_id: agreementResponse.agreement_id },
+      entity: PersonAgreementResponseLink.entryPoint,
+      fields: ["person.*"],
+      filters: { agreement_response_id: agreementResponse.id },
     });
 
-    const { data: persons } = await query.graph({
-      entity: "person",
-      fields: ["*"],
-      filters: { id: linkedData[0].person_id },
-    });
-
-    const person = persons && persons.length > 0 ? persons[0] : null;
+    const person = linkedData && linkedData.length > 0
+      ? linkedData[0].person
+      : null;
 
     return new StepResponse({
       agreementResponse,
