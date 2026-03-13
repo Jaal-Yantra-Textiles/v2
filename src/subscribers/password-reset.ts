@@ -12,9 +12,17 @@ import {
     } },
     container,
   }: SubscriberArgs<{ entity_id: string, token: string, actor_type: string }>) {
-    const urlPrefix = actor_type === "customer" ? 
-      "https://cicilabel.com" : 
-      "https://v3.jaalyantra.com/app"
+    let urlPrefix: string
+    switch (actor_type) {
+      case "customer":
+        urlPrefix = "https://cicilabel.com"
+        break
+      case "partner":
+        urlPrefix = "https://partner.jaalyantra.com"
+        break
+      default:
+        urlPrefix = "https://v3.jaalyantra.com/app"
+    }
   
     const resetUrl = `${urlPrefix}/reset-password?token=${token}&email=${email}`
   
