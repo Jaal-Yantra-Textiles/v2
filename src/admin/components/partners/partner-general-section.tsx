@@ -1,7 +1,8 @@
-import { Badge, Button, Container, Heading, Input, Label, Select, Switch, Text, toast } from "@medusajs/ui"
-import { ChatBubbleLeftRight } from "@medusajs/icons"
+import { Badge, Button, Container, Heading, Input, Label, Select, Switch, Text, toast, usePrompt } from "@medusajs/ui"
+import { ChatBubbleLeftRight, Trash } from "@medusajs/icons"
 import { useEffect, useMemo, useState } from "react"
-import { useUpdatePartner } from "../../hooks/api/partners-admin"
+import { useNavigate } from "react-router-dom"
+import { useUpdatePartner, useDeletePartner } from "../../hooks/api/partners-admin"
 import { ActionMenu } from "../common/action-menu"
 
 export type AdminPartner = {
@@ -15,6 +16,8 @@ export type AdminPartner = {
 }
 
 export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) => {
+  const prompt = usePrompt()
+  const navigate = useNavigate()
   const [name, setName] = useState(partner.name)
   const [handle, setHandle] = useState(partner.handle)
   const [logo, setLogo] = useState(partner.logo || "")
@@ -22,6 +25,28 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
   const [isVerified, setIsVerified] = useState<boolean>(!!partner.is_verified)
 
   const { mutateAsync: updatePartner, isPending } = useUpdatePartner()
+  const { mutateAsync: deletePartner } = useDeletePartner(partner.id)
+
+  const handleDelete = async () => {
+    const res = await prompt({
+      title: "Delete Partner",
+      description: `Are you sure you want to delete "${partner.name}"? This action cannot be undone. All linked data (tasks, designs, orders, feedbacks) will be unlinked.`,
+      verificationInstruction: "Type the partner handle to confirm.",
+      verificationText: partner.handle,
+      confirmText: "Delete",
+      cancelText: "Cancel",
+    })
+
+    if (!res) return
+
+    try {
+      await deletePartner()
+      toast.success("Partner deleted", { description: `"${partner.name}" has been removed.` })
+      navigate("/partners", { replace: true })
+    } catch (e: any) {
+      toast.error("Delete failed", { description: e?.message || "Could not delete partner" })
+    }
+  }
 
   // Sync local state if the partner prop updates (e.g., after a successful save/refetch)
   useEffect(() => {
@@ -70,6 +95,15 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
                     label: "Add Feedback",
                     icon: <ChatBubbleLeftRight />,
                     to: `/partners/${partner.id}/add-feedback`,
+                  },
+                ],
+              },
+              {
+                actions: [
+                  {
+                    label: "Delete",
+                    icon: <Trash />,
+                    onClick: handleDelete,
                   },
                 ],
               },

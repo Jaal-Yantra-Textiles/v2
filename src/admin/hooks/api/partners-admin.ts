@@ -98,6 +98,25 @@ export const useUpdatePartner = () => {
   })
 }
 
+export const useDeletePartner = (
+  id: string,
+  options?: UseMutationOptions<{ id: string; object: string; deleted: boolean }, FetchError, void>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(`/admin/partners/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
 // Create partner with admin
 export type CreatePartnerWithAdminPayload = {
   partner: {

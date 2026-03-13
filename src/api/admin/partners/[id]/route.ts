@@ -132,6 +132,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import listSinglePartnerWorkflow from "../../../../workflows/partners/list-single-partner"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
+import deletePartnerWorkflow from "../../../../workflows/partners/delete-partner"
 import { ListPartnersQuerySchema } from "../validators"
 
 // Get a single partner by id
@@ -198,4 +199,18 @@ export const PUT = async (
   }
 
   res.status(200).json({ partner: result })
+}
+
+// Delete a partner by id
+export const DELETE = async (
+  req: MedusaRequest,
+  res: MedusaResponse
+) => {
+  const id = req.params.id
+
+  await deletePartnerWorkflow(req.scope).run({
+    input: { id },
+  })
+
+  res.status(200).json({ id, object: "partner", deleted: true })
 }
