@@ -1,3 +1,10 @@
+## [10.8.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.8.2...v10.8.3) (2026-03-13)
+
+
+### Bug Fixes
+
+* **Partners:** Fixed partner filters ([8877226](https://github.com/Jaal-Yantra-Textiles/v2/commit/8877226357d927e873724113746db3d8e5adaeba))
+
 ## [10.8.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.8.1...v10.8.2) (2026-03-13)
 
 
