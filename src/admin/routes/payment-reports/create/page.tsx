@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form"
 import { z } from "@medusajs/framework/zod"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Button, Heading, Input, Text, toast, Select } from "@medusajs/ui"
+import { Button, DatePicker, Heading, Input, Text, toast, Select } from "@medusajs/ui"
 import { useRouteModal } from "../../../components/modal/use-route-modal"
 import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
 import { Form } from "../../../components/common/form"
@@ -120,7 +120,12 @@ const CreatePaymentReportForm = () => {
                   <Form.Item>
                     <Form.Label>Period Start</Form.Label>
                     <Form.Control>
-                      <Input type="date" {...field} />
+                      <DatePicker
+                        value={field.value ? new Date(field.value) : undefined}
+                        onChange={(date) =>
+                          field.onChange(date ? date.toISOString().split("T")[0] : "")
+                        }
+                      />
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>
@@ -135,7 +140,12 @@ const CreatePaymentReportForm = () => {
                   <Form.Item>
                     <Form.Label>Period End</Form.Label>
                     <Form.Control>
-                      <Input type="date" {...field} />
+                      <DatePicker
+                        value={field.value ? new Date(field.value) : undefined}
+                        onChange={(date) =>
+                          field.onChange(date ? date.toISOString().split("T")[0] : "")
+                        }
+                      />
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>

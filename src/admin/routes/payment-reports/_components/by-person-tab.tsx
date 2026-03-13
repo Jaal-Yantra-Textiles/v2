@@ -1,4 +1,4 @@
-import { Container, Text, Badge, Table, Input, Label } from "@medusajs/ui"
+import { Container, Text, Badge, Table, DatePicker, Label } from "@medusajs/ui"
 import { useMemo, useState } from "react"
 import { usePaymentReportsByPerson } from "../../../hooks/api/payment-reports"
 
@@ -22,18 +22,16 @@ export const ByPersonTab = () => {
         <div className="grid grid-cols-2 gap-4">
           <div className="grid gap-y-1">
             <Label>Period Start</Label>
-            <Input
-              type="date"
-              value={periodStart}
-              onChange={(e) => setPeriodStart(e.target.value)}
+            <DatePicker
+              value={periodStart ? new Date(periodStart) : undefined}
+              onChange={(date) => setPeriodStart(date ? date.toISOString().split("T")[0] : "")}
             />
           </div>
           <div className="grid gap-y-1">
             <Label>Period End</Label>
-            <Input
-              type="date"
-              value={periodEnd}
-              onChange={(e) => setPeriodEnd(e.target.value)}
+            <DatePicker
+              value={periodEnd ? new Date(periodEnd) : undefined}
+              onChange={(date) => setPeriodEnd(date ? date.toISOString().split("T")[0] : "")}
             />
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { LoaderFunctionArgs, UIMatch, useLoaderData, useNavigate, useParams } from "react-router-dom"
-import { Container, Heading, Text, Badge, Table, toast, Button } from "@medusajs/ui"
+import { Container, Heading, Text, Badge, Table, toast, Button, usePrompt } from "@medusajs/ui"
 import { PencilSquare, Trash } from "@medusajs/icons"
 import { Outlet } from "react-router-dom"
 import { usePaymentReport, useDeletePaymentReport } from "../../../hooks/api/payment-reports"
@@ -10,6 +10,7 @@ import { paymentReportLoader } from "./loader"
 const PaymentReportDetailPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
+  const prompt = usePrompt()
   const initialData = useLoaderData() as Awaited<{ payment_report: AdminPaymentReport }>
 
   const { payment_report, isPending: isLoading, isError, error } = usePaymentReport(id!, {
@@ -31,7 +32,11 @@ const PaymentReportDetailPage = () => {
   }
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this report? This action cannot be undone.")) {
+    const confirmed = await prompt({
+      title: "Delete Payment Report",
+      description: "Are you sure you want to delete this report? This action cannot be undone.",
+    })
+    if (!confirmed) {
       return
     }
     try {
