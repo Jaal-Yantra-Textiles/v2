@@ -7,12 +7,17 @@ const FormResponse = model
 
     form: model.belongsTo(() => Form, { mappedBy: "responses" }),
 
-    status: model.enum(["new", "read", "archived"]).default("new"),
+    status: model
+      .enum(["new", "read", "archived", "pending_verification"])
+      .default("new"),
 
     email: model.text().nullable(),
     data: model.json(),
 
     submitted_at: model.dateTime(),
+
+    verification_code: model.text().nullable(),
+    verification_expires_at: model.dateTime().nullable(),
 
     page_url: model.text().nullable(),
     referrer: model.text().nullable(),
@@ -33,6 +38,9 @@ const FormResponse = model
     },
     {
       on: ["status"],
+    },
+    {
+      on: ["verification_code", "form_id"],
     },
   ])
 

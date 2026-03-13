@@ -177,7 +177,7 @@ import {
   MetaAdsOverviewQuerySchema,
   CreateRemoteAdSchema,
 } from "./admin/meta-ads/validators";
-import { webSubmitFormResponseSchema } from "./web/website/[domain]/forms/[handle]/validators";
+import { webSubmitFormResponseSchema, webVerifyFormResponseSchema } from "./web/website/[domain]/forms/[handle]/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -1341,6 +1341,11 @@ export default defineMiddlewares({
       matcher: "/web/website/:domain/forms/:handle",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(webSubmitFormResponseSchema))],
+    },
+    {
+      matcher: "/web/website/:domain/forms/:handle/verify",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(webVerifyFormResponseSchema))],
     },
     {
       matcher: "/web/website/:domain/forms/:handle/schema",

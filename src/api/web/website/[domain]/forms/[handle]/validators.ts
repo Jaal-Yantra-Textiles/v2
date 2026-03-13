@@ -9,3 +9,10 @@ export const webSubmitFormResponseSchema = z.object({
 })
 
 export type WebSubmitFormResponse = z.infer<typeof webSubmitFormResponseSchema>
+
+export const webVerifyFormResponseSchema = z.object({
+  response_id: z.string().min(1),
+  code: z.string().length(6),
+})
+
+export type WebVerifyFormResponse = z.infer<typeof webVerifyFormResponseSchema>

@@ -446,7 +446,8 @@
           "enumItems": [
             "new",
             "read",
-            "archived"
+            "archived",
+            "pending_verification"
           ],
           "mappedType": "enum"
         },
@@ -475,6 +476,25 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "verification_code": {
+          "name": "verification_code",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "verification_expires_at": {
+          "name": "verification_expires_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
           "length": 6,
           "mappedType": "datetime"
         },
@@ -603,6 +623,15 @@
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_form_response_status\" ON \"form_response\" (\"status\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_form_response_verification_code_form_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_form_response_verification_code_form_id\" ON \"form_response\" (\"verification_code\", \"form_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "form_response_pkey",
