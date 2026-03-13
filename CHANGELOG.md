@@ -1,3 +1,10 @@
+## [10.8.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.8.0...v10.8.1) (2026-03-13)
+
+
+### Bug Fixes
+
+* **api:** Module links causing stress ([114e491](https://github.com/Jaal-Yantra-Textiles/v2/commit/114e4913e35c8ddb6f633d8c68469dc31aaea74b))
+
 # [10.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.7.0...v10.8.0) (2026-03-13)
 
 
