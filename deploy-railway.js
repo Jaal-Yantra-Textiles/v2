@@ -148,16 +148,16 @@ let packageJson;
 try {
   packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   
-  const expectedPredeploy = 'medusa db:migrate --execute-all';
+  const expectedPredeploy = 'medusa db:migrate --execute-all-links';
   if (!packageJson.scripts['predeploy:force']) {
     packageJson.scripts['predeploy:force'] = expectedPredeploy;
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
     console.log('✅ Added predeploy:force script to package.json');
-  } else if (!packageJson.scripts['predeploy:force'].includes('--execute-all')) {
+  } else if (!packageJson.scripts['predeploy:force'].includes('--execute-all-links')) {
     // Upgrade stale predeploy:force
     packageJson.scripts['predeploy:force'] = expectedPredeploy;
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-    console.log('✅ Upgraded predeploy:force to use --execute-all');
+    console.log('✅ Upgraded predeploy:force to use --execute-all-links');
   } else {
     console.log('✅ predeploy:force script already exists in package.json');
   }

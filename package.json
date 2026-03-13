@@ -35,7 +35,7 @@
     "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
     "predeploy": "medusa db:migrate --execute-safe-links",
-    "predeploy:force": "medusa db:migrate --execute-all",
+    "predeploy:force": "medusa db:migrate --execute-all-links",
     "generate-ui": "medusa exec ./src/scripts/generate-ui-v2.ts",
     "resolve:aliases": "tsc --showConfig -p tsconfig.json > tsconfig.resolved.json && tsc-alias -p tsconfig.resolved.json && rimraf tsconfig.resolved.json",
     "build:analytics": "node ./src/scripts/build-analytics.js",
