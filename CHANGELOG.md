@@ -1,3 +1,10 @@
+# [10.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.6.1...v10.7.0) (2026-03-13)
+
+
+### Features
+
+* **api:** Added a verification thing on the form for people to first verfiy and then send data ([8d22267](https://github.com/Jaal-Yantra-Textiles/v2/commit/8d22267cd1301ac966f9715c12b2ed78bdbb4645))
+
 ## [10.6.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.6.0...v10.6.1) (2026-03-13)
 
 
