@@ -1,3 +1,15 @@
+# [10.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.7.0...v10.8.0) (2026-03-13)
+
+
+### Bug Fixes
+
+* Node ENV setting unset ([7473b88](https://github.com/Jaal-Yantra-Textiles/v2/commit/7473b881fb3e3f88bfdf2ef1362d01cceab0be54))
+
+
+### Features
+
+* **api:** Store admin api inside the partner ([64e4e0a](https://github.com/Jaal-Yantra-Textiles/v2/commit/64e4e0ae03c3e96e194b7932ba1b400abfc312d2))
+
 # [10.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.6.1...v10.7.0) (2026-03-13)
 
 
