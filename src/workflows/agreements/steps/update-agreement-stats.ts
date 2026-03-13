@@ -32,9 +32,9 @@ export const updateAgreementStatsStep = createStep(
       { agreement_id: input.agreement_id, previous_count: agreement.sent_count || 0 }
     );
   },
-  async (rollbackData: { agreement_id: string; previous_count: number }, { container }) => {
+  async (rollbackData: { agreement_id: string; previous_count: number } | undefined, { container }) => {
     // Rollback: restore previous sent count
-    if (!rollbackData.agreement_id) {
+    if (!rollbackData?.agreement_id) {
       return;
     }
     const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);

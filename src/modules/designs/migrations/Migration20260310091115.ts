@@ -8,8 +8,8 @@ export class Migration20260310091115 extends Migration {
     this.addSql(`CREATE INDEX IF NOT EXISTS "IDX_design_component_component_design_id" ON "design_component" ("component_design_id") WHERE deleted_at IS NULL;`);
     this.addSql(`CREATE INDEX IF NOT EXISTS "IDX_design_component_deleted_at" ON "design_component" ("deleted_at") WHERE deleted_at IS NULL;`);
 
-    this.addSql(`alter table if exists "design_component" add constraint "design_component_parent_design_id_foreign" foreign key ("parent_design_id") references "design" ("id") on update cascade on delete cascade;`);
-    this.addSql(`alter table if exists "design_component" add constraint "design_component_component_design_id_foreign" foreign key ("component_design_id") references "design" ("id") on update cascade on delete cascade;`);
+    this.addSql(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'design_component_parent_design_id_foreign') THEN ALTER TABLE "design_component" ADD CONSTRAINT "design_component_parent_design_id_foreign" FOREIGN KEY ("parent_design_id") REFERENCES "design" ("id") ON UPDATE CASCADE ON DELETE CASCADE; END IF; END $$;`);
+    this.addSql(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'design_component_component_design_id_foreign') THEN ALTER TABLE "design_component" ADD CONSTRAINT "design_component_component_design_id_foreign" FOREIGN KEY ("component_design_id") REFERENCES "design" ("id") ON UPDATE CASCADE ON DELETE CASCADE; END IF; END $$;`);
   }
 
   override async down(): Promise<void> {

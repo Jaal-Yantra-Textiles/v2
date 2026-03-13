@@ -10,6 +10,7 @@ import {
 import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
+import { usePartnerStores } from "./partner-stores"
 
 const TAX_REGIONS_QUERY_KEY = "tax_regions" as const
 export const taxRegionsQueryKeys = queryKeysFactory(TAX_REGIONS_QUERY_KEY)
@@ -19,17 +20,25 @@ export const useTaxRegion = (
   query?: HttpTypes.AdminTaxRegionParams,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminTaxRegionResponse,
+      { tax_region: any },
       FetchError,
-      HttpTypes.AdminTaxRegionResponse,
+      { tax_region: any },
       QueryKey
     >,
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
     queryKey: taxRegionsQueryKeys.detail(id),
-    queryFn: async () => sdk.admin.taxRegion.retrieve(id, query),
+    queryFn: async () =>
+      sdk.client.fetch<{ tax_region: any }>(
+        `/partners/stores/${storeId}/tax-regions/${id}`,
+        { method: "GET" }
+      ),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -40,17 +49,25 @@ export const useTaxRegions = (
   query?: HttpTypes.AdminTaxRegionListParams,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminTaxRegionListResponse,
+      { tax_regions: any[]; count: number },
       FetchError,
-      HttpTypes.AdminTaxRegionListResponse,
+      { tax_regions: any[]; count: number },
       QueryKey
     >,
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.taxRegion.list(query),
+    queryFn: () =>
+      sdk.client.fetch<{ tax_regions: any[]; count: number }>(
+        `/partners/stores/${storeId}/tax-regions`,
+        { method: "GET" }
+      ),
     queryKey: taxRegionsQueryKeys.list(query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -59,13 +76,20 @@ export const useTaxRegions = (
 
 export const useCreateTaxRegion = (
   options?: UseMutationOptions<
-    HttpTypes.AdminTaxRegionResponse,
+    { tax_region: any },
     FetchError,
     HttpTypes.AdminCreateTaxRegion
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.taxRegion.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ tax_region: any }>(
+        `/partners/stores/${storeId}/tax-regions`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: taxRegionsQueryKeys.all })
       options?.onSuccess?.(data, variables, context)
@@ -78,14 +102,21 @@ export const useUpdateTaxRegion = (
   id: string,
   query?: HttpTypes.AdminTaxRegionParams,
   options?: UseMutationOptions<
-    HttpTypes.AdminTaxRegionResponse,
+    { tax_region: any },
     FetchError,
     HttpTypes.AdminUpdateTaxRegion,
     QueryKey
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.taxRegion.update(id, payload, query),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ tax_region: any }>(
+        `/partners/stores/${storeId}/tax-regions/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: taxRegionsQueryKeys.detail(id),
@@ -101,20 +132,26 @@ export const useUpdateTaxRegion = (
 export const useDeleteTaxRegion = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminTaxRegionDeleteResponse,
+    { id: string; object: string; deleted: boolean },
     FetchError,
     void
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: () => sdk.admin.taxRegion.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(
+        `/partners/stores/${storeId}/tax-regions/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: taxRegionsQueryKeys.lists() })
       queryClient.invalidateQueries({
         queryKey: taxRegionsQueryKeys.detail(id),
       })
 
-      // Invalidate all detail queries, as the deleted tax region may have been a sublevel region
       queryClient.invalidateQueries({ queryKey: taxRegionsQueryKeys.details() })
 
       options?.onSuccess?.(data, variables, context)

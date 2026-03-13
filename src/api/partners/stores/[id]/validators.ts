@@ -141,3 +141,65 @@ export const PartnerCreateShippingProfileReq = z.object({
 })
 
 export type PartnerCreateShippingProfileReqType = z.infer<typeof PartnerCreateShippingProfileReq>
+
+// Store update
+export const PartnerUpdateStoreReq = z.object({
+  name: z.string().optional(),
+  supported_currencies: z
+    .array(
+      z.object({
+        currency_code: z.string(),
+        is_default: z.boolean().optional(),
+      })
+    )
+    .optional(),
+  default_sales_channel_id: z.string().nullable().optional(),
+  default_region_id: z.string().nullable().optional(),
+  default_location_id: z.string().nullable().optional(),
+  metadata: z.record(z.any()).optional(),
+})
+
+export type PartnerUpdateStoreReqType = z.infer<typeof PartnerUpdateStoreReq>
+
+// Sales Channels
+export const PartnerCreateSalesChannelReq = z.object({
+  name: z.string().min(1),
+  description: z.string().nullable().optional(),
+  is_disabled: z.boolean().optional(),
+  metadata: z.record(z.any()).optional(),
+})
+
+export type PartnerCreateSalesChannelReqType = z.infer<typeof PartnerCreateSalesChannelReq>
+
+export const PartnerUpdateSalesChannelReq = z.object({
+  name: z.string().optional(),
+  description: z.string().nullable().optional(),
+  is_disabled: z.boolean().optional(),
+  metadata: z.record(z.any()).optional(),
+})
+
+export type PartnerUpdateSalesChannelReqType = z.infer<typeof PartnerUpdateSalesChannelReq>
+
+// Tax Regions
+export const PartnerCreateTaxRegionReq = z.object({
+  country_code: z.string().min(1),
+  province_code: z.string().nullable().optional(),
+  parent_id: z.string().nullable().optional(),
+  default_tax_rate: z
+    .object({
+      rate: z.number().optional(),
+      code: z.string().optional(),
+      name: z.string().optional(),
+    })
+    .optional(),
+  metadata: z.record(z.any()).optional(),
+})
+
+export type PartnerCreateTaxRegionReqType = z.infer<typeof PartnerCreateTaxRegionReq>
+
+export const PartnerUpdateTaxRegionReq = z.object({
+  province_code: z.string().nullable().optional(),
+  metadata: z.record(z.any()).optional(),
+})
+
+export type PartnerUpdateTaxRegionReqType = z.infer<typeof PartnerUpdateTaxRegionReq>

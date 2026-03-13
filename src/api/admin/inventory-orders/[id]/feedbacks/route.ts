@@ -80,7 +80,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   try {
     // Query all feedbacks linked to this inventory order
-    const { data: orderData } = await query.index({
+    const { data: orderData } = await query.graph({
       entity: "inventory_orders",
       fields: ["feedbacks.*"],
       filters: {

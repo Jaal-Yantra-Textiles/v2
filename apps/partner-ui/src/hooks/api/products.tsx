@@ -11,6 +11,7 @@ import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 import { inventoryItemsQueryKeys } from "./inventory.tsx"
+import { usePartnerStores } from "./partner-stores"
 
 const PRODUCTS_QUERY_KEY = "products" as const
 export const productsQueryKeys = queryKeysFactory(PRODUCTS_QUERY_KEY)
@@ -25,9 +26,15 @@ export const useCreateProductOption = (
   productId: string,
   options?: UseMutationOptions<any, FetchError, any>
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload: HttpTypes.AdminCreateProductOption) =>
-      sdk.admin.product.createOption(productId, payload),
+      sdk.client.fetch<any>(
+        `/partners/stores/${storeId}/products/${productId}/options`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: optionsQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -44,9 +51,15 @@ export const useUpdateProductOption = (
   optionId: string,
   options?: UseMutationOptions<any, FetchError, any>
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload: HttpTypes.AdminUpdateProductOption) =>
-      sdk.admin.product.updateOption(productId, optionId, payload),
+      sdk.client.fetch<any>(
+        `/partners/stores/${storeId}/products/${productId}/options/${optionId}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: optionsQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -67,8 +80,15 @@ export const useDeleteProductOption = (
   optionId: string,
   options?: UseMutationOptions<any, FetchError, void>
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: () => sdk.admin.product.deleteOption(productId, optionId),
+    mutationFn: () =>
+      sdk.client.fetch<any>(
+        `/partners/stores/${storeId}/products/${productId}/options/${optionId}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: optionsQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -90,18 +110,25 @@ export const useProductVariant = (
   query?: HttpTypes.AdminProductVariantParams,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminProductVariantResponse,
+      { variant: any },
       FetchError,
-      HttpTypes.AdminProductVariantResponse,
+      { variant: any },
       QueryKey
     >,
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
     queryFn: () =>
-      sdk.admin.product.retrieveVariant(productId, variantId, query),
+      sdk.client.fetch<{ variant: any }>(
+        `/partners/stores/${storeId}/products/${productId}/variants/${variantId}`,
+        { method: "GET" }
+      ),
     queryKey: variantsQueryKeys.detail(variantId, query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -113,17 +140,25 @@ export const useProductVariants = (
   query?: HttpTypes.AdminProductVariantParams,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminProductVariantListResponse,
+      { variants: any[]; count: number },
       FetchError,
-      HttpTypes.AdminProductVariantListResponse,
+      { variants: any[]; count: number },
       QueryKey
     >,
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.product.listVariants(productId, query),
+    queryFn: () =>
+      sdk.client.fetch<{ variants: any[]; count: number }>(
+        `/partners/stores/${storeId}/products/${productId}/variants`,
+        { method: "GET" }
+      ),
     queryKey: variantsQueryKeys.list({ productId, ...query }),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -134,9 +169,15 @@ export const useCreateProductVariant = (
   productId: string,
   options?: UseMutationOptions<any, FetchError, any>
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload: HttpTypes.AdminCreateProductVariant) =>
-      sdk.admin.product.createVariant(productId, payload),
+      sdk.client.fetch<any>(
+        `/partners/stores/${storeId}/products/${productId}/variants`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: variantsQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -153,9 +194,15 @@ export const useUpdateProductVariant = (
   variantId: string,
   options?: UseMutationOptions<any, FetchError, any>
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload: HttpTypes.AdminUpdateProductVariant) =>
-      sdk.admin.product.updateVariant(productId, variantId, payload),
+      sdk.client.fetch<any>(
+        `/partners/stores/${storeId}/products/${productId}/variants/${variantId}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: variantsQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -224,8 +271,15 @@ export const useDeleteVariant = (
   variantId: string,
   options?: UseMutationOptions<any, FetchError, void>
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: () => sdk.admin.product.deleteVariant(productId, variantId),
+    mutationFn: () =>
+      sdk.client.fetch<any>(
+        `/partners/stores/${storeId}/products/${productId}/variants/${variantId}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: variantsQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -244,14 +298,20 @@ export const useDeleteVariant = (
 export const useDeleteVariantLazy = (
   productId: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminProductVariantDeleteResponse,
+    any,
     FetchError,
     { variantId: string }
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: ({ variantId }) =>
-      sdk.admin.product.deleteVariant(productId, variantId),
+      sdk.client.fetch<any>(
+        `/partners/stores/${storeId}/products/${productId}/variants/${variantId}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: variantsQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -272,17 +332,25 @@ export const useProduct = (
   query?: Record<string, any>,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminProductResponse,
+      { product: any },
       FetchError,
-      HttpTypes.AdminProductResponse,
+      { product: any },
       QueryKey
     >,
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.product.retrieve(id, query),
+    queryFn: () =>
+      sdk.client.fetch<{ product: any }>(
+        `/partners/stores/${storeId}/products/${id}`,
+        { method: "GET" }
+      ),
     queryKey: productsQueryKeys.detail(id, query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -293,17 +361,25 @@ export const useProducts = (
   query?: HttpTypes.AdminProductListParams,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminProductListResponse,
+      { products: any[]; count: number },
       FetchError,
-      HttpTypes.AdminProductListResponse,
+      { products: any[]; count: number },
       QueryKey
     >,
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.product.list(query),
+    queryFn: () =>
+      sdk.client.fetch<{ products: any[]; count: number }>(
+        `/partners/stores/${storeId}/products`,
+        { method: "GET" }
+      ),
     queryKey: productsQueryKeys.list(query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -312,16 +388,22 @@ export const useProducts = (
 
 export const useCreateProduct = (
   options?: UseMutationOptions<
-    HttpTypes.AdminProductResponse,
+    { product: any },
     FetchError,
     HttpTypes.AdminCreateProduct
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.product.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ product: any }>(
+        `/partners/stores/${storeId}/products`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: productsQueryKeys.lists() })
-      // if `manage_inventory` is true on created variants that will create inventory items automatically
       queryClient.invalidateQueries({
         queryKey: inventoryItemsQueryKeys.lists(),
       })
@@ -334,17 +416,20 @@ export const useCreateProduct = (
 export const useUpdateProduct = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminProductResponse,
+    { product: any },
     FetchError,
     HttpTypes.AdminUpdateProduct
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.product.update(id, payload, {
-        fields:
-          "-type,-collection,-options,-tags,-images,-variants,-sales_channels",
-      }),
+      sdk.client.fetch<{ product: any }>(
+        `/partners/stores/${storeId}/products/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
         queryKey: productsQueryKeys.lists(),
@@ -362,13 +447,20 @@ export const useUpdateProduct = (
 export const useDeleteProduct = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminProductDeleteResponse,
+    { id: string; object: string; deleted: boolean },
     FetchError,
     void
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: () => sdk.admin.product.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(
+        `/partners/stores/${storeId}/products/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: productsQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: productsQueryKeys.detail(id) })

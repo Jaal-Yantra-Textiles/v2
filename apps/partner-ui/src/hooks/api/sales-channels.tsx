@@ -15,6 +15,7 @@ import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 import { productsQueryKeys } from "./products"
+import { usePartnerStores } from "./partner-stores"
 
 const SALES_CHANNELS_QUERY_KEY = "sales-channels" as const
 export const salesChannelsQueryKeys = queryKeysFactory(SALES_CHANNELS_QUERY_KEY)
@@ -23,17 +24,25 @@ export const useSalesChannel = (
   id: string,
   options?: Omit<
     UseQueryOptions<
-      AdminSalesChannelResponse,
+      { sales_channel: any },
       FetchError,
-      AdminSalesChannelResponse,
+      { sales_channel: any },
       QueryKey
     >,
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
     queryKey: salesChannelsQueryKeys.detail(id),
-    queryFn: async () => sdk.admin.salesChannel.retrieve(id),
+    queryFn: async () =>
+      sdk.client.fetch<{ sales_channel: any }>(
+        `/partners/stores/${storeId}/sales-channels/${id}`,
+        { method: "GET" }
+      ),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -44,17 +53,25 @@ export const useSalesChannels = (
   query?: HttpTypes.AdminSalesChannelListParams,
   options?: Omit<
     UseQueryOptions<
-      AdminSalesChannelListResponse,
+      { sales_channels: any[]; count: number },
       FetchError,
-      AdminSalesChannelListResponse,
+      { sales_channels: any[]; count: number },
       QueryKey
     >,
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.salesChannel.list(query),
+    queryFn: () =>
+      sdk.client.fetch<{ sales_channels: any[]; count: number }>(
+        `/partners/stores/${storeId}/sales-channels`,
+        { method: "GET" }
+      ),
     queryKey: salesChannelsQueryKeys.list(query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -63,13 +80,20 @@ export const useSalesChannels = (
 
 export const useCreateSalesChannel = (
   options?: UseMutationOptions<
-    AdminSalesChannelResponse,
+    { sales_channel: any },
     FetchError,
     HttpTypes.AdminCreateSalesChannel
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.salesChannel.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ sales_channel: any }>(
+        `/partners/stores/${storeId}/sales-channels`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: salesChannelsQueryKeys.lists(),
@@ -83,13 +107,20 @@ export const useCreateSalesChannel = (
 export const useUpdateSalesChannel = (
   id: string,
   options?: UseMutationOptions<
-    AdminSalesChannelResponse,
+    { sales_channel: any },
     FetchError,
     HttpTypes.AdminUpdateSalesChannel
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.salesChannel.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ sales_channel: any }>(
+        `/partners/stores/${storeId}/sales-channels/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: salesChannelsQueryKeys.lists(),
@@ -107,13 +138,20 @@ export const useUpdateSalesChannel = (
 export const useDeleteSalesChannel = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminSalesChannelDeleteResponse,
+    { id: string; object: string; deleted: boolean },
     FetchError,
     void
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: () => sdk.admin.salesChannel.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(
+        `/partners/stores/${storeId}/sales-channels/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: salesChannelsQueryKeys.lists(),
@@ -122,7 +160,6 @@ export const useDeleteSalesChannel = (
         queryKey: salesChannelsQueryKeys.detail(id),
       })
 
-      // Invalidate all products to ensure they are updated if they were linked to the sales channel
       queryClient.invalidateQueries({
         queryKey: productsQueryKeys.all,
       })
@@ -135,13 +172,20 @@ export const useDeleteSalesChannel = (
 
 export const useDeleteSalesChannelLazy = (
   options?: UseMutationOptions<
-    HttpTypes.AdminSalesChannelDeleteResponse,
+    { id: string; object: string; deleted: boolean },
     FetchError,
     string
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (id: string) => sdk.admin.salesChannel.delete(id),
+    mutationFn: (id: string) =>
+      sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(
+        `/partners/stores/${storeId}/sales-channels/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: salesChannelsQueryKeys.lists(),
@@ -150,7 +194,6 @@ export const useDeleteSalesChannelLazy = (
         queryKey: salesChannelsQueryKeys.detail(variables),
       })
 
-      // Invalidate all products to ensure they are updated if they were linked to the sales channel
       queryClient.invalidateQueries({
         queryKey: productsQueryKeys.all,
       })
@@ -180,14 +223,12 @@ export const useSalesChannelRemoveProducts = (
         queryKey: salesChannelsQueryKeys.detail(id),
       })
 
-      // Invalidate the products that were removed
       for (const product of variables || []) {
         queryClient.invalidateQueries({
           queryKey: productsQueryKeys.detail(product),
         })
       }
 
-      // Invalidate the products list query
       queryClient.invalidateQueries({
         queryKey: productsQueryKeys.lists(),
       })
@@ -217,14 +258,12 @@ export const useSalesChannelAddProducts = (
         queryKey: salesChannelsQueryKeys.detail(id),
       })
 
-      // Invalidate the products that were removed
       for (const product of variables || []) {
         queryClient.invalidateQueries({
           queryKey: productsQueryKeys.detail(product),
         })
       }
 
-      // Invalidate the products list query
       queryClient.invalidateQueries({
         queryKey: productsQueryKeys.lists(),
       })

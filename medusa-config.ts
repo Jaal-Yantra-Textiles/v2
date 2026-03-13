@@ -14,7 +14,7 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     },
     //redisUrl: process.env.REDIS_URL,
-    workerMode: process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server",
+    //workerMode: process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server",
   },
 
   admin: {
@@ -139,6 +139,23 @@ module.exports = defineConfig({
       },
     }, 
     // {
+    //   resolve: "@medusajs/medusa/caching",
+    //   options: {
+    //     providers: [
+    //       {
+    //         resolve: "@medusajs/caching-redis",
+    //         id: "caching-redis",
+    //         // Optional, makes this the default caching provider
+    //         is_default: true,
+    //         options: {
+    //           redisUrl: process.env.REDIS_URL,
+    //           // more options...
+    //         },
+    //       },
+    //     ],
+    //   },
+    // },
+    // {
     //   resolve: "@medusajs/medusa/file",
     //   options: {
     //     providers: [
@@ -183,6 +200,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/fullfilled_orders",
   },
+  // Disabled locally — requires Redis event bus for onApplicationStart.
+  // Enabled in medusa-config.prod.ts where Redis is available.
   {
     resolve: "@medusajs/index",
   },

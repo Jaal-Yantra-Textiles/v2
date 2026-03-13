@@ -154,6 +154,11 @@ import {
   PartnerUpdateFulfillmentProvidersReq,
   PartnerCreateShippingOptionReq,
   PartnerUpdateShippingOptionReq,
+  PartnerUpdateStoreReq,
+  PartnerCreateSalesChannelReq,
+  PartnerUpdateSalesChannelReq,
+  PartnerCreateTaxRegionReq,
+  PartnerUpdateTaxRegionReq,
 } from "./partners/stores/[id]/validators";
 import {
   listInboundEmailsQuerySchema,
@@ -682,6 +687,209 @@ export default defineMiddlewares({
     {
       matcher: "/partners/fulfillment-providers/:providerId/options",
       method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Store Detail
+    {
+      matcher: "/partners/stores/:id",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateStoreReq)),
+      ],
+    },
+    // Partner Store Sales Channels
+    {
+      matcher: "/partners/stores/:id/sales-channels",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/sales-channels",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateSalesChannelReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/sales-channels/:channelId",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/sales-channels/:channelId",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateSalesChannelReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/sales-channels/:channelId",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Store Tax Regions
+    {
+      matcher: "/partners/stores/:id/tax-regions",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/tax-regions",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateTaxRegionReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/tax-regions/:taxRegionId",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/tax-regions/:taxRegionId",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateTaxRegionReq)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/tax-regions/:taxRegionId",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Store Products
+    {
+      matcher: "/partners/stores/:id/products",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/:productId",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/:productId",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/:productId",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Store Product Variants
+    {
+      matcher: "/partners/stores/:id/products/:productId/variants",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/:productId/variants",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/:productId/variants/:variantId",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/:productId/variants/:variantId",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/:productId/variants/:variantId",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Store Product Options
+    {
+      matcher: "/partners/stores/:id/products/:productId/options",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/:productId/options/:optionId",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/:productId/options/:optionId",
+      method: "DELETE",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),

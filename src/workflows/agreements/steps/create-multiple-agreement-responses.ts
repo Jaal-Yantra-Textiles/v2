@@ -35,11 +35,12 @@ export const createMultipleAgreementResponsesStep = createStep(
 
     return new StepResponse(agreementResponses, agreementResponses.map(r => r.id));
   },
-  async (responseIds: string[], { container }) => {
+  async (responseIds: string[] | undefined, { container }) => {
+    if (!responseIds) return;
     // Rollback: delete all created agreement responses
     const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
     
-    for (const id of responseIds) {
+    for (const id of responseIds || []) {
       try {
         await agreementsService.softDeleteAgreementResponses(id);
       } catch (error) {

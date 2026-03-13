@@ -12,6 +12,7 @@ import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 import { pricePreferencesQueryKeys } from "./price-preferences"
+import { usePartnerStores } from "./partner-stores"
 
 const STORE_QUERY_KEY = "store" as const
 export const storeQueryKeys = queryKeysFactory(STORE_QUERY_KEY)
@@ -37,17 +38,25 @@ export const useStore = (
   query?: HttpTypes.SelectParams,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminStoreResponse,
+      { store: any },
       FetchError,
-      HttpTypes.AdminStoreResponse,
+      { store: any },
       QueryKey
     >,
     "queryFn" | "queryKey"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
-    queryFn: () => retrieveActiveStore(query),
+    queryFn: () =>
+      sdk.client.fetch<{ store: any }>(
+        `/partners/stores/${storeId}`,
+        { method: "GET" }
+      ),
     queryKey: storeQueryKeys.details(),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -60,13 +69,20 @@ export const useStore = (
 export const useUpdateStore = (
   id: string,
   options?: MutationOptions<
-    HttpTypes.AdminStoreResponse,
+    { store: any },
     FetchError,
     HttpTypes.AdminUpdateStore
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.store.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ store: any }>(
+        `/partners/stores/${storeId || id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: pricePreferencesQueryKeys.list(),

@@ -153,17 +153,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     try {
         // Query all tasks linked to this partner
-        const { data: partnerData } = await query.index({
+        const { data: partnerData } = await query.graph({
             entity: 'partner',
             fields: [ 'tasks.*'],
             filters: {
-                id: partnerId    
+                id: partnerId
             }
         });
 
         // Extract the tasks from the partner object
-        const tasks = partnerData && partnerData.length > 0 && partnerData[0].tasks 
-            ? partnerData[0].tasks 
+        const tasks = partnerData && partnerData.length > 0 && partnerData[0].tasks
+            ? partnerData[0].tasks
             : [];
 
         return res.json({ 

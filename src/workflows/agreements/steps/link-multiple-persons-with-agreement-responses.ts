@@ -41,9 +41,11 @@ export const linkMultiplePersonsWithAgreementResponsesStep = createStep(
     
     return new StepResponse(createdLinks, links);
   },
-  async (rollbackData: LinkDefinition[], { container }) => {
+  async (rollbackData: LinkDefinition[] | undefined, { container }) => {
     // Rollback: remove all person-agreement response links
     const remoteLink:any = container.resolve(ContainerRegistrationKeys.LINK);
+    
+    if (!rollbackData) return;
     
     try {
       await remoteLink.dismiss(rollbackData);
