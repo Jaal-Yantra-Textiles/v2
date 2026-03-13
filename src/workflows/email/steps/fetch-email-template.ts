@@ -99,7 +99,7 @@ export const fetchEmailTemplateStep = createStep(
         
         
       } catch (error) {
-        console.error(`Failed to process template with Handlebars: ${error.message}`)
+        console.error("Error processing email template with Handlebars:", error)
         // Keep original template content if processing fails
       }
     }
