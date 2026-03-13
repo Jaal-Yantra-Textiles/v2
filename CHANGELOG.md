@@ -1,3 +1,11 @@
+## [10.6.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.6.0...v10.6.1) (2026-03-13)
+
+
+### Bug Fixes
+
+* **api:** Fixed agreements related bugs ([37da9ce](https://github.com/Jaal-Yantra-Textiles/v2/commit/37da9cedfef4fd3a569fe8fbde5c14f044e810cd))
+* **admin:** Fixed to use date picker and usePrompt ([00ead6c](https://github.com/Jaal-Yantra-Textiles/v2/commit/00ead6c310bb157099b58ed01bbbf33291124bff))
+
 # [10.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.5.0...v10.6.0) (2026-03-12)
 
 
