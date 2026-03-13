@@ -15,6 +15,18 @@ const columnHelper = createDataTableColumnHelper<PartnerProductionRun>()
 
 const PAGE_SIZE = 20
 
+const RUN_STATUS_OPTIONS = [
+  { label: "Draft", value: "draft" },
+  { label: "Pending Review", value: "pending_review" },
+  { label: "Approved", value: "approved" },
+  { label: "Sent to Partner", value: "sent_to_partner" },
+  { label: "In Progress", value: "in_progress" },
+  { label: "Completed", value: "completed" },
+  { label: "Cancelled", value: "cancelled" },
+]
+
+const EXCLUDED_RUN_STATUSES = ["completed", "cancelled"]
+
 export const ProductionRunList = () => {
   const raw = useQueryParams(["offset", "q", "status", "role", "order"])
   const offset = raw.offset ? Number(raw.offset) : 0
@@ -44,10 +56,11 @@ export const ProductionRunList = () => {
       const role = String(run.role || "").toLowerCase()
 
       if (statusFilter) {
-        const s = statusFilter.toLowerCase()
-        if (!status.includes(s)) {
+        if (status !== statusFilter.toLowerCase()) {
           return false
         }
+      } else if (EXCLUDED_RUN_STATUSES.includes(run.status)) {
+        return false
       }
 
       if (roleFilter) {
@@ -99,9 +112,10 @@ export const ProductionRunList = () => {
   const filters = useMemo<Filter[]>(
     () => [
       {
-        type: "string",
+        type: "select",
         key: "status",
         label: "Status",
+        options: RUN_STATUS_OPTIONS,
       },
       {
         type: "string",

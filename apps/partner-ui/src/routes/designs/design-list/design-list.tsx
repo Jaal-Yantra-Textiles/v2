@@ -15,6 +15,20 @@ const columnHelper = createDataTableColumnHelper<PartnerDesign>()
 
 const PAGE_SIZE = 20
 
+const DESIGN_STATUS_OPTIONS = [
+  { label: "Conceptual", value: "Conceptual" },
+  { label: "In Development", value: "In_Development" },
+  { label: "Technical Review", value: "Technical_Review" },
+  { label: "Sample Production", value: "Sample_Production" },
+  { label: "Revision", value: "Revision" },
+  { label: "Approved", value: "Approved" },
+  { label: "Rejected", value: "Rejected" },
+  { label: "On Hold", value: "On_Hold" },
+  { label: "Commerce Ready", value: "Commerce_Ready" },
+]
+
+const EXCLUDED_DESIGN_STATUSES = ["Rejected"]
+
 export const DesignList = () => {
   const { t } = useTranslation()
   const raw = useQueryParams(["offset", "q", "status", "partner_status", "order"])
@@ -51,10 +65,11 @@ export const DesignList = () => {
       }
 
       if (statusFilter) {
-        const s = statusFilter.toLowerCase()
-        if (!status.includes(s)) {
+        if (status !== statusFilter.toLowerCase()) {
           return false
         }
+      } else if (EXCLUDED_DESIGN_STATUSES.includes(row.status)) {
+        return false
       }
 
       if (!text) {
@@ -100,9 +115,10 @@ export const DesignList = () => {
   const filters = useMemo<Filter[]>(
     () => [
       {
-        type: "string",
+        type: "select",
         key: "status",
         label: t("fields.status"),
+        options: DESIGN_STATUS_OPTIONS,
       },
       {
         type: "string",

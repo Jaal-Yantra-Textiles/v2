@@ -16,6 +16,17 @@ const columnHelper = createDataTableColumnHelper<PartnerAssignedTask>()
 
 const PAGE_SIZE = 20
 
+const TASK_STATUS_OPTIONS = [
+  { label: "Pending", value: "pending" },
+  { label: "In Progress", value: "in_progress" },
+  { label: "Assigned", value: "assigned" },
+  { label: "Accepted", value: "accepted" },
+  { label: "Completed", value: "completed" },
+  { label: "Cancelled", value: "cancelled" },
+]
+
+const EXCLUDED_TASK_STATUSES = ["completed", "cancelled"]
+
 export const TaskList = () => {
   const raw = useQueryParams(["offset", "q", "status", "priority", "order"])
   const offset = raw.offset ? Number(raw.offset) : 0
@@ -36,10 +47,11 @@ export const TaskList = () => {
       const priority = String(task.priority || "").toLowerCase()
 
       if (statusFilter) {
-        const s = statusFilter.toLowerCase()
-        if (!status.includes(s)) {
+        if (status !== statusFilter.toLowerCase()) {
           return false
         }
+      } else if (EXCLUDED_TASK_STATUSES.includes(task.status)) {
+        return false
       }
 
       if (priorityFilter) {
@@ -96,9 +108,10 @@ export const TaskList = () => {
   const filters = useMemo<Filter[]>(
     () => [
       {
-        type: "string",
+        type: "select",
         key: "status",
         label: "Status",
+        options: TASK_STATUS_OPTIONS,
       },
       {
         type: "string",

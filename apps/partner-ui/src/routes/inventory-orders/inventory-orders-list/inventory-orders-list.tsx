@@ -17,6 +17,17 @@ const columnHelper = createDataTableColumnHelper<PartnerInventoryOrder>()
 
 const PAGE_SIZE = 20
 
+const ORDER_STATUS_OPTIONS = [
+  { label: "Pending", value: "Pending" },
+  { label: "Processing", value: "Processing" },
+  { label: "Shipped", value: "Shipped" },
+  { label: "Delivered", value: "Delivered" },
+  { label: "Cancelled", value: "Cancelled" },
+  { label: "Partial", value: "Partial" },
+]
+
+const EXCLUDED_ORDER_STATUSES = ["Delivered", "Cancelled"]
+
 export const InventoryOrdersList = () => {
   const raw = useQueryParams(["offset", "q", "status", "partner_status", "order"])
   const offset = raw.offset ? Number(raw.offset) : 0
@@ -52,10 +63,11 @@ export const InventoryOrdersList = () => {
       }
 
       if (statusFilter) {
-        const s = statusFilter.toLowerCase()
-        if (!status.includes(s)) {
+        if (status !== statusFilter.toLowerCase()) {
           return false
         }
+      } else if (EXCLUDED_ORDER_STATUSES.includes(row.status)) {
+        return false
       }
 
       if (!text) {
@@ -97,9 +109,10 @@ export const InventoryOrdersList = () => {
   const filters = useMemo<Filter[]>(
     () => [
       {
-        type: "string",
+        type: "select",
         key: "status",
         label: "Status",
+        options: ORDER_STATUS_OPTIONS,
       },
       {
         type: "string",
