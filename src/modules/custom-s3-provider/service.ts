@@ -19,14 +19,14 @@ class S3ListingServiceModule extends MedusaService({
     super(container);
     this.logger_ = container.logger || logger; // Use injected logger or fallback
 
-    if (process.env.NODE_ENV === 'production') {
-      this.logger_.info("S3ListingServiceModule: Initializing S3ListingService for production environment.");
+    const hasS3Credentials = process.env.S3_BUCKET && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
+
+    if (hasS3Credentials) {
+      this.logger_.info("S3ListingServiceModule: Initializing S3ListingService (S3 credentials found).");
       this.fileListingService_ = new S3ListingService({ logger: this.logger_ });
     } else {
-      this.logger_.info("S3ListingServiceModule: Initializing LocalFileService for development environment.");
-      // Assuming LocalFileServiceOptions are not strictly needed or can be defaulted
-      // If LocalFileService requires specific options, they should be passed here.
-      this.fileListingService_ = new LocalFileService({ logger: this.logger_ }, {}); 
+      this.logger_.info("S3ListingServiceModule: Initializing LocalFileService (no S3 credentials).");
+      this.fileListingService_ = new LocalFileService({ logger: this.logger_ }, {});
     }
   }
 
