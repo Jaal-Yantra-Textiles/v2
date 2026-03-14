@@ -67,13 +67,17 @@ export const useCollections = (
 export const useUpdateCollection = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminCollectionResponse,
+    { collection: HttpTypes.AdminCollection },
     FetchError,
     HttpTypes.AdminUpdateCollection
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.productCollection.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ collection: HttpTypes.AdminCollection }>(
+        `/partners/product-collections/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: collectionsQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -89,24 +93,27 @@ export const useUpdateCollection = (
 export const useUpdateCollectionProducts = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminCollectionResponse,
+    { collection: { id: string } },
     FetchError,
-    HttpTypes.AdminUpdateCollectionProducts
+    { add?: string[]; remove?: string[] }
   >
 ) => {
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.productCollection.updateProducts(id, payload),
+      sdk.client.fetch<{ collection: { id: string } }>(
+        `/partners/product-collections/${id}/products`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: collectionsQueryKeys.lists() })
       queryClient.invalidateQueries({
         queryKey: collectionsQueryKeys.detail(id),
       })
-      /**
-       * Invalidate products list query to ensure that the products collections are updated.
-       */
       queryClient.invalidateQueries({
         queryKey: productsQueryKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: productsQueryKeys.details(),
       })
 
       options?.onSuccess?.(data, variables, context)
@@ -117,13 +124,17 @@ export const useUpdateCollectionProducts = (
 
 export const useCreateCollection = (
   options?: UseMutationOptions<
-    HttpTypes.AdminCollectionResponse,
+    { collection: HttpTypes.AdminCollection },
     FetchError,
     HttpTypes.AdminCreateCollection
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.productCollection.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ collection: HttpTypes.AdminCollection }>(
+        "/partners/product-collections",
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: collectionsQueryKeys.lists() })
 
@@ -136,13 +147,17 @@ export const useCreateCollection = (
 export const useDeleteCollection = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminCollectionDeleteResponse,
+    { id: string; object: string; deleted: boolean },
     FetchError,
     void
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.productCollection.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(
+        `/partners/product-collections/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: collectionsQueryKeys.lists() })
       queryClient.invalidateQueries({

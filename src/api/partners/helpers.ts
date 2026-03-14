@@ -65,3 +65,61 @@ export const validatePartnerStoreAccess = async (
 
     return { partner, store }
 }
+
+export const getPartnerStore = async (
+    authContext: { actor_id?: string | null } | undefined,
+    container: MedusaContainer,
+): Promise<{ partner: any; store: any }> => {
+    const partner = await getPartnerFromAuthContext(authContext, container)
+    if (!partner) {
+        throw new MedusaError(
+            MedusaError.Types.UNAUTHORIZED,
+            "No partner associated with this account"
+        )
+    }
+
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+        entity: "partners",
+        fields: ["id", "stores.*"],
+        filters: { id: partner.id },
+    })
+
+    const stores = (data?.[0]?.stores || []) as any[]
+    if (!stores.length) {
+        throw new MedusaError(
+            MedusaError.Types.NOT_FOUND,
+            "No store configured for this partner"
+        )
+    }
+
+    return { partner, store: stores[0] }
+}
+
+export const validatePartnerEntityOwnership = async (
+    authContext: { actor_id?: string | null } | undefined,
+    entityType: "product_categories" | "product_collections",
+    entityId: string,
+    container: MedusaContainer,
+): Promise<{ partner: any; store: any }> => {
+    const { partner, store } = await getPartnerStore(authContext, container)
+
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+        entity: "stores",
+        fields: [`${entityType}.id`],
+        filters: { id: store.id },
+    })
+
+    const entities = (data?.[0] as any)?.[entityType] || []
+    const found = entities.some((e: any) => e.id === entityId)
+
+    if (!found) {
+        throw new MedusaError(
+            MedusaError.Types.NOT_FOUND,
+            `${entityType.replace("_", " ")} not found`
+        )
+    }
+
+    return { partner, store }
+}

@@ -1,5 +1,5 @@
 import { FetchError } from "@medusajs/js-sdk"
-import { HttpTypes } from "@medusajs/types"
+import { HttpTypes, FindParams, PaginatedResponse } from "@medusajs/types"
 import {
   QueryKey,
   UseMutationOptions,
@@ -17,12 +17,12 @@ export const categoriesQueryKeys = queryKeysFactory(CATEGORIES_QUERY_KEY)
 
 export const useProductCategory = (
   id: string,
-  query?: HttpTypes.AdminProductCategoryParams,
+  query?: Record<string, any>,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminProductCategoryResponse,
+      { product_category: HttpTypes.AdminProductCategory },
       FetchError,
-      HttpTypes.AdminProductCategoryResponse,
+      { product_category: HttpTypes.AdminProductCategory },
       QueryKey
     >,
     "queryFn" | "queryKey"
@@ -30,7 +30,11 @@ export const useProductCategory = (
 ) => {
   const { data, ...rest } = useQuery({
     queryKey: categoriesQueryKeys.detail(id, query),
-    queryFn: () => sdk.admin.productCategory.retrieve(id, query),
+    queryFn: async () =>
+      sdk.client.fetch<{ product_category: HttpTypes.AdminProductCategory }>(
+        `/partners/product-categories/${id}`,
+        { method: "GET", query }
+      ),
     ...options,
   })
 
@@ -38,12 +42,16 @@ export const useProductCategory = (
 }
 
 export const useProductCategories = (
-  query?: HttpTypes.AdminProductCategoryListParams,
+  query?: FindParams & HttpTypes.AdminProductCategoryListParams,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminProductCategoryListResponse,
+      PaginatedResponse<{
+        product_categories: HttpTypes.AdminProductCategory[]
+      }>,
       FetchError,
-      HttpTypes.AdminProductCategoryListResponse,
+      PaginatedResponse<{
+        product_categories: HttpTypes.AdminProductCategory[]
+      }>,
       QueryKey
     >,
     "queryFn" | "queryKey"
@@ -51,7 +59,12 @@ export const useProductCategories = (
 ) => {
   const { data, ...rest } = useQuery({
     queryKey: categoriesQueryKeys.list(query),
-    queryFn: () => sdk.admin.productCategory.list(query),
+    queryFn: async () =>
+      sdk.client.fetch<
+        PaginatedResponse<{
+          product_categories: HttpTypes.AdminProductCategory[]
+        }>
+      >("/partners/product-categories", { method: "GET", query }),
     ...options,
   })
 
@@ -60,13 +73,17 @@ export const useProductCategories = (
 
 export const useCreateProductCategory = (
   options?: UseMutationOptions<
-    HttpTypes.AdminProductCategoryResponse,
+    { product_category: HttpTypes.AdminProductCategory },
     FetchError,
     HttpTypes.AdminCreateProductCategory
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.productCategory.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ product_category: HttpTypes.AdminProductCategory }>(
+        "/partners/product-categories",
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: categoriesQueryKeys.lists() })
 
@@ -79,13 +96,17 @@ export const useCreateProductCategory = (
 export const useUpdateProductCategory = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminProductCategoryResponse,
+    { product_category: HttpTypes.AdminProductCategory },
     FetchError,
     HttpTypes.AdminUpdateProductCategory
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.productCategory.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ product_category: HttpTypes.AdminProductCategory }>(
+        `/partners/product-categories/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: categoriesQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -101,13 +122,17 @@ export const useUpdateProductCategory = (
 export const useDeleteProductCategory = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminProductCategoryDeleteResponse,
+    { id: string; object: string; deleted: boolean },
     FetchError,
     void
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.productCategory.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(
+        `/partners/product-categories/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: categoriesQueryKeys.detail(id),
@@ -123,26 +148,25 @@ export const useDeleteProductCategory = (
 export const useUpdateProductCategoryProducts = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminProductCategoryResponse,
+    { product_category: { id: string } },
     FetchError,
-    HttpTypes.AdminUpdateProductCategoryProducts
+    { add?: string[]; remove?: string[] }
   >
 ) => {
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.productCategory.updateProducts(id, payload),
+      sdk.client.fetch<{ product_category: { id: string } }>(
+        `/partners/product-categories/${id}/products`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: categoriesQueryKeys.lists() })
       queryClient.invalidateQueries({
         queryKey: categoriesQueryKeys.details(),
       })
-      /**
-       * Invalidate products list query to ensure that the products collections are updated.
-       */
       queryClient.invalidateQueries({
         queryKey: productsQueryKeys.lists(),
       })
-
       queryClient.invalidateQueries({
         queryKey: productsQueryKeys.details(),
       })
