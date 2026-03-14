@@ -1,3 +1,10 @@
+# [10.12.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.11.0...v10.12.0) (2026-03-14)
+
+
+### Features
+
+* **api:** Partners now scoped the customer ([d1848a7](https://github.com/Jaal-Yantra-Textiles/v2/commit/d1848a763f8d4ec4bfa6c409aff15c0ce6859ddb))
+
 # [10.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.10.0...v10.11.0) (2026-03-14)
 
 
