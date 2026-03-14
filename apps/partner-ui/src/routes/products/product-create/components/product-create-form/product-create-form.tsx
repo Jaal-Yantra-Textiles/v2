@@ -10,7 +10,7 @@ import {
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useExtendableForm } from "../../../../../dashboard-app/forms/hooks"
 import { useCreateProduct } from "../../../../../hooks/api/products"
-import { sdk } from "../../../../../lib/client"
+import { usePartnerUpload } from "../../../../../hooks/api/uploads"
 import { useExtension } from "../../../../../providers/extension-provider"
 import {
   PRODUCT_CREATE_FORM_DEFAULTS,
@@ -72,6 +72,7 @@ export const ProductCreateForm = ({
   })
 
   const { mutateAsync, isPending } = useCreateProduct()
+  const { mutateAsync: uploadFiles } = usePartnerUpload()
 
   const regionsCurrencyMap = useMemo(() => {
     if (!regions?.length) {
@@ -113,41 +114,35 @@ export const ProductCreateForm = ({
     const payload = { ...values, media: undefined }
 
     let uploadedMedia: (HttpTypes.AdminFile & { isThumbnail: boolean })[] = []
-    try {
-      if (media.length) {
+    if (media.length) {
+      try {
         const thumbnailReq = media.find((m) => m.isThumbnail)
         const otherMediaReq = media.filter((m) => !m.isThumbnail)
-
-        const partnerUpload = async (files: File[]) => {
-          const formData = new FormData()
-          files.forEach((f) => formData.append("files", f))
-          return sdk.client.fetch<{ files: HttpTypes.AdminFile[] }>(
-            "/partners/uploads",
-            { method: "POST", body: formData, headers: { "content-type": null } as any }
-          )
-        }
 
         const fileReqs = []
         if (thumbnailReq) {
           fileReqs.push(
-            partnerUpload([thumbnailReq.file]).then((r) =>
+            uploadFiles([thumbnailReq.file]).then((r) =>
               r.files.map((f) => ({ ...f, isThumbnail: true }))
             )
           )
         }
         if (otherMediaReq?.length) {
           fileReqs.push(
-            partnerUpload(otherMediaReq.map((m) => m.file)).then((r) =>
+            uploadFiles(otherMediaReq.map((m) => m.file)).then((r) =>
               r.files.map((f) => ({ ...f, isThumbnail: false }))
             )
           )
         }
 
         uploadedMedia = (await Promise.all(fileReqs)).flat()
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message)
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : t("products.media.failedToUpload")
+        )
+        return // Stop — don't create the product without images
       }
     }
 

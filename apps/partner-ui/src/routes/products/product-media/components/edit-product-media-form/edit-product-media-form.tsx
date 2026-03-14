@@ -35,7 +35,7 @@ import {
 } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useUpdateProduct } from "../../../../../hooks/api/products"
-import { sdk } from "../../../../../lib/client"
+import { usePartnerUpload } from "../../../../../hooks/api/uploads"
 import { UploadMediaFormItem } from "../../../common/components/upload-media-form-item"
 import {
   EditProductMediaSchema,
@@ -100,6 +100,7 @@ export const EditProductMediaForm = ({ product }: ProductMediaViewProps) => {
   }
 
   const { mutateAsync, isPending } = useUpdateProduct(product.id!)
+  const { mutateAsync: uploadFiles } = usePartnerUpload()
 
   const handleSubmit = form.handleSubmit(async ({ media }) => {
     const filesToUpload = media
@@ -109,22 +110,18 @@ export const EditProductMediaForm = ({ product }: ProductMediaViewProps) => {
     let uploaded: HttpTypes.AdminFile[] = []
 
     if (filesToUpload.length) {
-      const formData = new FormData()
-      filesToUpload.forEach((m) => formData.append("files", m.file))
-      const { files: uploads } = await sdk.client
-        .fetch<{ files: HttpTypes.AdminFile[] }>("/partners/uploads", {
-          method: "POST",
-          body: formData,
-          headers: { "content-type": null } as any,
+      try {
+        const { files } = await uploadFiles(
+          filesToUpload.map((m) => m.file)
+        )
+        uploaded = files
+      } catch {
+        form.setError("media", {
+          type: "invalid_file",
+          message: t("products.media.failedToUpload"),
         })
-        .catch(() => {
-          form.setError("media", {
-            type: "invalid_file",
-            message: t("products.media.failedToUpload"),
-          })
-          return { files: [] as HttpTypes.AdminFile[] }
-        })
-      uploaded = uploads
+        return // Stop — don't update product with broken URLs
+      }
     }
 
     const withUpdatedUrls = media.map((entry, i) => {
