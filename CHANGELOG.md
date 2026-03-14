@@ -1,3 +1,13 @@
+## [10.12.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.12.0...v10.12.1) (2026-03-14)
+
+
+### Bug Fixes
+
+* **api:** Fixes on the store front ([015cfca](https://github.com/Jaal-Yantra-Textiles/v2/commit/015cfcae805a649f9ccb97a1f5c841c3421f61be))
+* **api:** Partner Service Worked out ([dd5e11e](https://github.com/Jaal-Yantra-Textiles/v2/commit/dd5e11e65cc43981be6e1ab2dde077c2dd45fd19))
+* **api:** Partners ([3613db9](https://github.com/Jaal-Yantra-Textiles/v2/commit/3613db9767808c2e65581b3773b2c616d96808d3))
+* **Partner UU:** The partner UI was manually creating FormData and calling sdk.client.fetch ([9f6255e](https://github.com/Jaal-Yantra-Textiles/v2/commit/9f6255e408eb1ab57901270ccad8ff13c065848d))
+
 # [10.12.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.11.0...v10.12.0) (2026-03-14)
 
 
