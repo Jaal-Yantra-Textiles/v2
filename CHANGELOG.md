@@ -1,3 +1,10 @@
+# [10.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.9.0...v10.10.0) (2026-03-14)
+
+
+### Features
+
+* **api:** Partner-scoped categories & collections via store links ([4b1bd81](https://github.com/Jaal-Yantra-Textiles/v2/commit/4b1bd8115a293f32d72ea87796d33e01c7217ea4))
+
 # [10.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.8.3...v10.9.0) (2026-03-14)
 
 
