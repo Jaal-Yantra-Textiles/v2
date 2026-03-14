@@ -2,10 +2,10 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
-import { getProject, getDeployment, deleteProject, removeDomain, isVercelConfigured } from "../../../lib/vercel"
-import { isCloudflareConfigured, deleteDnsRecord, listDnsRecords } from "../../../lib/cloudflare"
+import { DEPLOYMENT_MODULE } from "../../../modules/deployment"
+import type DeploymentService from "../../../modules/deployment/service"
 import updatePartnerWorkflow from "../../../workflows/partners/update-partner"
 
 const STOREFRONT_META_KEYS = [
@@ -38,19 +38,20 @@ export const GET = async (
     )
   }
 
+  const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
   const vercelProjectId = partner.metadata?.vercel_project_id
 
   if (!vercelProjectId) {
     return res.json({
       provisioned: false,
       message: "Storefront has not been provisioned yet",
-      vercel_configured: isVercelConfigured(),
-      cloudflare_configured: isCloudflareConfigured(),
+      vercel_configured: deployment.isVercelConfigured(),
+      cloudflare_configured: deployment.isCloudflareConfigured(),
     })
   }
 
   try {
-    const project = await getProject(vercelProjectId)
+    const project = await deployment.getProject(vercelProjectId)
     const latestDeployment = project.latestDeployments?.[0]
 
     let deploymentInfo: {
@@ -62,7 +63,7 @@ export const GET = async (
 
     if (latestDeployment) {
       try {
-        const details = await getDeployment(latestDeployment.id)
+        const details = await deployment.getDeployment(latestDeployment.id)
         deploymentInfo = {
           id: details.id,
           url: details.url,
@@ -91,8 +92,8 @@ export const GET = async (
         : null,
       provisioned_at: partner.metadata?.storefront_provisioned_at || null,
       latest_deployment: deploymentInfo,
-      vercel_configured: isVercelConfigured(),
-      cloudflare_configured: isCloudflareConfigured(),
+      vercel_configured: deployment.isVercelConfigured(),
+      cloudflare_configured: deployment.isCloudflareConfigured(),
     })
   } catch (e: any) {
     // If Vercel returns 404, the project was deleted — treat as not provisioned
@@ -113,8 +114,8 @@ export const GET = async (
       return res.json({
         provisioned: false,
         message: "Storefront project no longer exists",
-        vercel_configured: isVercelConfigured(),
-        cloudflare_configured: isCloudflareConfigured(),
+        vercel_configured: deployment.isVercelConfigured(),
+        cloudflare_configured: deployment.isCloudflareConfigured(),
       })
     }
 
@@ -131,8 +132,8 @@ export const GET = async (
       provisioned_at: partner.metadata?.storefront_provisioned_at || null,
       latest_deployment: null,
       error: `Could not fetch Vercel status: ${e.message}`,
-      vercel_configured: isVercelConfigured(),
-      cloudflare_configured: isCloudflareConfigured(),
+      vercel_configured: deployment.isVercelConfigured(),
+      cloudflare_configured: deployment.isCloudflareConfigured(),
     })
   }
 }
@@ -153,6 +154,7 @@ export const DELETE = async (
     )
   }
 
+  const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
   const vercelProjectId = partner.metadata?.vercel_project_id
   const storefrontDomain = partner.metadata?.storefront_domain
 
@@ -166,19 +168,18 @@ export const DELETE = async (
   const results: Record<string, any> = {}
 
   // Remove Vercel project
-  if (isVercelConfigured()) {
+  if (deployment.isVercelConfigured()) {
     try {
-      // Remove custom domain first
       if (storefrontDomain) {
         try {
-          await removeDomain(vercelProjectId, storefrontDomain)
+          await deployment.removeDomain(vercelProjectId, storefrontDomain)
           results.vercel_domain = { action: "removed" }
         } catch (e: any) {
           results.vercel_domain = { action: "failed", error: e.message }
         }
       }
 
-      await deleteProject(vercelProjectId)
+      await deployment.deleteProject(vercelProjectId)
       results.vercel_project = { action: "deleted" }
     } catch (e: any) {
       results.vercel_project = { action: "failed", error: e.message }
@@ -188,20 +189,10 @@ export const DELETE = async (
   }
 
   // Remove Cloudflare DNS record
-  if (storefrontDomain && isCloudflareConfigured()) {
-    try {
-      const records = await listDnsRecords({ name: storefrontDomain, type: "CNAME" })
-      if (records.length > 0) {
-        await deleteDnsRecord(records[0].id)
-        results.dns = { action: "deleted" }
-      } else {
-        results.dns = { action: "not_found" }
-      }
-    } catch (e: any) {
-      results.dns = { action: "failed", error: e.message }
-    }
+  if (storefrontDomain) {
+    results.dns = await deployment.removeStorefrontDns(storefrontDomain)
   } else {
-    results.dns = { action: "skipped", reason: !storefrontDomain ? "No domain" : "Cloudflare not configured" }
+    results.dns = { action: "skipped", reason: "No domain" }
   }
 
   // Clear storefront metadata via the update workflow (ensures proper DB write)

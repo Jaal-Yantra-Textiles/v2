@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { triggerDeployment, setEnvironmentVariables } from "../../../../../../lib/vercel"
+import { DEPLOYMENT_MODULE } from "../../../../../../modules/deployment"
+import type DeploymentService from "../../../../../../modules/deployment/service"
 
 const STOREFRONT_REPO = process.env.VERCEL_STOREFRONT_REPO || ""
 
@@ -65,7 +66,8 @@ export const POST = async (
       )
 
       if (matchingKey) {
-        await setEnvironmentVariables(vercelProjectId, [
+        const svc: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+        await svc.setEnvironmentVariables(vercelProjectId, [
           {
             key: "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY",
             value: matchingKey.token,
@@ -77,7 +79,8 @@ export const POST = async (
     }
   }
 
-  const deployment = await triggerDeployment({
+  const deploySvc: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+  const deployment = await deploySvc.triggerDeployment({
     projectName: vercelProjectName,
     gitRepo: STOREFRONT_REPO,
     ref: body.ref || "main",

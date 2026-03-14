@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { getProject, getDeployment } from "../../../../../lib/vercel"
+import { DEPLOYMENT_MODULE } from "../../../../../modules/deployment"
+import type DeploymentService from "../../../../../modules/deployment/service"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -30,7 +31,8 @@ export const GET = async (
   }
 
   try {
-    const project = await getProject(vercelProjectId)
+    const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+    const project = await deployment.getProject(vercelProjectId)
     const latestDeployment = project.latestDeployments?.[0]
 
     let deploymentInfo: {
@@ -42,7 +44,7 @@ export const GET = async (
 
     if (latestDeployment) {
       try {
-        const details = await getDeployment(latestDeployment.id)
+        const details = await deployment.getDeployment(latestDeployment.id)
         deploymentInfo = {
           id: details.id,
           url: details.url,

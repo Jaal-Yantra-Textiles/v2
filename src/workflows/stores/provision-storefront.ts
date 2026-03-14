@@ -4,13 +4,8 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/workflows-sdk"
-import {
-  createProject,
-  setEnvironmentVariables,
-  addDomain,
-  triggerDeployment,
-} from "../../lib/vercel"
-import { ensureVercelCname } from "../../lib/cloudflare"
+import { DEPLOYMENT_MODULE } from "../../modules/deployment"
+import type DeploymentService from "../../modules/deployment/service"
 import PartnerService from "../../modules/partner/service"
 
 export type ProvisionStorefrontInput = {
@@ -35,9 +30,10 @@ export type ProvisionStorefrontResult = {
 // Step 1: Create Vercel project
 const createVercelProjectStep = createStep(
   "create-vercel-project",
-  async (input: { handle: string; storefrontRepo: string }) => {
+  async (input: { handle: string; storefrontRepo: string }, { container }) => {
+    const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     const projectName = `storefront-${input.handle}`
-    const project = await createProject({
+    const project = await deployment.createProject({
       name: projectName,
       gitRepo: input.storefrontRepo,
       framework: "nextjs",
@@ -58,8 +54,9 @@ const setVercelEnvVarsStep = createStep(
     publishableKey: string
     medusaBackendUrl: string
     stripeKey: string
-  }) => {
-    await setEnvironmentVariables(input.projectId, [
+  }, { container }) => {
+    const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
+    await deployment.setEnvironmentVariables(input.projectId, [
       {
         key: "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY",
         value: input.publishableKey,
@@ -93,10 +90,11 @@ const setVercelEnvVarsStep = createStep(
 // Step 3: Add custom domain to Vercel project
 const addVercelDomainStep = createStep(
   "add-vercel-domain",
-  async (input: { projectId: string; handle: string; rootDomain: string }) => {
+  async (input: { projectId: string; handle: string; rootDomain: string }, { container }) => {
+    const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     const domain = `${input.handle}.${input.rootDomain}`
     try {
-      const result = await addDomain(input.projectId, domain)
+      const result = await deployment.addDomain(input.projectId, domain)
       return new StepResponse(result)
     } catch (e: any) {
       return new StepResponse({
@@ -111,9 +109,10 @@ const addVercelDomainStep = createStep(
 // Step 4: Create Cloudflare CNAME record pointing to Vercel
 const createCloudflareCnameStep = createStep(
   "create-cloudflare-cname",
-  async (input: { subdomain: string; rootDomain: string }) => {
+  async (input: { subdomain: string; rootDomain: string }, { container }) => {
+    const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     try {
-      const result = await ensureVercelCname(input.subdomain, input.rootDomain)
+      const result = await deployment.ensureVercelCname(input.subdomain, input.rootDomain)
       return new StepResponse(result as any)
     } catch (e: any) {
       return new StepResponse({ action: "failed", error: e.message } as any)
@@ -124,18 +123,19 @@ const createCloudflareCnameStep = createStep(
 // Step 5: Trigger Vercel production deployment
 const triggerVercelDeploymentStep = createStep(
   "trigger-vercel-deployment",
-  async (input: { handle: string; storefrontRepo: string }) => {
+  async (input: { handle: string; storefrontRepo: string }, { container }) => {
+    const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     const projectName = `storefront-${input.handle}`
-    const deployment = await triggerDeployment({
+    const result = await deployment.triggerDeployment({
       projectName,
       gitRepo: input.storefrontRepo,
       ref: "main",
     })
 
     return new StepResponse({
-      id: deployment.id,
-      url: deployment.url,
-      status: deployment.readyState,
+      id: result.id,
+      url: result.url,
+      status: result.readyState,
     })
   }
 )
@@ -155,7 +155,7 @@ const saveStorefrontMetadataStep = createStep(
     { container }
   ) => {
     const domain = `${input.handle}.${input.rootDomain}`
-    const partnerService:PartnerService = container.resolve("partner")
+    const partnerService: PartnerService = container.resolve("partner")
     await partnerService.updatePartners({
       id: input.partnerId,
       metadata: {

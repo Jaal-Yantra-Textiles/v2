@@ -5,7 +5,8 @@ import {
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../helpers"
 import { provisionStorefrontWorkflow } from "../../../../workflows/stores/provision-storefront"
-import { getProject, isVercelConfigured } from "../../../../lib/vercel"
+import { DEPLOYMENT_MODULE } from "../../../../modules/deployment"
+import type DeploymentService from "../../../../modules/deployment/service"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || "cicilabel.com"
@@ -65,9 +66,10 @@ export const POST = async (
   // Check if already provisioned — verify the project actually exists on Vercel
   if (partnerData.metadata?.vercel_project_id) {
     let projectExists = false
-    if (isVercelConfigured()) {
+    const deploymentSvc: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+    if (deploymentSvc.isVercelConfigured()) {
       try {
-        await getProject(partnerData.metadata.vercel_project_id)
+        await deploymentSvc.getProject(partnerData.metadata.vercel_project_id)
         projectExists = true
       } catch {
         // Project doesn't exist on Vercel (404) — clear stale metadata and allow re-provisioning

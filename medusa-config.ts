@@ -84,6 +84,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/partner",
     },
     {
+      resolve: "./src/modules/deployment",
+    },
+    {
       resolve: "./src/modules/custom-s3-provider",
     },
     {
