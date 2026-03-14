@@ -43,16 +43,35 @@ export type VercelDomain = {
   verification?: Array<{ type: string; domain: string; value: string }>
 }
 
+/**
+ * Sanitize a project name to comply with Vercel's rules:
+ * - lowercase only
+ * - letters, digits, '.', '_', '-' allowed
+ * - no '---' sequence
+ * - max 100 chars
+ * - no leading/trailing dashes
+ */
+function sanitizeProjectName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 100)
+}
+
 export async function createProject(input: {
   name: string
   gitRepo: string // "org/repo" format
   framework?: string
 }): Promise<VercelProject> {
+  const projectName = sanitizeProjectName(input.name)
+
   const res = await fetch(`${VERCEL_API_BASE}/v11/projects${teamQuery()}`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
-      name: input.name,
+      name: projectName,
       framework: input.framework || "nextjs",
       gitRepository: {
         type: "github",
@@ -134,7 +153,7 @@ export async function triggerDeployment(input: {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify({
-        name: input.projectName,
+        name: sanitizeProjectName(input.projectName),
         target: "production",
         gitSource: {
           type: "github",
