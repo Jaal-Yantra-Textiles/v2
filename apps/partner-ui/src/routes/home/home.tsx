@@ -1,5 +1,5 @@
-import { Button, Checkbox, Container, Heading, Text, clx } from "@medusajs/ui"
-import { BuildingStorefront, PencilSquare } from "@medusajs/icons"
+import { Badge, Button, Checkbox, Container, Heading, Text, clx, toast } from "@medusajs/ui"
+import { ArrowPath, BuildingStorefront, PencilSquare, Plus, ShoppingBag } from "@medusajs/icons"
 import { Link } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 
@@ -9,6 +9,7 @@ import { usePartnerDesigns } from "../../hooks/api/partner-designs"
 import { usePartnerInventoryOrders } from "../../hooks/api/partner-inventory-orders"
 import { usePartnerStores } from "../../hooks/api/partner-stores"
 import { useMe } from "../../hooks/api/users"
+import { useDiscoverProducts, useCopyProduct, DiscoverProduct } from "../../hooks/api/discover"
 import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 
@@ -308,6 +309,8 @@ export const Home = () => {
         </div>
       </Container>
 
+      {hasStore && <DiscoverSection />}
+
       {partnerId ? (
         <OnboardingModal
           partnerId={partnerId}
@@ -316,5 +319,159 @@ export const Home = () => {
         />
       ) : null}
     </div>
+  )
+}
+
+function getLowestPrice(product: DiscoverProduct): string | null {
+  const prices = (product.variants || []).flatMap((v) => v.prices || [])
+  if (!prices.length) return null
+  const lowest = prices.reduce((min, p) =>
+    p.amount < min.amount ? p : min
+  )
+  const formatted = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: lowest.currency_code?.toUpperCase() || "USD",
+    minimumFractionDigits: 0,
+  }).format(lowest.amount)
+  return formatted
+}
+
+const DiscoverProductCard = ({ product }: { product: DiscoverProduct }) => {
+  const { mutateAsync: copyProduct, isPending: isCopying } = useCopyProduct()
+
+  const handleCopy = async () => {
+    try {
+      await copyProduct(product.id)
+      toast.success("Product added to your store", {
+        description: `"${product.title}" has been copied as a draft product.`,
+      })
+    } catch (e: any) {
+      toast.error("Failed to copy product", {
+        description: e?.message || "Something went wrong",
+      })
+    }
+  }
+
+  const price = getLowestPrice(product)
+  const variantCount = product.variants?.length || 0
+  const channelName = product.sales_channels?.[0]?.name
+
+  return (
+    <div className="bg-ui-bg-base border border-ui-border-base rounded-lg overflow-hidden flex flex-col">
+      <div className="aspect-square bg-ui-bg-subtle relative">
+        {product.thumbnail ? (
+          <img
+            src={product.thumbnail}
+            alt={product.title}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <ShoppingBag className="h-8 w-8 text-ui-fg-muted" />
+          </div>
+        )}
+        {product.type && (
+          <Badge
+            size="2xsmall"
+            color="grey"
+            className="absolute top-2 left-2"
+          >
+            {product.type.value}
+          </Badge>
+        )}
+      </div>
+      <div className="p-3 flex flex-col gap-y-1 flex-1">
+        <Text size="small" weight="plus" className="truncate">
+          {product.title}
+        </Text>
+        <div className="flex items-center gap-x-2">
+          {price && (
+            <Text size="small" className="text-ui-fg-base">
+              {price}
+            </Text>
+          )}
+          <Text size="xsmall" className="text-ui-fg-muted">
+            {variantCount} variant{variantCount !== 1 ? "s" : ""}
+          </Text>
+        </div>
+        {channelName && (
+          <Text size="xsmall" className="text-ui-fg-subtle truncate">
+            From: {channelName}
+          </Text>
+        )}
+      </div>
+      <div className="px-3 pb-3">
+        <Button
+          variant="secondary"
+          size="small"
+          className="w-full"
+          onClick={handleCopy}
+          disabled={isCopying}
+        >
+          <Plus className="mr-1 h-3 w-3" />
+          {isCopying ? "Copying..." : "Add to My Store"}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+const DiscoverSection = () => {
+  const { products, count, isPending, isError, refetch } =
+    useDiscoverProducts({ limit: 8 })
+
+  if (isError) return null
+
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex items-center justify-between px-6 py-4">
+        <div>
+          <Heading level="h2">Discover Products to Sell</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Browse products from other partners and add them to your store.
+          </Text>
+        </div>
+        <Button
+          variant="transparent"
+          size="small"
+          onClick={() => refetch()}
+          disabled={isPending}
+        >
+          <ArrowPath className={clx("h-4 w-4", isPending && "animate-spin")} />
+          Shuffle
+        </Button>
+      </div>
+
+      <div className="px-6 py-4">
+        {isPending ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="bg-ui-bg-subtle animate-pulse rounded-lg aspect-square"
+              />
+            ))}
+          </div>
+        ) : !products?.length ? (
+          <Text size="small" className="text-ui-fg-subtle py-8 text-center">
+            No products available for discovery yet.
+          </Text>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {products.map((product) => (
+              <DiscoverProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
+        {(count || 0) > 8 && (
+          <Text
+            size="xsmall"
+            className="text-ui-fg-muted mt-3 text-center"
+          >
+            Showing 8 of {count} products · Click Shuffle to see more
+          </Text>
+        )}
+      </div>
+    </Container>
   )
 }
