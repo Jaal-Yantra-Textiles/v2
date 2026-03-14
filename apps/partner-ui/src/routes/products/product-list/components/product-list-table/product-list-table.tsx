@@ -13,6 +13,7 @@ import {
   useDeleteProduct,
   useProducts,
 } from "../../../../../hooks/api/products"
+import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { useProductTableColumns } from "../../../../../hooks/table/columns/use-product-table-columns"
 import { useProductTableFilters } from "../../../../../hooks/table/filters/use-product-table-filters"
 import { useProductTableQuery } from "../../../../../hooks/table/query/use-product-table-query"
@@ -26,6 +27,8 @@ const PAGE_SIZE = 20
 export const ProductListTable = () => {
   const { t } = useTranslation()
   const location = useLocation()
+  const { stores } = usePartnerStores()
+  const hasStore = stores?.length > 0
   const isViewConfigEnabled = useFeatureFlag("view_configurations")
 
   // If feature flag is enabled, use the new configurable table
@@ -76,9 +79,15 @@ export const ProductListTable = () => {
           <Button size="small" variant="secondary" asChild>
             <Link to={`import${location.search}`}>{t("actions.import")}</Link>
           </Button>
-          <Button size="small" variant="secondary" asChild>
-            <Link to="create">{t("actions.create")}</Link>
-          </Button>
+          {hasStore ? (
+            <Button size="small" variant="secondary" asChild>
+              <Link to="create">{t("actions.create")}</Link>
+            </Button>
+          ) : (
+            <Button size="small" variant="secondary" disabled>
+              {t("actions.create")}
+            </Button>
+          )}
         </div>
       </div>
       <_DataTable

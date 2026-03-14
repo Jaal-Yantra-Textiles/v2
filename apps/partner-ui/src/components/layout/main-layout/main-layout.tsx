@@ -6,6 +6,7 @@ import {
   MagnifyingGlass,
   OpenRectArrowOut,
   PencilSquare,
+  Tag,
   TimelineVertical,
 } from "@medusajs/icons"
 import { Avatar, Divider, DropdownMenu, Kbd, Text, clx } from "@medusajs/ui"
@@ -195,6 +196,11 @@ const useCoreRoutes = (): Omit<INavItem, "pathname">[] => {
       icon: <DocumentSeries />,
       label: "Production Runs",
       to: "/production-runs",
+    },
+    {
+      icon: <Tag />,
+      label: "Products",
+      to: "/products",
     },
     {
       icon: <TimelineVertical />,

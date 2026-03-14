@@ -29,7 +29,11 @@ export const useCollection = (
 ) => {
   const { data, ...rest } = useQuery({
     queryKey: collectionsQueryKeys.detail(id),
-    queryFn: async () => sdk.admin.productCollection.retrieve(id),
+    queryFn: async () =>
+      sdk.client.fetch<{ collection: HttpTypes.AdminCollection }>(
+        `/partners/product-collections/${id}`,
+        { method: "GET" }
+      ),
     ...options,
   })
 
@@ -50,7 +54,10 @@ export const useCollections = (
 ) => {
   const { data, ...rest } = useQuery({
     queryKey: collectionsQueryKeys.list(query),
-    queryFn: async () => sdk.admin.productCollection.list(query),
+    queryFn: async () =>
+      sdk.client.fetch<
+        PaginatedResponse<{ collections: HttpTypes.AdminCollection[] }>
+      >("/partners/product-collections", { method: "GET", query }),
     ...options,
   })
 

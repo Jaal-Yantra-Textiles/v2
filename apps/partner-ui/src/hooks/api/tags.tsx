@@ -29,7 +29,11 @@ export const useProductTag = (
 ) => {
   const { data, ...rest } = useQuery({
     queryKey: productTagsQueryKeys.detail(id, query),
-    queryFn: async () => sdk.admin.productTag.retrieve(id),
+    queryFn: async () =>
+      sdk.client.fetch<HttpTypes.AdminProductTagResponse>(
+        `/partners/product-tags/${id}`,
+        { method: "GET" }
+      ),
     ...options,
   })
 
@@ -50,7 +54,11 @@ export const useProductTags = (
 ) => {
   const { data, ...rest } = useQuery({
     queryKey: productTagsQueryKeys.list(query),
-    queryFn: async () => sdk.admin.productTag.list(query),
+    queryFn: async () =>
+      sdk.client.fetch<HttpTypes.AdminProductTagListResponse>(
+        "/partners/product-tags",
+        { method: "GET", query }
+      ),
     ...options,
   })
 

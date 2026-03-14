@@ -42,8 +42,8 @@ export const useSalesChannel = (
         `/partners/stores/${storeId}/sales-channels/${id}`,
         { method: "GET" }
       ),
-    enabled: !!storeId && (options?.enabled !== false),
     ...options,
+    enabled: !!storeId && (options?.enabled !== false),
   })
 
   return { ...data, ...rest }
@@ -71,8 +71,8 @@ export const useSalesChannels = (
         { method: "GET" }
       ),
     queryKey: salesChannelsQueryKeys.list(query),
-    enabled: !!storeId && (options?.enabled !== false),
     ...options,
+    enabled: !!storeId && (options?.enabled !== false),
   })
 
   return { ...data, ...rest }

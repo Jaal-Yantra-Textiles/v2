@@ -28,7 +28,11 @@ export const useProductType = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.productType.retrieve(id, query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminProductTypeResponse>(
+        `/partners/product-types/${id}`,
+        { method: "GET" }
+      ),
     queryKey: productTypesQueryKeys.detail(id),
     ...options,
   })
@@ -49,7 +53,11 @@ export const useProductTypes = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.productType.list(query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminProductTypeListResponse>(
+        "/partners/product-types",
+        { method: "GET", query }
+      ),
     queryKey: productTypesQueryKeys.list(query),
     ...options,
   })
