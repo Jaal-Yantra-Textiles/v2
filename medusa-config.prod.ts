@@ -242,5 +242,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/payment_reports",
   },
+  {
+      resolve: "./src/modules/deployment",
+    },
 ],
 });
