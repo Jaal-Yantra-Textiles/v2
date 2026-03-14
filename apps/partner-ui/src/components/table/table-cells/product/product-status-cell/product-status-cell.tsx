@@ -10,12 +10,14 @@ type ProductStatusCellProps = {
 export const ProductStatusCell = ({ status }: ProductStatusCellProps) => {
   const { t } = useTranslation()
 
-  const [color, text] = {
+  const statusMap: Record<string, ["grey" | "orange" | "green" | "red", string]> = {
     draft: ["grey", t("products.productStatus.draft")],
     proposed: ["orange", t("products.productStatus.proposed")],
     published: ["green", t("products.productStatus.published")],
     rejected: ["red", t("products.productStatus.rejected")],
-  }[status] as ["grey" | "orange" | "green" | "red", string]
+  }
+
+  const [color, text] = statusMap[status] ?? ["grey", status]
 
   return <StatusCell color={color}>{text}</StatusCell>
 }

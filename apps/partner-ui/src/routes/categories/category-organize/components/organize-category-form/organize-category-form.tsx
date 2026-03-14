@@ -44,9 +44,12 @@ export const OrganizeCategoryForm = () => {
       }
       arr: CategoryTreeItem[]
     }) => {
-      await sdk.admin.productCategory.update(value.id, {
-        rank: value.rank ?? 0,
-        parent_category_id: value.parent_category_id,
+      await sdk.client.fetch(`/partners/product-categories/${value.id}`, {
+        method: "POST",
+        body: {
+          rank: value.rank ?? 0,
+          parent_category_id: value.parent_category_id,
+        },
       })
     },
     onMutate: async (update) => {

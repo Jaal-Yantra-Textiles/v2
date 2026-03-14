@@ -6,7 +6,10 @@ import { queryClient } from "../../../lib/query-client"
 
 const categoryDetailQuery = (id: string) => ({
   queryKey: categoriesQueryKeys.detail(id),
-  queryFn: async () => sdk.admin.productCategory.retrieve(id),
+  queryFn: async () =>
+    sdk.client.fetch<{ product_category: any }>(`/partners/product-categories/${id}`, {
+      method: "GET",
+    }),
 })
 
 export const categoryLoader = async ({ params }: LoaderFunctionArgs) => {

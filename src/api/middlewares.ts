@@ -2603,6 +2603,48 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
+    // Partner customer endpoints
+    {
+      matcher: "/partners/customers",
+      method: ["GET", "POST"],
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/customers/:id",
+      method: ["GET", "POST", "DELETE"],
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/customers/:id/addresses",
+      method: ["GET", "POST"],
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/customers/:id/addresses/:addressId",
+      method: ["GET", "POST", "DELETE"],
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/customers/:id/customer-groups",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    // Partner customer group endpoints
+    {
+      matcher: "/partners/customer-groups",
+      method: ["GET", "POST"],
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/customer-groups/:id",
+      method: ["GET", "POST", "DELETE"],
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/customer-groups/:id/customers",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
     // Admin Users: list auth identities by email
     {
       matcher: "/admin/users/identities",
