@@ -98,7 +98,7 @@ export const getPartnerStore = async (
 
 export const validatePartnerEntityOwnership = async (
     authContext: { actor_id?: string | null } | undefined,
-    entityType: "product_categories" | "product_collections",
+    entityType: "product_categories" | "product_collections" | "customers" | "customer_groups",
     entityId: string,
     container: MedusaContainer,
 ): Promise<{ partner: any; store: any }> => {
