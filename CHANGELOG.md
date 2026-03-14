@@ -1,3 +1,10 @@
+# [10.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.10.0...v10.11.0) (2026-03-14)
+
+
+### Features
+
+* **api:** store routes scope categories & collections via publishable key ([7ae85f9](https://github.com/Jaal-Yantra-Textiles/v2/commit/7ae85f933fc0631df75beb61c625b5d2941c9f20))
+
 # [10.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.9.0...v10.10.0) (2026-03-14)
 
 
