@@ -21,7 +21,9 @@ export const GET = async (
     },
   })
 
-  const products = (links as any[]) || []
+  const products = ((links as any[]) || [])
+    .map((l: any) => l?.product)
+    .filter(Boolean)
 
   res.json({
     products,
