@@ -11,6 +11,7 @@ import {
   triggerDeployment,
 } from "../../lib/vercel"
 import { ensureVercelCname } from "../../lib/cloudflare"
+import PartnerService from "../../modules/partner/service"
 
 export type ProvisionStorefrontInput = {
   partner_id: string
@@ -154,7 +155,7 @@ const saveStorefrontMetadataStep = createStep(
     { container }
   ) => {
     const domain = `${input.handle}.${input.rootDomain}`
-    const partnerService = container.resolve("partner")
+    const partnerService:PartnerService = container.resolve("partner")
     await partnerService.updatePartners({
       id: input.partnerId,
       metadata: {

@@ -73,7 +73,11 @@ export const useCreateProductType = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.productType.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminProductTypeResponse>(
+        "/partners/product-types",
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: productTypesQueryKeys.lists() })
 
@@ -92,7 +96,11 @@ export const useUpdateProductType = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.productType.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminProductTypeResponse>(
+        `/partners/product-types/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: productTypesQueryKeys.detail(id),
@@ -114,7 +122,11 @@ export const useDeleteProductType = (
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.productType.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<HttpTypes.AdminProductTypeDeleteResponse>(
+        `/partners/product-types/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: productTypesQueryKeys.detail(id),

@@ -168,13 +168,25 @@ export async function deleteDnsRecord(recordId: string): Promise<void> {
 }
 
 /**
+ * Check if Cloudflare credentials are configured.
+ */
+export function isCloudflareConfigured(): boolean {
+  return Boolean(process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ZONE_ID)
+}
+
+/**
  * Ensure a CNAME record exists for a subdomain pointing to Vercel.
  * Creates the record if it doesn't exist, updates it if it points elsewhere.
+ * Returns a "skipped" action if Cloudflare env vars are not configured.
  */
 export async function ensureVercelCname(
   subdomain: string,
   rootDomain: string
-): Promise<{ action: "created" | "updated" | "exists"; record: CloudflareDnsRecord }> {
+): Promise<{ action: "created" | "updated" | "exists" | "skipped"; record?: CloudflareDnsRecord; reason?: string }> {
+  if (!isCloudflareConfigured()) {
+    return { action: "skipped", reason: "Cloudflare not configured (CLOUDFLARE_API_TOKEN or CLOUDFLARE_ZONE_ID missing)" }
+  }
+
   const fullDomain = `${subdomain}.${rootDomain}`
   const vercelCname = "cname.vercel-dns.com"
 
