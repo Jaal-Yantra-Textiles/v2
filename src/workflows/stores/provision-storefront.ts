@@ -34,9 +34,10 @@ export type ProvisionStorefrontResult = {
 // Step 1: Create Vercel project
 const createVercelProjectStep = createStep(
   "create-vercel-project",
-  async (input: { projectName: string; storefrontRepo: string }) => {
+  async (input: { handle: string; storefrontRepo: string }) => {
+    const projectName = `storefront-${input.handle}`
     const project = await createProject({
-      name: input.projectName,
+      name: projectName,
       gitRepo: input.storefrontRepo,
       framework: "nextjs",
     })
@@ -91,13 +92,14 @@ const setVercelEnvVarsStep = createStep(
 // Step 3: Add custom domain to Vercel project
 const addVercelDomainStep = createStep(
   "add-vercel-domain",
-  async (input: { projectId: string; domain: string }) => {
+  async (input: { projectId: string; handle: string; rootDomain: string }) => {
+    const domain = `${input.handle}.${input.rootDomain}`
     try {
-      const result = await addDomain(input.projectId, input.domain)
+      const result = await addDomain(input.projectId, domain)
       return new StepResponse(result)
     } catch (e: any) {
       return new StepResponse({
-        name: input.domain,
+        name: domain,
         verified: false,
         error: e.message,
       })
@@ -121,11 +123,12 @@ const createCloudflareCnameStep = createStep(
 // Step 5: Trigger Vercel production deployment
 const triggerVercelDeploymentStep = createStep(
   "trigger-vercel-deployment",
-  async (input: { projectName: string; storefrontRepo: string; ref?: string }) => {
+  async (input: { handle: string; storefrontRepo: string }) => {
+    const projectName = `storefront-${input.handle}`
     const deployment = await triggerDeployment({
-      projectName: input.projectName,
+      projectName,
       gitRepo: input.storefrontRepo,
-      ref: input.ref || "main",
+      ref: "main",
     })
 
     return new StepResponse({
@@ -144,11 +147,13 @@ const saveStorefrontMetadataStep = createStep(
       partnerId: string
       projectId: string
       projectName: string
-      domain: string
+      handle: string
+      rootDomain: string
       existingMetadata: Record<string, any>
     },
     { container }
   ) => {
+    const domain = `${input.handle}.${input.rootDomain}`
     const partnerService = container.resolve("partner")
     await partnerService.updatePartners({
       id: input.partnerId,
@@ -156,7 +161,7 @@ const saveStorefrontMetadataStep = createStep(
         ...input.existingMetadata,
         vercel_project_id: input.projectId,
         vercel_project_name: input.projectName,
-        storefront_domain: input.domain,
+        storefront_domain: domain,
         storefront_provisioned_at: new Date().toISOString(),
       },
     })
@@ -168,13 +173,9 @@ const saveStorefrontMetadataStep = createStep(
 export const provisionStorefrontWorkflow = createWorkflow(
   "provision-storefront",
   (input: ProvisionStorefrontInput) => {
-    const handle = input.handle
-    const projectName = input.handle // will be prefixed by sanitizer in vercel lib
-    const domain = input.handle // placeholder — actual domain built in steps
-
     // Step 1: Create Vercel project
     const project = createVercelProjectStep({
-      projectName: `storefront-${input.handle}`,
+      handle: input.handle,
       storefrontRepo: input.storefront_repo,
     })
 
@@ -189,7 +190,8 @@ export const provisionStorefrontWorkflow = createWorkflow(
     // Step 3: Add custom domain to Vercel
     const domainResult = addVercelDomainStep({
       projectId: project.id,
-      domain: `${input.handle}.${input.root_domain}` as any,
+      handle: input.handle,
+      rootDomain: input.root_domain,
     })
 
     // Step 4: Create Cloudflare CNAME
@@ -200,7 +202,7 @@ export const provisionStorefrontWorkflow = createWorkflow(
 
     // Step 5: Trigger deployment
     const deployment = triggerVercelDeploymentStep({
-      projectName: `storefront-${input.handle}`,
+      handle: input.handle,
       storefrontRepo: input.storefront_repo,
     })
 
@@ -209,7 +211,8 @@ export const provisionStorefrontWorkflow = createWorkflow(
       partnerId: input.partner_id,
       projectId: project.id,
       projectName: project.name,
-      domain: `${input.handle}.${input.root_domain}` as any,
+      handle: input.handle,
+      rootDomain: input.root_domain,
       existingMetadata: input.existing_metadata,
     })
 
@@ -218,7 +221,6 @@ export const provisionStorefrontWorkflow = createWorkflow(
       domain: domainResult,
       dns: dnsResult,
       deployment,
-      storefront_url: `https://${input.handle}.${input.root_domain}`,
     } as unknown as ProvisionStorefrontResult)
   }
 )

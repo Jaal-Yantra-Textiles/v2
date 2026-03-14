@@ -112,5 +112,6 @@ export const POST = async (
   res.status(201).json({
     message: "Storefront provisioned successfully",
     ...result,
+    storefront_url: `https://${handle}.${ROOT_DOMAIN}`,
   })
 }

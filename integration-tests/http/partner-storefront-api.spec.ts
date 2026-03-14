@@ -1,3 +1,20 @@
+jest.mock("../../src/lib/vercel", () => ({
+  createProject: jest.fn().mockResolvedValue({ id: "prj_mock", name: "mock-project" }),
+  setEnvironmentVariables: jest.fn().mockResolvedValue(undefined),
+  addDomain: jest.fn().mockResolvedValue({ name: "mock.cicilabel.com", verified: false }),
+  triggerDeployment: jest.fn().mockResolvedValue({ id: "dpl_mock", url: "mock.vercel.app", readyState: "READY" }),
+  getProject: jest.fn().mockResolvedValue({ id: "prj_mock", name: "mock-project" }),
+  getDeployment: jest.fn().mockResolvedValue({ id: "dpl_mock", url: "mock.vercel.app", readyState: "READY" }),
+}))
+
+jest.mock("../../src/lib/cloudflare", () => ({
+  createDnsRecord: jest.fn().mockResolvedValue({ id: "dns_mock", type: "CNAME", name: "mock.cicilabel.com", content: "cname.vercel-dns.com" }),
+  listDnsRecords: jest.fn().mockResolvedValue([]),
+  updateDnsRecord: jest.fn().mockResolvedValue({ id: "dns_mock" }),
+  deleteDnsRecord: jest.fn().mockResolvedValue(undefined),
+  ensureVercelCname: jest.fn().mockResolvedValue({ action: "created", record: { id: "dns_mock", name: "mock.cicilabel.com", content: "cname.vercel-dns.com" } }),
+}))
+
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 

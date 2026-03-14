@@ -2,7 +2,8 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
+import { uploadFilesWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../helpers"
 
 export const POST = async (
@@ -17,24 +18,25 @@ export const POST = async (
     )
   }
 
-  const fileService = req.scope.resolve(Modules.FILE)
   const input = req.files as Express.Multer.File[]
 
   if (!input?.length) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      "No files provided"
+      "No files were uploaded"
     )
   }
 
-  const files = await fileService.createFiles(
-    input.map((f) => ({
-      filename: f.originalname,
-      mimeType: f.mimetype,
-      content: f.buffer.toString("binary"),
-      access: "public" as const,
-    }))
-  )
+  const { result } = await uploadFilesWorkflow(req.scope).run({
+    input: {
+      files: input.map((f) => ({
+        filename: f.originalname,
+        mimeType: f.mimetype,
+        content: f.buffer.toString("base64"),
+        access: "public" as const,
+      })),
+    },
+  })
 
-  res.json({ files })
+  res.status(200).json({ files: result })
 }

@@ -2565,6 +2565,7 @@ export default defineMiddlewares({
     {
       matcher: "/partners/designs/:designId/media",
       method: "POST",
+      bodyParser: false,
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
         maybeMulterArray("files"),
@@ -2582,6 +2583,7 @@ export default defineMiddlewares({
     {
       matcher: "/partners/uploads",
       method: "POST",
+      bodyParser: false,
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
         adaptMulter(upload.array("files")),
