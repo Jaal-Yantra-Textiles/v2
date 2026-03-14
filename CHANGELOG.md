@@ -1,3 +1,18 @@
+# [10.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.8.3...v10.9.0) (2026-03-14)
+
+
+### Bug Fixes
+
+* **api:** Fixed the workflow type issues ([42658aa](https://github.com/Jaal-Yantra-Textiles/v2/commit/42658aa6312b742f14e1de7095b18326b8cc360f))
+* **Vercel:** fixing the project name ([4adc722](https://github.com/Jaal-Yantra-Textiles/v2/commit/4adc7220cf7f89c431fdbb90ef15ab8dbef3532c))
+* **Product:** Partners can now create a website at whim ([0910534](https://github.com/Jaal-Yantra-Textiles/v2/commit/09105343189b563c43e23aa18ce7f8490002b773))
+
+
+### Features
+
+* **api:** Partners now can create full fledged store ([73e721e](https://github.com/Jaal-Yantra-Textiles/v2/commit/73e721e196acbbfa468b8787f61d6072dc50034f))
+* **api:** Partners now provision stores ([91770f1](https://github.com/Jaal-Yantra-Textiles/v2/commit/91770f164490e9ce31940046d2cd26d69b3122b8))
+
 ## [10.8.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.8.2...v10.8.3) (2026-03-13)
 
 
