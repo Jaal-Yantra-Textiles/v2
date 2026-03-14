@@ -89,3 +89,22 @@ export const useRedeployStorefront = () => {
     },
   })
 }
+
+export interface RemoveStorefrontResponse {
+  message: string
+  results: Record<string, { action: string; error?: string; reason?: string }>
+}
+
+export const useRemoveStorefront = () => {
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<RemoveStorefrontResponse>("/partners/storefront", {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: storefrontQueryKeys.detail("me"),
+      })
+    },
+  })
+}

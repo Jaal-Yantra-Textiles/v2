@@ -17,6 +17,7 @@ import {
   useStorefrontStatus,
   useProvisionStorefront,
   useRedeployStorefront,
+  useRemoveStorefront,
 } from "../../../hooks/api/storefront"
 
 function formatDate(dateStr: string | number | null | undefined): string {
@@ -55,6 +56,8 @@ const StorefrontSection = () => {
     useProvisionStorefront()
   const { mutateAsync: redeploy, isPending: isRedeploying } =
     useRedeployStorefront()
+  const { mutateAsync: remove, isPending: isRemoving } =
+    useRemoveStorefront()
   const prompt = usePrompt()
   const [showDetails, setShowDetails] = useState(false)
 
@@ -90,6 +93,29 @@ const StorefrontSection = () => {
     } catch (e: any) {
       toast.error("Redeploy failed", {
         description: e?.message || "Could not trigger redeployment",
+      })
+    }
+  }
+
+  const handleRemove = async () => {
+    const confirmed = await prompt({
+      title: "Remove Storefront",
+      description:
+        "This will delete the Vercel project, remove the DNS record, and clear all storefront metadata. This action cannot be undone. You can re-enable the storefront later.",
+      confirmText: "Remove",
+      cancelText: "Cancel",
+    })
+
+    if (!confirmed) return
+
+    try {
+      const result = await remove()
+      toast.success("Storefront removed", {
+        description: result.message,
+      })
+    } catch (e: any) {
+      toast.error("Could not remove storefront", {
+        description: e?.message || "Something went wrong",
       })
     }
   }
@@ -251,12 +277,22 @@ const StorefrontSection = () => {
           </div>
         )}
 
-        <button
-          onClick={() => setShowDetails(!showDetails)}
-          className="text-ui-fg-interactive text-xs hover:underline"
-        >
-          {showDetails ? "Hide details" : "Show details"}
-        </button>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="text-ui-fg-interactive text-xs hover:underline"
+          >
+            {showDetails ? "Hide details" : "Show details"}
+          </button>
+          <Button
+            variant="danger"
+            size="small"
+            onClick={handleRemove}
+            disabled={isRemoving}
+          >
+            {isRemoving ? "Removing..." : "Remove Storefront"}
+          </Button>
+        </div>
       </div>
     </Container>
   )
