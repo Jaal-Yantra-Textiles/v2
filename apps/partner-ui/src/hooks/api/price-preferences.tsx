@@ -30,7 +30,11 @@ export const usePricePreference = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.pricePreference.retrieve(id, query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminPricePreferenceResponse>(
+        `/partners/price-preferences/${id}`,
+        { method: "GET" }
+      ),
     queryKey: pricePreferencesQueryKeys.detail(),
     ...options,
   })
@@ -51,7 +55,11 @@ export const usePricePreferences = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.pricePreference.list(query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminPricePreferenceListResponse>(
+        `/partners/price-preferences`,
+        { method: "GET", query }
+      ),
     queryKey: pricePreferencesQueryKeys.list(query),
     ...options,
   })
@@ -71,9 +79,15 @@ export const useUpsertPricePreference = (
   return useMutation({
     mutationFn: (payload) => {
       if (id) {
-        return sdk.admin.pricePreference.update(id, payload, query)
+        return sdk.client.fetch<HttpTypes.AdminPricePreferenceResponse>(
+          `/partners/price-preferences/${id}`,
+          { method: "POST", body: payload }
+        )
       }
-      return sdk.admin.pricePreference.create(payload, query)
+      return sdk.client.fetch<HttpTypes.AdminPricePreferenceResponse>(
+        `/partners/price-preferences`,
+        { method: "POST", body: payload }
+      )
     },
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
@@ -100,7 +114,11 @@ export const useDeletePricePreference = (
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.pricePreference.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<HttpTypes.AdminPricePreferenceDeleteResponse>(
+        `/partners/price-preferences/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: pricePreferencesQueryKeys.list(),

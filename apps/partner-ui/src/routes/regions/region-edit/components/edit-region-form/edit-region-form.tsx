@@ -57,7 +57,7 @@ export const EditRegionForm = ({
   const comboboxProviders = useComboboxData({
     queryKey: ["payment_providers"],
     queryFn: (params) =>
-      sdk.admin.payment.listPaymentProviders({ ...params, is_enabled: true }),
+      sdk.client.fetch<any>("/partners/payment-providers", { method: "GET", query: { ...params, is_enabled: true } }),
     getOptions: (data) =>
       data.payment_providers.map((pp) => ({
         label: formatProvider(pp.id),

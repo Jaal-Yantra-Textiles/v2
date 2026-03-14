@@ -30,7 +30,11 @@ export const useShippingOptionType = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.shippingOptionType.retrieve(id, query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionTypeResponse>(
+        `/partners/shipping-option-types/${id}`,
+        { method: "GET" }
+      ),
     queryKey: shippingOptionTypesQueryKeys.detail(id),
     ...options,
   })
@@ -51,7 +55,11 @@ export const useShippingOptionTypes = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.shippingOptionType.list(query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionTypeListResponse>(
+        `/partners/shipping-option-types`,
+        { method: "GET" }
+      ),
     queryKey: shippingOptionTypesQueryKeys.list(query),
     ...options,
   })
@@ -67,7 +75,11 @@ export const useCreateShippingOptionType = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.shippingOptionType.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionTypeResponse>(
+        `/partners/shipping-option-types`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: shippingOptionTypesQueryKeys.lists(),
@@ -88,7 +100,11 @@ export const useUpdateShippingOptionType = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.shippingOptionType.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionTypeResponse>(
+        `/partners/shipping-option-types/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: shippingOptionTypesQueryKeys.detail(id),
@@ -112,7 +128,11 @@ export const useDeleteShippingOptionType = (
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.shippingOptionType.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<HttpTypes.AdminShippingOptionTypeDeleteResponse>(
+        `/partners/shipping-option-types/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: shippingOptionTypesQueryKeys.detail(id),

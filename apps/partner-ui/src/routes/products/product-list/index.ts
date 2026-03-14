@@ -1,2 +1,2 @@
-export { productsLoader as productLoader } from "./loader"
+export { productsLoader as loader } from "./loader"
 export { ProductList as Component } from "./product-list"

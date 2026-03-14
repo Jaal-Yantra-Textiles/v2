@@ -222,13 +222,17 @@ export const useUpdateProductVariantsBatch = (
   productId: string,
   options?: UseMutationOptions<any, FetchError, any>
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (
       payload: HttpTypes.AdminBatchProductVariantRequest["update"]
     ) =>
-      sdk.admin.product.batchVariants(productId, {
-        update: payload,
-      }),
+      sdk.client.fetch<any>(
+        `/partners/stores/${storeId}/products/${productId}/variants/batch`,
+        { method: "POST", body: { update: payload } }
+      ),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: variantsQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: variantsQueryKeys.details() })
@@ -250,9 +254,15 @@ export const useProductVariantsInventoryItemsBatch = (
     HttpTypes.AdminBatchProductVariantInventoryItemRequest
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.product.batchVariantInventoryItems(productId, payload),
+      sdk.client.fetch<HttpTypes.AdminBatchProductVariantInventoryItemResponse>(
+        `/partners/stores/${storeId}/products/${productId}/variants/inventory-items/batch`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: variantsQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: variantsQueryKeys.details() })
@@ -479,8 +489,15 @@ export const useExportProducts = (
     HttpTypes.AdminExportProductRequest
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.product.export(payload, query),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminExportProductResponse>(
+        `/partners/stores/${storeId}/products/export`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       options?.onSuccess?.(data, variables, context)
     },
@@ -495,8 +512,15 @@ export const useImportProducts = (
     HttpTypes.AdminImportProductRequest
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.product.createImport(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminImportProductResponse>(
+        `/partners/stores/${storeId}/products/import`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       options?.onSuccess?.(data, variables, context)
     },
@@ -507,8 +531,15 @@ export const useImportProducts = (
 export const useConfirmImportProducts = (
   options?: UseMutationOptions<{}, FetchError, string>
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.product.confirmImport(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{}>(
+        `/partners/stores/${storeId}/products/import/${payload}/confirm`,
+        { method: "POST" }
+      ),
     onSuccess: (data, variables, context) => {
       options?.onSuccess?.(data, variables, context)
     },
@@ -525,9 +556,15 @@ export const useBatchImageVariants = (
     HttpTypes.AdminBatchImageVariantRequest
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.product.batchImageVariants(productId, imageId, payload),
+      sdk.client.fetch<HttpTypes.AdminBatchImageVariantResponse>(
+        `/partners/stores/${storeId}/products/${productId}/images/${imageId}/variants/batch`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: productsQueryKeys.detail(productId),
@@ -550,9 +587,15 @@ export const useBatchVariantImages = (
     HttpTypes.AdminBatchVariantImagesRequest
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.product.batchVariantImages(productId, variantId, payload),
+      sdk.client.fetch<HttpTypes.AdminBatchVariantImagesResponse>(
+        `/partners/stores/${storeId}/products/${productId}/variants/${variantId}/images/batch`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: productsQueryKeys.detail(productId),

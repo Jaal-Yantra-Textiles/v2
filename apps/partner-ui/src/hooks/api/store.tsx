@@ -23,7 +23,10 @@ export const storeQueryKeys = queryKeysFactory(STORE_QUERY_KEY)
 export async function retrieveActiveStore(
   query?: HttpTypes.AdminStoreParams
 ): Promise<HttpTypes.AdminStoreResponse> {
-  const response = await sdk.admin.store.list(query)
+  const response = await sdk.client.fetch<{ stores: any[] }>(
+    `/partners/stores`,
+    { method: "GET" }
+  )
 
   const activeStore = response.stores?.[0]
 

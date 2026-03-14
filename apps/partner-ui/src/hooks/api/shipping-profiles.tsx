@@ -55,7 +55,11 @@ export const useShippingProfile = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.shippingProfile.retrieve(id, query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminShippingProfileResponse>(
+        `/partners/shipping-profiles/${id}`,
+        { method: "GET" }
+      ),
     queryKey: shippingProfileQueryKeys.detail(id, query),
     ...options,
   })
@@ -97,7 +101,11 @@ export const useUpdateShippingProfile = (
   >
 ) => {
   const { data, ...rest } = useMutation({
-    mutationFn: (payload) => sdk.admin.shippingProfile.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminShippingProfileResponse>(
+        `/partners/shipping-profiles/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: shippingProfileQueryKeys.detail(id),
@@ -123,7 +131,11 @@ export const useDeleteShippingProfile = (
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.shippingProfile.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<HttpTypes.AdminShippingProfileDeleteResponse>(
+        `/partners/shipping-profiles/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: shippingProfileQueryKeys.detail(id),

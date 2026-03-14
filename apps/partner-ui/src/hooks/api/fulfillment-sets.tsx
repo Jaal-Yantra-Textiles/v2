@@ -12,6 +12,7 @@ import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 import { shippingOptionsQueryKeys } from "./shipping-options"
 import { stockLocationsQueryKeys } from "./stock-locations"
+import { usePartnerStores } from "./partner-stores"
 
 const FULFILLMENT_SETS_QUERY_KEY = "fulfillment_sets" as const
 export const fulfillmentSetsQueryKeys = queryKeysFactory(
@@ -29,8 +30,15 @@ export const useDeleteFulfillmentSet = (
     "mutationFn"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: () => sdk.admin.fulfillmentSet.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<HttpTypes.AdminFulfillmentSetDeleteResponse>(
+        `/partners/stores/${storeId}/fulfillment-sets/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
         queryKey: fulfillmentSetsQueryKeys.detail(id),
@@ -67,14 +75,17 @@ export const useFulfillmentSetServiceZone = (
     "queryKey" | "queryFn"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { data, ...rest } = useQuery({
     queryFn: () =>
-      sdk.admin.fulfillmentSet.retrieveServiceZone(
-        fulfillmentSetId,
-        serviceZoneId,
-        query
+      sdk.client.fetch<HttpTypes.AdminServiceZoneResponse>(
+        `/partners/stores/${storeId}/fulfillment-sets/${fulfillmentSetId}/service-zones/${serviceZoneId}`,
+        { method: "GET" }
       ),
     queryKey: fulfillmentSetsQueryKeys.detail(fulfillmentSetId, query),
+    enabled: !!storeId && (options?.enabled !== false),
     ...options,
   })
 
@@ -93,9 +104,15 @@ export const useCreateFulfillmentSetServiceZone = (
     "mutationFn"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.fulfillmentSet.createServiceZone(fulfillmentSetId, payload),
+      sdk.client.fetch<HttpTypes.AdminFulfillmentSetResponse>(
+        `/partners/stores/${storeId}/fulfillment-sets/${fulfillmentSetId}/service-zones`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
         queryKey: fulfillmentSetsQueryKeys.lists(),
@@ -123,12 +140,14 @@ export const useUpdateFulfillmentSetServiceZone = (
     "mutationFn"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.fulfillmentSet.updateServiceZone(
-        fulfillmentSetId,
-        serviceZoneId,
-        payload
+      sdk.client.fetch<HttpTypes.AdminFulfillmentSetResponse>(
+        `/partners/stores/${storeId}/fulfillment-sets/${fulfillmentSetId}/service-zones/${serviceZoneId}`,
+        { method: "POST", body: payload }
       ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
@@ -156,11 +175,14 @@ export const useDeleteFulfillmentServiceZone = (
     "mutationFn"
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: () =>
-      sdk.admin.fulfillmentSet.deleteServiceZone(
-        fulfillmentSetId,
-        serviceZoneId
+      sdk.client.fetch<HttpTypes.AdminServiceZoneDeleteResponse>(
+        `/partners/stores/${storeId}/fulfillment-sets/${fulfillmentSetId}/service-zones/${serviceZoneId}`,
+        { method: "DELETE" }
       ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({

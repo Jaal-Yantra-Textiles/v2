@@ -40,7 +40,7 @@ export const ProductOrganizationForm = ({
 
   const collections = useComboboxData({
     queryKey: ["product_collections"],
-    queryFn: (params) => sdk.admin.productCollection.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/product-collections", { method: "GET", query: params }),
     getOptions: (data) =>
       data.collections.map((collection) => ({
         label: collection.title!,
@@ -50,7 +50,7 @@ export const ProductOrganizationForm = ({
 
   const types = useComboboxData({
     queryKey: ["product_types"],
-    queryFn: (params) => sdk.admin.productType.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/product-types", { method: "GET", query: params }),
     getOptions: (data) =>
       data.product_types.map((type) => ({
         label: type.value,
@@ -60,7 +60,7 @@ export const ProductOrganizationForm = ({
 
   const tags = useComboboxData({
     queryKey: ["product_tags"],
-    queryFn: (params) => sdk.admin.productTag.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/product-tags", { method: "GET", query: params }),
     getOptions: (data) =>
       data.product_tags.map((tag) => ({
         label: tag.value,

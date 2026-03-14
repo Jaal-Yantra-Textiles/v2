@@ -85,8 +85,15 @@ export const useCreateStockLocation = (
     HttpTypes.AdminCreateStockLocation
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: (payload) => sdk.admin.stockLocation.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminStockLocationResponse>(
+        `/partners/stores/${storeId}/locations`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.lists(),
@@ -137,9 +144,15 @@ export const useUpdateStockLocationSalesChannels = (
     HttpTypes.AdminUpdateStockLocationSalesChannels
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.stockLocation.updateSalesChannels(id, payload),
+      sdk.client.fetch<HttpTypes.AdminStockLocationResponse>(
+        `/partners/stores/${storeId}/locations/${id}/sales-channels`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.details(),
@@ -162,8 +175,15 @@ export const useDeleteStockLocation = (
     void
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
-    mutationFn: () => sdk.admin.stockLocation.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<HttpTypes.AdminStockLocationDeleteResponse>(
+        `/partners/stores/${storeId}/locations/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.lists(),

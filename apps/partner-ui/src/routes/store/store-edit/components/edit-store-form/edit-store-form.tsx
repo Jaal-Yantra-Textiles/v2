@@ -54,7 +54,10 @@ export const EditStoreForm = ({ store }: EditStoreFormProps) => {
   const regionsCombobox = useComboboxData({
     queryKey: ["regions", "default_region_id"],
     queryFn: (params) =>
-      sdk.admin.region.list({ ...params, fields: "id,name" }),
+      sdk.client.fetch<any>(`/partners/stores/${store.id}/regions`, {
+        method: "GET",
+        query: params,
+      }),
     defaultValue: store.default_region_id || undefined,
     getOptions: (data) =>
       data.regions.map((r) => ({ label: r.name, value: r.id })),
@@ -62,7 +65,10 @@ export const EditStoreForm = ({ store }: EditStoreFormProps) => {
 
   const salesChannelsCombobox = useComboboxData({
     queryFn: (params) =>
-      sdk.admin.salesChannel.list({ ...params, fields: "id,name" }),
+      sdk.client.fetch<any>(`/partners/stores/${store.id}/sales-channels`, {
+        method: "GET",
+        query: params,
+      }),
     getOptions: (data) =>
       data.sales_channels.map((sc) => ({ label: sc.name, value: sc.id })),
     queryKey: ["sales_channels", "default_sales_channel_id"],
@@ -71,7 +77,10 @@ export const EditStoreForm = ({ store }: EditStoreFormProps) => {
 
   const locationsCombobox = useComboboxData({
     queryFn: (params) =>
-      sdk.admin.stockLocation.list({ ...params, fields: "id,name" }),
+      sdk.client.fetch<any>(`/partners/stores/${store.id}/locations`, {
+        method: "GET",
+        query: params,
+      }),
     getOptions: (data) =>
       data.stock_locations.map((l) => ({ label: l.name, value: l.id })),
     queryKey: ["stock_locations", "default_location_id"],

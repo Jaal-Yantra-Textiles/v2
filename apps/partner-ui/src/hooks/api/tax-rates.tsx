@@ -30,7 +30,11 @@ export const useTaxRate = (
 ) => {
   const { data, ...rest } = useQuery({
     queryKey: taxRatesQueryKeys.detail(id),
-    queryFn: async () => sdk.admin.taxRate.retrieve(id, query),
+    queryFn: async () =>
+      sdk.client.fetch<HttpTypes.AdminTaxRateResponse>(
+        `/partners/tax-rates/${id}`,
+        { method: "GET" }
+      ),
     ...options,
   })
 
@@ -50,7 +54,11 @@ export const useTaxRates = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.taxRate.list(query),
+    queryFn: () =>
+      sdk.client.fetch<HttpTypes.AdminTaxRateListResponse>(
+        `/partners/tax-rates`,
+        { method: "GET", query }
+      ),
     queryKey: taxRatesQueryKeys.list(query),
     ...options,
   })
@@ -67,7 +75,11 @@ export const useUpdateTaxRate = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.taxRate.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminTaxRateResponse>(
+        `/partners/tax-rates/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: taxRatesQueryKeys.lists() })
       queryClient.invalidateQueries({
@@ -90,7 +102,11 @@ export const useCreateTaxRate = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.taxRate.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<HttpTypes.AdminTaxRateResponse>(
+        `/partners/tax-rates`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: taxRatesQueryKeys.lists() })
 
@@ -111,7 +127,11 @@ export const useDeleteTaxRate = (
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.taxRate.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<HttpTypes.AdminTaxRateDeleteResponse>(
+        `/partners/tax-rates/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: taxRatesQueryKeys.lists() })
       queryClient.invalidateQueries({

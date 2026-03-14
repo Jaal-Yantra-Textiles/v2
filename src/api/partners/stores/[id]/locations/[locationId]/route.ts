@@ -71,3 +71,37 @@ export const POST = async (
 
   res.json({ stock_location: updated })
 }
+
+export const DELETE = async (
+  req: AuthenticatedMedusaRequest,
+  res: MedusaResponse
+) => {
+  const { store } = await validatePartnerStoreAccess(
+    req.auth_context,
+    req.params.id,
+    req.scope
+  )
+
+  const locationId = req.params.locationId
+  if (store.default_location_id !== locationId) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      "Location not found for this store"
+    )
+  }
+
+  const locationService = req.scope.resolve(Modules.STOCK_LOCATION) as any
+  await locationService.deleteStockLocations(locationId)
+
+  // Clear the store's default_location_id
+  const storeService = req.scope.resolve(Modules.STORE) as any
+  await storeService.updateStores(store.id, {
+    default_location_id: null,
+  })
+
+  res.json({
+    id: locationId,
+    object: "stock_location",
+    deleted: true,
+  })
+}

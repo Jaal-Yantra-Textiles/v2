@@ -18,6 +18,7 @@ import { queryClient } from "../../../lib/query-client"
 import { stockLocationsQueryKeys } from "../../../hooks/api/stock-locations"
 import { ListSummary } from "../../../components/common/list-summary"
 import { sdk } from "../../../lib/client"
+import { usePartnerStores } from "../../../hooks/api/partner-stores"
 
 const columnHelper = createDataTableColumnHelper<HttpTypes.AdminStockLocation>()
 
@@ -25,6 +26,8 @@ export const useLocationListTableColumns = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const prompt = usePrompt()
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
 
   const handleDelete = async (location: HttpTypes.AdminStockLocation) => {
     const result = await prompt({
@@ -41,7 +44,10 @@ export const useLocationListTableColumns = () => {
     }
 
     try {
-      await sdk.admin.stockLocation.delete(location.id)
+      await sdk.client.fetch(
+        `/partners/stores/${storeId}/locations/${location.id}`,
+        { method: "DELETE" }
+      )
       queryClient.invalidateQueries({
         queryKey: stockLocationsQueryKeys.lists(),
       })

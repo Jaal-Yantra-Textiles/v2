@@ -28,7 +28,7 @@ function InventoryKitTab({ form }: InventoryKitTabProps) {
 
   const items = useComboboxData({
     queryKey: ["inventory_items"],
-    queryFn: (params) => sdk.admin.inventoryItem.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/inventory-items", { method: "GET", query: params }),
     getOptions: (data) =>
       data.inventory_items.map((item) => ({
         label: item.title,

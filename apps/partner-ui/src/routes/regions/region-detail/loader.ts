@@ -3,19 +3,23 @@ import { LoaderFunctionArgs } from "react-router-dom"
 import { regionsQueryKeys } from "../../../hooks/api/regions"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
-import { REGION_DETAIL_FIELDS } from "./constants"
+import { getPartnerStoreId } from "../../../lib/partner-store-id"
 
-const regionQuery = (id: string) => ({
+const regionQuery = (storeId: string, id: string) => ({
   queryKey: regionsQueryKeys.detail(id),
   queryFn: async () =>
-    sdk.admin.region.retrieve(id, {
-      fields: REGION_DETAIL_FIELDS,
-    }),
+    sdk.client.fetch<{ region: any }>(
+      `/partners/stores/${storeId}/regions/${id}`,
+      { method: "GET" }
+    ),
 })
 
 export const regionLoader = async ({ params }: LoaderFunctionArgs) => {
   const id = params.id
-  const query = regionQuery(id!)
+  const storeId = await getPartnerStoreId()
+  if (!storeId) return null
+
+  const query = regionQuery(storeId, id!)
 
   return (
     queryClient.getQueryData<{ region: HttpTypes.AdminRegion }>(

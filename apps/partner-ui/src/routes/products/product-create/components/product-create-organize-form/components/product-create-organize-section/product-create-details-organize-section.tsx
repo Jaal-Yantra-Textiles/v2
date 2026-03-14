@@ -23,7 +23,7 @@ export const ProductCreateOrganizationSection = ({
 
   const collections = useComboboxData({
     queryKey: ["product_collections"],
-    queryFn: (params) => sdk.admin.productCollection.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/product-collections", { method: "GET", query: params }),
     getOptions: (data) =>
       data.collections.map((collection) => ({
         label: collection.title!,
@@ -33,7 +33,7 @@ export const ProductCreateOrganizationSection = ({
 
   const types = useComboboxData({
     queryKey: ["product_types"],
-    queryFn: (params) => sdk.admin.productType.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/product-types", { method: "GET", query: params }),
     getOptions: (data) =>
       data.product_types.map((type) => ({
         label: type.value,
@@ -43,7 +43,7 @@ export const ProductCreateOrganizationSection = ({
 
   const tags = useComboboxData({
     queryKey: ["product_tags"],
-    queryFn: (params) => sdk.admin.productTag.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/product-tags", { method: "GET", query: params }),
     getOptions: (data) =>
       data.product_tags.map((tag) => ({
         label: tag.value,
@@ -53,7 +53,7 @@ export const ProductCreateOrganizationSection = ({
 
   const shippingProfiles = useComboboxData({
     queryKey: ["shipping_profiles"],
-    queryFn: (params) => sdk.admin.shippingProfile.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/shipping-profiles", { method: "GET", query: params }),
     getOptions: (data) =>
       data.shipping_profiles.map((shippingProfile) => ({
         label: shippingProfile.name,

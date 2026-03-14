@@ -212,9 +212,15 @@ export const useSalesChannelRemoveProducts = (
     HttpTypes.AdminBatchLink["remove"]
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.salesChannel.batchProducts(id, { remove: payload }),
+      sdk.client.fetch<AdminSalesChannelResponse>(
+        `/partners/stores/${storeId}/sales-channels/${id}/products/batch`,
+        { method: "POST", body: { remove: payload } }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: salesChannelsQueryKeys.lists(),
@@ -247,9 +253,15 @@ export const useSalesChannelAddProducts = (
     HttpTypes.AdminBatchLink["add"]
   >
 ) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.salesChannel.batchProducts(id, { add: payload }),
+      sdk.client.fetch<AdminSalesChannelResponse>(
+        `/partners/stores/${storeId}/sales-channels/${id}/products/batch`,
+        { method: "POST", body: { add: payload } }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: salesChannelsQueryKeys.lists(),

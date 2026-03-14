@@ -1,5 +1,5 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { validatePartnerStoreAccess } from "../../../helpers"
 
 export const GET = async (
@@ -45,4 +45,30 @@ export const GET = async (
     offset: 0,
     limit: 20,
   })
+}
+
+export const POST = async (
+  req: AuthenticatedMedusaRequest,
+  res: MedusaResponse
+) => {
+  const { store } = await validatePartnerStoreAccess(
+    req.auth_context,
+    req.params.id,
+    req.scope
+  )
+
+  const body = req.body as Record<string, any>
+
+  const locationService = req.scope.resolve(Modules.STOCK_LOCATION) as any
+  const location = await locationService.createStockLocations(body)
+
+  // Update store's default_location_id if not already set
+  if (!store.default_location_id) {
+    const storeService = req.scope.resolve(Modules.STORE) as any
+    await storeService.updateStores(store.id, {
+      default_location_id: location.id,
+    })
+  }
+
+  res.status(201).json({ stock_location: location })
 }

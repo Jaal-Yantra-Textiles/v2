@@ -38,7 +38,7 @@ export const CreateShippingOptionDetailsForm = ({
   const isPickup = type === FulfillmentSetType.Pickup
 
   const shippingProfiles = useComboboxData({
-    queryFn: (params) => sdk.admin.shippingProfile.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/shipping-profiles", { method: "GET", query: params }),
     queryKey: ["shipping_profiles"],
     getOptions: (data) =>
       data.shipping_profiles.map((profile) => ({
@@ -48,7 +48,7 @@ export const CreateShippingOptionDetailsForm = ({
   })
 
   const shippingOptionTypes = useComboboxData({
-    queryFn: (params) => sdk.admin.shippingOptionType.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/shipping-option-types", { method: "GET", query: params }),
     queryKey: ["shipping_option_types"],
     getOptions: (data) =>
       data.shipping_option_types.map((type) => ({
@@ -59,9 +59,9 @@ export const CreateShippingOptionDetailsForm = ({
 
   const fulfillmentProviders = useComboboxData({
     queryFn: (params) =>
-      sdk.admin.fulfillmentProvider.list({
-        ...params,
-        stock_location_id: locationId,
+      sdk.client.fetch<any>("/partners/fulfillment-providers", {
+        method: "GET",
+        query: { ...params, stock_location_id: locationId },
       }),
     queryKey: ["fulfillment_providers"],
     getOptions: (data) =>

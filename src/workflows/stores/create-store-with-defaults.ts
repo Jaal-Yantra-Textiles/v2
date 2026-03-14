@@ -11,6 +11,8 @@ import {
   createStockLocationsWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
   updateStoresWorkflow,
+  createApiKeysWorkflow,
+  linkSalesChannelsToApiKeyWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { RemoteQueryFunction } from "@medusajs/types"
@@ -58,6 +60,7 @@ export type CreateStoreWithDefaultsResult = {
   region: any
   sales_channel: any
   location: any
+  api_key: any
 }
 
 // Step: create store
@@ -126,6 +129,10 @@ const createRegionStep = createStep<CreateStoreWithDefaultsInput["region"], any,
     }
 
     // Otherwise, create a new region
+    const paymentProviders = input.payment_providers?.length
+      ? input.payment_providers
+      : ["pp_stripe_stripe", "pp_system_default"]
+
     const { result } = await createRegionsWorkflow(container).run({
       input: {
         regions: [
@@ -133,7 +140,7 @@ const createRegionStep = createStep<CreateStoreWithDefaultsInput["region"], any,
             name: input.name,
             currency_code: input.currency_code,
             countries: input.countries,
-            payment_providers: input.payment_providers,
+            payment_providers: paymentProviders,
             metadata: input.metadata,
           },
         ],
@@ -203,6 +210,38 @@ const finalizeDefaultsStep = createStep(
   }
 )
 
+// Step: create publishable API key and link to sales channel
+const createPublishableApiKeyStep = createStep(
+  "create-publishable-api-key-step",
+  async (
+    input: { storeName: string; salesChannelId: string },
+    { container }
+  ) => {
+    const { result } = await createApiKeysWorkflow(container).run({
+      input: {
+        api_keys: [
+          {
+            title: `${input.storeName} - Publishable Key`,
+            type: "publishable",
+            created_by: "",
+          },
+        ],
+      },
+    })
+
+    const apiKey = result[0]
+
+    await linkSalesChannelsToApiKeyWorkflow(container).run({
+      input: {
+        id: apiKey.id,
+        add: [input.salesChannelId],
+      },
+    })
+
+    return new StepResponse(apiKey, { apiKeyId: apiKey.id })
+  }
+)
+
 // Step: link newly created store to the partner
 const linkPartnerToStoreStep = createStep(
   "link-partner-to-store-step",
@@ -250,6 +289,12 @@ export const createStoreWithDefaultsWorkflow = createWorkflow(
       supported_currencies: input.store.supported_currencies,
     })
 
+    // Create publishable API key linked to the sales channel
+    const apiKey = createPublishableApiKeyStep({
+      storeName: input.store.name,
+      salesChannelId: salesChannel.id,
+    })
+
     // Always link using explicit partner_id from workflow input
     linkPartnerToStoreStep({ partner_id: input.partner_id, store_id: store.id })
 
@@ -258,6 +303,7 @@ export const createStoreWithDefaultsWorkflow = createWorkflow(
       region,
       sales_channel: salesChannel,
       location,
+      api_key: apiKey,
     } as CreateStoreWithDefaultsResult)
   }
 )

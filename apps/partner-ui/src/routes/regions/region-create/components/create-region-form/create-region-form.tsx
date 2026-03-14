@@ -181,7 +181,7 @@ export const CreateRegionForm = ({ currencies }: CreateRegionFormProps) => {
 
   const comboboxProviders = useComboboxData({
     queryFn: (params) =>
-      sdk.admin.payment.listPaymentProviders({ ...params, is_enabled: true }),
+      sdk.client.fetch<any>("/partners/payment-providers", { method: "GET", query: { ...params, is_enabled: true } }),
     queryKey: ["payment_providers"],
     getOptions: (data) =>
       data.payment_providers.map((pp) => ({

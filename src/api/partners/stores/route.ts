@@ -370,5 +370,6 @@ export const POST = async (
     sales_channel: result.sales_channel,
     region: result.region,
     location: result.location,
+    api_key: result.api_key,
   })
 }

@@ -118,21 +118,28 @@ export const ProductCreateForm = ({
         const thumbnailReq = media.find((m) => m.isThumbnail)
         const otherMediaReq = media.filter((m) => !m.isThumbnail)
 
+        const partnerUpload = async (files: File[]) => {
+          const formData = new FormData()
+          files.forEach((f) => formData.append("files", f))
+          return sdk.client.fetch<{ files: HttpTypes.AdminFile[] }>(
+            "/partners/uploads",
+            { method: "POST", body: formData }
+          )
+        }
+
         const fileReqs = []
         if (thumbnailReq) {
           fileReqs.push(
-            sdk.admin.upload
-              .create({ files: [thumbnailReq.file] })
-              .then((r) => r.files.map((f) => ({ ...f, isThumbnail: true })))
+            partnerUpload([thumbnailReq.file]).then((r) =>
+              r.files.map((f) => ({ ...f, isThumbnail: true }))
+            )
           )
         }
         if (otherMediaReq?.length) {
           fileReqs.push(
-            sdk.admin.upload
-              .create({
-                files: otherMediaReq.map((m) => m.file),
-              })
-              .then((r) => r.files.map((f) => ({ ...f, isThumbnail: false })))
+            partnerUpload(otherMediaReq.map((m) => m.file)).then((r) =>
+              r.files.map((f) => ({ ...f, isThumbnail: false }))
+            )
           )
         }
 
