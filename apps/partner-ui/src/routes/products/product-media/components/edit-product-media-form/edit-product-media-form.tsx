@@ -115,6 +115,7 @@ export const EditProductMediaForm = ({ product }: ProductMediaViewProps) => {
         .fetch<{ files: HttpTypes.AdminFile[] }>("/partners/uploads", {
           method: "POST",
           body: formData,
+          headers: { "content-type": null } as any,
         })
         .catch(() => {
           form.setError("media", {

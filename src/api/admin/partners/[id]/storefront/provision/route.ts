@@ -1,11 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import {
-  createProject,
-  setEnvironmentVariables,
-  addDomain,
-  triggerDeployment,
-} from "../../../../../../lib/vercel"
+import { provisionStorefrontWorkflow } from "../../../../../../workflows/stores/provision-storefront"
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || "cicilabel.com"
 const STOREFRONT_REPO = process.env.VERCEL_STOREFRONT_REPO || ""
@@ -91,85 +86,22 @@ export const POST = async (
     .replace(/[^a-z0-9._-]/g, "-")
     .replace(/-{2,}/g, "-")
     .replace(/^-|-$/g, "")
-  const projectName = `storefront-${handle}`.slice(0, 100)
-  const domain = `${handle}.${ROOT_DOMAIN}`
 
-  // 3. Create Vercel project
-  const project = await createProject({
-    name: projectName,
-    gitRepo: STOREFRONT_REPO,
-    framework: "nextjs",
-  })
-
-  // 4. Set environment variables
-  await setEnvironmentVariables(project.id, [
-    {
-      key: "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY",
-      value: matchingKey.token,
-      type: "plain",
-      target: ["production", "preview"],
-    },
-    {
-      key: "NEXT_PUBLIC_MEDUSA_BACKEND_URL",
-      value: MEDUSA_BACKEND_URL,
-      type: "plain",
-      target: ["production", "preview"],
-    },
-    {
-      key: "MEDUSA_BACKEND_URL",
-      value: MEDUSA_BACKEND_URL,
-      type: "plain",
-      target: ["production", "preview"],
-    },
-    {
-      key: "NEXT_PUBLIC_STRIPE_KEY",
-      value: STRIPE_PUBLISHABLE_KEY,
-      type: "plain",
-      target: ["production", "preview"],
-    },
-  ])
-
-  // 5. Add custom domain
-  let domainResult
-  try {
-    domainResult = await addDomain(project.id, domain)
-  } catch (e: any) {
-    // Domain assignment can fail if DNS isn't ready — non-fatal
-    domainResult = { name: domain, verified: false, error: e.message }
-  }
-
-  // 6. Trigger production deployment
-  const deployment = await triggerDeployment({
-    projectName,
-    gitRepo: STOREFRONT_REPO,
-    ref: "main",
-  })
-
-  // 7. Save Vercel project ID to partner metadata
-  const partnerService = req.scope.resolve("partner")
-  await partnerService.updatePartners({
-    id: partnerId,
-    metadata: {
-      ...(partner.metadata || {}),
-      vercel_project_id: project.id,
-      vercel_project_name: projectName,
-      storefront_domain: domain,
-      storefront_provisioned_at: new Date().toISOString(),
+  const { result } = await provisionStorefrontWorkflow(req.scope).run({
+    input: {
+      partner_id: partnerId,
+      handle,
+      publishable_key: matchingKey.token,
+      root_domain: ROOT_DOMAIN,
+      storefront_repo: STOREFRONT_REPO,
+      medusa_backend_url: MEDUSA_BACKEND_URL,
+      stripe_publishable_key: STRIPE_PUBLISHABLE_KEY,
+      existing_metadata: partner.metadata || {},
     },
   })
 
   res.status(201).json({
     message: "Storefront provisioned successfully",
-    project: {
-      id: project.id,
-      name: projectName,
-    },
-    domain: domainResult,
-    deployment: {
-      id: deployment.id,
-      url: deployment.url,
-      status: deployment.readyState,
-    },
-    storefront_url: `https://${domain}`,
+    ...result,
   })
 }

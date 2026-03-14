@@ -123,7 +123,7 @@ export const ProductCreateForm = ({
           files.forEach((f) => formData.append("files", f))
           return sdk.client.fetch<{ files: HttpTypes.AdminFile[] }>(
             "/partners/uploads",
-            { method: "POST", body: formData }
+            { method: "POST", body: formData, headers: { "content-type": null } as any }
           )
         }
 

@@ -5284,6 +5284,60 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/stores/create-store-with-defaults.ts"
   },
+  "provision-storefront": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "handle",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.handle }}"
+      },
+      {
+        "name": "publishable_key",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.publishable_key }}"
+      },
+      {
+        "name": "root_domain",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.root_domain }}"
+      },
+      {
+        "name": "storefront_repo",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.storefront_repo }}"
+      },
+      {
+        "name": "medusa_backend_url",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.medusa_backend_url }}"
+      },
+      {
+        "name": "stripe_publishable_key",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.stripe_publishable_key }}"
+      },
+      {
+        "name": "existing_metadata",
+        "type": "object",
+        "required": true,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/stores/provision-storefront.ts"
+  },
   "delete-task-template": {
     "fields": [
       {
