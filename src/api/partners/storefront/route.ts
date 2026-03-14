@@ -6,6 +6,25 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { getPartnerFromAuthContext } from "../helpers"
 import { getProject, getDeployment, deleteProject, removeDomain, isVercelConfigured } from "../../../lib/vercel"
 import { isCloudflareConfigured, deleteDnsRecord, listDnsRecords } from "../../../lib/cloudflare"
+import updatePartnerWorkflow from "../../../workflows/partners/update-partner"
+
+const STOREFRONT_META_KEYS = [
+  "vercel_project_id",
+  "vercel_project_name",
+  "storefront_domain",
+  "storefront_provisioned_at",
+]
+
+function stripStorefrontKeys(metadata: any): Record<string, any> | null {
+  const current = (metadata || {}) as Record<string, any>
+  const clean: Record<string, any> = {}
+  for (const [key, value] of Object.entries(current)) {
+    if (!STOREFRONT_META_KEYS.includes(key)) {
+      clean[key] = value
+    }
+  }
+  return Object.keys(clean).length > 0 ? clean : null
+}
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -79,19 +98,13 @@ export const GET = async (
     // If Vercel returns 404, the project was deleted — treat as not provisioned
     const is404 = e.message?.includes("(404)") || e.message?.includes("NOT_FOUND")
     if (is404) {
-      // Clean up stale metadata
+      // Clean up stale metadata via workflow
       try {
-        const partnerService = req.scope.resolve("partner") as any
-        const currentMeta = (partner.metadata || {}) as Record<string, any>
-        const cleaned: Record<string, any> = {}
-        for (const [k, v] of Object.entries(currentMeta)) {
-          if (!["vercel_project_id", "vercel_project_name", "storefront_domain", "storefront_provisioned_at"].includes(k)) {
-            cleaned[k] = v
-          }
-        }
-        await partnerService.updatePartners({
-          id: partner.id,
-          metadata: Object.keys(cleaned).length > 0 ? cleaned : null,
+        await updatePartnerWorkflow(req.scope).run({
+          input: {
+            id: partner.id,
+            data: { metadata: stripStorefrontKeys(partner.metadata) },
+          },
         })
       } catch {
         // best-effort cleanup
@@ -191,26 +204,14 @@ export const DELETE = async (
     results.dns = { action: "skipped", reason: !storefrontDomain ? "No domain" : "Cloudflare not configured" }
   }
 
-  // Clear storefront metadata from partner using the update workflow
-  // Build clean metadata without storefront keys
-  const currentMetadata = (partner.metadata || {}) as Record<string, any>
-  const cleanMetadata: Record<string, any> = {}
-  const storefrontKeys = new Set([
-    "vercel_project_id",
-    "vercel_project_name",
-    "storefront_domain",
-    "storefront_provisioned_at",
-  ])
-  for (const [key, value] of Object.entries(currentMetadata)) {
-    if (!storefrontKeys.has(key)) {
-      cleanMetadata[key] = value
-    }
-  }
+  // Clear storefront metadata via the update workflow (ensures proper DB write)
+  const cleanMetadata = stripStorefrontKeys(partner.metadata)
 
-  const partnerService = req.scope.resolve("partner") as any
-  await partnerService.updatePartners({
-    id: partner.id,
-    metadata: Object.keys(cleanMetadata).length > 0 ? cleanMetadata : null,
+  await updatePartnerWorkflow(req.scope).run({
+    input: {
+      id: partner.id,
+      data: { metadata: cleanMetadata },
+    },
   })
 
   results.metadata = { action: "cleared" }

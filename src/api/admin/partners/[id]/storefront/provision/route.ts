@@ -1,6 +1,8 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { provisionStorefrontWorkflow } from "../../../../../../workflows/stores/provision-storefront"
+import { getProject, isVercelConfigured } from "../../../../../../lib/vercel"
+import updatePartnerWorkflow from "../../../../../../workflows/partners/update-partner"
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || "cicilabel.com"
 const STOREFRONT_REPO = process.env.VERCEL_STOREFRONT_REPO || ""
@@ -53,12 +55,40 @@ export const POST = async (
     )
   }
 
-  // Check if already provisioned
+  // Check if already provisioned — verify the project actually exists on Vercel
   if (partner.metadata?.vercel_project_id) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      `Storefront already provisioned (Vercel project: ${partner.metadata.vercel_project_id}). Use the redeploy endpoint to update.`
-    )
+    let projectExists = false
+    if (isVercelConfigured()) {
+      try {
+        await getProject(partner.metadata.vercel_project_id)
+        projectExists = true
+      } catch {
+        projectExists = false
+      }
+    }
+
+    if (projectExists) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Storefront already provisioned (Vercel project: ${partner.metadata.vercel_project_id}). Use the redeploy endpoint to update.`
+      )
+    }
+
+    // Stale metadata — clean it up before re-provisioning
+    const currentMeta = (partner.metadata || {}) as Record<string, any>
+    const cleanMeta: Record<string, any> = {}
+    for (const [k, v] of Object.entries(currentMeta)) {
+      if (!["vercel_project_id", "vercel_project_name", "storefront_domain", "storefront_provisioned_at"].includes(k)) {
+        cleanMeta[k] = v
+      }
+    }
+    await updatePartnerWorkflow(req.scope).run({
+      input: {
+        id: partnerId,
+        data: { metadata: Object.keys(cleanMeta).length > 0 ? cleanMeta : null },
+      },
+    })
+    partner.metadata = cleanMeta
   }
 
   // 2. Find publishable API key linked to this sales channel
