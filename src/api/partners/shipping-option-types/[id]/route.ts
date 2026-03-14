@@ -53,10 +53,10 @@ export const POST = async (
 
   const { id } = req.params
   const fulfillmentService = req.scope.resolve(Modules.FULFILLMENT)
-  const updated = await fulfillmentService.updateShippingOptionTypes({
+  const updated = await fulfillmentService.updateShippingOptionTypes(
     id,
-    ...(req.body as any),
-  })
+    req.body as any,
+  )
 
   res.json({ shipping_option_type: updated })
 }

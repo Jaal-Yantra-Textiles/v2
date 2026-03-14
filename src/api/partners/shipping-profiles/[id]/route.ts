@@ -53,10 +53,10 @@ export const POST = async (
 
   const { id } = req.params
   const fulfillmentService = req.scope.resolve(Modules.FULFILLMENT)
-  const updated = await fulfillmentService.updateShippingProfiles({
-    id,
-    ...(req.body as any),
-  })
+  const updated = await fulfillmentService.updateShippingProfiles(
+    { id },
+    req.body as any,
+  )
 
   res.json({ shipping_profile: updated })
 }

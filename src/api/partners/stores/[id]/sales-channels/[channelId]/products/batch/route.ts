@@ -3,7 +3,7 @@ import {
   MedusaResponse,
 } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
-import { validatePartnerStoreAccess } from "../../../../helpers"
+import { validatePartnerStoreAccess } from "../../../../../../helpers"
 import { LinkDefinition } from "@medusajs/framework/types"
 
 export const POST = async (
