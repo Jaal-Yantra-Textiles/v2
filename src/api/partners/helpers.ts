@@ -123,3 +123,81 @@ export const validatePartnerEntityOwnership = async (
 
     return { partner, store }
 }
+
+/**
+ * Validates that an order belongs to the partner's store via sales channel.
+ */
+export const validatePartnerOrderOwnership = async (
+    authContext: { actor_id?: string | null } | undefined,
+    orderId: string,
+    container: MedusaContainer,
+): Promise<{ partner: any; store: any }> => {
+    const { partner, store } = await getPartnerStore(authContext, container)
+
+    if (!store.default_sales_channel_id) {
+        throw new MedusaError(
+            MedusaError.Types.NOT_FOUND,
+            "Store has no sales channel configured"
+        )
+    }
+
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: orders } = await query.graph({
+        entity: "orders",
+        fields: ["id", "sales_channel_id"],
+        filters: { id: orderId },
+    })
+
+    const order = orders?.[0] as any
+    if (!order || order.sales_channel_id !== store.default_sales_channel_id) {
+        throw new MedusaError(MedusaError.Types.NOT_FOUND, "Order not found")
+    }
+
+    return { partner, store }
+}
+
+/**
+ * Validates that a return/exchange/claim belongs to the partner's store via its order.
+ * Looks up the entity by ID, gets its order_id, then checks the order's sales channel.
+ */
+export const validatePartnerOrderEntityOwnership = async (
+    authContext: { actor_id?: string | null } | undefined,
+    entityType: "return" | "exchange" | "claim",
+    entityId: string,
+    container: MedusaContainer,
+): Promise<{ partner: any; store: any; orderId: string }> => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const entityName = entityType === "return" ? "return" : entityType === "exchange" ? "order_exchange" : "order_claim"
+    const { data } = await query.graph({
+        entity: entityName,
+        fields: ["id", "order_id"],
+        filters: { id: entityId },
+    } as any)
+
+    const entity = data?.[0] as any
+    if (!entity?.order_id) {
+        throw new MedusaError(MedusaError.Types.NOT_FOUND, `${entityType} not found`)
+    }
+
+    const { partner, store } = await validatePartnerOrderOwnership(authContext, entity.order_id, container)
+    return { partner, store, orderId: entity.order_id }
+}
+
+/**
+ * Gets the partner's sales channel ID for order scoping.
+ */
+export const getPartnerSalesChannelId = async (
+    authContext: { actor_id?: string | null } | undefined,
+    container: MedusaContainer,
+): Promise<{ partner: any; store: any; salesChannelId: string }> => {
+    const { partner, store } = await getPartnerStore(authContext, container)
+
+    if (!store.default_sales_channel_id) {
+        throw new MedusaError(
+            MedusaError.Types.NOT_FOUND,
+            "Store has no sales channel configured"
+        )
+    }
+
+    return { partner, store, salesChannelId: store.default_sales_channel_id }
+}

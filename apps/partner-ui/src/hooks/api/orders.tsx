@@ -48,7 +48,8 @@ export const useOrder = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: async () => sdk.admin.order.retrieve(id, query),
+    queryFn: async () =>
+      sdk.client.fetch(`/partners/orders/${id}`, { method: "GET", query }),
     queryKey: ordersQueryKeys.detail(id, query),
     ...options,
   })
@@ -66,7 +67,7 @@ export const useUpdateOrder = (
 ) => {
   return useMutation({
     mutationFn: (payload: HttpTypes.AdminUpdateOrder) =>
-      sdk.admin.order.update(id, payload),
+      sdk.client.fetch(`/partners/orders/${id}`, { method: "POST", body: payload }),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.detail(id),
@@ -101,7 +102,8 @@ export const useOrderPreview = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: async () => sdk.admin.order.retrievePreview(id, query),
+    queryFn: async () =>
+      sdk.client.fetch(`/partners/orders/${id}/preview`, { method: "GET", query }),
     queryKey: ordersQueryKeys.preview(id),
     ...options,
   })
@@ -122,7 +124,8 @@ export const useOrders = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: async () => sdk.admin.order.list(query),
+    queryFn: async () =>
+      sdk.client.fetch(`/partners/orders`, { method: "GET", query }),
     queryKey: ordersQueryKeys.list(query),
     ...options,
   })
@@ -144,7 +147,8 @@ export const useOrderShippingOptions = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: async () => sdk.admin.order.listShippingOptions(id, query),
+    queryFn: async () =>
+      sdk.client.fetch(`/partners/orders/${id}/shipping-options`, { method: "GET", query }),
     queryKey: ordersQueryKeys.shippingOptions(id),
     ...options,
   })
@@ -166,7 +170,8 @@ export const useOrderChanges = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: async () => sdk.admin.order.listChanges(id, query),
+    queryFn: async () =>
+      sdk.client.fetch(`/partners/orders/${id}/changes`, { method: "GET", query }),
     queryKey: ordersQueryKeys.changes(id),
     ...options,
   })
@@ -188,7 +193,8 @@ export const useOrderLineItems = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: async () => sdk.admin.order.listLineItems(id, query),
+    queryFn: async () =>
+      sdk.client.fetch(`/partners/orders/${id}/line-items`, { method: "GET", query }),
     queryKey: ordersQueryKeys.lineItems(id),
     ...options,
   })
@@ -206,7 +212,7 @@ export const useCreateOrderFulfillment = (
 ) => {
   return useMutation({
     mutationFn: (payload: HttpTypes.AdminCreateOrderFulfillment) =>
-      sdk.admin.order.createFulfillment(orderId, payload),
+      sdk.client.fetch(`/partners/orders/${orderId}/fulfillments`, { method: "POST", body: payload }),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.all,
@@ -237,7 +243,7 @@ export const useCancelOrderFulfillment = (
 ) => {
   return useMutation({
     mutationFn: (payload: { no_notification?: boolean }) =>
-      sdk.admin.order.cancelFulfillment(orderId, fulfillmentId, payload),
+      sdk.client.fetch(`/partners/orders/${orderId}/fulfillments/${fulfillmentId}/cancel`, { method: "POST", body: payload }),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.all,
@@ -272,7 +278,7 @@ export const useCreateOrderShipment = (
 ) => {
   return useMutation({
     mutationFn: (payload: HttpTypes.AdminCreateOrderShipment) =>
-      sdk.admin.order.createShipment(orderId, fulfillmentId, payload),
+      sdk.client.fetch(`/partners/orders/${orderId}/fulfillments/${fulfillmentId}/shipment`, { method: "POST", body: payload }),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.all,
@@ -298,7 +304,8 @@ export const useMarkOrderFulfillmentAsDelivered = (
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.order.markAsDelivered(orderId, fulfillmentId),
+    mutationFn: () =>
+      sdk.client.fetch(`/partners/orders/${orderId}/fulfillments/${fulfillmentId}/mark-as-delivered`, { method: "POST" }),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.all,
@@ -319,7 +326,8 @@ export const useCancelOrder = (
   options?: UseMutationOptions<HttpTypes.AdminOrderResponse, FetchError, void>
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.order.cancel(orderId),
+    mutationFn: () =>
+      sdk.client.fetch(`/partners/orders/${orderId}/cancel`, { method: "POST" }),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.detail(orderId),
@@ -345,7 +353,7 @@ export const useRequestTransferOrder = (
 ) => {
   return useMutation({
     mutationFn: (payload: HttpTypes.AdminRequestOrderTransfer) =>
-      sdk.admin.order.requestTransfer(orderId, payload),
+      sdk.client.fetch(`/partners/orders/${orderId}/transfer`, { method: "POST", body: payload }),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.preview(orderId),
@@ -366,7 +374,8 @@ export const useCancelOrderTransfer = (
   options?: UseMutationOptions<any, FetchError, void>
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.order.cancelTransfer(orderId),
+    mutationFn: () =>
+      sdk.client.fetch(`/partners/orders/${orderId}/transfer/cancel`, { method: "POST" }),
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.preview(orderId),
@@ -391,7 +400,8 @@ export const useCreateOrderCreditLine = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.order.createCreditLine(orderId, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch(`/partners/orders/${orderId}/credit-lines`, { method: "POST", body: payload }),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.details(),
@@ -417,7 +427,7 @@ export const useUpdateOrderChange = (
 ) => {
   return useMutation({
     mutationFn: (payload: { carry_over_promotions: boolean }) =>
-      sdk.admin.order.updateOrderChange(orderChangeId, payload),
+      sdk.client.fetch(`/partners/orders/changes/${orderChangeId}`, { method: "POST", body: payload }),
     onSuccess: (data, variables, context) => {
       const orderId = data.order_change.order_id
 

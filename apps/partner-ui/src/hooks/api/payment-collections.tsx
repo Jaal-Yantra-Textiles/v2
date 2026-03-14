@@ -20,7 +20,8 @@ export const useCreatePaymentCollection = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.paymentCollection.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch(`/partners/payment-collections`, { method: "POST", body: payload }),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.details(),
@@ -51,7 +52,7 @@ export const useMarkPaymentCollectionAsPaid = (
 ) => {
   return useMutation({
     mutationFn: (payload) =>
-      sdk.admin.paymentCollection.markAsPaid(paymentCollectionId, payload),
+      sdk.client.fetch(`/partners/payment-collections/${paymentCollectionId}/mark-as-paid`, { method: "POST", body: payload }),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.details(),
@@ -83,7 +84,8 @@ export const useDeletePaymentCollection = (
   >
 ) => {
   return useMutation({
-    mutationFn: (id: string) => sdk.admin.paymentCollection.delete(id),
+    mutationFn: (id: string) =>
+      sdk.client.fetch(`/partners/payment-collections/${id}`, { method: "DELETE" }),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: ordersQueryKeys.details(),
