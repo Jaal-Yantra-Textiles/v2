@@ -70,7 +70,7 @@ export const DELETE = async (
   }
 
   await deleteProductTypesWorkflow(req.scope).run({
-    input: [req.params.id],
+    input: { ids: [req.params.id] },
   })
 
   res.status(200).json({ id: req.params.id, object: "product_type", deleted: true })

@@ -67,14 +67,14 @@ export const useProductTypes = (
 
 export const useCreateProductType = (
   options?: UseMutationOptions<
-    HttpTypes.AdminProductTypeResponse,
+    { product_type: HttpTypes.AdminProductType },
     FetchError,
     HttpTypes.AdminCreateProductType
   >
 ) => {
   return useMutation({
     mutationFn: (payload) =>
-      sdk.client.fetch<HttpTypes.AdminProductTypeResponse>(
+      sdk.client.fetch<{ product_type: HttpTypes.AdminProductType }>(
         "/partners/product-types",
         { method: "POST", body: payload }
       ),
@@ -90,14 +90,14 @@ export const useCreateProductType = (
 export const useUpdateProductType = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminProductTypeResponse,
+    { product_type: HttpTypes.AdminProductType },
     FetchError,
     HttpTypes.AdminUpdateProductType
   >
 ) => {
   return useMutation({
     mutationFn: (payload) =>
-      sdk.client.fetch<HttpTypes.AdminProductTypeResponse>(
+      sdk.client.fetch<{ product_type: HttpTypes.AdminProductType }>(
         `/partners/product-types/${id}`,
         { method: "POST", body: payload }
       ),
@@ -116,14 +116,14 @@ export const useUpdateProductType = (
 export const useDeleteProductType = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminProductTypeDeleteResponse,
+    { id: string; object: string; deleted: boolean },
     FetchError,
     void
   >
 ) => {
   return useMutation({
     mutationFn: () =>
-      sdk.client.fetch<HttpTypes.AdminProductTypeDeleteResponse>(
+      sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(
         `/partners/product-types/${id}`,
         { method: "DELETE" }
       ),

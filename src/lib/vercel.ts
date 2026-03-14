@@ -206,3 +206,49 @@ export async function getDeployment(deploymentId: string): Promise<VercelDeploym
 
   return res.json()
 }
+
+/**
+ * Remove a custom domain from a Vercel project.
+ */
+export async function removeDomain(
+  projectId: string,
+  domain: string
+): Promise<void> {
+  const res = await fetch(
+    `${VERCEL_API_BASE}/v9/projects/${projectId}/domains/${domain}${teamQuery()}`,
+    {
+      method: "DELETE",
+      headers: getHeaders(),
+    }
+  )
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Vercel removeDomain failed (${res.status}): ${body}`)
+  }
+}
+
+/**
+ * Delete a Vercel project entirely.
+ */
+export async function deleteProject(projectId: string): Promise<void> {
+  const res = await fetch(
+    `${VERCEL_API_BASE}/v9/projects/${projectId}${teamQuery()}`,
+    {
+      method: "DELETE",
+      headers: getHeaders(),
+    }
+  )
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Vercel deleteProject failed (${res.status}): ${body}`)
+  }
+}
+
+/**
+ * Check if Vercel credentials are configured.
+ */
+export function isVercelConfigured(): boolean {
+  return Boolean(process.env.VERCEL_TOKEN)
+}

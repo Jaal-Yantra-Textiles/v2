@@ -1053,6 +1053,14 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/storefront",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/storefront/provision",
       method: "POST",
       middlewares: [
