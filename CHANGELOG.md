@@ -1,3 +1,10 @@
+## [10.12.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.12.2...v10.12.3) (2026-03-14)
+
+
+### Bug Fixes
+
+* **api:** Partner UI ([41234de](https://github.com/Jaal-Yantra-Textiles/v2/commit/41234de277d80d3ca00ba330ff75820b4b889e59))
+
 ## [10.12.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.12.1...v10.12.2) (2026-03-14)
 
 
