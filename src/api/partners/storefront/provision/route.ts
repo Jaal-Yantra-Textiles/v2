@@ -92,10 +92,15 @@ export const POST = async (
     )
   }
 
-  const handle =
+  const rawHandle =
     partnerData.handle ||
     partnerData.name.toLowerCase().replace(/[^a-z0-9-]/g, "-")
-  const projectName = `storefront-${handle}`
+  const handle = rawHandle
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "")
+  const projectName = `storefront-${handle}`.slice(0, 100)
   const domain = `${handle}.${ROOT_DOMAIN}`
 
   // Create Vercel project
