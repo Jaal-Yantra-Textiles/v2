@@ -305,6 +305,244 @@ export function getPartnerRouteMap(): RouteObject[] {
                 },
               ],
             },
+            // Orders
+            {
+              path: "/orders",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Orders",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () => import("../../routes/orders/order-list"),
+                },
+                {
+                  path: ":id",
+                  handle: {
+                    breadcrumb: (match?: UIMatch) =>
+                      match?.params?.id || "Order",
+                  },
+                  lazy: () => import("../../routes/orders/order-detail"),
+                  children: [
+                    {
+                      path: "fulfillment",
+                      lazy: () =>
+                        import(
+                          "../../routes/orders/order-create-fulfillment"
+                        ),
+                    },
+                    {
+                      path: "shipment/:fulfillmentId",
+                      lazy: () =>
+                        import("../../routes/orders/order-create-shipment"),
+                    },
+                    {
+                      path: "returns",
+                      lazy: () =>
+                        import("../../routes/orders/order-create-return"),
+                    },
+                    {
+                      path: "refund",
+                      lazy: () =>
+                        import("../../routes/orders/order-create-refund"),
+                    },
+                    {
+                      path: "edit-email",
+                      lazy: () =>
+                        import("../../routes/orders/order-edit-email"),
+                    },
+                    {
+                      path: "edit-shipping-address",
+                      lazy: () =>
+                        import(
+                          "../../routes/orders/order-edit-shipping-address"
+                        ),
+                    },
+                    {
+                      path: "edit-billing-address",
+                      lazy: () =>
+                        import(
+                          "../../routes/orders/order-edit-billing-address"
+                        ),
+                    },
+                  ],
+                },
+              ],
+            },
+            // Customers
+            {
+              path: "/customers",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Customers",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () => import("../../routes/customers/customer-list"),
+                },
+                {
+                  path: "create",
+                  lazy: () =>
+                    import("../../routes/customers/customer-create"),
+                },
+                {
+                  path: ":id",
+                  handle: {
+                    breadcrumb: (match?: UIMatch) =>
+                      match?.params?.id || "Customer",
+                  },
+                  lazy: () =>
+                    import("../../routes/customers/customer-detail"),
+                  children: [
+                    {
+                      path: "edit",
+                      lazy: () =>
+                        import("../../routes/customers/customer-edit"),
+                    },
+                    {
+                      path: "metadata/edit",
+                      lazy: () =>
+                        import("../../routes/customers/customer-metadata"),
+                    },
+                  ],
+                },
+              ],
+            },
+            // Categories
+            {
+              path: "/categories",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Categories",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () =>
+                    import("../../routes/categories/category-list"),
+                },
+                {
+                  path: "create",
+                  lazy: () =>
+                    import("../../routes/categories/category-create"),
+                },
+                {
+                  path: ":id",
+                  handle: {
+                    breadcrumb: (match?: UIMatch) =>
+                      match?.params?.id || "Category",
+                  },
+                  lazy: () =>
+                    import("../../routes/categories/category-detail"),
+                  children: [
+                    {
+                      path: "edit",
+                      lazy: () =>
+                        import("../../routes/categories/category-edit"),
+                    },
+                    {
+                      path: "products",
+                      lazy: () =>
+                        import("../../routes/categories/category-products"),
+                    },
+                    {
+                      path: "organize",
+                      lazy: () =>
+                        import("../../routes/categories/category-organize"),
+                    },
+                  ],
+                },
+              ],
+            },
+            // Collections
+            {
+              path: "/collections",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Collections",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () =>
+                    import("../../routes/collections/collection-list"),
+                },
+                {
+                  path: "create",
+                  lazy: () =>
+                    import("../../routes/collections/collection-create"),
+                },
+                {
+                  path: ":id",
+                  handle: {
+                    breadcrumb: (match?: UIMatch) =>
+                      match?.params?.id || "Collection",
+                  },
+                  lazy: () =>
+                    import("../../routes/collections/collection-detail"),
+                  children: [
+                    {
+                      path: "edit",
+                      lazy: () =>
+                        import("../../routes/collections/collection-edit"),
+                    },
+                    {
+                      path: "add-products",
+                      lazy: () =>
+                        import(
+                          "../../routes/collections/collection-add-products"
+                        ),
+                    },
+                  ],
+                },
+              ],
+            },
+            // Product Types
+            {
+              path: "/product-types",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Product Types",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () =>
+                    import(
+                      "../../routes/product-types/product-type-list"
+                    ),
+                },
+                {
+                  path: "create",
+                  lazy: () =>
+                    import(
+                      "../../routes/product-types/product-type-create"
+                    ),
+                },
+                {
+                  path: ":id",
+                  handle: {
+                    breadcrumb: (match?: UIMatch) =>
+                      match?.params?.id || "Product Type",
+                  },
+                  lazy: () =>
+                    import(
+                      "../../routes/product-types/product-type-detail"
+                    ),
+                  children: [
+                    {
+                      path: "edit",
+                      lazy: () =>
+                        import(
+                          "../../routes/product-types/product-type-edit"
+                        ),
+                    },
+                  ],
+                },
+              ],
+            },
             {
               path: "/profile",
               errorElement: <ErrorBoundary />,

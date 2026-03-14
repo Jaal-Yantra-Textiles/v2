@@ -176,14 +176,21 @@ const StorefrontSection = () => {
   }
 
   const deployStatus = status.latest_deployment?.status
+  const hasError = !!status.error
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-x-2">
           <Heading level="h2">Storefront</Heading>
-          <Badge color="green" size="2xsmall">
-            Live
-          </Badge>
+          {hasError ? (
+            <Badge color="orange" size="2xsmall">
+              Error
+            </Badge>
+          ) : (
+            <Badge color="green" size="2xsmall">
+              Live
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-x-2">
           {status.storefront_url && (

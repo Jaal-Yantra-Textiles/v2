@@ -1,13 +1,16 @@
 import {
   BuildingStorefront,
   CogSixTooth,
+  CurrencyDollar,
   DocumentSeries,
   EllipsisHorizontal,
   MagnifyingGlass,
   OpenRectArrowOut,
   PencilSquare,
+  ShoppingCart,
   Tag,
   TimelineVertical,
+  Users,
 } from "@medusajs/icons"
 import { Avatar, Divider, DropdownMenu, Kbd, Text, clx } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
@@ -182,13 +185,35 @@ const MANUFACTURER_ROUTES: Omit<INavItem, "pathname">[] = [
   { icon: <PencilSquare />, label: "Designs", to: "/designs" },
   { icon: <BuildingStorefront />, label: "Inventory Orders", to: "/inventory-orders" },
   { icon: <DocumentSeries />, label: "Production Runs", to: "/production-runs" },
-  { icon: <Tag />, label: "Products", to: "/products" },
+  {
+    icon: <Tag />,
+    label: "Products",
+    to: "/products",
+    items: [
+      { label: "Categories", to: "/categories" },
+      { label: "Collections", to: "/collections" },
+      { label: "Types", to: "/product-types" },
+    ],
+  },
   { icon: <TimelineVertical />, label: "Tasks", to: "/tasks" },
+  { icon: <ShoppingCart />, label: "Orders", to: "/orders" },
+  { icon: <Users />, label: "Customers", to: "/customers" },
 ]
 
 const SELLER_ROUTES: Omit<INavItem, "pathname">[] = [
   { icon: <MagnifyingGlass />, label: "Home", to: "/" },
-  { icon: <Tag />, label: "Products", to: "/products" },
+  {
+    icon: <Tag />,
+    label: "Products",
+    to: "/products",
+    items: [
+      { label: "Categories", to: "/categories" },
+      { label: "Collections", to: "/collections" },
+      { label: "Types", to: "/product-types" },
+    ],
+  },
+  { icon: <ShoppingCart />, label: "Orders", to: "/orders" },
+  { icon: <Users />, label: "Customers", to: "/customers" },
 ]
 
 const useCoreRoutes = (useType?: UseType): Omit<INavItem, "pathname">[] => {

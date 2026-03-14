@@ -76,6 +76,35 @@ export const GET = async (
       cloudflare_configured: isCloudflareConfigured(),
     })
   } catch (e: any) {
+    // If Vercel returns 404, the project was deleted — treat as not provisioned
+    const is404 = e.message?.includes("(404)") || e.message?.includes("NOT_FOUND")
+    if (is404) {
+      // Clean up stale metadata
+      try {
+        const partnerService = req.scope.resolve("partner") as any
+        const currentMeta = (partner.metadata || {}) as Record<string, any>
+        const cleaned: Record<string, any> = {}
+        for (const [k, v] of Object.entries(currentMeta)) {
+          if (!["vercel_project_id", "vercel_project_name", "storefront_domain", "storefront_provisioned_at"].includes(k)) {
+            cleaned[k] = v
+          }
+        }
+        await partnerService.updatePartners({
+          id: partner.id,
+          metadata: Object.keys(cleaned).length > 0 ? cleaned : null,
+        })
+      } catch {
+        // best-effort cleanup
+      }
+
+      return res.json({
+        provisioned: false,
+        message: "Storefront project no longer exists",
+        vercel_configured: isVercelConfigured(),
+        cloudflare_configured: isCloudflareConfigured(),
+      })
+    }
+
     res.json({
       provisioned: true,
       project: {
@@ -162,12 +191,26 @@ export const DELETE = async (
     results.dns = { action: "skipped", reason: !storefrontDomain ? "No domain" : "Cloudflare not configured" }
   }
 
-  // Clear storefront metadata from partner
+  // Clear storefront metadata from partner using the update workflow
+  // Build clean metadata without storefront keys
+  const currentMetadata = (partner.metadata || {}) as Record<string, any>
+  const cleanMetadata: Record<string, any> = {}
+  const storefrontKeys = new Set([
+    "vercel_project_id",
+    "vercel_project_name",
+    "storefront_domain",
+    "storefront_provisioned_at",
+  ])
+  for (const [key, value] of Object.entries(currentMetadata)) {
+    if (!storefrontKeys.has(key)) {
+      cleanMetadata[key] = value
+    }
+  }
+
   const partnerService = req.scope.resolve("partner") as any
-  const { vercel_project_id, vercel_project_name, storefront_domain, storefront_provisioned_at, ...restMetadata } = partner.metadata || {}
   await partnerService.updatePartners({
     id: partner.id,
-    metadata: restMetadata,
+    metadata: Object.keys(cleanMetadata).length > 0 ? cleanMetadata : null,
   })
 
   results.metadata = { action: "cleared" }
