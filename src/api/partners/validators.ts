@@ -14,3 +14,12 @@ export const partnerSchema = z.object({
         role: z.enum(['owner', 'admin', 'manager']).optional()
     }).strict(),
 }).strict()
+
+export const partnerUpdateSchema = z.object({
+    name: z.string().optional(),
+    handle: z.string().optional(),
+    logo: z.string().nullable().optional(),
+    status: z.enum(['active', 'inactive', 'pending']).optional(),
+    is_verified: z.boolean().optional(),
+    metadata: z.record(z.any()).nullable().optional(),
+})

@@ -44,9 +44,10 @@ export const SettingsOnboarding = () => {
 
     setSavingUseType(true)
     try {
+      const existingMetadata = (user?.partner?.metadata as Record<string, any>) || {}
       await sdk.client.fetch("/partners/update", {
         method: "PUT",
-        body: { metadata: { use_type: useType } },
+        body: { metadata: { ...existingMetadata, use_type: useType } },
       })
       queryClient.invalidateQueries({ queryKey: ["users", "me"] })
     } catch (e) {

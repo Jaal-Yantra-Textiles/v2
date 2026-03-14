@@ -1,4 +1,5 @@
-import { Button, Checkbox, Container, Heading, Text } from "@medusajs/ui"
+import { Button, Checkbox, Container, Heading, Text, clx } from "@medusajs/ui"
+import { BuildingStorefront, PencilSquare } from "@medusajs/icons"
 import { Link } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 
@@ -8,6 +9,8 @@ import { usePartnerDesigns } from "../../hooks/api/partner-designs"
 import { usePartnerInventoryOrders } from "../../hooks/api/partner-inventory-orders"
 import { usePartnerStores } from "../../hooks/api/partner-stores"
 import { useMe } from "../../hooks/api/users"
+import { sdk } from "../../lib/client"
+import { queryClient } from "../../lib/query-client"
 
 export const Home = () => {
   const { user } = useMe()
@@ -108,6 +111,25 @@ export const Home = () => {
   const invTotal = inventoryOrdersCount || inventory_orders.length
   const designsTotal = designsCount || designs.length
 
+  const currentUseType = (partner?.metadata as any)?.use_type as string | undefined
+  const [savingUseType, setSavingUseType] = useState(false)
+
+  const handleUseTypeChange = async (useType: string) => {
+    if (useType === currentUseType) return
+    setSavingUseType(true)
+    try {
+      await sdk.client.fetch("/partners/update", {
+        method: "PUT",
+        body: { metadata: { ...((partner?.metadata as any) || {}), use_type: useType } },
+      })
+      queryClient.invalidateQueries({ queryKey: ["users", "me"] })
+    } catch (e) {
+      console.error("Failed to update use type", e)
+    } finally {
+      setSavingUseType(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-y-3">
       <Container className="divide-y p-0">
@@ -148,6 +170,51 @@ export const Home = () => {
                   Open
                 </button>
               ) : null}
+            </div>
+
+            <div className="flex items-start gap-3 p-4">
+              <Checkbox checked={!!currentUseType} disabled className="mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <Text weight="plus">Choose your workspace type</Text>
+                <Text size="small" className="text-ui-fg-subtle mt-1">
+                  {currentUseType
+                    ? `Set to: ${currentUseType === "seller" ? "Seller" : "Manufacturer"}`
+                    : "Pick Seller or Manufacturer to customize your sidebar."}
+                </Text>
+                {!currentUseType && (
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={savingUseType}
+                      onClick={() => handleUseTypeChange("seller")}
+                      className={clx(
+                        "flex items-center gap-2 rounded-lg border border-ui-border-base bg-ui-bg-base px-3 py-2 text-left transition-all",
+                        "hover:shadow-elevation-card-hover focus-visible:shadow-borders-focus outline-none"
+                      )}
+                    >
+                      <BuildingStorefront className="h-4 w-4 text-ui-fg-subtle" />
+                      <Text size="small" weight="plus">Seller</Text>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingUseType}
+                      onClick={() => handleUseTypeChange("manufacturer")}
+                      className={clx(
+                        "flex items-center gap-2 rounded-lg border border-ui-border-base bg-ui-bg-base px-3 py-2 text-left transition-all",
+                        "hover:shadow-elevation-card-hover focus-visible:shadow-borders-focus outline-none"
+                      )}
+                    >
+                      <PencilSquare className="h-4 w-4 text-ui-fg-subtle" />
+                      <Text size="small" weight="plus">Manufacturer</Text>
+                    </button>
+                  </div>
+                )}
+                {currentUseType && (
+                  <Link to="/settings/onboarding" className="text-ui-fg-interactive mt-1 inline-block">
+                    <Text size="xsmall">Change</Text>
+                  </Link>
+                )}
+              </div>
             </div>
 
             <div className="flex items-start gap-3 p-4">

@@ -79,7 +79,7 @@ import {
 } from "./admin/websites/[id]/pages/validators";
 import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
-import { partnerSchema } from "./partners/validators";
+import { partnerSchema, partnerUpdateSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema } from "./admin/inventory-orders/validators";
@@ -364,7 +364,7 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
-        validateAndTransformBody(wrapSchema(partnerSchema)),
+        validateAndTransformBody(wrapSchema(partnerUpdateSchema)),
       ],
     },
 

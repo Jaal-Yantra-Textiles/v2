@@ -3,14 +3,13 @@ import {
   CogSixTooth,
   DocumentSeries,
   EllipsisHorizontal,
-  InformationCircle,
   MagnifyingGlass,
   OpenRectArrowOut,
   PencilSquare,
   Tag,
   TimelineVertical,
 } from "@medusajs/icons"
-import { Avatar, Button, Divider, DropdownMenu, Kbd, Text, clx } from "@medusajs/ui"
+import { Avatar, Divider, DropdownMenu, Kbd, Text, clx } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
 
 import { usePartnerStores } from "../../../hooks/api/partner-stores"
@@ -19,7 +18,7 @@ import { Skeleton } from "../../common/skeleton"
 import { INavItem, NavItem } from "../../layout/nav-item"
 import { Shell } from "../../layout/shell"
 
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { useLogout } from "../../../hooks/api"
 import { queryClient } from "../../../lib/query-client"
 import { UserMenu } from "../user-menu"
@@ -225,35 +224,6 @@ const Searchbar = () => {
   )
 }
 
-const OnboardingBanner = () => {
-  const { pathname } = useLocation()
-
-  if (pathname.startsWith("/settings/onboarding")) {
-    return null
-  }
-
-  return (
-    <div className="mx-3 mb-1 rounded-md border border-ui-border-base bg-ui-bg-base p-2">
-      <div className="flex items-start gap-x-2">
-        <InformationCircle className="text-ui-fg-interactive mt-0.5 h-4 w-4 shrink-0" />
-        <div className="flex flex-col gap-y-1">
-          <Text size="xsmall" weight="plus" leading="compact">
-            Set up your workspace
-          </Text>
-          <Text size="xsmall" leading="compact" className="text-ui-fg-subtle">
-            Choose your business type to customize your navigation.
-          </Text>
-          <Link to="/settings/onboarding">
-            <Button variant="secondary" size="small" className="mt-1">
-              Get started
-            </Button>
-          </Link>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const CoreRouteSection = () => {
   const { user } = useMe()
   const useType = (user?.partner?.metadata as any)?.use_type as UseType | undefined
@@ -262,7 +232,6 @@ const CoreRouteSection = () => {
   return (
     <nav className="flex flex-col gap-y-1 py-3">
       <Searchbar />
-      {!useType && <OnboardingBanner />}
       {coreRoutes.map((route) => {
         return <NavItem key={route.to} {...route} />
       })}
