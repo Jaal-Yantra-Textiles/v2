@@ -53,6 +53,8 @@ export const POST = async (
     const store = stores[0]
     const salesChannelId = store?.default_sales_channel_id
 
+    const envVars: Array<{ key: string; value: string; type: "plain"; target: string[] }> = []
+
     if (salesChannelId) {
       const { data: apiKeys } = await query.graph({
         entity: "api_keys",
@@ -65,16 +67,67 @@ export const POST = async (
       )
 
       if (matchingKey) {
-        const deploymentSvc: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
-        await deploymentSvc.setEnvironmentVariables(vercelProjectId, [
-          {
-            key: "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY",
-            value: matchingKey.token,
-            type: "plain",
-            target: ["production", "preview"],
-          },
-        ])
+        envVars.push({
+          key: "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY",
+          value: matchingKey.token,
+          type: "plain",
+          target: ["production", "preview"],
+        })
       }
+    }
+
+    // S3 image config for Next.js image optimization
+    const fileUrl = process.env.S3_FILE_URL || ""
+    const prefix = process.env.S3_PREFIX || ""
+    let s3Hostname = process.env.MEDUSA_CLOUD_S3_HOSTNAME || ""
+    let s3Pathname = process.env.MEDUSA_CLOUD_S3_PATHNAME || ""
+    if (!s3Hostname && fileUrl) {
+      try { s3Hostname = new URL(fileUrl).hostname } catch {}
+    }
+    if (!s3Pathname && prefix) {
+      s3Pathname = `/${prefix.replace(/^\//, "")}**`
+    }
+
+    if (s3Hostname) {
+      envVars.push({
+        key: "MEDUSA_CLOUD_S3_HOSTNAME",
+        value: s3Hostname,
+        type: "plain",
+        target: ["production", "preview"],
+      })
+    }
+    if (s3Pathname) {
+      envVars.push({
+        key: "MEDUSA_CLOUD_S3_PATHNAME",
+        value: s3Pathname,
+        type: "plain",
+        target: ["production", "preview"],
+      })
+    }
+
+    // Backend URL
+    const backendUrl = process.env.MEDUSA_BACKEND_URL || ""
+    if (backendUrl) {
+      envVars.push(
+        { key: "NEXT_PUBLIC_MEDUSA_BACKEND_URL", value: backendUrl, type: "plain", target: ["production", "preview"] },
+        { key: "MEDUSA_BACKEND_URL", value: backendUrl, type: "plain", target: ["production", "preview"] },
+      )
+    }
+
+    // Stripe key
+    const stripeKey = process.env.NEXT_PUBLIC_STRIPE_KEY || ""
+    if (stripeKey) {
+      envVars.push({
+        key: "NEXT_PUBLIC_STRIPE_KEY",
+        value: stripeKey,
+        type: "plain",
+        target: ["production", "preview"],
+      })
+    }
+
+    if (envVars.length) {
+      const svc: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+      await svc.setEnvironmentVariables(vercelProjectId, envVars)
     }
   }
 
