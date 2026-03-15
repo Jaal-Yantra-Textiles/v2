@@ -12,17 +12,52 @@ export const GET = async (
   const { store } = await getPartnerStore(req.auth_context, req.scope)
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
+
+  // First get linked category IDs from the store
+  const { data: storeData } = await query.graph({
     entity: "stores",
-    fields: ["product_categories.*"],
+    fields: ["product_categories.id"],
     filters: { id: store.id },
   })
 
-  const categories = (data?.[0] as any)?.product_categories || []
+  const linkedIds = ((storeData?.[0] as any)?.product_categories || []).map(
+    (c: any) => c.id
+  )
+
+  if (!linkedIds.length) {
+    return res.json({
+      product_categories: [],
+      count: 0,
+      offset: 0,
+      limit: 20,
+    })
+  }
+
+  // Then fetch full category data
+  const { data: categories } = await query.graph({
+    entity: "product_category",
+    fields: [
+      "id",
+      "name",
+      "handle",
+      "description",
+      "is_active",
+      "is_internal",
+      "rank",
+      "metadata",
+      "created_at",
+      "updated_at",
+      "parent_category.id",
+      "parent_category.name",
+      "category_children.id",
+      "category_children.name",
+    ],
+    filters: { id: linkedIds },
+  })
 
   res.json({
-    product_categories: categories,
-    count: categories.length,
+    product_categories: categories || [],
+    count: categories?.length || 0,
     offset: 0,
     limit: 20,
   })

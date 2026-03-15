@@ -4,38 +4,46 @@ import { TFunction } from "i18next"
 import { CategoryTreeItem } from "./types"
 
 export function getIsActiveProps(
-  isActive: boolean,
+  isActive: boolean | undefined | null,
   t: TFunction
-): { color: "green" | "red"; label: string } {
-  switch (isActive) {
-    case true:
-      return {
-        label: t("categories.fields.status.active"),
-        color: "green",
-      }
-    case false:
-      return {
-        label: t("categories.fields.status.inactive"),
-        color: "red",
-      }
+): { color: "green" | "red" | "grey"; label: string } {
+  if (isActive === true) {
+    return {
+      label: t("categories.fields.status.active"),
+      color: "green",
+    }
+  }
+  if (isActive === false) {
+    return {
+      label: t("categories.fields.status.inactive"),
+      color: "red",
+    }
+  }
+  return {
+    label: t("categories.fields.status.active"),
+    color: "grey",
   }
 }
 
 export function getIsInternalProps(
-  isInternal: boolean,
+  isInternal: boolean | undefined | null,
   t: TFunction
-): { color: "blue" | "green"; label: string } {
-  switch (isInternal) {
-    case true:
-      return {
-        label: t("categories.fields.visibility.internal"),
-        color: "blue",
-      }
-    case false:
-      return {
-        label: t("categories.fields.visibility.public"),
-        color: "green",
-      }
+): { color: "blue" | "green" | "grey"; label: string } {
+  if (isInternal === true) {
+    return {
+      label: t("categories.fields.visibility.internal"),
+      color: "blue",
+    }
+  }
+  if (isInternal === false) {
+    return {
+      label: t("categories.fields.visibility.public"),
+      color: "green",
+    }
+  }
+  return {
+    label: t("categories.fields.visibility.public"),
+    color: "grey",
   }
 }
 

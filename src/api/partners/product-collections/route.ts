@@ -10,17 +10,30 @@ export const GET = async (
   const { store } = await getPartnerStore(req.auth_context, req.scope)
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
+
+  const { data: storeData } = await query.graph({
     entity: "stores",
-    fields: ["product_collections.*"],
+    fields: ["product_collections.id"],
     filters: { id: store.id },
   })
 
-  const collections = (data?.[0] as any)?.product_collections || []
+  const linkedIds = ((storeData?.[0] as any)?.product_collections || []).map(
+    (c: any) => c.id
+  )
+
+  if (!linkedIds.length) {
+    return res.json({ collections: [], count: 0, offset: 0, limit: 20 })
+  }
+
+  const { data: collections } = await query.graph({
+    entity: "product_collection",
+    fields: ["id", "title", "handle", "metadata", "created_at", "updated_at", "products.*"],
+    filters: { id: linkedIds },
+  })
 
   res.json({
-    collections,
-    count: collections.length,
+    collections: collections || [],
+    count: collections?.length || 0,
     offset: 0,
     limit: 20,
   })

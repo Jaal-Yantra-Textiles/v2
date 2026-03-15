@@ -19,8 +19,22 @@ export const GET = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
-    entity: "product_categories",
-    fields: ["*", "products.*"],
+    entity: "product_category",
+    fields: [
+      "id",
+      "name",
+      "handle",
+      "description",
+      "is_active",
+      "is_internal",
+      "rank",
+      "metadata",
+      "created_at",
+      "updated_at",
+      "parent_category.*",
+      "category_children.*",
+      "products.*",
+    ],
     filters: { id: req.params.id },
   })
 
