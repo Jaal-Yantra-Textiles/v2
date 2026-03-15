@@ -12,7 +12,9 @@
     "build": "next build",
     "start": "next start -p 8000",
     "lint": "next lint",
-    "analyze": "ANALYZE=true next build"
+    "analyze": "ANALYZE=true next build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
@@ -64,7 +66,8 @@
     "postcss": "^8.4.8",
     "prettier": "^2.8.8",
     "tailwindcss": "^3.0.23",
-    "typescript": "^5.3.2"
+    "typescript": "^5.3.2",
+    "vitest": "^4.0.18"
   },
   "packageManager": "pnpm@9.0.0",
   "overrides": {
