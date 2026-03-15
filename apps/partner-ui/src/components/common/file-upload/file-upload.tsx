@@ -107,6 +107,10 @@ export const FileUpload = ({
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     handleUploaded(event.target.files)
+    // Reset input value so the same file can be re-selected (important on mobile)
+    if (inputRef.current) {
+      inputRef.current.value = ""
+    }
   }
 
   return (
