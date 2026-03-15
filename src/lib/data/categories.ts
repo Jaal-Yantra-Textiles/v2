@@ -7,18 +7,11 @@ export const listCategories = async (query?: Record<string, any>) => {
     ...(await getCacheOptions("categories")),
   }
 
-  const limit = query?.limit || 100
-
+  // Use scoped endpoint to only get categories with products in this sales channel
   return sdk.client
     .fetch<{ product_categories: HttpTypes.StoreProductCategory[] }>(
-      "/store/product-categories",
+      "/store/scoped-categories",
       {
-        query: {
-          fields:
-            "*category_children, *products, *parent_category, *parent_category.parent_category",
-          limit,
-          ...query,
-        },
         next,
         cache: "force-cache",
       }
