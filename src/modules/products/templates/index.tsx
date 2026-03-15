@@ -15,10 +15,12 @@ import SizeGuide from "@modules/products/components/size-guide"
 import { HttpTypes } from "@medusajs/types"
 import { Text } from "@medusajs/ui"
 import { StoreDesign } from "../../../types/product-design"
+
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct & { designs?: StoreDesign[] } // Extend product type to include designs
   region: HttpTypes.StoreRegion
   countryCode: string
+  images: HttpTypes.StoreProductImage[]
 }
 
 const calculateDesignScore = (design: StoreDesign | undefined) => {
@@ -44,6 +46,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
   product,
   region,
   countryCode,
+  images,
 }) => {
   if (!product || !product.id) {
     return notFound()
@@ -68,7 +71,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
           </div>
         </div>
         <div className="block w-full relative">
-          <ImageGallery images={product?.images || []} />
+          <ImageGallery images={images} />
         </div>
         <div className="w-full py-8 small:hidden">
           <DesignInfo design={design} designScore={designScore} />
