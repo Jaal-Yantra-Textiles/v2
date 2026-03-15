@@ -113,8 +113,10 @@ const createCloudflareCnameStep = createStep(
     const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     try {
       const result = await deployment.ensureVercelCname(input.subdomain, input.rootDomain)
+      console.log("[provision-storefront] Cloudflare DNS result:", JSON.stringify(result))
       return new StepResponse(result as any)
     } catch (e: any) {
+      console.error("[provision-storefront] Cloudflare DNS error:", e.message)
       return new StepResponse({ action: "failed", error: e.message } as any)
     }
   }

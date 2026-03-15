@@ -143,6 +143,9 @@ export const POST = async (
     },
   })
 
+  // Log the full result for debugging
+  console.log("[provision-storefront] Full result:", JSON.stringify(result, null, 2))
+
   res.status(201).json({
     message: "Storefront provisioned successfully",
     ...result,

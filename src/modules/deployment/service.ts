@@ -63,6 +63,15 @@ const VERCEL_API_BASE = "https://api.vercel.com"
 const CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4"
 
 class DeploymentService {
+  private log(level: "info" | "warn" | "error", msg: string, data?: any) {
+    const prefix = `[DeploymentService]`
+    if (data) {
+      console[level](`${prefix} ${msg}`, data)
+    } else {
+      console[level](`${prefix} ${msg}`)
+    }
+  }
+
   // ── Configuration checks ────────────────────────────────────────────────
 
   isVercelConfigured(): boolean {
@@ -70,9 +79,16 @@ class DeploymentService {
   }
 
   isCloudflareConfigured(): boolean {
-    return Boolean(
+    const configured = Boolean(
       process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ZONE_ID
     )
+    if (!configured) {
+      this.log("warn", "Cloudflare not configured", {
+        hasToken: Boolean(process.env.CLOUDFLARE_API_TOKEN),
+        hasZoneId: Boolean(process.env.CLOUDFLARE_ZONE_ID),
+      })
+    }
+    return configured
   }
 
   // ── Vercel ──────────────────────────────────────────────────────────────
@@ -249,6 +265,7 @@ class DeploymentService {
     ttl?: number
   }): Promise<CloudflareDnsRecord> {
     const zoneId = this.cloudflareZoneId()
+    this.log("info", `Cloudflare createDnsRecord`, { zoneId: zoneId.slice(0, 8) + "...", name: input.name, content: input.content })
     const res = await fetch(`${CLOUDFLARE_API_BASE}/zones/${zoneId}/dns_records`, {
       method: "POST",
       headers: this.cloudflareHeaders(),
@@ -262,8 +279,11 @@ class DeploymentService {
     })
     const data: CloudflareResponse<CloudflareDnsRecord> = await res.json()
     if (!data.success) {
-      throw new Error(`Cloudflare createDnsRecord failed: ${data.errors?.map((e) => e.message).join(", ") || "Unknown error"}`)
+      const errMsg = data.errors?.map((e) => e.message).join(", ") || "Unknown error"
+      this.log("error", `Cloudflare createDnsRecord failed`, { errors: data.errors })
+      throw new Error(`Cloudflare createDnsRecord failed: ${errMsg}`)
     }
+    this.log("info", `Cloudflare createDnsRecord success`, { id: data.result.id })
     return data.result
   }
 
@@ -334,33 +354,43 @@ class DeploymentService {
     subdomain: string,
     rootDomain: string
   ): Promise<EnsureCnameResult> {
+    this.log("info", `ensureVercelCname called`, { subdomain, rootDomain })
+
     if (!this.isCloudflareConfigured()) {
+      this.log("warn", "ensureVercelCname skipped — Cloudflare not configured")
       return { action: "skipped", reason: "Cloudflare not configured" }
     }
 
     const fullDomain = `${subdomain}.${rootDomain}`
     const vercelCname = "cname.vercel-dns.com"
 
+    this.log("info", `Looking up existing CNAME for ${fullDomain}`)
     const existing = await this.listDnsRecords({ name: fullDomain, type: "CNAME" })
+    this.log("info", `Found ${existing.length} existing records for ${fullDomain}`)
 
     if (existing.length > 0) {
       const record = existing[0]
       if (record.content === vercelCname) {
+        this.log("info", `CNAME already points to Vercel: ${record.content}`)
         return { action: "exists", record }
       }
+      this.log("info", `Updating CNAME from ${record.content} to ${vercelCname}`)
       const updated = await this.updateDnsRecord(record.id, {
         name: fullDomain,
         content: vercelCname,
         proxied: false,
       })
+      this.log("info", `CNAME updated successfully`, { id: updated.id })
       return { action: "updated", record: updated }
     }
 
+    this.log("info", `Creating new CNAME: ${fullDomain} → ${vercelCname}`)
     const created = await this.createDnsRecord({
       name: fullDomain,
       content: vercelCname,
       proxied: false,
     })
+    this.log("info", `CNAME created successfully`, { id: created.id, name: created.name })
     return { action: "created", record: created }
   }
 
