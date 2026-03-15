@@ -235,6 +235,9 @@
       "protobufjs",
       "sharp",
       "utf-8-validate"
-    ]
+    ],
+    "patchedDependencies": {
+      "@medusajs/medusa": "patches/@medusajs__medusa.patch"
+    }
   }
 }

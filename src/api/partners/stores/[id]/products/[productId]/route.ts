@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 
 export const GET = async (
@@ -65,8 +66,12 @@ export const DELETE = async (
     req.scope
   )
 
-  const productService = req.scope.resolve(Modules.PRODUCT) as any
-  await productService.deleteProducts([req.params.productId])
+  // Use the workflow instead of direct service call so that
+  // sales channel links, index engine entries, and remote links
+  // are all properly cleaned up
+  await deleteProductsWorkflow(req.scope).run({
+    input: { ids: [req.params.productId] },
+  })
 
   res.json({ id: req.params.productId, object: "product", deleted: true })
 }
