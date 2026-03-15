@@ -23,6 +23,7 @@ export type ProvisionStorefrontResult = {
   project: { id: string; name: string }
   domain: any
   dns: any
+  verification: any
   deployment: { id: string; url: string; status: string }
   storefront_url: string
 }
@@ -106,7 +107,7 @@ const addVercelDomainStep = createStep(
   }
 )
 
-// Step 4: Create Cloudflare CNAME record pointing to Vercel
+// Step 4a: Create Cloudflare CNAME record pointing to Vercel
 const createCloudflareCnameStep = createStep(
   "create-cloudflare-cname",
   async (input: { subdomain: string; rootDomain: string }, { container }) => {
@@ -118,6 +119,27 @@ const createCloudflareCnameStep = createStep(
     } catch (e: any) {
       console.error("[provision-storefront] Cloudflare DNS error:", e.message)
       return new StepResponse({ action: "failed", error: e.message } as any)
+    }
+  }
+)
+
+// Step 4b: Create Vercel domain verification DNS records (TXT etc.)
+const createVercelVerificationRecordsStep = createStep(
+  "create-vercel-verification-records",
+  async (
+    input: { verification: Array<{ type: string; domain: string; value: string }> | null },
+    { container }
+  ) => {
+    const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
+    try {
+      const results = await deployment.createVercelVerificationRecords(
+        input.verification || undefined
+      )
+      console.log("[provision-storefront] Verification records result:", JSON.stringify(results))
+      return new StepResponse(results)
+    } catch (e: any) {
+      console.error("[provision-storefront] Verification records error:", e.message)
+      return new StepResponse([{ domain: "unknown", action: "failed", error: e.message }])
     }
   }
 )
@@ -197,10 +219,15 @@ export const provisionStorefrontWorkflow = createWorkflow(
       rootDomain: input.root_domain,
     })
 
-    // Step 4: Create Cloudflare CNAME
+    // Step 4a: Create Cloudflare CNAME
     const dnsResult = createCloudflareCnameStep({
       subdomain: input.handle,
       rootDomain: input.root_domain,
+    })
+
+    // Step 4b: Create verification DNS records (depends on step 3 domain result)
+    const verificationResult = createVercelVerificationRecordsStep({
+      verification: domainResult.verification as any,
     })
 
     // Step 5: Trigger deployment
@@ -223,6 +250,7 @@ export const provisionStorefrontWorkflow = createWorkflow(
       project,
       domain: domainResult,
       dns: dnsResult,
+      verification: verificationResult,
       deployment,
     } as unknown as ProvisionStorefrontResult)
   }

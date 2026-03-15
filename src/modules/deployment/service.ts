@@ -395,6 +395,67 @@ class DeploymentService {
   }
 
   /**
+   * Create all DNS verification records that Vercel requires for domain verification.
+   * Typically a TXT record like `_vercel.example.com` with a verification value.
+   */
+  async createVercelVerificationRecords(
+    verification: Array<{ type: string; domain: string; value: string }> | undefined
+  ): Promise<Array<{ domain: string; action: string; id?: string; error?: string }>> {
+    if (!verification?.length) {
+      this.log("info", "No verification records needed")
+      return []
+    }
+
+    if (!this.isCloudflareConfigured()) {
+      this.log("warn", "Cannot create verification records — Cloudflare not configured")
+      return verification.map((v) => ({ domain: v.domain, action: "skipped" }))
+    }
+
+    const results: Array<{ domain: string; action: string; id?: string; error?: string }> = []
+
+    for (const v of verification) {
+      this.log("info", `Creating verification record: ${v.type} ${v.domain} = ${v.value}`)
+      try {
+        // Check if record already exists
+        const existing = await this.listDnsRecords({ name: v.domain, type: v.type })
+        if (existing.length > 0) {
+          // Check if value matches
+          const match = existing.find((r) => r.content === v.value)
+          if (match) {
+            this.log("info", `Verification record already exists: ${v.domain}`)
+            results.push({ domain: v.domain, action: "exists", id: match.id })
+            continue
+          }
+          // Update existing record
+          const updated = await this.updateDnsRecord(existing[0].id, {
+            name: v.domain,
+            content: v.value,
+            type: v.type,
+          })
+          this.log("info", `Verification record updated: ${v.domain}`)
+          results.push({ domain: v.domain, action: "updated", id: updated.id })
+          continue
+        }
+
+        // Create new record
+        const created = await this.createDnsRecord({
+          name: v.domain,
+          content: v.value,
+          type: v.type,
+          proxied: false,
+        })
+        this.log("info", `Verification record created: ${v.domain}`, { id: created.id })
+        results.push({ domain: v.domain, action: "created", id: created.id })
+      } catch (e: any) {
+        this.log("error", `Failed to create verification record: ${v.domain}`, { error: e.message })
+        results.push({ domain: v.domain, action: "failed", error: e.message })
+      }
+    }
+
+    return results
+  }
+
+  /**
    * Remove DNS record for a storefront domain. Skips if Cloudflare is not configured.
    */
   async removeStorefrontDns(
