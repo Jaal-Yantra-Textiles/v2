@@ -15,6 +15,7 @@ import { useUpdateFulfillmentSetServiceZone } from "../../../../../hooks/api/ful
 import { countries } from "../../../../../lib/data/countries"
 import { GeoZoneForm } from "../../../common/components/geo-zone-form"
 import { GEO_ZONE_STACKED_MODAL_ID } from "../../../common/constants"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 const EditeServiceZoneSchema = z.object({
   countries: z
@@ -72,7 +73,7 @@ export function EditServiceZoneAreasForm({
           handleSuccess(`/settings/locations/${locationId}`)
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )

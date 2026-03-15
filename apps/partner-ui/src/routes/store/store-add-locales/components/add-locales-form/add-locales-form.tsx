@@ -19,6 +19,7 @@ import { RouteFocusModal } from "../../../../../components/modals/route-focus-mo
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { _DataTable } from "../../../../../components/table/data-table"
 import { useLocalesTableColumns } from "../../../common/hooks/use-locales-table-columns"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type AddLocalesFormProps = {
   store: HttpTypes.AdminStore
@@ -121,7 +122,7 @@ export const AddLocalesForm = ({ store }: AddLocalesFormProps) => {
           handleSuccess()
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )

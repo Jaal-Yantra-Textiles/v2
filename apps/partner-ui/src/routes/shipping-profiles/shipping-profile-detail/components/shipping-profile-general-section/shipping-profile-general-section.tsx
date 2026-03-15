@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../../../../../components/common/action-menu"
 import { SectionRow } from "../../../../../components/common/section"
 import { useDeleteShippingProfile } from "../../../../../hooks/api/shipping-profiles"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type ShippingProfileGeneralSectionProps = {
   profile: AdminShippingProfileResponse["shipping_profile"]
@@ -47,7 +48,7 @@ export const ShippingProfileGeneralSection = ({
         navigate("/settings/locations/shipping-profiles", { replace: true })
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(extractErrorMessage(error))
       },
     })
   }

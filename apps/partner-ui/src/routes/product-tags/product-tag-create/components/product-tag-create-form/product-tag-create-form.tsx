@@ -10,6 +10,7 @@ import {
 } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useCreateProductTag } from "../../../../../hooks/api"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 const ProductTagCreateSchema = z.object({
   value: z.string().min(1),
@@ -39,7 +40,7 @@ export const ProductTagCreateForm = () => {
         handleSuccess(`../${product_tag.id}`)
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(extractErrorMessage(error))
       },
     })
   })

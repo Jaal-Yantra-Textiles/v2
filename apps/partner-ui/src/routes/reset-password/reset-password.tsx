@@ -14,6 +14,7 @@ import {
   useResetPasswordForEmailPass,
   useUpdateProviderForEmailPass,
 } from "../../hooks/api/auth"
+import { extractErrorMessage } from "../../lib/extract-error-message"
 
 const ResetPasswordInstructionsSchema = z.object({
   email: z.string().email(),
@@ -132,7 +133,7 @@ const ChooseNewPassword = ({ token }: { token: string }) => {
           setShowAlert(true)
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )
@@ -261,7 +262,7 @@ export const ResetPassword = () => {
           setShowAlert(true)
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )

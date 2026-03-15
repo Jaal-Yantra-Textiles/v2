@@ -8,6 +8,7 @@ import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useUpdateFulfillmentSetServiceZone } from "../../../../../hooks/api/fulfillment-sets"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type EditServiceZoneFormProps = {
   zone: HttpTypes.AdminServiceZone
@@ -51,7 +52,7 @@ export const EditServiceZoneForm = ({
           handleSuccess(`/settings/locations/${locationId}`)
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )

@@ -23,6 +23,7 @@ import { useCustomerTableColumns } from "../../../../../hooks/table/columns/use-
 import { useCustomerTableFilters } from "../../../../../hooks/table/filters/use-customer-table-filters"
 import { useCustomerTableQuery } from "../../../../../hooks/table/query/use-customer-table-query"
 import { useDataTable } from "../../../../../hooks/use-data-table"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type AddCustomersFormProps = {
   customerGroupId: string
@@ -115,7 +116,7 @@ export const AddCustomersForm = ({
         handleSuccess(`/customer-groups/${customerGroupId}`)
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(extractErrorMessage(error))
       },
     })
   })

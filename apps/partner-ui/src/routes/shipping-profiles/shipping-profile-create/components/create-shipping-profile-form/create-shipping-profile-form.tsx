@@ -11,6 +11,7 @@ import {
 } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useCreateShippingProfile } from "../../../../../hooks/api/shipping-profiles"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 const CreateShippingOptionsSchema = zod.object({
   name: zod.string().min(1),
@@ -50,7 +51,7 @@ export function CreateShippingProfileForm() {
           )
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )

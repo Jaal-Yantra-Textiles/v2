@@ -22,6 +22,7 @@ import { useUpdateStore } from "../../../../../hooks/api/store"
 import { useDataTable } from "../../../../../hooks/use-data-table"
 import { useCurrenciesTableColumns } from "../../../common/hooks/use-currencies-table-columns"
 import { useCurrenciesTableQuery } from "../../../common/hooks/use-currencies-table-query"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type StoreCurrencySectionProps = {
   store: HttpTypes.AdminStore
@@ -130,7 +131,7 @@ export const StoreCurrencySection = ({ store }: StoreCurrencySectionProps) => {
           toast.success(t("store.toast.currenciesRemoved"))
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )
@@ -241,7 +242,7 @@ const CurrencyActions = ({
           toast.success(t("store.toast.currenciesRemoved"))
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )
@@ -266,7 +267,7 @@ const CurrencyActions = ({
           toast.success(t("store.toast.updatedTaxInclusivitySuccessfully"))
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )

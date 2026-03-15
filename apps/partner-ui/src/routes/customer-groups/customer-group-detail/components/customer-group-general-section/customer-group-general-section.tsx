@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom"
 
 import { ActionMenu } from "../../../../../components/common/action-menu"
 import { useDeleteCustomerGroup } from "../../../../../hooks/api/customer-groups"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type CustomerGroupGeneralSectionProps = {
   group: HttpTypes.AdminCustomerGroup
@@ -45,7 +46,7 @@ export const CustomerGroupGeneralSection = ({
         navigate("/customer-groups", { replace: true })
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(extractErrorMessage(error))
       },
     })
   }

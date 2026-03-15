@@ -11,6 +11,7 @@ import {
 } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useCreateStockLocation } from "../../../../../hooks/api/stock-locations"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 const CreateLocationSchema = zod.object({
   name: zod.string().min(1),
@@ -62,7 +63,7 @@ export const CreateLocationForm = () => {
           handleSuccess(`/settings/locations/${stock_location.id}`)
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )

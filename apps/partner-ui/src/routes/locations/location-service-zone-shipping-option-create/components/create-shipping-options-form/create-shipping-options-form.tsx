@@ -25,6 +25,7 @@ import {
 } from "./schema"
 import { useFulfillmentProviderOptions } from "../../../../../hooks/api"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 enum Tab {
   DETAILS = "details",
@@ -183,7 +184,7 @@ export function CreateShippingOptionsForm({
           handleSuccess(`/settings/locations/${locationId}`)
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )

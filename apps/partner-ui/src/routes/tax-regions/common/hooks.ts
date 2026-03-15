@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { useDeleteTaxRate } from "../../../hooks/api/tax-rates"
 import { useDeleteTaxRegion } from "../../../hooks/api/tax-regions"
+import { extractErrorMessage } from "../../../lib/extract-error-message"
 
 export const useDeleteTaxRegionAction = ({
   taxRegion,
@@ -37,7 +38,7 @@ export const useDeleteTaxRegionAction = ({
         navigate(to, { replace: true })
       },
       onError: (e) => {
-        toast.error(e.message)
+        toast.error(extractErrorMessage(e))
       },
     })
   }
@@ -70,7 +71,7 @@ export const useDeleteTaxRateAction = (taxRate: HttpTypes.AdminTaxRate) => {
         toast.success(t("taxRegions.taxRates.delete.successToast"))
       },
       onError: (e) => {
-        toast.error(e.message)
+        toast.error(extractErrorMessage(e))
       },
     })
   }

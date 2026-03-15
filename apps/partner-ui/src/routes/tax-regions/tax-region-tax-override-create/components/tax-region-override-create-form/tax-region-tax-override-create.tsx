@@ -37,6 +37,7 @@ import {
 } from "../../../common/schemas"
 import { createTaxRulePayload } from "../../../common/utils"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 const TaxRegionCreateTaxOverrideSchema = z.object({
   name: z.string().min(1),
@@ -168,7 +169,7 @@ export const TaxRegionCreateTaxOverrideForm = ({
           handleSuccess()
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )

@@ -9,6 +9,7 @@ import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useUpdateProductTag } from "../../../../../hooks/api"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type ProductTagEditFormProps = {
   productTag: HttpTypes.AdminProductTag
@@ -42,7 +43,7 @@ export const ProductTagEditForm = ({ productTag }: ProductTagEditFormProps) => {
         handleSuccess()
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(extractErrorMessage(error))
       },
     })
   })

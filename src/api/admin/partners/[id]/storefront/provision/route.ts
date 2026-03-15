@@ -10,6 +10,20 @@ const STOREFRONT_REPO = process.env.VERCEL_STOREFRONT_REPO || ""
 const MEDUSA_BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_KEY || ""
 
+function getS3ImageConfig(): { hostname: string; pathname: string } {
+  const fileUrl = process.env.S3_FILE_URL || ""
+  const prefix = process.env.S3_PREFIX || ""
+  let hostname = process.env.MEDUSA_CLOUD_S3_HOSTNAME || ""
+  let pathname = process.env.MEDUSA_CLOUD_S3_PATHNAME || ""
+  if (!hostname && fileUrl) {
+    try { hostname = new URL(fileUrl).hostname } catch {}
+  }
+  if (!pathname && prefix) {
+    pathname = `/${prefix.replace(/^\//, "")}**`
+  }
+  return { hostname, pathname }
+}
+
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
@@ -119,6 +133,8 @@ export const POST = async (
     .replace(/-{2,}/g, "-")
     .replace(/^-|-$/g, "")
 
+  const s3Config = getS3ImageConfig()
+
   const { result } = await provisionStorefrontWorkflow(req.scope).run({
     input: {
       partner_id: partnerId,
@@ -128,6 +144,8 @@ export const POST = async (
       storefront_repo: STOREFRONT_REPO,
       medusa_backend_url: MEDUSA_BACKEND_URL,
       stripe_publishable_key: STRIPE_PUBLISHABLE_KEY,
+      s3_hostname: s3Config.hostname,
+      s3_pathname: s3Config.pathname,
       existing_metadata: partner.metadata || {},
     },
   })

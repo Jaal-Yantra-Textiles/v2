@@ -11,6 +11,7 @@ import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useUpdateUser } from "../../../../../hooks/api/users"
 import { languages } from "../../../../../i18n/languages"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type EditProfileProps = {
   user: HttpTypes.AdminUser
@@ -56,7 +57,7 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
       },
       {
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
           return
         },
       }

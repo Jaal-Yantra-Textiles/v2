@@ -11,6 +11,7 @@ import { PercentageInput } from "../../../../../components/inputs/percentage-inp
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useUpdateTaxRate } from "../../../../../hooks/api/tax-rates"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type TaxRegionTaxRateEditFormProps = {
   taxRate: HttpTypes.AdminTaxRate
@@ -62,7 +63,7 @@ export const TaxRegionTaxRateEditForm = ({
           handleSuccess()
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )

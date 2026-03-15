@@ -11,6 +11,7 @@ import { Form } from "../../../../../../components/common/form"
 import { KeyboundForm } from "../../../../../../components/utilities/keybound-form"
 import { useUpdateReservationItem } from "../../../../../../hooks/api/reservations"
 import { useDocumentDirection } from "../../../../../../hooks/use-document-direction"
+import { extractErrorMessage } from "../../../../../../lib/extract-error-message"
 
 type EditReservationFormProps = {
   reservation: HttpTypes.AdminReservationResponse["reservation"]
@@ -75,7 +76,7 @@ export const EditReservationForm = ({
         handleSuccess()
       },
       onError: (e) => {
-        toast.error(e.message)
+        toast.error(extractErrorMessage(e))
       },
     })
   })

@@ -20,6 +20,7 @@ import { useDataTable } from "../../../../../hooks/use-data-table"
 import { useLocalesTableColumns } from "../../../common/hooks/use-locales-table-columns"
 import { useLocalesTableQuery } from "../../../common/hooks/use-locales-table-query"
 import { useLocales } from "../../../../../hooks/api"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type StoreLocaleSectionProps = {
   store: HttpTypes.AdminStore
@@ -98,7 +99,7 @@ export const StoreLocaleSection = ({ store }: StoreLocaleSectionProps) => {
           toast.success(t("store.toast.localesRemoved"))
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )
@@ -203,7 +204,7 @@ const LocaleActions = ({
           toast.success(t("store.toast.localesRemoved"))
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )

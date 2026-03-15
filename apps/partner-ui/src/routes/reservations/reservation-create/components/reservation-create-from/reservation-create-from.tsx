@@ -17,6 +17,7 @@ import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useInventoryItems } from "../../../../../hooks/api/inventory"
 import { useCreateReservationItem } from "../../../../../hooks/api/reservations"
 import { useStockLocations } from "../../../../../hooks/api/stock-locations"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 export const CreateReservationSchema = zod.object({
   inventory_item_id: zod.string().min(1),
@@ -127,7 +128,7 @@ export const ReservationCreateForm = (props: { inventoryItemId?: string }) => {
         )
       },
       onError: (e) => {
-        toast.error(e.message)
+        toast.error(extractErrorMessage(e))
       },
     })
   })

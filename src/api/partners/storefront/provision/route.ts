@@ -15,6 +15,32 @@ const MEDUSA_BACKEND_URL =
   process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_KEY || ""
 
+// S3 image hostname/pathname — passed to storefront for Next.js image optimization
+function getS3ImageConfig(): { hostname: string; pathname: string } {
+  // Derive from S3_FILE_URL (e.g. "https://automatic.jaalyantra.com/") and S3_PREFIX (e.g. "automatica/")
+  const fileUrl = process.env.S3_FILE_URL || ""
+  const prefix = process.env.S3_PREFIX || ""
+
+  let hostname = process.env.MEDUSA_CLOUD_S3_HOSTNAME || ""
+  let pathname = process.env.MEDUSA_CLOUD_S3_PATHNAME || ""
+
+  // Auto-derive from S3_FILE_URL if not explicitly set
+  if (!hostname && fileUrl) {
+    try {
+      hostname = new URL(fileUrl).hostname
+    } catch {
+      // ignore
+    }
+  }
+
+  // Auto-derive pathname from S3_PREFIX
+  if (!pathname && prefix) {
+    pathname = `/${prefix.replace(/^\//, "")}**`
+  }
+
+  return { hostname, pathname }
+}
+
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
@@ -130,6 +156,8 @@ export const POST = async (
     .replace(/-{2,}/g, "-")
     .replace(/^-|-$/g, "")
 
+  const s3Config = getS3ImageConfig()
+
   const { result } = await provisionStorefrontWorkflow(req.scope).run({
     input: {
       partner_id: partner.id,
@@ -139,6 +167,8 @@ export const POST = async (
       storefront_repo: STOREFRONT_REPO,
       medusa_backend_url: MEDUSA_BACKEND_URL,
       stripe_publishable_key: STRIPE_PUBLISHABLE_KEY,
+      s3_hostname: s3Config.hostname,
+      s3_pathname: s3Config.pathname,
       existing_metadata: partnerData.metadata || {},
     },
   })

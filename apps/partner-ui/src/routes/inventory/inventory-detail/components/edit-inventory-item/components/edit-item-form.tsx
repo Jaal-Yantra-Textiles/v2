@@ -11,6 +11,7 @@ import { z } from "@medusajs/framework/zod"
 import { Form } from "../../../../../../components/common/form"
 import { KeyboundForm } from "../../../../../../components/utilities/keybound-form"
 import { useUpdateInventoryItem } from "../../../../../../hooks/api/inventory"
+import { extractErrorMessage } from "../../../../../../lib/extract-error-message"
 
 type EditInventoryItemFormProps = {
   item: InventoryTypes.InventoryItemDTO
@@ -45,7 +46,7 @@ export const EditInventoryItemForm = ({ item }: EditInventoryItemFormProps) => {
         toast.success(t("inventory.toast.updateItem"))
         handleSuccess()
       },
-      onError: (e) => toast.error(e.message),
+      onError: (e) => toast.error(extractErrorMessage(e)),
     })
   })
 

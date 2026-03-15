@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../../../../../components/common/action-menu"
 import { useDeleteUser } from "../../../../../hooks/api/users"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type UserGeneralSectionProps = {
   user: HttpTypes.AdminUser
@@ -41,7 +42,7 @@ export const UserGeneralSection = ({ user }: UserGeneralSectionProps) => {
         navigate("..")
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(extractErrorMessage(error))
       },
     })
   }

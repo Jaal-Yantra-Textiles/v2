@@ -14,6 +14,7 @@ import { useComboboxData } from "../../../../../hooks/use-combobox-data"
 import { sdk } from "../../../../../lib/client"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
 import { useFeatureFlag } from "../../../../../providers/feature-flag-provider"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type EditStoreFormProps = {
   store: HttpTypes.AdminStore
@@ -107,7 +108,7 @@ export const EditStoreForm = ({ store }: EditStoreFormProps) => {
         handleSuccess()
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(extractErrorMessage(error))
       },
     })
   })

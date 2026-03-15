@@ -3,6 +3,7 @@ import { toast, usePrompt } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { useDeleteProductTag } from "../../../../hooks/api"
+import { extractErrorMessage } from "../../../../lib/extract-error-message"
 
 type UseDeleteProductTagActionProps = {
   productTag: HttpTypes.AdminProductTag
@@ -43,7 +44,7 @@ export const useDeleteProductTagAction = ({
         })
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(extractErrorMessage(error))
       },
     })
   }

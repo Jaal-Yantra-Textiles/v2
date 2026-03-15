@@ -17,6 +17,7 @@ import {
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useCreateTaxRegion } from "../../../../../hooks/api/tax-regions"
 import { getCountryProvinceObjectByIso2 } from "../../../../../lib/data/country-states"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type TaxRegionProvinceCreateFormProps = {
   parent: HttpTypes.AdminTaxRegion
@@ -82,7 +83,7 @@ export const TaxRegionProvinceCreateForm = ({
           )
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )

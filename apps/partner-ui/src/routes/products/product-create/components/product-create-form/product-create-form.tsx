@@ -11,6 +11,7 @@ import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useExtendableForm } from "../../../../../dashboard-app/forms/hooks"
 import { useCreateProduct } from "../../../../../hooks/api/products"
 import { usePartnerUpload } from "../../../../../hooks/api/uploads"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 import { useExtension } from "../../../../../providers/extension-provider"
 import {
   PRODUCT_CREATE_FORM_DEFAULTS,
@@ -137,11 +138,7 @@ export const ProductCreateForm = ({
 
         uploadedMedia = (await Promise.all(fileReqs)).flat()
       } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : t("products.media.failedToUpload")
-        )
+        toast.error(extractErrorMessage(error, t("products.media.failedToUpload")))
         return // Stop — don't create the product without images
       }
     }
@@ -164,7 +161,7 @@ export const ProductCreateForm = ({
           handleSuccess(`../${data.product.id}`)
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )

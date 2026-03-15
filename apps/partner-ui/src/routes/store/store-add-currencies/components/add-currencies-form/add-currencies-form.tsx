@@ -25,6 +25,7 @@ import { useDataTable } from "../../../../../hooks/use-data-table"
 import { queryClient } from "../../../../../lib/query-client"
 import { useCurrenciesTableColumns } from "../../../common/hooks/use-currencies-table-columns"
 import { useCurrenciesTableQuery } from "../../../common/hooks/use-currencies-table-query"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type AddCurrenciesFormProps = {
   store: HttpTypes.AdminStore
@@ -158,7 +159,7 @@ export const AddCurrenciesForm = ({
           handleSuccess()
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )

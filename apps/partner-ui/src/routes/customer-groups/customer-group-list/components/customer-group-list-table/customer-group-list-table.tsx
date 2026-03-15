@@ -21,6 +21,7 @@ import {
 import { useDate } from "../../../../../hooks/use-date"
 import { useQueryParams } from "../../../../../hooks/use-query-params"
 import { useExtension } from "../../../../../providers/extension-provider"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 const PAGE_SIZE = 10
 
@@ -131,7 +132,7 @@ const useColumns = () => {
             toast.success(t("customerGroups.delete.successToast", { name }))
           },
           onError: (e) => {
-            toast.error(e.message)
+            toast.error(extractErrorMessage(e))
           },
         }
       )

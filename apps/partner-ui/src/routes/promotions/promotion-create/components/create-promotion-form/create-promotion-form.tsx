@@ -47,6 +47,7 @@ import { Tab } from "./constants"
 import { CreatePromotionSchema } from "./form-schema"
 import { templates } from "./templates"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 const defaultValues = {
   campaign_id: undefined,
@@ -172,7 +173,7 @@ export const CreatePromotionForm = () => {
             handleSuccess(`/promotions/${promotion.id}`)
           },
           onError: (e) => {
-            toast.error(e.message)
+            toast.error(extractErrorMessage(e))
           },
         }
       )

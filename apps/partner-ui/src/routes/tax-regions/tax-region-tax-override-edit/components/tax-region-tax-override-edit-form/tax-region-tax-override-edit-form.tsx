@@ -38,6 +38,7 @@ import {
 import { createTaxRulePayload } from "../../../common/utils"
 import { InitialRuleValues } from "../../types"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 export const DISPLAY_OVERRIDE_ITEMS_LIMIT = 10
 
@@ -172,7 +173,7 @@ export const TaxRegionTaxOverrideEditForm = ({
           handleSuccess()
         },
         onError: (error) => {
-          toast.error(error.message)
+          toast.error(extractErrorMessage(error))
         },
       }
     )

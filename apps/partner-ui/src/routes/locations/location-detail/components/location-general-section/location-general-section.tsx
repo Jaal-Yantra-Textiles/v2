@@ -47,6 +47,7 @@ import {
   isOptionEnabledInStore,
   isReturnOption,
 } from "../../../../../lib/shipping-options"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 import {
   FulfillmentSetType,
   ShippingOptionPriceType,
@@ -137,7 +138,7 @@ function ShippingOption({
         )
       },
       onError: (e) => {
-        toast.error(e.message)
+        toast.error(extractErrorMessage(e))
       },
     })
   }
@@ -310,7 +311,7 @@ function ServiceZone({
 
     await deleteZone(undefined, {
       onError: (e) => {
-        toast.error(e.message)
+        toast.error(extractErrorMessage(e))
       },
       onSuccess: () => {
         toast.success(
@@ -480,7 +481,7 @@ function FulfillmentSet(props: FulfillmentSetProps) {
           toast.success(t(`stockLocations.fulfillmentSets.enable.${type}`))
         },
         onError: (e) => {
-          toast.error(e.message)
+          toast.error(extractErrorMessage(e))
         },
       }
     )
@@ -505,7 +506,7 @@ function FulfillmentSet(props: FulfillmentSetProps) {
         toast.success(t(`stockLocations.fulfillmentSets.disable.${type}`))
       },
       onError: (e) => {
-        toast.error(e.message)
+        toast.error(extractErrorMessage(e))
       },
     })
   }
@@ -624,7 +625,7 @@ const Actions = ({ location }: { location: HttpTypes.AdminStockLocation }) => {
         navigate("/settings/locations", { replace: true })
       },
       onError: (e) => {
-        toast.error(e.message)
+        toast.error(extractErrorMessage(e))
       },
     })
   }

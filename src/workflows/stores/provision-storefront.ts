@@ -16,6 +16,8 @@ export type ProvisionStorefrontInput = {
   storefront_repo: string
   medusa_backend_url: string
   stripe_publishable_key: string
+  s3_hostname: string
+  s3_pathname: string
   existing_metadata: Record<string, any>
 }
 
@@ -55,9 +57,12 @@ const setVercelEnvVarsStep = createStep(
     publishableKey: string
     medusaBackendUrl: string
     stripeKey: string
+    s3Hostname: string
+    s3Pathname: string
   }, { container }) => {
     const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
-    await deployment.setEnvironmentVariables(input.projectId, [
+
+    const envVars: Array<{ key: string; value: string; type: "plain"; target: string[] }> = [
       {
         key: "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY",
         value: input.publishableKey,
@@ -82,7 +87,26 @@ const setVercelEnvVarsStep = createStep(
         type: "plain",
         target: ["production", "preview"],
       },
-    ])
+    ]
+
+    if (input.s3Hostname) {
+      envVars.push({
+        key: "MEDUSA_CLOUD_S3_HOSTNAME",
+        value: input.s3Hostname,
+        type: "plain",
+        target: ["production", "preview"],
+      })
+    }
+    if (input.s3Pathname) {
+      envVars.push({
+        key: "MEDUSA_CLOUD_S3_PATHNAME",
+        value: input.s3Pathname,
+        type: "plain",
+        target: ["production", "preview"],
+      })
+    }
+
+    await deployment.setEnvironmentVariables(input.projectId, envVars)
 
     return new StepResponse({ success: true })
   }
@@ -210,6 +234,8 @@ export const provisionStorefrontWorkflow = createWorkflow(
       publishableKey: input.publishable_key,
       medusaBackendUrl: input.medusa_backend_url,
       stripeKey: input.stripe_publishable_key,
+      s3Hostname: input.s3_hostname,
+      s3Pathname: input.s3_pathname,
     })
 
     // Step 3: Add custom domain to Vercel

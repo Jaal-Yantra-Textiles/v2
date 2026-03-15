@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 
 import { ActionMenu } from "../../../../../components/common/action-menu"
 import { useDeleteShippingProfile } from "../../../../../hooks/api/shipping-profiles"
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 export const ShippingOptionsRowActions = ({
   profile,
@@ -41,7 +42,7 @@ export const ShippingOptionsRowActions = ({
         )
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(extractErrorMessage(error))
       },
     })
   }
