@@ -19,11 +19,11 @@ export interface FileUploadProps {
   hint?: string
   hasError?: boolean
   formats: string[]
-  maxFileSize?: number // in bytes, defaults to 1MB. Set to Infinity to disable.
+  maxFileSize?: number // in bytes, defaults to 10MB. Set to Infinity to disable.
   onUploaded: (files: FileType[], rejectedFiles?: RejectedFile[]) => void
 }
 
-const DEFAULT_MAX_FILE_SIZE = 1024 * 1024 // 1MB
+const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 export const FileUpload = ({
   label,

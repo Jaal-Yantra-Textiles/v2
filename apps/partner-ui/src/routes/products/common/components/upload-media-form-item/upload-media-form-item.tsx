@@ -75,7 +75,7 @@ export const UploadMediaFormItem = ({
           type: "file_too_large",
           message: t("products.media.fileTooLarge", {
             name: fileNames,
-            size: "1MB",
+            size: "10MB",
           }),
         })
 
