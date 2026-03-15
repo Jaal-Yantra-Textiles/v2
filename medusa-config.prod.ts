@@ -179,6 +179,85 @@ module.exports = defineConfig({
         ],
       },
     },
+    {
+      resolve: "@medusajs/medusa/fulfillment",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/fulfillment-manual",
+            id: "manual",
+          },
+          ...(process.env.DELHIVERY_API_TOKEN
+            ? [
+                {
+                  resolve: "./src/modules/shipping-providers",
+                  id: "delhivery",
+                  options: {
+                    api_token: process.env.DELHIVERY_API_TOKEN,
+                    sandbox: process.env.DELHIVERY_SANDBOX === "true",
+                  },
+                },
+              ]
+            : []),
+          ...(process.env.DHL_API_KEY
+            ? [
+                {
+                  resolve: "./src/modules/shipping-providers",
+                  id: "dhl-express",
+                  options: {
+                    api_key: process.env.DHL_API_KEY,
+                    api_secret: process.env.DHL_API_SECRET,
+                    account_number: process.env.DHL_ACCOUNT_NUMBER,
+                    sandbox: process.env.DHL_SANDBOX === "true",
+                  },
+                },
+              ]
+            : []),
+          ...(process.env.UPS_CLIENT_ID
+            ? [
+                {
+                  resolve: "./src/modules/shipping-providers",
+                  id: "ups",
+                  options: {
+                    client_id: process.env.UPS_CLIENT_ID,
+                    client_secret: process.env.UPS_CLIENT_SECRET,
+                    account_number: process.env.UPS_ACCOUNT_NUMBER,
+                    sandbox: process.env.UPS_SANDBOX === "true",
+                  },
+                },
+              ]
+            : []),
+          ...(process.env.FEDEX_CLIENT_ID
+            ? [
+                {
+                  resolve: "./src/modules/shipping-providers",
+                  id: "fedex",
+                  options: {
+                    client_id: process.env.FEDEX_CLIENT_ID,
+                    client_secret: process.env.FEDEX_CLIENT_SECRET,
+                    account_number: process.env.FEDEX_ACCOUNT_NUMBER,
+                    sandbox: process.env.FEDEX_SANDBOX === "true",
+                  },
+                },
+              ]
+            : []),
+          ...(process.env.AUSPOST_CLIENT_ID
+            ? [
+                {
+                  resolve: "./src/modules/shipping-providers",
+                  id: "auspost",
+                  options: {
+                    client_id: process.env.AUSPOST_CLIENT_ID,
+                    client_secret: process.env.AUSPOST_CLIENT_SECRET,
+                    account_number: process.env.AUSPOST_ACCOUNT_NUMBER,
+                    sandbox: process.env.AUSPOST_SANDBOX === "true",
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+    },
   {
     resolve: "./src/modules/email_templates",
   },
