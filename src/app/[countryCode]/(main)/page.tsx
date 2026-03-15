@@ -3,9 +3,11 @@ import { Metadata } from "next"
 import FeaturedProducts from "@modules/home/components/featured-products"
 import Hero from "@modules/home/components/hero"
 import HolidaySection from "@modules/home/components/holidays"
+import PartnerShowcase from "@modules/home/components/partner-showcase"
 import ScrollStage from "@modules/home/components/scroll-stage"
 import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
+import { Suspense } from "react"
 
 export const metadata: Metadata = {
   title: "Cici Label - Handmade, Locally Sourced Fashion",
@@ -56,6 +58,9 @@ export default async function Home(props: {
           <FeaturedProducts collections={collections} region={region} />
         </ul>
       </div>
+      <Suspense fallback={null}>
+        <PartnerShowcase />
+      </Suspense>
     </>
   )
 }
