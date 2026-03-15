@@ -4,6 +4,7 @@ import React, { useCallback } from "react"
 import clsx from "clsx"
 import { Text } from "@medusajs/ui"
 import { CustomerInfo, DesignProduct } from "./types"
+import { DesignDetail } from "@lib/data/designs"
 import { useDesignEditor } from "./hooks/use-design-editor"
 import { EditorCanvas } from "./components/editor-canvas"
 import { EditorSidebar } from "./components/editor-sidebar"
@@ -24,6 +25,7 @@ interface DesignEditorProps {
   customer?: CustomerInfo | null
   countryCode?: string
   isMobileLayout?: boolean
+  initialDesign?: DesignDetail | null
 }
 
 export default function DesignEditor({
@@ -31,6 +33,7 @@ export default function DesignEditor({
   customer,
   countryCode,
   isMobileLayout: initialMobileLayout = false,
+  initialDesign,
 }: DesignEditorProps) {
   // Client-side responsive detection to prevent hydration errors
   const [isMobileLayout, setIsMobileLayout] = React.useState(initialMobileLayout)
@@ -60,6 +63,7 @@ export default function DesignEditor({
     customer,
     countryCode,
     isMobileLayout,
+    initialDesign,
   })
 
   const handleBackgroundColorChange = useCallback((color: string) => {
@@ -350,6 +354,10 @@ export default function DesignEditor({
                 partnersLoading={editor.partnersLoading}
                 selectedPartner={editor.selectedPartner}
                 setSelectedPartner={editor.setSelectedPartner}
+                designSpecs={editor.designSpecs}
+                designColors={(initialDesign as any)?.colors}
+                designColorPalette={(initialDesign as any)?.color_palette}
+                designerNotes={(initialDesign as any)?.designer_notes}
               />
             </div>
           </div>

@@ -233,6 +233,56 @@ export function convertToExcalidraw(
                 textAlign: "left",
                 verticalAlign: "top",
             })
+        } else if (layer.type === "rect") {
+            // Convert rect layer → Excalidraw rectangle
+            elements.push({
+                id: elementId,
+                type: "rectangle",
+                x: offsetX + layer.x,
+                y: offsetY + layer.y,
+                width: (layer.width || 100) * layer.scaleX,
+                height: (layer.height || 100) * layer.scaleY,
+                angle: (layer.rotation * Math.PI) / 180,
+                strokeColor: layer.strokeColor || "#000000",
+                backgroundColor: layer.fill || "transparent",
+                fillStyle: "solid",
+                strokeWidth: layer.strokeWidth || 1,
+                roughness: 0,
+                opacity: layer.opacity * 100,
+                seed: generateSeed(),
+                version: 1,
+                versionNonce: generateSeed(),
+                isDeleted: false,
+                boundElements: null,
+                updated: now,
+                link: null,
+                locked: false,
+            })
+        } else if (layer.type === "circle") {
+            // Convert circle layer → Excalidraw ellipse
+            elements.push({
+                id: elementId,
+                type: "ellipse",
+                x: offsetX + layer.x,
+                y: offsetY + layer.y,
+                width: (layer.width || 100) * layer.scaleX,
+                height: (layer.height || 100) * layer.scaleY,
+                angle: (layer.rotation * Math.PI) / 180,
+                strokeColor: layer.strokeColor || "#000000",
+                backgroundColor: layer.fill || "transparent",
+                fillStyle: "solid",
+                strokeWidth: layer.strokeWidth || 1,
+                roughness: 0,
+                opacity: layer.opacity * 100,
+                seed: generateSeed(),
+                version: 1,
+                versionNonce: generateSeed(),
+                isDeleted: false,
+                boundElements: null,
+                updated: now,
+                link: null,
+                locked: false,
+            })
         } else if (layer.type === "image") {
             const imgWidth = (layer.width || 100) * layer.scaleX
             const imgHeight = (layer.height || 100) * layer.scaleY

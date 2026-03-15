@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { CustomerInfo, DesignProduct } from "./types"
+import { DesignDetail } from "@lib/data/designs"
 import { retrieveCustomerFresh } from "@lib/data/customer"
 
 // Dynamic import to avoid SSR issues with Konva
@@ -19,12 +20,14 @@ interface DesignEditorWrapperProps {
   product: DesignProduct
   customer?: CustomerInfo | null
   countryCode?: string
+  initialDesign?: DesignDetail | null
 }
 
 export default function DesignEditorWrapper({
   product,
   customer: initialCustomer,
-  countryCode
+  countryCode,
+  initialDesign,
 }: DesignEditorWrapperProps) {
   const [isMobileLayout, setIsMobileLayout] = useState(false)
   // Use a fresh server-side fetch on mount to get accurate auth state,
@@ -65,6 +68,7 @@ export default function DesignEditorWrapper({
       customer={customer}
       countryCode={countryCode}
       isMobileLayout={isMobileLayout}
+      initialDesign={initialDesign}
     />
   )
 }

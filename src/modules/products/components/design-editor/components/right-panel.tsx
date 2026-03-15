@@ -6,9 +6,11 @@ import { AiGenerationHistoryItem, BadgePreferences, DesignLayer, DesignState } f
 import { StyleTab } from "./style-tab"
 import { LayersTab } from "./layers-tab"
 import { DesignTab } from "./design-tab"
+import { DesignBriefPanel } from "./design-brief-panel"
 import { RawMaterial } from "@lib/data/raw-materials"
+import { DesignDetail } from "@lib/data/designs"
 
-type Tab = "layers" | "style" | "design"
+type Tab = "layers" | "style" | "design" | "brief"
 
 type Partner = {
   id: string
@@ -67,9 +69,14 @@ type RightPanelProps = {
   partnersLoading: boolean
   selectedPartner: Partner | null
   setSelectedPartner: (p: Partner | null) => void
+  // Design brief (admin-created)
+  designSpecs?: NonNullable<DesignDetail["specifications"]>
+  designColors?: NonNullable<DesignDetail["colors"]>
+  designColorPalette?: Array<{ name: string; code: string }>
+  designerNotes?: string
 }
 
-const TABS: { id: Tab; label: string }[] = [
+const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "layers", label: "Layers" },
   { id: "style", label: "Style" },
   { id: "design", label: "Design" },
@@ -114,7 +121,15 @@ export function RightPanel({
   partnersLoading,
   selectedPartner,
   setSelectedPartner,
+  designSpecs = [],
+  designColors,
+  designColorPalette,
+  designerNotes,
 }: RightPanelProps) {
+  const hasBrief = designSpecs.length > 0 || (designColors && designColors.length > 0) || (designColorPalette && designColorPalette.length > 0) || !!designerNotes
+  const TABS = hasBrief
+    ? [...BASE_TABS, { id: "brief" as Tab, label: "Brief" }]
+    : BASE_TABS
   const [activeTab, setActiveTab] = useState<Tab>("layers")
 
   // Auto-switch to Style tab when a layer is selected
@@ -197,6 +212,14 @@ export function RightPanel({
             partnersLoading={partnersLoading}
             selectedPartner={selectedPartner}
             setSelectedPartner={setSelectedPartner}
+          />
+        )}
+        {activeTab === "brief" && (
+          <DesignBriefPanel
+            designSpecs={designSpecs}
+            colors={designColors}
+            colorPalette={designColorPalette}
+            designerNotes={designerNotes}
           />
         )}
       </div>

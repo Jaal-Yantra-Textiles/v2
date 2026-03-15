@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import Konva from "konva"
-import { createDesign, updateDesign, CreateDesignInput } from "@lib/data/designs"
+import { createDesign, updateDesign, CreateDesignInput, DesignDetail } from "@lib/data/designs"
 import { presignDesignImageUpload } from "@lib/data/uploads"
 import {
     AiGenerationHistoryItem,
@@ -17,6 +17,7 @@ import {
 } from "../types"
 import { useImage } from "./use-image"
 import { convertToExcalidraw } from "../utils/excalidraw-converter"
+import { excalidrawToKonvaLayers } from "../utils/excalidraw-to-konva"
 import { useOnboardingState } from "./modules/use-onboarding"
 import { useDesignDrafts } from "./modules/use-design-drafts"
 import { useExternalResources } from "./modules/use-external-resources"
@@ -42,6 +43,7 @@ type UseDesignEditorProps = {
     customer?: CustomerInfo | null
     countryCode?: string
     isMobileLayout?: boolean
+    initialDesign?: DesignDetail | null
 }
 
 export function useDesignEditor({
@@ -49,6 +51,7 @@ export function useDesignEditor({
     customer,
     countryCode,
     isMobileLayout = false,
+    initialDesign,
 }: UseDesignEditorProps) {
     const containerRef = useRef<HTMLDivElement | null>(null)
     const stageRef = useRef<Konva.Stage | null>(null)
@@ -69,6 +72,9 @@ export function useDesignEditor({
     const [savedDesignId, setSavedDesignId] = useState<string | null>(null)
     const [saveError, setSaveError] = useState<string | null>(null)
     const clearSaveError = useCallback(() => setSaveError(null), [])
+
+    // Design specs loaded from admin-created design brief
+    const [designSpecs, setDesignSpecs] = useState<NonNullable<DesignDetail["specifications"]>>([])
 
     const handleAiPaymentSuccess = useCallback(() => {
         setAiFeaturesPaid(true)
@@ -426,6 +432,36 @@ export function useDesignEditor({
             regenerateBaseImage()
         }
     }, [generatedBase, isGeneratingBase, product.thumbnail, regenerateBaseImage])
+
+    // On mount: if an admin-created initialDesign is provided, restore it into the editor
+    useEffect(() => {
+        if (!initialDesign) return
+
+        // 1. Set the saved design ID so subsequent saves call updateDesign
+        setSavedDesignId(initialDesign.id)
+
+        // 2. Set the design name and hide the name modal
+        setDesignName(initialDesign.name)
+        setDesign((prev) => ({ ...prev, name: initialDesign.name }))
+        setShowNameModal(false)
+
+        // 3. Determine initial layers
+        const existingLayers = (initialDesign.metadata?.layers ?? []) as DesignLayer[]
+        if (existingLayers.length > 0) {
+            setDesign((prev) => ({ ...prev, layers: existingLayers }))
+        } else if (initialDesign.moodboard) {
+            // Convert admin Excalidraw moodboard → Konva layers as a starting point
+            const convertedLayers = excalidrawToKonvaLayers(initialDesign.moodboard)
+            if (convertedLayers.length > 0) {
+                setDesign((prev) => ({ ...prev, layers: convertedLayers }))
+            }
+        }
+
+        // 4. Load design specs (for the Brief panel)
+        if (initialDesign.specifications?.length) {
+            setDesignSpecs(initialDesign.specifications)
+        }
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Update sizes on resize
     useEffect(() => {
@@ -1263,6 +1299,8 @@ export function useDesignEditor({
         savedDesignId,
         saveError,
         clearSaveError,
+
+        designSpecs,
 
         sidebarExpanded,
         setSidebarExpanded,

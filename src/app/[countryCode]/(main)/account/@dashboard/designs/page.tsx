@@ -135,6 +135,18 @@ export default async function DesignsPage() {
                     </span>
                   </div>
 
+                  {/* Edit in Designer link */}
+                  {(design.metadata as any)?.base_product_handle && (
+                    <div className="mb-4">
+                      <LocalizedClientLink
+                        href={`/products/${(design.metadata as any).base_product_handle}/design?designId=${design.id}`}
+                        className="inline-flex items-center gap-x-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 underline underline-offset-2"
+                      >
+                        Edit in Designer
+                      </LocalizedClientLink>
+                    </div>
+                  )}
+
                   {/* Materials & Partners */}
                   {((design.inventory_items?.length ?? 0) > 0 || (design.partners?.length ?? 0) > 0) && (
                     <div className="flex flex-wrap gap-2 mb-4">

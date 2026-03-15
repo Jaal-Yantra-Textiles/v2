@@ -41,6 +41,7 @@ export type Design = {
   status?: string
   thumbnail_url?: string
   metadata?: DesignMetadata
+  moodboard?: Record<string, any> | null
   inventory_items?: Array<{
     id: string
     title?: string
@@ -50,6 +51,31 @@ export type Design = {
     name?: string
   }>
   created_at?: string
+}
+
+// Extended design with relations fetched via GET /store/custom/designs/:id
+export type DesignDetail = Design & {
+  specifications?: Array<{
+    id: string
+    category?: string
+    title?: string
+    details?: string
+    measurements?: Record<string, any>
+  }>
+  colors?: Array<{
+    id: string
+    name: string
+    hex_code: string
+    usage_notes?: string
+    order?: number
+  }>
+  size_sets?: Array<{
+    id: string
+    size_label: string
+    measurements?: Record<string, any>
+  }>
+  color_palette?: Array<{ name: string; code: string }>
+  designer_notes?: string
 }
 
 // Request body for creating a design
@@ -161,6 +187,24 @@ export const listDesigns = async ({
       limit,
     }
   }
+}
+
+/**
+ * Fetches a single design by ID (must be owned by the authenticated customer)
+ */
+export const getDesign = async (id: string): Promise<DesignDetail> => {
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  const data = await sdk.client.fetch<{ design: DesignDetail }>(
+    `/store/custom/designs/${id}`,
+    {
+      method: "GET",
+      headers,
+    }
+  )
+  return data.design
 }
 
 /**
