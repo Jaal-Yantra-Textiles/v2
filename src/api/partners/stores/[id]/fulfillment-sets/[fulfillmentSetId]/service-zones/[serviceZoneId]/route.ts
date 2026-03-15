@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteServiceZonesWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../../../helpers"
 
 export const GET = async (
@@ -62,8 +63,7 @@ export const DELETE = async (
 
   const { serviceZoneId } = req.params
 
-  const fulfillmentService = req.scope.resolve(Modules.FULFILLMENT) as any
-  await fulfillmentService.deleteServiceZones(serviceZoneId)
+  await deleteServiceZonesWorkflow(req.scope).run({ input: { ids: [serviceZoneId] } })
 
   res.json({
     id: serviceZoneId,

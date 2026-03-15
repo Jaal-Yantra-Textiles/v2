@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteInventoryItemWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../../helpers"
 
 export const GET = async (
@@ -54,8 +55,7 @@ export const DELETE = async (
   }
 
   const { id } = req.params
-  const inventoryService = req.scope.resolve(Modules.INVENTORY) as any
-  await inventoryService.deleteInventoryItems(id)
+  await deleteInventoryItemWorkflow(req.scope).run({ input: [id] })
 
   res.json({ id, object: "inventory_item", deleted: true })
 }

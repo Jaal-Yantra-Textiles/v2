@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteStockLocationsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 import { PartnerUpdateLocationReq } from "../../validators"
 
@@ -90,8 +91,7 @@ export const DELETE = async (
     )
   }
 
-  const locationService = req.scope.resolve(Modules.STOCK_LOCATION) as any
-  await locationService.deleteStockLocations(locationId)
+  await deleteStockLocationsWorkflow(req.scope).run({ input: { ids: [locationId] } })
 
   // Clear the store's default_location_id
   const storeService = req.scope.resolve(Modules.STORE) as any

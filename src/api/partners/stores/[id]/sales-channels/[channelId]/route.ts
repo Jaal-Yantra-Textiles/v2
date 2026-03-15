@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteSalesChannelsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 
 export const GET = async (
@@ -77,8 +78,7 @@ export const DELETE = async (
     )
   }
 
-  const scService = req.scope.resolve(Modules.SALES_CHANNEL) as any
-  await scService.deleteSalesChannels([req.params.channelId])
+  await deleteSalesChannelsWorkflow(req.scope).run({ input: { ids: [req.params.channelId] } })
 
   res.json({ id: req.params.channelId, object: "sales_channel", deleted: true })
 }

@@ -1,5 +1,5 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteFulfillmentSetsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 
 export const DELETE = async (
@@ -14,8 +14,7 @@ export const DELETE = async (
 
   const { fulfillmentSetId } = req.params
 
-  const fulfillmentService = req.scope.resolve(Modules.FULFILLMENT) as any
-  await fulfillmentService.deleteFulfillmentSets(fulfillmentSetId)
+  await deleteFulfillmentSetsWorkflow(req.scope).run({ input: { ids: [fulfillmentSetId] } })
 
   res.json({
     id: fulfillmentSetId,

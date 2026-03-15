@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { deleteCustomerGroupsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerEntityOwnership } from "../../helpers"
 
 export const GET = async (
@@ -57,8 +58,7 @@ export const DELETE = async (
     [Modules.CUSTOMER]: { customer_group_id: req.params.id },
   })
 
-  const customerService = req.scope.resolve(Modules.CUSTOMER) as any
-  await customerService.deleteCustomerGroups(req.params.id)
+  await deleteCustomerGroupsWorkflow(req.scope).run({ input: { ids: [req.params.id] } })
 
   res.json({ id: req.params.id, object: "customer_group", deleted: true })
 }

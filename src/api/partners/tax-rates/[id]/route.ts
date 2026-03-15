@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteTaxRatesWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../../helpers"
 
 export const GET = async (
@@ -62,8 +63,7 @@ export const DELETE = async (
   }
 
   const { id } = req.params
-  const taxService = req.scope.resolve(Modules.TAX) as any
-  await taxService.deleteTaxRates(id)
+  await deleteTaxRatesWorkflow(req.scope).run({ input: { ids: [id] } })
 
   res.json({ id, object: "tax_rate", deleted: true })
 }

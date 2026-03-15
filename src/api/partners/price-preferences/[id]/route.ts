@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deletePricePreferencesWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../../helpers"
 
 export const GET = async (
@@ -62,8 +63,7 @@ export const DELETE = async (
   }
 
   const { id } = req.params
-  const pricingService = req.scope.resolve(Modules.PRICING) as any
-  await pricingService.deletePricePreferences(id)
+  await deletePricePreferencesWorkflow(req.scope).run({ input: [id] })
 
   res.json({ id, object: "price_preference", deleted: true })
 }

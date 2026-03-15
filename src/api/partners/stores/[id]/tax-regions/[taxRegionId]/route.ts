@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteTaxRegionsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 
 export const GET = async (
@@ -56,8 +57,7 @@ export const DELETE = async (
     req.scope
   )
 
-  const taxService = req.scope.resolve(Modules.TAX) as any
-  await taxService.deleteTaxRegions([req.params.taxRegionId])
+  await deleteTaxRegionsWorkflow(req.scope).run({ input: { ids: [req.params.taxRegionId] } })
 
   res.json({ id: req.params.taxRegionId, object: "tax_region", deleted: true })
 }

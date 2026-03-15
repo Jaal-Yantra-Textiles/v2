@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteRegionsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 import { PartnerUpdateRegionReq } from "../../validators"
 
@@ -82,8 +83,7 @@ export const DELETE = async (
     )
   }
 
-  const regionService = req.scope.resolve(Modules.REGION) as any
-  await regionService.deleteRegions([regionId])
+  await deleteRegionsWorkflow(req.scope).run({ input: { ids: [regionId] } })
 
   // Clear the store's default region
   const storeService = req.scope.resolve(Modules.STORE) as any

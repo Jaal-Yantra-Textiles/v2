@@ -7,6 +7,7 @@ import {
   MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
+import { deleteShippingOptionTypesWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../../helpers"
 
 export const GET = async (
@@ -74,8 +75,7 @@ export const DELETE = async (
   }
 
   const { id } = req.params
-  const fulfillmentService = req.scope.resolve(Modules.FULFILLMENT)
-  await fulfillmentService.deleteShippingOptionTypes([id])
+  await deleteShippingOptionTypesWorkflow(req.scope).run({ input: { ids: [id] } })
 
   res.json({ id, object: "shipping_option_type", deleted: true })
 }

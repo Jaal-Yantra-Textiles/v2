@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
+import { deleteProductOptionsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../../../helpers"
 
 export const POST = async (
@@ -32,8 +33,7 @@ export const DELETE = async (
     req.scope
   )
 
-  const productService = req.scope.resolve(Modules.PRODUCT) as any
-  await productService.deleteProductOptions([req.params.optionId])
+  await deleteProductOptionsWorkflow(req.scope).run({ input: { ids: [req.params.optionId] } })
 
   res.json({ id: req.params.optionId, object: "product_option", deleted: true })
 }

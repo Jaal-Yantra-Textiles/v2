@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../../../../helpers"
 
 export const POST = async (
@@ -38,10 +39,7 @@ export const DELETE = async (
   }
 
   const { id, locationId } = req.params
-  const inventoryService = req.scope.resolve(Modules.INVENTORY) as any
-  await inventoryService.deleteInventoryLevels(
-    { inventory_item_id: id, location_id: locationId }
-  )
+  await deleteInventoryLevelsWorkflow(req.scope).run({ input: { inventory_item_id: id, location_id: locationId } })
 
   res.json({
     id: `${id}-${locationId}`,

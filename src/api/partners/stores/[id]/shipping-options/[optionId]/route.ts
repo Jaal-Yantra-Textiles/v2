@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteShippingOptionsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 import { PartnerUpdateShippingOptionReq } from "../../validators"
 
@@ -61,8 +62,7 @@ export const DELETE = async (
     req.scope
   )
 
-  const fulfillmentService = req.scope.resolve(Modules.FULFILLMENT) as any
-  await fulfillmentService.deleteShippingOptions([req.params.optionId])
+  await deleteShippingOptionsWorkflow(req.scope).run({ input: { ids: [req.params.optionId] } })
 
   res.json({ id: req.params.optionId, object: "shipping_option", deleted: true })
 }
