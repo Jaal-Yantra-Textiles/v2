@@ -188,6 +188,21 @@ module.exports = defineConfig({
               apiKey: process.env.STRIPE_API_KEY,
             },
           },
+          ...(process.env.RAZORPAY_ID
+            ? [
+                {
+                  resolve: "@devx-commerce/razorpay/providers/payment-razorpay",
+                  id: "razorpay",
+                  options: {
+                    key_id: process.env.RAZORPAY_ID,
+                    key_secret: process.env.RAZORPAY_SECRET,
+                    razorpay_account: process.env.RAZORPAY_ACCOUNT,
+                    webhook_secret: process.env.RAZORPAY_WEBHOOK_SECRET,
+                    auto_capture: true,
+                  },
+                },
+              ]
+            : []),
         ],
       },
     },

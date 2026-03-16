@@ -129,9 +129,35 @@ const createRegionStep = createStep<CreateStoreWithDefaultsInput["region"], any,
     }
 
     // Otherwise, create a new region
-    const paymentProviders = input.payment_providers?.length
-      ? input.payment_providers
-      : ["pp_stripe_stripe", "pp_system_default"]
+    // Auto-select payment providers based on currency/country
+    let paymentProviders: string[]
+    if (input.payment_providers?.length) {
+      paymentProviders = input.payment_providers
+    } else {
+      paymentProviders = ["pp_system_default"]
+
+      // Check which providers are available
+      const { data: availableProviders } = await query.graph({
+        entity: "payment_provider",
+        fields: ["id", "is_enabled"],
+      })
+      const enabledProviderIds = (availableProviders || [])
+        .filter((p: any) => p.is_enabled !== false)
+        .map((p: any) => p.id)
+
+      // Add Stripe if available
+      if (enabledProviderIds.includes("pp_stripe_stripe")) {
+        paymentProviders.push("pp_stripe_stripe")
+      }
+
+      // Add Razorpay for INR regions (India)
+      const isIndianRegion =
+        input.currency_code === "inr" ||
+        reqCountries.includes("in")
+      if (isIndianRegion && enabledProviderIds.includes("pp_razorpay_razorpay")) {
+        paymentProviders.push("pp_razorpay_razorpay")
+      }
+    }
 
     const { result } = await createRegionsWorkflow(container).run({
       input: {
@@ -258,7 +284,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
       fields: ["id", "is_enabled"],
     })
 
-    const available = (providers || []) as Array<{ id: string; is_enabled: boolean }>
+    const available = (providers || []) as unknown as Array<{ id: string; is_enabled: boolean }>
     const enabledIds = available.filter((p) => p.is_enabled !== false).map((p) => p.id)
 
     const country = input.countryCode.toLowerCase()
