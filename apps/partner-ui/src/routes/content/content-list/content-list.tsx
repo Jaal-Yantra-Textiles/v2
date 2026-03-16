@@ -1,7 +1,7 @@
 import { Container, Heading, Text, Button, Badge, toast } from "@medusajs/ui"
 import { PlusMini, ArrowPath } from "@medusajs/icons"
 import { useNavigate } from "react-router-dom"
-import { SingleColumnPage } from "../../../components/layout/pages"
+import { Container as PageContainer } from "@medusajs/ui"
 import {
   usePartnerWebsite,
   useCreatePartnerWebsite,
@@ -51,7 +51,7 @@ export const ContentList = () => {
   // Not provisioned
   if (!isLoading && !storefrontStatus?.provisioned) {
     return (
-      <SingleColumnPage>
+      <div className="flex flex-col gap-y-3">
         <Container className="p-8 text-center">
           <Heading level="h1" className="mb-2">
             Content
@@ -63,14 +63,14 @@ export const ContentList = () => {
             Go to Settings
           </Button>
         </Container>
-      </SingleColumnPage>
+      </div>
     )
   }
 
   // No website yet
   if (!isLoading && !websiteLoading && !website) {
     return (
-      <SingleColumnPage>
+      <div className="flex flex-col gap-y-3">
         <Container className="p-8 text-center">
           <Heading level="h1" className="mb-2">
             Content
@@ -83,12 +83,12 @@ export const ContentList = () => {
             {isCreating ? "Setting up..." : "Set Up Website"}
           </Button>
         </Container>
-      </SingleColumnPage>
+      </div>
     )
   }
 
   return (
-    <SingleColumnPage>
+    <div className="flex flex-col gap-y-3">
       <Container className="divide-y p-0">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4">
@@ -172,6 +172,6 @@ export const ContentList = () => {
           </div>
         )}
       </Container>
-    </SingleColumnPage>
+    </div>
   )
 }
