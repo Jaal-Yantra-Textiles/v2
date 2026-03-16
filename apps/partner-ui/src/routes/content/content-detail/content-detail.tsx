@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import {
-  Container,
   Heading,
   Text,
   Button,
@@ -12,14 +11,15 @@ import {
 } from "@medusajs/ui"
 import {
   ArrowPath,
-  ArrowUturnLeft,
-  SidebarLeft,
-  SidebarRight,
   CursorArrowRays,
   EyeMini,
   EyeSlash,
   Trash,
 } from "@medusajs/icons"
+import {
+  RouteFocusModal,
+  useRouteModal,
+} from "../../../components/modals"
 import {
   useContentPage,
   useContentBlocks,
@@ -29,37 +29,26 @@ import {
 } from "../../../hooks/api/content"
 import { useStorefrontStatus } from "../../../hooks/api/storefront"
 import { sdk } from "../../../lib/client"
-import { queryClient } from "../../../lib/query-client"
-import { contentQueryKeys } from "../../../hooks/api/content"
-
-// Reuse the admin visual editor components — they're imported from the shared source
-// Since partner-ui is a separate app, we inline a lightweight page editor here
-// that calls the partner API endpoints directly.
 
 export const ContentDetail = () => {
   const { id: pageId } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { handleSuccess } = useRouteModal()
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const { page, isPending: pageLoading } = useContentPage(pageId!)
-  const { blocks: initialBlocks, isPending: blocksLoading } = useContentBlocks(
-    pageId!
-  )
+  const { blocks: initialBlocks, isPending: blocksLoading } = useContentBlocks(pageId!)
   const { data: storefrontStatus } = useStorefrontStatus()
-  const { mutateAsync: updatePage, isPending: isUpdatingPage } =
-    useUpdateContentPage(pageId!)
+  const { mutateAsync: updatePage, isPending: isUpdatingPage } = useUpdateContentPage(pageId!)
   const { mutateAsync: deletePage } = useDeleteContentPage(pageId!)
 
   const [blocks, setBlocks] = useState<ContentBlock[]>([])
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
-  const [saveStatus, setSaveStatus] = useState<
-    "saved" | "saving" | "unsaved"
-  >("saved")
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [iframeReady, setIframeReady] = useState(false)
 
   const domain = storefrontStatus?.domain
 
-  // Sync blocks from query
   useEffect(() => {
     if (initialBlocks?.length) {
       setBlocks([...initialBlocks].sort((a, b) => a.order - b.order))
@@ -71,20 +60,13 @@ export const ContentDetail = () => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data
       if (!data || typeof data !== "object" || !("type" in data)) return
-
-      if (data.type === "VISUAL_EDITOR_READY") {
-        setIframeReady(true)
-      }
-      if (data.type === "BLOCK_CLICKED") {
-        setSelectedBlockId(data.blockId)
-      }
+      if (data.type === "VISUAL_EDITOR_READY") setIframeReady(true)
+      if (data.type === "BLOCK_CLICKED") setSelectedBlockId(data.blockId)
     }
-
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
   }, [])
 
-  // Sync selection to iframe
   useEffect(() => {
     if (iframeReady && selectedBlockId && iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage(
@@ -94,7 +76,6 @@ export const ContentDetail = () => {
     }
   }, [iframeReady, selectedBlockId])
 
-  // Block update via partner API
   const handleBlockUpdate = useCallback(
     async (blockId: string, updates: Partial<ContentBlock>) => {
       setBlocks((prev) =>
@@ -102,20 +83,17 @@ export const ContentDetail = () => {
       )
       setSaveStatus("saving")
 
-      // Real-time preview
-      if (iframeReady && iframeRef.current?.contentWindow) {
-        if (updates.content || updates.settings) {
-          const current = blocks.find((b) => b.id === blockId)
-          iframeRef.current.contentWindow.postMessage(
-            {
-              type: "UPDATE_BLOCK_PREVIEW",
-              blockId,
-              content: { ...(current?.content || {}), ...(updates.content || {}) },
-              settings: { ...(current?.settings || {}), ...(updates.settings || {}) },
-            },
-            "*"
-          )
-        }
+      if (iframeReady && iframeRef.current?.contentWindow && (updates.content || updates.settings)) {
+        const current = blocks.find((b) => b.id === blockId)
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: "UPDATE_BLOCK_PREVIEW",
+            blockId,
+            content: { ...(current?.content || {}), ...(updates.content || {}) },
+            settings: { ...(current?.settings || {}), ...(updates.settings || {}) },
+          },
+          "*"
+        )
       }
 
       try {
@@ -138,13 +116,9 @@ export const ContentDetail = () => {
     try {
       await updatePage({
         status: newStatus,
-        ...(newStatus === "Published"
-          ? { published_at: new Date().toISOString() }
-          : {}),
+        ...(newStatus === "Published" ? { published_at: new Date().toISOString() } : {}),
       })
-      toast.success(
-        `Page ${newStatus === "Published" ? "published" : "unpublished"}`
-      )
+      toast.success(`Page ${newStatus === "Published" ? "published" : "unpublished"}`)
     } catch (e: any) {
       toast.error(e?.message || "Failed to update status")
     }
@@ -154,72 +128,64 @@ export const ContentDetail = () => {
     try {
       await deletePage()
       toast.success("Page deleted")
-      navigate("/content")
+      handleSuccess()
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete page")
     }
   }
 
   const handleRefresh = () => {
-    if (iframeRef.current) {
-      iframeRef.current.src = iframeRef.current.src
-    }
+    if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
   }
 
   const previewUrl = domain
     ? `https://${domain}/pages/${page?.slug || ""}?visual_editor=true`
     : `http://localhost:8000/pages/${page?.slug || ""}?visual_editor=true`
 
+  const isPublished = page?.status === "Published"
+  const selectedBlock = blocks.find((b) => b.id === selectedBlockId)
+
   if (pageLoading || blocksLoading) {
     return (
-      <Container className="p-8 text-center">
-        <Text className="text-ui-fg-subtle">Loading page...</Text>
-      </Container>
+      <RouteFocusModal>
+        <RouteFocusModal.Header>
+          <RouteFocusModal.Title asChild>
+            <Heading>Loading...</Heading>
+          </RouteFocusModal.Title>
+        </RouteFocusModal.Header>
+        <RouteFocusModal.Body className="flex items-center justify-center">
+          <Text className="text-ui-fg-subtle">Loading page editor...</Text>
+        </RouteFocusModal.Body>
+      </RouteFocusModal>
     )
   }
 
   if (!page) {
     return (
-      <Container className="p-8 text-center">
-        <Text className="text-ui-fg-subtle">Page not found</Text>
-        <Button
-          variant="secondary"
-          className="mt-4"
-          onClick={() => navigate("/content")}
-        >
-          Back to Content
-        </Button>
-      </Container>
+      <RouteFocusModal>
+        <RouteFocusModal.Header>
+          <RouteFocusModal.Title asChild>
+            <Heading>Page not found</Heading>
+          </RouteFocusModal.Title>
+        </RouteFocusModal.Header>
+        <RouteFocusModal.Body className="flex items-center justify-center">
+          <Text className="text-ui-fg-subtle">This page does not exist.</Text>
+        </RouteFocusModal.Body>
+      </RouteFocusModal>
     )
   }
 
-  const isPublished = page.status === "Published"
-  const selectedBlock = blocks.find((b) => b.id === selectedBlockId)
-
   return (
-    <div className="flex flex-col h-[calc(100vh-57px)]">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between border-b border-ui-border-base px-4 py-2 bg-ui-bg-base">
+    <RouteFocusModal>
+      <RouteFocusModal.Header>
         <div className="flex items-center gap-x-3">
-          <Button
-            variant="transparent"
-            size="small"
-            onClick={() => navigate("/content")}
-          >
-            <ArrowUturnLeft className="mr-1.5" />
-            Back
-          </Button>
-          <div className="h-5 w-px bg-ui-border-base" />
-          <Text weight="plus">{page.title}</Text>
-          <Badge
-            color={isPublished ? "green" : "orange"}
-            size="2xsmall"
-          >
+          <RouteFocusModal.Title asChild>
+            <Heading>{page.title}</Heading>
+          </RouteFocusModal.Title>
+          <Badge color={isPublished ? "green" : "orange"} size="2xsmall">
             {page.status}
           </Badge>
-          <Badge color="grey" size="2xsmall">
-            /{page.slug}
-          </Badge>
+          <Badge color="grey" size="2xsmall">/{page.slug}</Badge>
         </div>
         <div className="flex items-center gap-x-2">
           <Tooltip content="Refresh preview">
@@ -234,223 +200,152 @@ export const ContentDetail = () => {
             disabled={isUpdatingPage}
           >
             {isPublished ? (
-              <>
-                <EyeSlash className="mr-1.5" />
-                Unpublish
-              </>
+              <><EyeSlash className="mr-1.5" />Unpublish</>
             ) : (
-              <>
-                <EyeMini className="mr-1.5" />
-                Publish
-              </>
+              <><EyeMini className="mr-1.5" />Publish</>
             )}
           </Button>
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={handleDelete}
-          >
-            <Trash className="mr-1.5" />
-            Delete
+          <Button variant="secondary" size="small" onClick={handleDelete}>
+            <Trash className="mr-1.5" />Delete
           </Button>
         </div>
-      </div>
+      </RouteFocusModal.Header>
 
-      {/* Editor area */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Block list sidebar */}
-        <div className="w-[220px] border-r border-ui-border-base overflow-y-auto bg-ui-bg-subtle">
-          <div className="px-3 py-3">
-            <Text size="xsmall" className="text-ui-fg-muted uppercase font-semibold tracking-wide">
-              Blocks ({blocks.length})
-            </Text>
-          </div>
-          <div className="flex flex-col gap-y-0.5 px-2 pb-3">
-            {blocks.map((block) => (
-              <button
-                key={block.id}
-                onClick={() => setSelectedBlockId(block.id)}
-                className={`flex items-center gap-x-2 px-3 py-2 rounded-md text-left text-sm transition-colors ${
-                  selectedBlockId === block.id
-                    ? "bg-ui-bg-highlight border border-ui-border-strong"
-                    : "hover:bg-ui-bg-base border border-transparent"
-                }`}
-              >
-                <Badge color="grey" size="2xsmall">
-                  {block.type}
-                </Badge>
-                <Text size="small" className="truncate">
-                  {block.name}
-                </Text>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Preview iframe */}
-        <div className="flex-1 bg-ui-bg-subtle p-4">
-          <div className="w-full h-full rounded-lg shadow-elevation-card-rest overflow-hidden bg-white">
-            <iframe
-              ref={iframeRef}
-              src={previewUrl}
-              className="w-full h-full border-0"
-              sandbox="allow-scripts allow-same-origin allow-forms"
-            />
-          </div>
-        </div>
-
-        {/* Property panel */}
-        {selectedBlock && (
-          <div className="w-[280px] border-l border-ui-border-base overflow-y-auto bg-ui-bg-base p-4">
-            <div className="flex items-center justify-between mb-4">
-              <Badge color="grey" size="small">
-                {selectedBlock.type}
-              </Badge>
-              <Text
-                size="xsmall"
-                className={
-                  saveStatus === "saved"
-                    ? "text-ui-fg-success"
-                    : saveStatus === "saving"
-                      ? "text-ui-fg-muted"
-                      : "text-ui-fg-error"
-                }
-              >
-                {saveStatus === "saved"
-                  ? "Saved"
-                  : saveStatus === "saving"
-                    ? "Saving..."
-                    : "Unsaved"}
+      <RouteFocusModal.Body className="p-0 h-[calc(100vh-120px)]">
+        <div className="flex h-full overflow-hidden">
+          {/* Block list sidebar */}
+          <div className="w-[220px] border-r border-ui-border-base overflow-y-auto bg-ui-bg-subtle shrink-0">
+            <div className="px-3 py-3">
+              <Text size="xsmall" className="text-ui-fg-muted uppercase font-semibold tracking-wide">
+                Blocks ({blocks.length})
               </Text>
             </div>
+            <div className="flex flex-col gap-y-0.5 px-2 pb-3">
+              {blocks.map((block) => (
+                <button
+                  key={block.id}
+                  onClick={() => setSelectedBlockId(block.id)}
+                  className={`flex items-center gap-x-2 px-3 py-2 rounded-md text-left text-sm transition-colors ${
+                    selectedBlockId === block.id
+                      ? "bg-ui-bg-highlight border border-ui-border-strong"
+                      : "hover:bg-ui-bg-base border border-transparent"
+                  }`}
+                >
+                  <Badge color="grey" size="2xsmall">{block.type}</Badge>
+                  <Text size="small" className="truncate">{block.name}</Text>
+                </button>
+              ))}
+            </div>
+          </div>
 
-            <div className="space-y-4">
-              <div>
+          {/* Preview iframe */}
+          <div className="flex-1 bg-ui-bg-subtle p-4">
+            <div className="w-full h-full rounded-lg shadow-elevation-card-rest overflow-hidden bg-white">
+              <iframe
+                ref={iframeRef}
+                src={previewUrl}
+                className="w-full h-full border-0"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+              />
+            </div>
+          </div>
+
+          {/* Property panel */}
+          {selectedBlock ? (
+            <div className="w-[280px] border-l border-ui-border-base overflow-y-auto bg-ui-bg-base p-4 shrink-0">
+              <div className="flex items-center justify-between mb-4">
+                <Badge color="grey" size="small">{selectedBlock.type}</Badge>
                 <Text
                   size="xsmall"
-                  className="text-ui-fg-muted font-semibold uppercase mb-1"
-                >
-                  Block Name
-                </Text>
-                <input
-                  className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
-                  value={selectedBlock.name}
-                  onChange={(e) =>
-                    handleBlockUpdate(selectedBlock.id, {
-                      name: e.target.value,
-                    })
+                  className={
+                    saveStatus === "saved"
+                      ? "text-ui-fg-success"
+                      : saveStatus === "saving"
+                        ? "text-ui-fg-muted"
+                        : "text-ui-fg-error"
                   }
-                />
-              </div>
-
-              {/* Content fields based on type */}
-              {(selectedBlock.type === "Hero" ||
-                selectedBlock.type.toLowerCase().includes("hero")) && (
-                <>
-                  <div>
-                    <Text
-                      size="xsmall"
-                      className="text-ui-fg-muted font-semibold uppercase mb-1"
-                    >
-                      Title
-                    </Text>
-                    <input
-                      className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
-                      value={
-                        (selectedBlock.content?.title as string) || ""
-                      }
-                      onChange={(e) =>
-                        handleBlockUpdate(selectedBlock.id, {
-                          content: {
-                            ...selectedBlock.content,
-                            title: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Text
-                      size="xsmall"
-                      className="text-ui-fg-muted font-semibold uppercase mb-1"
-                    >
-                      Subtitle
-                    </Text>
-                    <textarea
-                      className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm min-h-[60px]"
-                      value={
-                        (selectedBlock.content?.subtitle as string) || ""
-                      }
-                      onChange={(e) =>
-                        handleBlockUpdate(selectedBlock.id, {
-                          content: {
-                            ...selectedBlock.content,
-                            subtitle: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Settings */}
-              <div>
-                <Text
-                  size="xsmall"
-                  className="text-ui-fg-muted font-semibold uppercase mb-1"
                 >
-                  Background Color
+                  {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving..." : "Unsaved"}
                 </Text>
-                <div className="flex gap-x-2">
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <Text size="xsmall" className="text-ui-fg-muted font-semibold uppercase mb-1">
+                    Block Name
+                  </Text>
                   <input
-                    className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
-                    value={
-                      (selectedBlock.settings?.backgroundColor as string) ||
-                      ""
-                    }
-                    placeholder="#ffffff"
-                    onChange={(e) =>
-                      handleBlockUpdate(selectedBlock.id, {
-                        settings: {
-                          ...selectedBlock.settings,
-                          backgroundColor: e.target.value,
-                        },
-                      })
-                    }
+                    className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
+                    value={selectedBlock.name}
+                    onChange={(e) => handleBlockUpdate(selectedBlock.id, { name: e.target.value })}
                   />
-                  <input
-                    type="color"
-                    value={
-                      (selectedBlock.settings?.backgroundColor as string) ||
-                      "#ffffff"
-                    }
-                    onChange={(e) =>
-                      handleBlockUpdate(selectedBlock.id, {
-                        settings: {
-                          ...selectedBlock.settings,
-                          backgroundColor: e.target.value,
-                        },
-                      })
-                    }
-                    className="w-9 h-9 rounded border border-ui-border-base cursor-pointer"
-                  />
+                </div>
+
+                {(selectedBlock.type === "Hero" || selectedBlock.type.toLowerCase().includes("hero")) && (
+                  <>
+                    <div>
+                      <Text size="xsmall" className="text-ui-fg-muted font-semibold uppercase mb-1">Title</Text>
+                      <input
+                        className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
+                        value={(selectedBlock.content?.title as string) || ""}
+                        onChange={(e) =>
+                          handleBlockUpdate(selectedBlock.id, {
+                            content: { ...selectedBlock.content, title: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Text size="xsmall" className="text-ui-fg-muted font-semibold uppercase mb-1">Subtitle</Text>
+                      <textarea
+                        className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm min-h-[60px]"
+                        value={(selectedBlock.content?.subtitle as string) || ""}
+                        onChange={(e) =>
+                          handleBlockUpdate(selectedBlock.id, {
+                            content: { ...selectedBlock.content, subtitle: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <Text size="xsmall" className="text-ui-fg-muted font-semibold uppercase mb-1">Background Color</Text>
+                  <div className="flex gap-x-2">
+                    <input
+                      className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
+                      value={(selectedBlock.settings?.backgroundColor as string) || ""}
+                      placeholder="#ffffff"
+                      onChange={(e) =>
+                        handleBlockUpdate(selectedBlock.id, {
+                          settings: { ...selectedBlock.settings, backgroundColor: e.target.value },
+                        })
+                      }
+                    />
+                    <input
+                      type="color"
+                      value={(selectedBlock.settings?.backgroundColor as string) || "#ffffff"}
+                      onChange={(e) =>
+                        handleBlockUpdate(selectedBlock.id, {
+                          settings: { ...selectedBlock.settings, backgroundColor: e.target.value },
+                        })
+                      }
+                      className="w-9 h-9 rounded border border-ui-border-base cursor-pointer"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* No block selected placeholder */}
-        {!selectedBlock && (
-          <div className="w-[280px] border-l border-ui-border-base flex flex-col items-center justify-center p-6 text-center">
-            <CursorArrowRays className="text-ui-fg-muted opacity-40 mb-3" />
-            <Text size="small" className="text-ui-fg-subtle">
-              Click a block to edit its properties
-            </Text>
-          </div>
-        )}
-      </div>
-    </div>
+          ) : (
+            <div className="w-[280px] border-l border-ui-border-base flex flex-col items-center justify-center p-6 text-center shrink-0">
+              <CursorArrowRays className="text-ui-fg-muted opacity-40 mb-3" />
+              <Text size="small" className="text-ui-fg-subtle">
+                Click a block to edit
+              </Text>
+            </div>
+          )}
+        </div>
+      </RouteFocusModal.Body>
+    </RouteFocusModal>
   )
 }

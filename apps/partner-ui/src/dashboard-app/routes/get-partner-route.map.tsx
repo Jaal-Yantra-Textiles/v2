@@ -549,12 +549,9 @@ export function getPartnerRouteMap(): RouteObject[] {
               handle: {
                 breadcrumb: () => "Content",
               },
+              lazy: () =>
+                import("../../routes/content/content-list"),
               children: [
-                {
-                  path: "",
-                  lazy: () =>
-                    import("../../routes/content/content-list"),
-                },
                 {
                   path: ":id",
                   lazy: () =>
