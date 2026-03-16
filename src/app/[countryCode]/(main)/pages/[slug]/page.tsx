@@ -5,7 +5,6 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import { generateHTML } from "@tiptap/html"
 import StarterKit from "@tiptap/starter-kit"
 import ContactUsForm from "@modules/layout/components/contact-us-form"
-import VisualEditorBridge from "@modules/website/components/visual-editor-bridge"
 
 const DOMAIN = "shop.cicilabel.com"
 
@@ -19,16 +18,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
-export default async function Page({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string }>
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}) {
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const search = await searchParams
-  const isVisualEditor = search.visual_editor === "true"
 
   let page: Awaited<ReturnType<typeof getWebsitePage>> | null = null
   try {
@@ -224,37 +215,28 @@ export default async function Page({
             const type = normalizeType(block.type as any)
             const rawContent = (block as any).content ?? (block as any) // allow content at root
 
-            // data attributes for visual editor block targeting
-            const blockAttrs = isVisualEditor && block.id
-              ? {
-                  "data-block-id": block.id,
-                  "data-block-type": block.type || type,
-                  "data-block-name": block.name || type,
-                }
-              : {}
-
             if (type === "Hero") {
               const content = rawContent as { title?: string; subtitle?: string; align?: "left" | "center" }
               return (
-                <div key={`hero-${idx}`} {...blockAttrs}>{renderHero(content?.title ?? page.title, content?.subtitle, content?.align || 'center')}</div>
+                <div key={`hero-${idx}`}>{renderHero(content?.title ?? page.title, content?.subtitle, content?.align || 'center')}</div>
               )
             }
             if (type === "Main") {
               const content = rawContent as { body?: unknown; title?: string }
               return (
-                <div key={`main-${idx}`} {...blockAttrs}>{renderMain(content?.body, content?.title)}</div>
+                <div key={`main-${idx}`}>{renderMain(content?.body, content?.title)}</div>
               )
             }
             // Fallback for unknown block types: if title/body exist, render nicely
             const c = rawContent as { title?: string; body?: string }
             if (typeof c?.title === 'string' || typeof c?.body !== 'undefined') {
               return (
-                <div key={`${block.type}-${idx}`} {...blockAttrs}>{renderMain(c.body as any, c.title)}</div>
+                <div key={`${block.type}-${idx}`}>{renderMain(c.body as any, c.title)}</div>
               )
             }
             // Otherwise minimal presentation
             return (
-              <section key={`${block.type}-${idx}`} className="p-4" {...blockAttrs}>
+              <section key={`${block.type}-${idx}`} className="p-4">
                 <h2 className="m-0">{block.name || block.type}</h2>
                 {block && (
                   <pre className="text-sm text-ui-fg-subtle overflow-auto bg-ui-bg-subtle p-3 rounded mt-2">{JSON.stringify(block, null, 2)}</pre>
@@ -272,8 +254,6 @@ export default async function Page({
           </section>
         ) : null}
       </div>
-
-      {isVisualEditor && <VisualEditorBridge blocks={blocks} />}
     </article>
   )
 }

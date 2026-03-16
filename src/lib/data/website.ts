@@ -17,7 +17,6 @@ export type PublicWebsitePage = {
   status: "Published" | "Draft" | "Archived"
   published_at?: string
   blocks?: Array<{
-    id?: string
     name: string
     type: string
     content?: Record<string, unknown>
