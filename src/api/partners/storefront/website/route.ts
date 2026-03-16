@@ -93,7 +93,7 @@ export const GET = async (
   const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
   const [websites] = await websiteService.listAndCountWebsites(
     { domain },
-    { relations: ["pages"], take: 1 }
+    { take: 1 }
   )
 
   if (!websites.length) {
