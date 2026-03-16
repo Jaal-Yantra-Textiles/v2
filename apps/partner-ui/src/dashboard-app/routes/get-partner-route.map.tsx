@@ -544,6 +544,28 @@ export function getPartnerRouteMap(): RouteObject[] {
               ],
             },
             {
+              path: "/content",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Content",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () =>
+                    import("../../routes/content/content-list"),
+                },
+                {
+                  path: ":id",
+                  lazy: () =>
+                    import("../../routes/content/content-detail"),
+                  handle: {
+                    breadcrumb: () => "Edit Page",
+                  },
+                },
+              ],
+            },
+            {
               path: "/profile",
               errorElement: <ErrorBoundary />,
               handle: {

@@ -204,6 +204,7 @@ const MANUFACTURER_ROUTES: Omit<INavItem, "pathname">[] = [
   },
   { icon: <ShoppingCart />, label: "Orders", to: "/orders" },
   { icon: <Users />, label: "Customers", to: "/customers" },
+  { icon: <DocumentSeries />, label: "Content", to: "/content" },
 ]
 
 const SELLER_ROUTES: Omit<INavItem, "pathname">[] = [
@@ -220,6 +221,7 @@ const SELLER_ROUTES: Omit<INavItem, "pathname">[] = [
   },
   { icon: <ShoppingCart />, label: "Orders", to: "/orders" },
   { icon: <Users />, label: "Customers", to: "/customers" },
+  { icon: <DocumentSeries />, label: "Content", to: "/content" },
 ]
 
 const useCoreRoutes = (useType?: UseType): Omit<INavItem, "pathname">[] => {

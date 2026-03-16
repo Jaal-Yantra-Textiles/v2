@@ -1,7 +1,6 @@
 import { Badge, Button, Container, Heading, Text, toast, usePrompt } from "@medusajs/ui"
-import { ArrowUpRightOnBox, ArrowPath, PencilSquare } from "@medusajs/icons"
+import { ArrowUpRightOnBox, ArrowPath } from "@medusajs/icons"
 import { useState } from "react"
-import { Link } from "react-router-dom"
 import {
   useStorefrontStatus,
   useProvisionStorefront,
@@ -154,12 +153,6 @@ export const PartnerStorefrontSection = ({ partnerId }: { partnerId: string }) =
               </Button>
             </a>
           )}
-          <Link to={`/partners/${partnerId}/storefront-editor`}>
-            <Button variant="secondary" size="small">
-              <PencilSquare className="mr-1" />
-              Edit Pages
-            </Button>
-          </Link>
           <Button
             variant="secondary"
             size="small"
