@@ -67,6 +67,42 @@
           "default": "false",
           "mappedType": "boolean"
         },
+        "storefront_domain": {
+          "name": "storefront_domain",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "website_id": {
+          "name": "website_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "vercel_project_id": {
+          "name": "vercel_project_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "vercel_project_name": {
+          "name": "vercel_project_name",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -116,17 +152,19 @@
           "keyName": "IDX_partner_handle_unique",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_partner_handle_unique\" ON \"partner\" (handle) WHERE deleted_at IS NULL"
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_partner_handle_unique\" ON \"partner\" (\"handle\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_partner_deleted_at",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_partner_deleted_at\" ON \"partner\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_partner_deleted_at\" ON \"partner\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "partner_pkey",
@@ -134,12 +172,14 @@
             "id"
           ],
           "composite": false,
+          "constraint": true,
           "primary": true,
           "unique": true
         }
       ],
       "checks": [],
-      "foreignKeys": {}
+      "foreignKeys": {},
+      "nativeEnums": {}
     },
     {
       "columns": {
@@ -299,25 +339,28 @@
           "keyName": "IDX_partner_admin_email_unique",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_partner_admin_email_unique\" ON \"partner_admin\" (email) WHERE deleted_at IS NULL"
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_partner_admin_email_unique\" ON \"partner_admin\" (\"email\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_partner_admin_partner_id",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_partner_admin_partner_id\" ON \"partner_admin\" (partner_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_partner_admin_partner_id\" ON \"partner_admin\" (\"partner_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_partner_admin_deleted_at",
           "columnNames": [],
           "composite": false,
+          "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_partner_admin_deleted_at\" ON \"partner_admin\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_partner_admin_deleted_at\" ON \"partner_admin\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "partner_admin_pkey",
@@ -325,6 +368,7 @@
             "id"
           ],
           "composite": false,
+          "constraint": true,
           "primary": true,
           "unique": true
         }
@@ -343,7 +387,9 @@
           "referencedTableName": "public.partner",
           "updateRule": "cascade"
         }
-      }
+      },
+      "nativeEnums": {}
     }
-  ]
+  ],
+  "nativeEnums": {}
 }
