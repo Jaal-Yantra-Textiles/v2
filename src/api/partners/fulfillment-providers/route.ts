@@ -16,13 +16,16 @@ export const GET = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: providers } = await query.graph({
-    entity: "fulfillment_providers",
-    fields: ["*"],
+    entity: "fulfillment_provider",
+    fields: ["id", "is_enabled"],
   })
 
+  // Only return enabled providers
+  const enabled = (providers || []).filter((p: any) => p.is_enabled !== false)
+
   res.json({
-    fulfillment_providers: providers || [],
-    count: providers?.length || 0,
+    fulfillment_providers: enabled,
+    count: enabled.length,
     offset: 0,
     limit: 20,
   })
