@@ -23,17 +23,13 @@ export const listPageStep = createStep(
   async (input: ListPageStepInput, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
 
-    // If website_id is provided, verify the website exists and filter by it
+    // If website_id is provided, verify the website exists
     if (input.website_id) {
       await websiteService.retrieveWebsite(input.website_id);
     }
-    // List Page entities — always include website_id in filters when provided
-    const filters = {
-      ...input.filters,
-      ...(input.website_id ? { website_id: input.website_id } : {}),
-    };
+    // List Page entities
     const pages = await websiteService.listAndCountPages(
-      filters,
+      input.filters,
       input.config
     );
 
