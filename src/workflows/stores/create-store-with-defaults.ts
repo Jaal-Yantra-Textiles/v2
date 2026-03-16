@@ -242,6 +242,82 @@ const createPublishableApiKeyStep = createStep(
   }
 )
 
+// Step: auto-link fulfillment providers to location based on country
+const autoLinkFulfillmentProvidersStep = createStep(
+  "auto-link-fulfillment-providers",
+  async (
+    input: { locationId: string; countryCode: string },
+    { container }
+  ) => {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
+
+    // Get all available fulfillment providers
+    const { data: providers } = await query.graph({
+      entity: "fulfillment_provider",
+      fields: ["id", "is_enabled"],
+    })
+
+    const available = (providers || []) as Array<{ id: string; is_enabled: boolean }>
+    const enabledIds = available.filter((p) => p.is_enabled !== false).map((p) => p.id)
+
+    const country = input.countryCode.toLowerCase()
+
+    // Determine which providers to link based on country
+    const toLink: string[] = []
+
+    // Always add manual
+    if (enabledIds.includes("manual_manual")) {
+      toLink.push("manual_manual")
+    }
+
+    // India → Delhivery
+    if (country === "in" && enabledIds.includes("delhivery_delhivery")) {
+      toLink.push("delhivery_delhivery")
+    }
+
+    // EU countries → DHL
+    const euCountries = new Set([
+      "de", "fr", "it", "es", "nl", "be", "at", "pt", "ie", "fi",
+      "se", "dk", "pl", "cz", "gr", "hu", "ro", "bg", "hr", "sk",
+      "si", "lt", "lv", "ee", "lu", "mt", "cy", "gb", "ch", "no",
+    ])
+    if (euCountries.has(country) && enabledIds.includes("dhl-express_dhl-express")) {
+      toLink.push("dhl-express_dhl-express")
+    }
+
+    // US/CA → UPS or FedEx
+    if ((country === "us" || country === "ca")) {
+      if (enabledIds.includes("ups_ups")) toLink.push("ups_ups")
+      if (enabledIds.includes("fedex_fedex")) toLink.push("fedex_fedex")
+    }
+
+    // Australia → AusPost
+    if (country === "au" && enabledIds.includes("auspost_auspost")) {
+      toLink.push("auspost_auspost")
+    }
+
+    // Link providers to the stock location
+    for (const providerId of toLink) {
+      try {
+        await remoteLink.create({
+          [Modules.STOCK_LOCATION]: { stock_location_id: input.locationId },
+          [Modules.FULFILLMENT]: { fulfillment_provider_id: providerId },
+        } as any)
+      } catch {
+        // Provider may already be linked or not available
+      }
+    }
+
+    console.log(
+      `[create-store] Auto-linked ${toLink.length} fulfillment providers for country=${country}:`,
+      toLink
+    )
+
+    return new StepResponse({ linked: toLink })
+  }
+)
+
 // Step: link newly created store to the partner
 const linkPartnerToStoreStep = createStep(
   "link-partner-to-store-step",
@@ -293,6 +369,12 @@ export const createStoreWithDefaultsWorkflow = createWorkflow(
     const apiKey = createPublishableApiKeyStep({
       storeName: input.store.name,
       salesChannelId: salesChannel.id,
+    })
+
+    // Auto-link fulfillment providers based on partner's country
+    autoLinkFulfillmentProvidersStep({
+      locationId: location.id,
+      countryCode: input.location.address.country_code,
     })
 
     // Always link using explicit partner_id from workflow input

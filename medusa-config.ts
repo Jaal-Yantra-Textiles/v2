@@ -202,7 +202,7 @@ module.exports = defineConfig({
           ...(process.env.DELHIVERY_API_TOKEN
             ? [
                 {
-                  resolve: "./src/modules/shipping-providers",
+                  resolve: "./src/modules/shipping-providers/delhivery",
                   id: "delhivery",
                   options: {
                     api_token: process.env.DELHIVERY_API_TOKEN,
@@ -214,7 +214,7 @@ module.exports = defineConfig({
           ...(process.env.DHL_API_KEY
             ? [
                 {
-                  resolve: "./src/modules/shipping-providers",
+                  resolve: "./src/modules/shipping-providers/dhl",
                   id: "dhl-express",
                   options: {
                     api_key: process.env.DHL_API_KEY,
@@ -228,7 +228,7 @@ module.exports = defineConfig({
           ...(process.env.UPS_CLIENT_ID
             ? [
                 {
-                  resolve: "./src/modules/shipping-providers",
+                  resolve: "./src/modules/shipping-providers/ups",
                   id: "ups",
                   options: {
                     client_id: process.env.UPS_CLIENT_ID,
@@ -242,7 +242,7 @@ module.exports = defineConfig({
           ...(process.env.FEDEX_CLIENT_ID
             ? [
                 {
-                  resolve: "./src/modules/shipping-providers",
+                  resolve: "./src/modules/shipping-providers/fedex",
                   id: "fedex",
                   options: {
                     client_id: process.env.FEDEX_CLIENT_ID,
@@ -256,7 +256,7 @@ module.exports = defineConfig({
           ...(process.env.AUSPOST_CLIENT_ID
             ? [
                 {
-                  resolve: "./src/modules/shipping-providers",
+                  resolve: "./src/modules/shipping-providers/auspost",
                   id: "auspost",
                   options: {
                     client_id: process.env.AUSPOST_CLIENT_ID,
