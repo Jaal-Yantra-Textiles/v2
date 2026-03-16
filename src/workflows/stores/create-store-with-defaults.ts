@@ -309,6 +309,52 @@ const autoLinkFulfillmentProvidersStep = createStep(
       }
     }
 
+    // Auto-create shipping + pickup fulfillment sets with a service zone
+    const fulfillmentService = container.resolve(Modules.FULFILLMENT) as any
+    const countryUpper = country.toUpperCase()
+
+    try {
+      // Create shipping fulfillment set
+      const shippingSet = await fulfillmentService.createFulfillmentSets({
+        name: "Shipping",
+        type: "shipping",
+        service_zones: [
+          {
+            name: `${countryUpper} Shipping Zone`,
+            geo_zones: [{ country_code: countryUpper, type: "country" }],
+          },
+        ],
+      })
+      // Link shipping set to the stock location
+      await remoteLink.create({
+        [Modules.STOCK_LOCATION]: { stock_location_id: input.locationId },
+        [Modules.FULFILLMENT]: { fulfillment_set_id: shippingSet.id },
+      } as any)
+
+      // Create pickup fulfillment set
+      const pickupSet = await fulfillmentService.createFulfillmentSets({
+        name: "In-Store Pickup",
+        type: "pickup",
+        service_zones: [
+          {
+            name: `${countryUpper} Pickup Zone`,
+            geo_zones: [{ country_code: countryUpper, type: "country" }],
+          },
+        ],
+      })
+      // Link pickup set to the stock location
+      await remoteLink.create({
+        [Modules.STOCK_LOCATION]: { stock_location_id: input.locationId },
+        [Modules.FULFILLMENT]: { fulfillment_set_id: pickupSet.id },
+      } as any)
+
+      console.log(
+        `[create-store] Created shipping + pickup fulfillment sets for ${countryUpper}`
+      )
+    } catch (e: any) {
+      console.error(`[create-store] Failed to create fulfillment sets: ${e.message}`)
+    }
+
     console.log(
       `[create-store] Auto-linked ${toLink.length} fulfillment providers for country=${country}:`,
       toLink
