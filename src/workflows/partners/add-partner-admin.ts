@@ -1,4 +1,4 @@
-import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
+import { createStep, createWorkflow, StepResponse, WorkflowResponse, transform } from "@medusajs/framework/workflows-sdk"
 import { setAuthAppMetadataStep } from "@medusajs/medusa/core-flows"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import type { IAuthModuleService, RemoteQueryFunction } from "@medusajs/types"
@@ -88,15 +88,26 @@ const emitAdminAddedEventStep = createStep(
       partner_id: string
       partner_name: string
       admin_email: string
-      admin_name: string
+      admin_first_name?: string
+      admin_last_name?: string
       temp_password: string
     },
     { container }
   ) => {
+    const adminName = [input.admin_first_name, input.admin_last_name]
+      .filter(Boolean)
+      .join(" ") || input.admin_email
+
     const eventBus = container.resolve(Modules.EVENT_BUS) as any
     await eventBus.emit({
       name: "partner.admin.added",
-      data: input,
+      data: {
+        partner_id: input.partner_id,
+        partner_name: input.partner_name,
+        admin_email: input.admin_email,
+        admin_name: adminName,
+        temp_password: input.temp_password,
+      },
     })
     return new StepResponse({ emitted: true })
   }
@@ -122,7 +133,8 @@ export const addPartnerAdminWorkflow = createWorkflow(
       partner_id: result.partner.id,
       partner_name: result.partner.name,
       admin_email: input.admin.email,
-      admin_name: [input.admin.first_name, input.admin.last_name].filter(Boolean).join(" ") || input.admin.email,
+      admin_first_name: input.admin.first_name,
+      admin_last_name: input.admin.last_name,
       temp_password: registered.tempPassword,
     })
 
