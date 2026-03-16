@@ -54,7 +54,9 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
+import { Modules } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
+import type { IAuthModuleService } from "@medusajs/types"
 
 export const GET = async (
     req: AuthenticatedMedusaRequest,
@@ -65,16 +67,42 @@ export const GET = async (
             error: "Partner authentication required - no actor ID"
         })
     }
-    
+
     const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
-    
+
     if (!partner) {
         return res.status(401).json({
             error: "Partner authentication required - no partner found"
         })
     }
-    
+
+    // Identify the currently logged-in admin by their auth identity email
+    let currentAdminId: string | null = null
+    if (req.auth_context.auth_identity_id) {
+        try {
+            const authModule = req.scope.resolve(Modules.AUTH) as IAuthModuleService
+            const providerIdentities = await authModule.listProviderIdentities({
+                auth_identity_id: req.auth_context.auth_identity_id,
+            } as any)
+            const emailIdentity = (providerIdentities || []).find(
+                (pi: any) => pi.provider === "emailpass"
+            )
+            if (emailIdentity?.entity_id) {
+                const admins = Array.isArray(partner.admins) ? partner.admins : []
+                const matchedAdmin = admins.find(
+                    (a: any) => a.email?.toLowerCase() === emailIdentity.entity_id.toLowerCase()
+                )
+                if (matchedAdmin) {
+                    currentAdminId = matchedAdmin.id
+                }
+            }
+        } catch {
+            // fallback — don't fail the request
+        }
+    }
+
     res.json({
-        partner: partner
+        partner,
+        current_admin_id: currentAdminId,
     })
 }

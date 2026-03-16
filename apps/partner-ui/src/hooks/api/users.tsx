@@ -40,6 +40,7 @@ type PartnerDetails = {
 
 type PartnerDetailsResponse = {
   partner?: PartnerDetails | null
+  current_admin_id?: string | null
 }
 
 export type PartnerUser = PartnerAdmin & {
@@ -65,6 +66,7 @@ const mapPartnerResponseToUser = (
   response: PartnerDetailsResponse
 ): PartnerUserResponse => {
   const partner = response.partner
+  const currentAdminId = response.current_admin_id
 
   if (!partner) {
     return { user: null }
@@ -74,10 +76,17 @@ const mapPartnerResponseToUser = (
     ? partner.admins.filter((admin): admin is PartnerAdmin => Boolean(admin))
     : []
 
-  const ownerAdmin =
-    admins.find((admin) => admin.role === "owner") ?? admins[0] ?? null
+  // Pick the currently logged-in admin, fall back to owner, then first admin
+  const currentAdmin = currentAdminId
+    ? admins.find((admin) => admin.id === currentAdminId)
+    : null
+  const resolvedAdmin =
+    currentAdmin ??
+    admins.find((admin) => admin.role === "owner") ??
+    admins[0] ??
+    null
 
-  if (!ownerAdmin) {
+  if (!resolvedAdmin) {
     return {
       user: {
         id: partner.id,
@@ -95,7 +104,7 @@ const mapPartnerResponseToUser = (
 
   return {
     user: {
-      ...ownerAdmin,
+      ...resolvedAdmin,
       partner_id: partner.id,
       partner,
     },
