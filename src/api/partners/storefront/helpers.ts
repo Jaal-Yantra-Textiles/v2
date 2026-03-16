@@ -5,8 +5,9 @@ import { WEBSITE_MODULE } from "../../../modules/website"
 import WebsiteService from "../../../modules/website/service"
 
 /**
- * Gets the partner's website by looking up their storefront_domain metadata.
- * Throws if the partner has no provisioned storefront or no matching website.
+ * Gets the partner's website using the website_id stored in metadata.
+ * Falls back to domain lookup only if website_id is not set.
+ * This ensures each partner only ever sees their own website.
  */
 export const getPartnerWebsite = async (
   authContext: { actor_id?: string | null } | undefined,
@@ -20,7 +21,9 @@ export const getPartnerWebsite = async (
     )
   }
 
+  const websiteId = partner.metadata?.website_id
   const domain = partner.metadata?.storefront_domain
+
   if (!domain) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
@@ -29,6 +32,20 @@ export const getPartnerWebsite = async (
   }
 
   const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE)
+
+  // Primary: lookup by stored website_id (direct link, no ambiguity)
+  if (websiteId) {
+    try {
+      const website = await websiteService.retrieveWebsite(websiteId)
+      if (website) {
+        return { partner, website }
+      }
+    } catch {
+      // stale website_id, fall through to domain lookup
+    }
+  }
+
+  // Fallback: lookup by partner's storefront domain
   const [websites] = await websiteService.listAndCountWebsites(
     { domain },
     { take: 1 }
@@ -37,7 +54,7 @@ export const getPartnerWebsite = async (
   if (!websites.length) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      `No website found for domain ${domain}. Create one first via POST /partners/storefront/website.`
+      `No website found. Create one first from the Content section.`
     )
   }
 
