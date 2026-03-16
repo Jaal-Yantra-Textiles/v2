@@ -44,6 +44,7 @@ export function VisualPageEditor({
     iframeReady,
     selectBlock: selectBlockInIframe,
     highlightBlock: highlightBlockInIframe,
+    updateBlockPreview,
   } = useIframeCommunication({
     iframeRef,
     onBlockClicked: (blockId) => setSelectedBlockId(blockId),
@@ -119,6 +120,14 @@ export function VisualPageEditor({
       )
       setSaveStatus("saving")
 
+      // Send real-time preview update to iframe
+      if (iframeReady && (updates.content || updates.settings)) {
+        const currentBlock = blocks.find((b) => b.id === blockId)
+        const mergedContent = { ...(currentBlock?.content || {}), ...(updates.content || {}) }
+        const mergedSettings = { ...(currentBlock?.settings || {}), ...(updates.settings || {}) }
+        updateBlockPreview(blockId, mergedContent, mergedSettings)
+      }
+
       try {
         const response = await fetch(
           `/admin/websites/${websiteId}/pages/${pageId}/blocks/${blockId}`,
@@ -139,7 +148,7 @@ export function VisualPageEditor({
         toast.error("Failed to save changes")
       }
     },
-    [websiteId, pageId]
+    [websiteId, pageId, iframeReady, blocks, updateBlockPreview]
   )
 
   // Handle block delete
