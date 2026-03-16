@@ -1,4 +1,4 @@
-import { Badge, Button, Container, Heading, Text, toast } from "@medusajs/ui"
+import { Badge, Button, Checkbox, Container, Heading, Text, toast } from "@medusajs/ui"
 import { useMemo } from "react"
 import { Link, useParams } from "react-router-dom"
 
@@ -11,10 +11,16 @@ import { SectionRow } from "../../../components/common/section"
 import { TwoColumnPage, SingleColumnPage } from "../../../components/layout/pages"
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { getStatusBadgeColor } from "../../../lib/status-badge"
+import { extractErrorMessage } from "../../../lib/extract-error-message"
 import {
   useAcceptPartnerProductionRun,
   usePartnerProductionRun,
 } from "../../../hooks/api/partner-production-runs"
+import {
+  useAcceptPartnerAssignedTask,
+  useFinishPartnerAssignedTask,
+  useCompletePartnerAssignedTaskSubtask,
+} from "../../../hooks/api/partner-assigned-tasks"
 
 export const ProductionRunDetail = () => {
   const { id } = useParams()
@@ -176,33 +182,9 @@ export const ProductionRunDetail = () => {
           </div>
           <div className="px-6 py-4">
             {tasks?.length ? (
-              <div className="flex flex-col gap-y-2">
+              <div className="flex flex-col gap-y-3">
                 {tasks.map((t: any) => (
-                  <Link
-                    key={String(t.id)}
-                    to={`tasks/${String(t.id)}`}
-                    className="block w-full rounded-lg border bg-ui-bg-subtle p-4 hover:bg-ui-bg-base"
-                  >
-                    <div className="flex items-start justify-between gap-x-4">
-                      <div className="min-w-0">
-                        <Text size="small" weight="plus" className="truncate">
-                          {String(t.title || t.id)}
-                        </Text>
-                        <Text size="xsmall" className="text-ui-fg-subtle">
-                          {String(t.description || "")}
-                        </Text>
-                      </div>
-                      <div className="shrink-0">
-                        {t.status ? (
-                          <Badge size="2xsmall" color={getStatusBadgeColor(String(t.status))}>
-                            {String(t.status)}
-                          </Badge>
-                        ) : (
-                          <Text size="xsmall" className="text-ui-fg-subtle">-</Text>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
+                  <TaskCard key={String(t.id)} task={t} />
                 ))}
               </div>
             ) : (
@@ -229,5 +211,140 @@ export const ProductionRunDetail = () => {
         )}
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
+  )
+}
+
+// ── Inline Task Card ─────────────────────────────────────────────────
+
+const TaskCard = ({ task }: { task: any }) => {
+  const taskId = String(task.id)
+  const status = String(task.status || "pending")
+  const canAccept = status === "pending" || status === "assigned"
+  const canFinish = status === "accepted" || status === "in_progress"
+  const isCompleted = status === "completed"
+  const subtasks = task.subtasks || []
+
+  const acceptTask = useAcceptPartnerAssignedTask(taskId)
+  const finishTask = useFinishPartnerAssignedTask(taskId)
+
+  const handleAccept = async () => {
+    try {
+      await acceptTask.mutateAsync()
+      toast.success(`Task "${task.title}" accepted`)
+    } catch (e) {
+      toast.error(extractErrorMessage(e))
+    }
+  }
+
+  const handleFinish = async () => {
+    try {
+      await finishTask.mutateAsync()
+      toast.success(`Task "${task.title}" finished`)
+    } catch (e) {
+      toast.error(extractErrorMessage(e))
+    }
+  }
+
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="flex items-start justify-between gap-x-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-x-2">
+            <Text size="small" weight="plus" className="truncate">
+              {String(task.title || task.id)}
+            </Text>
+            <Badge size="2xsmall" color={getStatusBadgeColor(status)}>
+              {status}
+            </Badge>
+          </div>
+          {task.description && (
+            <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+              {String(task.description)}
+            </Text>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-x-2">
+          {canAccept && (
+            <Button
+              size="small"
+              variant="secondary"
+              isLoading={acceptTask.isPending}
+              onClick={handleAccept}
+            >
+              Accept
+            </Button>
+          )}
+          {canFinish && (
+            <Button
+              size="small"
+              isLoading={finishTask.isPending}
+              onClick={handleFinish}
+            >
+              Finish
+            </Button>
+          )}
+          {isCompleted && (
+            <Checkbox checked disabled className="mt-0.5" />
+          )}
+        </div>
+      </div>
+
+      {subtasks.length > 0 && (
+        <div className="mt-3 border-t pt-3">
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">
+            Subtasks ({subtasks.filter((s: any) => s.status === "completed").length}/{subtasks.length})
+          </Text>
+          <div className="flex flex-col gap-y-2">
+            {subtasks.map((sub: any) => (
+              <SubtaskRow key={String(sub.id)} taskId={taskId} subtask={sub} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const SubtaskRow = ({
+  taskId,
+  subtask,
+}: {
+  taskId: string
+  subtask: any
+}) => {
+  const subtaskId = String(subtask.id)
+  const isCompleted = subtask.status === "completed"
+  const complete = useCompletePartnerAssignedTaskSubtask(taskId, subtaskId)
+
+  const handleComplete = async () => {
+    try {
+      await complete.mutateAsync()
+      toast.success(`Subtask "${subtask.title}" completed`)
+    } catch (e) {
+      toast.error(extractErrorMessage(e))
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-x-3 rounded border px-3 py-2">
+      <div className="flex items-center gap-x-2 min-w-0">
+        <Checkbox
+          checked={isCompleted}
+          disabled={isCompleted || complete.isPending}
+          onCheckedChange={() => {
+            if (!isCompleted) handleComplete()
+          }}
+        />
+        <Text
+          size="xsmall"
+          className={isCompleted ? "line-through text-ui-fg-muted" : ""}
+        >
+          {String(subtask.title || subtask.id)}
+        </Text>
+      </div>
+      <Badge size="2xsmall" color={getStatusBadgeColor(String(subtask.status))}>
+        {String(subtask.status)}
+      </Badge>
+    </div>
   )
 }
