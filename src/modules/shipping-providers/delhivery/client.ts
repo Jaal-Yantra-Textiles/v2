@@ -31,24 +31,47 @@ export class DelhiveryClient {
     return res.json()
   }
 
+  /**
+   * Calculate shipping cost using Delhivery Kinko Invoice API.
+   *
+   * Docs: https://delhivery-express-api-doc.readme.io/reference/invoice-shipping-charge-api
+   *
+   * Parameters:
+   *   md   — Billing mode: "E" (Express) or "S" (Surface)
+   *   cgm  — Chargeable weight in grams (integer > 0)
+   *   o_pin — Origin pincode (6-digit Indian pincode)
+   *   d_pin — Destination pincode (6-digit Indian pincode)
+   *   ss   — Shipment status: "Delivered", "RTO", or "DTO"
+   *
+   * Rate limit: 40 requests/minute
+   */
   async calculateShippingCost(params: {
     origin_pin: string
     destination_pin: string
     weight: number // grams
-    payment_type?: "Pre-paid" | "COD"
+    mode?: "S" | "E"
   }): Promise<any> {
+    // Ensure weight is a positive integer
+    const weight = Math.max(1, Math.round(params.weight))
+
     const qs = new URLSearchParams({
-      md: "S", // surface
-      cgm: String(params.weight),
+      md: params.mode || "S",
+      cgm: String(weight),
       o_pin: params.origin_pin,
       d_pin: params.destination_pin,
-      ss: params.payment_type || "Pre-paid",
+      ss: "Delivered",
     })
-    const res = await fetch(
-      `${this.baseUrl}/api/kinko/v1/invoice/charges/.json?${qs}`,
-      { headers: this.headers() }
-    )
-    if (!res.ok) throw new Error(`Delhivery rate calculation failed (${res.status})`)
+
+    const url = `${this.baseUrl}/api/kinko/v1/invoice/charges/.json?${qs}`
+    console.log(`[Delhivery] Rate API request: ${url}`)
+
+    const res = await fetch(url, { headers: this.headers() })
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "")
+      console.error(`[Delhivery] Rate API ${res.status}: ${body}`)
+      throw new Error(`Delhivery rate calculation failed (${res.status}): ${body}`)
+    }
     return res.json()
   }
 

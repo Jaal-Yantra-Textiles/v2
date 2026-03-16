@@ -75,14 +75,24 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
   ): Promise<CalculatedShippingOptionPrice> {
     try {
       const fromLocation = (context as any).from_location
-      const originPin = fromLocation?.address?.postal_code
-      const destPin = (context as any).shipping_address?.postal_code
+      const originPin = String(fromLocation?.address?.postal_code || "")
+      const shippingAddress = (context as any).shipping_address
+      const destPin = String(shippingAddress?.postal_code || "")
 
-      if (!originPin || !destPin) {
+      this.logger.info(`Delhivery calculatePrice: origin=${originPin}, dest=${destPin}`)
+
+      // Delhivery requires valid 6-digit Indian pincodes
+      const isValidPin = (pin: string) => /^\d{6}$/.test(pin)
+
+      if (!isValidPin(originPin) || !isValidPin(destPin)) {
+        this.logger.warn(
+          `Delhivery calculatePrice: invalid pincodes (origin=${originPin}, dest=${destPin}). ` +
+          `Delhivery requires 6-digit Indian pincodes.`
+        )
         return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
       }
 
-      // Estimate total weight from items (grams)
+      // Estimate total weight from items (grams), minimum 1g
       const items = (context as any).items || []
       const totalWeight = items.reduce(
         (sum: number, item: any) => sum + ((item.variant?.weight || 500) * (item.quantity || 1)),
@@ -95,7 +105,11 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
         weight: totalWeight || 500,
       })
 
-      const charge = result?.[0]?.total_amount || 0
+      // Delhivery returns an array of charge objects
+      const charges = Array.isArray(result) ? result : [result]
+      const charge = charges[0]?.total_amount || 0
+
+      this.logger.info(`Delhivery calculatePrice result: ${charge}`)
 
       return {
         calculated_amount: charge,
