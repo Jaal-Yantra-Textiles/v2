@@ -66,7 +66,7 @@ export const DELETE = async (
   )
 
   const { result } = await deleteBlockWorkflow(req.scope).run({
-    input: { id: req.params.blockId },
+    input: { block_id: req.params.blockId },
   })
 
   res.json(result)
