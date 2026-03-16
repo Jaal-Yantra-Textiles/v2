@@ -779,6 +779,422 @@ const emailTemplatesData = [
     template_type: "design_assigned",
     is_active: true
   },
+  // ── Design Creation ────────────────────────────────────────────────
+  {
+    name: "Design Created Notification",
+    template_key: "design-created",
+    from: "designs@jyt.com",
+    subject: "New design created: {{design_name}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #6366f1; font-size: 24px; margin-bottom: 20px;">New Design Created</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{partner_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            A new design has been created and assigned to your workspace.
+          </p>
+          <div style="margin: 20px 0; padding: 20px; background-color: #f0f0ff; border-radius: 6px; border-left: 4px solid #6366f1;">
+            <h3 style="color: #4338ca; font-size: 18px; margin: 0 0 8px 0;">{{design_name}}</h3>
+            <p style="color: #666666; font-size: 14px; margin: 4px 0;"><strong>Type:</strong> {{design_type}}</p>
+            <p style="color: #666666; font-size: 14px; margin: 4px 0;"><strong>Priority:</strong> {{design_priority}}</p>
+            <p style="color: #666666; font-size: 14px; margin: 4px 0;"><strong>Status:</strong> {{design_status}}</p>
+            {{#if target_date}}<p style="color: #666666; font-size: 14px; margin: 4px 0;"><strong>Target Date:</strong> {{target_date}}</p>{{/if}}
+          </div>
+          {{#if design_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{design_url}}" style="background-color: #6366f1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              View Design
+            </a>
+          </div>
+          {{/if}}
+          <p style="color: #999999; font-size: 14px; margin-top: 24px;">
+            Log in to your partner dashboard to review the design details and start working on it.
+          </p>
+        </div>
+      </div>
+    `,
+    variables: {
+      partner_name: "Partner's name",
+      design_name: "Design name/title",
+      design_type: "Design type (e.g., Fabric, Print, Weave)",
+      design_priority: "Priority level (low, medium, high, urgent)",
+      design_status: "Current status",
+      target_date: "Target completion date (optional)",
+      design_url: "URL to the design in partner dashboard (optional)",
+    },
+    template_type: "design_created",
+    is_active: true
+  },
+  {
+    name: "Design Status Updated",
+    template_key: "design-status-updated",
+    from: "designs@jyt.com",
+    subject: "Design update: {{design_name}} is now {{design_status}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #333333; font-size: 24px; margin-bottom: 20px;">Design Status Update</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{recipient_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            The design <strong>{{design_name}}</strong> has been updated.
+          </p>
+          <div style="margin: 20px 0; padding: 20px; background-color: #f8f9fa; border-radius: 6px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #666666; font-size: 14px; width: 140px;"><strong>Previous Status:</strong></td>
+                <td style="padding: 8px 0; color: #999999; font-size: 14px;">{{previous_status}}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #666666; font-size: 14px;"><strong>New Status:</strong></td>
+                <td style="padding: 8px 0; font-size: 14px;">
+                  <span style="background-color: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 12px; font-weight: 600;">{{design_status}}</span>
+                </td>
+              </tr>
+              {{#if updated_by}}<tr>
+                <td style="padding: 8px 0; color: #666666; font-size: 14px;"><strong>Updated By:</strong></td>
+                <td style="padding: 8px 0; color: #333333; font-size: 14px;">{{updated_by}}</td>
+              </tr>{{/if}}
+            </table>
+          </div>
+          {{#if design_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{design_url}}" style="background-color: #0369a1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              View Design
+            </a>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+    `,
+    variables: {
+      recipient_name: "Recipient's name (partner or admin)",
+      design_name: "Design name",
+      previous_status: "Previous status",
+      design_status: "New status",
+      updated_by: "Name of user who updated (optional)",
+      design_url: "URL to the design (optional)",
+    },
+    template_type: "design_status_updated",
+    is_active: true
+  },
+  // ── Partner Order Emails ───────────────────────────────────────────
+  {
+    name: "Partner New Order",
+    template_key: "partner-order-placed",
+    from: "orders@jyt.com",
+    subject: "New order received: #{{order_display_id}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #16a34a; font-size: 24px; margin-bottom: 20px;">New Order Received!</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{partner_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            You have received a new order on your store <strong>{{store_name}}</strong>.
+          </p>
+          <div style="margin: 20px 0; padding: 20px; background-color: #f0fdf4; border-radius: 6px; border-left: 4px solid #16a34a;">
+            <h3 style="color: #15803d; font-size: 18px; margin: 0 0 12px 0;">Order #{{order_display_id}}</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Customer:</strong></td><td style="padding: 4px 0; font-size: 14px;">{{customer_name}} ({{customer_email}})</td></tr>
+              <tr><td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Total:</strong></td><td style="padding: 4px 0; font-size: 14px; font-weight: 600;">{{order_total}}</td></tr>
+              <tr><td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Items:</strong></td><td style="padding: 4px 0; font-size: 14px;">{{item_count}} item(s)</td></tr>
+              <tr><td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Payment:</strong></td><td style="padding: 4px 0; font-size: 14px;">{{payment_status}}</td></tr>
+            </table>
+          </div>
+          {{#if items}}
+          <div style="margin: 20px 0;">
+            <h4 style="color: #333; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">Order Items</h4>
+            {{#each items}}
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0;">
+              <span style="color: #333; font-size: 14px;">{{title}} × {{quantity}}</span>
+              <span style="color: #666; font-size: 14px;">{{price}}</span>
+            </div>
+            {{/each}}
+          </div>
+          {{/if}}
+          {{#if order_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{order_url}}" style="background-color: #16a34a; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              View Order Details
+            </a>
+          </div>
+          {{/if}}
+          <p style="color: #999999; font-size: 14px; margin-top: 20px;">
+            Please process this order as soon as possible. You can manage it from your partner dashboard.
+          </p>
+        </div>
+      </div>
+    `,
+    variables: {
+      partner_name: "Partner's name",
+      store_name: "Store name",
+      order_display_id: "Order display ID",
+      customer_name: "Customer's full name",
+      customer_email: "Customer's email",
+      order_total: "Formatted total amount",
+      item_count: "Number of items",
+      payment_status: "Payment status (paid, pending, etc.)",
+      items: "Array of { title, quantity, price }",
+      order_url: "URL to order in partner dashboard (optional)",
+    },
+    template_type: "partner_order_placed",
+    is_active: true
+  },
+  {
+    name: "Partner Order Fulfilled",
+    template_key: "partner-order-fulfilled",
+    from: "orders@jyt.com",
+    subject: "Order #{{order_display_id}} has been fulfilled",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #0369a1; font-size: 24px; margin-bottom: 20px;">Order Fulfilled</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{customer_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            Great news! Your order <strong>#{{order_display_id}}</strong> from <strong>{{store_name}}</strong> has been fulfilled and is on its way to you.
+          </p>
+          {{#if tracking_number}}
+          <div style="margin: 20px 0; padding: 20px; background-color: #f0f9ff; border-radius: 6px; border-left: 4px solid #0369a1;">
+            <p style="color: #333; font-size: 14px; margin: 0 0 8px 0;"><strong>Tracking Number:</strong> {{tracking_number}}</p>
+            <p style="color: #333; font-size: 14px; margin: 0 0 8px 0;"><strong>Carrier:</strong> {{carrier_name}}</p>
+            {{#if tracking_url}}
+            <a href="{{tracking_url}}" style="color: #0369a1; font-size: 14px; font-weight: 600; text-decoration: underline;">Track your shipment →</a>
+            {{/if}}
+          </div>
+          {{/if}}
+          <div style="margin: 20px 0; padding: 20px; background-color: #f8f9fa; border-radius: 6px;">
+            <h4 style="color: #333; margin: 0 0 12px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">Shipping Address</h4>
+            <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 0;">
+              {{shipping_address_line1}}<br/>
+              {{#if shipping_address_line2}}{{shipping_address_line2}}<br/>{{/if}}
+              {{shipping_city}}, {{shipping_postal_code}}<br/>
+              {{shipping_country}}
+            </p>
+          </div>
+          <p style="color: #999999; font-size: 14px; margin-top: 24px;">
+            If you have questions about your order, you can reach {{store_name}} by replying to this email.
+          </p>
+        </div>
+      </div>
+    `,
+    variables: {
+      customer_name: "Customer's name",
+      order_display_id: "Order display ID",
+      store_name: "Partner store name",
+      tracking_number: "Shipment tracking number (optional)",
+      carrier_name: "Shipping carrier name (optional)",
+      tracking_url: "Tracking URL (optional)",
+      shipping_address_line1: "Address line 1",
+      shipping_address_line2: "Address line 2 (optional)",
+      shipping_city: "City",
+      shipping_postal_code: "Postal code",
+      shipping_country: "Country",
+    },
+    template_type: "partner_order_fulfilled",
+    is_active: true
+  },
+  {
+    name: "Partner Order Cancelled",
+    template_key: "partner-order-cancelled",
+    from: "orders@jyt.com",
+    subject: "Order #{{order_display_id}} has been cancelled",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #dc2626; font-size: 24px; margin-bottom: 20px;">Order Cancelled</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{customer_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            We're sorry to let you know that your order <strong>#{{order_display_id}}</strong> from <strong>{{store_name}}</strong> has been cancelled.
+          </p>
+          {{#if cancellation_reason}}
+          <div style="margin: 20px 0; padding: 16px; background-color: #fef2f2; border-radius: 6px; border-left: 4px solid #dc2626;">
+            <p style="color: #991b1b; font-size: 14px; margin: 0;"><strong>Reason:</strong> {{cancellation_reason}}</p>
+          </div>
+          {{/if}}
+          <div style="margin: 20px 0; padding: 16px; background-color: #f0fdf4; border-radius: 6px;">
+            <p style="color: #15803d; font-size: 14px; margin: 0;">
+              {{#if refund_amount}}<strong>Refund:</strong> {{refund_amount}} will be returned to your original payment method within 5-10 business days.{{else}}If you were charged, a refund will be processed automatically.{{/if}}
+            </p>
+          </div>
+          <p style="color: #999999; font-size: 14px; margin-top: 24px;">
+            If you have questions, reply to this email or contact our support team.
+          </p>
+        </div>
+      </div>
+    `,
+    variables: {
+      customer_name: "Customer's name",
+      order_display_id: "Order display ID",
+      store_name: "Partner store name",
+      cancellation_reason: "Reason for cancellation (optional)",
+      refund_amount: "Formatted refund amount (optional)",
+    },
+    template_type: "partner_order_cancelled",
+    is_active: true
+  },
+  // ── Partner Notifications ──────────────────────────────────────────
+  {
+    name: "Partner Verified",
+    template_key: "partner-verified",
+    from: "partners@jyt.com",
+    subject: "Congratulations! Your partner account is verified",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="display: inline-block; background-color: #dcfce7; border-radius: 50%; padding: 16px; margin-bottom: 16px;">
+              <span style="font-size: 32px;">✓</span>
+            </div>
+            <h1 style="color: #16a34a; font-size: 24px; margin: 0;">You're Verified!</h1>
+          </div>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{partner_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            Your partner account has been verified. You now have full access to all partner features including:
+          </p>
+          <ul style="color: #666666; font-size: 14px; line-height: 2; padding-left: 20px; margin-bottom: 24px;">
+            <li>Creating and managing products</li>
+            <li>Receiving and fulfilling orders</li>
+            <li>Setting up your own storefront</li>
+            <li>Accessing design assignments</li>
+            <li>Managing shipping and payments</li>
+          </ul>
+          {{#if dashboard_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{dashboard_url}}" style="background-color: #16a34a; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              Go to Dashboard
+            </a>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+    `,
+    variables: {
+      partner_name: "Partner's name",
+      dashboard_url: "URL to partner dashboard (optional)",
+    },
+    template_type: "partner_verified",
+    is_active: true
+  },
+  {
+    name: "Partner Task Assigned",
+    template_key: "partner-task-assigned",
+    from: "tasks@jyt.com",
+    subject: "New task assigned: {{task_title}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #333333; font-size: 24px; margin-bottom: 20px;">New Task Assigned</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{partner_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            A new task has been assigned to you.
+          </p>
+          <div style="margin: 20px 0; padding: 20px; background-color: #fffbeb; border-radius: 6px; border-left: 4px solid #f59e0b;">
+            <h3 style="color: #92400e; font-size: 18px; margin: 0 0 8px 0;">{{task_title}}</h3>
+            {{#if task_description}}<p style="color: #666666; font-size: 14px; margin: 4px 0;">{{task_description}}</p>{{/if}}
+            <p style="color: #666666; font-size: 14px; margin: 8px 0 0 0;">
+              <strong>Priority:</strong> {{task_priority}} &nbsp;|&nbsp; <strong>Status:</strong> {{task_status}}
+            </p>
+          </div>
+          {{#if task_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{task_url}}" style="background-color: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              View Task
+            </a>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+    `,
+    variables: {
+      partner_name: "Partner's name",
+      task_title: "Task title",
+      task_description: "Task description (optional)",
+      task_priority: "Priority (low, medium, high, urgent)",
+      task_status: "Task status",
+      task_url: "URL to task in dashboard (optional)",
+    },
+    template_type: "partner_task_assigned",
+    is_active: true
+  },
+  {
+    name: "Inventory Order Assigned",
+    template_key: "inventory-order-assigned",
+    from: "orders@jyt.com",
+    subject: "Inventory order assigned: {{order_number}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #7c3aed; font-size: 24px; margin-bottom: 20px;">Inventory Order Assigned</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{partner_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            A new inventory order has been assigned to you for processing.
+          </p>
+          <div style="margin: 20px 0; padding: 20px; background-color: #f5f3ff; border-radius: 6px; border-left: 4px solid #7c3aed;">
+            <h3 style="color: #5b21b6; font-size: 18px; margin: 0 0 8px 0;">Order #{{order_number}}</h3>
+            <p style="color: #666666; font-size: 14px; margin: 4px 0;"><strong>Status:</strong> {{order_status}}</p>
+            {{#if item_count}}<p style="color: #666666; font-size: 14px; margin: 4px 0;"><strong>Items:</strong> {{item_count}} line(s)</p>{{/if}}
+          </div>
+          {{#if order_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{order_url}}" style="background-color: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              View Inventory Order
+            </a>
+          </div>
+          {{/if}}
+          <p style="color: #999999; font-size: 14px; margin-top: 20px;">
+            Please review and accept this order from your partner dashboard.
+          </p>
+        </div>
+      </div>
+    `,
+    variables: {
+      partner_name: "Partner's name",
+      order_number: "Inventory order number",
+      order_status: "Order status",
+      item_count: "Number of line items (optional)",
+      order_url: "URL to order in dashboard (optional)",
+    },
+    template_type: "inventory_order_assigned",
+    is_active: true
+  },
+  {
+    name: "Refund Processed",
+    template_key: "refund-processed",
+    from: "orders@jyt.com",
+    subject: "Refund processed for order #{{order_display_id}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #333333; font-size: 24px; margin-bottom: 20px;">Refund Processed</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{customer_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            A refund has been processed for your order <strong>#{{order_display_id}}</strong>.
+          </p>
+          <div style="margin: 20px 0; padding: 20px; background-color: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 6px 0; color: #666; font-size: 14px;"><strong>Refund Amount:</strong></td><td style="padding: 6px 0; font-size: 18px; font-weight: 600; color: #16a34a;">{{refund_amount}}</td></tr>
+              <tr><td style="padding: 6px 0; color: #666; font-size: 14px;"><strong>Payment Method:</strong></td><td style="padding: 6px 0; font-size: 14px;">{{payment_method}}</td></tr>
+              {{#if refund_reason}}<tr><td style="padding: 6px 0; color: #666; font-size: 14px;"><strong>Reason:</strong></td><td style="padding: 6px 0; font-size: 14px;">{{refund_reason}}</td></tr>{{/if}}
+            </table>
+          </div>
+          <p style="color: #666666; font-size: 14px; line-height: 1.5; margin-top: 20px;">
+            The refund should appear in your account within 5-10 business days depending on your bank or payment provider.
+          </p>
+          <p style="color: #999999; font-size: 14px; margin-top: 20px;">
+            If you have any questions, please don't hesitate to contact us.
+          </p>
+        </div>
+      </div>
+    `,
+    variables: {
+      customer_name: "Customer's name",
+      order_display_id: "Order display ID",
+      refund_amount: "Formatted refund amount",
+      payment_method: "Payment method used",
+      refund_reason: "Reason for refund (optional)",
+    },
+    template_type: "refund_processed",
+    is_active: true
+  },
 ]
 
 export default async function seedEmailTemplates({ container }: { container: any }) {

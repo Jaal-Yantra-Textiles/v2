@@ -1,8 +1,11 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import type { RemoteQueryFunction } from "@medusajs/types"
+import { setAuthAppMetadataStep } from "@medusajs/medusa/core-flows"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import type { IAuthModuleService, RemoteQueryFunction } from "@medusajs/types"
 import { PARTNER_MODULE } from "../../modules/partner"
 import PartnerService from "../../modules/partner/service"
+import { randomBytes } from "crypto"
+import Scrypt from "scrypt-kdf"
 
 export type AddPartnerAdminInput = {
   partner_id: string
@@ -14,15 +17,16 @@ export type AddPartnerAdminInput = {
     role?: "owner" | "admin" | "manager"
     metadata?: Record<string, any>
   }
+  password?: string
 }
 
-export const addPartnerAdminStep = createStep(
+// Step 1: Create the admin record
+const addPartnerAdminStep = createStep(
   "add-partner-admin",
   async (input: AddPartnerAdminInput, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
 
-    // Ensure partner exists
     const { data } = await query.graph({
       entity: "partners",
       fields: ["id", "handle", "name"],
@@ -36,15 +40,13 @@ export const addPartnerAdminStep = createStep(
       )
     }
 
-    // Create admin
     const created = await partnerService.createPartnerAdmins({
       ...input.admin,
       partner_id: input.partner_id,
     } as any)
 
-    return new StepResponse(created as any, created.id)
+    return new StepResponse({ admin: created, partner } as any, created.id)
   },
-  // Rollback: delete the created admin if step compensates
   async (adminId, { container }) => {
     if (!adminId) return
     const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
@@ -52,14 +54,82 @@ export const addPartnerAdminStep = createStep(
   }
 )
 
+// Step 2: Register auth credentials
+const registerAdminAuthStep = createStep(
+  "register-new-admin-auth-step",
+  async (input: { email: string; password?: string }, { container }) => {
+    const hashConfig = { logN: 15, r: 8, p: 1 }
+    const plainPassword = input.password || randomBytes(12).toString("base64")
+    const hashed = await Scrypt.kdf(Buffer.from(plainPassword), hashConfig)
+
+    const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
+
+    const reg = await authModule.createAuthIdentities({
+      provider_identities: [
+        {
+          provider: "emailpass",
+          entity_id: input.email,
+          provider_metadata: {
+            password: hashed.toString("base64"),
+          },
+        },
+      ],
+    })
+
+    return new StepResponse({ authIdentityId: reg.id, tempPassword: plainPassword })
+  }
+)
+
+// Step 3: Emit event for email subscriber
+const emitAdminAddedEventStep = createStep(
+  "emit-admin-added-event",
+  async (
+    input: {
+      partner_id: string
+      partner_name: string
+      admin_email: string
+      admin_name: string
+      temp_password: string
+    },
+    { container }
+  ) => {
+    const eventBus = container.resolve(Modules.EVENT_BUS) as any
+    await eventBus.emit({
+      name: "partner.admin.added",
+      data: input,
+    })
+    return new StepResponse({ emitted: true })
+  }
+)
+
 export const addPartnerAdminWorkflow = createWorkflow(
-  {
-    name: "add-partner-admin",
-    store: true,
-  },
+  { name: "add-partner-admin", store: true },
   (input: AddPartnerAdminInput) => {
     const result = addPartnerAdminStep(input)
-    return new WorkflowResponse(result)
+
+    const registered = registerAdminAuthStep({
+      email: input.admin.email,
+      password: input.password,
+    })
+
+    setAuthAppMetadataStep({
+      authIdentityId: registered.authIdentityId,
+      actorType: "partner",
+      value: result.partner.id,
+    })
+
+    emitAdminAddedEventStep({
+      partner_id: result.partner.id,
+      partner_name: result.partner.name,
+      admin_email: input.admin.email,
+      admin_name: [input.admin.first_name, input.admin.last_name].filter(Boolean).join(" ") || input.admin.email,
+      temp_password: registered.tempPassword,
+    })
+
+    return new WorkflowResponse({
+      admin: result.admin,
+      tempPassword: registered.tempPassword,
+    })
   }
 )
 

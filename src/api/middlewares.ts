@@ -1906,6 +1906,17 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [],
     },
+    // Admin Partner Admins routes
+    {
+      matcher: "/admin/partners/:id/admins",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id/admins",
+      method: "POST",
+      middlewares: [],
+    },
     // Admin Partner Tasks routes
     {
       matcher: "/admin/partners/:id/tasks",

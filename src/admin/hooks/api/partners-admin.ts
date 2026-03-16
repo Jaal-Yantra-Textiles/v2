@@ -158,3 +158,32 @@ export const useCreatePartnerWithAdmin = (
     ...options,
   })
 }
+
+export type AddPartnerAdminPayload = {
+  email: string
+  first_name?: string
+  last_name?: string
+  phone?: string
+  role?: "owner" | "admin" | "manager"
+  password?: string
+}
+
+export type AddPartnerAdminResponse = {
+  admin: AdminPartnerAdmin
+  temp_password: string
+}
+
+export const useAddPartnerAdmin = (partnerId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: AddPartnerAdminPayload) =>
+      sdk.client.fetch<AddPartnerAdminResponse>(
+        `/admin/partners/${partnerId}/admins`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.details() })
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.lists() })
+    },
+  })
+}
