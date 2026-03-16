@@ -154,13 +154,19 @@ export async function GET(
             { relations: ["subtasks", "outgoing", "incoming"] }
         );
 
-        // Filter to only show parent tasks (exclude subtasks)
-        // Subtasks have parent_task_id set, parent tasks have it as null
-        const parentTasks = allTasks.filter((task: any) => !task.parent_task_id);
+        // Show parent tasks + actionable subtasks (pending/assigned/in_progress)
+        // This ensures subtasks from completed parent tasks are still visible
+        const actionableStatuses = new Set(["pending", "assigned", "in_progress", "accepted"])
+        const visibleTasks = allTasks.filter((task: any) => {
+            // Always show parent tasks
+            if (!task.parent_task_id) return true
+            // Show subtasks that are still actionable
+            return actionableStatuses.has(task.status)
+        })
 
-        res.status(200).json({ 
-            tasks: parentTasks,
-            count: parentTasks.length
+        res.status(200).json({
+            tasks: visibleTasks,
+            count: visibleTasks.length
         });
     } catch (error) {
         console.error("Error fetching assigned tasks:", error);

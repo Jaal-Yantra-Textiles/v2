@@ -142,6 +142,8 @@ export const useAcceptPartnerProductionRun = (
       queryClient.refetchQueries({
         queryKey: partnerProductionRunsQueryKeys.detail(id),
       })
+      // Cross-invalidate tasks (accepting a run changes task state)
+      queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

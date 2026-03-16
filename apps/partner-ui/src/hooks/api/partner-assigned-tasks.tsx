@@ -204,6 +204,8 @@ export const useCompletePartnerAssignedTaskSubtask = (
       queryClient.invalidateQueries({
         queryKey: partnerAssignedTasksQueryKeys.lists(),
       })
+      // Cross-invalidate production runs
+      queryClient.invalidateQueries({ queryKey: ["partner-production-runs"] })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
@@ -289,6 +291,8 @@ export const useAcceptPartnerAssignedTask = (
       queryClient.invalidateQueries({
         queryKey: partnerAssignedTasksQueryKeys.detail(taskId),
       })
+      // Cross-invalidate production runs (tasks affect their status)
+      queryClient.invalidateQueries({ queryKey: ["partner-production-runs"] })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
@@ -312,6 +316,8 @@ export const useFinishPartnerAssignedTask = (
       queryClient.invalidateQueries({
         queryKey: partnerAssignedTasksQueryKeys.detail(taskId),
       })
+      // Cross-invalidate production runs
+      queryClient.invalidateQueries({ queryKey: ["partner-production-runs"] })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

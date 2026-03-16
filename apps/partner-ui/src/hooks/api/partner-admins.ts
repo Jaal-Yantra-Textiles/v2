@@ -72,3 +72,43 @@ export const useAddPartnerAdmin = () => {
     },
   })
 }
+
+// ── Partner People (linked persons from persons module) ──────────────
+
+const PARTNER_PEOPLE_QUERY_KEY = "partner_people" as const
+export const partnerPeopleQueryKeys = queryKeysFactory(PARTNER_PEOPLE_QUERY_KEY)
+
+export type PartnerPerson = {
+  id: string
+  first_name?: string | null
+  last_name?: string | null
+  name?: string | null
+  email?: string | null
+  phone?: string | null
+}
+
+type PartnerPeopleResponse = {
+  partner: {
+    id: string
+    people?: PartnerPerson[]
+  }
+}
+
+export const usePartnerPeople = (
+  partnerId: string | undefined,
+  options?: Omit<
+    UseQueryOptions<PartnerPeopleResponse, FetchError, PartnerPeopleResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<PartnerPeopleResponse>(`/partners/${partnerId}`, {
+        method: "GET",
+      }),
+    queryKey: partnerPeopleQueryKeys.detail(partnerId || ""),
+    enabled: !!partnerId,
+    ...options,
+  })
+  return { people: data?.partner?.people || [], ...rest }
+}

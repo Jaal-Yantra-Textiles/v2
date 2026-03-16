@@ -182,9 +182,16 @@ type UseType = "seller" | "manufacturer"
 
 const MANUFACTURER_ROUTES: Omit<INavItem, "pathname">[] = [
   { icon: <MagnifyingGlass />, label: "Home", to: "/" },
-  { icon: <PencilSquare />, label: "Designs", to: "/designs" },
+  {
+    icon: <PencilSquare />,
+    label: "Designs",
+    to: "/designs",
+    items: [
+      { label: "Production Runs", to: "/production-runs" },
+      { label: "Tasks", to: "/tasks" },
+    ],
+  },
   { icon: <BuildingStorefront />, label: "Inventory Orders", to: "/inventory-orders" },
-  { icon: <DocumentSeries />, label: "Production Runs", to: "/production-runs" },
   {
     icon: <Tag />,
     label: "Products",
@@ -195,7 +202,6 @@ const MANUFACTURER_ROUTES: Omit<INavItem, "pathname">[] = [
       { label: "Types", to: "/product-types" },
     ],
   },
-  { icon: <TimelineVertical />, label: "Tasks", to: "/tasks" },
   { icon: <ShoppingCart />, label: "Orders", to: "/orders" },
   { icon: <Users />, label: "Customers", to: "/customers" },
 ]
