@@ -10,8 +10,8 @@ export default defineLink(
   {
     database: {
       extraColumns: {
-        planned_quantity: { type: "bigint", nullable: true },
-        consumed_quantity: { type: "bigint", nullable: true },
+        planned_quantity: { type: "decimal", nullable: true },
+        consumed_quantity: { type: "decimal", nullable: true },
         consumed_at: { type: "datetime", nullable: true },
         location_id: { type: "text", nullable: true },
         metadata: { type: "json", nullable: true },

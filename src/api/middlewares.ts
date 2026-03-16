@@ -355,7 +355,22 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
       ],
-
+    },
+    {
+      matcher: "/partners/admins",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/admins",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
     },
 
     {
