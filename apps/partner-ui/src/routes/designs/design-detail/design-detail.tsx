@@ -1,3 +1,4 @@
+import React from "react"
 import { TriangleRightMini } from "@medusajs/icons"
 import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import { useMemo } from "react"
