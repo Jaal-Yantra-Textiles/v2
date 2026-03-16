@@ -275,15 +275,23 @@ export const DesignDetail = () => {
           <SectionRow title="Name" value={design?.name || "-"} />
           <SectionRow title="Design ID" value={design?.id || "-"} />
           <SectionRow
+            title="Type"
+            value={
+              (design as any)?.design_type ? (
+                <Badge size="2xsmall" color="blue">
+                  {String((design as any).design_type)}
+                </Badge>
+              ) : "-"
+            }
+          />
+          <SectionRow
             title="Status"
             value={
               design?.status ? (
                 <Badge size="2xsmall" color={getStatusBadgeColor(design.status)}>
                   {String(design.status)}
                 </Badge>
-              ) : (
-                "-"
-              )
+              ) : "-"
             }
           />
           <SectionRow
@@ -295,13 +303,66 @@ export const DesignDetail = () => {
                   color={getStatusBadgeColor(design.partner_info.partner_status)}
                 >
                   {String(design.partner_info.partner_status)}
+                  {design.partner_info.partner_phase ? ` (${design.partner_info.partner_phase})` : ""}
                 </Badge>
-              ) : (
-                "-"
-              )
+              ) : "-"
             }
           />
+          <SectionRow
+            title="Priority"
+            value={
+              (design as any)?.priority ? (
+                <Badge
+                  size="2xsmall"
+                  color={
+                    (design as any).priority === "urgent" ? "red" :
+                    (design as any).priority === "high" ? "orange" :
+                    (design as any).priority === "medium" ? "blue" : "grey"
+                  }
+                >
+                  {String((design as any).priority)}
+                </Badge>
+              ) : "-"
+            }
+          />
+          {(design as any)?.target_completion_date && (
+            <SectionRow
+              title="Target date"
+              value={new Date((design as any).target_completion_date).toLocaleDateString("en-US", {
+                month: "short", day: "numeric", year: "numeric",
+              })}
+            />
+          )}
         </Container>
+
+        {/* Tags & Sizes */}
+        {(Array.isArray((design as any)?.tags) && (design as any).tags.length > 0) || metadata?.sizes ? (
+          <Container className="divide-y p-0">
+            <div className="px-6 py-4">
+              <Heading level="h2">Tags & Sizes</Heading>
+            </div>
+            {Array.isArray((design as any)?.tags) && (design as any).tags.length > 0 && (
+              <div className="px-6 py-4">
+                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">Tags</Text>
+                <div className="flex flex-wrap gap-1.5">
+                  {((design as any).tags as string[]).map((tag, i) => (
+                    <Badge key={i} size="2xsmall" color="grey">{String(tag)}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {metadata?.sizes && (
+              <div className="px-6 py-4">
+                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">Sizes</Text>
+                <div className="flex flex-wrap gap-1.5">
+                  {(Array.isArray(metadata.sizes) ? metadata.sizes : [metadata.sizes]).map((size: any, i: number) => (
+                    <Badge key={i} size="2xsmall" color="blue">{String(size)}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Container>
+        ) : null}
 
         <Container className="divide-y p-0">
           <div className="px-6 py-4">

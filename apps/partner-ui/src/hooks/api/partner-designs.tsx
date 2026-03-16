@@ -176,6 +176,66 @@ export const useCompletePartnerDesign = (
   })
 }
 
+export const useFinishPartnerDesign = (
+  id: string,
+  options?: UseMutationOptions<{ message: string; design: PartnerDesign }, FetchError, void>
+) => {
+  return useMutation({
+    mutationFn: async () => {
+      return await sdk.client.fetch<{ message: string; design: PartnerDesign }>(
+        `/partners/designs/${id}/finish`,
+        { method: "POST" }
+      )
+    },
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export const useRedoPartnerDesign = (
+  id: string,
+  options?: UseMutationOptions<{ message: string; design: PartnerDesign }, FetchError, void>
+) => {
+  return useMutation({
+    mutationFn: async () => {
+      return await sdk.client.fetch<{ message: string; design: PartnerDesign }>(
+        `/partners/designs/${id}/redo`,
+        { method: "POST" }
+      )
+    },
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export const useRefinishPartnerDesign = (
+  id: string,
+  options?: UseMutationOptions<{ message: string; design: PartnerDesign }, FetchError, void>
+) => {
+  return useMutation({
+    mutationFn: async () => {
+      return await sdk.client.fetch<{ message: string; design: PartnerDesign }>(
+        `/partners/designs/${id}/refinish`,
+        { method: "POST" }
+      )
+    },
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
 export const useUploadPartnerDesignMedia = (
   id: string,
   options?: UseMutationOptions<{ files: Array<{ id?: string; url: string }> }, FetchError, FormData>
