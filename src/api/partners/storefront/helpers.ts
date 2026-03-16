@@ -5,9 +5,8 @@ import { WEBSITE_MODULE } from "../../../modules/website"
 import WebsiteService from "../../../modules/website/service"
 
 /**
- * Gets the partner's website using the website_id stored in metadata.
- * Falls back to domain lookup only if website_id is not set.
- * This ensures each partner only ever sees their own website.
+ * Gets the partner's website.
+ * Uses table columns first (website_id, storefront_domain), falls back to metadata.
  */
 export const getPartnerWebsite = async (
   authContext: { actor_id?: string | null } | undefined,
@@ -21,9 +20,7 @@ export const getPartnerWebsite = async (
     )
   }
 
-  const websiteId = partner.metadata?.website_id
-  const domain = partner.metadata?.storefront_domain
-
+  const domain = partner.storefront_domain || partner.metadata?.storefront_domain
   if (!domain) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
@@ -33,7 +30,8 @@ export const getPartnerWebsite = async (
 
   const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE)
 
-  // Primary: lookup by stored website_id (direct link, no ambiguity)
+  // 1. Direct lookup by website_id (table column or metadata fallback)
+  const websiteId = partner.website_id || partner.metadata?.website_id
   if (websiteId) {
     try {
       const website = await websiteService.retrieveWebsite(websiteId)
@@ -41,11 +39,11 @@ export const getPartnerWebsite = async (
         return { partner, website }
       }
     } catch {
-      // stale website_id, fall through to domain lookup
+      // stale, fall through
     }
   }
 
-  // Fallback: lookup by partner's storefront domain
+  // 2. Fallback: lookup by storefront_domain
   const [websites] = await websiteService.listAndCountWebsites(
     { domain },
     { take: 1 }
@@ -54,7 +52,7 @@ export const getPartnerWebsite = async (
   if (!websites.length) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      `No website found. Create one first from the Content section.`
+      "No website found. Create one from the Content section."
     )
   }
 

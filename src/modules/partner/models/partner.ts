@@ -12,11 +12,16 @@ const Partner = model.define("partner", {
     status: model.enum(['active', 'inactive', 'pending'])
         .default('pending'),
     is_verified: model.boolean().default(false),
-    
-   
+
+    // Storefront
+    storefront_domain: model.text().nullable(),
+    website_id: model.text().nullable(),
+    vercel_project_id: model.text().nullable(),
+    vercel_project_name: model.text().nullable(),
+
     // Relationships
     admins: model.hasMany(() => PartnerAdmin),
-    
+
     // Metadata
     metadata: model.json().nullable()
 })

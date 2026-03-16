@@ -206,6 +206,11 @@ const saveStorefrontMetadataStep = createStep(
     const partnerService: PartnerService = container.resolve("partner")
     await partnerService.updatePartners({
       id: input.partnerId,
+      // Table columns (reliable)
+      storefront_domain: domain,
+      vercel_project_id: input.projectId,
+      vercel_project_name: input.projectName,
+      // Keep metadata for backward compatibility
       metadata: {
         ...input.existingMetadata,
         vercel_project_id: input.projectId,

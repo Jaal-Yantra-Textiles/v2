@@ -14,7 +14,7 @@ import updatePartnerWorkflow from "../../../../workflows/partners/update-partner
  * POST /partners/storefront/website
  * Auto-create a website for the partner's storefront domain.
  * Seeds default pages (T&C, Privacy Policy, Contact) automatically.
- * Stores website_id in partner metadata for direct lookup.
+ * Stores website_id on the partner record (table column, not metadata).
  */
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -28,7 +28,7 @@ export const POST = async (
     )
   }
 
-  const domain = partner.metadata?.storefront_domain
+  const domain = partner.storefront_domain || partner.metadata?.storefront_domain
   if (!domain) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
@@ -37,16 +37,17 @@ export const POST = async (
   }
 
   // Already has a website_id linked
-  if (partner.metadata?.website_id) {
+  const existingWebsiteId = partner.website_id || partner.metadata?.website_id
+  if (existingWebsiteId) {
     const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
     try {
-      const existing = await websiteService.retrieveWebsite(partner.metadata.website_id)
+      const existing = await websiteService.retrieveWebsite(existingWebsiteId)
       return res.json({
         message: "Website already exists",
         website: existing,
       })
     } catch {
-      // website_id is stale, continue to create
+      // stale, continue to create
     }
   }
 
@@ -59,16 +60,11 @@ export const POST = async (
     },
   })
 
-  // Store website_id in partner metadata
+  // Store website_id on the partner record (table column)
   await updatePartnerWorkflow(req.scope).run({
     input: {
       id: partner.id,
-      data: {
-        metadata: {
-          ...(partner.metadata || {}),
-          website_id: website.id,
-        },
-      },
+      data: { website_id: website.id },
     },
   })
 
@@ -86,7 +82,7 @@ export const POST = async (
 
 /**
  * GET /partners/storefront/website
- * Get the partner's website info using stored website_id.
+ * Get the partner's website. Uses table columns first, falls back to domain lookup.
  */
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -100,21 +96,43 @@ export const GET = async (
     )
   }
 
-  if (!partner.metadata?.storefront_domain) {
+  const domain = partner.storefront_domain || partner.metadata?.storefront_domain
+  if (!domain) {
     return res.json({ website: null, message: "Storefront not provisioned" })
   }
 
-  const websiteId = partner.metadata?.website_id
   const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
 
-  // Direct lookup by stored website_id
+  // 1. Direct lookup by website_id (table column or metadata fallback)
+  const websiteId = partner.website_id || partner.metadata?.website_id
   if (websiteId) {
     try {
       const website = await websiteService.retrieveWebsite(websiteId)
       return res.json({ website })
     } catch {
-      // stale id, fall through
+      // stale id, fall through to domain
     }
+  }
+
+  // 2. Fallback: lookup by storefront_domain
+  const [websites] = await websiteService.listAndCountWebsites(
+    { domain },
+    { take: 1 }
+  )
+
+  if (websites.length) {
+    // Backfill website_id on partner for next time
+    try {
+      await updatePartnerWorkflow(req.scope).run({
+        input: {
+          id: partner.id,
+          data: { website_id: websites[0].id },
+        },
+      })
+    } catch {
+      // best-effort backfill
+    }
+    return res.json({ website: websites[0] })
   }
 
   return res.json({
