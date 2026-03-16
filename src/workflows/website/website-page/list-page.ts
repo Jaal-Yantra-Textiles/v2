@@ -6,9 +6,11 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { WEBSITE_MODULE } from "../../../modules/website";
 import WebsiteService from "../../../modules/website/service";
+import { MedusaError } from "@medusajs/framework/utils";
 
-export type ListPageStepInput = {
-  website_id?: string;
+export type ListPageWorkflowInput = {
+  /** Required — pages are always scoped to a website */
+  website_id: string;
   filters?: Record<string, any>;
   config?: {
     skip?: number;
@@ -20,26 +22,33 @@ export type ListPageStepInput = {
 
 export const listPageStep = createStep(
   "list-page-step",
-  async (input: ListPageStepInput, { container }) => {
+  async (input: ListPageWorkflowInput, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
 
-    // If website_id is provided, verify the website exists
-    if (input.website_id) {
-      await websiteService.retrieveWebsite(input.website_id);
+    if (!input.website_id) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "website_id is required to list pages"
+      );
     }
-    // List Page entities
+
+    // Verify the website exists
+    await websiteService.retrieveWebsite(input.website_id);
+
+    // Always scope pages to the website
+    const filters = {
+      ...input.filters,
+      website_id: input.website_id,
+    };
+
     const pages = await websiteService.listAndCountPages(
-      input.filters,
+      filters,
       input.config
     );
-
-    
 
     return new StepResponse(pages);
   }
 );
-
-export type ListPageWorkflowInput = ListPageStepInput;
 
 export const listPageWorkflow = createWorkflow(
   "list-page",

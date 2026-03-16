@@ -24,7 +24,6 @@ export const GET = async (
     input: {
       website_id: website.id,
       filters: {
-        website_id: website.id,
         title: q,
         status,
         page_type,
