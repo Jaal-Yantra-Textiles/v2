@@ -7,11 +7,13 @@ import {
   useCompletePartnerDesign,
   usePartnerDesign,
 } from "../../../hooks/api/partner-designs"
+import { extractErrorMessage } from "../../../lib/extract-error-message"
 
 type ConsumptionDraft = {
   inventory_item_id: string
   quantity: number
   location_id?: string
+  error?: string
 }
 
 export const DesignComplete = () => {
@@ -84,7 +86,26 @@ const DesignCompleteWithId = ({ id }: { id: string }) => {
     throw error
   }
 
+  const validateConsumptions = (): boolean => {
+    let valid = true
+    const updated = consumptions.map((c) => {
+      let error: string | undefined
+      if (c.quantity < 0) {
+        error = "Quantity cannot be negative"
+        valid = false
+      } else if (!Number.isFinite(c.quantity)) {
+        error = "Invalid number"
+        valid = false
+      }
+      return { ...c, error }
+    })
+    setConsumptions(updated)
+    return valid
+  }
+
   const handleComplete = async () => {
+    if (!validateConsumptions()) return
+
     const payload = {
       consumptions: consumptions
         .filter((c) => c.quantity > 0)
@@ -106,7 +127,7 @@ const DesignCompleteWithId = ({ id }: { id: string }) => {
         handleSuccess()
       },
       onError: (e) => {
-        toast.error(e.message)
+        toast.error(extractErrorMessage(e))
       },
     })
   }
@@ -148,14 +169,18 @@ const DesignCompleteWithId = ({ id }: { id: string }) => {
                     </div>
                     <div>
                       <Text size="xsmall" className="text-ui-fg-subtle">
-                        Quantity
+                        Quantity (decimals allowed)
                       </Text>
                       <Input
                         type="number"
                         min={0}
+                        step="any"
+                        inputMode="decimal"
                         value={current?.quantity ?? 0}
+                        className={current?.error ? "border-ui-border-error" : ""}
                         onChange={(e) => {
-                          const qty = Number(e.target.value || 0)
+                          const raw = e.target.value
+                          const qty = raw === "" ? 0 : parseFloat(raw)
                           setConsumptions((prev) => {
                             const next = [...prev]
                             next[idx] = {
@@ -164,12 +189,18 @@ const DesignCompleteWithId = ({ id }: { id: string }) => {
                                 quantity: 0,
                               }),
                               inventory_item_id: String(item.id),
-                              quantity: qty,
+                              quantity: Number.isNaN(qty) ? 0 : qty,
+                              error: undefined,
                             }
                             return next
                           })
                         }}
                       />
+                      {current?.error && (
+                        <Text size="xsmall" className="text-ui-fg-error mt-1">
+                          {current.error}
+                        </Text>
+                      )}
                     </div>
                   </div>
                 )
