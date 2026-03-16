@@ -40,13 +40,13 @@ const getPermutations = (
   }
 
   if (data.length === 1) {
-    return data[0].values.map((value) => ({ [data[0].title]: value }))
+    return (data[0].values || []).map((value) => ({ [data[0].title]: value }))
   }
 
   const toProcess = data[0]
   const rest = data.slice(1)
 
-  return toProcess.values.flatMap((value) => {
+  return (toProcess.values || []).flatMap((value) => {
     return getPermutations(rest).map((permutation) => {
       return {
         [toProcess.title]: value,

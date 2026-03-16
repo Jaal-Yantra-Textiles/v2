@@ -29,7 +29,7 @@ export const CreateProductOptionForm = ({
   const form = useForm<z.infer<typeof CreateProductOptionSchema>>({
     defaultValues: {
       title: option.title,
-      values: option.values.map((v: any) => v.value),
+      values: (option.values || []).map((v: any) => v?.value ?? v),
     },
     resolver: zodResolver(CreateProductOptionSchema),
   })
