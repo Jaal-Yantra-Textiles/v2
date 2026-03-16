@@ -231,8 +231,17 @@ export const DesignDetail = () => {
   }, [inventoryItems])
 
   const metadata = (design as any)?.metadata as Record<string, any> | undefined
-  const notesValue = metadata?.notes
+
+  // Designer notes — stored as `designer_notes` column (TipTap JSON or plain text)
+  const notesValue = (design as any)?.designer_notes || metadata?.notes
+  // Specs — can be in metadata.specs or as a top-level field
   const specsValue = metadata?.specs
+  // Sizes — stored as `custom_sizes` column (e.g. { "S": { chest: 0, length: 0 }, "M": { ... } })
+  const customSizes = (design as any)?.custom_sizes as Record<string, any> | undefined
+  // Color palette
+  const colorPalette = (design as any)?.color_palette as any[] | Record<string, any> | undefined
+  // Description
+  const description = (design as any)?.description
 
   const notesBlocks = useMemo(() => getTipTapBlocks(notesValue), [notesValue])
   const hasNotesContent = notesBlocks.length > 0
@@ -335,11 +344,27 @@ export const DesignDetail = () => {
           )}
         </Container>
 
-        {/* Tags & Sizes */}
-        {(Array.isArray((design as any)?.tags) && (design as any).tags.length > 0) || metadata?.sizes ? (
+        {/* Description */}
+        {description && (
           <Container className="divide-y p-0">
             <div className="px-6 py-4">
-              <Heading level="h2">Tags & Sizes</Heading>
+              <Heading level="h2">Description</Heading>
+            </div>
+            <div className="px-6 py-4">
+              <Text size="small" className="text-ui-fg-subtle whitespace-pre-line">
+                {String(description)}
+              </Text>
+            </div>
+          </Container>
+        )}
+
+        {/* Tags, Sizes & Colors */}
+        {(Array.isArray((design as any)?.tags) && (design as any).tags.length > 0) ||
+         customSizes ||
+         colorPalette ? (
+          <Container className="divide-y p-0">
+            <div className="px-6 py-4">
+              <Heading level="h2">Specifications</Heading>
             </div>
             {Array.isArray((design as any)?.tags) && (design as any).tags.length > 0 && (
               <div className="px-6 py-4">
@@ -351,13 +376,50 @@ export const DesignDetail = () => {
                 </div>
               </div>
             )}
-            {metadata?.sizes && (
+            {customSizes && typeof customSizes === "object" && Object.keys(customSizes).length > 0 && (
               <div className="px-6 py-4">
                 <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">Sizes</Text>
-                <div className="flex flex-wrap gap-1.5">
-                  {(Array.isArray(metadata.sizes) ? metadata.sizes : [metadata.sizes]).map((size: any, i: number) => (
-                    <Badge key={i} size="2xsmall" color="blue">{String(size)}</Badge>
+                <div className="flex flex-col gap-y-2">
+                  {Object.entries(customSizes).map(([sizeName, measurements]) => (
+                    <div key={sizeName} className="flex items-start gap-x-3">
+                      <Badge size="2xsmall" color="blue" className="mt-0.5 shrink-0">
+                        {sizeName}
+                      </Badge>
+                      {measurements && typeof measurements === "object" ? (
+                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                          {Object.entries(measurements as Record<string, any>).map(([key, val]) => (
+                            <Text key={key} size="xsmall" className="text-ui-fg-subtle">
+                              {key}: {val != null ? String(val) : "-"}
+                            </Text>
+                          ))}
+                        </div>
+                      ) : (
+                        <Text size="xsmall" className="text-ui-fg-subtle">
+                          {String(measurements)}
+                        </Text>
+                      )}
+                    </div>
                   ))}
+                </div>
+              </div>
+            )}
+            {colorPalette && (
+              <div className="px-6 py-4">
+                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">Color Palette</Text>
+                <div className="flex flex-wrap gap-2">
+                  {(Array.isArray(colorPalette) ? colorPalette : Object.entries(colorPalette).map(([k, v]) => ({ name: k, value: v }))).map((color: any, i: number) => {
+                    const colorValue = typeof color === "string" ? color : color?.hex || color?.value || color?.code || String(color?.name || color)
+                    const colorName = typeof color === "string" ? color : color?.name || colorValue
+                    return (
+                      <div key={i} className="flex items-center gap-x-1.5">
+                        <div
+                          className="h-4 w-4 rounded-full border border-ui-border-base"
+                          style={{ backgroundColor: colorValue }}
+                        />
+                        <Text size="xsmall">{colorName}</Text>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
