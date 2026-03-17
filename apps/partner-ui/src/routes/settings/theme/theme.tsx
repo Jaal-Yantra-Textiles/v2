@@ -14,6 +14,9 @@ import {
 import { ArrowPath, Plus, Trash } from "@medusajs/icons"
 
 import {
+  RouteFocusModal,
+} from "../../../components/modals"
+import {
   useWebsiteTheme,
   useUpdateWebsiteTheme,
   WebsiteTheme,
@@ -43,6 +46,14 @@ type ThemeSection =
   | null
 
 export const SettingsTheme = () => {
+  return (
+    <RouteFocusModal prev="/content">
+      <ThemeEditorInner />
+    </RouteFocusModal>
+  )
+}
+
+const ThemeEditorInner = () => {
   const { theme, isPending } = useWebsiteTheme()
   const { mutateAsync: updateTheme, isPending: isSaving } =
     useUpdateWebsiteTheme()
@@ -138,51 +149,49 @@ export const SettingsTheme = () => {
 
   if (isPending) {
     return (
-      <div className="h-[calc(100vh-57px)] flex flex-col">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-ui-border-base bg-ui-bg-base shrink-0">
-          <div className="flex items-center gap-3">
+      <>
+        <RouteFocusModal.Header>
+          <div className="flex items-center gap-x-3">
             <Skeleton className="h-6 w-28" />
             <Skeleton className="h-5 w-16 rounded-full" />
           </div>
-          <Skeleton className="h-8 w-16 rounded-md" />
-        </div>
-        <div className="flex flex-1 overflow-hidden">
-          <div className="w-[180px] border-r border-ui-border-base bg-ui-bg-subtle p-3 space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full rounded-md" />
-            ))}
+        </RouteFocusModal.Header>
+        <RouteFocusModal.Body className="p-0 h-[calc(100vh-120px)]">
+          <div className="flex h-full overflow-hidden">
+            <div className="w-[180px] border-r border-ui-border-base bg-ui-bg-subtle p-3 space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-full rounded-md" />
+              ))}
+            </div>
+            <div className="flex-1 bg-ui-bg-subtle p-3">
+              <Skeleton className="w-full h-full rounded-lg" />
+            </div>
+            <div className="w-[300px] border-l border-ui-border-base p-4 space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="space-y-1.5">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex-1 bg-ui-bg-subtle p-3">
-            <Skeleton className="w-full h-full rounded-lg" />
-          </div>
-          <div className="w-[300px] border-l border-ui-border-base p-4 space-y-4">
-            <Skeleton className="h-5 w-20" />
-            <Skeleton className="h-4 w-32" />
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="space-y-1.5">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-8 w-full rounded-md" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+        </RouteFocusModal.Body>
+      </>
     )
   }
 
   return (
-    <div className="h-[calc(100vh-57px)] flex flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-ui-border-base bg-ui-bg-base shrink-0">
-        <div className="flex items-center gap-3">
-          <Heading level="h2" className="text-base">
-            Theme Editor
-          </Heading>
+    <>
+      <RouteFocusModal.Header>
+        <div className="flex items-center gap-x-3">
+          <RouteFocusModal.Title asChild>
+            <Heading>Theme Editor</Heading>
+          </RouteFocusModal.Title>
           <Badge color={iframeReady ? "green" : "orange"} size="2xsmall">
             {iframeReady ? "Connected" : "Loading..."}
           </Badge>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-x-2">
           <Tooltip content="Refresh preview">
             <IconButton
               variant="transparent"
@@ -196,10 +205,10 @@ export const SettingsTheme = () => {
             Save
           </Button>
         </div>
-      </div>
+      </RouteFocusModal.Header>
 
-      {/* Editor body */}
-      <div className="flex flex-1 overflow-hidden">
+      <RouteFocusModal.Body className="p-0 h-[calc(100vh-120px)]">
+        <div className="flex h-full overflow-hidden">
         {/* Section tabs */}
         <div className="w-[180px] border-r border-ui-border-base bg-ui-bg-subtle overflow-y-auto shrink-0">
           <div className="px-3 py-3">
@@ -287,7 +296,8 @@ export const SettingsTheme = () => {
           </div>
         </div>
       </div>
-    </div>
+    </RouteFocusModal.Body>
+    </>
   )
 }
 
