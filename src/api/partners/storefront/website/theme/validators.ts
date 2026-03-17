@@ -65,6 +65,39 @@ export const websiteThemeSchema = z.object({
       social_links: z.array(socialLinkSchema).optional(),
     })
     .optional(),
+  home_sections: z
+    .object({
+      show_featured_collections: z.boolean().optional(),
+      featured_collection_count: z.number().min(1).max(10).optional(),
+      products_per_collection: z.number().min(1).max(12).optional(),
+      collection_heading: z.string().optional(),
+      empty_state_product_name: z.string().optional(),
+      show_categories: z.boolean().optional(),
+      category_heading: z.string().optional(),
+      sections_order: z.array(z.enum(["hero", "collections", "categories"])).optional(),
+    })
+    .optional(),
+  product_page: z
+    .object({
+      show_related_products: z.boolean().optional(),
+      related_heading: z.string().optional(),
+      show_tabs: z.boolean().optional(),
+      show_breadcrumbs: z.boolean().optional(),
+      cta_text: z.string().optional(),
+      sample_product_name: z.string().optional(),
+      sample_product_price: z.string().optional(),
+    })
+    .optional(),
+  cart: z
+    .object({
+      heading: z.string().optional(),
+      empty_message: z.string().optional(),
+      empty_cta_text: z.string().optional(),
+      empty_cta_link: z.string().optional(),
+      show_sign_in_prompt: z.boolean().optional(),
+      checkout_button_text: z.string().optional(),
+    })
+    .optional(),
 })
 
 export type WebsiteTheme = z.infer<typeof websiteThemeSchema>

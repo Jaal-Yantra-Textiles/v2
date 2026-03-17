@@ -146,9 +146,11 @@ const ContentDetailInner = () => {
     if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
   }
 
+  // Include country code prefix to avoid middleware redirect loops in iframe
+  const countryCode = "in"
   const previewUrl = domain
-    ? `https://${domain}/pages/${page?.slug || ""}?visual_editor=true`
-    : `http://localhost:8000/pages/${page?.slug || ""}?visual_editor=true`
+    ? `https://${domain}/${countryCode}/pages/${page?.slug || ""}?visual_editor=true`
+    : `http://localhost:8000/${countryCode}/pages/${page?.slug || ""}?visual_editor=true`
 
   const isPublished = page?.status === "Published"
   const selectedBlock = blocks.find((b) => b.id === selectedBlockId)

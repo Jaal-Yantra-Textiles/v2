@@ -241,6 +241,33 @@ export type WebsiteTheme = {
   }
   navigation?: { links?: Array<{ label: string; href: string }>; show_account_link?: boolean }
   footer?: { text?: string; social_links?: Array<{ platform: string; url: string }> }
+  home_sections?: {
+    show_featured_collections?: boolean
+    featured_collection_count?: number
+    products_per_collection?: number
+    collection_heading?: string
+    empty_state_product_name?: string
+    show_categories?: boolean
+    category_heading?: string
+    sections_order?: Array<"hero" | "collections" | "categories">
+  }
+  product_page?: {
+    show_related_products?: boolean
+    related_heading?: string
+    show_tabs?: boolean
+    show_breadcrumbs?: boolean
+    cta_text?: string
+    sample_product_name?: string
+    sample_product_price?: string
+  }
+  cart?: {
+    heading?: string
+    empty_message?: string
+    empty_cta_text?: string
+    empty_cta_link?: string
+    show_sign_in_prompt?: boolean
+    checkout_button_text?: string
+  }
 }
 
 export const useWebsiteTheme = (

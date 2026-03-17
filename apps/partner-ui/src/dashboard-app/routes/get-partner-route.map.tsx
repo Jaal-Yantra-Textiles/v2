@@ -563,6 +563,14 @@ export function getPartnerRouteMap(): RouteObject[] {
               ],
             },
             {
+              path: "/webstore/theme",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Theme",
+              },
+              lazy: () => import("../../routes/settings/theme"),
+            },
+            {
               path: "/profile",
               errorElement: <ErrorBoundary />,
               handle: {
@@ -616,10 +624,6 @@ export function getPartnerRouteMap(): RouteObject[] {
                         import("../../routes/settings/payments/payments-create"),
                     },
                   ],
-                },
-                {
-                  path: "theme",
-                  lazy: () => import("../../routes/settings/theme"),
                 },
                 {
                   path: "plan",
