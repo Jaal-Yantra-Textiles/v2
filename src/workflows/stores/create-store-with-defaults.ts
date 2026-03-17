@@ -150,12 +150,12 @@ const createRegionStep = createStep<CreateStoreWithDefaultsInput["region"], any,
         paymentProviders.push("pp_stripe_stripe")
       }
 
-      // Add Razorpay for INR regions (India)
+      // Add PayU for Indian regions (INR currency or IN country)
       const isIndianRegion =
         input.currency_code === "inr" ||
         reqCountries.includes("in")
-      if (isIndianRegion && enabledProviderIds.includes("pp_razorpay_razorpay")) {
-        paymentProviders.push("pp_razorpay_razorpay")
+      if (isIndianRegion && enabledProviderIds.includes("pp_payu_payu")) {
+        paymentProviders.push("pp_payu_payu")
       }
     }
 

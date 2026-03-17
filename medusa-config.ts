@@ -191,16 +191,15 @@ module.exports = defineConfig({
               apiKey: process.env.STRIPE_API_KEY,
             },
           },
-          ...(process.env.RAZORPAY_ID
+          ...(process.env.PAYU_MERCHANT_KEY
             ? [
                 {
-                  resolve: "@devx-commerce/razorpay/providers/payment-razorpay",
-                  id: "razorpay",
+                  resolve: "./src/modules/payu-payment",
+                  id: "payu",
                   options: {
-                    key_id: process.env.RAZORPAY_ID,
-                    key_secret: process.env.RAZORPAY_SECRET,
-                    razorpay_account: process.env.RAZORPAY_ACCOUNT,
-                    webhook_secret: process.env.RAZORPAY_WEBHOOK_SECRET,
+                    merchant_key: process.env.PAYU_MERCHANT_KEY,
+                    merchant_salt: process.env.PAYU_MERCHANT_SALT,
+                    mode: process.env.PAYU_MODE || "test",
                     auto_capture: true,
                   },
                 },
