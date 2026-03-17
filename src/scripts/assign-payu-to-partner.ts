@@ -2,17 +2,15 @@ import { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 /**
- * Assigns PayU payment provider to a partner's INR region.
+ * Assigns PayU payment provider to all INR regions.
  *
  * Usage:
- *   npx medusa exec src/scripts/assign-payu-to-partner.ts -- --partner <handle>
- *
- * If no --partner flag, assigns to all INR regions.
+ *   npx medusa exec src/scripts/assign-payu-to-partner.ts
  */
 export default async function assignPayUToPartner({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const regionService = container.resolve(Modules.REGION) as any
+  const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK) as any
 
   // Check if PayU provider exists
   const { data: providers } = await query.graph({
@@ -23,7 +21,7 @@ export default async function assignPayUToPartner({ container }: ExecArgs) {
   const payuProvider = (providers || []).find((p: any) => p.id === "pp_payu_payu")
 
   if (!payuProvider) {
-    logger.error("PayU provider (pp_payu_payu) not found. Make sure PAYU_MERCHANT_KEY is set and the app has been restarted.")
+    logger.error("PayU provider (pp_payu_payu) not found. Make sure PAYU_MERCHANT_KEY is set.")
     return
   }
 
@@ -32,7 +30,7 @@ export default async function assignPayUToPartner({ container }: ExecArgs) {
   // Find INR regions
   const { data: regions } = await query.graph({
     entity: "region",
-    fields: ["id", "name", "currency_code", "payment_providers.id"],
+    fields: ["id", "name", "currency_code"],
   })
 
   const inrRegions = (regions || []).filter(
@@ -40,36 +38,41 @@ export default async function assignPayUToPartner({ container }: ExecArgs) {
   )
 
   if (!inrRegions.length) {
-    logger.warn("No INR regions found. Create an India region first.")
-
-    // List all regions for reference
+    logger.warn("No INR regions found.")
     logger.info("Available regions:")
     for (const r of (regions || [])) {
-      const providerIds = ((r as any).payment_providers || []).map((p: any) => p.id).join(", ")
-      logger.info(`  ${(r as any).id} | ${(r as any).name} | ${(r as any).currency_code} | providers: ${providerIds || "none"}`)
+      logger.info(`  ${(r as any).id} | ${(r as any).name} | ${(r as any).currency_code}`)
     }
     return
   }
 
   for (const region of inrRegions) {
     const r = region as any
-    const existingProviders = (r.payment_providers || []).map((p: any) => p.id)
 
-    if (existingProviders.includes("pp_payu_payu")) {
-      logger.info(`Region "${r.name}" (${r.id}) already has PayU assigned.`)
-      continue
-    }
-
+    // Check if already linked via remoteQuery
     try {
-      // Add PayU to region's payment providers
-      const updatedProviders = [...existingProviders, "pp_payu_payu"]
-      await regionService.updateRegions({
-        id: r.id,
-        payment_providers: updatedProviders,
+      const existingLinks = await query.graph({
+        entity: "region",
+        fields: ["payment_providers.id"],
+        filters: { id: r.id },
       })
-      logger.info(`Assigned PayU to region "${r.name}" (${r.id}). Providers: ${updatedProviders.join(", ")}`)
+
+      const linkedProviders = ((existingLinks.data?.[0] as any)?.payment_providers || []).map((p: any) => p.id)
+
+      if (linkedProviders.includes("pp_payu_payu")) {
+        logger.info(`Region "${r.name}" (${r.id}) already has PayU.`)
+        continue
+      }
+
+      // Create link between region and payment provider
+      await remoteLink.create({
+        [Modules.REGION]: { region_id: r.id },
+        [Modules.PAYMENT]: { payment_provider_id: "pp_payu_payu" },
+      })
+
+      logger.info(`Assigned PayU to region "${r.name}" (${r.id})`)
     } catch (e: any) {
-      logger.error(`Failed to assign PayU to region "${r.name}": ${e.message}`)
+      logger.error(`Failed for region "${r.name}": ${e.message}`)
     }
   }
 

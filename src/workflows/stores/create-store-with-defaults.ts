@@ -377,6 +377,60 @@ const autoLinkFulfillmentProvidersStep = createStep(
       console.log(
         `[create-store] Created shipping + pickup fulfillment sets for ${countryUpper}`
       )
+
+      // Auto-create default shipping options for the shipping zone
+      const serviceZone = shippingSet.service_zones?.[0]
+      if (serviceZone) {
+        try {
+          // Get a shipping profile
+          const shippingProfiles = await fulfillmentService.listShippingProfiles({}, { take: 1 })
+          const profileId = shippingProfiles?.[0]?.id
+
+          if (profileId) {
+            // Determine which fulfillment provider to use based on country
+            const providerMap: Record<string, string> = {
+              in: "fp_delhivery",
+            }
+            const providerId = providerMap[country.toLowerCase()] || "fp_manual-fulfillment_manual-fulfillment"
+
+            // Standard shipping
+            await fulfillmentService.createShippingOptions({
+              name: "Standard Shipping",
+              price_type: "flat",
+              service_zone_id: serviceZone.id,
+              shipping_profile_id: profileId,
+              provider_id: providerId,
+              type: {
+                label: "Standard",
+                description: "Standard delivery",
+                code: "standard",
+              },
+              data: {},
+              rules: [],
+            })
+
+            // Return option
+            await fulfillmentService.createShippingOptions({
+              name: "Return Shipping",
+              price_type: "flat",
+              service_zone_id: serviceZone.id,
+              shipping_profile_id: profileId,
+              provider_id: providerId,
+              type: {
+                label: "Return",
+                description: "Return pickup",
+                code: "return",
+              },
+              data: { is_return: true },
+              rules: [],
+            })
+
+            console.log(`[create-store] Created default shipping options for ${countryUpper}`)
+          }
+        } catch (shippingErr: any) {
+          console.error(`[create-store] Failed to create shipping options: ${shippingErr.message}`)
+        }
+      }
     } catch (e: any) {
       console.error(`[create-store] Failed to create fulfillment sets: ${e.message}`)
     }
