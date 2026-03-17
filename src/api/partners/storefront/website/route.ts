@@ -10,17 +10,33 @@ import { createWebsiteWorkflow } from "../../../../workflows/website/create-webs
 import { seedDefaultPagesWorkflow } from "../../../../workflows/website/seed-default-pages"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
 
+type PartnerRecord = {
+  id: string
+  name: string
+  storefront_domain?: string | null
+  website_id?: string | null
+  vercel_project_id?: string | null
+  metadata?: Record<string, any> | null
+}
+
+function getStorefrontDomain(partner: PartnerRecord): string | null {
+  return partner.storefront_domain || (partner.metadata?.storefront_domain as string) || null
+}
+
+function getWebsiteId(partner: PartnerRecord): string | null {
+  return partner.website_id || (partner.metadata?.website_id as string) || null
+}
+
 /**
  * POST /partners/storefront/website
  * Auto-create a website for the partner's storefront domain.
  * Seeds default pages (T&C, Privacy Policy, Contact) automatically.
- * Stores website_id on the partner record (table column, not metadata).
  */
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope) as PartnerRecord | null
   if (!partner) {
     throw new MedusaError(
       MedusaError.Types.UNAUTHORIZED,
@@ -28,7 +44,7 @@ export const POST = async (
     )
   }
 
-  const domain = partner.storefront_domain || partner.metadata?.storefront_domain
+  const domain = getStorefrontDomain(partner)
   if (!domain) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
@@ -37,7 +53,7 @@ export const POST = async (
   }
 
   // Already has a website_id linked
-  const existingWebsiteId = partner.website_id || partner.metadata?.website_id
+  const existingWebsiteId = getWebsiteId(partner)
   if (existingWebsiteId) {
     const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
     try {
@@ -60,7 +76,7 @@ export const POST = async (
     },
   })
 
-  // Store website_id on the partner record (table column)
+  // Store website_id on the partner record
   await updatePartnerWorkflow(req.scope).run({
     input: {
       id: partner.id,
@@ -88,7 +104,7 @@ export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope) as PartnerRecord | null
   if (!partner) {
     throw new MedusaError(
       MedusaError.Types.UNAUTHORIZED,
@@ -96,15 +112,15 @@ export const GET = async (
     )
   }
 
-  const domain = partner.storefront_domain || partner.metadata?.storefront_domain
+  const domain = getStorefrontDomain(partner)
   if (!domain) {
     return res.json({ website: null, message: "Storefront not provisioned" })
   }
 
   const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
 
-  // 1. Direct lookup by website_id (table column or metadata fallback)
-  const websiteId = partner.website_id || partner.metadata?.website_id
+  // 1. Direct lookup by website_id
+  const websiteId = getWebsiteId(partner)
   if (websiteId) {
     try {
       const website = await websiteService.retrieveWebsite(websiteId)

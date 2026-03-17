@@ -1,47 +1,6 @@
 /**
  * @file Admin API route for managing website pages
  * @description Handles creation and listing of pages for a specific website
- *
- * @example
- * // Create a single page
- * POST /admin/websites/{id}/pages
- * {
- *   "title": "About Us",
- *   "content": "<p>Company information</p>",
- *   "status": "published",
- *   "page_type": "standard",
- *   "genMetaDataLLM": true
- * }
- *
- * @example
- * // Create multiple pages (batch)
- * POST /admin/websites/{id}/pages
- * {
- *   "pages": [
- *     {
- *       "title": "Contact",
- *       "content": "<p>Contact form</p>",
- *       "status": "draft",
- *       "page_type": "contact",
- *       "genMetaDataLLM": false
- *     },
- *     {
- *       "title": "Privacy Policy",
- *       "content": "<p>Privacy terms</p>",
- *       "status": "published",
- *       "page_type": "legal",
- *       "genMetaDataLLM": true
- *     }
- *   ]
- * }
- *
- * @example
- * // List pages with filters
- * GET /admin/websites/{id}/pages?q=about&status=published&page_type=standard&offset=0&limit=10
- *
- * @example
- * // List pages with pagination
- * GET /admin/websites/{id}/pages?offset=10&limit=10
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { createPageWorkflow } from "../../../../../workflows/website/website-page/create-page";
@@ -53,77 +12,76 @@ import {
 } from "../../../../../workflows/website/website-page/list-page";
 
 export const POST = async (
-  req: MedusaRequest<CreatePagesSchema | PageSchema >,
+  req: MedusaRequest,
   res: MedusaResponse,
 ) => {
   const websiteId = req.params.id;
-  
-  if ('pages' in req.validatedBody) {
-    
-    // Batch create pages using the bulk workflow
+  const body = req.validatedBody as CreatePagesSchema | PageSchema;
+
+  if ("pages" in body) {
+    const batchBody = body as CreatePagesSchema;
+
     const { result } = await createBulkPagesWorkflow(req.scope).run({
       input: {
-        pages: req.validatedBody.pages.map(page => ({
+        pages: batchBody.pages.map((page) => ({
           ...page,
           website_id: websiteId,
-          genMetaDataLLM: page.genMetaDataLLM
+          genMetaDataLLM: page.genMetaDataLLM ?? false,
         })),
       },
     });
-    // If we have any errors, return them along with any successfully created pages
+
     if (result.errors.length > 0) {
-      // If no pages were created but we have errors
       if (!result.created || result.created.length === 0) {
-        res.status(400).json({
+        return res.status(400).json({
           message: "Failed to create pages",
-          errors: result.errors
-        });
-      } else {
-        // If some pages were created but others failed
-        res.status(207).json({
-          message: "Some pages were created successfully while others failed",
-          pages: result.created,
-          errors: result.errors
+          errors: result.errors,
         });
       }
-    } else {
-      // All pages created successfully
-      res.status(201).json({ 
-        message: "All pages created successfully",
-        pages: result.created 
+      return res.status(207).json({
+        message: "Some pages were created successfully while others failed",
+        pages: result.created,
+        errors: result.errors,
       });
     }
-  } else {
-    // Create single page
-    const { result } = await createPageWorkflow(req.scope).run({
-      input: {
-        ...req.validatedBody,
-        website_id: websiteId,
-        genMetaDataLLM: req.validatedBody.genMetaDataLLM
-      },
+
+    return res.status(201).json({
+      message: "All pages created successfully",
+      pages: result.created,
     });
-    res.status(201).json({ page: result });
   }
+
+  const singleBody = body as PageSchema;
+  const { result } = await createPageWorkflow(req.scope).run({
+    input: {
+      ...singleBody,
+      website_id: websiteId,
+      genMetaDataLLM: singleBody.genMetaDataLLM ?? false,
+    },
+  });
+
+  res.status(201).json({ page: result });
 };
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const websiteId = req.params.id;
-  const { q, status, page_type } = req.query;
-  const title = q;
+  const title = req.query.q as string | undefined;
+  const status = req.query.status as string | undefined;
+  const page_type = req.query.page_type as string | undefined;
   const offset = parseInt(req.query.offset as string) || 0;
   const limit = parseInt(req.query.limit as string) || 10;
 
   const workflowInput: ListPageWorkflowInput = {
     website_id: websiteId,
     filters: {
-      title,
-      status,
-      page_type,
+      ...(title ? { title } : {}),
+      ...(status ? { status } : {}),
+      ...(page_type ? { page_type } : {}),
     },
     config: {
       skip: offset,
-      take: limit
-    }
+      take: limit,
+    },
   };
 
   const { result } = await listPageWorkflow(req.scope).run({
