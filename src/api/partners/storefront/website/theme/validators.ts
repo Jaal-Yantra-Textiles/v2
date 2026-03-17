@@ -5,6 +5,12 @@ const hexColor = z
   .regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color (e.g. #7c3aed)")
   .optional()
 
+const heroFeatureSchema = z.object({
+  icon: z.string().optional(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+})
+
 const navigationLinkSchema = z.object({
   label: z.string().min(1),
   href: z.string().min(1),
@@ -33,11 +39,18 @@ export const websiteThemeSchema = z.object({
     .optional(),
   hero: z
     .object({
+      layout: z.enum(["center", "left", "right", "split"]).optional(),
+      badge_text: z.string().optional(),
       title: z.string().optional(),
       subtitle: z.string().optional(),
+      description: z.string().optional(),
       background_image_url: z.string().optional(),
+      overlay_opacity: z.number().min(0).max(100).optional(),
       cta_text: z.string().optional(),
       cta_link: z.string().optional(),
+      secondary_cta_text: z.string().optional(),
+      secondary_cta_link: z.string().optional(),
+      features: z.array(heroFeatureSchema).optional(),
     })
     .optional(),
   navigation: z

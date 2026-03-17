@@ -180,6 +180,62 @@ export const SettingsTheme = () => {
           </Text>
         </div>
         <div className="px-6 py-4 space-y-4">
+          {/* Layout */}
+          <div className="space-y-1.5">
+            <Label size="small">Layout</Label>
+            <div className="flex gap-2">
+              {(
+                [
+                  ["center", "Center"],
+                  ["left", "Left"],
+                  ["right", "Right"],
+                  ["split", "Split"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                    (form.hero?.layout || "center") === value
+                      ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                      : "border-ui-border-base bg-ui-bg-field text-ui-fg-subtle hover:bg-ui-bg-field-hover"
+                  }`}
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      hero: { ...form.hero, layout: value },
+                    })
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <Text size="xsmall" className="text-ui-fg-muted">
+              Split shows text on the left and background image on the right
+            </Text>
+          </div>
+
+          {/* Badge */}
+          <div className="space-y-1.5">
+            <Label size="small">Badge Text</Label>
+            <Input
+              size="small"
+              placeholder="New Collection"
+              value={form.hero?.badge_text || ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  hero: { ...form.hero, badge_text: e.target.value },
+                })
+              }
+            />
+            <Text size="xsmall" className="text-ui-fg-muted">
+              Small label shown above the title
+            </Text>
+          </div>
+
+          {/* Title & Subtitle */}
           <div className="space-y-1.5">
             <Label size="small">Title</Label>
             <Input
@@ -208,6 +264,24 @@ export const SettingsTheme = () => {
               }
             />
           </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label size="small">Description</Label>
+            <textarea
+              className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-2 text-sm min-h-[80px] resize-y focus:outline-none focus:border-ui-fg-interactive"
+              placeholder="A longer description shown below the subtitle..."
+              value={form.hero?.description || ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  hero: { ...form.hero, description: e.target.value },
+                })
+              }
+            />
+          </div>
+
+          {/* Background Image & Overlay */}
           <div className="space-y-1.5">
             <Label size="small">Background Image URL</Label>
             <Input
@@ -225,9 +299,35 @@ export const SettingsTheme = () => {
               }
             />
           </div>
+          <div className="space-y-1.5">
+            <Label size="small">
+              Overlay Opacity ({form.hero?.overlay_opacity ?? 0}%)
+            </Label>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={form.hero?.overlay_opacity ?? 0}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  hero: {
+                    ...form.hero,
+                    overlay_opacity: Number(e.target.value),
+                  },
+                })
+              }
+              className="w-full"
+            />
+            <Text size="xsmall" className="text-ui-fg-muted">
+              Dark overlay on the background image for text readability
+            </Text>
+          </div>
+
+          {/* CTAs */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label size="small">CTA Text</Label>
+              <Label size="small">Primary CTA Text</Label>
               <Input
                 size="small"
                 placeholder="Shop Now"
@@ -241,7 +341,7 @@ export const SettingsTheme = () => {
               />
             </div>
             <div className="space-y-1.5">
-              <Label size="small">CTA Link</Label>
+              <Label size="small">Primary CTA Link</Label>
               <Input
                 size="small"
                 placeholder="/store"
@@ -254,6 +354,141 @@ export const SettingsTheme = () => {
                 }
               />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label size="small">Secondary CTA Text</Label>
+              <Input
+                size="small"
+                placeholder="Learn More"
+                value={form.hero?.secondary_cta_text || ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    hero: {
+                      ...form.hero,
+                      secondary_cta_text: e.target.value,
+                    },
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label size="small">Secondary CTA Link</Label>
+              <Input
+                size="small"
+                placeholder="/about"
+                value={form.hero?.secondary_cta_link || ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    hero: {
+                      ...form.hero,
+                      secondary_cta_link: e.target.value,
+                    },
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          {/* Features */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label size="small">Feature Highlights</Label>
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  Shown below the hero content
+                </Text>
+              </div>
+              <Button
+                variant="secondary"
+                size="small"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    hero: {
+                      ...form.hero,
+                      features: [
+                        ...(form.hero?.features || []),
+                        { title: "", description: "" },
+                      ],
+                    },
+                  })
+                }
+              >
+                <Plus className="mr-1" />
+                Add Feature
+              </Button>
+            </div>
+            {(form.hero?.features || []).map((feat, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-2 p-3 rounded-md border border-ui-border-base bg-ui-bg-subtle"
+              >
+                <div className="flex-1 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      size="small"
+                      placeholder="Icon (emoji or text)"
+                      value={feat.icon || ""}
+                      onChange={(e) => {
+                        const features = [...(form.hero?.features || [])]
+                        features[i] = { ...features[i], icon: e.target.value }
+                        setForm({
+                          ...form,
+                          hero: { ...form.hero, features },
+                        })
+                      }}
+                    />
+                    <Input
+                      size="small"
+                      placeholder="Feature title"
+                      value={feat.title}
+                      onChange={(e) => {
+                        const features = [...(form.hero?.features || [])]
+                        features[i] = { ...features[i], title: e.target.value }
+                        setForm({
+                          ...form,
+                          hero: { ...form.hero, features },
+                        })
+                      }}
+                    />
+                  </div>
+                  <Input
+                    size="small"
+                    placeholder="Short description"
+                    value={feat.description || ""}
+                    onChange={(e) => {
+                      const features = [...(form.hero?.features || [])]
+                      features[i] = {
+                        ...features[i],
+                        description: e.target.value,
+                      }
+                      setForm({
+                        ...form,
+                        hero: { ...form.hero, features },
+                      })
+                    }}
+                  />
+                </div>
+                <Button
+                  variant="transparent"
+                  size="small"
+                  onClick={() => {
+                    const features = (form.hero?.features || []).filter(
+                      (_, idx) => idx !== i
+                    )
+                    setForm({
+                      ...form,
+                      hero: { ...form.hero, features },
+                    })
+                  }}
+                >
+                  <Trash />
+                </Button>
+              </div>
+            ))}
           </div>
         </div>
       </Container>

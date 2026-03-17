@@ -87,6 +87,8 @@ import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingle
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { websiteThemeSchema } from "./partners/storefront/website/theme/validators";
+import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
+import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
 import { createStoreSchema } from "./admin/stores/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
@@ -1264,6 +1266,32 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(websiteThemeSchema)),
       ],
     },
+    // Partner Subscription
+    {
+      matcher: "/partners/subscription",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/subscription",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(partnerSubscribeSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/subscription",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Price Preferences
     {
       matcher: "/partners/price-preferences",
@@ -1712,6 +1740,24 @@ export default defineMiddlewares({
       matcher: "/admin/payments/partners/:id/methods",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(CreatePaymentMethodForPartnerSchema))],
+    },
+
+    // ── Partner Plans ──────────────────────────────────────────────────────
+    {
+      matcher: "/admin/partner-plans",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(createPlanSchema))],
+    },
+    {
+      matcher: "/admin/partner-plans/:id",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(wrapSchema(updatePlanSchema))],
+    },
+    // ── Partner Subscriptions (Admin) ────────────────────────────────────
+    {
+      matcher: "/admin/partner-subscriptions",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(createSubscriptionSchema))],
     },
 
     // ── Payment Reports ──────────────────────────────────────────────────────

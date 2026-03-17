@@ -225,7 +225,20 @@ export const useContentBlocks = (
 export type WebsiteTheme = {
   branding?: { logo_url?: string; store_name?: string; favicon_url?: string }
   colors?: { primary?: string; background?: string; text?: string; accent?: string }
-  hero?: { title?: string; subtitle?: string; background_image_url?: string; cta_text?: string; cta_link?: string }
+  hero?: {
+    layout?: "center" | "left" | "right" | "split"
+    badge_text?: string
+    title?: string
+    subtitle?: string
+    description?: string
+    background_image_url?: string
+    overlay_opacity?: number
+    cta_text?: string
+    cta_link?: string
+    secondary_cta_text?: string
+    secondary_cta_link?: string
+    features?: Array<{ icon?: string; title: string; description?: string }>
+  }
   navigation?: { links?: Array<{ label: string; href: string }>; show_account_link?: boolean }
   footer?: { text?: string; social_links?: Array<{ platform: string; url: string }> }
 }

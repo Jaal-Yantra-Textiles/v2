@@ -59,6 +59,10 @@ const useSettingRoutes = (): INavItem[] => {
         label: "Theme",
         to: "/settings/theme",
       },
+      {
+        label: "Plan & Billing",
+        to: "/settings/plan",
+      },
     ],
     [t]
   )

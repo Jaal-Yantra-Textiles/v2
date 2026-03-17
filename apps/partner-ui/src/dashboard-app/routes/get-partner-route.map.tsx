@@ -621,6 +621,10 @@ export function getPartnerRouteMap(): RouteObject[] {
                   path: "theme",
                   lazy: () => import("../../routes/settings/theme"),
                 },
+                {
+                  path: "plan",
+                  lazy: () => import("../../routes/settings/plan"),
+                },
                 // Regions
                 {
                   path: "regions",

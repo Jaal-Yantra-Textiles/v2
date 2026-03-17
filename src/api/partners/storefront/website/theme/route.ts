@@ -1,9 +1,9 @@
-import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { getPartnerWebsite } from "../../helpers"
 import { updateWebsiteWorkflow } from "../../../../../workflows/website/update-website"
 import { WebsiteTheme } from "./validators"
 
-export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) => {
   const { website } = await getPartnerWebsite(
     req.auth_context,
     req.scope
@@ -13,7 +13,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 }
 
 export const PUT = async (
-  req: MedusaRequest<WebsiteTheme>,
+  req: AuthenticatedMedusaRequest<WebsiteTheme>,
   res: MedusaResponse
 ) => {
   const { website } = await getPartnerWebsite(
