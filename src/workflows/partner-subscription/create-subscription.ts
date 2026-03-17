@@ -7,11 +7,12 @@ import {
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PARTNER_PLAN_MODULE } from "../../modules/partner-plan"
 import PartnerPlanService from "../../modules/partner-plan/service"
-import { SubscriptionStatus } from "../../modules/partner-plan/types"
+import { PaymentProvider, SubscriptionStatus } from "../../modules/partner-plan/types"
 
 export type CreatePartnerSubscriptionInput = {
   partner_id: string
   plan_id: string
+  payment_provider?: string
   metadata?: Record<string, unknown>
 }
 
@@ -40,6 +41,7 @@ const createSubscriptionStep = createStep(
       partner_id: input.partner_id,
       plan_id: input.plan_id,
       status: SubscriptionStatus.ACTIVE,
+      payment_provider: (input.payment_provider as PaymentProvider) || PaymentProvider.MANUAL,
       current_period_start: now,
       current_period_end: periodEnd,
       metadata: input.metadata || null,

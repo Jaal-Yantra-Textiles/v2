@@ -24,10 +24,10 @@ export const GET = async (
 
   const service: PartnerPlanService = req.scope.resolve(PARTNER_PLAN_MODULE)
 
-  // Get active subscription
+  // Get active subscription with payments
   const [subscriptions] = await service.listAndCountPartnerSubscriptions(
-    { partner_id: partner.id, status: "active" },
-    { take: 1, relations: ["plan"] }
+    { partner_id: partner.id, status: "active" as any },
+    { take: 1, relations: ["plan", "payments"] }
   )
 
   const subscription = subscriptions[0] || null
@@ -38,7 +38,12 @@ export const GET = async (
     { order: { sort_order: "ASC" }, take: 100 }
   )
 
-  res.json({ subscription, plans })
+  // Determine which payment provider the partner should use
+  // India-based partners → PayU, international → Stripe
+  const partnerCurrency = (partner.metadata as any)?.currency_code || "inr"
+  const recommended_provider = partnerCurrency === "inr" ? "payu" : "stripe"
+
+  res.json({ subscription, plans, recommended_provider })
 }
 
 export const POST = async (

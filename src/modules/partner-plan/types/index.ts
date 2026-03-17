@@ -9,3 +9,17 @@ export enum SubscriptionStatus {
   EXPIRED = "expired",
   PAST_DUE = "past_due",
 }
+
+export enum PaymentProvider {
+  PAYU = "payu",
+  STRIPE = "stripe",
+  MANUAL = "manual",
+}
+
+export enum SubscriptionPaymentStatus {
+  PENDING = "pending",
+  PROCESSING = "processing",
+  COMPLETED = "completed",
+  FAILED = "failed",
+  REFUNDED = "refunded",
+}
