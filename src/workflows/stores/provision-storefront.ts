@@ -14,6 +14,7 @@ export type ProvisionStorefrontInput = {
   publishable_key: string
   root_domain: string
   storefront_repo: string
+  storefront_root_dir?: string
   medusa_backend_url: string
   stripe_publishable_key: string
   s3_hostname: string
@@ -33,13 +34,14 @@ export type ProvisionStorefrontResult = {
 // Step 1: Create Vercel project
 const createVercelProjectStep = createStep(
   "create-vercel-project",
-  async (input: { handle: string; storefrontRepo: string }, { container }) => {
+  async (input: { handle: string; storefrontRepo: string; rootDirectory?: string }, { container }) => {
     const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     const projectName = `storefront-${input.handle}`
     const project = await deployment.createProject({
       name: projectName,
       gitRepo: input.storefrontRepo,
       framework: "nextjs",
+      rootDirectory: input.rootDirectory,
     })
 
     return new StepResponse(
@@ -231,6 +233,7 @@ export const provisionStorefrontWorkflow = createWorkflow(
     const project = createVercelProjectStep({
       handle: input.handle,
       storefrontRepo: input.storefront_repo,
+      rootDirectory: input.storefront_root_dir,
     })
 
     // Step 2: Set env vars

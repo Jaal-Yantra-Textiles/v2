@@ -31,6 +31,14 @@ import { useStorefrontStatus } from "../../../hooks/api/storefront"
 import { sdk } from "../../../lib/client"
 
 export const ContentDetail = () => {
+  return (
+    <RouteFocusModal>
+      <ContentDetailInner />
+    </RouteFocusModal>
+  )
+}
+
+const ContentDetailInner = () => {
   const { id: pageId } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { handleSuccess } = useRouteModal()
@@ -147,7 +155,7 @@ export const ContentDetail = () => {
 
   if (pageLoading || blocksLoading) {
     return (
-      <RouteFocusModal>
+      <>
         <RouteFocusModal.Header>
           <RouteFocusModal.Title asChild>
             <Heading>Loading...</Heading>
@@ -156,13 +164,13 @@ export const ContentDetail = () => {
         <RouteFocusModal.Body className="flex items-center justify-center">
           <Text className="text-ui-fg-subtle">Loading page editor...</Text>
         </RouteFocusModal.Body>
-      </RouteFocusModal>
+      </>
     )
   }
 
   if (!page) {
     return (
-      <RouteFocusModal>
+      <>
         <RouteFocusModal.Header>
           <RouteFocusModal.Title asChild>
             <Heading>Page not found</Heading>
@@ -171,12 +179,12 @@ export const ContentDetail = () => {
         <RouteFocusModal.Body className="flex items-center justify-center">
           <Text className="text-ui-fg-subtle">This page does not exist.</Text>
         </RouteFocusModal.Body>
-      </RouteFocusModal>
+      </>
     )
   }
 
   return (
-    <RouteFocusModal>
+    <>
       <RouteFocusModal.Header>
         <div className="flex items-center gap-x-3">
           <RouteFocusModal.Title asChild>
@@ -346,6 +354,6 @@ export const ContentDetail = () => {
           )}
         </div>
       </RouteFocusModal.Body>
-    </RouteFocusModal>
+    </>
   )
 }

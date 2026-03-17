@@ -11,6 +11,7 @@ import updatePartnerWorkflow from "../../../../workflows/partners/update-partner
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || "cicilabel.com"
 const STOREFRONT_REPO = process.env.VERCEL_STOREFRONT_REPO || ""
+const STOREFRONT_ROOT_DIR = process.env.VERCEL_STOREFRONT_ROOT_DIR || "apps/storefront-starter"
 const MEDUSA_BACKEND_URL =
   process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_KEY || ""
@@ -165,6 +166,7 @@ export const POST = async (
       publishable_key: matchingKey.token,
       root_domain: ROOT_DOMAIN,
       storefront_repo: STOREFRONT_REPO,
+      storefront_root_dir: STOREFRONT_ROOT_DIR,
       medusa_backend_url: MEDUSA_BACKEND_URL,
       stripe_publishable_key: STRIPE_PUBLISHABLE_KEY,
       s3_hostname: s3Config.hostname,

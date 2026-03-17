@@ -117,16 +117,25 @@ class DeploymentService {
     name: string
     gitRepo: string
     framework?: string
+    rootDirectory?: string
+    installCommand?: string
   }): Promise<VercelProject> {
     const projectName = this.sanitizeProjectName(input.name)
+    const payload: Record<string, any> = {
+      name: projectName,
+      framework: input.framework || "nextjs",
+      gitRepository: { type: "github", repo: input.gitRepo },
+    }
+    if (input.rootDirectory) {
+      payload.rootDirectory = input.rootDirectory
+    }
+    if (input.installCommand) {
+      payload.installCommand = input.installCommand
+    }
     const res = await fetch(`${VERCEL_API_BASE}/v11/projects${this.vercelTeamQuery()}`, {
       method: "POST",
       headers: this.vercelHeaders(),
-      body: JSON.stringify({
-        name: projectName,
-        framework: input.framework || "nextjs",
-        gitRepository: { type: "github", repo: input.gitRepo },
-      }),
+      body: JSON.stringify(payload),
     })
     if (!res.ok) {
       const body = await res.text()
