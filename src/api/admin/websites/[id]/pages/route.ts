@@ -21,7 +21,7 @@ export const POST = async (
   if ("pages" in body) {
     const batchBody = body as CreatePagesSchema;
 
-    const { result } = await createBulkPagesWorkflow(req.scope).run({
+    const { result, errors } = await createBulkPagesWorkflow(req.scope).run({
       input: {
         pages: batchBody.pages.map((page) => ({
           ...page,
@@ -31,7 +31,7 @@ export const POST = async (
       },
     });
 
-    if (result.errors.length > 0) {
+    if (errors.length > 0) {
       if (!result.created || result.created.length === 0) {
         return res.status(400).json({
           message: "Failed to create pages",

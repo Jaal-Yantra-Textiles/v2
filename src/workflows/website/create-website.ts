@@ -31,9 +31,11 @@ export const createWebsiteStep = createStep(
     // Return the created entity and its ID for potential compensation
     return new StepResponse(newWebsite, newWebsite.id);
   },
-  async (id: string, { container }) => {
+  async (id: string | undefined, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
-
+    if (!id) {
+      return;
+    }
     // Delete the created entity to compensate
     await websiteService.softDeleteWebsites(id);
   },

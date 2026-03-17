@@ -44,7 +44,7 @@ export const createBulkPagesStep = createStep(
             });
             continue;
           }
-        } catch (error) {
+        } catch (error: MedusaError | any) {
           // If error is NOT_FOUND, that's good - means no duplicate
           if (error.type !== MedusaError.Types.NOT_FOUND) {
             errors.push({
@@ -63,7 +63,7 @@ export const createBulkPagesStep = createStep(
         });
 
         createdPages.push(page);
-      } catch (error) {
+      } catch (error: MedusaError | any) {
         errors.push({
           slug: pageInput.slug,
           error: error.message
@@ -80,10 +80,13 @@ export const createBulkPagesStep = createStep(
       createdPages.map(p => p.id)
     );
   },
-  async (ids: string[], { container }) => {
+  async (ids: string[] | undefined, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
+    if (ids === undefined) {  
+      return;
+    }
     // Delete all created pages to compensate
-    for (const id of ids) {
+    for (const id of ids || []) {
       await websiteService.softDeletePages(id);
     }
   }

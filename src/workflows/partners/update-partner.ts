@@ -16,6 +16,8 @@ export type UpdatePartnerInput = {
     status: "active" | "inactive" | "pending"
     is_verified: boolean
     metadata: Record<string, any> | null
+    website_id: string | null
+    storefront_domain: string | null
   }>
 }
 

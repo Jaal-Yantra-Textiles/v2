@@ -8,7 +8,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { RemoteQueryFunction } from "@medusajs/types"
 import Partner from "../../modules/partner/models/partner"
 import { InferTypeOf } from "@medusajs/framework/types"
-export type Partners = InferTypeOf<typeof Partner>
+export type Partner = InferTypeOf<typeof Partner>
+
 type ListPartnersInput = {
   filters?: Record<string, any>
   fields?: string[]
@@ -63,7 +64,7 @@ export const listPartnersStep = createStep(
       },
     })
 
-    return new StepResponse({ data: (data || []) as Partners[], metadata })
+    return new StepResponse({ data: (data || []) as unknown[] as Partner[], metadata })
   }
 )
 

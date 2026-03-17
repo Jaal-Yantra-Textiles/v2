@@ -18,7 +18,7 @@ const listPeopleOfPartnerStep = createStep(
                 id: input.partnerId
             }
         })
-        return new StepResponse(peopleOfPartner)
+        return new StepResponse(peopleOfPartner as unknown[])
     }
 )
 

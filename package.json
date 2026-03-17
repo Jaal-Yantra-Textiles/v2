@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "apps/partner-ui",
-    "apps/media-gallery"
+    "apps/media-gallery",
+    "apps/storefront-starter"
   ],
   "description": "A starter for Medusa projects extended to be used as a core production modules for textiles.",
   "author": "Medusa (https://medusajs.com) and JYT (https://jaalyantra.in)",
@@ -25,6 +26,7 @@
     "dev": "medusa develop",
     "partner-ui:dev": "pnpm --filter @jyt/partner-ui dev",
     "partner-ui:build": "pnpm --filter @jyt/partner-ui build:preview",
+    "storefront:dev": "pnpm --filter @jyt/storefront-starter dev",
     "docs:dev": "cd apps/docs && pnpm start",
     "docs:build": "cd apps/docs && pnpm build",
     "docs:serve": "cd apps/docs && pnpm serve",
