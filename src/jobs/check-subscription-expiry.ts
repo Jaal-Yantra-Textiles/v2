@@ -1,6 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { PARTNER_PLAN_MODULE } from "../modules/partner-plan"
 import PartnerPlanService from "../modules/partner-plan/service"
+import { SubscriptionStatus } from "../modules/partner-plan/types"
 
 /**
  * Subscription Expiry Check
@@ -18,9 +19,8 @@ export default async function checkSubscriptionExpiry(
   try {
     const now = new Date()
 
-    // Find active subscriptions whose period has ended
     const [subscriptions] = await service.listAndCountPartnerSubscriptions(
-      { status: "active" },
+      { status: SubscriptionStatus.ACTIVE },
       { take: 500, relations: ["plan"] }
     )
 
@@ -28,25 +28,18 @@ export default async function checkSubscriptionExpiry(
 
     for (const sub of subscriptions) {
       if (sub.current_period_end && new Date(sub.current_period_end) < now) {
-        // For free plans (price = 0), auto-renew
         const plan = sub.plan as any
         if (plan && plan.price === 0) {
           const newEnd = new Date(now)
           newEnd.setMonth(newEnd.getMonth() + 1)
 
-          await service.updatePartnerSubscriptions({
-            selector: { id: sub.id },
-            data: {
-              current_period_start: now,
-              current_period_end: newEnd,
-            },
-          })
+          await service.updatePartnerSubscriptions(
+            { id: sub.id, current_period_start: now, current_period_end: newEnd }
+          )
         } else {
-          // For paid plans, mark as expired (payment integration needed)
-          await service.updatePartnerSubscriptions({
-            selector: { id: sub.id },
-            data: { status: "expired" },
-          })
+          await service.updatePartnerSubscriptions(
+            { id: sub.id, status: SubscriptionStatus.EXPIRED }
+          )
           expired++
         }
       }
@@ -62,5 +55,5 @@ export default async function checkSubscriptionExpiry(
 
 export const config = {
   name: "check-subscription-expiry",
-  schedule: "0 0 * * *", // Daily at midnight
+  schedule: "0 0 * * *",
 }

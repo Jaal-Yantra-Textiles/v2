@@ -3801,6 +3801,60 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner/list-partner-people.ts"
   },
+  "cancel-partner-subscription": {
+    "fields": [
+      {
+        "name": "subscription_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.subscription_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner-subscription/cancel-subscription.ts"
+  },
+  "create-partner-subscription": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "plan_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.plan_id }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner-subscription/create-subscription.ts"
+  },
+  "seed-partner-plans": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/partner-subscription/seed-plans.ts"
+  },
   "delete-partner": {
     "fields": [
       {
@@ -5317,6 +5371,12 @@
         "placeholder": "{{ $last.storefront_repo }}"
       },
       {
+        "name": "storefront_root_dir",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.storefront_root_dir }}"
+      },
+      {
         "name": "medusa_backend_url",
         "type": "string",
         "required": true,
@@ -5327,6 +5387,18 @@
         "type": "string",
         "required": true,
         "placeholder": "{{ $last.stripe_publishable_key }}"
+      },
+      {
+        "name": "s3_hostname",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.s3_hostname }}"
+      },
+      {
+        "name": "s3_pathname",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.s3_pathname }}"
       },
       {
         "name": "existing_metadata",
@@ -5783,6 +5855,18 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/website/page-blocks/update-block.ts"
   },
+  "seed-default-pages": {
+    "fields": [
+      {
+        "name": "website_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.website_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/website/seed-default-pages.ts"
+  },
   "update-website": {
     "fields": [
       {
@@ -5878,8 +5962,9 @@
       {
         "name": "website_id",
         "type": "id",
-        "required": false,
-        "placeholder": "{{ $last.website_id }}"
+        "required": true,
+        "placeholder": "{{ $last.website_id }}",
+        "description": "Required — pages are always scoped to a website"
       },
       {
         "name": "filters",
@@ -7218,18 +7303,11 @@
         "description": "The data to update an order's details. / export type UpdateOrderWorkflowInput = { /** The ID of the order to update. / id: string; /** The ID of the user updating the order. / user_id: string; /** Create or update the shipping address of the order. Changing the country code will throw an error. / shipping_address?: UpsertOrderAddressDTO; /** Create or update the billing address of the order. Changing the country code will throw an error. / billing_address?: UpsertOrderAddressDTO; /** The new email of the order."
       },
       {
-        "name": "locale",
-        "type": "string",
-        "required": false,
-        "placeholder": "{{ $last.locale }}",
-        "description": "The data to update an order's details. / export type UpdateOrderWorkflowInput = { /** The ID of the order to update. / id: string; /** The ID of the user updating the order. / user_id: string; /** Create or update the shipping address of the order. Changing the country code will throw an error. / shipping_address?: UpsertOrderAddressDTO; /** Create or update the billing address of the order. Changing the country code will throw an error. / billing_address?: UpsertOrderAddressDTO; /** The new email of the order. / email?: string; /** The new locale of the order. When changed, all line items will be re-translated to the new locale."
-      },
-      {
         "name": "metadata",
         "type": "object",
         "required": false,
         "placeholder": "{}",
-        "description": "The data to update an order's details. / export type UpdateOrderWorkflowInput = { /** The ID of the order to update. / id: string; /** The ID of the user updating the order. / user_id: string; /** Create or update the shipping address of the order. Changing the country code will throw an error. / shipping_address?: UpsertOrderAddressDTO; /** Create or update the billing address of the order. Changing the country code will throw an error. / billing_address?: UpsertOrderAddressDTO; /** The new email of the order. / email?: string; /** The new locale of the order. When changed, all line items will be re-translated to the new locale. / locale?: string | null; /** The new metadata of the order."
+        "description": "The data to update an order's details. / export type UpdateOrderWorkflowInput = { /** The ID of the order to update. / id: string; /** The ID of the user updating the order. / user_id: string; /** Create or update the shipping address of the order. Changing the country code will throw an error. / shipping_address?: UpsertOrderAddressDTO; /** Create or update the billing address of the order. Changing the country code will throw an error. / billing_address?: UpsertOrderAddressDTO; /** The new email of the order. / email?: string; /** The new metadata of the order."
       }
     ],
     "source": "core_dts",

@@ -42,6 +42,7 @@ const createVercelProjectStep = createStep(
       gitRepo: input.storefrontRepo,
       framework: "nextjs",
       rootDirectory: input.rootDirectory,
+      installCommand: "pnpm install --no-frozen-lockfile",
     })
 
     return new StepResponse(
