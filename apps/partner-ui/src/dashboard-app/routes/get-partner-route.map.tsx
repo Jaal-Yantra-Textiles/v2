@@ -295,6 +295,13 @@ export function getPartnerRouteMap(): RouteObject[] {
                         import("../../routes/products/product-create-variant"),
                     },
                     {
+                      path: "edit-variant",
+                      lazy: () =>
+                        import(
+                          "../../routes/product-variants/product-variant-edit"
+                        ),
+                    },
+                    {
                       path: "images/:imageId/variants-edit",
                       lazy: () =>
                         import(

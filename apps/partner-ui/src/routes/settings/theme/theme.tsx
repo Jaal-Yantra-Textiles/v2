@@ -22,6 +22,7 @@ import {
   WebsiteTheme,
 } from "../../../hooks/api/content"
 import { Skeleton } from "../../../components/common/skeleton"
+import { ImageUploadField } from "../../../components/common/image-upload-field"
 import { useStorefrontStatus } from "../../../hooks/api/storefront"
 
 const SOCIAL_PLATFORMS = [
@@ -329,15 +330,19 @@ function BrandingPanel({ form, updateForm }: PanelProps) {
           value={form.branding?.store_name || ""}
           onChange={(v) => updateForm("branding", { ...form.branding, store_name: v })}
         />
-        <FieldInput
-          label="Logo URL"
+        <ImageUploadField
+          label="Logo"
           value={form.branding?.logo_url || ""}
           onChange={(v) => updateForm("branding", { ...form.branding, logo_url: v })}
+          hint="Recommended: PNG or SVG, 200x60px"
+          compact
         />
-        <FieldInput
-          label="Favicon URL"
+        <ImageUploadField
+          label="Favicon"
           value={form.branding?.favicon_url || ""}
           onChange={(v) => updateForm("branding", { ...form.branding, favicon_url: v })}
+          hint="ICO, PNG, or SVG. 32x32px"
+          compact
         />
       </div>
     </>
@@ -444,12 +449,13 @@ function HeroPanel({
             }
           />
         </div>
-        <FieldInput
-          label="Background Image URL"
+        <ImageUploadField
+          label="Background Image"
           value={form.hero?.background_image_url || ""}
           onChange={(v) =>
             updateForm("hero", { ...form.hero, background_image_url: v })
           }
+          hint="Recommended: 1920x1080px or larger"
         />
         <div className="space-y-1">
           <Label size="xsmall">

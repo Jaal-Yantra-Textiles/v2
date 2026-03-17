@@ -2,7 +2,7 @@ services:
   - type: web
     name: partner-ui
     runtime: static
-    buildCommand: yarn build:preview
+    buildCommand: pnpm run vercel-build
     staticPublishPath: dist
     routes:
       - type: rewrite

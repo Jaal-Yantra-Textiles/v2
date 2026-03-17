@@ -23,6 +23,7 @@ export const GET = async (
       "variants.options.*",
       "variants.inventory_items.*",
       "options.*",
+      "options.values.*",
       "images.*",
       "tags.*",
       "type.*",

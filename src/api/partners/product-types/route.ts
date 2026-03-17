@@ -1,7 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { createProductTypesWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerFromAuthContext } from "../helpers"
+import { getPartnerFromAuthContext, getPartnerStore } from "../helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -16,6 +16,29 @@ export const GET = async (
   }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  // Get type IDs from partner's store products via store→product link
+  let partnerTypeIds: string[] = []
+  try {
+    const { store } = await getPartnerStore(req.auth_context, req.scope)
+    const { data: storeData } = await query.graph({
+      entity: "stores",
+      fields: ["products.type_id"],
+      filters: { id: store.id },
+    })
+
+    partnerTypeIds = [
+      ...new Set(
+        ((storeData?.[0] as any)?.products || [])
+          .map((p: any) => p.type_id)
+          .filter(Boolean) as string[]
+      ),
+    ]
+  } catch {
+    // Fallback to all types
+  }
+
+  // Return all types so partners can pick any, but they can also create new ones
   const { data: types } = await query.graph({
     entity: "product_types",
     fields: ["*"],
@@ -25,7 +48,7 @@ export const GET = async (
     product_types: types || [],
     count: types?.length || 0,
     offset: 0,
-    limit: 20,
+    limit: 100,
   })
 }
 
