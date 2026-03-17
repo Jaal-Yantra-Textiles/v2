@@ -11,6 +11,7 @@ import { ArrowUpRightOnBox, ArrowPath } from "@medusajs/icons"
 import { useState } from "react"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
+import { GeneralSectionSkeleton, Skeleton } from "../../../components/common/skeleton"
 import { SectionRow } from "../../../components/common/section"
 import { usePartnerStores } from "../../../hooks/api/partner-stores"
 import {
@@ -121,16 +122,7 @@ const StorefrontSection = () => {
   }
 
   if (isPending) {
-    return (
-      <Container className="divide-y p-0">
-        <div className="px-6 py-4">
-          <Heading level="h2">Storefront</Heading>
-          <Text size="small" className="text-ui-fg-subtle mt-1">
-            Loading...
-          </Text>
-        </div>
-      </Container>
-    )
+    return <GeneralSectionSkeleton rowCount={3} />
   }
 
   if (isError || !status) {
@@ -324,10 +316,13 @@ export const SettingsStores = () => {
         </div>
 
         {isPending ? (
-          <div className="px-6 py-4">
-            <Text size="small" className="text-ui-fg-subtle">
-              Loading...
-            </Text>
+          <div className="px-6 py-4 space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="grid grid-cols-2 items-center">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-5 w-28 rounded-full" />
+              </div>
+            ))}
           </div>
         ) : !store ? (
           <div className="px-6 py-4">

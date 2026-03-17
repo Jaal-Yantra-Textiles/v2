@@ -20,6 +20,7 @@ import {
   RouteFocusModal,
   useRouteModal,
 } from "../../../components/modals"
+import { Skeleton } from "../../../components/common/skeleton"
 import {
   useContentPage,
   useContentBlocks,
@@ -159,12 +160,31 @@ const ContentDetailInner = () => {
     return (
       <>
         <RouteFocusModal.Header>
-          <RouteFocusModal.Title asChild>
-            <Heading>Loading...</Heading>
-          </RouteFocusModal.Title>
+          <div className="flex items-center gap-x-3">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
         </RouteFocusModal.Header>
-        <RouteFocusModal.Body className="flex items-center justify-center">
-          <Text className="text-ui-fg-subtle">Loading page editor...</Text>
+        <RouteFocusModal.Body className="p-0 h-[calc(100vh-120px)]">
+          <div className="flex h-full overflow-hidden">
+            <div className="w-[220px] border-r border-ui-border-base bg-ui-bg-subtle p-3 space-y-2">
+              <Skeleton className="h-4 w-16 mb-3" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-9 w-full rounded-md" />
+              ))}
+            </div>
+            <div className="flex-1 bg-ui-bg-subtle p-4">
+              <Skeleton className="w-full h-full rounded-lg" />
+            </div>
+            <div className="w-[280px] border-l border-ui-border-base p-4 space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="space-y-1.5">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                </div>
+              ))}
+            </div>
+          </div>
         </RouteFocusModal.Body>
       </>
     )

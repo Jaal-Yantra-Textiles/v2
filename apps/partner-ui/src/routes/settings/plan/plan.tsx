@@ -8,7 +8,9 @@ import {
   usePrompt,
 } from "@medusajs/ui"
 
+import { Fragment } from "react"
 import { SingleColumnPage } from "../../../components/layout/pages"
+import { GeneralSectionSkeleton, Skeleton } from "../../../components/common/skeleton"
 import {
   usePartnerSubscription,
   useSubscribeToPlan,
@@ -193,9 +195,16 @@ export const SettingsPlan = () => {
         </div>
         <div className="px-6 py-4">
           {isPending ? (
-            <Text size="small" className="text-ui-fg-subtle">
-              Loading...
-            </Text>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Fragment key={i}>
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-28" />
+                  </Fragment>
+                ))}
+              </div>
+            </div>
           ) : subscription ? (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-y-2">

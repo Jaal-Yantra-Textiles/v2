@@ -18,6 +18,7 @@ import {
   useUpdateWebsiteTheme,
   WebsiteTheme,
 } from "../../../hooks/api/content"
+import { Skeleton } from "../../../components/common/skeleton"
 import { useStorefrontStatus } from "../../../hooks/api/storefront"
 
 const SOCIAL_PLATFORMS = [
@@ -137,8 +138,34 @@ export const SettingsTheme = () => {
 
   if (isPending) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-120px)]">
-        <Text className="text-ui-fg-subtle">Loading theme editor...</Text>
+      <div className="h-[calc(100vh-57px)] flex flex-col">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-ui-border-base bg-ui-bg-base shrink-0">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-6 w-28" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-8 w-16 rounded-md" />
+        </div>
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-[180px] border-r border-ui-border-base bg-ui-bg-subtle p-3 space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full rounded-md" />
+            ))}
+          </div>
+          <div className="flex-1 bg-ui-bg-subtle p-3">
+            <Skeleton className="w-full h-full rounded-lg" />
+          </div>
+          <div className="w-[300px] border-l border-ui-border-base p-4 space-y-4">
+            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-4 w-32" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-8 w-full rounded-md" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
