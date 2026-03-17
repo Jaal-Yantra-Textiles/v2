@@ -617,6 +617,10 @@ export function getPartnerRouteMap(): RouteObject[] {
                     },
                   ],
                 },
+                {
+                  path: "theme",
+                  lazy: () => import("../../routes/settings/theme"),
+                },
                 // Regions
                 {
                   path: "regions",

@@ -21,6 +21,8 @@ export const GET = async (
     const publicWebsiteData = {
       name: result.name,
       domain: result.domain,
+      theme: result.metadata?.theme || null,
+      favicon_url: result.favicon_url || null,
       pages: result.pages?.map(page => ({
         title: page.title,
         slug: page.slug,
@@ -29,7 +31,7 @@ export const GET = async (
         page_type: page.page_type,
         published_at: page.published_at,
         // Only include published pages
-      })).filter(page => page.status === "Published" && 
+      })).filter(page => page.status === "Published" &&
         page.page_type !== "Blog"
       ) || [],
     };

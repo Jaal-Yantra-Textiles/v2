@@ -86,6 +86,7 @@ import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingle
 // Import already defined above
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
+import { websiteThemeSchema } from "./partners/storefront/website/theme/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
 import { createStoreSchema } from "./admin/stores/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
@@ -1243,6 +1244,24 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Storefront Website Theme
+    {
+      matcher: "/partners/storefront/website/theme",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/storefront/website/theme",
+      method: "PUT",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(websiteThemeSchema)),
       ],
     },
     // Partner Price Preferences

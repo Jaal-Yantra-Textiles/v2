@@ -220,6 +220,49 @@ export const useContentBlocks = (
   return { blocks: data?.blocks || [], count: data?.count || 0, ...rest }
 }
 
+// -- Theme --
+
+export type WebsiteTheme = {
+  branding?: { logo_url?: string; store_name?: string; favicon_url?: string }
+  colors?: { primary?: string; background?: string; text?: string; accent?: string }
+  hero?: { title?: string; subtitle?: string; background_image_url?: string; cta_text?: string; cta_link?: string }
+  navigation?: { links?: Array<{ label: string; href: string }>; show_account_link?: boolean }
+  footer?: { text?: string; social_links?: Array<{ platform: string; url: string }> }
+}
+
+export const useWebsiteTheme = (
+  options?: Omit<
+    UseQueryOptions<{ theme: WebsiteTheme }, FetchError, { theme: WebsiteTheme }, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<{ theme: WebsiteTheme }>(
+        "/partners/storefront/website/theme",
+        { method: "GET" }
+      ),
+    queryKey: contentQueryKeys.detail("theme"),
+    ...options,
+  })
+  return { theme: data?.theme || {}, ...rest }
+}
+
+export const useUpdateWebsiteTheme = () => {
+  return useMutation({
+    mutationFn: (payload: WebsiteTheme) =>
+      sdk.client.fetch<{ theme: WebsiteTheme }>(
+        "/partners/storefront/website/theme",
+        { method: "PUT", body: payload }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: contentQueryKeys.detail("theme"),
+      })
+    },
+  })
+}
+
 // -- Seed --
 
 export const useSeedContentPages = () => {
