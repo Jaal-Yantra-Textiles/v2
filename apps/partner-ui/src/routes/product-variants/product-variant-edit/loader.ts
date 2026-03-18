@@ -20,15 +20,18 @@ export const editProductVariantLoader = async ({
   params,
   request,
 }: LoaderFunctionArgs) => {
-  const id = params.id
-
-  const searchParams = new URL(request.url).searchParams
-  const searchVariantId = searchParams.get("variant_id")
-  const variantId = params.variant_id || searchVariantId
-
-  // Get storeId from cached partner-stores query
-  let storeId = ""
   try {
+    const id = params.id
+    const searchParams = new URL(request.url).searchParams
+    const searchVariantId = searchParams.get("variant_id")
+    const variantId = params.variant_id || searchVariantId
+
+    if (!variantId || !id) {
+      return undefined
+    }
+
+    // Get storeId from cached partner-stores query
+    let storeId = ""
     const cached = queryClient.getQueriesData<any>({ queryKey: ["partner_stores"] })
     for (const [, data] of cached) {
       if (data?.stores?.[0]?.id) {
@@ -36,18 +39,18 @@ export const editProductVariantLoader = async ({
         break
       }
     }
-  } catch {
-    // Component's hook will handle it
-  }
 
-  if (!storeId || !variantId) {
+    if (!storeId) {
+      return undefined
+    }
+
+    const query = editProductVariantQuery(id, variantId, storeId)
+    return (
+      queryClient.getQueryData<ReturnType<typeof queryFn>>(query.queryKey) ??
+      (await queryClient.fetchQuery(query))
+    )
+  } catch {
+    // Loader errors should not crash the page — the component's hooks will handle data fetching
     return undefined
   }
-
-  const query = editProductVariantQuery(id!, variantId, storeId)
-
-  return (
-    queryClient.getQueryData<ReturnType<typeof queryFn>>(query.queryKey) ??
-    (await queryClient.fetchQuery(query))
-  )
 }
