@@ -14,9 +14,6 @@ export const GET = async (
     )
   }
 
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-
-  // Get partner's store and location
   const { store } = await getPartnerStore(req.auth_context, req.scope)
   const locationId = store.default_location_id
 
@@ -24,59 +21,25 @@ export const GET = async (
     return res.json({ inventory_items: [], count: 0, offset: 0, limit: 20 })
   }
 
-  // Strategy: get inventory items that have levels at the partner's location
-  const { data: locationData } = await query.graph({
-    entity: "stock_locations",
-    fields: [
-      "inventory_levels.inventory_item_id",
-      "inventory_levels.stocked_quantity",
-      "inventory_levels.reserved_quantity",
-      "inventory_levels.incoming_quantity",
-      "inventory_levels.location_id",
-    ],
-    filters: { id: locationId },
-  })
+  const inventoryService = req.scope.resolve(Modules.INVENTORY) as any
 
-  const levels = (locationData?.[0] as any)?.inventory_levels || []
-  const itemIds = [...new Set(levels.map((l: any) => l.inventory_item_id).filter(Boolean))] as string[]
+  // Get inventory levels at the partner's location to find their item IDs
+  const [levels] = await inventoryService.listAndCountInventoryLevels(
+    { location_id: locationId },
+    { take: 1000 }
+  )
+
+  const itemIds = [...new Set((levels || []).map((l: any) => l.inventory_item_id).filter(Boolean))] as string[]
 
   if (itemIds.length === 0) {
-    // Also check items linked to partner's product variants
-    const { data: scData } = await query.graph({
-      entity: "sales_channel",
-      fields: [
-        "products_link.product.variants.inventory_items.inventory_item_id",
-      ],
-      filters: { id: store.default_sales_channel_id },
-    })
-
-    const variantItemIds: string[] = []
-    for (const link of ((scData?.[0] as any)?.products_link || [])) {
-      for (const variant of (link?.product?.variants || [])) {
-        for (const ii of (variant?.inventory_items || [])) {
-          if (ii?.inventory_item_id) variantItemIds.push(ii.inventory_item_id)
-        }
-      }
-    }
-
-    if (variantItemIds.length === 0) {
-      return res.json({ inventory_items: [], count: 0, offset: 0, limit: 20 })
-    }
-
-    itemIds.push(...variantItemIds)
+    return res.json({ inventory_items: [], count: 0, offset: 0, limit: 20 })
   }
 
-  const uniqueIds = [...new Set(itemIds)]
-
-  // Fetch full inventory items
-  const { data: items } = await query.graph({
-    entity: "inventory_items",
-    fields: [
-      "*",
-      "location_levels.*",
-    ],
-    filters: { id: uniqueIds },
-  })
+  // Fetch full inventory items with their levels (filtered to partner's location)
+  const [items, count] = await inventoryService.listAndCountInventoryItems(
+    { id: itemIds },
+    { take: itemIds.length, relations: ["location_levels"] }
+  )
 
   // Filter location_levels to only show the partner's location
   const scoped = (items || []).map((item: any) => ({
@@ -121,7 +84,7 @@ export const POST = async (
       }])
     }
   } catch {
-    // Non-critical — partner can add location level manually
+    // Non-critical
   }
 
   res.status(201).json({ inventory_item: item })
