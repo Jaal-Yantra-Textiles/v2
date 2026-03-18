@@ -389,9 +389,9 @@ const autoLinkFulfillmentProvidersStep = createStep(
           if (profileId) {
             // Determine which fulfillment provider to use based on country
             const providerMap: Record<string, string> = {
-              in: "fp_delhivery",
+              in: "delhivery_delhivery",
             }
-            const providerId = providerMap[country.toLowerCase()] || "fp_manual-fulfillment_manual-fulfillment"
+            const providerId = providerMap[country.toLowerCase()] || "manual_manual"
 
             // Standard shipping
             await fulfillmentService.createShippingOptions({

@@ -76,7 +76,8 @@ export const PartnerCreateShippingOptionReq = z.object({
     label: z.string().min(1),
     description: z.string().optional(),
     code: z.string().min(1),
-  }),
+  }).optional(),
+  type_id: z.string().optional(),
   prices: z.array(
     z.object({
       currency_code: z.string().optional(),
