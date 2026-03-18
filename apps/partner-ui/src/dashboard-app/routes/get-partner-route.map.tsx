@@ -221,6 +221,80 @@ export function getPartnerRouteMap(): RouteObject[] {
                   lazy: () => import("../../routes/products/product-export"),
                 },
                 {
+                  path: "inventory",
+                  errorElement: <ErrorBoundary />,
+                  handle: {
+                    breadcrumb: () => "Stock",
+                  },
+                  children: [
+                    {
+                      path: "",
+                      lazy: () =>
+                        import("../../routes/inventory/inventory-list"),
+                      children: [
+                        {
+                          path: "create",
+                          lazy: () =>
+                            import("../../routes/inventory/inventory-create"),
+                        },
+                      ],
+                    },
+                    {
+                      path: ":id",
+                      lazy: async () => {
+                        const { Component, Breadcrumb, loader } = await import(
+                          "../../routes/inventory/inventory-detail"
+                        )
+                        return {
+                          Component,
+                          loader,
+                          handle: {
+                            breadcrumb: (match: UIMatch) =>
+                              <Breadcrumb {...match} />,
+                          },
+                        }
+                      },
+                      children: [
+                        {
+                          path: "edit",
+                          lazy: () =>
+                            import(
+                              "../../routes/inventory/inventory-detail/components/edit-inventory-item"
+                            ),
+                        },
+                        {
+                          path: "attributes",
+                          lazy: () =>
+                            import(
+                              "../../routes/inventory/inventory-detail/components/edit-inventory-item-attributes"
+                            ),
+                        },
+                        {
+                          path: "locations",
+                          lazy: () =>
+                            import(
+                              "../../routes/inventory/inventory-detail/components/manage-locations"
+                            ),
+                        },
+                        {
+                          path: "adjust",
+                          lazy: () =>
+                            import(
+                              "../../routes/inventory/inventory-detail/components/adjust-inventory"
+                            ),
+                        },
+                        {
+                          path: "metadata/edit",
+                          lazy: () =>
+                            import(
+                              "../../routes/inventory/inventory-metadata"
+                            ),
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
                   path: ":id",
                   lazy: async () => {
                     const { Component, Breadcrumb, loader } = await import(
@@ -307,6 +381,45 @@ export function getPartnerRouteMap(): RouteObject[] {
                         import(
                           "../../routes/products/product-image-variants-edit"
                         ),
+                    },
+                    {
+                      path: "variants/:variant_id",
+                      lazy: async () => {
+                        const { Component, Breadcrumb, loader } = await import(
+                          "../../routes/product-variants/product-variant-detail"
+                        )
+
+                        return {
+                          Component,
+                          loader,
+                          handle: {
+                            breadcrumb: (
+                              match: UIMatch<HttpTypes.AdminProductVariantResponse>
+                            ) => <Breadcrumb {...match} />,
+                          },
+                        }
+                      },
+                      children: [
+                        {
+                          path: "edit",
+                          lazy: () =>
+                            import(
+                              "../../routes/product-variants/product-variant-edit"
+                            ),
+                        },
+                        {
+                          path: "prices",
+                          lazy: () =>
+                            import("../../routes/products/product-prices"),
+                        },
+                        {
+                          path: "manage-items",
+                          lazy: () =>
+                            import(
+                              "../../routes/product-variants/product-variant-manage-inventory-items"
+                            ),
+                        },
+                      ],
                     },
                   ],
                 },

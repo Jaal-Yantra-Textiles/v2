@@ -99,7 +99,7 @@ function VariantInventoryItemRow({
     defaultValueKey: "id",
     defaultValue: inventoryItem.inventory_item_id,
     selectedValue: selectedInventoryItemId,
-    queryFn: (params) => sdk.admin.inventoryItem.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/inventory-items", { method: "GET", query: params }),
     getOptions: (data) =>
       data.inventory_items.map((item) => ({
         label: `${item.title} ${item.sku ? `(${item.sku})` : ""}`,

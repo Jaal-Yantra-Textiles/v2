@@ -113,18 +113,23 @@ export function InventoryCreateForm({ locations }: InventoryCreateFormProps) {
       }
     )
 
-    await sdk.admin.inventoryItem
-      .batchUpdateLevels(inventory_item.id, {
-        create: Object.entries(locations ?? {})
-          .filter(([_, quantiy]) => !!quantiy)
-          .map(([location_id, stocked_quantity]) => ({
-            location_id,
-            stocked_quantity: transformNullableFormNumber(
-              stocked_quantity,
-              false
-            ),
-          })),
-      })
+    await sdk.client.fetch(
+        `/partners/inventory-items/${inventory_item.id}/levels/batch`,
+        {
+          method: "POST",
+          body: {
+            create: Object.entries(locations ?? {})
+              .filter(([_, quantiy]) => !!quantiy)
+              .map(([location_id, stocked_quantity]) => ({
+                location_id,
+                stocked_quantity: transformNullableFormNumber(
+                  stocked_quantity,
+                  false
+                ),
+              })),
+          },
+        }
+      )
       .then(async () => {
         await queryClient.invalidateQueries({
           queryKey: inventoryItemsQueryKeys.lists(),

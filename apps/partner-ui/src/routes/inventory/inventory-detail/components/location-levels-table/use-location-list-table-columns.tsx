@@ -44,9 +44,9 @@ export const useLocationListTableColumns = () => {
     }
 
     try {
-      await sdk.admin.inventoryItem.deleteLevel(
-        level.inventory_item_id,
-        level.location_id
+      await sdk.client.fetch(
+        `/partners/inventory-items/${level.inventory_item_id}/levels/${level.location_id}`,
+        { method: "DELETE" }
       )
 
       toast.success(t("inventory.levelDeleted"))

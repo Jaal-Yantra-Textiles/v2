@@ -3,6 +3,7 @@ import { LoaderFunctionArgs } from "react-router-dom"
 import { variantsQueryKeys } from "../../../hooks/api/products"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
+import { getPartnerStoreId } from "../../../lib/partner-store-id"
 import { VARIANT_DETAIL_FIELDS } from "./constants"
 
 const variantDetailQuery = (productId: string, variantId: string, storeId: string) => ({
@@ -17,28 +18,22 @@ const variantDetailQuery = (productId: string, variantId: string, storeId: strin
 })
 
 export const variantLoader = async ({ params }: LoaderFunctionArgs) => {
-  const productId = params.id
-  const variantId = params.variant_id
-
-  // Get storeId from cached partner-stores query
-  let storeId = ""
   try {
-    const cached = queryClient.getQueriesData<any>({ queryKey: ["partner_stores"] })
-    for (const [, data] of cached) {
-      if (data?.stores?.[0]?.id) {
-        storeId = data.stores[0].id
-        break
-      }
-    }
-  } catch {
-    // Component hooks will handle it
-  }
+    const productId = params.id
+    const variantId = params.variant_id
 
-  if (!storeId || !productId || !variantId) {
+    if (!productId || !variantId) {
+      return undefined
+    }
+
+    const storeId = await getPartnerStoreId()
+    if (!storeId) {
+      return undefined
+    }
+
+    const query = variantDetailQuery(productId, variantId, storeId)
+    return await queryClient.ensureQueryData(query)
+  } catch {
     return undefined
   }
-
-  const query = variantDetailQuery(productId, variantId, storeId)
-
-  return queryClient.ensureQueryData(query)
 }

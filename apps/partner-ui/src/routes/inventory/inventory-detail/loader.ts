@@ -8,14 +8,18 @@ import { INVENTORY_DETAIL_FIELDS } from "./constants"
 const inventoryDetailQuery = (id: string) => ({
   queryKey: inventoryItemsQueryKeys.detail(id),
   queryFn: async () =>
-    sdk.admin.inventoryItem.retrieve(id, {
-      fields: INVENTORY_DETAIL_FIELDS,
-    }),
+    sdk.client.fetch<any>(
+      `/partners/inventory-items/${id}`,
+      { method: "GET" }
+    ),
 })
 
 export const inventoryItemLoader = async ({ params }: LoaderFunctionArgs) => {
-  const id = params.id
-  const query = inventoryDetailQuery(id!)
-
-  return queryClient.ensureQueryData(query)
+  try {
+    const id = params.id
+    const query = inventoryDetailQuery(id!)
+    return await queryClient.ensureQueryData(query)
+  } catch {
+    return undefined
+  }
 }

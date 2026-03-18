@@ -42,9 +42,9 @@ export const subscriptionQueryKeys = queryKeysFactory(SUBSCRIPTION_QUERY_KEY)
 export const usePartnerSubscription = (
   options?: Omit<
     UseQueryOptions<
-      { subscription: PartnerSubscription | null; plans: PartnerPlan[] },
+      { subscription: PartnerSubscription | null; plans: PartnerPlan[]; recommended_provider?: string },
       FetchError,
-      { subscription: PartnerSubscription | null; plans: PartnerPlan[] },
+      { subscription: PartnerSubscription | null; plans: PartnerPlan[]; recommended_provider?: string },
       QueryKey
     >,
     "queryFn" | "queryKey"
@@ -55,6 +55,7 @@ export const usePartnerSubscription = (
       sdk.client.fetch<{
         subscription: PartnerSubscription | null
         plans: PartnerPlan[]
+        recommended_provider?: string
       }>("/partners/subscription", { method: "GET" }),
     queryKey: subscriptionQueryKeys.detail("current"),
     ...options,
@@ -62,6 +63,7 @@ export const usePartnerSubscription = (
   return {
     subscription: data?.subscription || null,
     plans: data?.plans || [],
+    recommended_provider: data?.recommended_provider || "manual",
     ...rest,
   }
 }

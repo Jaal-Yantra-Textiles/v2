@@ -40,7 +40,7 @@ const FEATURE_LABELS: Record<string, string> = {
   max_pages: "Pages",
   max_products: "Products",
   custom_domain: "Custom Domain",
-  theme_customization: "Theme Customization",
+  theme_customization: "Theme",
   analytics: "Analytics",
   priority_support: "Priority Support",
 }
@@ -54,80 +54,24 @@ function renderFeatureValue(key: string, value: unknown): string {
   return String(value)
 }
 
-const PlanCard = ({
-  plan,
-  isCurrentPlan,
-  onSelect,
-  isLoading,
-}: {
-  plan: PartnerPlan
-  isCurrentPlan: boolean
-  onSelect: () => void
-  isLoading: boolean
-}) => {
-  const features = (plan.features || {}) as Record<string, unknown>
-
-  return (
-    <Container className="divide-y p-0 relative">
-      {isCurrentPlan && (
-        <div className="absolute top-3 right-3">
-          <Badge color="green" size="2xsmall">
-            Current Plan
-          </Badge>
-        </div>
-      )}
-      <div className="px-6 py-4">
-        <Heading level="h2">{plan.name}</Heading>
-        <div className="flex items-baseline gap-1 mt-1">
-          <Text className="text-2xl font-semibold">
-            {formatPrice(plan.price, plan.currency_code)}
-          </Text>
-          {plan.price > 0 && (
-            <Text size="small" className="text-ui-fg-subtle">
-              /{plan.interval}
-            </Text>
-          )}
-        </div>
-        {plan.description && (
-          <Text size="small" className="text-ui-fg-subtle mt-1">
-            {plan.description}
-          </Text>
-        )}
-      </div>
-      <div className="px-6 py-4 space-y-2">
-        {Object.entries(features).map(([key, value]) => (
-          <div key={key} className="flex items-center justify-between">
-            <Text size="small" className="text-ui-fg-subtle">
-              {FEATURE_LABELS[key] || key}
-            </Text>
-            <Text size="small" className="font-medium">
-              {renderFeatureValue(key, value)}
-            </Text>
-          </div>
-        ))}
-      </div>
-      <div className="px-6 py-4">
-        {isCurrentPlan ? (
-          <Button variant="secondary" size="small" disabled className="w-full">
-            Current Plan
-          </Button>
-        ) : (
-          <Button
-            size="small"
-            className="w-full"
-            onClick={onSelect}
-            isLoading={isLoading}
-          >
-            {plan.price === 0 ? "Switch to Free" : `Upgrade to ${plan.name}`}
-          </Button>
-        )}
-      </div>
-    </Container>
-  )
+function featureSummary(features: Record<string, unknown>): string {
+  const parts: string[] = []
+  const pages = features.max_pages
+  const products = features.max_products
+  if (typeof pages === "number") {
+    parts.push(pages === -1 ? "Unlimited pages" : `${pages} pages`)
+  }
+  if (typeof products === "number") {
+    parts.push(products === -1 ? "Unlimited products" : `${products} products`)
+  }
+  if (features.custom_domain) parts.push("Custom domain")
+  if (features.analytics) parts.push("Analytics")
+  if (features.priority_support) parts.push("Priority support")
+  return parts.join(" · ")
 }
 
 export const SettingsPlan = () => {
-  const { subscription, plans, isPending, isError, error } =
+  const { subscription, plans, recommended_provider, isPending, isError, error } =
     usePartnerSubscription()
   const { mutateAsync: subscribe, isPending: isSubscribing } =
     useSubscribeToPlan()
@@ -140,13 +84,14 @@ export const SettingsPlan = () => {
   }
 
   const handleSelectPlan = async (plan: PartnerPlan) => {
+    const providerLabel = recommended_provider === "payu" ? "PayU" : "Stripe"
     const confirmed = await prompt({
       title: `Switch to ${plan.name}`,
       description:
         plan.price > 0
-          ? `You will be charged ${formatPrice(plan.price, plan.currency_code)}/${plan.interval}. Your current plan will be replaced.`
+          ? `You will be charged ${formatPrice(plan.price, plan.currency_code)}/${plan.interval} via ${providerLabel}. Your current plan will be replaced.`
           : "You will switch to the free plan. Your current plan will be canceled.",
-      confirmText: plan.price > 0 ? "Upgrade" : "Switch",
+      confirmText: plan.price > 0 ? `Pay with ${providerLabel}` : "Switch",
       cancelText: "Cancel",
     })
 
@@ -182,6 +127,9 @@ export const SettingsPlan = () => {
       })
     }
   }
+
+  const currentPlanId =
+    subscription?.status === "active" ? subscription?.plan?.id : null
 
   return (
     <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
@@ -239,12 +187,21 @@ export const SettingsPlan = () => {
                 </Text>
 
                 <Text size="small" className="text-ui-fg-subtle">
-                  Current Period
+                  Period
                 </Text>
                 <Text size="small">
                   {formatDate(subscription.current_period_start)} -{" "}
                   {formatDate(subscription.current_period_end)}
                 </Text>
+
+                <Text size="small" className="text-ui-fg-subtle">
+                  Payment
+                </Text>
+                <div className="flex items-center gap-2">
+                  <Badge color="grey" size="2xsmall">
+                    {recommended_provider === "payu" ? "PayU" : recommended_provider === "stripe" ? "Stripe" : "Manual"}
+                  </Badge>
+                </div>
               </div>
 
               {subscription.status === "active" &&
@@ -268,27 +225,148 @@ export const SettingsPlan = () => {
         </div>
       </Container>
 
-      {/* Available Plans */}
+      {/* Plans as compact rows */}
       {!isPending && plans.length > 0 && (
-        <div>
-          <Heading level="h2" className="mb-4">
-            Available Plans
-          </Heading>
-          <div className="grid grid-cols-1 small:grid-cols-3 gap-4">
-            {plans.map((plan) => (
-              <PlanCard
-                key={plan.id}
-                plan={plan}
-                isCurrentPlan={
-                  subscription?.plan?.id === plan.id &&
-                  subscription?.status === "active"
-                }
-                onSelect={() => handleSelectPlan(plan)}
-                isLoading={isSubscribing}
-              />
-            ))}
+        <Container className="divide-y p-0">
+          <div className="px-6 py-4">
+            <Heading level="h2">Available Plans</Heading>
           </div>
-        </div>
+          {plans.map((plan) => {
+            const isCurrentPlan = currentPlanId === plan.id
+            const features = (plan.features || {}) as Record<string, unknown>
+
+            return (
+              <div
+                key={plan.id}
+                className={`px-6 py-4 flex items-center gap-4 ${
+                  isCurrentPlan ? "bg-ui-bg-highlight" : ""
+                }`}
+              >
+                {/* Plan info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Text className="font-medium">{plan.name}</Text>
+                    {isCurrentPlan && (
+                      <Badge color="green" size="2xsmall">
+                        Current
+                      </Badge>
+                    )}
+                  </div>
+                  <Text size="xsmall" className="text-ui-fg-muted truncate mt-0.5">
+                    {featureSummary(features)}
+                  </Text>
+                </div>
+
+                {/* Price */}
+                <div className="text-right shrink-0 w-[100px]">
+                  <Text className="font-semibold">
+                    {formatPrice(plan.price, plan.currency_code)}
+                  </Text>
+                  {plan.price > 0 && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      /{plan.interval}
+                    </Text>
+                  )}
+                </div>
+
+                {/* Action */}
+                <div className="shrink-0 w-[120px]">
+                  {isCurrentPlan ? (
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      disabled
+                      className="w-full"
+                    >
+                      Current
+                    </Button>
+                  ) : (
+                    <Button
+                      size="small"
+                      className="w-full"
+                      onClick={() => handleSelectPlan(plan)}
+                      isLoading={isSubscribing}
+                    >
+                      {plan.price === 0 ? "Downgrade" : "Upgrade"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </Container>
+      )}
+
+      {/* Plan comparison */}
+      {!isPending && plans.length > 0 && (
+        <Container className="divide-y p-0">
+          <div className="px-6 py-4">
+            <Heading level="h2">Feature Comparison</Heading>
+          </div>
+          <div className="px-6 py-4">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-ui-border-base">
+                  <th className="text-left py-2 text-ui-fg-subtle font-normal">
+                    Feature
+                  </th>
+                  {plans.map((plan) => (
+                    <th
+                      key={plan.id}
+                      className={`text-center py-2 font-medium ${
+                        currentPlanId === plan.id
+                          ? "text-ui-fg-interactive"
+                          : ""
+                      }`}
+                    >
+                      {plan.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(FEATURE_LABELS).map((key) => (
+                  <tr key={key} className="border-b border-ui-border-base last:border-0">
+                    <td className="py-2 text-ui-fg-subtle">
+                      {FEATURE_LABELS[key]}
+                    </td>
+                    {plans.map((plan) => {
+                      const features = (plan.features || {}) as Record<
+                        string,
+                        unknown
+                      >
+                      return (
+                        <td
+                          key={plan.id}
+                          className={`text-center py-2 ${
+                            currentPlanId === plan.id ? "font-medium" : ""
+                          }`}
+                        >
+                          {renderFeatureValue(key, features[key])}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+                <tr>
+                  <td className="py-2 text-ui-fg-subtle font-medium">Price</td>
+                  {plans.map((plan) => (
+                    <td
+                      key={plan.id}
+                      className={`text-center py-2 font-semibold ${
+                        currentPlanId === plan.id
+                          ? "text-ui-fg-interactive"
+                          : ""
+                      }`}
+                    >
+                      {formatPrice(plan.price, plan.currency_code)}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Container>
       )}
     </SingleColumnPage>
   )
