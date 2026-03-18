@@ -9,35 +9,38 @@ import { editProductVariantLoader } from "./loader"
 export const ProductVariantEdit = () => {
   const initialData = useLoaderData() as Awaited<
     ReturnType<typeof editProductVariantLoader>
-  >
+  > | undefined
 
   const { t } = useTranslation()
-  const { id, variant_id } = useParams()
+  const { id } = useParams()
   const [URLSearchParms] = useSearchParams()
   const searchVariantId = URLSearchParms.get("variant_id")
 
+  const variantId = searchVariantId || ""
+
   const { variant, isPending, isError, error } = useProductVariant(
     id!,
-    variant_id || searchVariantId!,
+    variantId,
     undefined,
     {
       initialData,
+      enabled: !!variantId,
     }
   )
 
+  const productId = variant?.product_id || id
   const {
     product,
     isPending: isProductPending,
     isError: isProductError,
     error: productError,
   } = useProduct(
-    variant?.product_id!,
+    productId!,
     {
-      // TODO: Remove exclusion once we avoid including unnecessary relations by default in the query config
       fields: "-type,-collection,-tags,-images,-variants,-sales_channels",
     },
     {
-      enabled: !!variant?.product_id,
+      enabled: !!productId,
     }
   )
 

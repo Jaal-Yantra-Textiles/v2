@@ -40,7 +40,20 @@ export const GET = async (
       if (fs?.service_zones) {
         for (const sz of fs.service_zones) {
           if (sz?.shipping_options) {
-            shippingOptions.push(...sz.shipping_options)
+            for (const so of sz.shipping_options) {
+              shippingOptions.push({
+                ...so,
+                service_zone: {
+                  id: sz.id,
+                  name: sz.name,
+                  fulfillment_set: {
+                    id: fs.id,
+                    name: fs.name,
+                    type: fs.type,
+                  },
+                },
+              })
+            }
           }
         }
       }
