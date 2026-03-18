@@ -96,6 +96,48 @@ export const getPartnerStore = async (
     return { partner, store: stores[0] }
 }
 
+/**
+ * Non-throwing variant of getPartnerStore.
+ * Returns { partner, store: null } when the partner has no store linked.
+ */
+export const tryGetPartnerStore = async (
+    authContext: { actor_id?: string | null } | undefined,
+    container: MedusaContainer,
+): Promise<{ partner: any; store: any | null }> => {
+    const partner = await getPartnerFromAuthContext(authContext, container)
+    if (!partner) {
+        throw new MedusaError(
+            MedusaError.Types.UNAUTHORIZED,
+            "No partner associated with this account"
+        )
+    }
+
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+        entity: "partners",
+        fields: ["id", "stores.*"],
+        filters: { id: partner.id },
+    })
+
+    const stores = (data?.[0]?.stores || []) as any[]
+    return { partner, store: stores[0] || null }
+}
+
+/**
+ * Non-throwing variant of getPartnerSalesChannelId.
+ * Returns { partner, store, salesChannelId: null } when no store or no sales channel.
+ */
+export const tryGetPartnerSalesChannelId = async (
+    authContext: { actor_id?: string | null } | undefined,
+    container: MedusaContainer,
+): Promise<{ partner: any; store: any | null; salesChannelId: string | null }> => {
+    const { partner, store } = await tryGetPartnerStore(authContext, container)
+    if (!store || !store.default_sales_channel_id) {
+        return { partner, store, salesChannelId: null }
+    }
+    return { partner, store, salesChannelId: store.default_sales_channel_id }
+}
+
 export const validatePartnerEntityOwnership = async (
     authContext: { actor_id?: string | null } | undefined,
     entityType: "product_categories" | "product_collections" | "customers" | "customer_groups",

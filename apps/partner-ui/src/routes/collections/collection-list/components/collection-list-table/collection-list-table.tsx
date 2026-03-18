@@ -8,6 +8,7 @@ import { createColumnHelper } from "@tanstack/react-table"
 import { useMemo } from "react"
 import { _DataTable } from "../../../../../components/table/data-table"
 import { useCollections } from "../../../../../hooks/api/collections"
+import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { useCollectionTableColumns } from "../../../../../hooks/table/columns/use-collection-table-columns"
 import { useCollectionTableFilters } from "../../../../../hooks/table/filters"
 import { useCollectionTableQuery } from "../../../../../hooks/table/query"
@@ -18,6 +19,8 @@ const PAGE_SIZE = 20
 
 export const CollectionListTable = () => {
   const { t } = useTranslation()
+  const { stores } = usePartnerStores()
+  const hasStore = stores?.length > 0
   const { searchParams, raw } = useCollectionTableQuery({ pageSize: PAGE_SIZE })
   const { collections, count, isError, error, isLoading } = useCollections(
     {
@@ -54,11 +57,17 @@ export const CollectionListTable = () => {
             {t("collections.subtitle")}
           </Text>
         </div>
-        <Link to="/collections/create">
-          <Button size="small" variant="secondary">
+        {hasStore ? (
+          <Link to="/collections/create">
+            <Button size="small" variant="secondary">
+              {t("actions.create")}
+            </Button>
+          </Link>
+        ) : (
+          <Button size="small" variant="secondary" disabled>
             {t("actions.create")}
           </Button>
-        </Link>
+        )}
       </div>
       <_DataTable
         table={table}
@@ -76,6 +85,11 @@ export const CollectionListTable = () => {
         navigateTo={(row) => `/collections/${row.original.id}`}
         queryObject={raw}
         isLoading={isLoading}
+        noRecords={{
+          message: !hasStore
+            ? "No store configured for this partner. Please set up a store to manage collections."
+            : undefined,
+        }}
       />
     </Container>
   )

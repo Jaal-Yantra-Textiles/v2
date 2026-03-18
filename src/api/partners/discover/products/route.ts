@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { getPartnerStore } from "../../helpers"
+import { getPartnerStore, tryGetPartnerStore } from "../../helpers"
 
 /**
  * GET /partners/discover/products
@@ -11,7 +11,10 @@ export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { store } = await getPartnerStore(req.auth_context, req.scope)
+  const { store } = await tryGetPartnerStore(req.auth_context, req.scope)
+  if (!store) {
+    return res.json({ products: [], count: 0, offset: 0, limit: 20 })
+  }
   const mySalesChannelId = store.default_sales_channel_id
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)

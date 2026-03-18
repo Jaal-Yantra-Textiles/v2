@@ -10,6 +10,7 @@ import { Link } from "react-router-dom"
 import { ActionMenu } from "../../../../../components/common/action-menu"
 import { _DataTable } from "../../../../../components/table/data-table"
 import { useProductCategories } from "../../../../../hooks/api/categories"
+import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { useDataTable } from "../../../../../hooks/use-data-table"
 import { useDeleteProductCategoryAction } from "../../../common/hooks/use-delete-product-category-action"
 import { useCategoryTableColumns } from "./use-category-table-columns"
@@ -19,6 +20,8 @@ const PAGE_SIZE = 20
 
 export const CategoryListTable = () => {
   const { t } = useTranslation()
+  const { stores } = usePartnerStores()
+  const hasStore = stores?.length > 0
 
   const { raw, searchParams } = useCategoryTableQuery({ pageSize: PAGE_SIZE })
 
@@ -79,9 +82,15 @@ export const CategoryListTable = () => {
               <Link to="organize">{t("categories.organize.action")}</Link>
             </Button>
           )}
-          <Button size="small" variant="secondary" asChild>
-            <Link to="create">{t("actions.create")}</Link>
-          </Button>
+          {hasStore ? (
+            <Button size="small" variant="secondary" asChild>
+              <Link to="create">{t("actions.create")}</Link>
+            </Button>
+          ) : (
+            <Button size="small" variant="secondary" disabled>
+              {t("actions.create")}
+            </Button>
+          )}
         </div>
       </div>
       <_DataTable
@@ -94,6 +103,11 @@ export const CategoryListTable = () => {
         queryObject={raw}
         search
         pagination
+        noRecords={{
+          message: !hasStore
+            ? "No store configured for this partner. Please set up a store to manage categories."
+            : undefined,
+        }}
       />
     </Container>
   )

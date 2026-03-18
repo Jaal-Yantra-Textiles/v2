@@ -3,13 +3,16 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import {
   createProductCategoriesWorkflow,
 } from "@medusajs/medusa/core-flows"
-import { getPartnerStore } from "../helpers"
+import { getPartnerStore, tryGetPartnerStore } from "../helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { store } = await getPartnerStore(req.auth_context, req.scope)
+  const { store } = await tryGetPartnerStore(req.auth_context, req.scope)
+  if (!store) {
+    return res.json({ product_categories: [], count: 0, offset: 0, limit: 20 })
+  }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 

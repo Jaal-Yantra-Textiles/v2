@@ -107,7 +107,9 @@ export const ProductListTable = () => {
           { key: "updated_at", label: t("fields.updatedAt") },
         ]}
         noRecords={{
-          message: t("products.list.noRecordsMessage"),
+          message: !hasStore
+            ? "No store configured for this partner. Please set up a store to manage products."
+            : t("products.list.noRecordsMessage"),
         }}
       />
       <Outlet />

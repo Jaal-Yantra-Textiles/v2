@@ -1,13 +1,16 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { beginExchangeOrderWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerSalesChannelId, validatePartnerOrderOwnership } from "../helpers"
+import { getPartnerSalesChannelId, tryGetPartnerSalesChannelId, validatePartnerOrderOwnership } from "../helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { salesChannelId } = await getPartnerSalesChannelId(req.auth_context, req.scope)
+  const { salesChannelId } = await tryGetPartnerSalesChannelId(req.auth_context, req.scope)
+  if (!salesChannelId) {
+    return res.json({ exchanges: [] })
+  }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({

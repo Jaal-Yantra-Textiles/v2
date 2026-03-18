@@ -10,6 +10,7 @@ import { HttpTypes } from "@medusajs/types"
 import { ActionMenu } from "../../../../../components/common/action-menu"
 import { _DataTable } from "../../../../../components/table/data-table"
 import { useCustomers } from "../../../../../hooks/api/customers"
+import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { useCustomerTableColumns } from "../../../../../hooks/table/columns/use-customer-table-columns"
 import { useCustomerTableFilters } from "../../../../../hooks/table/filters/use-customer-table-filters"
 import { useCustomerTableQuery } from "../../../../../hooks/table/query/use-customer-table-query"
@@ -19,6 +20,8 @@ const PAGE_SIZE = 20
 
 export const CustomerListTable = () => {
   const { t } = useTranslation()
+  const { stores } = usePartnerStores()
+  const hasStore = stores?.length > 0
 
   const { searchParams, raw } = useCustomerTableQuery({ pageSize: PAGE_SIZE })
   const { customers, count, isLoading, isError, error } = useCustomers(
@@ -50,11 +53,17 @@ export const CustomerListTable = () => {
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <Heading>{t("customers.domain")}</Heading>
-        <Link to="/customers/create">
-          <Button size="small" variant="secondary">
+        {hasStore ? (
+          <Link to="/customers/create">
+            <Button size="small" variant="secondary">
+              {t("actions.create")}
+            </Button>
+          </Link>
+        ) : (
+          <Button size="small" variant="secondary" disabled>
             {t("actions.create")}
           </Button>
-        </Link>
+        )}
       </div>
       <_DataTable
         table={table}
@@ -75,7 +84,9 @@ export const CustomerListTable = () => {
         search
         queryObject={raw}
         noRecords={{
-          message: t("customers.list.noRecordsMessage"),
+          message: !hasStore
+            ? "No store configured for this partner. Please set up a store to manage customers."
+            : t("customers.list.noRecordsMessage"),
         }}
       />
     </Container>

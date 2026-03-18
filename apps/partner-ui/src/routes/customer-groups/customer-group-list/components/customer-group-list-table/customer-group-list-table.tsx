@@ -18,6 +18,7 @@ import {
   useCustomerGroups,
   useDeleteCustomerGroupLazy,
 } from "../../../../../hooks/api"
+import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { useDate } from "../../../../../hooks/use-date"
 import { useQueryParams } from "../../../../../hooks/use-query-params"
 import { useExtension } from "../../../../../providers/extension-provider"
@@ -28,6 +29,8 @@ const PAGE_SIZE = 10
 export const CustomerGroupListTable = () => {
   const { t } = useTranslation()
   const { getWidgets } = useExtension()
+  const { stores } = usePartnerStores()
+  const hasStore = stores?.length > 0
 
   const { q, order, offset, created_at, updated_at } = useQueryParams([
     "q",
@@ -76,14 +79,18 @@ export const CustomerGroupListTable = () => {
           rowCount={count}
           getRowId={(row) => row.id}
           rowHref={(row) => `/customer-groups/${row.id}`}
-          action={{
+          action={hasStore ? {
             label: t("actions.create"),
             to: "/customer-groups/create",
-          }}
+          } : undefined}
           emptyState={{
             empty: {
-              heading: t("customerGroups.list.empty.heading"),
-              description: t("customerGroups.list.empty.description"),
+              heading: !hasStore
+                ? "No store configured"
+                : t("customerGroups.list.empty.heading"),
+              description: !hasStore
+                ? "No store configured for this partner. Please set up a store to manage customer groups."
+                : t("customerGroups.list.empty.description"),
             },
             filtered: {
               heading: t("customerGroups.list.filtered.heading"),

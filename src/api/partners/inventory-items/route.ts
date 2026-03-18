@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { getPartnerFromAuthContext, getPartnerStore } from "../helpers"
+import { getPartnerFromAuthContext, getPartnerStore, tryGetPartnerStore } from "../helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -14,7 +14,11 @@ export const GET = async (
     )
   }
 
-  const { store } = await getPartnerStore(req.auth_context, req.scope)
+  const { store } = await tryGetPartnerStore(req.auth_context, req.scope)
+  if (!store) {
+    return res.json({ inventory_items: [], count: 0, offset: 0, limit: 20 })
+  }
+
   const locationId = store.default_location_id
 
   if (!locationId) {

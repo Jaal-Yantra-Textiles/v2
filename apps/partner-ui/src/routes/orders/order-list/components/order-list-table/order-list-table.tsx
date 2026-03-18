@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 
 import { _DataTable } from "../../../../../components/table/data-table/data-table"
 import { useOrders } from "../../../../../hooks/api/orders"
+import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { useOrderTableColumns } from "../../../../../hooks/table/columns/use-order-table-columns"
 import { useOrderTableFilters } from "./use-order-table-filters"
 import { useOrderTableQuery } from "../../../../../hooks/table/query/use-order-table-query"
@@ -17,6 +18,8 @@ const PAGE_SIZE = 20
 
 export const OrderListTable = () => {
   const { t } = useTranslation()
+  const { stores } = usePartnerStores()
+  const hasStore = stores?.length > 0
   const isViewConfigEnabled = useFeatureFlag("view_configurations")
 
   // If feature flag is enabled, use the new configurable table
@@ -75,7 +78,9 @@ export const OrderListTable = () => {
         ]}
         queryObject={raw}
         noRecords={{
-          message: t("orders.list.noRecordsMessage"),
+          message: !hasStore
+            ? "No store configured for this partner. Please set up a store to manage orders."
+            : t("orders.list.noRecordsMessage"),
         }}
       />
     </Container>

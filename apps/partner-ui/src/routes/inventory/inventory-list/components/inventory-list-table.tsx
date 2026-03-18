@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 import { _DataTable } from "../../../../components/table/data-table"
 import { useInventoryItems } from "../../../../hooks/api/inventory"
+import { usePartnerStores } from "../../../../hooks/api/partner-stores"
 import { useDataTable } from "../../../../hooks/use-data-table"
 import { INVENTORY_ITEM_IDS_KEY } from "../../common/constants"
 import { useInventoryTableColumns } from "./use-inventory-table-columns"
@@ -18,6 +19,8 @@ const PAGE_SIZE = 20
 export const InventoryListTable = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { stores } = usePartnerStores()
+  const hasStore = stores?.length > 0
 
   const [selection, setSelection] = useState<RowSelectionState>({})
 
@@ -65,9 +68,15 @@ export const InventoryListTable = () => {
             {t("inventory.subtitle")}
           </Text>
         </div>
-        <Button size="small" variant="secondary" asChild>
-          <Link to="create">{t("actions.create")}</Link>
-        </Button>
+        {hasStore ? (
+          <Button size="small" variant="secondary" asChild>
+            <Link to="create">{t("actions.create")}</Link>
+          </Button>
+        ) : (
+          <Button size="small" variant="secondary" disabled>
+            {t("actions.create")}
+          </Button>
+        )}
       </div>
       <_DataTable
         table={table}
@@ -85,6 +94,11 @@ export const InventoryListTable = () => {
           { key: "stocked_quantity", label: t("fields.inStock") },
           { key: "reserved_quantity", label: t("inventory.reserved") },
         ]}
+        noRecords={{
+          message: !hasStore
+            ? "No store configured for this partner. Please set up a store to manage inventory."
+            : t("inventory.subtitle"),
+        }}
         navigateTo={(row) => `${row.id}`}
         commands={[
           {
