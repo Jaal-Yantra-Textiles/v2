@@ -1,6 +1,6 @@
 import { LoaderFunctionArgs } from "react-router-dom"
 
-import { productVariantQueryKeys } from "../../../hooks/api"
+import { variantsQueryKeys } from "../../../hooks/api/products"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
 import { getPartnerStoreId } from "../../../lib/partner-store-id"
@@ -13,7 +13,7 @@ const queryFn = async (productId: string, variantId: string, storeId: string) =>
 }
 
 const editProductVariantQuery = (productId: string, variantId: string, storeId: string) => ({
-  queryKey: productVariantQueryKeys.detail(variantId),
+  queryKey: variantsQueryKeys.detail(variantId),
   queryFn: async () => queryFn(productId, variantId, storeId),
 })
 
