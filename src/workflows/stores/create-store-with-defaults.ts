@@ -337,7 +337,8 @@ const autoLinkFulfillmentProvidersStep = createStep(
 
     // Auto-create shipping + pickup fulfillment sets with a service zone
     const fulfillmentService = container.resolve(Modules.FULFILLMENT) as any
-    const countryUpper = country.toUpperCase()
+    const countryLower = country.toLowerCase()
+    const countryLabel = country.toUpperCase()
 
     try {
       // Create shipping fulfillment set
@@ -346,8 +347,8 @@ const autoLinkFulfillmentProvidersStep = createStep(
         type: "shipping",
         service_zones: [
           {
-            name: `${countryUpper} Shipping Zone`,
-            geo_zones: [{ country_code: countryUpper, type: "country" }],
+            name: `${countryLabel} Shipping Zone`,
+            geo_zones: [{ country_code: countryLower, type: "country" }],
           },
         ],
       })
@@ -363,8 +364,8 @@ const autoLinkFulfillmentProvidersStep = createStep(
         type: "pickup",
         service_zones: [
           {
-            name: `${countryUpper} Pickup Zone`,
-            geo_zones: [{ country_code: countryUpper, type: "country" }],
+            name: `${countryLabel} Pickup Zone`,
+            geo_zones: [{ country_code: countryLower, type: "country" }],
           },
         ],
       })
@@ -375,7 +376,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
       } as any)
 
       console.log(
-        `[create-store] Created shipping + pickup fulfillment sets for ${countryUpper}`
+        `[create-store] Created shipping + pickup fulfillment sets for ${countryLabel}`
       )
 
       // Auto-create default shipping options for the shipping zone
@@ -425,7 +426,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
               rules: [],
             })
 
-            console.log(`[create-store] Created default shipping options for ${countryUpper}`)
+            console.log(`[create-store] Created default shipping options for ${countryLabel}`)
           }
         } catch (shippingErr: any) {
           console.error(`[create-store] Failed to create shipping options: ${shippingErr.message}`)

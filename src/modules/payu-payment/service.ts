@@ -106,7 +106,7 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
   async initiatePayment(
     input: InitiatePaymentInput
   ): Promise<InitiatePaymentOutput> {
-    const { amount, currency_code, context } = input
+    const { amount, currency_code, context, data } = input
 
     const txnid = this.generateTxnId()
     const amountStr = this.toAmount(amount)
@@ -115,8 +115,12 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     const phone = (context?.customer as any)?.phone || ""
     const productinfo = `Order ${txnid}`
 
+    // udf1 will be set to session_id (cart uses this for tracking)
+    const udf1 = (data?.session_id as string) || ""
+
     const hash = this.generateHash({
       txnid, amount: amountStr, productinfo, firstname, email,
+      udf1,
     })
 
     this.logger_.info(`[PayU] Initiated payment: txnid=${txnid}, amount=${amountStr} ${currency_code}`)
@@ -130,6 +134,7 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
         firstname,
         email,
         phone,
+        udf1,
         hash,
         key: this.options_.merchant_key,
         payment_url: this.paymentUrl,

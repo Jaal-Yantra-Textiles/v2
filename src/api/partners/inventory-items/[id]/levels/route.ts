@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
-import { getPartnerFromAuthContext } from "../../../helpers"
+import { getPartnerFromAuthContext, getPartnerStore } from "../../../helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -14,10 +14,20 @@ export const GET = async (
     )
   }
 
+  const { store } = await getPartnerStore(req.auth_context, req.scope)
+  const locationId = store.default_location_id
+
   const { id } = req.params
   const inventoryService = req.scope.resolve(Modules.INVENTORY) as any
+
+  // Only return levels at the partner's location
+  const filters: any = { inventory_item_id: id }
+  if (locationId) {
+    filters.location_id = locationId
+  }
+
   const [levels, count] = await inventoryService.listAndCountInventoryLevels(
-    { inventory_item_id: id },
+    filters,
     { take: 100 }
   )
 
