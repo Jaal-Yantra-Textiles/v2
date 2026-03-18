@@ -3,6 +3,7 @@ import { LoaderFunctionArgs } from "react-router-dom"
 import { productVariantQueryKeys } from "../../../hooks/api"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
+import { getPartnerStoreId } from "../../../lib/partner-store-id"
 
 const queryFn = async (productId: string, variantId: string, storeId: string) => {
   return await sdk.client.fetch<{ variant: any }>(
@@ -30,16 +31,7 @@ export const editProductVariantLoader = async ({
       return undefined
     }
 
-    // Get storeId from cached partner-stores query
-    let storeId = ""
-    const cached = queryClient.getQueriesData<any>({ queryKey: ["partner_stores"] })
-    for (const [, data] of cached) {
-      if (data?.stores?.[0]?.id) {
-        storeId = data.stores[0].id
-        break
-      }
-    }
-
+    const storeId = await getPartnerStoreId()
     if (!storeId) {
       return undefined
     }
@@ -50,7 +42,6 @@ export const editProductVariantLoader = async ({
       (await queryClient.fetchQuery(query))
     )
   } catch {
-    // Loader errors should not crash the page — the component's hooks will handle data fetching
     return undefined
   }
 }

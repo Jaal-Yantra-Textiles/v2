@@ -121,6 +121,7 @@ export const useProductVariant = (
   const { stores } = usePartnerStores()
   const storeId = stores?.[0]?.id
 
+  const { enabled: callerEnabled, ...restOptions } = options || {}
   const { data, ...rest } = useQuery({
     queryFn: () =>
       sdk.client.fetch<{ variant: any }>(
@@ -128,8 +129,8 @@ export const useProductVariant = (
         { method: "GET" }
       ),
     queryKey: variantsQueryKeys.detail(variantId, query),
-    enabled: !!storeId && (options?.enabled !== false),
-    ...options,
+    enabled: !!storeId && callerEnabled !== false,
+    ...restOptions,
   })
 
   return { ...data, ...rest }
@@ -353,6 +354,7 @@ export const useProduct = (
   const { stores } = usePartnerStores()
   const storeId = stores?.[0]?.id
 
+  const { enabled: callerEnabled, ...restOptions } = options || {}
   const { data, ...rest } = useQuery({
     queryFn: () =>
       sdk.client.fetch<{ product: any }>(
@@ -360,8 +362,8 @@ export const useProduct = (
         { method: "GET" }
       ),
     queryKey: productsQueryKeys.detail(id, query),
-    enabled: !!storeId && (options?.enabled !== false),
-    ...options,
+    enabled: !!storeId && callerEnabled !== false,
+    ...restOptions,
   })
 
   return { ...data, ...rest }

@@ -14,9 +14,21 @@ export const GET = async (
   )
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  // Fetch variant with the same structure as admin API:
+  // - options with option_id and nested option (id, title)
+  // - prices with all fields
+  // - product_id for linking back to product
   const { data: variants } = await query.graph({
     entity: "product_variants",
-    fields: ["*", "prices.*", "options.*", "inventory_items.*"],
+    fields: [
+      "*",
+      "product_id",
+      "prices.*",
+      "options.*",
+      "options.option.*",
+      "inventory_items.*",
+    ],
     filters: { id: req.params.variantId },
   })
 
@@ -24,7 +36,14 @@ export const GET = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Variant not found")
   }
 
-  res.json({ variant: variants[0] })
+  const variant = variants[0] as any
+
+  // Ensure product_id is set (query.graph on product_variants may not include it directly)
+  if (!variant.product_id) {
+    variant.product_id = req.params.productId
+  }
+
+  res.json({ variant })
 }
 
 export const POST = async (

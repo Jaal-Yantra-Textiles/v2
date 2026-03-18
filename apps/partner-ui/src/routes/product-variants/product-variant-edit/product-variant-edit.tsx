@@ -1,12 +1,17 @@
 import { Heading, Text } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
-import { useParams, useSearchParams } from "react-router-dom"
+import { useLoaderData, useParams, useSearchParams } from "react-router-dom"
 import { RouteDrawer } from "../../../components/modals"
 import { Skeleton } from "../../../components/common/skeleton"
 import { useProduct, useProductVariant } from "../../../hooks/api/products"
 import { ProductEditVariantForm } from "./components/product-edit-variant-form"
+import { editProductVariantLoader } from "./loader"
 
 export const ProductVariantEdit = () => {
+  const initialData = useLoaderData() as Awaited<
+    ReturnType<typeof editProductVariantLoader>
+  > | undefined
+
   const { t } = useTranslation()
   const { id } = useParams()
   const [searchParams] = useSearchParams()
@@ -16,7 +21,10 @@ export const ProductVariantEdit = () => {
     id!,
     variantId,
     undefined,
-    { enabled: !!id && !!variantId }
+    {
+      initialData,
+      enabled: !!variantId,
+    }
   )
 
   const productId = variant?.product_id || id
@@ -28,7 +36,9 @@ export const ProductVariantEdit = () => {
   } = useProduct(
     productId!,
     undefined,
-    { enabled: !!productId }
+    {
+      enabled: !!productId,
+    }
   )
 
   const ready = !isPending && !!variant && !isProductPending && !!product
