@@ -49,7 +49,7 @@ export function OrderCreateFulfillmentForm({
   })
 
   const stockLocations = useComboboxData({
-    queryFn: (params) => sdk.admin.stockLocation.list(params),
+    queryFn: (params) => sdk.client.fetch<any>("/partners/stock-locations", { method: "GET", query: params }),
     queryKey: ["stock_locations"],
     getOptions: (data) =>
       data.stock_locations.map((location) => ({

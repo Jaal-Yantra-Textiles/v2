@@ -136,11 +136,10 @@ export const ManageLocationsForm = ({
           >
             queryKey={["stock-locations", searchQuery]}
             queryFn={async (params) => {
-              const response = await sdk.admin.stockLocation.list({
-                limit: params.limit,
-                offset: params.offset,
-                ...(searchQuery && { q: searchQuery }),
-              })
+              const response = await sdk.client.fetch<any>(
+                "/partners/stock-locations",
+                { method: "GET", query: { limit: params.limit, offset: params.offset, ...(searchQuery && { q: searchQuery }) } }
+              )
               return response
             }}
             responseKey="stock_locations"

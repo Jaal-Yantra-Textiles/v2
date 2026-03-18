@@ -50,7 +50,16 @@ const listStoreProductsStep = createStep(
     // Fetch products via sales_channel graph with product link expanded
     const { data: scData } = await query.graph({
       entity: "sales_channel",
-      fields: ["id", "products_link.product.*", "products_link.product_id"],
+      fields: [
+        "id",
+        "products_link.product.*",
+        "products_link.product.collection.*",
+        "products_link.product.sales_channels.*",
+        "products_link.product.variants.id",
+        "products_link.product.variants.title",
+        "products_link.product.images.*",
+        "products_link.product_id",
+      ],
       filters: { id: store.default_sales_channel_id },
     })
 

@@ -74,7 +74,11 @@ export const useCreateProductTag = (
   >
 ) => {
   return useMutation({
-    mutationFn: async (data) => sdk.admin.productTag.create(data, query),
+    mutationFn: async (data) =>
+      sdk.client.fetch<HttpTypes.AdminProductTagResponse>(
+        "/partners/product-tags",
+        { method: "POST", body: data }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: productTagsQueryKeys.lists(),
@@ -96,7 +100,11 @@ export const useUpdateProductTag = (
   >
 ) => {
   return useMutation({
-    mutationFn: async (data) => sdk.admin.productTag.update(id, data, query),
+    mutationFn: async (data) =>
+      sdk.client.fetch<HttpTypes.AdminProductTagResponse>(
+        `/partners/product-tags/${id}`,
+        { method: "POST", body: data }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: productTagsQueryKeys.lists(),
@@ -120,7 +128,11 @@ export const useDeleteProductTag = (
   >
 ) => {
   return useMutation({
-    mutationFn: async () => sdk.admin.productTag.delete(id),
+    mutationFn: async () =>
+      sdk.client.fetch<HttpTypes.AdminProductTagDeleteResponse>(
+        `/partners/product-tags/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: productTagsQueryKeys.lists(),

@@ -698,6 +698,15 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // Partner Store Product Variants
+    {
+      matcher: "/partners/stores/:id/product-variants",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Store Shipping Options
     {
       matcher: "/partners/stores/:id/shipping-options",

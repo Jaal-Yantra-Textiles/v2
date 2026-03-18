@@ -44,6 +44,7 @@ import {
 } from "../../../../../hooks/api/returns"
 import { useShippingOptions } from "../../../../../hooks/api/shipping-options"
 import { useStockLocations } from "../../../../../hooks/api/stock-locations"
+import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { sdk } from "../../../../../lib/client"
 import { currencies } from "../../../../../lib/data/currencies"
 import { getStylizedAmount } from "../../../../../lib/money-amount-helpers"
@@ -67,6 +68,8 @@ export const ReturnCreateForm = ({
 }: ReturnCreateFormProps) => {
   const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
+  const { stores } = usePartnerStores()
+  const partnerStoreId = stores?.[0]?.id
 
   const itemsMap = useMemo(
     () => new Map((order.items || []).map((i) => [i.id, i])),
@@ -364,11 +367,13 @@ export const ReturnCreateForm = ({
             if (!item.variant_id) {
               return undefined
             }
-            return await sdk.admin.product.retrieveVariant(
-              item.product_id,
-              item.variant_id,
-              { fields: "*inventory,*inventory.location_levels" }
-            )
+            if (partnerStoreId) {
+              return await sdk.client.fetch<any>(
+                `/partners/stores/${partnerStoreId}/products/${item.product_id}/variants/${item.variant_id}`,
+                { method: "GET" }
+              )
+            }
+            return undefined
           })
         )
       )

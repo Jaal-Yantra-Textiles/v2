@@ -42,7 +42,7 @@ export function CreateOrderTransferForm({
   const customers = useComboboxData({
     queryKey: ["customers"],
     queryFn: (params) =>
-      sdk.admin.customer.list({ ...params, has_account: true }),
+      sdk.client.fetch<any>("/partners/customers", { method: "GET", query: { ...params, has_account: true } }),
     getOptions: (data) =>
       data.customers.map((item) => ({
         label: `${item.first_name || ""} ${item.last_name || ""} (${item.email})`,
