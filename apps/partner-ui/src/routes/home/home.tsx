@@ -14,8 +14,6 @@ import {
 import { Link } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import { usePartnerAssignedTasks } from "../../hooks/api/partner-assigned-tasks"
-import { usePartnerDesigns } from "../../hooks/api/partner-designs"
-import { usePartnerInventoryOrders } from "../../hooks/api/partner-inventory-orders"
 import { usePartnerStores } from "../../hooks/api/partner-stores"
 import { useMe } from "../../hooks/api/users"
 import { useDiscoverProducts, useCopyProduct, DiscoverProduct } from "../../hooks/api/discover"
