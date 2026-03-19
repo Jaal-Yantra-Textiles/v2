@@ -67,13 +67,13 @@ function getStepStatus(
   currentStep: Step,
   aboutYou: AboutYou,
   logo: File | null
-): "not-started" | "current" | "completed" {
+): "not-started" | "in-progress" | "completed" {
   const currentIdx = STEPS.indexOf(currentStep)
   const stepIdx = STEPS.indexOf(step)
-  if (step === currentStep) return "current"
+  if (step === currentStep) return "in-progress"
   if (stepIdx > currentIdx) return "not-started"
-  if (step === "about") return aboutYou.business_name.trim() ? "completed" : "current"
-  if (step === "logo") return logo ? "completed" : "current"
+  if (step === "about") return aboutYou.business_name.trim() ? "completed" : "in-progress"
+  if (step === "logo") return logo ? "completed" : "in-progress"
   return "not-started"
 }
 
