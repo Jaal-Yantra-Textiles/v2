@@ -3,11 +3,13 @@ import {
   Button,
   Container,
   Heading,
+  InlineTip,
+  Input,
   Text,
   toast,
   usePrompt,
 } from "@medusajs/ui"
-import { ArrowUpRightOnBox, ArrowPath } from "@medusajs/icons"
+import { ArrowUpRightOnBox, ArrowPath, XMark } from "@medusajs/icons"
 import { useState } from "react"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
@@ -19,6 +21,10 @@ import {
   useProvisionStorefront,
   useRedeployStorefront,
   useRemoveStorefront,
+  useStorefrontDomain,
+  useAddStorefrontDomain,
+  useVerifyStorefrontDomain,
+  useRemoveStorefrontDomain,
 } from "../../../hooks/api/storefront"
 
 function formatDate(dateStr: string | number | null | undefined): string {
@@ -297,6 +303,283 @@ const StorefrontSection = () => {
   )
 }
 
+const CustomDomainSection = () => {
+  const { data: domainStatus, isPending } = useStorefrontDomain()
+  const { mutateAsync: addDomain, isPending: isAdding } =
+    useAddStorefrontDomain()
+  const { mutateAsync: verifyDomain, isPending: isVerifying } =
+    useVerifyStorefrontDomain()
+  const { mutateAsync: removeDomain, isPending: isRemoving } =
+    useRemoveStorefrontDomain()
+  const prompt = usePrompt()
+
+  const [domainInput, setDomainInput] = useState("")
+  const [addResult, setAddResult] = useState<{
+    domain: string
+    verified: boolean
+    verification?: Array<{
+      type: string
+      domain: string
+      value: string
+    }> | null
+    misconfigured: boolean
+    configured_by: string | null
+  } | null>(null)
+
+  const handleAdd = async () => {
+    const value = domainInput.trim()
+    if (!value) return
+
+    try {
+      const result = await addDomain({ domain: value })
+      setAddResult(result)
+      setDomainInput("")
+      toast.success("Domain added", {
+        description: result.verified
+          ? "Domain verified. Configure your DNS to point it to your storefront."
+          : "Domain added. Follow the verification steps below.",
+      })
+    } catch (e: any) {
+      toast.error("Could not add domain", {
+        description: e?.message || "Something went wrong",
+      })
+    }
+  }
+
+  const handleVerify = async () => {
+    try {
+      const result = await verifyDomain()
+      setAddResult(result)
+      if (result.verified) {
+        toast.success("Domain verified")
+      } else {
+        toast.warning("Domain not yet verified", {
+          description: "Make sure the TXT record is set and try again.",
+        })
+      }
+    } catch (e: any) {
+      toast.error("Verification failed", {
+        description: e?.message || "Something went wrong",
+      })
+    }
+  }
+
+  const handleRemove = async () => {
+    const confirmed = await prompt({
+      title: "Remove Custom Domain",
+      description:
+        "This will remove the custom domain from your storefront. Your storefront will still be accessible via the default subdomain.",
+      confirmText: "Remove",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+
+    try {
+      await removeDomain()
+      setAddResult(null)
+      toast.success("Custom domain removed")
+    } catch (e: any) {
+      toast.error("Could not remove domain", {
+        description: e?.message || "Something went wrong",
+      })
+    }
+  }
+
+  if (isPending) {
+    return <GeneralSectionSkeleton rowCount={2} />
+  }
+
+  const hasDomain = domainStatus?.configured && domainStatus.domain
+  const currentDomain = domainStatus?.domain || addResult?.domain
+  const isVerified =
+    domainStatus?.verified ?? addResult?.verified ?? false
+  const isMisconfigured =
+    domainStatus?.misconfigured ?? addResult?.misconfigured ?? true
+  const verification = addResult?.verification
+
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex items-center justify-between px-6 py-4">
+        <div>
+          <Heading level="h2">Custom Domain</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Connect your own domain to your storefront
+          </Text>
+        </div>
+      </div>
+
+      {!hasDomain && !addResult ? (
+        <div className="px-6 py-4 space-y-3">
+          <div className="flex items-center gap-x-2">
+            <Input
+              placeholder="shop.example.com"
+              value={domainInput}
+              onChange={(e) => setDomainInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  handleAdd()
+                }
+              }}
+              className="flex-1"
+            />
+            <Button
+              size="small"
+              onClick={handleAdd}
+              disabled={isAdding || !domainInput.trim()}
+            >
+              {isAdding ? "Adding..." : "Add Domain"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="px-6 py-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-x-2">
+              <Text size="small" weight="plus">
+                {currentDomain}
+              </Text>
+              {isVerified && !isMisconfigured ? (
+                <Badge color="green" size="2xsmall">
+                  Active
+                </Badge>
+              ) : isVerified && isMisconfigured ? (
+                <Badge color="orange" size="2xsmall">
+                  DNS Pending
+                </Badge>
+              ) : (
+                <Badge color="red" size="2xsmall">
+                  Unverified
+                </Badge>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={handleRemove}
+              disabled={isRemoving}
+            >
+              <XMark className="mr-1" />
+              {isRemoving ? "Removing..." : "Remove"}
+            </Button>
+          </div>
+
+          {!isVerified && verification && verification.length > 0 && (
+            <div className="space-y-3">
+              <InlineTip variant="warning" label="Domain Verification Required">
+                Add the following TXT record at your DNS provider to verify
+                ownership of this domain.
+              </InlineTip>
+
+              <div className="rounded-lg border border-ui-border-base overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-ui-bg-subtle border-b border-ui-border-base">
+                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
+                        Type
+                      </th>
+                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
+                        Host
+                      </th>
+                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
+                        Value
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {verification.map((v, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 font-mono text-xs">
+                          {v.type}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs">
+                          {v.domain}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs break-all">
+                          {v.value}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={handleVerify}
+                disabled={isVerifying}
+              >
+                {isVerifying ? "Verifying..." : "Verify Domain"}
+              </Button>
+            </div>
+          )}
+
+          {isVerified && isMisconfigured && (
+            <div className="space-y-3">
+              <InlineTip variant="info" label="DNS Configuration Required">
+                Point your domain to Vercel by adding the DNS record below at
+                your domain provider. DNS changes can take up to 48 hours to
+                propagate.
+              </InlineTip>
+
+              <div className="rounded-lg border border-ui-border-base overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-ui-bg-subtle border-b border-ui-border-base">
+                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
+                        Type
+                      </th>
+                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
+                        Host
+                      </th>
+                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
+                        Value
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="px-3 py-2 font-mono text-xs">CNAME</td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {currentDomain}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        cname.vercel-dns.com
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={handleVerify}
+                disabled={isVerifying}
+              >
+                {isVerifying ? "Check Status" : "Check Status"}
+              </Button>
+            </div>
+          )}
+
+          {isVerified && !isMisconfigured && (
+            <InlineTip variant="success" label="Domain Active">
+              Your custom domain is configured and serving your storefront.
+            </InlineTip>
+          )}
+        </div>
+      )}
+    </Container>
+  )
+}
+
+const StorefrontDomainWrapper = () => {
+  const { data: status, isPending } = useStorefrontStatus()
+  if (isPending || !status?.provisioned) return null
+  return <CustomDomainSection />
+}
+
 export const SettingsStores = () => {
   const { stores, isPending, isError, error } = usePartnerStores()
   if (isError) {
@@ -386,6 +669,7 @@ export const SettingsStores = () => {
       </Container>
 
       {store && <StorefrontSection />}
+      {store && <StorefrontDomainWrapper />}
     </SingleColumnPage>
   )
 }

@@ -1,12 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Button, Heading, Input, Select, Text } from "@medusajs/ui"
-import { useMemo } from "react"
+import { Button, Heading, Input, Select, Text, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
-import { useNavigate } from "react-router-dom"
 import * as zod from "zod"
 
 import { Form } from "../../../../components/common/form"
-import { RouteFocusModal } from "../../../../components/modals"
+import { RouteFocusModal, useRouteModal } from "../../../../components/modals"
+import { KeyboundForm } from "../../../../components/utilities/keybound-form"
+import { useCreatePartnerPaymentMethod } from "../../../../hooks/api/partner-payment-methods"
 import { useMe } from "../../../../hooks/api/users"
 
 const CreatePaymentMethodSchema = zod.object({
@@ -20,19 +20,10 @@ const CreatePaymentMethodSchema = zod.object({
 
 type CreatePaymentMethodValues = zod.infer<typeof CreatePaymentMethodSchema>
 
-type StoredPaymentMethod = CreatePaymentMethodValues & {
-  id: string
-  created_at: string
-}
-
 export const SettingsPaymentsCreate = () => {
-  const navigate = useNavigate()
   const { user } = useMe()
   const partnerId = user?.partner_id
-
-  const storageKey = useMemo(() => {
-    return partnerId ? `partner_payment_methods_${partnerId}` : null
-  }, [partnerId])
+  const { handleSuccess } = useRouteModal()
 
   const form = useForm<CreatePaymentMethodValues>({
     defaultValues: {
@@ -46,32 +37,35 @@ export const SettingsPaymentsCreate = () => {
     resolver: zodResolver(CreatePaymentMethodSchema),
   })
 
+  const { mutateAsync, isPending } = useCreatePartnerPaymentMethod(
+    partnerId || ""
+  )
+
   const type = form.watch("type")
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (!storageKey) {
+    if (!partnerId) {
       return
     }
 
-    const now = new Date().toISOString()
-    const next: StoredPaymentMethod = {
-      ...values,
-      id: `local_${Date.now()}`,
-      created_at: now,
-    }
-
-    const raw = localStorage.getItem(storageKey)
-    const current = raw ? (JSON.parse(raw) as StoredPaymentMethod[]) : []
-    localStorage.setItem(storageKey, JSON.stringify([next, ...(current || [])]))
-
-    form.reset()
-    navigate("..", { replace: true, state: { isSubmitSuccessful: true } })
+    await mutateAsync(values, {
+      onSuccess: () => {
+        toast.success("Payment method created")
+        handleSuccess("..")
+      },
+      onError: (e) => {
+        toast.error(e.message)
+      },
+    })
   })
 
   return (
     <RouteFocusModal>
       <RouteFocusModal.Form form={form}>
-        <div className="flex h-full flex-col overflow-hidden">
+        <KeyboundForm
+          onSubmit={handleSubmit}
+          className="flex h-full flex-col overflow-hidden"
+        >
           <RouteFocusModal.Header />
           <RouteFocusModal.Body className="flex flex-1 flex-col overflow-hidden">
             <div className="flex flex-1 flex-col items-center overflow-y-auto">
@@ -189,22 +183,28 @@ export const SettingsPaymentsCreate = () => {
                     />
                   )}
                 </div>
-
-                <div className="flex items-center justify-end">
-                  <Button
-                    size="small"
-                    variant="primary"
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={!partnerId}
-                  >
-                    Create
-                  </Button>
-                </div>
               </div>
             </div>
           </RouteFocusModal.Body>
-        </div>
+          <RouteFocusModal.Footer>
+            <div className="flex items-center justify-end gap-x-2">
+              <RouteFocusModal.Close asChild>
+                <Button size="small" variant="secondary">
+                  Cancel
+                </Button>
+              </RouteFocusModal.Close>
+              <Button
+                size="small"
+                variant="primary"
+                type="submit"
+                isLoading={isPending}
+                disabled={!partnerId}
+              >
+                Create
+              </Button>
+            </div>
+          </RouteFocusModal.Footer>
+        </KeyboundForm>
       </RouteFocusModal.Form>
     </RouteFocusModal>
   )

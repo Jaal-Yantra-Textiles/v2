@@ -31,7 +31,13 @@ export type VercelDeployment = {
 export type VercelDomain = {
   name: string
   verified: boolean
-  verification?: Array<{ type: string; domain: string; value: string }>
+  verification?: Array<{ type: string; domain: string; value: string; reason?: string }>
+}
+
+export type VercelDomainConfig = {
+  configuredBy: string | null
+  acceptedChallenges: string[]
+  misconfigured: boolean
 }
 
 export type CloudflareDnsRecord = {
@@ -177,6 +183,30 @@ class DeploymentService {
     if (!res.ok) {
       const body = await res.text()
       throw new Error(`Vercel addDomain failed (${res.status}): ${body}`)
+    }
+    return res.json()
+  }
+
+  async getDomainConfig(domain: string): Promise<VercelDomainConfig> {
+    const res = await fetch(
+      `${VERCEL_API_BASE}/v6/domains/${domain}/config${this.vercelTeamQuery()}`,
+      { method: "GET", headers: this.vercelHeaders() }
+    )
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Vercel getDomainConfig failed (${res.status}): ${body}`)
+    }
+    return res.json()
+  }
+
+  async verifyDomain(projectId: string, domain: string): Promise<VercelDomain> {
+    const res = await fetch(
+      `${VERCEL_API_BASE}/v9/projects/${projectId}/domains/${domain}/verify${this.vercelTeamQuery()}`,
+      { method: "POST", headers: this.vercelHeaders() }
+    )
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Vercel verifyDomain failed (${res.status}): ${body}`)
     }
     return res.json()
   }

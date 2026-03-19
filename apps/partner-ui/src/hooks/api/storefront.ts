@@ -95,6 +95,88 @@ export interface RemoveStorefrontResponse {
   results: Record<string, { action: string; error?: string; reason?: string }>
 }
 
+// --- Custom domain hooks ---
+
+export interface DomainStatus {
+  configured: boolean
+  domain?: string | null
+  verified?: boolean
+  misconfigured?: boolean
+  configured_by?: string | null
+}
+
+export interface AddDomainResponse {
+  domain: string
+  verified: boolean
+  verification?: Array<{ type: string; domain: string; value: string }> | null
+  misconfigured: boolean
+  configured_by: string | null
+}
+
+const DOMAIN_QUERY_KEY = "partner_storefront_domain" as const
+export const domainQueryKeys = queryKeysFactory(DOMAIN_QUERY_KEY)
+
+export const useStorefrontDomain = (
+  options?: Omit<
+    UseQueryOptions<DomainStatus, FetchError, DomainStatus, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<DomainStatus>("/partners/storefront/domain", {
+        method: "GET",
+      }),
+    queryKey: domainQueryKeys.detail("me"),
+    ...options,
+  })
+  return { data, ...rest }
+}
+
+export const useAddStorefrontDomain = () => {
+  return useMutation({
+    mutationFn: (input: { domain: string }) =>
+      sdk.client.fetch<AddDomainResponse>("/partners/storefront/domain", {
+        method: "POST",
+        body: input,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: domainQueryKeys.detail("me"),
+      })
+    },
+  })
+}
+
+export const useVerifyStorefrontDomain = () => {
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<AddDomainResponse>(
+        "/partners/storefront/domain/verify",
+        { method: "POST" }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: domainQueryKeys.detail("me"),
+      })
+    },
+  })
+}
+
+export const useRemoveStorefrontDomain = () => {
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<{ message: string }>("/partners/storefront/domain", {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: domainQueryKeys.detail("me"),
+      })
+    },
+  })
+}
+
 export const useRemoveStorefront = () => {
   return useMutation({
     mutationFn: () =>
