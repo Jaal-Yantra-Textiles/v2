@@ -1,7 +1,7 @@
 "use client"
 
 import { RadioGroup } from "@headlessui/react"
-import { isStripeLike, paymentInfoMap } from "@lib/constants"
+import { isPayU, isStripeLike, paymentInfoMap } from "@lib/constants"
 import { initiatePaymentSession } from "@lib/data/cart"
 import { CheckCircleSolid, CreditCard } from "@medusajs/icons"
 import { Button, Container, Heading, Text, clx } from "@medusajs/ui"
@@ -37,11 +37,12 @@ const Payment = ({
   const pathname = usePathname()
 
   const isOpen = searchParams.get("step") === "payment"
+  const paymentError = searchParams.get("error")
 
   const setPaymentMethod = async (method: string) => {
     setError(null)
     setSelectedPaymentMethod(method)
-    if (isStripeLike(method)) {
+    if (isStripeLike(method) || isPayU(method)) {
       await initiatePaymentSession(cart, {
         provider_id: method,
       })
@@ -101,8 +102,17 @@ const Payment = ({
   }
 
   useEffect(() => {
-    setError(null)
-  }, [isOpen])
+    if (paymentError && isOpen) {
+      setError(decodeURIComponent(paymentError))
+      // Strip error param from URL after reading it
+      const params = new URLSearchParams(searchParams)
+      params.delete("error")
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    } else {
+      setError(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentError, isOpen])
 
   return (
     <div className="bg-white">

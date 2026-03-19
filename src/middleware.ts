@@ -23,48 +23,58 @@ async function getRegionMap(cacheId: string) {
     !regionMap.keys().next().value ||
     regionMapUpdated < Date.now() - 3600 * 1000
   ) {
-    // Fetch regions from Medusa with timeout and compression headers
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-    const { regions } = await fetch(`${BACKEND_URL}/store/regions`, {
-      headers: {
-        "x-publishable-api-key": PUBLISHABLE_API_KEY!,
-        "Accept-Encoding": "gzip, deflate, br",
-      },
-      signal: controller.signal,
-      next: {
-        revalidate: 3600,
-        tags: [`regions-${cacheId}`],
-      },
-      cache: "force-cache",
-    })
-      .finally(() => clearTimeout(timeoutId))
-      .then(async (response) => {
-        console.log(response)
-        const json = await response.json()
+    try {
+      const response = await fetch(`${BACKEND_URL}/store/regions`, {
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_API_KEY!,
+          "Accept-Encoding": "gzip, deflate, br",
+        },
+        signal: controller.signal,
+        next: {
+          revalidate: 3600,
+          tags: [`regions-${cacheId}`],
+        },
+        cache: "force-cache",
+      }).finally(() => clearTimeout(timeoutId))
 
-        if (!response.ok) {
-          throw new Error(json.message)
-        }
+      const json = await response.json()
 
-        return json
+      if (!response.ok) {
+        throw new Error(json.message || `Region fetch failed (${response.status})`)
+      }
+
+      const regions = json.regions as HttpTypes.StoreRegion[] | undefined
+
+      if (!regions?.length) {
+        throw new Error(
+          "No regions found. Please set up regions in your Medusa Admin."
+        )
+      }
+
+      regions.forEach((region) => {
+        region.countries?.forEach((c) => {
+          regionMapCache.regionMap.set(c.iso_2 ?? "", region)
+        })
       })
 
-    if (!regions?.length) {
-      throw new Error(
-        "No regions found. Please set up regions in your Medusa Admin."
-      )
+      regionMapCache.regionMapUpdated = Date.now()
+    } catch (error: any) {
+      // If we have a stale cache, keep using it rather than crashing
+      if (regionMap.keys().next().value) {
+        console.warn(
+          `[Middleware] Region fetch failed, using stale cache: ${error.message}`
+        )
+      } else {
+        // No cache at all — log and re-throw so the caller can handle it
+        console.error(
+          `[Middleware] Region fetch failed with no cache: ${error.message}`
+        )
+        throw error
+      }
     }
-
-    // Create a map of country codes to regions.
-    regions.forEach((region: HttpTypes.StoreRegion) => {
-      region.countries?.forEach((c) => {
-        regionMapCache.regionMap.set(c.iso_2 ?? "", region)
-      })
-    })
-
-    regionMapCache.regionMapUpdated = Date.now()
   }
 
   return regionMapCache.regionMap
