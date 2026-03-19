@@ -1,4 +1,4 @@
-import { Badge, Button, Checkbox, Container, Heading, Text, clx, toast } from "@medusajs/ui"
+import { Badge, Button, Checkbox, Container, FocusModal, Heading, Text, clx, toast } from "@medusajs/ui"
 import {
   ArrowPath,
   BuildingStorefront,
@@ -455,59 +455,160 @@ const DiscoverProductCard = ({ product }: { product: DiscoverProduct }) => {
   )
 }
 
+/**
+ * Compact discover card for the dashboard — shows stacked thumbnails
+ * and opens a FocusModal with the full product grid.
+ */
 const DiscoverSection = () => {
   const { products, count, isPending, isError, refetch } =
     useDiscoverProducts({ limit: 8 })
+  const [modalOpen, setModalOpen] = useState(false)
 
   if (isError) return null
 
-  return (
-    <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div>
-          <Heading level="h2">Discover Products to Sell</Heading>
-          <Text size="small" className="text-ui-fg-subtle">
-            Browse products from other partners and add them to your store.
-          </Text>
-        </div>
-        <Button
-          variant="transparent"
-          size="small"
-          onClick={() => refetch()}
-          disabled={isPending}
-        >
-          <ArrowPath className={clx("h-4 w-4", isPending && "animate-spin")} />
-          Shuffle
-        </Button>
-      </div>
+  // Take first 3 for the stacked preview
+  const previewProducts = (products || []).slice(0, 3)
+  const totalCount = count || 0
 
-      <div className="px-6 py-4">
-        {isPending ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="bg-ui-bg-subtle animate-pulse rounded-lg aspect-square"
-              />
-            ))}
+  return (
+    <>
+      <Container className="p-0 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          className="flex w-full items-center gap-x-4 px-6 py-4 text-left transition-colors hover:bg-ui-bg-base-hover"
+        >
+          {/* Stacked thumbnails */}
+          <div className="relative h-16 w-24 shrink-0">
+            {isPending ? (
+              <div className="h-16 w-16 rounded-lg bg-ui-bg-subtle animate-pulse" />
+            ) : previewProducts.length > 0 ? (
+              previewProducts.map((p, i) => (
+                <div
+                  key={p.id}
+                  className="absolute rounded-lg border-2 border-ui-bg-base bg-ui-bg-subtle overflow-hidden shadow-elevation-card-rest"
+                  style={{
+                    width: 52,
+                    height: 52,
+                    left: i * 14,
+                    top: i * 4,
+                    zIndex: previewProducts.length - i,
+                  }}
+                >
+                  {p.thumbnail ? (
+                    <img
+                      src={p.thumbnail}
+                      alt={p.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <ShoppingBag className="h-4 w-4 text-ui-fg-muted" />
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-ui-bg-subtle border border-ui-border-base">
+                <ShoppingBag className="h-5 w-5 text-ui-fg-muted" />
+              </div>
+            )}
           </div>
-        ) : !products?.length ? (
-          <Text size="small" className="text-ui-fg-subtle py-8 text-center">
-            No products available for discovery yet.
-          </Text>
-        ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {products.map((product) => (
-              <DiscoverProductCard key={product.id} product={product} />
-            ))}
+
+          {/* Text */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-x-2">
+              <Text size="small" weight="plus">
+                Discover Products
+              </Text>
+              {totalCount > 0 && (
+                <Badge size="2xsmall" color="blue">
+                  {totalCount}
+                </Badge>
+              )}
+            </div>
+            <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
+              Cross-sell products from other partners or copy them to produce on
+              your own.
+            </Text>
           </div>
-        )}
-        {(count || 0) > 8 && (
-          <Text size="xsmall" className="text-ui-fg-muted mt-3 text-center">
-            Showing 8 of {count} products · Click Shuffle to see more
+
+          {/* Arrow */}
+          <Text size="small" className="text-ui-fg-muted shrink-0">
+            &rsaquo;
           </Text>
-        )}
-      </div>
-    </Container>
+        </button>
+      </Container>
+
+      {/* Full discover modal */}
+      <FocusModal open={modalOpen} onOpenChange={setModalOpen}>
+        <FocusModal.Content>
+          <FocusModal.Header>
+            <div className="flex items-center justify-between w-full">
+              <div>
+                <FocusModal.Title asChild>
+                  <Heading>Discover Products</Heading>
+                </FocusModal.Title>
+                <Text size="small" className="text-ui-fg-subtle mt-0.5">
+                  Browse products from other partners. Add them to cross-sell directly,
+                  or copy them as drafts to produce on your own.
+                </Text>
+              </div>
+              <Button
+                variant="transparent"
+                size="small"
+                onClick={() => refetch()}
+                disabled={isPending}
+              >
+                <ArrowPath
+                  className={clx("h-4 w-4", isPending && "animate-spin")}
+                />
+                Shuffle
+              </Button>
+            </div>
+          </FocusModal.Header>
+
+          <FocusModal.Body className="overflow-auto p-6">
+            {isPending ? (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-ui-bg-subtle animate-pulse rounded-lg aspect-square"
+                  />
+                ))}
+              </div>
+            ) : !products?.length ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-y-2">
+                <ShoppingBag className="h-8 w-8 text-ui-fg-muted" />
+                <Text size="small" className="text-ui-fg-subtle">
+                  No products available for discovery yet.
+                </Text>
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  Products will appear here when other partners publish them.
+                </Text>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {products.map((product) => (
+                    <DiscoverProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+                {totalCount > 8 && (
+                  <Text
+                    size="xsmall"
+                    className="text-ui-fg-muted mt-4 text-center"
+                  >
+                    Showing 8 of {totalCount} products — click Shuffle to see
+                    more
+                  </Text>
+                )}
+              </>
+            )}
+          </FocusModal.Body>
+        </FocusModal.Content>
+      </FocusModal>
+    </>
   )
 }

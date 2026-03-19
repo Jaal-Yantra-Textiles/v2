@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   Alert,
+  Badge,
   Button,
   FocusModal,
   Heading,
@@ -49,8 +50,39 @@ const BUSINESS_TYPES = [
   { value: "other", label: "Other" },
 ]
 
+const STEPS = ["about", "logo", "people"] as const
+type Step = (typeof STEPS)[number]
+
+const STEP_LABELS: Record<Step, string> = {
+  about: "About You",
+  logo: "Logo & Brand",
+  people: "Team",
+}
+
 const getOnboardingStorageKey = (partnerId: string) =>
   `partner_onboarding_${partnerId}`
+
+function getStepStatus(
+  step: Step,
+  currentStep: Step,
+  aboutYou: AboutYou,
+  logo: File | null
+): "not-started" | "current" | "completed" {
+  const currentIdx = STEPS.indexOf(currentStep)
+  const stepIdx = STEPS.indexOf(step)
+
+  if (step === currentStep) return "current"
+  if (stepIdx > currentIdx) return "not-started"
+
+  // Check completion for past steps
+  if (step === "about") {
+    return aboutYou.business_name.trim() ? "completed" : "current"
+  }
+  if (step === "logo") {
+    return logo ? "completed" : "current"
+  }
+  return "not-started"
+}
 
 export const OnboardingModal = ({
   partnerId,
@@ -62,7 +94,7 @@ export const OnboardingModal = ({
     [partnerId]
   )
 
-  const [currentStep, setCurrentStep] = useState("about")
+  const [currentStep, setCurrentStep] = useState<Step>("about")
   const [aboutYou, setAboutYou] = useState<AboutYou>({
     business_name: "",
     business_type: "",
@@ -136,7 +168,14 @@ export const OnboardingModal = ({
   }
 
   const validatePeople = () => {
-    for (const person of people) {
+    // Filter out completely empty rows — they're optional
+    const filled = people.filter(
+      (p) => p.first_name.trim() || p.last_name.trim() || p.email.trim()
+    )
+
+    if (filled.length === 0) return true
+
+    for (const person of filled) {
       const result = personSchema.safeParse(person)
       if (!result.success) {
         const firstError = result.error.errors[0]
@@ -145,6 +184,20 @@ export const OnboardingModal = ({
       }
     }
     return true
+  }
+
+  const goNext = () => {
+    const idx = STEPS.indexOf(currentStep)
+    if (idx < STEPS.length - 1) {
+      setCurrentStep(STEPS[idx + 1])
+    }
+  }
+
+  const goBack = () => {
+    const idx = STEPS.indexOf(currentStep)
+    if (idx > 0) {
+      setCurrentStep(STEPS[idx - 1])
+    }
   }
 
   const handleSubmit = async () => {
@@ -160,8 +213,10 @@ export const OnboardingModal = ({
         metadataUpdate.use_type =
           aboutYou.business_type === "seller" ? "seller" : "manufacturer"
       }
-      if (aboutYou.business_name) metadataUpdate.business_name = aboutYou.business_name
-      if (aboutYou.description) metadataUpdate.business_description = aboutYou.description
+      if (aboutYou.business_name)
+        metadataUpdate.business_name = aboutYou.business_name
+      if (aboutYou.description)
+        metadataUpdate.business_description = aboutYou.description
       if (aboutYou.website) metadataUpdate.website = aboutYou.website
       if (aboutYou.phone) metadataUpdate.contact_phone = aboutYou.phone
 
@@ -177,11 +232,16 @@ export const OnboardingModal = ({
         }
       }
 
+      // Filter out empty people rows
+      const filledPeople = people.filter(
+        (p) => p.first_name.trim() && p.last_name.trim() && p.email.trim()
+      )
+
       const payload = {
         completed: true,
         skipped: false,
         about: aboutYou,
-        people,
+        people: filledPeople,
         logo: logo
           ? { name: logo.name, type: logo.type, size: logo.size }
           : null,
@@ -201,30 +261,49 @@ export const OnboardingModal = ({
     }
   }
 
+  const currentIdx = STEPS.indexOf(currentStep)
+  const isFirstStep = currentIdx === 0
+  const isLastStep = currentIdx === STEPS.length - 1
+
   return (
     <FocusModal
       open={isOpen}
       onOpenChange={(open) => (!open ? onClose() : null)}
     >
-      <FocusModal.Content>
+      <FocusModal.Content
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <FocusModal.Header>
           <FocusModal.Title asChild>
             <Heading>Welcome! Let's set up your workspace</Heading>
           </FocusModal.Title>
         </FocusModal.Header>
 
-        <ProgressTabs value={currentStep} onValueChange={setCurrentStep}>
-          <ProgressTabs.List className="border-b">
-            <ProgressTabs.Trigger value="about">
-              About You
-            </ProgressTabs.Trigger>
-            <ProgressTabs.Trigger value="logo">
-              Logo & Brand
-            </ProgressTabs.Trigger>
-            <ProgressTabs.Trigger value="people">
-              Team
-            </ProgressTabs.Trigger>
-          </ProgressTabs.List>
+        <ProgressTabs
+          value={currentStep}
+          onValueChange={(v) => setCurrentStep(v as Step)}
+        >
+          <div className="border-b px-6">
+            <ProgressTabs.List>
+              {STEPS.map((step) => {
+                const status = getStepStatus(
+                  step,
+                  currentStep,
+                  aboutYou,
+                  logo
+                )
+                return (
+                  <ProgressTabs.Trigger
+                    key={step}
+                    value={step}
+                    status={status}
+                  >
+                    {STEP_LABELS[step]}
+                  </ProgressTabs.Trigger>
+                )
+              })}
+            </ProgressTabs.List>
+          </div>
 
           <FocusModal.Body className="overflow-auto">
             {/* Step 1: About You */}
@@ -302,7 +381,10 @@ export const OnboardingModal = ({
 
                   <div>
                     <Text size="small" className="mb-1 block font-medium">
-                      Website (optional)
+                      Website{" "}
+                      <span className="text-ui-fg-muted font-normal">
+                        (optional)
+                      </span>
                     </Text>
                     <Input
                       value={aboutYou.website}
@@ -319,7 +401,10 @@ export const OnboardingModal = ({
 
                   <div>
                     <Text size="small" className="mb-1 block font-medium">
-                      Phone (optional)
+                      Phone{" "}
+                      <span className="text-ui-fg-muted font-normal">
+                        (optional)
+                      </span>
                     </Text>
                     <Input
                       value={aboutYou.phone}
@@ -346,6 +431,7 @@ export const OnboardingModal = ({
                   </Text>
                   <Text size="small" className="text-ui-fg-subtle mt-1">
                     This will appear on your partner profile and storefront.
+                    You can always change this later.
                   </Text>
                 </div>
                 <div className="flex w-full flex-grow items-center justify-center">
@@ -402,6 +488,7 @@ export const OnboardingModal = ({
                   </Text>
                   <Text size="small" className="text-ui-fg-subtle mt-1">
                     Invite people who will help manage your store and products.
+                    This step is optional — you can add team members later.
                   </Text>
                 </div>
 
@@ -491,43 +578,37 @@ export const OnboardingModal = ({
           </FocusModal.Body>
 
           <FocusModal.Footer>
-            <div className="flex items-center justify-end gap-x-2">
-              <Button variant="secondary" onClick={handleSkip}>
-                Skip
-              </Button>
-              {currentStep === "about" && (
-                <Button onClick={() => setCurrentStep("logo")}>Next</Button>
-              )}
-              {currentStep === "logo" && (
-                <>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setCurrentStep("about")}
-                  >
+            <div className="flex w-full items-center justify-between">
+              <div className="flex items-center gap-x-3">
+                <Button variant="transparent" size="small" onClick={handleSkip}>
+                  Skip for now
+                </Button>
+                <Badge color="grey" size="2xsmall">
+                  Step {currentIdx + 1} of {STEPS.length}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-x-2">
+                {!isFirstStep && (
+                  <Button variant="secondary" size="small" onClick={goBack}>
                     Back
                   </Button>
-                  <Button onClick={() => setCurrentStep("people")}>
-                    Next
+                )}
+                {!isLastStep && (
+                  <Button size="small" onClick={goNext}>
+                    Continue
                   </Button>
-                </>
-              )}
-              {currentStep === "people" && (
-                <>
+                )}
+                {isLastStep && (
                   <Button
-                    variant="secondary"
-                    onClick={() => setCurrentStep("logo")}
-                  >
-                    Back
-                  </Button>
-                  <Button
+                    size="small"
                     onClick={handleSubmit}
                     isLoading={isSubmitting}
                     disabled={isSubmitting}
                   >
                     Complete Setup
                   </Button>
-                </>
-              )}
+                )}
+              </div>
             </div>
           </FocusModal.Footer>
         </ProgressTabs>

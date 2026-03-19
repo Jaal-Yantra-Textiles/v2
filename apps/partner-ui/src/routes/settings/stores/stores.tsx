@@ -59,6 +59,9 @@ function statusColor(
 
 const StorefrontSection = () => {
   const { data: status, isPending, isError } = useStorefrontStatus()
+  const { data: domainStatus } = useStorefrontDomain({
+    enabled: !!status?.provisioned,
+  })
   const { mutateAsync: provision, isPending: isProvisioning } =
     useProvisionStorefront()
   const { mutateAsync: redeploy, isPending: isRedeploying } =
@@ -175,6 +178,14 @@ const StorefrontSection = () => {
 
   const deployStatus = status.latest_deployment?.status
   const hasError = !!status.error
+  const customDomainActive =
+    domainStatus?.configured &&
+    domainStatus?.verified &&
+    !domainStatus?.misconfigured
+  const visitUrl = customDomainActive
+    ? `https://${domainStatus!.domain}`
+    : status.storefront_url
+
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -191,9 +202,9 @@ const StorefrontSection = () => {
           )}
         </div>
         <div className="flex items-center gap-x-2">
-          {status.storefront_url && (
+          {visitUrl && (
             <a
-              href={status.storefront_url}
+              href={visitUrl}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -221,6 +232,30 @@ const StorefrontSection = () => {
             Domain
           </Text>
           <Text size="small">{status.domain || "—"}</Text>
+
+          {domainStatus?.configured && domainStatus.domain && (
+            <>
+              <Text size="small" className="text-ui-fg-subtle">
+                Custom Domain
+              </Text>
+              <div className="flex items-center gap-x-2">
+                <Text size="small">{domainStatus.domain}</Text>
+                {domainStatus.verified && !domainStatus.misconfigured ? (
+                  <Badge color="green" size="2xsmall">
+                    Active
+                  </Badge>
+                ) : domainStatus.verified ? (
+                  <Badge color="orange" size="2xsmall">
+                    DNS Pending
+                  </Badge>
+                ) : (
+                  <Badge color="red" size="2xsmall">
+                    Unverified
+                  </Badge>
+                )}
+              </div>
+            </>
+          )}
 
           <Text size="small" className="text-ui-fg-subtle">
             Status

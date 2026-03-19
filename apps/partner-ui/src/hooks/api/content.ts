@@ -223,8 +223,26 @@ export const useContentBlocks = (
 // -- Theme --
 
 export type WebsiteTheme = {
-  branding?: { logo_url?: string; store_name?: string; favicon_url?: string }
-  colors?: { primary?: string; background?: string; text?: string; accent?: string }
+  branding?: { logo_url?: string; store_name?: string; favicon_url?: string; tagline?: string }
+  colors?: {
+    primary?: string
+    secondary?: string
+    background?: string
+    text?: string
+    accent?: string
+    muted?: string
+    border?: string
+  }
+  typography?: {
+    font_family?: string
+    heading_font_family?: string
+    base_font_size?: string
+    heading_weight?: string
+  }
+  buttons?: {
+    border_radius?: string
+    primary_style?: "filled" | "outline"
+  }
   hero?: {
     layout?: "center" | "left" | "right" | "split"
     badge_text?: string
@@ -238,9 +256,24 @@ export type WebsiteTheme = {
     secondary_cta_text?: string
     secondary_cta_link?: string
     features?: Array<{ icon?: string; title: string; description?: string }>
+    min_height?: string
   }
-  navigation?: { links?: Array<{ label: string; href: string }>; show_account_link?: boolean }
-  footer?: { text?: string; social_links?: Array<{ platform: string; url: string }> }
+  navigation?: {
+    links?: Array<{ label: string; href: string }>
+    show_account_link?: boolean
+    show_cart_icon?: boolean
+    show_search?: boolean
+    sticky?: boolean
+    style?: "transparent" | "solid" | "bordered"
+  }
+  footer?: {
+    text?: string
+    copyright_text?: string
+    social_links?: Array<{ platform: string; url: string }>
+    show_newsletter?: boolean
+    newsletter_heading?: string
+    newsletter_description?: string
+  }
   home_sections?: {
     show_featured_collections?: boolean
     featured_collection_count?: number
@@ -256,6 +289,11 @@ export type WebsiteTheme = {
     related_heading?: string
     show_tabs?: boolean
     show_breadcrumbs?: boolean
+    show_sku?: boolean
+    show_stock_status?: boolean
+    image_layout?: "gallery" | "single" | "grid"
+    gallery_position?: "left" | "right"
+    description_layout?: "tabs" | "accordion" | "stacked"
     cta_text?: string
     sample_product_name?: string
     sample_product_price?: string
@@ -267,6 +305,9 @@ export type WebsiteTheme = {
     empty_cta_link?: string
     show_sign_in_prompt?: boolean
     checkout_button_text?: string
+    show_order_summary?: boolean
+    show_free_shipping_bar?: boolean
+    free_shipping_threshold?: string
   }
 }
 

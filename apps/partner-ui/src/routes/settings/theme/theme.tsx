@@ -44,6 +44,8 @@ type ThemeSection =
   | "home_sections"
   | "product_page"
   | "cart"
+  | "typography"
+  | "buttons"
   | null
 
 export const SettingsTheme = () => {
@@ -54,6 +56,24 @@ export const SettingsTheme = () => {
   )
 }
 
+// Sections that live on the homepage — scroll to them via postMessage
+const HOMEPAGE_SECTIONS = new Set<ThemeSection>([
+  "branding",
+  "colors",
+  "hero",
+  "navigation",
+  "footer",
+  "home_sections",
+])
+
+// Sections that only edit properties (no iframe navigation needed)
+const PANEL_ONLY_SECTIONS = new Set<ThemeSection>([
+  "product_page",
+  "cart",
+  "typography",
+  "buttons",
+])
+
 const ThemeEditorInner = () => {
   const { theme, isPending } = useWebsiteTheme()
   const { mutateAsync: updateTheme, isPending: isSaving } =
@@ -63,6 +83,7 @@ const ThemeEditorInner = () => {
   const [form, setForm] = useState<WebsiteTheme>({})
   const [activeSection, setActiveSection] = useState<ThemeSection>("hero")
   const [iframeReady, setIframeReady] = useState(false)
+  const [iframePath, setIframePath] = useState("/")
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
@@ -71,6 +92,28 @@ const ThemeEditorInner = () => {
   useEffect(() => {
     if (theme) setForm(theme)
   }, [theme])
+
+  // After iframe loads on a homepage, scroll to the active section
+  useEffect(() => {
+    if (!iframeReady || !activeSection || iframePath !== "/") return
+    if (!HOMEPAGE_SECTIONS.has(activeSection)) return
+
+    const scrollTarget =
+      activeSection === "branding" || activeSection === "colors"
+        ? "nav"
+        : activeSection === "home_sections"
+          ? "collections"
+          : activeSection
+
+    // Small delay to let the storefront render
+    const timer = setTimeout(() => {
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "SCROLL_TO_SECTION", section: scrollTarget },
+        "*"
+      )
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [iframeReady, activeSection, iframePath])
 
   // Listen for messages from the storefront iframe
   useEffect(() => {
@@ -83,8 +126,13 @@ const ThemeEditorInner = () => {
           hero: "hero",
           nav: "branding",
           footer: "footer",
+          product: "product_page",
+          cart: "cart",
         }
-        setActiveSection(sectionMap[data.section] || null)
+        const mapped = sectionMap[data.section] || null
+        if (mapped) {
+          setActiveSection(mapped)
+        }
       }
     }
     window.addEventListener("message", handleMessage)
@@ -144,9 +192,42 @@ const ThemeEditorInner = () => {
     if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
   }
 
-  const previewUrl = domain
-    ? `https://${domain}/?theme_editor=true`
-    : `http://localhost:8000/?theme_editor=true`
+  const baseUrl = domain
+    ? `https://${domain}`
+    : `http://localhost:8000`
+
+  const previewUrl = `${baseUrl}${iframePath}${iframePath.includes("?") ? "&" : "?"}theme_editor=true`
+
+  // Navigate the iframe when switching sections
+  const handleSectionChange = useCallback(
+    (section: ThemeSection) => {
+      setActiveSection(section)
+      if (!section) return
+
+      // Panel-only sections — no iframe navigation
+      if (PANEL_ONLY_SECTIONS.has(section)) return
+
+      // Homepage sections: navigate to / if not there, then scroll
+      if (HOMEPAGE_SECTIONS.has(section)) {
+        if (iframePath !== "/") {
+          setIframePath("/")
+          setIframeReady(false)
+        } else if (iframeReady) {
+          const scrollTarget =
+            section === "branding" || section === "colors"
+              ? "nav"
+              : section === "home_sections"
+                ? "collections"
+                : section
+          iframeRef.current?.contentWindow?.postMessage(
+            { type: "SCROLL_TO_SECTION", section: scrollTarget },
+            "*"
+          )
+        }
+      }
+    },
+    [iframePath, iframeReady]
+  )
 
   if (isPending) {
     return (
@@ -212,40 +293,57 @@ const ThemeEditorInner = () => {
         <div className="flex h-full overflow-hidden">
         {/* Section tabs */}
         <div className="w-[180px] border-r border-ui-border-base bg-ui-bg-subtle overflow-y-auto shrink-0">
-          <div className="px-3 py-3">
-            <Text
-              size="xsmall"
-              className="text-ui-fg-muted uppercase font-semibold tracking-wide"
-            >
-              Sections
-            </Text>
-          </div>
-          <div className="flex flex-col gap-y-0.5 px-2 pb-3">
-            {(
-              [
+          {([
+            {
+              group: "Design",
+              items: [
                 ["branding", "Branding"],
                 ["colors", "Colors"],
+                ["typography", "Typography"],
+                ["buttons", "Buttons"],
+              ] as const,
+            },
+            {
+              group: "Layout",
+              items: [
                 ["hero", "Hero"],
                 ["navigation", "Navigation"],
                 ["footer", "Footer"],
-              ["home_sections", "Home Layout"],
-              ["product_page", "Product Page"],
-              ["cart", "Cart"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setActiveSection(key)}
-                className={`flex items-center px-3 py-2 rounded-md text-left text-sm transition-colors ${
-                  activeSection === key
-                    ? "bg-ui-bg-highlight border border-ui-border-strong"
-                    : "hover:bg-ui-bg-base border border-transparent"
-                }`}
+                ["home_sections", "Home Layout"],
+              ] as const,
+            },
+            {
+              group: "Pages",
+              items: [
+                ["product_page", "Product Page"],
+                ["cart", "Cart"],
+              ] as const,
+            },
+          ]).map(({ group, items }) => (
+            <div key={group} className="px-2 pb-2">
+              <Text
+                size="xsmall"
+                className="text-ui-fg-muted uppercase font-semibold tracking-wide px-3 pb-1 pt-2"
               >
-                <Text size="small">{label}</Text>
-              </button>
-            ))}
-          </div>
+                {group}
+              </Text>
+              <div className="flex flex-col gap-y-0.5">
+                {items.map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => handleSectionChange(key)}
+                    className={`flex items-center px-3 py-1.5 rounded-md text-left text-sm transition-colors ${
+                      activeSection === key
+                        ? "bg-ui-bg-highlight border border-ui-border-strong"
+                        : "hover:bg-ui-bg-base border border-transparent"
+                    }`}
+                  >
+                    <Text size="small">{label}</Text>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Preview iframe */}
@@ -280,6 +378,12 @@ const ThemeEditorInner = () => {
             )}
             {activeSection === "home_sections" && (
               <HomeSectionsPanel form={form} updateForm={updateForm} setForm={setForm} debouncedSave={debouncedSave} />
+            )}
+            {activeSection === "typography" && (
+              <TypographyPanel form={form} updateForm={updateForm} />
+            )}
+            {activeSection === "buttons" && (
+              <ButtonsPanel form={form} updateForm={updateForm} />
             )}
             {activeSection === "product_page" && (
               <ProductPagePanel form={form} updateForm={updateForm} />
@@ -323,12 +427,18 @@ function SectionHeading({ title, desc }: { title: string; desc: string }) {
 function BrandingPanel({ form, updateForm }: PanelProps) {
   return (
     <>
-      <SectionHeading title="Branding" desc="Store name, logo, and favicon" />
+      <SectionHeading title="Branding" desc="Store identity and visual marks" />
       <div className="space-y-3">
         <FieldInput
           label="Store Name"
           value={form.branding?.store_name || ""}
           onChange={(v) => updateForm("branding", { ...form.branding, store_name: v })}
+        />
+        <FieldInput
+          label="Tagline"
+          value={form.branding?.tagline || ""}
+          onChange={(v) => updateForm("branding", { ...form.branding, tagline: v })}
+          placeholder="Quality textiles since 2020"
         />
         <ImageUploadField
           label="Logo"
@@ -357,9 +467,12 @@ function ColorsPanel({ form, updateForm }: PanelProps) {
         {(
           [
             ["primary", "Primary"],
+            ["secondary", "Secondary"],
             ["background", "Background"],
             ["text", "Text"],
             ["accent", "Accent"],
+            ["muted", "Muted"],
+            ["border", "Border"],
           ] as const
         ).map(([key, label]) => (
           <div key={key} className="space-y-1">
@@ -367,7 +480,7 @@ function ColorsPanel({ form, updateForm }: PanelProps) {
             <div className="flex items-center gap-2">
               <input
                 type="color"
-                className="h-7 w-7 cursor-pointer rounded border border-ui-border-base"
+                className="h-7 w-7 cursor-pointer rounded border border-ui-border-base shrink-0"
                 value={form.colors?.[key] || "#000000"}
                 onChange={(e) =>
                   updateForm("colors", { ...form.colors, [key]: e.target.value })
@@ -384,6 +497,242 @@ function ColorsPanel({ form, updateForm }: PanelProps) {
             </div>
           </div>
         ))}
+
+        {/* Live swatch preview */}
+        <div className="pt-3 border-t border-ui-border-base">
+          <Label size="xsmall" className="mb-2 block">Preview</Label>
+          <div
+            className="rounded-lg p-3 border space-y-1.5"
+            style={{ backgroundColor: form.colors?.background || "#ffffff" }}
+          >
+            <div
+              className="text-sm font-semibold"
+              style={{ color: form.colors?.text || "#000000" }}
+            >
+              Heading text
+            </div>
+            <div
+              className="text-xs"
+              style={{ color: form.colors?.muted || "#6b7280" }}
+            >
+              Muted description text
+            </div>
+            <div className="flex gap-2 pt-1">
+              <div
+                className="rounded px-2 py-1 text-xs text-white"
+                style={{ backgroundColor: form.colors?.primary || "#000000" }}
+              >
+                Primary
+              </div>
+              <div
+                className="rounded px-2 py-1 text-xs"
+                style={{
+                  backgroundColor: form.colors?.accent || "#f3f4f6",
+                  color: form.colors?.text || "#000000",
+                }}
+              >
+                Accent
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+const FONT_OPTIONS = [
+  "Inter", "System UI", "Roboto", "Open Sans", "Lato", "Poppins",
+  "Montserrat", "Playfair Display", "Merriweather", "DM Sans",
+  "Space Grotesk", "Outfit", "Plus Jakarta Sans",
+]
+
+function TypographyPanel({ form, updateForm }: PanelProps) {
+  const typo = form.typography || {}
+
+  return (
+    <>
+      <SectionHeading title="Typography" desc="Fonts and text sizing" />
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label size="xsmall">Body Font</Label>
+          <select
+            className="w-full h-8 rounded-md border border-ui-border-base bg-ui-bg-field px-2 text-sm"
+            value={typo.font_family || "Inter"}
+            onChange={(e) =>
+              updateForm("typography", { ...typo, font_family: e.target.value })
+            }
+          >
+            {FONT_OPTIONS.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <Label size="xsmall">Heading Font</Label>
+          <select
+            className="w-full h-8 rounded-md border border-ui-border-base bg-ui-bg-field px-2 text-sm"
+            value={typo.heading_font_family || "Inter"}
+            onChange={(e) =>
+              updateForm("typography", { ...typo, heading_font_family: e.target.value })
+            }
+          >
+            {FONT_OPTIONS.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <Label size="xsmall">Base Font Size</Label>
+          <div className="grid grid-cols-4 gap-1">
+            {["14px", "15px", "16px", "18px"].map((v) => (
+              <button
+                key={v}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (typo.base_font_size || "16px") === v
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => updateForm("typography", { ...typo, base_font_size: v })}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label size="xsmall">Heading Weight</Label>
+          <div className="grid grid-cols-3 gap-1">
+            {(["500", "600", "700"] as const).map((v) => (
+              <button
+                key={v}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (typo.heading_weight || "600") === v
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => updateForm("typography", { ...typo, heading_weight: v })}
+              >
+                {v === "500" ? "Medium" : v === "600" ? "Semi" : "Bold"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Preview */}
+        <div className="pt-3 border-t border-ui-border-base">
+          <Label size="xsmall" className="mb-2 block">Preview</Label>
+          <div className="rounded-lg border p-3 bg-ui-bg-subtle space-y-1">
+            <div
+              style={{
+                fontFamily: typo.heading_font_family || "Inter",
+                fontWeight: Number(typo.heading_weight || 600),
+                fontSize: "18px",
+              }}
+            >
+              Heading Text
+            </div>
+            <div
+              style={{
+                fontFamily: typo.font_family || "Inter",
+                fontSize: typo.base_font_size || "16px",
+              }}
+              className="text-ui-fg-subtle"
+            >
+              Body text preview with your selected font settings.
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function ButtonsPanel({ form, updateForm }: PanelProps) {
+  const btn = form.buttons || {}
+  const colors = form.colors || {}
+
+  return (
+    <>
+      <SectionHeading title="Buttons" desc="Button style across the store" />
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label size="xsmall">Border Radius</Label>
+          <div className="grid grid-cols-4 gap-1">
+            {(["0px", "4px", "8px", "9999px"] as const).map((v) => (
+              <button
+                key={v}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (btn.border_radius || "8px") === v
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => updateForm("buttons", { ...btn, border_radius: v })}
+              >
+                {v === "0px" ? "Sharp" : v === "4px" ? "Subtle" : v === "8px" ? "Round" : "Pill"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label size="xsmall">Primary Style</Label>
+          <div className="grid grid-cols-2 gap-1">
+            {(["filled", "outline"] as const).map((v) => (
+              <button
+                key={v}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (btn.primary_style || "filled") === v
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => updateForm("buttons", { ...btn, primary_style: v })}
+              >
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Preview */}
+        <div className="pt-3 border-t border-ui-border-base">
+          <Label size="xsmall" className="mb-2 block">Preview</Label>
+          <div className="flex gap-2">
+            <button
+              className="px-4 py-2 text-sm transition-colors"
+              style={{
+                borderRadius: btn.border_radius || "8px",
+                ...(btn.primary_style === "outline"
+                  ? {
+                      backgroundColor: "transparent",
+                      border: `2px solid ${colors.primary || "#000"}`,
+                      color: colors.primary || "#000",
+                    }
+                  : {
+                      backgroundColor: colors.primary || "#000",
+                      color: "#fff",
+                      border: "2px solid transparent",
+                    }),
+              }}
+            >
+              Add to Cart
+            </button>
+            <button
+              className="px-4 py-2 text-sm border-2"
+              style={{
+                borderRadius: btn.border_radius || "8px",
+                borderColor: colors.border || "#e5e7eb",
+                color: colors.text || "#000",
+                backgroundColor: "transparent",
+              }}
+            >
+              Secondary
+            </button>
+          </div>
+        </div>
       </div>
     </>
   )
@@ -604,18 +953,91 @@ function NavigationPanel({
   setForm: (f: WebsiteTheme) => void
   debouncedSave: (f: WebsiteTheme) => void
 }) {
+  const nav = form.navigation || {}
+
   return (
     <>
-      <SectionHeading title="Navigation" desc="Menu links" />
+      <SectionHeading title="Navigation" desc="Header bar and menu links" />
       <div className="space-y-3">
+        <div className="space-y-1">
+          <Label size="xsmall">Style</Label>
+          <div className="grid grid-cols-3 gap-1">
+            {(["solid", "transparent", "bordered"] as const).map((v) => (
+              <button
+                key={v}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (nav.style || "solid") === v
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => {
+                  const newForm = {
+                    ...form,
+                    navigation: { ...nav, style: v },
+                  }
+                  setForm(newForm)
+                  debouncedSave(newForm)
+                }}
+              >
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex items-center justify-between">
-          <Label size="xsmall">Show Account Link</Label>
+          <Label size="xsmall">Sticky Header</Label>
           <Switch
-            checked={form.navigation?.show_account_link ?? true}
+            checked={nav.sticky ?? true}
             onCheckedChange={(checked) => {
               const newForm = {
                 ...form,
-                navigation: { ...form.navigation, show_account_link: checked },
+                navigation: { ...nav, sticky: checked },
+              }
+              setForm(newForm)
+              debouncedSave(newForm)
+            }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Show Search</Label>
+          <Switch
+            checked={nav.show_search ?? true}
+            onCheckedChange={(checked) => {
+              const newForm = {
+                ...form,
+                navigation: { ...nav, show_search: checked },
+              }
+              setForm(newForm)
+              debouncedSave(newForm)
+            }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Show Cart Icon</Label>
+          <Switch
+            checked={nav.show_cart_icon ?? true}
+            onCheckedChange={(checked) => {
+              const newForm = {
+                ...form,
+                navigation: { ...nav, show_cart_icon: checked },
+              }
+              setForm(newForm)
+              debouncedSave(newForm)
+            }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Show Account Link</Label>
+          <Switch
+            checked={nav.show_account_link ?? true}
+            onCheckedChange={(checked) => {
+              const newForm = {
+                ...form,
+                navigation: { ...nav, show_account_link: checked },
               }
               setForm(newForm)
               debouncedSave(newForm)
@@ -712,13 +1134,59 @@ function FooterPanel({
 }) {
   return (
     <>
-      <SectionHeading title="Footer" desc="Footer text and social links" />
+      <SectionHeading title="Footer" desc="Footer content and social links" />
       <div className="space-y-3">
         <FieldInput
           label="Footer Text"
           value={form.footer?.text || ""}
           onChange={(v) => updateForm("footer", { ...form.footer, text: v })}
         />
+        <FieldInput
+          label="Copyright Text"
+          value={form.footer?.copyright_text || ""}
+          onChange={(v) =>
+            updateForm("footer", { ...form.footer, copyright_text: v })
+          }
+          placeholder="© 2026 Your Store. All rights reserved."
+        />
+
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Newsletter Signup</Label>
+          <Switch
+            checked={form.footer?.show_newsletter === true}
+            onCheckedChange={(checked) => {
+              const newForm = {
+                ...form,
+                footer: { ...form.footer, show_newsletter: checked },
+              }
+              setForm(newForm)
+              debouncedSave(newForm)
+            }}
+          />
+        </div>
+        {form.footer?.show_newsletter && (
+          <>
+            <FieldInput
+              label="Newsletter Heading"
+              value={form.footer?.newsletter_heading || ""}
+              onChange={(v) =>
+                updateForm("footer", { ...form.footer, newsletter_heading: v })
+              }
+              placeholder="Stay in the loop"
+            />
+            <FieldInput
+              label="Newsletter Description"
+              value={form.footer?.newsletter_description || ""}
+              onChange={(v) =>
+                updateForm("footer", {
+                  ...form.footer,
+                  newsletter_description: v,
+                })
+              }
+              placeholder="Subscribe for updates and exclusive offers."
+            />
+          </>
+        )}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label size="xsmall">Social Links</Label>
@@ -931,11 +1399,104 @@ function HomeSectionsPanel({
 
 function ProductPagePanel({ form, updateForm }: PanelProps) {
   const pp = form.product_page || {}
+  const colors = form.colors || {}
+  const btn = form.buttons || {}
 
   return (
     <>
-      <SectionHeading title="Product Page" desc="Customize product pages" />
+      <SectionHeading title="Product Page" desc="Customize product detail pages" />
       <div className="space-y-3">
+        <div className="space-y-1">
+          <Label size="xsmall">Image Layout</Label>
+          <div className="grid grid-cols-3 gap-1">
+            {(["gallery", "single", "grid"] as const).map((v) => (
+              <button
+                key={v}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (pp.image_layout || "gallery") === v
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => updateForm("product_page", { ...pp, image_layout: v })}
+              >
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label size="xsmall">Gallery Position</Label>
+          <div className="grid grid-cols-2 gap-1">
+            {(["left", "right"] as const).map((v) => (
+              <button
+                key={v}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (pp.gallery_position || "left") === v
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => updateForm("product_page", { ...pp, gallery_position: v })}
+              >
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label size="xsmall">Description Layout</Label>
+          <div className="grid grid-cols-3 gap-1">
+            {(["tabs", "accordion", "stacked"] as const).map((v) => (
+              <button
+                key={v}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (pp.description_layout || "tabs") === v
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => updateForm("product_page", { ...pp, description_layout: v })}
+              >
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <FieldInput
+          label="Add to Cart Text"
+          value={pp.cta_text || ""}
+          onChange={(v) => updateForm("product_page", { ...pp, cta_text: v })}
+          placeholder="Add to cart"
+        />
+
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Show Breadcrumbs</Label>
+          <Switch
+            checked={pp.show_breadcrumbs !== false}
+            onCheckedChange={(v) =>
+              updateForm("product_page", { ...pp, show_breadcrumbs: v })
+            }
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Show SKU</Label>
+          <Switch
+            checked={pp.show_sku === true}
+            onCheckedChange={(v) =>
+              updateForm("product_page", { ...pp, show_sku: v })
+            }
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Show Stock Status</Label>
+          <Switch
+            checked={pp.show_stock_status === true}
+            onCheckedChange={(v) =>
+              updateForm("product_page", { ...pp, show_stock_status: v })
+            }
+          />
+        </div>
         <div className="flex items-center justify-between">
           <Label size="xsmall">Show Tabs</Label>
           <Switch
@@ -954,44 +1515,92 @@ function ProductPagePanel({ form, updateForm }: PanelProps) {
             }
           />
         </div>
-        <FieldInput
-          label="Related Heading"
-          value={pp.related_heading || ""}
-          onChange={(v) =>
-            updateForm("product_page", { ...pp, related_heading: v })
-          }
-          placeholder="Related products"
-        />
-        <FieldInput
-          label="Add to Cart Text"
-          value={pp.cta_text || ""}
-          onChange={(v) =>
-            updateForm("product_page", { ...pp, cta_text: v })
-          }
-          placeholder="Add to cart"
-        />
+        {pp.show_related_products !== false && (
+          <FieldInput
+            label="Related Heading"
+            value={pp.related_heading || ""}
+            onChange={(v) =>
+              updateForm("product_page", { ...pp, related_heading: v })
+            }
+            placeholder="You may also like"
+          />
+        )}
 
-        <div className="pt-2 border-t border-ui-border-base" />
-
-        <Text size="xsmall" className="text-ui-fg-muted font-semibold">
-          Preview Fallbacks
-        </Text>
-        <FieldInput
-          label="Sample Product Name"
-          value={pp.sample_product_name || ""}
-          onChange={(v) =>
-            updateForm("product_page", { ...pp, sample_product_name: v })
-          }
-          placeholder="Sample Product"
-        />
-        <FieldInput
-          label="Sample Price"
-          value={pp.sample_product_price || ""}
-          onChange={(v) =>
-            updateForm("product_page", { ...pp, sample_product_price: v })
-          }
-          placeholder="$0.00"
-        />
+        {/* Inline preview mock */}
+        <div className="pt-3 border-t border-ui-border-base">
+          <Label size="xsmall" className="mb-2 block">Preview</Label>
+          <div
+            className="rounded-lg border overflow-hidden text-xs"
+            style={{ backgroundColor: colors.background || "#fff" }}
+          >
+            {pp.show_breadcrumbs !== false && (
+              <div
+                className="px-3 py-1.5 text-[10px]"
+                style={{ color: colors.muted || "#9ca3af" }}
+              >
+                Home / Category / Product
+              </div>
+            )}
+            <div
+              className={`flex gap-2 p-3 ${
+                pp.gallery_position === "right" ? "flex-row-reverse" : ""
+              }`}
+            >
+              <div
+                className="w-1/2 aspect-square rounded bg-ui-bg-subtle flex items-center justify-center"
+                style={{ borderColor: colors.border || "#e5e7eb" }}
+              >
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  {pp.image_layout === "grid" ? "Grid" : pp.image_layout === "single" ? "Image" : "Gallery"}
+                </Text>
+              </div>
+              <div className="w-1/2 space-y-1.5 py-1">
+                <div
+                  className="font-semibold text-[11px]"
+                  style={{ color: colors.text || "#000" }}
+                >
+                  {pp.sample_product_name || "Product Name"}
+                </div>
+                <div
+                  className="text-[11px] font-medium"
+                  style={{ color: colors.primary || "#000" }}
+                >
+                  {pp.sample_product_price || "$29.00"}
+                </div>
+                {pp.show_sku && (
+                  <div
+                    className="text-[9px]"
+                    style={{ color: colors.muted || "#9ca3af" }}
+                  >
+                    SKU: ABC-123
+                  </div>
+                )}
+                {pp.show_stock_status && (
+                  <div className="text-[9px] text-green-600">In stock</div>
+                )}
+                <button
+                  className="w-full px-2 py-1 text-[10px] mt-1"
+                  style={{
+                    borderRadius: btn.border_radius || "8px",
+                    ...(btn.primary_style === "outline"
+                      ? {
+                          backgroundColor: "transparent",
+                          border: `1.5px solid ${colors.primary || "#000"}`,
+                          color: colors.primary || "#000",
+                        }
+                      : {
+                          backgroundColor: colors.primary || "#000",
+                          color: "#fff",
+                          border: "1.5px solid transparent",
+                        }),
+                  }}
+                >
+                  {pp.cta_text || "Add to cart"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   )
@@ -999,45 +1608,36 @@ function ProductPagePanel({ form, updateForm }: PanelProps) {
 
 function CartPanel({ form, updateForm }: PanelProps) {
   const c = form.cart || {}
+  const colors = form.colors || {}
+  const btn = form.buttons || {}
 
   return (
     <>
-      <SectionHeading title="Cart" desc="Customize the cart page" />
+      <SectionHeading title="Cart" desc="Customize the cart and checkout flow" />
       <div className="space-y-3">
         <FieldInput
           label="Heading"
           value={c.heading || ""}
           onChange={(v) => updateForm("cart", { ...c, heading: v })}
-          placeholder="Cart"
+          placeholder="Shopping Cart"
         />
-        <FieldInput
-          label="Empty Cart Message"
-          value={c.empty_message || ""}
-          onChange={(v) => updateForm("cart", { ...c, empty_message: v })}
-          placeholder="You don't have anything in your cart..."
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <FieldInput
-            label="Empty CTA Text"
-            value={c.empty_cta_text || ""}
-            onChange={(v) => updateForm("cart", { ...c, empty_cta_text: v })}
-            placeholder="Explore products"
-          />
-          <FieldInput
-            label="Empty CTA Link"
-            value={c.empty_cta_link || ""}
-            onChange={(v) => updateForm("cart", { ...c, empty_cta_link: v })}
-            placeholder="/store"
-          />
-        </div>
         <FieldInput
           label="Checkout Button Text"
           value={c.checkout_button_text || ""}
-          onChange={(v) =>
-            updateForm("cart", { ...c, checkout_button_text: v })
-          }
+          onChange={(v) => updateForm("cart", { ...c, checkout_button_text: v })}
           placeholder="Go to checkout"
         />
+
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Show Order Summary</Label>
+          <Switch
+            checked={c.show_order_summary !== false}
+            onCheckedChange={(v) =>
+              updateForm("cart", { ...c, show_order_summary: v })
+            }
+          />
+        </div>
+
         <div className="flex items-center justify-between">
           <Label size="xsmall">Show Sign-in Prompt</Label>
           <Switch
@@ -1046,6 +1646,129 @@ function CartPanel({ form, updateForm }: PanelProps) {
               updateForm("cart", { ...c, show_sign_in_prompt: v })
             }
           />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Free Shipping Bar</Label>
+          <Switch
+            checked={c.show_free_shipping_bar === true}
+            onCheckedChange={(v) =>
+              updateForm("cart", { ...c, show_free_shipping_bar: v })
+            }
+          />
+        </div>
+
+        {c.show_free_shipping_bar && (
+          <FieldInput
+            label="Free Shipping Threshold"
+            value={c.free_shipping_threshold || ""}
+            onChange={(v) =>
+              updateForm("cart", { ...c, free_shipping_threshold: v })
+            }
+            placeholder="$50"
+          />
+        )}
+
+        <div className="pt-2 border-t border-ui-border-base" />
+        <Text size="xsmall" className="text-ui-fg-muted font-semibold">
+          Empty Cart
+        </Text>
+
+        <FieldInput
+          label="Message"
+          value={c.empty_message || ""}
+          onChange={(v) => updateForm("cart", { ...c, empty_message: v })}
+          placeholder="Your cart is empty"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <FieldInput
+            label="CTA Text"
+            value={c.empty_cta_text || ""}
+            onChange={(v) => updateForm("cart", { ...c, empty_cta_text: v })}
+            placeholder="Continue shopping"
+          />
+          <FieldInput
+            label="CTA Link"
+            value={c.empty_cta_link || ""}
+            onChange={(v) => updateForm("cart", { ...c, empty_cta_link: v })}
+            placeholder="/store"
+          />
+        </div>
+
+        {/* Inline preview mock */}
+        <div className="pt-3 border-t border-ui-border-base">
+          <Label size="xsmall" className="mb-2 block">Preview</Label>
+          <div
+            className="rounded-lg border overflow-hidden text-xs"
+            style={{ backgroundColor: colors.background || "#fff" }}
+          >
+            <div
+              className="px-3 py-2 font-semibold text-[11px] border-b"
+              style={{
+                color: colors.text || "#000",
+                borderColor: colors.border || "#e5e7eb",
+              }}
+            >
+              {c.heading || "Shopping Cart"}
+            </div>
+
+            {c.show_free_shipping_bar && (
+              <div
+                className="mx-3 mt-2 rounded-full h-1.5 overflow-hidden"
+                style={{ backgroundColor: colors.muted || "#e5e7eb" }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: "65%",
+                    backgroundColor: colors.primary || "#000",
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Mock cart item */}
+            <div
+              className="flex gap-2 px-3 py-2 border-b"
+              style={{ borderColor: colors.border || "#e5e7eb" }}
+            >
+              <div className="w-8 h-8 rounded bg-ui-bg-subtle shrink-0" />
+              <div className="flex-1 space-y-0.5">
+                <div style={{ color: colors.text || "#000" }}>Sample Item</div>
+                <div style={{ color: colors.muted || "#9ca3af" }}>Qty: 1</div>
+              </div>
+              <div
+                className="font-medium"
+                style={{ color: colors.text || "#000" }}
+              >
+                $29.00
+              </div>
+            </div>
+
+            {c.show_order_summary !== false && (
+              <div
+                className="px-3 py-1.5 flex justify-between"
+                style={{ color: colors.text || "#000" }}
+              >
+                <span>Subtotal</span>
+                <span className="font-medium">$29.00</span>
+              </div>
+            )}
+
+            <div className="px-3 pb-2 pt-1">
+              <button
+                className="w-full px-2 py-1.5 text-[10px]"
+                style={{
+                  borderRadius: btn.border_radius || "8px",
+                  backgroundColor: colors.primary || "#000",
+                  color: "#fff",
+                  border: "none",
+                }}
+              >
+                {c.checkout_button_text || "Go to checkout"}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </>
