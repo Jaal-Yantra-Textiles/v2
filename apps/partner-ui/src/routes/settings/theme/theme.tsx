@@ -56,6 +56,131 @@ export const SettingsTheme = () => {
   )
 }
 
+// --- Sample data matching Medusa Store API shapes ---
+
+/** Mirrors StoreProduct with variants, options, images, calculated_price */
+const SAMPLE_PRODUCT = {
+  id: "prod_sample_01",
+  title: "Heritage Cotton Saree",
+  handle: "heritage-cotton-saree",
+  subtitle: "Hand-woven luxury textile",
+  description:
+    "Crafted by master weavers using traditional techniques passed down through generations. This pure cotton saree features intricate border work and a rich pallu design.",
+  thumbnail: null as string | null,
+  status: "published" as const,
+  material: "100% Cotton",
+  origin_country: "IN",
+  hs_code: "5208.51",
+  collection: { id: "col_01", title: "Summer Collection" },
+  type: { id: "ptyp_01", value: "Saree" },
+  tags: [
+    { id: "ptag_01", value: "handwoven" },
+    { id: "ptag_02", value: "cotton" },
+  ],
+  categories: [{ id: "pcat_01", name: "Sarees" }],
+  images: [
+    { id: "img_01", url: "" },
+    { id: "img_02", url: "" },
+    { id: "img_03", url: "" },
+  ],
+  options: [
+    {
+      id: "opt_01",
+      title: "Color",
+      values: [
+        { id: "optval_01", value: "Indigo" },
+        { id: "optval_02", value: "Ivory" },
+        { id: "optval_03", value: "Terracotta" },
+      ],
+    },
+  ],
+  variants: [
+    {
+      id: "var_01",
+      title: "Indigo",
+      sku: "HCS-IND-001",
+      manage_inventory: true,
+      calculated_price: {
+        calculated_amount: 2499,
+        original_amount: 2999,
+        currency_code: "INR",
+      },
+      options: [{ id: "optval_01", value: "Indigo", option: { id: "opt_01", title: "Color" } }],
+    },
+    {
+      id: "var_02",
+      title: "Ivory",
+      sku: "HCS-IVR-001",
+      manage_inventory: true,
+      calculated_price: {
+        calculated_amount: 2499,
+        original_amount: 2499,
+        currency_code: "INR",
+      },
+      options: [{ id: "optval_02", value: "Ivory", option: { id: "opt_01", title: "Color" } }],
+    },
+  ],
+}
+
+/** Mirrors StoreCart with items, totals, shipping, region */
+const SAMPLE_CART = {
+  id: "cart_sample_01",
+  currency_code: "INR",
+  email: "customer@example.com",
+  items: [
+    {
+      id: "item_01",
+      title: "Heritage Cotton Saree",
+      subtitle: "Indigo",
+      thumbnail: null as string | null,
+      quantity: 1,
+      unit_price: 2499,
+      total: 2499,
+      subtotal: 2499,
+      tax_total: 0,
+      discount_total: 0,
+      variant: { id: "var_01", title: "Indigo", sku: "HCS-IND-001" },
+      product: { id: "prod_sample_01", title: "Heritage Cotton Saree", handle: "heritage-cotton-saree", thumbnail: null },
+    },
+    {
+      id: "item_02",
+      title: "Block Print Cushion Cover",
+      subtitle: "Set of 2",
+      thumbnail: null as string | null,
+      quantity: 2,
+      unit_price: 599,
+      total: 1198,
+      subtotal: 1198,
+      tax_total: 0,
+      discount_total: 0,
+      variant: { id: "var_03", title: "Set of 2", sku: "BPC-S2-001" },
+      product: { id: "prod_sample_02", title: "Block Print Cushion Cover", handle: "block-print-cushion", thumbnail: null },
+    },
+  ],
+  item_total: 3697,
+  item_subtotal: 3697,
+  item_tax_total: 0,
+  shipping_total: 99,
+  shipping_subtotal: 99,
+  shipping_tax_total: 0,
+  discount_total: 500,
+  total: 3296,
+  subtotal: 3296,
+  tax_total: 0,
+  region: { id: "reg_01", name: "India", currency_code: "INR" },
+  shipping_methods: [
+    { id: "sm_01", name: "Standard Delivery", amount: 99 },
+  ],
+}
+
+function formatSamplePrice(amount: number, currency: string): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: 0,
+  }).format(amount)
+}
+
 // Sections that live on the homepage — scroll to them via postMessage
 const HOMEPAGE_SECTIONS = new Set<ThemeSection>([
   "branding",
@@ -1526,7 +1651,7 @@ function ProductPagePanel({ form, updateForm }: PanelProps) {
           />
         )}
 
-        {/* Inline preview mock */}
+        {/* Inline preview using Medusa StoreProduct shape */}
         <div className="pt-3 border-t border-ui-border-base">
           <Label size="xsmall" className="mb-2 block">Preview</Label>
           <div
@@ -1536,9 +1661,9 @@ function ProductPagePanel({ form, updateForm }: PanelProps) {
             {pp.show_breadcrumbs !== false && (
               <div
                 className="px-3 py-1.5 text-[10px]"
-                style={{ color: colors.muted || "#9ca3af" }}
+                style={{ color: colors.muted || "#9ca3af", borderBottom: `1px solid ${colors.border || "#e5e7eb"}` }}
               >
-                Home / Category / Product
+                Home / {SAMPLE_PRODUCT.categories[0].name} / {SAMPLE_PRODUCT.title}
               </div>
             )}
             <div
@@ -1546,40 +1671,104 @@ function ProductPagePanel({ form, updateForm }: PanelProps) {
                 pp.gallery_position === "right" ? "flex-row-reverse" : ""
               }`}
             >
-              <div
-                className="w-1/2 aspect-square rounded bg-ui-bg-subtle flex items-center justify-center"
-                style={{ borderColor: colors.border || "#e5e7eb" }}
-              >
-                <Text size="xsmall" className="text-ui-fg-muted">
-                  {pp.image_layout === "grid" ? "Grid" : pp.image_layout === "single" ? "Image" : "Gallery"}
-                </Text>
+              {/* Image area */}
+              <div className="w-1/2 space-y-1">
+                <div
+                  className="aspect-square rounded flex items-center justify-center"
+                  style={{ backgroundColor: colors.muted ? `${colors.muted}22` : "#f9fafb", border: `1px solid ${colors.border || "#e5e7eb"}` }}
+                >
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    {pp.image_layout === "grid" ? "2×2" : pp.image_layout === "single" ? "1:1" : "Gallery"}
+                  </Text>
+                </div>
+                {pp.image_layout === "gallery" && (
+                  <div className="flex gap-0.5">
+                    {SAMPLE_PRODUCT.images.map((img) => (
+                      <div
+                        key={img.id}
+                        className="w-1/3 aspect-square rounded"
+                        style={{ backgroundColor: colors.muted ? `${colors.muted}22` : "#f3f4f6", border: `1px solid ${colors.border || "#e5e7eb"}` }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="w-1/2 space-y-1.5 py-1">
-                <div
-                  className="font-semibold text-[11px]"
-                  style={{ color: colors.text || "#000" }}
-                >
-                  {pp.sample_product_name || "Product Name"}
-                </div>
-                <div
-                  className="text-[11px] font-medium"
-                  style={{ color: colors.primary || "#000" }}
-                >
-                  {pp.sample_product_price || "$29.00"}
-                </div>
-                {pp.show_sku && (
+
+              {/* Product info */}
+              <div className="w-1/2 space-y-1 py-0.5">
+                {SAMPLE_PRODUCT.type && (
                   <div
-                    className="text-[9px]"
+                    className="text-[9px] uppercase tracking-wide"
                     style={{ color: colors.muted || "#9ca3af" }}
                   >
-                    SKU: ABC-123
+                    {SAMPLE_PRODUCT.type.value}
+                  </div>
+                )}
+                <div
+                  className="font-semibold text-[11px] leading-tight"
+                  style={{ color: colors.text || "#000" }}
+                >
+                  {pp.sample_product_name || SAMPLE_PRODUCT.title}
+                </div>
+                <div className="flex items-center gap-1">
+                  <span
+                    className="text-[11px] font-medium"
+                    style={{ color: colors.primary || "#000" }}
+                  >
+                    {pp.sample_product_price || formatSamplePrice(
+                      SAMPLE_PRODUCT.variants[0].calculated_price.calculated_amount,
+                      SAMPLE_PRODUCT.variants[0].calculated_price.currency_code
+                    )}
+                  </span>
+                  {SAMPLE_PRODUCT.variants[0].calculated_price.original_amount !==
+                    SAMPLE_PRODUCT.variants[0].calculated_price.calculated_amount && (
+                    <span
+                      className="text-[9px] line-through"
+                      style={{ color: colors.muted || "#9ca3af" }}
+                    >
+                      {formatSamplePrice(
+                        SAMPLE_PRODUCT.variants[0].calculated_price.original_amount,
+                        SAMPLE_PRODUCT.variants[0].calculated_price.currency_code
+                      )}
+                    </span>
+                  )}
+                </div>
+
+                {pp.show_sku && (
+                  <div className="text-[9px]" style={{ color: colors.muted || "#9ca3af" }}>
+                    SKU: {SAMPLE_PRODUCT.variants[0].sku}
                   </div>
                 )}
                 {pp.show_stock_status && (
                   <div className="text-[9px] text-green-600">In stock</div>
                 )}
+
+                {/* Option selector */}
+                <div className="pt-1">
+                  <div className="text-[9px] mb-0.5" style={{ color: colors.muted || "#9ca3af" }}>
+                    {SAMPLE_PRODUCT.options[0].title}
+                  </div>
+                  <div className="flex gap-0.5">
+                    {SAMPLE_PRODUCT.options[0].values.map((v, i) => (
+                      <div
+                        key={v.id}
+                        className="px-1.5 py-0.5 rounded text-[8px]"
+                        style={i === 0 ? {
+                          backgroundColor: colors.primary || "#000",
+                          color: "#fff",
+                        } : {
+                          border: `1px solid ${colors.border || "#e5e7eb"}`,
+                          color: colors.text || "#000",
+                        }}
+                      >
+                        {v.value}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <button
-                  className="w-full px-2 py-1 text-[10px] mt-1"
+                  className="w-full px-2 py-1 text-[10px] mt-1.5"
                   style={{
                     borderRadius: btn.border_radius || "8px",
                     ...(btn.primary_style === "outline"
@@ -1597,8 +1786,49 @@ function ProductPagePanel({ form, updateForm }: PanelProps) {
                 >
                   {pp.cta_text || "Add to cart"}
                 </button>
+
+                {/* Description layout */}
+                <div
+                  className="pt-1.5 mt-1 text-[9px]"
+                  style={{ borderTop: `1px solid ${colors.border || "#e5e7eb"}`, color: colors.muted || "#9ca3af" }}
+                >
+                  {pp.description_layout === "accordion" ? (
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between"><span>Description</span><span>+</span></div>
+                      <div className="flex justify-between"><span>Material</span><span>+</span></div>
+                    </div>
+                  ) : pp.description_layout === "stacked" ? (
+                    <div>{SAMPLE_PRODUCT.description?.slice(0, 60)}...</div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <span style={{ color: colors.primary || "#000" }}>Description</span>
+                      <span>Details</span>
+                      <span>Shipping</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {pp.show_related_products !== false && (
+              <div
+                className="px-3 py-2"
+                style={{ borderTop: `1px solid ${colors.border || "#e5e7eb"}` }}
+              >
+                <div className="text-[10px] font-medium mb-1" style={{ color: colors.text || "#000" }}>
+                  {pp.related_heading || "You may also like"}
+                </div>
+                <div className="flex gap-1">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="w-1/3 aspect-square rounded"
+                      style={{ backgroundColor: colors.muted ? `${colors.muted}22` : "#f3f4f6", border: `1px solid ${colors.border || "#e5e7eb"}` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1695,7 +1925,7 @@ function CartPanel({ form, updateForm }: PanelProps) {
           />
         </div>
 
-        {/* Inline preview mock */}
+        {/* Inline preview using Medusa StoreCart shape */}
         <div className="pt-3 border-t border-ui-border-base">
           <Label size="xsmall" className="mb-2 block">Preview</Label>
           <div
@@ -1710,48 +1940,102 @@ function CartPanel({ form, updateForm }: PanelProps) {
               }}
             >
               {c.heading || "Shopping Cart"}
+              <span
+                className="ml-1 font-normal"
+                style={{ color: colors.muted || "#9ca3af" }}
+              >
+                ({SAMPLE_CART.items.length} items)
+              </span>
             </div>
 
             {c.show_free_shipping_bar && (
-              <div
-                className="mx-3 mt-2 rounded-full h-1.5 overflow-hidden"
-                style={{ backgroundColor: colors.muted || "#e5e7eb" }}
-              >
+              <div className="px-3 pt-2">
+                <div className="flex justify-between text-[9px] mb-0.5">
+                  <span style={{ color: colors.muted || "#9ca3af" }}>
+                    {formatSamplePrice(SAMPLE_CART.subtotal, SAMPLE_CART.currency_code)} of{" "}
+                    {c.free_shipping_threshold || formatSamplePrice(5000, SAMPLE_CART.currency_code)}
+                  </span>
+                  <span style={{ color: colors.primary || "#000" }}>Free shipping</span>
+                </div>
                 <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: "65%",
-                    backgroundColor: colors.primary || "#000",
-                  }}
-                />
+                  className="rounded-full h-1.5 overflow-hidden"
+                  style={{ backgroundColor: colors.muted ? `${colors.muted}33` : "#e5e7eb" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: "66%",
+                      backgroundColor: colors.primary || "#000",
+                    }}
+                  />
+                </div>
               </div>
             )}
 
-            {/* Mock cart item */}
-            <div
-              className="flex gap-2 px-3 py-2 border-b"
-              style={{ borderColor: colors.border || "#e5e7eb" }}
-            >
-              <div className="w-8 h-8 rounded bg-ui-bg-subtle shrink-0" />
-              <div className="flex-1 space-y-0.5">
-                <div style={{ color: colors.text || "#000" }}>Sample Item</div>
-                <div style={{ color: colors.muted || "#9ca3af" }}>Qty: 1</div>
-              </div>
+            {/* Cart items from sample data */}
+            {SAMPLE_CART.items.map((item) => (
               <div
-                className="font-medium"
-                style={{ color: colors.text || "#000" }}
+                key={item.id}
+                className="flex gap-2 px-3 py-2 border-b"
+                style={{ borderColor: colors.border || "#e5e7eb" }}
               >
-                $29.00
+                <div
+                  className="w-9 h-9 rounded shrink-0 flex items-center justify-center"
+                  style={{ backgroundColor: colors.muted ? `${colors.muted}22` : "#f3f4f6", border: `1px solid ${colors.border || "#e5e7eb"}` }}
+                >
+                  <Text size="xsmall" className="text-ui-fg-muted text-[8px]">IMG</Text>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate" style={{ color: colors.text || "#000" }}>
+                    {item.title}
+                  </div>
+                  <div className="flex items-center gap-1" style={{ color: colors.muted || "#9ca3af" }}>
+                    <span>{item.subtitle}</span>
+                    <span>·</span>
+                    <span>Qty: {item.quantity}</span>
+                  </div>
+                </div>
+                <div
+                  className="font-medium shrink-0"
+                  style={{ color: colors.text || "#000" }}
+                >
+                  {formatSamplePrice(item.total, SAMPLE_CART.currency_code)}
+                </div>
               </div>
-            </div>
+            ))}
 
             {c.show_order_summary !== false && (
+              <div className="px-3 py-2 space-y-0.5">
+                <div className="flex justify-between" style={{ color: colors.muted || "#9ca3af" }}>
+                  <span>Subtotal</span>
+                  <span>{formatSamplePrice(SAMPLE_CART.item_subtotal, SAMPLE_CART.currency_code)}</span>
+                </div>
+                <div className="flex justify-between" style={{ color: colors.muted || "#9ca3af" }}>
+                  <span>Shipping</span>
+                  <span>{formatSamplePrice(SAMPLE_CART.shipping_total, SAMPLE_CART.currency_code)}</span>
+                </div>
+                {SAMPLE_CART.discount_total > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Discount</span>
+                    <span>-{formatSamplePrice(SAMPLE_CART.discount_total, SAMPLE_CART.currency_code)}</span>
+                  </div>
+                )}
+                <div
+                  className="flex justify-between font-semibold pt-1"
+                  style={{ color: colors.text || "#000", borderTop: `1px solid ${colors.border || "#e5e7eb"}` }}
+                >
+                  <span>Total</span>
+                  <span>{formatSamplePrice(SAMPLE_CART.total, SAMPLE_CART.currency_code)}</span>
+                </div>
+              </div>
+            )}
+
+            {c.show_sign_in_prompt !== false && (
               <div
-                className="px-3 py-1.5 flex justify-between"
-                style={{ color: colors.text || "#000" }}
+                className="mx-3 mb-2 px-2 py-1.5 rounded text-[9px] text-center"
+                style={{ backgroundColor: colors.accent || "#f3f4f6", color: colors.text || "#000" }}
               >
-                <span>Subtotal</span>
-                <span className="font-medium">$29.00</span>
+                Sign in to save your cart
               </div>
             )}
 
@@ -1760,9 +2044,17 @@ function CartPanel({ form, updateForm }: PanelProps) {
                 className="w-full px-2 py-1.5 text-[10px]"
                 style={{
                   borderRadius: btn.border_radius || "8px",
-                  backgroundColor: colors.primary || "#000",
-                  color: "#fff",
-                  border: "none",
+                  ...(btn.primary_style === "outline"
+                    ? {
+                        backgroundColor: "transparent",
+                        border: `1.5px solid ${colors.primary || "#000"}`,
+                        color: colors.primary || "#000",
+                      }
+                    : {
+                        backgroundColor: colors.primary || "#000",
+                        color: "#fff",
+                        border: "1.5px solid transparent",
+                      }),
                 }}
               >
                 {c.checkout_button_text || "Go to checkout"}

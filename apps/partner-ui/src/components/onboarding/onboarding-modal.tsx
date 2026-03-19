@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   Alert,
-  Badge,
   Button,
   FocusModal,
   Heading,
@@ -578,37 +577,30 @@ export const OnboardingModal = ({
           </FocusModal.Body>
 
           <FocusModal.Footer>
-            <div className="flex w-full items-center justify-between">
-              <div className="flex items-center gap-x-3">
-                <Button variant="transparent" size="small" onClick={handleSkip}>
-                  Skip for now
+            <div className="flex items-center justify-end gap-x-2">
+              <Button variant="secondary" size="small" onClick={handleSkip}>
+                {isFirstStep ? "Skip" : "Skip for now"}
+              </Button>
+              {!isFirstStep && (
+                <Button variant="secondary" size="small" onClick={goBack}>
+                  Back
                 </Button>
-                <Badge color="grey" size="2xsmall">
-                  Step {currentIdx + 1} of {STEPS.length}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-x-2">
-                {!isFirstStep && (
-                  <Button variant="secondary" size="small" onClick={goBack}>
-                    Back
-                  </Button>
-                )}
-                {!isLastStep && (
-                  <Button size="small" onClick={goNext}>
-                    Continue
-                  </Button>
-                )}
-                {isLastStep && (
-                  <Button
-                    size="small"
-                    onClick={handleSubmit}
-                    isLoading={isSubmitting}
-                    disabled={isSubmitting}
-                  >
-                    Complete Setup
-                  </Button>
-                )}
-              </div>
+              )}
+              {isLastStep ? (
+                <Button
+                  size="small"
+                  variant="primary"
+                  onClick={handleSubmit}
+                  isLoading={isSubmitting}
+                  disabled={isSubmitting}
+                >
+                  Complete Setup
+                </Button>
+              ) : (
+                <Button size="small" variant="primary" onClick={goNext}>
+                  Continue
+                </Button>
+              )}
             </div>
           </FocusModal.Footer>
         </ProgressTabs>
