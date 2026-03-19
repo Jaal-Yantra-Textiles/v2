@@ -286,19 +286,21 @@ const HomeCreateStoreForm = () => {
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-x-2">
-                <RouteFocusModal.Close asChild>
-                  <Button size="small" variant="secondary" type="button">
-                    Cancel
-                  </Button>
-                </RouteFocusModal.Close>
-                <Button size="small" type="submit" isLoading={isPending}>
-                  Create Store
-                </Button>
-              </div>
             </div>
           </div>
         </RouteFocusModal.Body>
+        <RouteFocusModal.Footer>
+          <div className="flex items-center justify-end gap-x-2">
+            <RouteFocusModal.Close asChild>
+              <Button size="small" variant="secondary" type="button">
+                Cancel
+              </Button>
+            </RouteFocusModal.Close>
+            <Button size="small" type="submit" isLoading={isPending}>
+              Create Store
+            </Button>
+          </div>
+        </RouteFocusModal.Footer>
       </KeyboundForm>
     </RouteFocusModal.Form>
   )

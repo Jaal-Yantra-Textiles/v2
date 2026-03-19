@@ -1,9 +1,9 @@
 import { BuildingStorefront, PencilSquare } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Text, clx } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
+import { Link } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
-import { OnboardingModal } from "../../../components/onboarding/onboarding-modal"
 import { useMe } from "../../../hooks/api/users"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
@@ -58,19 +58,10 @@ export const SettingsOnboarding = () => {
   }
 
   const readStatus = useCallback(() => {
-    if (!partnerId) {
-      return { completed: false }
-    }
-
-    if (typeof window === "undefined") {
-      return { completed: false }
-    }
-
+    if (!partnerId || typeof window === "undefined") return { completed: false }
     try {
       const raw = localStorage.getItem(`partner_onboarding_${partnerId}`)
-      if (!raw) {
-        return { completed: false }
-      }
+      if (!raw) return { completed: false }
       const parsed = JSON.parse(raw)
       return { completed: Boolean(parsed?.completed || parsed?.skipped) }
     } catch {
@@ -79,7 +70,6 @@ export const SettingsOnboarding = () => {
   }, [partnerId])
 
   const [status, setStatus] = useState(() => readStatus())
-  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     setStatus(readStatus())
@@ -147,27 +137,11 @@ export const SettingsOnboarding = () => {
             </Text>
           </div>
 
-          <Button
-            size="small"
-            variant="secondary"
-            onClick={() => setOpen(true)}
-            disabled={!partnerId}
-          >
-            Open onboarding
+          <Button size="small" variant="secondary" asChild disabled={!partnerId}>
+            <Link to="/onboarding">Open onboarding</Link>
           </Button>
         </div>
       </Container>
-
-      {partnerId ? (
-        <OnboardingModal
-          partnerId={partnerId}
-          isOpen={open}
-          onClose={() => {
-            setOpen(false)
-            setStatus(readStatus())
-          }}
-        />
-      ) : null}
     </SingleColumnPage>
   )
 }

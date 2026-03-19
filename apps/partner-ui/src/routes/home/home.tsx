@@ -1,4 +1,5 @@
 import { Badge, Button, Checkbox, Container, FocusModal, Heading, Text, clx, toast } from "@medusajs/ui"
+import { Outlet, useNavigate } from "react-router-dom"
 import {
   ArrowPath,
   BuildingStorefront,
@@ -12,8 +13,6 @@ import {
 } from "@medusajs/icons"
 import { Link } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
-
-import { OnboardingModal } from "../../components/onboarding/onboarding-modal"
 import { usePartnerAssignedTasks } from "../../hooks/api/partner-assigned-tasks"
 import { usePartnerDesigns } from "../../hooks/api/partner-designs"
 import { usePartnerInventoryOrders } from "../../hooks/api/partner-inventory-orders"
@@ -30,6 +29,7 @@ export const Home = () => {
   const partner = user?.partner
   const partnerId = user?.partner_id
 
+  const navigate = useNavigate()
   const { stores, isPending: storesPending } = usePartnerStores()
   const store = stores?.[0]
   const hasStore = Boolean(store)
@@ -39,7 +39,8 @@ export const Home = () => {
     [partnerId]
   )
 
-  const [onboardingOpen, setOnboardingOpen] = useState(false)
+  // Track a render key so onboardingStatus re-evaluates after modal closes
+  const [statusKey, setStatusKey] = useState(0)
 
   const onboardingStatus = useMemo(() => {
     if (!partnerId || !storageKey) return { completed: false, skipped: false }
@@ -54,22 +55,25 @@ export const Home = () => {
     } catch {
       return { completed: false, skipped: false }
     }
-  }, [partnerId, storageKey, onboardingOpen])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerId, storageKey, statusKey])
 
   useEffect(() => {
     if (!partnerId || !storageKey || partner?.is_verified) return
     try {
       const raw = localStorage.getItem(storageKey)
       if (!raw) {
-        setOnboardingOpen(true)
+        navigate("/onboarding", { replace: true })
         return
       }
       const parsed = JSON.parse(raw)
-      if (!parsed?.completed && !parsed?.skipped) setOnboardingOpen(true)
+      if (!parsed?.completed && !parsed?.skipped) {
+        navigate("/onboarding", { replace: true })
+      }
     } catch {
-      setOnboardingOpen(true)
+      navigate("/onboarding", { replace: true })
     }
-  }, [partner?.is_verified, partnerId, storageKey])
+  }, [partner?.is_verified, partnerId, storageKey, navigate])
 
   const verified = Boolean(partner?.is_verified)
   const onboardingDone = Boolean(onboardingStatus.completed || onboardingStatus.skipped)
@@ -101,7 +105,7 @@ export const Home = () => {
           hasStore={hasStore}
           storesPending={storesPending}
           currentUseType={currentUseType}
-          onOpenOnboarding={() => setOnboardingOpen(true)}
+          onOpenOnboarding={() => navigate("/onboarding")}
         />
         <QuickSettingsCard hasStore={hasStore} storeId={store?.id} />
       </div>
@@ -109,13 +113,7 @@ export const Home = () => {
       {/* Bottom row: Discover Products (full width) */}
       {hasStore && <DiscoverSection />}
 
-      {partnerId ? (
-        <OnboardingModal
-          partnerId={partnerId}
-          isOpen={onboardingOpen}
-          onClose={() => setOnboardingOpen(false)}
-        />
-      ) : null}
+      <Outlet context={{ onOnboardingClose: () => setStatusKey((k) => k + 1) }} />
     </div>
   )
 }

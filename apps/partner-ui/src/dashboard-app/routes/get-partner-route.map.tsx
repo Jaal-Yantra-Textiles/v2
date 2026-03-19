@@ -26,6 +26,13 @@ export function getPartnerRouteMap(): RouteObject[] {
                 breadcrumb: () => "Home",
               },
               lazy: () => import("../../routes/home"),
+              children: [
+                {
+                  path: "onboarding",
+                  lazy: () =>
+                    import("../../routes/home/home-onboarding"),
+                },
+              ],
             },
             {
               path: "/create-store",
