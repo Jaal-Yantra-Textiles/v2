@@ -121,29 +121,29 @@ module.exports = defineConfig({
     //   },
     // },
 
-    {
-      resolve: "@medusajs/medusa/notification",
-      options: {
-        providers: [
-          {
-            resolve: "./src/modules/resend",
-            id: "resend",
-            options: {
-              channels: ["email"],
-              api_key: process.env.RESEND_API_KEY,
-              from: process.env.RESEND_FROM_EMAIL,
-            },
-          },
-          {
-            resolve: "@medusajs/medusa/notification-local",
-            id: "local",
-            options: {
-              channels: ["feed"],
-            },
-          },
-        ],
-      },
-    }, 
+    // {
+    //   resolve: "@medusajs/medusa/notification",
+    //   options: {
+    //     providers: [
+    //       {
+    //         resolve: "./src/modules/resend",
+    //         id: "resend",
+    //         options: {
+    //           channels: ["email"],
+    //           api_key: process.env.RESEND_API_KEY,
+    //           from: process.env.RESEND_FROM_EMAIL,
+    //         },
+    //       },
+    //       {
+    //         resolve: "@medusajs/medusa/notification-local",
+    //         id: "local",
+    //         options: {
+    //           channels: ["feed"],
+    //         },
+    //       },
+    //     ],
+    //   },
+    // }, 
     // {
     //   resolve: "@medusajs/medusa/caching",
     //   options: {
@@ -208,85 +208,85 @@ module.exports = defineConfig({
         ],
       },
     },
-    {
-      resolve: "@medusajs/medusa/fulfillment",
-      options: {
-        providers: [
-          {
-            resolve: "@medusajs/medusa/fulfillment-manual",
-            id: "manual",
-          },
-          ...(process.env.DELHIVERY_API_TOKEN
-            ? [
-                {
-                  resolve: "./src/modules/shipping-providers/delhivery",
-                  id: "delhivery",
-                  options: {
-                    api_token: process.env.DELHIVERY_API_TOKEN,
-                    sandbox: process.env.DELHIVERY_SANDBOX === "true",
-                  },
-                },
-              ]
-            : []),
-          ...(process.env.DHL_API_KEY
-            ? [
-                {
-                  resolve: "./src/modules/shipping-providers/dhl",
-                  id: "dhl-express",
-                  options: {
-                    api_key: process.env.DHL_API_KEY,
-                    api_secret: process.env.DHL_API_SECRET,
-                    account_number: process.env.DHL_ACCOUNT_NUMBER,
-                    sandbox: process.env.DHL_SANDBOX === "true",
-                  },
-                },
-              ]
-            : []),
-          ...(process.env.UPS_CLIENT_ID
-            ? [
-                {
-                  resolve: "./src/modules/shipping-providers/ups",
-                  id: "ups",
-                  options: {
-                    client_id: process.env.UPS_CLIENT_ID,
-                    client_secret: process.env.UPS_CLIENT_SECRET,
-                    account_number: process.env.UPS_ACCOUNT_NUMBER,
-                    sandbox: process.env.UPS_SANDBOX === "true",
-                  },
-                },
-              ]
-            : []),
-          ...(process.env.FEDEX_CLIENT_ID
-            ? [
-                {
-                  resolve: "./src/modules/shipping-providers/fedex",
-                  id: "fedex",
-                  options: {
-                    client_id: process.env.FEDEX_CLIENT_ID,
-                    client_secret: process.env.FEDEX_CLIENT_SECRET,
-                    account_number: process.env.FEDEX_ACCOUNT_NUMBER,
-                    sandbox: process.env.FEDEX_SANDBOX === "true",
-                  },
-                },
-              ]
-            : []),
-          ...(process.env.AUSPOST_CLIENT_ID
-            ? [
-                {
-                  resolve: "./src/modules/shipping-providers/auspost",
-                  id: "auspost",
-                  options: {
-                    client_id: process.env.AUSPOST_CLIENT_ID,
-                    client_secret: process.env.AUSPOST_CLIENT_SECRET,
-                    account_number: process.env.AUSPOST_ACCOUNT_NUMBER,
-                    sandbox: process.env.AUSPOST_SANDBOX === "true",
-                  },
-                },
-              ]
-            : []),
-        ],
-      },
-    },
+    // {
+    //   resolve: "@medusajs/medusa/fulfillment",
+    //   options: {
+    //     providers: [
+    //       {
+    //         resolve: "@medusajs/medusa/fulfillment-manual",
+    //         id: "manual",
+    //       },
+    //       ...(process.env.DELHIVERY_API_TOKEN
+    //         ? [
+    //             {
+    //               resolve: "./src/modules/shipping-providers/delhivery",
+    //               id: "delhivery",
+    //               options: {
+    //                 api_token: process.env.DELHIVERY_API_TOKEN,
+    //                 sandbox: process.env.DELHIVERY_SANDBOX === "true",
+    //               },
+    //             },
+    //           ]
+    //         : []),
+    //       ...(process.env.DHL_API_KEY
+    //         ? [
+    //             {
+    //               resolve: "./src/modules/shipping-providers/dhl",
+    //               id: "dhl-express",
+    //               options: {
+    //                 api_key: process.env.DHL_API_KEY,
+    //                 api_secret: process.env.DHL_API_SECRET,
+    //                 account_number: process.env.DHL_ACCOUNT_NUMBER,
+    //                 sandbox: process.env.DHL_SANDBOX === "true",
+    //               },
+    //             },
+    //           ]
+    //         : []),
+    //       ...(process.env.UPS_CLIENT_ID
+    //         ? [
+    //             {
+    //               resolve: "./src/modules/shipping-providers/ups",
+    //               id: "ups",
+    //               options: {
+    //                 client_id: process.env.UPS_CLIENT_ID,
+    //                 client_secret: process.env.UPS_CLIENT_SECRET,
+    //                 account_number: process.env.UPS_ACCOUNT_NUMBER,
+    //                 sandbox: process.env.UPS_SANDBOX === "true",
+    //               },
+    //             },
+    //           ]
+    //         : []),
+    //       ...(process.env.FEDEX_CLIENT_ID
+    //         ? [
+    //             {
+    //               resolve: "./src/modules/shipping-providers/fedex",
+    //               id: "fedex",
+    //               options: {
+    //                 client_id: process.env.FEDEX_CLIENT_ID,
+    //                 client_secret: process.env.FEDEX_CLIENT_SECRET,
+    //                 account_number: process.env.FEDEX_ACCOUNT_NUMBER,
+    //                 sandbox: process.env.FEDEX_SANDBOX === "true",
+    //               },
+    //             },
+    //           ]
+    //         : []),
+    //       ...(process.env.AUSPOST_CLIENT_ID
+    //         ? [
+    //             {
+    //               resolve: "./src/modules/shipping-providers/auspost",
+    //               id: "auspost",
+    //               options: {
+    //                 client_id: process.env.AUSPOST_CLIENT_ID,
+    //                 client_secret: process.env.AUSPOST_CLIENT_SECRET,
+    //                 account_number: process.env.AUSPOST_ACCOUNT_NUMBER,
+    //                 sandbox: process.env.AUSPOST_SANDBOX === "true",
+    //               },
+    //             },
+    //           ]
+    //         : []),
+    //     ],
+    //   },
+    // },
   {
     resolve: "./src/modules/email_templates",
   },

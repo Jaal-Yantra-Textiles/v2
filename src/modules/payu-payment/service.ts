@@ -153,22 +153,34 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     const txnid = (data?.txnid as string) || ""
 
     if (payuStatus === "success" || payuStatus === "captured") {
-      try {
-        const verified = await this.verifyPayment(txnid)
-        if (verified.status === "success" || verified.status === "captured") {
-          this.logger_.info(`[PayU] Authorized: txnid=${txnid}, mihpayid=${mihpayid || verified.mihpayid}`)
-          return {
-            data: { ...data, mihpayid: mihpayid || verified.mihpayid, verified: true },
-            status: "authorized",
-          }
-        }
-      } catch (e: any) {
-        this.logger_.error(`[PayU] Verify failed: ${e.message}`)
-      }
-    }
+      let verifiedMihpayid = mihpayid
+      let isVerified = false
 
-    if (this.options_.auto_capture && payuStatus === "success") {
-      return { data: { ...data, mihpayid }, status: "captured" }
+      // Try to verify with PayU API for extra security
+      if (txnid) {
+        try {
+          const verified = await this.verifyPayment(txnid)
+          if (verified.status === "success" || verified.status === "captured") {
+            verifiedMihpayid = verified.mihpayid || mihpayid
+            isVerified = true
+          }
+        } catch (e: any) {
+          this.logger_.warn(`[PayU] Verify API failed (proceeding with callback data): ${e.message}`)
+        }
+      }
+
+      // If PayU sent success + mihpayid, authorize even if verify API failed
+      if (isVerified || mihpayid) {
+        const finalStatus = this.options_.auto_capture ? "captured" : "authorized"
+        this.logger_.info(`[PayU] ${finalStatus}: txnid=${txnid}, mihpayid=${verifiedMihpayid}, verified=${isVerified}`)
+        return {
+          data: { ...data, mihpayid: verifiedMihpayid, verified: isVerified },
+          status: finalStatus as any,
+        }
+      }
+
+      // PayU said success but no mihpayid and verify failed — suspicious
+      this.logger_.warn(`[PayU] Success status but no mihpayid and verify failed: txnid=${txnid}`)
     }
 
     if (payuStatus === "failure" || payuStatus === "failed") {

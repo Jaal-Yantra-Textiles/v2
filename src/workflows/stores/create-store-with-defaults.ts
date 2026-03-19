@@ -340,14 +340,17 @@ const autoLinkFulfillmentProvidersStep = createStep(
     const countryLower = country.toLowerCase()
     const countryLabel = country.toUpperCase()
 
+    // Use location ID suffix to guarantee unique names across partners
+    const suffix = input.locationId.slice(-8)
+
     try {
       // Create shipping fulfillment set
       const shippingSet = await fulfillmentService.createFulfillmentSets({
-        name: "Shipping",
+        name: `Shipping (${suffix})`,
         type: "shipping",
         service_zones: [
           {
-            name: `${countryLabel} Shipping Zone`,
+            name: `${countryLabel} Shipping Zone (${suffix})`,
             geo_zones: [{ country_code: countryLower, type: "country" }],
           },
         ],
@@ -360,11 +363,11 @@ const autoLinkFulfillmentProvidersStep = createStep(
 
       // Create pickup fulfillment set
       const pickupSet = await fulfillmentService.createFulfillmentSets({
-        name: "In-Store Pickup",
+        name: `Pickup (${suffix})`,
         type: "pickup",
         service_zones: [
           {
-            name: `${countryLabel} Pickup Zone`,
+            name: `${countryLabel} Pickup Zone (${suffix})`,
             geo_zones: [{ country_code: countryLower, type: "country" }],
           },
         ],

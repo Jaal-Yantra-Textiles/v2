@@ -2290,6 +2290,17 @@ export default defineMiddlewares({
       middlewares: [],
     },
 
+    // PayU payment (called by storefront after redirect)
+    {
+      matcher: "/store/payu/complete",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/store/payu/refresh",
+      method: "POST",
+      middlewares: [],
+    },
     // Store AI access fee endpoints
     {
       matcher: "/store/ai/accessfee",

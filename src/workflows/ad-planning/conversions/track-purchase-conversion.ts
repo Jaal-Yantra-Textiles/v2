@@ -170,6 +170,9 @@ const createPurchaseConversionStep = createStep(
   ) => {
     const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
 
+    // Generate a fallback visitor_id if none provided (e.g. redirect-based payments like PayU)
+    const visitorId = input.visitor_id || `anon_${input.order.id}`;
+
     const [conversion] = await adPlanningService.createConversions([
       {
         conversion_type: "purchase",
@@ -177,7 +180,7 @@ const createPurchaseConversionStep = createStep(
         ad_set_id: input.attribution.ad_set_id,
         ad_id: input.attribution.ad_id,
         platform: input.attribution.platform,
-        visitor_id: input.visitor_id,
+        visitor_id: visitorId,
         analytics_session_id: input.session_id,
         website_id: input.website_id,
         conversion_value: input.order.total,
@@ -191,7 +194,7 @@ const createPurchaseConversionStep = createStep(
           attribution_method: input.attribution.attribution_method,
           customer_id: input.order.customer_id,
           item_count: input.order.items?.length || 0,
-          items: input.order.items?.slice(0, 10), // Store first 10 items
+          items: input.order.items?.slice(0, 10),
         },
         converted_at: new Date(),
       },

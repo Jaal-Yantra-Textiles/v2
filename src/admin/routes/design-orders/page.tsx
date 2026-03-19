@@ -10,6 +10,7 @@ import {
   Badge,
   toast,
   usePrompt,
+  TooltipProvider,
 } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -365,24 +366,26 @@ const DesignOrdersPage = () => {
   if (isError) throw error;
 
   return (
-    <Container className="divide-y p-0">
-      <DataTable instance={table}>
-        <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
-          <div>
-            <Heading>Design Orders</Heading>
-            <Text className="text-ui-fg-subtle" size="small">
-              Designs added to carts and converted to orders
-            </Text>
-          </div>
-          <div className="flex items-center gap-x-2">
-            <DataTable.Search placeholder="Search designs, customers..." />
-            <DataTable.FilterMenu tooltip="Filter" />
-          </div>
-        </DataTable.Toolbar>
-        <DataTable.Table />
-        <DataTable.Pagination />
-      </DataTable>
-    </Container>
+    <TooltipProvider>
+      <Container className="divide-y p-0">
+        <DataTable instance={table}>
+          <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
+            <div>
+              <Heading>Design Orders</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Designs added to carts and converted to orders
+              </Text>
+            </div>
+            <div className="flex items-center gap-x-2">
+              <DataTable.Search placeholder="Search designs, customers..." />
+              <DataTable.FilterMenu tooltip="Filter" />
+            </div>
+          </DataTable.Toolbar>
+          <DataTable.Table />
+          <DataTable.Pagination />
+        </DataTable>
+      </Container>
+    </TooltipProvider>
   );
 };
 

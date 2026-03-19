@@ -1,6 +1,6 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { DetailWidgetProps } from "@medusajs/framework/types"
-import { Badge, Container, Heading, usePrompt, Text, StatusBadge, toast, Skeleton, Tooltip } from "@medusajs/ui"
+import { Badge, Container, Heading, usePrompt, Text, StatusBadge, toast, Skeleton, Tooltip, TooltipProvider } from "@medusajs/ui"
 import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../components/common/action-menu"
 import { Button } from "@medusajs/ui"
@@ -250,19 +250,21 @@ const InventoryRawMaterialWidget = ({
                   Specifications
                 </Text>
                 <div className="flex items-center">
-                  <Tooltip
-                    content={
-                      <div className="flex flex-col gap-y-1">
-                                                {Object.entries(inventory_item.raw_materials.specifications).map(([key, value]: [string, any]) => (
-                          <Text key={key} size="small" leading="compact">
-                            <span className="font-semibold">{`${key}:`}</span> {String(value)}
-                          </Text>
-                        ))}
-                      </div>
-                    }
-                  >
-                    <InformationCircleSolid className="text-ui-fg-muted" />
-                  </Tooltip>
+                  <TooltipProvider>
+                    <Tooltip
+                      content={
+                        <div className="flex flex-col gap-y-1">
+                          {Object.entries(inventory_item.raw_materials.specifications).map(([key, value]: [string, any]) => (
+                            <Text key={key} size="small" leading="compact">
+                              <span className="font-semibold">{`${key}:`}</span> {String(value)}
+                            </Text>
+                          ))}
+                        </div>
+                      }
+                    >
+                      <InformationCircleSolid className="text-ui-fg-muted" />
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             )}
