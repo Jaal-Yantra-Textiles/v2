@@ -97,12 +97,19 @@ export interface RemoveStorefrontResponse {
 
 // --- Custom domain hooks ---
 
+export type DnsRecord = {
+  type: string
+  host: string
+  value: string
+}
+
 export interface DomainStatus {
   configured: boolean
   domain?: string | null
   verified?: boolean
   misconfigured?: boolean
   configured_by?: string | null
+  dns_records?: DnsRecord[]
 }
 
 export interface AddDomainResponse {
@@ -111,6 +118,7 @@ export interface AddDomainResponse {
   verification?: Array<{ type: string; domain: string; value: string }> | null
   misconfigured: boolean
   configured_by: string | null
+  dns_records?: DnsRecord[]
 }
 
 const DOMAIN_QUERY_KEY = "partner_storefront_domain" as const

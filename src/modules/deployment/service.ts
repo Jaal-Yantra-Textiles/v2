@@ -38,6 +38,8 @@ export type VercelDomainConfig = {
   configuredBy: string | null
   acceptedChallenges: string[]
   misconfigured: boolean
+  recommendedCNAME?: Array<{ rank: number; value: string }>
+  recommendedIPv4?: Array<{ rank: number; value: string[] }>
 }
 
 export type CloudflareDnsRecord = {

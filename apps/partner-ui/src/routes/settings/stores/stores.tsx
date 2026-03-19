@@ -324,6 +324,7 @@ const CustomDomainSection = () => {
     }> | null
     misconfigured: boolean
     configured_by: string | null
+    dns_records?: Array<{ type: string; host: string; value: string }>
   } | null>(null)
 
   const handleAdd = async () => {
@@ -396,6 +397,8 @@ const CustomDomainSection = () => {
   const isMisconfigured =
     domainStatus?.misconfigured ?? addResult?.misconfigured ?? true
   const verification = addResult?.verification
+  const dnsRecords =
+    domainStatus?.dns_records || addResult?.dns_records || []
 
   return (
     <Container className="divide-y p-0">
@@ -518,7 +521,7 @@ const CustomDomainSection = () => {
           {isVerified && isMisconfigured && (
             <div className="space-y-3">
               <InlineTip variant="info" label="DNS Configuration Required">
-                Point your domain to Vercel by adding the DNS record below at
+                Point your domain to Vercel by adding the DNS record{dnsRecords.length > 1 ? "s" : ""} below at
                 your domain provider. DNS changes can take up to 48 hours to
                 propagate.
               </InlineTip>
@@ -539,15 +542,19 @@ const CustomDomainSection = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td className="px-3 py-2 font-mono text-xs">CNAME</td>
-                      <td className="px-3 py-2 font-mono text-xs">
-                        {currentDomain}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs">
-                        cname.vercel-dns.com
-                      </td>
-                    </tr>
+                    {dnsRecords.map((rec, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 font-mono text-xs">
+                          {rec.type}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs">
+                          {rec.host}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs break-all">
+                          {rec.value}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -558,7 +565,7 @@ const CustomDomainSection = () => {
                 onClick={handleVerify}
                 disabled={isVerifying}
               >
-                {isVerifying ? "Check Status" : "Check Status"}
+                {isVerifying ? "Checking..." : "Check Status"}
               </Button>
             </div>
           )}
