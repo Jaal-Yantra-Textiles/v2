@@ -1,7 +1,7 @@
 import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Button } from "@medusajs/ui"
 import { Link, Outlet, useNavigate } from "react-router-dom"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { UserGroup, Users } from "@medusajs/icons"
+import { UserGroup } from "@medusajs/icons"
 import { useMemo, useState, useCallback } from "react"
 import debounce from "lodash/debounce"
 import { usePartners } from "../../hooks/api/partners-admin"

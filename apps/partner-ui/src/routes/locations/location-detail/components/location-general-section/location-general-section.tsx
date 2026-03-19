@@ -153,11 +153,11 @@ function ShippingOption({
       </div>
       <Badge
         className="mr-4"
-        color={isStoreOption ? "grey" : "purple"}
+        color="grey"
         size="2xsmall"
         rounded="full"
       >
-        {isStoreOption ? t("general.store") : t("general.admin")}
+        {t("general.store")}
       </Badge>
       <ActionMenu
         groups={[
