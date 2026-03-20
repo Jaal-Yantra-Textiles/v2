@@ -21,6 +21,29 @@ const socialLinkSchema = z.object({
   url: z.string().url(),
 })
 
+const trustBannerItemSchema = z.object({
+  icon: z.string().optional(),
+  text: z.string().min(1),
+})
+
+const testimonialItemSchema = z.object({
+  quote: z.string().min(1),
+  author: z.string().min(1),
+  role: z.string().optional(),
+  avatar_url: z.string().optional(),
+})
+
+const animationTypeEnum = z.enum([
+  "none",
+  "fade-up",
+  "fade-in",
+  "fade-down",
+  "slide-left",
+  "slide-right",
+  "zoom-in",
+  "zoom-out",
+])
+
 export const websiteThemeSchema = z.object({
   branding: z
     .object({
@@ -37,9 +60,19 @@ export const websiteThemeSchema = z.object({
       accent: hexColor,
     })
     .optional(),
+  animations: z
+    .object({
+      enabled: z.boolean().optional(),
+      global_duration: z.enum(["fast", "normal", "slow"]).optional(),
+      hero_entrance: animationTypeEnum.optional(),
+      section_entrance: z.enum(["none", "fade-up", "stagger"]).optional(),
+      stagger_delay: z.number().min(50).max(500).optional(),
+    })
+    .optional(),
   hero: z
     .object({
       layout: z.enum(["center", "left", "right", "split"]).optional(),
+      animation: animationTypeEnum.optional(),
       badge_text: z.string().optional(),
       title: z.string().optional(),
       subtitle: z.string().optional(),
@@ -74,7 +107,60 @@ export const websiteThemeSchema = z.object({
       empty_state_product_name: z.string().optional(),
       show_categories: z.boolean().optional(),
       category_heading: z.string().optional(),
-      sections_order: z.array(z.enum(["hero", "collections", "categories"])).optional(),
+      sections_order: z
+        .array(
+          z.enum([
+            "hero",
+            "trust_banner",
+            "collections",
+            "text_with_image",
+            "categories",
+            "testimonials",
+            "banner",
+            "newsletter",
+          ])
+        )
+        .optional(),
+      trust_banner: z
+        .object({
+          items: z.array(trustBannerItemSchema).optional(),
+          background: hexColor,
+        })
+        .optional(),
+      text_with_image: z
+        .object({
+          title: z.string().optional(),
+          description: z.string().optional(),
+          image_url: z.string().optional(),
+          cta_text: z.string().optional(),
+          cta_link: z.string().optional(),
+          layout: z.enum(["image-left", "image-right"]).optional(),
+        })
+        .optional(),
+      testimonials: z
+        .object({
+          heading: z.string().optional(),
+          items: z.array(testimonialItemSchema).optional(),
+        })
+        .optional(),
+      banner: z
+        .object({
+          title: z.string().optional(),
+          description: z.string().optional(),
+          background_image_url: z.string().optional(),
+          background_color: hexColor,
+          cta_text: z.string().optional(),
+          cta_link: z.string().optional(),
+        })
+        .optional(),
+      newsletter: z
+        .object({
+          heading: z.string().optional(),
+          description: z.string().optional(),
+          placeholder: z.string().optional(),
+          button_text: z.string().optional(),
+        })
+        .optional(),
     })
     .optional(),
   product_page: z
