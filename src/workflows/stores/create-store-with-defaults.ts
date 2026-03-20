@@ -478,7 +478,6 @@ const autoLinkFulfillmentProvidersStep = createStep(
                   shipping_profile_id: profileId,
                   provider_id: providerId,
                   price_type: "calculated",
-                  is_return: true,
                   type: {
                     label: "Return",
                     description: "Return pickup via Delhivery",
@@ -523,7 +522,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                     code: "standard",
                   },
                   prices: [
-                    // Base price: 1 item
+                    // Base price (default)
                     {
                       currency_code: currency,
                       amount: basePrice,
@@ -532,14 +531,17 @@ const autoLinkFulfillmentProvidersStep = createStep(
                     {
                       currency_code: currency,
                       amount: midPrice,
-                      min_quantity: 2,
-                      max_quantity: 2,
+                      rules: [
+                        { attribute: "item_total", operator: "gte" as const, value: midPrice },
+                      ],
                     },
-                    // 3+ items: free shipping
+                    // 3+ items: free shipping (cart total >= 3x base price)
                     {
                       currency_code: currency,
                       amount: 0,
-                      min_quantity: 3,
+                      rules: [
+                        { attribute: "item_total", operator: "gte" as const, value: basePrice * 3 },
+                      ],
                     },
                   ],
                   rules: [
@@ -557,7 +559,6 @@ const autoLinkFulfillmentProvidersStep = createStep(
                   shipping_profile_id: profileId,
                   provider_id: providerId,
                   price_type: "flat",
-                  is_return: true,
                   type: {
                     label: "Return",
                     description: "Return pickup",

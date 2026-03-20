@@ -586,3 +586,135 @@ export const useNotifyDesignCustomer = (
     ...options,
   });
 };
+
+// ─── Customer Ordered Designs ───────────────────────────────────────────────
+
+export interface OrderedDesign extends AdminDesign {
+  order_ids: string[]
+}
+
+export interface OrderedDesignsResponse {
+  designs: OrderedDesign[]
+}
+
+export const useCustomerOrderedDesigns = (
+  customerId: string,
+  options?: Omit<
+    UseQueryOptions<OrderedDesignsResponse, FetchError, OrderedDesignsResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: ["customer-ordered-designs", customerId],
+    queryFn: async () =>
+      sdk.client.fetch<OrderedDesignsResponse>(
+        `/admin/customers/${customerId}/designs/ordered`,
+        { method: "GET" }
+      ),
+    ...options,
+  })
+  return { designs: data?.designs || [], ...rest }
+}
+
+// ─── Customer-Design Linking ────────────────────────────────────────────────
+
+export interface LinkDesignsToCustomerPayload {
+  design_ids: string[]
+}
+
+export interface LinkDesignsToCustomerResponse {
+  linked: number
+}
+
+export const useLinkDesignsToCustomer = (
+  customerId: string,
+  options?: UseMutationOptions<
+    LinkDesignsToCustomerResponse,
+    FetchError,
+    LinkDesignsToCustomerPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: async (payload: LinkDesignsToCustomerPayload) =>
+      sdk.client.fetch<LinkDesignsToCustomerResponse>(
+        `/admin/customers/${customerId}/designs`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
+// ─── Create Draft Order from Designs ────────────────────────────────────────
+
+export interface CreateDesignOrderPayload {
+  design_ids: string[]
+  currency_code?: string
+  price_overrides?: Record<string, number>
+}
+
+export interface CreateDesignOrderResponse {
+  order: any
+}
+
+export interface DesignEstimatePreview {
+  design_id: string
+  name: string
+  total_estimated: number
+  unit_price: number
+  confidence: string
+  material_cost: number
+  production_cost: number
+}
+
+export interface PreviewDesignOrderResponse {
+  estimates: DesignEstimatePreview[]
+  currency_code: string
+  total: number
+}
+
+export const usePreviewDesignOrder = (
+  customerId: string,
+  options?: UseMutationOptions<
+    PreviewDesignOrderResponse,
+    FetchError,
+    CreateDesignOrderPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload: CreateDesignOrderPayload) =>
+      sdk.client.fetch<PreviewDesignOrderResponse>(
+        `/admin/customers/${customerId}/design-order/preview`,
+        { method: "POST", body: payload }
+      ),
+    ...options,
+  })
+}
+
+export const useCreateDesignOrder = (
+  customerId: string,
+  options?: UseMutationOptions<
+    CreateDesignOrderResponse,
+    FetchError,
+    CreateDesignOrderPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: async (payload: CreateDesignOrderPayload) =>
+      sdk.client.fetch<CreateDesignOrderResponse>(
+        `/admin/customers/${customerId}/design-order`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: ["customer-ordered-designs", customerId] })
+      options?.onSuccess?.(data, variables, context)
+    },
+  })
+}

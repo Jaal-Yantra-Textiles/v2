@@ -36,17 +36,14 @@ const getStatusColor = (status: string): "green" | "blue" | "orange" | "grey" | 
   }
 }
 
-const OrderDesignWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
+const DesignCard = ({
+  design,
+  orderId,
+}: {
+  design: DesignType
+  orderId: string
+}) => {
   const queryClient = useQueryClient()
-
-  const { data, isLoading } = useQuery({
-    queryFn: () =>
-      sdk.client.fetch<{ design: DesignType | null }>(
-        `/admin/orders/${order.id}/design`,
-        { method: "GET" }
-      ),
-    queryKey: ["order-design", order.id],
-  })
 
   const { mutateAsync: approve, isPending } = useMutation({
     mutationFn: (designId: string) =>
@@ -54,7 +51,7 @@ const OrderDesignWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
         method: "POST",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-design", order.id] })
+      queryClient.invalidateQueries({ queryKey: ["order-design", orderId] })
       toast.success("Design approved")
     },
     onError: (err: any) => {
@@ -62,42 +59,66 @@ const OrderDesignWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
     },
   })
 
-  const design = data?.design
+  return (
+    <div className="px-6 py-4 space-y-3">
+      {design.thumbnail_url && (
+        <img
+          src={design.thumbnail_url}
+          alt={design.name}
+          className="w-full rounded-lg object-cover"
+        />
+      )}
+      <div className="flex items-center justify-between">
+        <Text weight="plus">{design.name}</Text>
+        <Badge color={getStatusColor(design.status)}>{design.status}</Badge>
+      </div>
+      {design.description && (
+        <Text className="text-ui-fg-subtle">{design.description}</Text>
+      )}
+      {design.estimated_cost != null && (
+        <Text>Est. cost: ${design.estimated_cost}</Text>
+      )}
+      <Button
+        size="small"
+        disabled={design.status === "Approved" || isPending}
+        onClick={() => approve(design.id)}
+      >
+        {design.status === "Approved" ? "Approved ✓" : "Approve Design"}
+      </Button>
+    </div>
+  )
+}
 
-  if (!isLoading && !design) return null
+const OrderDesignWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
+  const { data, isLoading } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<{ design: DesignType | null; designs: DesignType[] }>(
+        `/admin/orders/${order.id}/design`,
+        { method: "GET" }
+      ),
+    queryKey: ["order-design", order.id],
+  })
+
+  const designs = data?.designs || (data?.design ? [data.design] : [])
+
+  if (!isLoading && designs.length === 0) return null
 
   return (
     <Container className="divide-y p-0">
       <div className="px-6 py-4 flex items-center justify-between">
-        <Heading level="h2">Custom Design</Heading>
-        {design && (
-          <Badge color={getStatusColor(design.status)}>{design.status}</Badge>
+        <Heading level="h2">Custom Designs</Heading>
+        {designs.length > 1 && (
+          <Badge size="2xsmall" color="blue">
+            {designs.length}
+          </Badge>
         )}
       </div>
       {isLoading && <Skeleton className="h-32 mx-6 my-4" />}
-      {design && (
-        <div className="px-6 py-4 space-y-3">
-          {design.thumbnail_url && (
-            <img
-              src={design.thumbnail_url}
-              alt={design.name}
-              className="w-full rounded-lg object-cover"
-            />
-          )}
-          <Text weight="plus">{design.name}</Text>
-          {design.description && (
-            <Text className="text-ui-fg-subtle">{design.description}</Text>
-          )}
-          {design.estimated_cost != null && (
-            <Text>Est. cost: ${design.estimated_cost}</Text>
-          )}
-          <Button
-            size="small"
-            disabled={design.status === "Approved" || isPending}
-            onClick={() => approve(design.id)}
-          >
-            {design.status === "Approved" ? "Approved ✓" : "Approve Design"}
-          </Button>
+      {designs.length > 0 && (
+        <div className="divide-y">
+          {designs.map((design) => (
+            <DesignCard key={design.id} design={design} orderId={order.id} />
+          ))}
         </div>
       )}
     </Container>

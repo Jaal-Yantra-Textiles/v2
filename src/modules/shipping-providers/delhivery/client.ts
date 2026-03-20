@@ -29,9 +29,22 @@ export class DelhiveryClient {
     }
   }
 
+  /**
+   * Safely parse response — Delhivery sometimes returns XML instead of JSON
+   * (e.g. on auth errors, warehouse ops, cancel). Fall back to text.
+   */
+  private async safeJson(res: Response): Promise<any> {
+    const text = await res.text()
+    try {
+      return JSON.parse(text)
+    } catch {
+      return { raw: text }
+    }
+  }
+
   async checkServiceability(pincode: string): Promise<any> {
     const res = await fetch(
-      `${this.baseUrl}/c/api/pin-code/check/?filter_codes=${pincode}`,
+      `${this.baseUrl}/c/api/pin-codes/json/?filter_codes=${pincode}`,
       { headers: this.headers() }
     )
     if (!res.ok) throw new Error(`Delhivery serviceability check failed (${res.status})`)
@@ -131,7 +144,7 @@ export class DelhiveryClient {
       const body = await res.text().catch(() => "")
       throw new Error(`Delhivery warehouse registration failed (${res.status}): ${body}`)
     }
-    return res.json()
+    return this.safeJson(res)
   }
 
   /**
@@ -140,10 +153,15 @@ export class DelhiveryClient {
    */
   async schedulePickup(params: {
     pickup_date: string // YYYY-MM-DD
-    pickup_time: string // HH:mm
+    pickup_time: string // HH:mm or HH:mm:ss (Delhivery expects HH:mm:ss)
     pickup_location: string // registered warehouse name (exact match)
     expected_package_count: number
   }): Promise<any> {
+    // Normalize time to HH:mm:ss if only HH:mm provided
+    const time = params.pickup_time.length === 5
+      ? `${params.pickup_time}:00`
+      : params.pickup_time
+
     const res = await fetch(`${this.baseUrl}/fm/request/new/`, {
       method: "POST",
       headers: {
@@ -151,7 +169,7 @@ export class DelhiveryClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        pickup_time: params.pickup_time,
+        pickup_time: time,
         pickup_date: params.pickup_date,
         pickup_location: params.pickup_location,
         expected_package_count: params.expected_package_count,
@@ -281,7 +299,10 @@ export class DelhiveryClient {
       },
       body: `waybill=${waybill}&cancellation=true`,
     })
-    if (!res.ok) throw new Error(`Delhivery cancellation failed (${res.status})`)
-    return res.json()
+    if (!res.ok) {
+      const body = await res.text().catch(() => "")
+      throw new Error(`Delhivery cancellation failed (${res.status}): ${body}`)
+    }
+    return this.safeJson(res)
   }
 }

@@ -19,16 +19,24 @@ export async function GET(
   })
 
   if (!orderDesignLinks?.length) {
-    res.status(200).json({ design: null })
+    // Backwards-compatible: still return singular `design: null` + new `designs: []`
+    res.status(200).json({ design: null, designs: [] })
     return
   }
 
-  const designId = orderDesignLinks[0].design_id
+  const designIds = orderDesignLinks.map((link: any) => link.design_id)
+
   const { data: designs } = await query.graph({
     entity: "design",
-    filters: { id: designId },
+    filters: { id: designIds },
     fields: ["id", "name", "status", "description", "thumbnail_url", "estimated_cost"],
   })
 
-  res.status(200).json({ design: designs?.[0] ?? null })
+  const result = designs || []
+
+  res.status(200).json({
+    // Backwards-compatible singular field
+    design: result[0] ?? null,
+    designs: result,
+  })
 }

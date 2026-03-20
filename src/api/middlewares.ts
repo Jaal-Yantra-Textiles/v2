@@ -195,6 +195,8 @@ import {
   CreateRemoteAdSchema,
 } from "./admin/meta-ads/validators";
 import { webSubmitFormResponseSchema, webVerifyFormResponseSchema } from "./web/website/[domain]/forms/[handle]/validators";
+import { LinkDesignsToCustomerSchema } from "./admin/customers/[id]/designs/validators";
+import { CreateDesignOrderSchema } from "./admin/customers/[id]/design-order/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -2288,6 +2290,39 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/link-media-folder",
       method: "DELETE",
       middlewares: [],
+    },
+
+    // Link designs to customer + convert to draft order
+    {
+      matcher: "/admin/customers/:id/designs/ordered",
+      method: "GET",
+      middlewares: [
+        authenticate("user", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/admin/customers/:id/designs",
+      method: "POST",
+      middlewares: [
+        authenticate("user", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(LinkDesignsToCustomerSchema)),
+      ],
+    },
+    {
+      matcher: "/admin/customers/:id/design-order",
+      method: "POST",
+      middlewares: [
+        authenticate("user", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(CreateDesignOrderSchema)),
+      ],
+    },
+    {
+      matcher: "/admin/customers/:id/design-order/preview",
+      method: "POST",
+      middlewares: [
+        authenticate("user", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(CreateDesignOrderSchema)),
+      ],
     },
 
     // PayU payment (called by storefront after redirect)
