@@ -1,3 +1,10 @@
+# [10.15.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.14.2...v10.15.0) (2026-03-20)
+
+
+### Features
+
+* **api:** A new way to create the order ([8e0fc81](https://github.com/Jaal-Yantra-Textiles/v2/commit/8e0fc81bff9c0cf6621f33cf2162c3ea1e5c750e))
+
 ## [10.14.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.14.1...v10.14.2) (2026-03-20)
 
 
