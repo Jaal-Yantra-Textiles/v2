@@ -1,3 +1,11 @@
+## [10.14.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.14.0...v10.14.1) (2026-03-20)
+
+
+### Bug Fixes
+
+* **api:** Fixed some ui related issues ([19e76da](https://github.com/Jaal-Yantra-Textiles/v2/commit/19e76da9dc5cca2b6cd092939d7807e1e175882a))
+* **Partner UI:** Z-index at the discover product pages ([452741b](https://github.com/Jaal-Yantra-Textiles/v2/commit/452741b37b16319333f35a8343761ed6427742c9))
+
 # [10.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.13.0...v10.14.0) (2026-03-20)
 
 
