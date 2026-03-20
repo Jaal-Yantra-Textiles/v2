@@ -170,12 +170,13 @@ export default async function fixPartnerFulfillmentSets({ container }: ExecArgs)
               service_zone_id: serviceZoneId,
               shipping_profile_id: profileId,
               provider_id: providerId,
+              is_return: true,
               type: {
                 label: "Return",
                 description: "Return pickup",
                 code: "return",
               },
-              data: { is_return: true },
+              data: {},
               rules: [],
             })
 

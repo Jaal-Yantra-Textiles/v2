@@ -420,12 +420,13 @@ const autoLinkFulfillmentProvidersStep = createStep(
               service_zone_id: serviceZone.id,
               shipping_profile_id: profileId,
               provider_id: providerId,
+              is_return: true,
               type: {
                 label: "Return",
                 description: "Return pickup",
                 code: "return",
               },
-              data: { is_return: true },
+              data: {},
               rules: [],
             })
 
