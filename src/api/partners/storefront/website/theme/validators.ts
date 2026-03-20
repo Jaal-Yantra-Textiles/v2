@@ -50,14 +50,32 @@ export const websiteThemeSchema = z.object({
       logo_url: z.string().optional(),
       store_name: z.string().optional(),
       favicon_url: z.string().optional(),
+      tagline: z.string().optional(),
     })
     .optional(),
   colors: z
     .object({
       primary: hexColor,
+      secondary: hexColor,
       background: hexColor,
       text: hexColor,
       accent: hexColor,
+      muted: hexColor,
+      border: hexColor,
+    })
+    .optional(),
+  typography: z
+    .object({
+      font_family: z.string().optional(),
+      heading_font_family: z.string().optional(),
+      base_font_size: z.string().optional(),
+      heading_weight: z.string().optional(),
+    })
+    .optional(),
+  buttons: z
+    .object({
+      border_radius: z.string().optional(),
+      primary_style: z.enum(["filled", "outline"]).optional(),
     })
     .optional(),
   animations: z
@@ -84,18 +102,27 @@ export const websiteThemeSchema = z.object({
       secondary_cta_text: z.string().optional(),
       secondary_cta_link: z.string().optional(),
       features: z.array(heroFeatureSchema).optional(),
+      min_height: z.string().optional(),
     })
     .optional(),
   navigation: z
     .object({
       links: z.array(navigationLinkSchema).optional(),
       show_account_link: z.boolean().optional(),
+      show_cart_icon: z.boolean().optional(),
+      show_search: z.boolean().optional(),
+      sticky: z.boolean().optional(),
+      style: z.enum(["transparent", "solid", "bordered"]).optional(),
     })
     .optional(),
   footer: z
     .object({
       text: z.string().optional(),
+      copyright_text: z.string().optional(),
       social_links: z.array(socialLinkSchema).optional(),
+      show_newsletter: z.boolean().optional(),
+      newsletter_heading: z.string().optional(),
+      newsletter_description: z.string().optional(),
     })
     .optional(),
   home_sections: z
@@ -169,6 +196,11 @@ export const websiteThemeSchema = z.object({
       related_heading: z.string().optional(),
       show_tabs: z.boolean().optional(),
       show_breadcrumbs: z.boolean().optional(),
+      show_sku: z.boolean().optional(),
+      show_stock_status: z.boolean().optional(),
+      image_layout: z.enum(["gallery", "single", "grid"]).optional(),
+      gallery_position: z.enum(["left", "right"]).optional(),
+      description_layout: z.enum(["tabs", "accordion", "stacked"]).optional(),
       cta_text: z.string().optional(),
       sample_product_name: z.string().optional(),
       sample_product_price: z.string().optional(),
@@ -182,6 +214,9 @@ export const websiteThemeSchema = z.object({
       empty_cta_link: z.string().optional(),
       show_sign_in_prompt: z.boolean().optional(),
       checkout_button_text: z.string().optional(),
+      show_order_summary: z.boolean().optional(),
+      show_free_shipping_bar: z.boolean().optional(),
+      free_shipping_threshold: z.string().optional(),
     })
     .optional(),
 })

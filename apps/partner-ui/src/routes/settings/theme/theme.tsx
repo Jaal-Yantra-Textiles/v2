@@ -206,6 +206,7 @@ const ThemeEditorInner = () => {
   const { data: storefrontStatus } = useStorefrontStatus()
 
   const [form, setForm] = useState<WebsiteTheme>({})
+  const formRef = useRef<WebsiteTheme>({})
   const [activeSection, setActiveSection] = useState<ThemeSection>("hero")
   const [iframeReady, setIframeReady] = useState(false)
   const [iframePath, setIframePath] = useState("/")
@@ -215,8 +216,20 @@ const ThemeEditorInner = () => {
   const domain = storefrontStatus?.domain
 
   useEffect(() => {
-    if (theme) setForm(theme)
+    if (theme) {
+      setForm(theme)
+      formRef.current = theme
+    }
   }, [theme])
+
+  // Wrapped setForm that keeps the ref in sync — pass this to panels
+  const setFormSynced = useCallback((newForm: WebsiteTheme | ((prev: WebsiteTheme) => WebsiteTheme)) => {
+    setForm((prev) => {
+      const resolved = typeof newForm === "function" ? newForm(prev) : newForm
+      formRef.current = resolved
+      return resolved
+    })
+  }, [])
 
   // After iframe loads on a homepage, scroll to the active section
   useEffect(() => {
@@ -292,18 +305,21 @@ const ThemeEditorInner = () => {
 
   const updateForm = useCallback(
     (section: keyof WebsiteTheme, data: Record<string, unknown>) => {
-      const newForm = { ...form, [section]: { ...(form[section] as any), ...data } }
+      const current = formRef.current
+      const merged = { ...(current[section] as any), ...data }
+      const newForm = { ...current, [section]: merged }
+      formRef.current = newForm
       setForm(newForm)
-      sendPreview(section, { ...(form[section] as any), ...data })
+      sendPreview(section, merged)
       debouncedSave(newForm)
     },
-    [form, sendPreview, debouncedSave]
+    [sendPreview, debouncedSave]
   )
 
   const handleSave = async () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     try {
-      await updateTheme(form)
+      await updateTheme(formRef.current)
       toast.success("Theme saved")
     } catch (e: any) {
       toast.error("Could not save theme", {
@@ -471,8 +487,8 @@ const ThemeEditorInner = () => {
           ))}
         </div>
 
-        {/* Preview iframe */}
-        <div className="flex-1 bg-ui-bg-subtle p-3">
+        {/* Preview iframe + inline preview overlay */}
+        <div className="flex-1 bg-ui-bg-subtle p-3 relative">
           <div className="w-full h-full rounded-lg shadow-elevation-card-rest overflow-hidden bg-white">
             <iframe
               ref={iframeRef}
@@ -481,11 +497,17 @@ const ThemeEditorInner = () => {
               sandbox="allow-scripts allow-same-origin allow-forms"
             />
           </div>
+          {/* Inline preview for panel-only sections (product, cart, typography, buttons) */}
+          {PANEL_ONLY_SECTIONS.has(activeSection) && (
+            <div className="absolute inset-3 rounded-lg bg-white shadow-elevation-card-rest overflow-y-auto z-10">
+              <InlinePreview section={activeSection} form={form} />
+            </div>
+          )}
         </div>
 
         {/* Property panel */}
         <div className="w-[300px] border-l border-ui-border-base overflow-y-auto bg-ui-bg-base shrink-0">
-          <div className="p-4">
+          <div className="p-4 pb-16">
             {activeSection === "branding" && (
               <BrandingPanel form={form} updateForm={updateForm} />
             )}
@@ -493,16 +515,16 @@ const ThemeEditorInner = () => {
               <ColorsPanel form={form} updateForm={updateForm} />
             )}
             {activeSection === "hero" && (
-              <HeroPanel form={form} updateForm={updateForm} setForm={setForm} sendPreview={sendPreview} debouncedSave={debouncedSave} />
+              <HeroPanel form={form} updateForm={updateForm} setForm={setFormSynced} sendPreview={sendPreview} debouncedSave={debouncedSave} />
             )}
             {activeSection === "navigation" && (
-              <NavigationPanel form={form} setForm={setForm} debouncedSave={debouncedSave} />
+              <NavigationPanel form={form} setForm={setFormSynced} debouncedSave={debouncedSave} />
             )}
             {activeSection === "footer" && (
-              <FooterPanel form={form} updateForm={updateForm} setForm={setForm} debouncedSave={debouncedSave} />
+              <FooterPanel form={form} updateForm={updateForm} setForm={setFormSynced} debouncedSave={debouncedSave} />
             )}
             {activeSection === "home_sections" && (
-              <HomeSectionsPanel form={form} updateForm={updateForm} setForm={setForm} debouncedSave={debouncedSave} />
+              <HomeSectionsPanel form={form} updateForm={updateForm} setForm={setFormSynced} debouncedSave={debouncedSave} />
             )}
             {activeSection === "typography" && (
               <TypographyPanel form={form} updateForm={updateForm} />
@@ -2065,6 +2087,231 @@ function CartPanel({ form, updateForm }: PanelProps) {
       </div>
     </>
   )
+}
+
+// --- Inline Preview ---
+
+function InlinePreview({
+  section,
+  form,
+}: {
+  section: ThemeSection
+  form: WebsiteTheme
+}) {
+  const colors = form.colors || {}
+  const typo = form.typography || {}
+  const btn = form.buttons || {}
+  const pp = form.product_page || {}
+  const c = form.cart || {}
+  const bg = colors.background || "#ffffff"
+  const textColor = colors.text || "#111827"
+  const primary = colors.primary || "#7c3aed"
+  const muted = colors.muted || "#6b7280"
+  const accent = colors.accent || "#f59e0b"
+  const borderColor = colors.border || "#e5e7eb"
+  const headingFont = typo.heading_font_family || "Inter"
+  const bodyFont = typo.font_family || "Inter"
+  const fontSize = typo.base_font_size || "16px"
+  const headingWeight = Number(typo.heading_weight || 600)
+  const btnRadius = btn.border_radius || "8px"
+  const btnFilled = btn.primary_style !== "outline"
+
+  const buttonStyle = btnFilled
+    ? { backgroundColor: primary, color: "#fff", borderRadius: btnRadius, border: "2px solid transparent" }
+    : { backgroundColor: "transparent", color: primary, borderRadius: btnRadius, border: `2px solid ${primary}` }
+
+  const secondaryBtnStyle = {
+    backgroundColor: "transparent",
+    color: textColor,
+    borderRadius: btnRadius,
+    border: `1.5px solid ${borderColor}`,
+  }
+
+  if (section === "typography") {
+    return (
+      <div className="p-8" style={{ backgroundColor: bg, fontFamily: bodyFont, fontSize, color: textColor, minHeight: "100%" }}>
+        <div className="max-w-2xl mx-auto space-y-8">
+          <div className="text-center space-y-1">
+            <p className="text-xs uppercase tracking-wider" style={{ color: muted }}>Typography Preview</p>
+            <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "2rem", color: textColor }}>
+              Heading Font Preview
+            </div>
+            <p style={{ color: muted }}>Body font: {bodyFont} &middot; Heading font: {headingFont}</p>
+          </div>
+          <hr style={{ borderColor }} />
+          <div className="space-y-4">
+            <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.75rem" }}>H1 — Main Heading</div>
+            <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.375rem" }}>H2 — Section Heading</div>
+            <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.125rem" }}>H3 — Subsection</div>
+            <p style={{ lineHeight: 1.7 }}>
+              This is body text rendered in <strong>{bodyFont}</strong> at {fontSize}. It demonstrates
+              how your chosen typography looks in a paragraph context. The quick brown fox jumps over
+              the lazy dog. Good typography makes reading effortless.
+            </p>
+            <p style={{ color: muted, fontSize: "0.875rem" }}>
+              This is muted caption text, often used for descriptions, timestamps, or secondary information.
+            </p>
+          </div>
+          <hr style={{ borderColor }} />
+          <div className="flex gap-3 items-center">
+            <button className="px-5 py-2.5 text-sm font-medium" style={buttonStyle}>
+              Primary Button
+            </button>
+            <button className="px-5 py-2.5 text-sm font-medium" style={secondaryBtnStyle}>
+              Secondary
+            </button>
+            <span className="text-sm" style={{ color: primary }}>Link text</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (section === "buttons") {
+    return (
+      <div className="p-8 flex items-center justify-center" style={{ backgroundColor: bg, minHeight: "100%" }}>
+        <div className="space-y-8 text-center">
+          <p className="text-xs uppercase tracking-wider" style={{ color: muted }}>Button Preview</p>
+          <div className="flex flex-wrap gap-4 justify-center">
+            {(["0px", "4px", "8px", "9999px"] as const).map((r) => (
+              <div key={r} className="space-y-2 text-center">
+                <button
+                  className="px-6 py-3 text-sm font-medium"
+                  style={{ ...buttonStyle, borderRadius: r }}
+                >
+                  {r === "0px" ? "Sharp" : r === "4px" ? "Subtle" : r === "8px" ? "Round" : "Pill"}
+                </button>
+                <p className="text-xs" style={{ color: muted }}>{r}</p>
+              </div>
+            ))}
+          </div>
+          <hr style={{ borderColor }} />
+          <div className="space-y-4">
+            <p className="text-sm font-medium" style={{ color: textColor }}>Current style</p>
+            <div className="flex gap-4 justify-center">
+              <button className="px-6 py-3 text-sm font-medium" style={buttonStyle}>
+                Add to Cart
+              </button>
+              <button className="px-6 py-3 text-sm font-medium" style={secondaryBtnStyle}>
+                Buy Now
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (section === "product_page") {
+    const sampleName = pp.sample_product_name || SAMPLE_PRODUCT.title
+    const samplePrice = pp.sample_product_price || formatSamplePrice(SAMPLE_PRODUCT.variants[0].calculated_price.calculated_amount, "INR")
+
+    return (
+      <div style={{ backgroundColor: bg, fontFamily: bodyFont, fontSize, color: textColor, minHeight: "100%" }}>
+        {/* Breadcrumbs */}
+        {pp.show_breadcrumbs !== false && (
+          <div className="px-8 py-3" style={{ borderBottom: `1px solid ${borderColor}` }}>
+            <span className="text-xs" style={{ color: muted }}>
+              Home / Products / <span style={{ color: textColor }}>{sampleName}</span>
+            </span>
+          </div>
+        )}
+        <div className="p-8">
+          <div className="max-w-4xl mx-auto grid grid-cols-2 gap-8">
+            {/* Image */}
+            <div className="space-y-2">
+              <div className="aspect-square rounded-lg" style={{ backgroundColor: `${primary}10`, border: `1px solid ${borderColor}` }}>
+                <div className="w-full h-full flex items-center justify-center" style={{ color: muted }}>
+                  <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[1,2,3].map((n) => (
+                  <div key={n} className="aspect-square rounded" style={{ backgroundColor: `${primary}08`, border: `1px solid ${borderColor}` }} />
+                ))}
+              </div>
+            </div>
+            {/* Details */}
+            <div className="space-y-4">
+              <div>
+                <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.5rem" }}>{sampleName}</div>
+                <div className="mt-1 text-lg font-medium" style={{ color: primary }}>{samplePrice}</div>
+                {pp.show_sku && <p className="text-xs mt-1" style={{ color: muted }}>SKU: HCS-IND-001</p>}
+                {pp.show_stock_status && <p className="text-xs mt-1" style={{ color: "#16a34a" }}>In stock</p>}
+              </div>
+              <p style={{ color: muted, lineHeight: 1.6, fontSize: "0.875rem" }}>
+                {SAMPLE_PRODUCT.description.slice(0, 120)}...
+              </p>
+              {/* Options */}
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Color</p>
+                <div className="flex gap-2">
+                  {["Indigo", "Ivory", "Terracotta"].map((c, i) => (
+                    <button
+                      key={c}
+                      className="px-3 py-1.5 text-xs font-medium"
+                      style={i === 0
+                        ? { ...buttonStyle, fontSize: "0.75rem", padding: "6px 12px" }
+                        : { ...secondaryBtnStyle, fontSize: "0.75rem", padding: "6px 12px" }
+                      }
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* CTA */}
+              <button className="w-full py-3 text-sm font-medium" style={buttonStyle}>
+                {pp.cta_text || "Add to cart"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (section === "cart") {
+    return (
+      <div style={{ backgroundColor: bg, fontFamily: bodyFont, fontSize, color: textColor, minHeight: "100%" }}>
+        <div className="p-8">
+          <div className="max-w-3xl mx-auto">
+            <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.5rem" }} className="mb-6">
+              {c.heading || "Shopping Cart"}
+            </div>
+            {/* Cart items */}
+            <div style={{ borderTop: `1px solid ${borderColor}` }}>
+              {SAMPLE_CART.items.map((item) => (
+                <div key={item.id} className="flex items-center gap-4 py-4" style={{ borderBottom: `1px solid ${borderColor}` }}>
+                  <div className="w-16 h-16 rounded flex-shrink-0" style={{ backgroundColor: `${primary}08`, border: `1px solid ${borderColor}` }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">{item.title}</div>
+                    <div className="text-xs" style={{ color: muted }}>{item.subtitle} &middot; Qty: {item.quantity}</div>
+                  </div>
+                  <div className="text-sm font-medium">{formatSamplePrice(item.total, "INR")}</div>
+                </div>
+              ))}
+            </div>
+            {/* Summary */}
+            {c.show_order_summary !== false && (
+              <div className="mt-6 space-y-2 text-sm">
+                <div className="flex justify-between"><span style={{ color: muted }}>Subtotal</span><span>{formatSamplePrice(SAMPLE_CART.item_subtotal, "INR")}</span></div>
+                <div className="flex justify-between"><span style={{ color: muted }}>Shipping</span><span>{formatSamplePrice(SAMPLE_CART.shipping_total, "INR")}</span></div>
+                <div className="flex justify-between"><span style={{ color: muted }}>Discount</span><span style={{ color: "#16a34a" }}>-{formatSamplePrice(SAMPLE_CART.discount_total, "INR")}</span></div>
+                <hr style={{ borderColor }} />
+                <div className="flex justify-between font-semibold text-base"><span>Total</span><span>{formatSamplePrice(SAMPLE_CART.total, "INR")}</span></div>
+              </div>
+            )}
+            <button className="w-full mt-6 py-3 text-sm font-medium" style={buttonStyle}>
+              {c.checkout_button_text || "Go to checkout"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return null
 }
 
 // --- Shared ---

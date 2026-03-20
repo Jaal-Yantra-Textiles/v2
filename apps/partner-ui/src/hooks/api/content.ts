@@ -243,8 +243,16 @@ export type WebsiteTheme = {
     border_radius?: string
     primary_style?: "filled" | "outline"
   }
+  animations?: {
+    enabled?: boolean
+    global_duration?: "fast" | "normal" | "slow"
+    hero_entrance?: string
+    section_entrance?: "none" | "fade-up" | "stagger"
+    stagger_delay?: number
+  }
   hero?: {
     layout?: "center" | "left" | "right" | "split"
+    animation?: string
     badge_text?: string
     title?: string
     subtitle?: string
@@ -282,7 +290,46 @@ export type WebsiteTheme = {
     empty_state_product_name?: string
     show_categories?: boolean
     category_heading?: string
-    sections_order?: Array<"hero" | "collections" | "categories">
+    sections_order?: Array<
+      | "hero"
+      | "trust_banner"
+      | "collections"
+      | "text_with_image"
+      | "categories"
+      | "testimonials"
+      | "banner"
+      | "newsletter"
+    >
+    trust_banner?: {
+      items?: Array<{ icon?: string; text: string }>
+      background?: string
+    }
+    text_with_image?: {
+      title?: string
+      description?: string
+      image_url?: string
+      cta_text?: string
+      cta_link?: string
+      layout?: "image-left" | "image-right"
+    }
+    testimonials?: {
+      heading?: string
+      items?: Array<{ quote: string; author: string; role?: string; avatar_url?: string }>
+    }
+    banner?: {
+      title?: string
+      description?: string
+      background_image_url?: string
+      background_color?: string
+      cta_text?: string
+      cta_link?: string
+    }
+    newsletter?: {
+      heading?: string
+      description?: string
+      placeholder?: string
+      button_text?: string
+    }
   }
   product_page?: {
     show_related_products?: boolean
