@@ -31,11 +31,25 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
         id: "delhivery-surface-standard",
         name: "Delhivery Standard (Surface)",
         mode: "Surface",
+        is_return: false,
+      },
+      {
+        id: "delhivery-surface-return",
+        name: "Delhivery Standard (Surface) - Return",
+        mode: "Surface",
+        is_return: true,
       },
       {
         id: "delhivery-express",
         name: "Delhivery Express",
         mode: "Express",
+        is_return: false,
+      },
+      {
+        id: "delhivery-express-return",
+        name: "Delhivery Express - Return",
+        mode: "Express",
+        is_return: true,
       },
     ]
   }
