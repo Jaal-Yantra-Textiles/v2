@@ -21,9 +21,15 @@ export const GET = async (
   }
 
   const { data: regions } = await query.graph({
-    entity: "regions",
+    entity: "region",
     fields: [
-      "*",
+      "id",
+      "name",
+      "currency_code",
+      "automatic_taxes",
+      "metadata",
+      "created_at",
+      "updated_at",
       "countries.*",
       "payment_providers.*",
     ],

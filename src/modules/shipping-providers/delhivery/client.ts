@@ -6,6 +6,13 @@ export type DelhiveryOptions = {
   sandbox?: boolean
 }
 
+/**
+ * Sanitize address fields for Delhivery — strip characters that cause API errors.
+ */
+function sanitizeAddress(value: string): string {
+  return value.replace(/[&\#%;\\]/g, " ").replace(/\s+/g, " ").trim()
+}
+
 export class DelhiveryClient {
   private baseUrl: string
   private token: string
@@ -75,6 +82,88 @@ export class DelhiveryClient {
     return res.json()
   }
 
+  /**
+   * Register a warehouse/pickup location with Delhivery.
+   * Must be done once per stock location before creating shipments.
+   * The `name` must be used exactly (case-sensitive) in all future API calls.
+   */
+  async registerWarehouse(warehouse: {
+    name: string
+    phone: string
+    pin: string
+    city: string
+    address: string
+    email?: string
+    return_address?: string
+    return_pin?: string
+    return_city?: string
+    return_state?: string
+    return_country?: string
+    state?: string
+    country?: string
+  }): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/backend/clientwarehouse/create/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${this.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: warehouse.name,
+        phone: warehouse.phone,
+        pin: warehouse.pin,
+        city: warehouse.city,
+        address: sanitizeAddress(warehouse.address),
+        registered_name: warehouse.name,
+        email: warehouse.email || "",
+        return_address: warehouse.return_address
+          ? sanitizeAddress(warehouse.return_address)
+          : sanitizeAddress(warehouse.address),
+        return_pin: warehouse.return_pin || warehouse.pin,
+        return_city: warehouse.return_city || warehouse.city,
+        return_state: warehouse.return_state || warehouse.state || "",
+        return_country: warehouse.return_country || warehouse.country || "India",
+        state: warehouse.state || "",
+        country: warehouse.country || "India",
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => "")
+      throw new Error(`Delhivery warehouse registration failed (${res.status}): ${body}`)
+    }
+    return res.json()
+  }
+
+  /**
+   * Schedule a pickup from a registered warehouse.
+   * Only one active pickup per warehouse at a time.
+   */
+  async schedulePickup(params: {
+    pickup_date: string // YYYY-MM-DD
+    pickup_time: string // HH:mm
+    pickup_location: string // registered warehouse name (exact match)
+    expected_package_count: number
+  }): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/fm/request/new/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${this.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        pickup_time: params.pickup_time,
+        pickup_date: params.pickup_date,
+        pickup_location: params.pickup_location,
+        expected_package_count: params.expected_package_count,
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => "")
+      throw new Error(`Delhivery pickup scheduling failed (${res.status}): ${body}`)
+    }
+    return res.json()
+  }
+
   async fetchWaybill(): Promise<string> {
     const res = await fetch(`${this.baseUrl}/waybill/api/fetch/`, {
       headers: this.headers(),
@@ -85,7 +174,7 @@ export class DelhiveryClient {
   }
 
   async createShipment(shipment: {
-    waybill: string
+    waybill?: string // empty string or omitted = auto-assign
     name: string
     phone: string
     address: string
@@ -95,40 +184,56 @@ export class DelhiveryClient {
     country?: string
     order_id: string
     payment_mode: "Pre-paid" | "COD"
+    pickup_location_name: string // registered warehouse name (exact match)
     product_desc?: string
     weight: number // grams
+    length?: number
+    width?: number
+    height?: number
     cod_amount?: number
+    quantity?: number
+    fragile_shipment?: boolean
+    seller_gst_tin?: string
+    hsn_code?: string
     seller_name?: string
     seller_address?: string
     seller_city?: string
     seller_pin?: string
     seller_state?: string
   }): Promise<any> {
+    const shipmentData: Record<string, any> = {
+      waybill: shipment.waybill || "",
+      name: sanitizeAddress(shipment.name),
+      phone: shipment.phone,
+      add: sanitizeAddress(shipment.address),
+      city: sanitizeAddress(shipment.city),
+      pin: shipment.pin,
+      state: shipment.state,
+      country: shipment.country || "India",
+      order: shipment.order_id,
+      payment_mode: shipment.payment_mode,
+      products_desc: shipment.product_desc || "",
+      weight: shipment.weight,
+      cod_amount: shipment.cod_amount || 0,
+      quantity: shipment.quantity || 1,
+      seller_name: shipment.seller_name || "",
+      seller_add: shipment.seller_address ? sanitizeAddress(shipment.seller_address) : "",
+      seller_city: shipment.seller_city || "",
+      seller_pin: shipment.seller_pin || "",
+      seller_state: shipment.seller_state || "",
+    }
+
+    if (shipment.fragile_shipment) shipmentData.fragile_shipment = "Y"
+    if (shipment.seller_gst_tin) shipmentData.seller_gst_tin = shipment.seller_gst_tin
+    if (shipment.hsn_code) shipmentData.hsn_code = shipment.hsn_code
+    if (shipment.length) shipmentData.shipment_length = shipment.length
+    if (shipment.width) shipmentData.shipment_width = shipment.width
+    if (shipment.height) shipmentData.shipment_height = shipment.height
+
     const payload = {
-      shipments: [
-        {
-          waybill: shipment.waybill,
-          name: shipment.name,
-          phone: shipment.phone,
-          add: shipment.address,
-          city: shipment.city,
-          pin: shipment.pin,
-          state: shipment.state,
-          country: shipment.country || "India",
-          order: shipment.order_id,
-          payment_mode: shipment.payment_mode,
-          products_desc: shipment.product_desc || "",
-          weight: shipment.weight,
-          cod_amount: shipment.cod_amount || 0,
-          seller_name: shipment.seller_name || "",
-          seller_add: shipment.seller_address || "",
-          seller_city: shipment.seller_city || "",
-          seller_pin: shipment.seller_pin || "",
-          seller_state: shipment.seller_state || "",
-        },
-      ],
+      shipments: [shipmentData],
       pickup_location: {
-        name: shipment.seller_name || "Default",
+        name: shipment.pickup_location_name,
       },
     }
 
@@ -158,13 +263,13 @@ export class DelhiveryClient {
     return res.json()
   }
 
-  async getLabel(waybill: string): Promise<string> {
+  async getLabel(waybill: string): Promise<any> {
     const res = await fetch(
       `${this.baseUrl}/api/p/packing_slip?wbns=${waybill}`,
       { headers: this.headers() }
     )
     if (!res.ok) throw new Error(`Delhivery label fetch failed (${res.status})`)
-    return res.url // Returns PDF URL
+    return res.json()
   }
 
   async cancelShipment(waybill: string): Promise<any> {

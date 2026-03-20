@@ -13,6 +13,7 @@ import {
   updateStoresWorkflow,
   createApiKeysWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
+  createShippingOptionsWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { RemoteQueryFunction } from "@medusajs/types"
@@ -272,7 +273,7 @@ const createPublishableApiKeyStep = createStep(
 const autoLinkFulfillmentProvidersStep = createStep(
   "auto-link-fulfillment-providers",
   async (
-    input: { locationId: string; countryCode: string },
+    input: { locationId: string; countryCode: string; currencyCode: string },
     { container }
   ) => {
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
@@ -300,6 +301,54 @@ const autoLinkFulfillmentProvidersStep = createStep(
     // India → Delhivery
     if (country === "in" && enabledIds.includes("delhivery_delhivery")) {
       toLink.push("delhivery_delhivery")
+
+      // Auto-register warehouse with Delhivery via the provider service
+      const suffix = input.locationId.slice(-8)
+      const warehouseName = `warehouse-${suffix}`
+      try {
+        const fulfillmentService = container.resolve(Modules.FULFILLMENT) as any
+        // Resolve the Delhivery provider instance from the fulfillment module
+        const delhiveryProvider = fulfillmentService.retrieveProviderRegistration
+          ? await fulfillmentService.retrieveProviderRegistration("delhivery_delhivery")
+          : null
+
+        if (delhiveryProvider?.registerWarehouse) {
+          // Fetch location address for registration
+          const locQuery = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
+          const { data: locations } = await locQuery.graph({
+            entity: "stock_location",
+            fields: ["id", "name", "address.*", "metadata"],
+            filters: { id: input.locationId },
+          })
+          const loc = (locations as any)?.[0]
+          const addr = loc?.address || {}
+
+          await delhiveryProvider.registerWarehouse({
+            name: warehouseName,
+            phone: addr.phone || "",
+            pin: addr.postal_code || "",
+            city: addr.city || "",
+            address: addr.address_1 || "",
+            state: addr.province || "",
+            country: "India",
+          })
+
+          // Store warehouse name in stock location metadata
+          const stockLocationService = container.resolve(Modules.STOCK_LOCATION) as any
+          await stockLocationService.updateStockLocations(input.locationId, {
+            metadata: {
+              ...(loc?.metadata || {}),
+              delhivery_warehouse_name: warehouseName,
+            },
+          })
+
+          console.log(`[create-store] Registered Delhivery warehouse: ${warehouseName}`)
+        } else {
+          console.warn(`[create-store] Delhivery provider not found or registerWarehouse not available`)
+        }
+      } catch (e: any) {
+        console.error(`[create-store] Failed to register Delhivery warehouse: ${e.message}`)
+      }
     }
 
     // EU countries → DHL
@@ -382,55 +431,156 @@ const autoLinkFulfillmentProvidersStep = createStep(
         `[create-store] Created shipping + pickup fulfillment sets for ${countryLabel}`
       )
 
-      // Auto-create default shipping options for the shipping zone
+      // Auto-create shipping options with tiered pricing based on region
       const serviceZone = shippingSet.service_zones?.[0]
       if (serviceZone) {
         try {
-          // Get a shipping profile
           const shippingProfiles = await fulfillmentService.listShippingProfiles({}, { take: 1 })
           const profileId = shippingProfiles?.[0]?.id
 
           if (profileId) {
-            // Determine which fulfillment provider to use based on country
+            // Determine provider and currency-specific pricing
             const providerMap: Record<string, string> = {
               in: "delhivery_delhivery",
             }
-            const providerId = providerMap[country.toLowerCase()] || "manual_manual"
+            const providerId = providerMap[countryLower] || "manual_manual"
 
-            // Standard shipping
-            await fulfillmentService.createShippingOptions({
-              name: "Standard Shipping",
-              price_type: "flat",
-              service_zone_id: serviceZone.id,
-              shipping_profile_id: profileId,
-              provider_id: providerId,
-              type: {
-                label: "Standard",
-                description: "Standard delivery",
-                code: "standard",
-              },
-              data: {},
-              rules: [],
-            })
+            // For Delhivery (calculated pricing) — Delhivery's API returns real-time rates
+            // For manual provider — use flat tiered pricing based on country/currency
+            const isDelhivery = providerId === "delhivery_delhivery"
 
-            // Return option
-            await fulfillmentService.createShippingOptions({
-              name: "Return Shipping",
-              price_type: "flat",
-              service_zone_id: serviceZone.id,
-              shipping_profile_id: profileId,
-              provider_id: providerId,
-              is_return: true,
-              type: {
-                label: "Return",
-                description: "Return pickup",
-                code: "return",
-              },
-              data: {},
-              rules: [],
-            })
+            if (isDelhivery) {
+              // Delhivery: use calculated pricing (calls calculatePrice on the provider)
+              await createShippingOptionsWorkflow(container).run({
+                input: [{
+                  name: "Standard Shipping",
+                  service_zone_id: serviceZone.id,
+                  shipping_profile_id: profileId,
+                  provider_id: providerId,
+                  price_type: "calculated",
+                  type: {
+                    label: "Standard",
+                    description: "Standard delivery via Delhivery",
+                    code: "standard",
+                  },
+                  rules: [
+                    { attribute: "enabled_in_store", value: '"true"', operator: "eq" },
+                    { attribute: "is_return", value: "false", operator: "eq" },
+                  ],
+                }],
+              })
 
-            console.log(`[create-store] Created default shipping options for ${countryLabel}`)
+              // Return option (calculated)
+              await createShippingOptionsWorkflow(container).run({
+                input: [{
+                  name: "Return Shipping",
+                  service_zone_id: serviceZone.id,
+                  shipping_profile_id: profileId,
+                  provider_id: providerId,
+                  price_type: "calculated",
+                  is_return: true,
+                  type: {
+                    label: "Return",
+                    description: "Return pickup via Delhivery",
+                    code: "return",
+                  },
+                  rules: [
+                    { attribute: "enabled_in_store", value: '"true"', operator: "eq" },
+                    { attribute: "is_return", value: "true", operator: "eq" },
+                  ],
+                }],
+              })
+            } else {
+              // Manual provider: flat tiered pricing per region
+              // Pricing tiers based on currency:
+              //   INR: ₹200 (1 item), ₹150 (2 items), FREE (3+ items)
+              //   USD/other: $20 (1 item), $15 (2 items), FREE (3+ items)
+              //   EUR: €18 (1 item), €13 (2 items), FREE (3+ items)
+              //   GBP: £15 (1 item), £11 (2 items), FREE (3+ items)
+              //   AUD: A$25 (1 item), A$18 (2 items), FREE (3+ items)
+              const currency = input.currencyCode.toLowerCase()
+              const pricingByRegion: Record<string, { base: number; mid: number; ret: number }> = {
+                inr: { base: 200, mid: 150, ret: 100 },
+                eur: { base: 18, mid: 13, ret: 9 },
+                gbp: { base: 15, mid: 11, ret: 8 },
+                aud: { base: 25, mid: 18, ret: 12 },
+              }
+              const pricing = pricingByRegion[currency] || { base: 20, mid: 15, ret: 10 }
+              const basePrice = pricing.base
+              const midPrice = pricing.mid
+              const returnPrice = pricing.ret
+
+              await createShippingOptionsWorkflow(container).run({
+                input: [{
+                  name: "Standard Shipping",
+                  service_zone_id: serviceZone.id,
+                  shipping_profile_id: profileId,
+                  provider_id: providerId,
+                  price_type: "flat",
+                  type: {
+                    label: "Standard",
+                    description: "Standard delivery",
+                    code: "standard",
+                  },
+                  prices: [
+                    // Base price: 1 item
+                    {
+                      currency_code: currency,
+                      amount: basePrice,
+                    },
+                    // 2 items: discounted
+                    {
+                      currency_code: currency,
+                      amount: midPrice,
+                      min_quantity: 2,
+                      max_quantity: 2,
+                    },
+                    // 3+ items: free shipping
+                    {
+                      currency_code: currency,
+                      amount: 0,
+                      min_quantity: 3,
+                    },
+                  ],
+                  rules: [
+                    { attribute: "enabled_in_store", value: '"true"', operator: "eq" },
+                    { attribute: "is_return", value: "false", operator: "eq" },
+                  ],
+                }],
+              })
+
+              // Return shipping (flat, no tiers)
+              await createShippingOptionsWorkflow(container).run({
+                input: [{
+                  name: "Return Shipping",
+                  service_zone_id: serviceZone.id,
+                  shipping_profile_id: profileId,
+                  provider_id: providerId,
+                  price_type: "flat",
+                  is_return: true,
+                  type: {
+                    label: "Return",
+                    description: "Return pickup",
+                    code: "return",
+                  },
+                  prices: [
+                    {
+                      currency_code: currency,
+                      amount: returnPrice,
+                    },
+                  ],
+                  rules: [
+                    { attribute: "enabled_in_store", value: '"true"', operator: "eq" },
+                    { attribute: "is_return", value: "true", operator: "eq" },
+                  ],
+                }],
+              })
+            }
+
+            console.log(
+              `[create-store] Created shipping options for ${countryLabel} ` +
+              `(${isDelhivery ? "calculated/Delhivery" : "flat tiered/manual"})`
+            )
           }
         } catch (shippingErr: any) {
           console.error(`[create-store] Failed to create shipping options: ${shippingErr.message}`)
@@ -506,6 +656,7 @@ export const createStoreWithDefaultsWorkflow = createWorkflow(
     autoLinkFulfillmentProvidersStep({
       locationId: location.id,
       countryCode: input.location.address.country_code,
+      currencyCode: input.region.currency_code,
     })
 
     // Always link using explicit partner_id from workflow input

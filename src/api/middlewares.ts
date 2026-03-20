@@ -3043,6 +3043,30 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/orders/:id/fulfillments/:fulfillmentId/label",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/orders/:id/fulfillments/:fulfillmentId/tracking",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/orders/:id/fulfillments/:fulfillmentId/pickup",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/orders/:id/preview",
       method: "GET",
       middlewares: [

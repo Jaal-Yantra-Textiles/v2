@@ -417,6 +417,80 @@ export const useCreateOrderCreditLine = (
   })
 }
 
+// ── Fulfillment: Label, Tracking, Pickup ──
+
+export const useFulfillmentLabel = (
+  orderId: string,
+  fulfillmentId: string,
+  options?: Omit<
+    UseQueryOptions<any, FetchError, any, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch(
+        `/partners/orders/${orderId}/fulfillments/${fulfillmentId}/label`,
+        { method: "GET" }
+      ),
+    queryKey: [...ordersQueryKeys.detail(orderId), "fulfillment-label", fulfillmentId],
+    enabled: false, // fetch on demand
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
+export const useFulfillmentTracking = (
+  orderId: string,
+  fulfillmentId: string,
+  options?: Omit<
+    UseQueryOptions<any, FetchError, any, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch(
+        `/partners/orders/${orderId}/fulfillments/${fulfillmentId}/tracking`,
+        { method: "GET" }
+      ),
+    queryKey: [...ordersQueryKeys.detail(orderId), "fulfillment-tracking", fulfillmentId],
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
+export const useSchedulePickup = (
+  orderId: string,
+  fulfillmentId: string,
+  options?: UseMutationOptions<
+    any,
+    FetchError,
+    { pickup_date: string; pickup_time: string; expected_package_count?: number }
+  >
+) => {
+  return useMutation({
+    mutationFn: (payload: {
+      pickup_date: string
+      pickup_time: string
+      expected_package_count?: number
+    }) =>
+      sdk.client.fetch(
+        `/partners/orders/${orderId}/fulfillments/${fulfillmentId}/pickup`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data: any, variables: any, context: any) => {
+      queryClient.invalidateQueries({
+        queryKey: ordersQueryKeys.detail(orderId),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
 export const useUpdateOrderChange = (
   orderChangeId: string,
   options?: UseMutationOptions<

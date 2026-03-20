@@ -24,8 +24,18 @@ export const GET = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: regions } = await query.graph({
-    entity: "regions",
-    fields: ["*", "countries.*", "payment_providers.*"],
+    entity: "region",
+    fields: [
+      "id",
+      "name",
+      "currency_code",
+      "automatic_taxes",
+      "metadata",
+      "created_at",
+      "updated_at",
+      "countries.*",
+      "payment_providers.*",
+    ],
     filters: { id: regionId },
   })
 

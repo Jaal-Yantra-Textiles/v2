@@ -11,6 +11,8 @@ import {
   Container,
   Copy,
   Heading,
+  Input,
+  Label,
   StatusBadge,
   Text,
   Tooltip,
@@ -18,6 +20,7 @@ import {
   usePrompt,
 } from "@medusajs/ui"
 import { format } from "date-fns"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 import { ActionMenu } from "../../../../../components/common/action-menu"
@@ -25,12 +28,16 @@ import { Skeleton } from "../../../../../components/common/skeleton"
 import { Thumbnail } from "../../../../../components/common/thumbnail"
 import {
   useCancelOrderFulfillment,
+  useFulfillmentLabel,
+  useFulfillmentTracking,
   useMarkOrderFulfillmentAsDelivered,
+  useSchedulePickup,
 } from "../../../../../hooks/api/orders"
 import { useStockLocation } from "../../../../../hooks/api/stock-locations"
 import { formatProvider } from "../../../../../lib/format-provider"
 import { getLocaleAmount } from "../../../../../lib/money-amount-helpers"
 import { FulfillmentSetType } from "../../../../locations/common/constants"
+import { FulfillmentTrackingTimeline } from "./fulfillment-tracking-timeline"
 
 type OrderFulfillmentSectionProps = {
   order: AdminOrder
@@ -212,6 +219,11 @@ const Fulfillment = ({
   const prompt = usePrompt()
   const navigate = useNavigate()
 
+  const [showTracking, setShowTracking] = useState(false)
+  const [showPickupForm, setShowPickupForm] = useState(false)
+  const [pickupDate, setPickupDate] = useState("")
+  const [pickupTime, setPickupTime] = useState("")
+
   const showLocation = !!fulfillment.location_id
 
   const isPickUpFulfillment =
@@ -254,6 +266,25 @@ const Fulfillment = ({
     fulfillment.id
   )
 
+  // Label fetch (on demand)
+  const { refetch: fetchLabel, isFetching: isLabelFetching } =
+    useFulfillmentLabel(order.id, fulfillment.id)
+
+  // Tracking (only when expanded)
+  const {
+    tracking,
+    isLoading: isTrackingLoading,
+  } = useFulfillmentTracking(order.id, fulfillment.id, {
+    enabled: showTracking,
+  }) as any
+
+  // Pickup scheduling
+  const { mutateAsync: schedulePickup, isPending: isPickupPending } =
+    useSchedulePickup(order.id, fulfillment.id)
+
+  const isDelhivery = (fulfillment as any).data?.carrier === "delhivery"
+  const hasWaybill = !!(fulfillment as any).data?.waybill
+
   const showShippingButton =
     !fulfillment.canceled_at &&
     !fulfillment.shipped_at &&
@@ -263,6 +294,57 @@ const Fulfillment = ({
 
   const showDeliveryButton =
     !fulfillment.canceled_at && !fulfillment.delivered_at
+
+  const showPickupButton =
+    isDelhivery &&
+    hasWaybill &&
+    !fulfillment.canceled_at &&
+    !fulfillment.delivered_at &&
+    !(fulfillment as any).metadata?.pickup_id
+
+  const handleFetchLabel = async () => {
+    try {
+      const result = await fetchLabel()
+      const labelData = result.data as any
+      if (labelData?.packing_slip) {
+        // Open packing slip data in a new tab as printable HTML
+        const html = `<html><head><title>Packing Slip - ${labelData.tracking_number}</title></head><body><pre>${JSON.stringify(labelData.packing_slip, null, 2)}</pre><script>window.print()</script></body></html>`
+        const blob = new Blob([html], { type: "text/html" })
+        const url = URL.createObjectURL(blob)
+        window.open(url, "_blank")
+      } else if (labelData?.label_url) {
+        window.open(labelData.label_url, "_blank")
+      } else {
+        toast.info("Label not yet available. Please try again later.")
+      }
+    } catch {
+      toast.error("Failed to fetch label")
+    }
+  }
+
+  const handleSchedulePickup = async () => {
+    if (!pickupDate || !pickupTime) {
+      toast.error("Please select a date and time")
+      return
+    }
+
+    try {
+      await schedulePickup(
+        { pickup_date: pickupDate, pickup_time: pickupTime },
+        {
+          onSuccess: () => {
+            toast.success("Pickup scheduled successfully")
+            setShowPickupForm(false)
+          },
+          onError: (e) => {
+            toast.error(e.message)
+          },
+        }
+      )
+    } catch {
+      // handled by onError
+    }
+  }
 
   const handleMarkAsDelivered = async () => {
     const res = await prompt({
@@ -331,6 +413,16 @@ const Fulfillment = ({
           })}
         </Heading>
         <div className="flex items-center gap-x-4">
+          {(fulfillment as any).metadata?.pickup_id && (
+            <StatusBadge color="blue" className="text-nowrap">
+              Pickup Scheduled
+              {(fulfillment as any).metadata?.pickup_date &&
+                ` — ${format(
+                  new Date((fulfillment as any).metadata.pickup_date),
+                  "dd MMM, HH:mm"
+                )}`}
+            </StatusBadge>
+          )}
           <Tooltip
             content={format(
               new Date(statusTimestamp),
@@ -462,8 +554,88 @@ const Fulfillment = ({
         </div>
       </div>
 
-      {(showShippingButton || showDeliveryButton) && (
+      {/* Tracking timeline (collapsible) */}
+      {hasWaybill && !fulfillment.canceled_at && (
+        <div>
+          <button
+            onClick={() => setShowTracking(!showTracking)}
+            className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover w-full px-6 py-3 text-left text-sm transition-colors"
+          >
+            {showTracking ? "Hide Tracking" : "View Tracking"}
+          </button>
+          {showTracking && (
+            <FulfillmentTrackingTimeline
+              tracking={tracking}
+              isLoading={isTrackingLoading}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Pickup scheduling form */}
+      {showPickupForm && (
+        <div className="px-6 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-x-4">
+            <div>
+              <Label size="xsmall">Pickup Date</Label>
+              <Input
+                type="date"
+                value={pickupDate}
+                onChange={(e) => setPickupDate(e.target.value)}
+                size="small"
+              />
+            </div>
+            <div>
+              <Label size="xsmall">Pickup Time</Label>
+              <Input
+                type="time"
+                value={pickupTime}
+                onChange={(e) => setPickupTime(e.target.value)}
+                size="small"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-x-2">
+            <Button
+              onClick={handleSchedulePickup}
+              variant="primary"
+              size="small"
+              isLoading={isPickupPending}
+            >
+              Confirm Pickup
+            </Button>
+            <Button
+              onClick={() => setShowPickupForm(false)}
+              variant="secondary"
+              size="small"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {(showShippingButton || showDeliveryButton || hasWaybill || showPickupButton) && (
         <div className="bg-ui-bg-subtle flex items-center justify-end gap-x-2 rounded-b-xl px-4 py-4">
+          {hasWaybill && !fulfillment.canceled_at && (
+            <Button
+              onClick={handleFetchLabel}
+              variant="secondary"
+              isLoading={isLabelFetching}
+            >
+              Download Label
+            </Button>
+          )}
+
+          {showPickupButton && (
+            <Button
+              onClick={() => setShowPickupForm(!showPickupForm)}
+              variant="secondary"
+            >
+              Schedule Pickup
+            </Button>
+          )}
+
           {showDeliveryButton && (
             <Button onClick={handleMarkAsDelivered} variant="secondary">
               {t(
