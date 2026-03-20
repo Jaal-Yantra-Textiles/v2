@@ -207,18 +207,24 @@ const ThemeEditorInner = () => {
 
   const [form, setForm] = useState<WebsiteTheme>({})
   const formRef = useRef<WebsiteTheme>({})
+  const initializedRef = useRef(false)
   const [activeSection, setActiveSection] = useState<ThemeSection>("hero")
   const [iframeReady, setIframeReady] = useState(false)
+  const iframeReadyRef = useRef(false)
   const [iframePath, setIframePath] = useState("/")
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const updateThemeRef = useRef(updateTheme)
+  updateThemeRef.current = updateTheme
 
   const domain = storefrontStatus?.domain
 
+  // Only sync server theme → form on initial load (not on every refetch after save)
   useEffect(() => {
-    if (theme) {
+    if (theme && !initializedRef.current) {
       setForm(theme)
       formRef.current = theme
+      initializedRef.current = true
     }
   }, [theme])
 
@@ -258,7 +264,10 @@ const ThemeEditorInner = () => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data
       if (!data || typeof data !== "object" || !("type" in data)) return
-      if (data.type === "THEME_EDITOR_READY") setIframeReady(true)
+      if (data.type === "THEME_EDITOR_READY") {
+        setIframeReady(true)
+        iframeReadyRef.current = true
+      }
       if (data.type === "THEME_SECTION_CLICKED") {
         const sectionMap: Record<string, ThemeSection> = {
           hero: "hero",
@@ -277,32 +286,34 @@ const ThemeEditorInner = () => {
     return () => window.removeEventListener("message", handleMessage)
   }, [])
 
+  // Stable sendPreview — uses ref for iframeReady so it never recreates
   const sendPreview = useCallback(
     (section: string, data: Record<string, unknown>) => {
-      if (!iframeReady || !iframeRef.current?.contentWindow) return
+      if (!iframeReadyRef.current || !iframeRef.current?.contentWindow) return
       iframeRef.current.contentWindow.postMessage(
         { type: "UPDATE_THEME_PREVIEW", section, data },
         "*"
       )
     },
-    [iframeReady]
+    []
   )
 
-  // Debounced auto-save
+  // Stable debouncedSave — uses ref for updateTheme so it never recreates
   const debouncedSave = useCallback(
     (newForm: WebsiteTheme) => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(async () => {
         try {
-          await updateTheme(newForm)
+          await updateThemeRef.current(newForm)
         } catch {
           // silent - user can manually save
         }
       }, 1500)
     },
-    [updateTheme]
+    []
   )
 
+  // Fully stable updateForm — zero deps that change, never recreates
   const updateForm = useCallback(
     (section: keyof WebsiteTheme, data: Record<string, unknown>) => {
       const current = formRef.current
@@ -319,7 +330,7 @@ const ThemeEditorInner = () => {
   const handleSave = async () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     try {
-      await updateTheme(formRef.current)
+      await updateThemeRef.current(formRef.current)
       toast.success("Theme saved")
     } catch (e: any) {
       toast.error("Could not save theme", {
@@ -330,6 +341,7 @@ const ThemeEditorInner = () => {
 
   const handleRefresh = () => {
     setIframeReady(false)
+    iframeReadyRef.current = false
     if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
   }
 
@@ -353,7 +365,8 @@ const ThemeEditorInner = () => {
         if (iframePath !== "/") {
           setIframePath("/")
           setIframeReady(false)
-        } else if (iframeReady) {
+          iframeReadyRef.current = false
+        } else if (iframeReadyRef.current) {
           const scrollTarget =
             section === "branding" || section === "colors"
               ? "nav"
