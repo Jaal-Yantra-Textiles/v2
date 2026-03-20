@@ -474,8 +474,8 @@ const DiscoverSection = () => {
           onClick={() => setModalOpen(true)}
           className="flex w-full items-center gap-x-4 px-6 py-4 text-left transition-colors hover:bg-ui-bg-base-hover"
         >
-          {/* Stacked thumbnails */}
-          <div className="relative h-16 w-24 shrink-0">
+          {/* Stacked thumbnails — z-index is scoped to this container via isolation */}
+          <div className="relative h-16 w-24 shrink-0" style={{ isolation: "isolate" }}>
             {isPending ? (
               <div className="h-16 w-16 rounded-lg bg-ui-bg-subtle animate-pulse" />
             ) : previewProducts.length > 0 ? (
