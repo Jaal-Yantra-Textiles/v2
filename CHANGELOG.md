@@ -1,3 +1,10 @@
+## [10.14.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.14.1...v10.14.2) (2026-03-20)
+
+
+### Bug Fixes
+
+* **api:** Fixed a lot of bugs, including the Shipping Creation using delhivery ([8036f8e](https://github.com/Jaal-Yantra-Textiles/v2/commit/8036f8e1f3e586e2baba335d13886ce650179f44))
+
 ## [10.14.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.14.0...v10.14.1) (2026-03-20)
 
 
