@@ -1,3 +1,10 @@
+# [10.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.13.0...v10.14.0) (2026-03-20)
+
+
+### Features
+
+* **Partner:** Now you can edit the entire website ([dde594a](https://github.com/Jaal-Yantra-Textiles/v2/commit/dde594a00e314cb9ca639e74154426b1da522924))
+
 # [10.13.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.12.3...v10.13.0) (2026-03-20)
 
 
