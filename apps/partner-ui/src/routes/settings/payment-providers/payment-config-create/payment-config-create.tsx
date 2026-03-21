@@ -54,6 +54,14 @@ const CreatePaymentConfigSchema = z
 type FormValues = z.infer<typeof CreatePaymentConfigSchema>
 
 export const PaymentConfigCreate = () => {
+  return (
+    <RouteFocusModal>
+      <PaymentConfigCreateForm />
+    </RouteFocusModal>
+  )
+}
+
+const PaymentConfigCreateForm = () => {
   const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
   const { mutateAsync: createConfig, isPending } = useCreatePaymentConfig()
@@ -106,19 +114,22 @@ export const PaymentConfigCreate = () => {
   })
 
   return (
-    <RouteFocusModal>
-      <RouteFocusModal.Header />
-      <RouteFocusModal.Body className="flex h-full w-full flex-col items-center overflow-y-auto py-16">
-        <div className="flex w-full max-w-[720px] flex-col gap-y-8">
-          <div>
-            <Heading>Add Payment Credentials</Heading>
-            <Text size="small" className="text-ui-fg-subtle mt-1">
-              Configure your own payment provider credentials. This overrides
-              the platform defaults for your store.
-            </Text>
-          </div>
+    <RouteFocusModal.Form form={form}>
+      <KeyboundForm
+        onSubmit={handleSubmit}
+        className="flex h-full flex-col overflow-hidden"
+      >
+        <RouteFocusModal.Header />
+        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto">
+          <div className="flex w-full max-w-[720px] flex-col gap-y-8 px-2 py-16">
+            <div>
+              <Heading>Add Payment Credentials</Heading>
+              <Text size="small" className="text-ui-fg-subtle mt-1">
+                Configure your own payment provider credentials. This overrides
+                the platform defaults for your store.
+              </Text>
+            </div>
 
-          <KeyboundForm onSubmit={handleSubmit} className="flex flex-col gap-y-8">
             <Form.Field
               control={form.control}
               name="provider_id"
@@ -224,20 +235,21 @@ export const PaymentConfigCreate = () => {
                 )}
               />
             )}
-
-            <div className="flex items-center justify-end gap-x-2">
-              <RouteFocusModal.Close asChild>
-                <Button size="small" variant="secondary">
-                  {t("actions.cancel")}
-                </Button>
-              </RouteFocusModal.Close>
-              <Button size="small" type="submit" isLoading={isPending}>
-                {t("actions.save")}
+          </div>
+        </RouteFocusModal.Body>
+        <RouteFocusModal.Footer>
+          <div className="flex items-center justify-end gap-x-2">
+            <RouteFocusModal.Close asChild>
+              <Button size="small" variant="secondary">
+                {t("actions.cancel")}
               </Button>
-            </div>
-          </KeyboundForm>
-        </div>
-      </RouteFocusModal.Body>
-    </RouteFocusModal>
+            </RouteFocusModal.Close>
+            <Button size="small" type="submit" isLoading={isPending}>
+              {t("actions.save")}
+            </Button>
+          </div>
+        </RouteFocusModal.Footer>
+      </KeyboundForm>
+    </RouteFocusModal.Form>
   )
 }
