@@ -7,6 +7,7 @@ import {
 } from "@medusajs/ui"
 import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
+import { Outlet } from "react-router-dom"
 
 import { DataTable } from "../../../components/data-table"
 import {
@@ -29,35 +30,38 @@ export const PaymentProvidersPage = () => {
   const columns = useColumns()
 
   return (
-    <Container className="divide-y px-0 py-0">
-      <DataTable
-        data={payment_configs}
-        columns={columns}
-        rowCount={payment_configs.length}
-        pageSize={PAGE_SIZE}
-        getRowId={(row) => row.id}
-        heading="Payment Credentials"
-        subHeading="Your payment provider credentials. These override platform defaults for your store."
-        emptyState={{
-          empty: {
-            heading: "No payment credentials configured",
-            description:
-              "You are using the platform's shared credentials. Add your own to use your own merchant accounts.",
-          },
-          filtered: {
-            heading: t("general.noRecordsMessage"),
-            description: t("general.noRecordsMessageFiltered"),
-          },
-        }}
-        actions={[
-          {
-            label: t("actions.create"),
-            to: "create",
-          },
-        ]}
-        isLoading={isPending}
-      />
-    </Container>
+    <>
+      <Container className="divide-y px-0 py-0">
+        <DataTable
+          data={payment_configs}
+          columns={columns}
+          rowCount={payment_configs.length}
+          pageSize={PAGE_SIZE}
+          getRowId={(row) => row.id}
+          heading="Payment Credentials"
+          subHeading="Your payment provider credentials. These override platform defaults for your store."
+          emptyState={{
+            empty: {
+              heading: "No payment credentials configured",
+              description:
+                "You are using the platform's shared credentials. Add your own to use your own merchant accounts.",
+            },
+            filtered: {
+              heading: t("general.noRecordsMessage"),
+              description: t("general.noRecordsMessageFiltered"),
+            },
+          }}
+          actions={[
+            {
+              label: t("actions.create"),
+              to: "create",
+            },
+          ]}
+          isLoading={isPending}
+        />
+      </Container>
+      <Outlet />
+    </>
   )
 }
 

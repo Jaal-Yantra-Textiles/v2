@@ -1109,14 +1109,23 @@ export function getPartnerRouteMap(): RouteObject[] {
                 {
                   path: "payment-providers",
                   errorElement: <ErrorBoundary />,
-                  lazy: () => import("../../routes/settings/payment-providers"),
+                  element: <Outlet />,
+                  handle: {
+                    breadcrumb: () => "Payment Config",
+                  },
                   children: [
                     {
-                      path: "create",
-                      lazy: () =>
-                        import(
-                          "../../routes/settings/payment-providers/payment-config-create"
-                        ),
+                      path: "",
+                      lazy: () => import("../../routes/settings/payment-providers"),
+                      children: [
+                        {
+                          path: "create",
+                          lazy: () =>
+                            import(
+                              "../../routes/settings/payment-providers/payment-config-create"
+                            ),
+                        },
+                      ],
                     },
                   ],
                 },
