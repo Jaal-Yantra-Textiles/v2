@@ -31,14 +31,41 @@ export const GET = async (
       "created_at",
       "updated_at",
       "countries.*",
-      "payment_providers.*",
     ],
     filters: { id: store.default_region_id },
   })
 
+  // Fetch payment providers linked to these regions
+  const regionIds = (regions || []).map((r: any) => r.id)
+  let providersByRegion: Record<string, any[]> = {}
+  if (regionIds.length > 0) {
+    try {
+      const { data: providerLinks } = await query.graph({
+        entity: "region_payment_provider",
+        filters: { region_id: regionIds },
+        fields: ["region_id", "payment_provider.*"],
+      })
+      for (const link of providerLinks || []) {
+        if (!providersByRegion[link.region_id]) {
+          providersByRegion[link.region_id] = []
+        }
+        if (link.payment_provider) {
+          providersByRegion[link.region_id].push(link.payment_provider)
+        }
+      }
+    } catch {
+      // Link may not exist
+    }
+  }
+
+  const enrichedRegions = (regions || []).map((r: any) => ({
+    ...r,
+    payment_providers: providersByRegion[r.id] || [],
+  }))
+
   res.json({
-    regions: regions || [],
-    count: regions?.length || 0,
+    regions: enrichedRegions,
+    count: enrichedRegions.length,
     offset: 0,
     limit: 20,
   })

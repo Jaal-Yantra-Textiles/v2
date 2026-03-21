@@ -46,6 +46,7 @@ type ThemeSection =
   | "cart"
   | "typography"
   | "buttons"
+  | "animations"
   | null
 
 export const SettingsTheme = () => {
@@ -197,6 +198,7 @@ const PANEL_ONLY_SECTIONS = new Set<ThemeSection>([
   "cart",
   "typography",
   "buttons",
+  "animations",
 ])
 
 const ThemeEditorInner = () => {
@@ -455,6 +457,7 @@ const ThemeEditorInner = () => {
                 ["colors", "Colors"],
                 ["typography", "Typography"],
                 ["buttons", "Buttons"],
+                ["animations", "Animations"],
               ] as const,
             },
             {
@@ -550,6 +553,9 @@ const ThemeEditorInner = () => {
             )}
             {activeSection === "cart" && (
               <CartPanel form={form} updateForm={updateForm} />
+            )}
+            {activeSection === "animations" && (
+              <AnimationsPanel form={form} updateForm={updateForm} />
             )}
             {!activeSection && (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
@@ -2102,6 +2108,119 @@ function CartPanel({ form, updateForm }: PanelProps) {
   )
 }
 
+function AnimationsPanel({ form, updateForm }: PanelProps) {
+  const anim = (form.animations || {}) as Record<string, any>
+
+  const entranceOptions = [
+    { value: "none", label: "None" },
+    { value: "fade-up", label: "Fade Up" },
+    { value: "fade-in", label: "Fade In" },
+    { value: "fade-down", label: "Fade Down" },
+    { value: "slide-left", label: "Slide Left" },
+    { value: "slide-right", label: "Slide Right" },
+    { value: "zoom-in", label: "Zoom In" },
+    { value: "zoom-out", label: "Zoom Out" },
+  ]
+
+  return (
+    <>
+      <SectionHeading title="Animations" desc="Control motion and entrance effects" />
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label size="xsmall">Enable Animations</Label>
+          <Switch
+            checked={anim.enabled !== false}
+            onCheckedChange={(v) =>
+              updateForm("animations", { ...anim, enabled: v })
+            }
+          />
+        </div>
+
+        {anim.enabled !== false && (
+          <>
+            <div className="space-y-1">
+              <Label size="xsmall">Global Duration</Label>
+              <div className="grid grid-cols-3 gap-1">
+                {(["fast", "normal", "slow"] as const).map((v) => (
+                  <button
+                    key={v}
+                    className={`px-2 py-1 text-xs rounded border ${
+                      (anim.global_duration || "normal") === v
+                        ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                        : "border-ui-border-base text-ui-fg-subtle"
+                    }`}
+                    onClick={() => updateForm("animations", { ...anim, global_duration: v })}
+                  >
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <Text size="xsmall" className="text-ui-fg-muted">
+                {anim.global_duration === "fast" ? "0.3s" : anim.global_duration === "slow" ? "0.9s" : "0.6s"}
+              </Text>
+            </div>
+
+            <div className="space-y-1">
+              <Label size="xsmall">Hero Entrance</Label>
+              <div className="grid grid-cols-2 gap-1">
+                {entranceOptions.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    className={`px-2 py-1 text-xs rounded border ${
+                      (anim.hero_entrance || "fade-up") === value
+                        ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                        : "border-ui-border-base text-ui-fg-subtle"
+                    }`}
+                    onClick={() => updateForm("animations", { ...anim, hero_entrance: value })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label size="xsmall">Section Entrance</Label>
+              <div className="grid grid-cols-3 gap-1">
+                {(["none", "fade-up", "stagger"] as const).map((v) => (
+                  <button
+                    key={v}
+                    className={`px-2 py-1 text-xs rounded border ${
+                      (anim.section_entrance || "fade-up") === v
+                        ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                        : "border-ui-border-base text-ui-fg-subtle"
+                    }`}
+                    onClick={() => updateForm("animations", { ...anim, section_entrance: v })}
+                  >
+                    {v === "none" ? "None" : v === "fade-up" ? "Fade Up" : "Stagger"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {anim.section_entrance === "stagger" && (
+              <div className="space-y-1">
+                <Label size="xsmall">Stagger Delay (ms)</Label>
+                <Input
+                  size="small"
+                  type="number"
+                  min={50}
+                  max={500}
+                  step={50}
+                  value={anim.stagger_delay || 100}
+                  onChange={(e) =>
+                    updateForm("animations", { ...anim, stagger_delay: Number(e.target.value) })
+                  }
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
 // --- Inline Preview ---
 
 function InlinePreview({
@@ -2217,68 +2336,189 @@ function InlinePreview({
 
   if (section === "product_page") {
     const sampleName = pp.sample_product_name || SAMPLE_PRODUCT.title
-    const samplePrice = pp.sample_product_price || formatSamplePrice(SAMPLE_PRODUCT.variants[0].calculated_price.calculated_amount, "INR")
+    const samplePrice = formatSamplePrice(SAMPLE_PRODUCT.variants[0].calculated_price.calculated_amount, "INR")
+    const originalPrice = formatSamplePrice(SAMPLE_PRODUCT.variants[0].calculated_price.original_amount, "INR")
+    const hasDiscount = SAMPLE_PRODUCT.variants[0].calculated_price.calculated_amount !== SAMPLE_PRODUCT.variants[0].calculated_price.original_amount
+    const galleryLeft = pp.gallery_position !== "right"
 
     return (
       <div style={{ backgroundColor: bg, fontFamily: bodyFont, fontSize, color: textColor, minHeight: "100%" }}>
-        {/* Breadcrumbs */}
+        {/* Breadcrumbs — matches storefront nav breadcrumb bar */}
         {pp.show_breadcrumbs !== false && (
-          <div className="px-8 py-3" style={{ borderBottom: `1px solid ${borderColor}` }}>
-            <span className="text-xs" style={{ color: muted }}>
-              Home / Products / <span style={{ color: textColor }}>{sampleName}</span>
-            </span>
+          <div className="py-4" style={{ borderBottom: `1px solid ${borderColor}` }}>
+            <div className="max-w-[1440px] mx-auto px-6">
+              <div className="flex items-center gap-x-1.5 text-xs" style={{ color: muted }}>
+                <span className="hover:underline cursor-pointer">Home</span>
+                <span>/</span>
+                <span className="hover:underline cursor-pointer">{SAMPLE_PRODUCT.categories[0].name}</span>
+                <span>/</span>
+                <span style={{ color: textColor }}>{sampleName}</span>
+              </div>
+            </div>
           </div>
         )}
-        <div className="p-8">
-          <div className="max-w-4xl mx-auto grid grid-cols-2 gap-8">
-            {/* Image */}
-            <div className="space-y-2">
-              <div className="aspect-square rounded-lg" style={{ backgroundColor: `${primary}10`, border: `1px solid ${borderColor}` }}>
-                <div className="w-full h-full flex items-center justify-center" style={{ color: muted }}>
-                  <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+
+        {/* Main product layout — 3 columns matching storefront: thumbnails | main image | info */}
+        <div className="max-w-[1440px] mx-auto px-6 py-8">
+          <div className={`flex gap-8 ${galleryLeft ? "" : "flex-row-reverse"}`}>
+            {/* Image column */}
+            <div className="flex-1 flex gap-3">
+              {/* Thumbnail strip */}
+              <div className="flex flex-col gap-2 w-[72px] shrink-0">
+                {SAMPLE_PRODUCT.images.map((img, i) => (
+                  <div
+                    key={img.id}
+                    className="aspect-square rounded-md flex items-center justify-center cursor-pointer"
+                    style={{
+                      border: i === 0 ? `2px solid ${primary}` : `1px solid ${borderColor}`,
+                      backgroundColor: `${muted}08`,
+                    }}
+                  >
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke={muted} strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  </div>
+                ))}
+              </div>
+              {/* Main image */}
+              <div className="flex-1">
+                <div
+                  className="aspect-[4/5] rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${muted}08`, border: `1px solid ${borderColor}` }}
+                >
+                  <svg width="64" height="64" fill="none" viewBox="0 0 24 24" stroke={muted} strokeWidth={0.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {[1,2,3].map((n) => (
-                  <div key={n} className="aspect-square rounded" style={{ backgroundColor: `${primary}08`, border: `1px solid ${borderColor}` }} />
+            </div>
+
+            {/* Product info column — sticky like storefront */}
+            <div className="w-[360px] shrink-0">
+              <div className="flex flex-col gap-y-4">
+                {/* Collection */}
+                <span className="text-xs uppercase tracking-wider" style={{ color: muted }}>
+                  {SAMPLE_PRODUCT.collection?.title}
+                </span>
+                {/* Title */}
+                <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.75rem", lineHeight: 1.2 }}>
+                  {sampleName}
+                </div>
+                {/* Description */}
+                <p className="text-sm leading-relaxed" style={{ color: muted }}>
+                  {SAMPLE_PRODUCT.description}
+                </p>
+
+                {pp.show_sku && (
+                  <div className="text-xs" style={{ color: muted }}>SKU: {SAMPLE_PRODUCT.variants[0].sku}</div>
+                )}
+                {pp.show_stock_status && (
+                  <div className="text-xs font-medium" style={{ color: "#16a34a" }}>In stock</div>
+                )}
+
+                {/* Divider */}
+                <hr style={{ borderColor }} />
+
+                {/* Options — pill buttons matching storefront OptionSelect */}
+                {SAMPLE_PRODUCT.options.map((opt) => (
+                  <div key={opt.id} className="flex flex-col gap-y-2">
+                    <span className="text-sm">Select {opt.title}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {opt.values.map((val, vi) => (
+                        <button
+                          key={val.id}
+                          className="text-sm px-4 py-2 transition-all"
+                          style={{
+                            borderRadius: btnRadius,
+                            border: vi === 0 ? `1.5px solid ${primary}` : `1px solid ${borderColor}`,
+                            backgroundColor: vi === 0 ? "transparent" : "transparent",
+                            color: textColor,
+                          }}
+                        >
+                          {val.value}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Price */}
+                <div className="flex items-center gap-x-2">
+                  <span className="text-xl font-semibold">{samplePrice}</span>
+                  {hasDiscount && (
+                    <span className="text-sm line-through" style={{ color: muted }}>{originalPrice}</span>
+                  )}
+                </div>
+
+                {/* Add to cart */}
+                <button className="w-full py-3 text-sm font-medium transition-colors" style={buttonStyle}>
+                  {pp.cta_text || "Add to cart"}
+                </button>
+              </div>
+
+              {/* Tabs / Accordion below */}
+              {pp.show_tabs !== false && (
+                <div className="mt-8">
+                  {(pp.description_layout === "accordion" ? (
+                    <div className="divide-y" style={{ borderColor }}>
+                      {["Product Information", "Shipping & Returns", "Care Instructions"].map((tab, i) => (
+                        <div key={tab} className="py-3">
+                          <div className="flex justify-between items-center cursor-pointer">
+                            <span className="text-sm font-medium">{tab}</span>
+                            <span className="text-xs" style={{ color: muted }}>{i === 0 ? "−" : "+"}</span>
+                          </div>
+                          {i === 0 && (
+                            <div className="mt-2 text-sm leading-relaxed" style={{ color: muted }}>
+                              Material: {SAMPLE_PRODUCT.material} · Origin: India
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex gap-x-6" style={{ borderBottom: `1px solid ${borderColor}` }}>
+                        {["Product", "Shipping", "Care"].map((tab, i) => (
+                          <button
+                            key={tab}
+                            className="pb-2 text-sm font-medium"
+                            style={{
+                              borderBottom: i === 0 ? `2px solid ${primary}` : "2px solid transparent",
+                              color: i === 0 ? textColor : muted,
+                            }}
+                          >
+                            {tab}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="py-4 text-sm leading-relaxed" style={{ color: muted }}>
+                        Material: {SAMPLE_PRODUCT.material} · Origin: India · HS Code: {SAMPLE_PRODUCT.hs_code}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Related Products */}
+          {pp.show_related_products !== false && (
+            <div className="mt-16">
+              <div className="mb-6" style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.25rem" }}>
+                {pp.related_heading || "You may also like"}
+              </div>
+              <div className="grid grid-cols-4 gap-4">
+                {[1,2,3,4].map((n) => (
+                  <div key={n}>
+                    <div
+                      className="aspect-[3/4] rounded-lg mb-3 flex items-center justify-center"
+                      style={{ backgroundColor: `${muted}06`, border: `1px solid ${borderColor}` }}
+                    >
+                      <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke={muted} strokeWidth={0.7}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    </div>
+                    <div className="text-sm font-medium">Product {n}</div>
+                    <div className="text-sm" style={{ color: muted }}>{formatSamplePrice(1499 + n * 200, "INR")}</div>
+                  </div>
                 ))}
               </div>
             </div>
-            {/* Details */}
-            <div className="space-y-4">
-              <div>
-                <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.5rem" }}>{sampleName}</div>
-                <div className="mt-1 text-lg font-medium" style={{ color: primary }}>{samplePrice}</div>
-                {pp.show_sku && <p className="text-xs mt-1" style={{ color: muted }}>SKU: HCS-IND-001</p>}
-                {pp.show_stock_status && <p className="text-xs mt-1" style={{ color: "#16a34a" }}>In stock</p>}
-              </div>
-              <p style={{ color: muted, lineHeight: 1.6, fontSize: "0.875rem" }}>
-                {SAMPLE_PRODUCT.description.slice(0, 120)}...
-              </p>
-              {/* Options */}
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Color</p>
-                <div className="flex gap-2">
-                  {["Indigo", "Ivory", "Terracotta"].map((c, i) => (
-                    <button
-                      key={c}
-                      className="px-3 py-1.5 text-xs font-medium"
-                      style={i === 0
-                        ? { ...buttonStyle, fontSize: "0.75rem", padding: "6px 12px" }
-                        : { ...secondaryBtnStyle, fontSize: "0.75rem", padding: "6px 12px" }
-                      }
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {/* CTA */}
-              <button className="w-full py-3 text-sm font-medium" style={buttonStyle}>
-                {pp.cta_text || "Add to cart"}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     )
@@ -2287,37 +2527,226 @@ function InlinePreview({
   if (section === "cart") {
     return (
       <div style={{ backgroundColor: bg, fontFamily: bodyFont, fontSize, color: textColor, minHeight: "100%" }}>
-        <div className="p-8">
-          <div className="max-w-3xl mx-auto">
-            <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.5rem" }} className="mb-6">
+        <div className="max-w-[1440px] mx-auto px-6 py-8">
+          {/* Page heading */}
+          <div className="mb-8">
+            <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "2rem" }}>
               {c.heading || "Shopping Cart"}
             </div>
-            {/* Cart items */}
-            <div style={{ borderTop: `1px solid ${borderColor}` }}>
-              {SAMPLE_CART.items.map((item) => (
-                <div key={item.id} className="flex items-center gap-4 py-4" style={{ borderBottom: `1px solid ${borderColor}` }}>
-                  <div className="w-16 h-16 rounded flex-shrink-0" style={{ backgroundColor: `${primary}08`, border: `1px solid ${borderColor}` }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{item.title}</div>
-                    <div className="text-xs" style={{ color: muted }}>{item.subtitle} &middot; Qty: {item.quantity}</div>
+          </div>
+
+          {/* Two-column layout matching storefront: items table | sticky summary */}
+          <div className="grid gap-x-8" style={{ gridTemplateColumns: "1fr 360px" }}>
+            {/* Left: Sign-in prompt + Items table */}
+            <div>
+              {/* Sign in prompt */}
+              {c.show_sign_in_prompt !== false && (
+                <div
+                  className="rounded-lg px-5 py-4 mb-6 flex items-center justify-between"
+                  style={{ backgroundColor: `${accent}10`, border: `1px solid ${borderColor}` }}
+                >
+                  <div>
+                    <div className="text-sm font-medium">Already have an account?</div>
+                    <div className="text-xs" style={{ color: muted }}>Sign in for a better experience.</div>
                   </div>
-                  <div className="text-sm font-medium">{formatSamplePrice(item.total, "INR")}</div>
+                  <button className="text-sm font-medium" style={{ color: primary }}>Sign in</button>
+                </div>
+              )}
+
+              {/* Free shipping bar */}
+              {c.show_free_shipping_bar && (
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span style={{ color: muted }}>
+                      {formatSamplePrice(SAMPLE_CART.item_subtotal, "INR")} of {c.free_shipping_threshold || formatSamplePrice(5000, "INR")}
+                    </span>
+                    <span style={{ color: primary }}>Free shipping</span>
+                  </div>
+                  <div className="rounded-full h-2 overflow-hidden" style={{ backgroundColor: `${muted}20` }}>
+                    <div className="h-full rounded-full" style={{ width: "66%", backgroundColor: primary }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Items table — matching storefront Table layout */}
+              <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${borderColor}` }}>
+                    <th className="text-left py-3 font-medium" style={{ color: muted }}>Item</th>
+                    <th />
+                    <th className="text-left py-3 font-medium" style={{ color: muted }}>Quantity</th>
+                    <th className="text-right py-3 font-medium" style={{ color: muted }}>Price</th>
+                    <th className="text-right py-3 font-medium" style={{ color: muted }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SAMPLE_CART.items.map((item) => (
+                    <tr key={item.id} style={{ borderBottom: `1px solid ${borderColor}` }}>
+                      <td className="py-4 pr-2" style={{ width: "80px" }}>
+                        <div
+                          className="w-16 h-16 rounded-md flex items-center justify-center shrink-0"
+                          style={{ backgroundColor: `${muted}08`, border: `1px solid ${borderColor}` }}
+                        >
+                          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke={muted} strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        </div>
+                      </td>
+                      <td className="py-4">
+                        <div className="font-medium">{item.title}</div>
+                        <div className="text-xs mt-0.5" style={{ color: muted }}>{item.subtitle}</div>
+                      </td>
+                      <td className="py-4">
+                        <div className="flex items-center gap-2">
+                          {/* Delete button */}
+                          <button className="text-xs" style={{ color: muted }}>✕</button>
+                          {/* Quantity select */}
+                          <select
+                            className="text-xs rounded px-2 py-1"
+                            defaultValue={item.quantity}
+                            style={{ border: `1px solid ${borderColor}`, backgroundColor: bg, color: textColor }}
+                          >
+                            {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </div>
+                      </td>
+                      <td className="py-4 text-right text-sm" style={{ color: muted }}>
+                        {formatSamplePrice(item.unit_price, "INR")}
+                      </td>
+                      <td className="py-4 text-right text-sm font-medium">
+                        {formatSamplePrice(item.total, "INR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Right: Sticky summary panel */}
+            <div>
+              <div className="sticky top-8 rounded-lg p-6" style={{ border: `1px solid ${borderColor}` }}>
+                <div className="text-base font-semibold mb-4" style={{ fontFamily: headingFont }}>Summary</div>
+
+                {c.show_order_summary !== false && (
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between">
+                      <span style={{ color: muted }}>Subtotal</span>
+                      <span>{formatSamplePrice(SAMPLE_CART.item_subtotal, "INR")}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: muted }}>Shipping</span>
+                      <span>{formatSamplePrice(SAMPLE_CART.shipping_total, "INR")}</span>
+                    </div>
+                    {SAMPLE_CART.discount_total > 0 && (
+                      <div className="flex justify-between">
+                        <span style={{ color: muted }}>Discount</span>
+                        <span style={{ color: "#16a34a" }}>-{formatSamplePrice(SAMPLE_CART.discount_total, "INR")}</span>
+                      </div>
+                    )}
+                    <hr style={{ borderColor }} />
+                    <div className="flex justify-between font-semibold text-base">
+                      <span>Total</span>
+                      <span>{formatSamplePrice(SAMPLE_CART.total, "INR")}</span>
+                    </div>
+                  </div>
+                )}
+
+                <button className="w-full mt-6 py-3 text-sm font-medium transition-colors" style={buttonStyle}>
+                  {c.checkout_button_text || "Go to checkout"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (section === "animations") {
+    const anim = (form as any).animations || {}
+    const enabled = anim.enabled !== false
+    const duration = anim.global_duration === "fast" ? "0.3s" : anim.global_duration === "slow" ? "0.9s" : "0.6s"
+    const heroEntrance = anim.hero_entrance || "fade-up"
+    const sectionEntrance = anim.section_entrance || "fade-up"
+
+    const animKeyframes: Record<string, string> = {
+      "fade-up": `@keyframes anim-preview { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }`,
+      "fade-in": `@keyframes anim-preview { from { opacity: 0; } to { opacity: 1; } }`,
+      "fade-down": `@keyframes anim-preview { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }`,
+      "slide-left": `@keyframes anim-preview { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }`,
+      "slide-right": `@keyframes anim-preview { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }`,
+      "zoom-in": `@keyframes anim-preview { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }`,
+      "zoom-out": `@keyframes anim-preview { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }`,
+      "none": `@keyframes anim-preview { from { opacity: 1; } to { opacity: 1; } }`,
+    }
+
+    const staggerDelay = anim.stagger_delay || 100
+
+    return (
+      <div style={{ backgroundColor: bg, fontFamily: bodyFont, fontSize, color: textColor, minHeight: "100%" }}>
+        <style>{animKeyframes[heroEntrance] || animKeyframes["fade-up"]}</style>
+        <style>{`
+          @keyframes section-preview {
+            ${sectionEntrance === "fade-up" ? "from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); }" : ""}
+            ${sectionEntrance === "stagger" ? "from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); }" : ""}
+            ${sectionEntrance === "none" ? "from { opacity: 1; } to { opacity: 1; }" : ""}
+          }
+        `}</style>
+        <div className="p-8 max-w-2xl mx-auto space-y-8">
+          <div className="text-center space-y-1">
+            <p className="text-xs uppercase tracking-wider" style={{ color: muted }}>
+              Animation Preview {!enabled && "(Disabled)"}
+            </p>
+          </div>
+
+          {/* Hero entrance demo */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: muted }}>Hero Entrance: {heroEntrance}</p>
+            <div
+              className="rounded-lg p-8 text-center"
+              style={{
+                backgroundColor: `${primary}10`,
+                border: `1px solid ${borderColor}`,
+                animation: enabled ? `anim-preview ${duration} ease-out both` : "none",
+              }}
+            >
+              <div style={{ fontFamily: headingFont, fontWeight: headingWeight, fontSize: "1.5rem" }}>
+                Hero Section
+              </div>
+              <p className="mt-2 text-sm" style={{ color: muted }}>This animates with "{heroEntrance}" at {duration}</p>
+              <button className="mt-4 px-6 py-2 text-sm font-medium" style={buttonStyle}>
+                Shop Now
+              </button>
+            </div>
+          </div>
+
+          {/* Section entrance demo */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: muted }}>
+              Section Entrance: {sectionEntrance}
+            </p>
+            <div className="space-y-3">
+              {["Featured Products", "New Arrivals", "Testimonials"].map((title, i) => (
+                <div
+                  key={title}
+                  className="rounded-lg p-4"
+                  style={{
+                    border: `1px solid ${borderColor}`,
+                    animation: enabled && sectionEntrance !== "none"
+                      ? `section-preview ${duration} ease-out both`
+                      : "none",
+                    animationDelay: enabled && sectionEntrance === "stagger"
+                      ? `${i * staggerDelay}ms`
+                      : "0ms",
+                  }}
+                >
+                  <div className="text-sm font-semibold">{title}</div>
+                  <div className="mt-1 text-xs" style={{ color: muted }}>Section content preview</div>
                 </div>
               ))}
             </div>
-            {/* Summary */}
-            {c.show_order_summary !== false && (
-              <div className="mt-6 space-y-2 text-sm">
-                <div className="flex justify-between"><span style={{ color: muted }}>Subtotal</span><span>{formatSamplePrice(SAMPLE_CART.item_subtotal, "INR")}</span></div>
-                <div className="flex justify-between"><span style={{ color: muted }}>Shipping</span><span>{formatSamplePrice(SAMPLE_CART.shipping_total, "INR")}</span></div>
-                <div className="flex justify-between"><span style={{ color: muted }}>Discount</span><span style={{ color: "#16a34a" }}>-{formatSamplePrice(SAMPLE_CART.discount_total, "INR")}</span></div>
-                <hr style={{ borderColor }} />
-                <div className="flex justify-between font-semibold text-base"><span>Total</span><span>{formatSamplePrice(SAMPLE_CART.total, "INR")}</span></div>
-              </div>
-            )}
-            <button className="w-full mt-6 py-3 text-sm font-medium" style={buttonStyle}>
-              {c.checkout_button_text || "Go to checkout"}
-            </button>
+          </div>
+
+          <div className="text-center text-xs" style={{ color: muted }}>
+            Duration: {duration} · Stagger: {sectionEntrance === "stagger" ? `${staggerDelay}ms` : "—"}
           </div>
         </div>
       </div>

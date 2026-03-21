@@ -34,7 +34,6 @@ export const GET = async (
       "created_at",
       "updated_at",
       "countries.*",
-      "payment_providers.*",
     ],
     filters: { id: regionId },
   })
@@ -43,7 +42,22 @@ export const GET = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Region not found")
   }
 
-  res.json({ region: regions[0] })
+  // Fetch payment providers linked to this region
+  let paymentProviders: any[] = []
+  try {
+    const { data: providerLinks } = await query.graph({
+      entity: "region_payment_provider",
+      filters: { region_id: regionId },
+      fields: ["payment_provider.*"],
+    })
+    paymentProviders = (providerLinks || [])
+      .map((l: any) => l.payment_provider)
+      .filter(Boolean)
+  } catch {
+    // Link may not exist
+  }
+
+  res.json({ region: { ...regions[0], payment_providers: paymentProviders } })
 }
 
 export const POST = async (
@@ -65,12 +79,46 @@ export const POST = async (
   }
 
   const body = PartnerUpdateRegionReq.parse(req.body)
+  const { payment_providers: paymentProviderIds, ...regionData } = body
 
   const regionService = req.scope.resolve(Modules.REGION) as any
   const updated = await regionService.updateRegions({
     id: regionId,
-    ...body,
+    ...regionData,
   })
+
+  // Handle payment provider linking separately if provided
+  if (paymentProviderIds) {
+    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+    // Remove existing payment provider links
+    try {
+      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: existingLinks } = await query.graph({
+        entity: "region_payment_provider",
+        filters: { region_id: regionId },
+        fields: ["payment_provider_id"],
+      })
+      if (existingLinks?.length) {
+        await remoteLink.dismiss(
+          existingLinks.map((l: any) => ({
+            [Modules.REGION]: { region_id: regionId },
+            [Modules.PAYMENT]: { payment_provider_id: l.payment_provider_id },
+          }))
+        )
+      }
+    } catch {
+      // No existing links
+    }
+    // Create new links
+    if (paymentProviderIds.length > 0) {
+      await remoteLink.create(
+        paymentProviderIds.map((providerId: string) => ({
+          [Modules.REGION]: { region_id: regionId },
+          [Modules.PAYMENT]: { payment_provider_id: providerId },
+        }))
+      )
+    }
+  }
 
   res.json({ region: updated })
 }

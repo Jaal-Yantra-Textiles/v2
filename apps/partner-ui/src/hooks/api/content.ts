@@ -356,6 +356,13 @@ export type WebsiteTheme = {
     show_free_shipping_bar?: boolean
     free_shipping_threshold?: string
   }
+  animations?: {
+    enabled?: boolean
+    global_duration?: "fast" | "normal" | "slow"
+    hero_entrance?: string
+    section_entrance?: "none" | "fade-up" | "stagger"
+    stagger_delay?: number
+  }
 }
 
 export const useWebsiteTheme = (
