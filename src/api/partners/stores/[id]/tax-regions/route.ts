@@ -1,7 +1,8 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createTaxRegionsWorkflow } from "@medusajs/medusa/core-flows"
-import { validatePartnerStoreAccess } from "../../../helpers"
+import { validatePartnerStoreAccess, getPartnerFromAuthContext } from "../../../helpers"
+import partnerRegionLink from "../../../../../links/partner-region"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -13,20 +14,45 @@ export const GET = async (
     req.scope
   )
 
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Tax regions are linked to the store's country codes via its default region
-  const filters: Record<string, any> = {}
-  if (store.default_region_id) {
-    const { data: regions } = await query.graph({
-      entity: "regions",
-      fields: ["countries.iso_2"],
-      filters: { id: store.default_region_id },
-    })
-    const countryCodes = regions?.[0]?.countries?.map((c: any) => c.iso_2) || []
-    if (countryCodes.length) {
-      filters.country_code = countryCodes
+  // Get all regions linked to this partner
+  const { data: links } = await query.graph({
+    entity: partnerRegionLink.entryPoint,
+    filters: { partner_id: partner!.id },
+    fields: ["region_id", "region.countries.iso_2"],
+  })
+
+  // Collect all country codes from partner's regions
+  const countryCodes: string[] = []
+  for (const link of links || []) {
+    const countries = link.region?.countries || []
+    for (const c of countries) {
+      if (c.iso_2) countryCodes.push(c.iso_2)
     }
+  }
+
+  // Also include countries from the store's default region (backwards compat)
+  if (store.default_region_id) {
+    const hasDefaultInLinks = (links || []).some(
+      (l: any) => l.region_id === store.default_region_id
+    )
+    if (!hasDefaultInLinks) {
+      const { data: defaultRegions } = await query.graph({
+        entity: "regions",
+        fields: ["countries.iso_2"],
+        filters: { id: store.default_region_id },
+      })
+      const defaultCountries = defaultRegions?.[0]?.countries?.map((c: any) => c.iso_2) || []
+      countryCodes.push(...defaultCountries)
+    }
+  }
+
+  // Filter tax regions by partner's country codes
+  const filters: Record<string, any> = {}
+  if (countryCodes.length) {
+    filters.country_code = [...new Set(countryCodes)]
   }
 
   const { data: taxRegions } = await query.graph({

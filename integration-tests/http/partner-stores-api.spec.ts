@@ -151,17 +151,21 @@ setupSharedTestSuite(() => {
       })
     })
 
-    describe("Store Regions", () => {
-      it("GET /partners/stores/:id/regions returns regions", async () => {
+    describe("Store Regions (partner-scoped via link)", () => {
+      it("GET /partners/stores/:id/regions returns partner's linked regions", async () => {
         const res = await api.get(`/partners/stores/${partner.storeId}/regions`, {
           headers: partner.headers,
         })
         expect(res.status).toBe(200)
         expect(Array.isArray(res.data.regions)).toBe(true)
+        // The default region created during store setup should be linked
         expect(res.data.regions.length).toBeGreaterThanOrEqual(1)
+
+        const defaultRegion = res.data.regions.find((r: any) => r.id === partner.regionId)
+        expect(defaultRegion).toBeDefined()
       })
 
-      it("POST /partners/stores/:id/regions creates a new region", async () => {
+      it("POST /partners/stores/:id/regions creates and links a new region", async () => {
         const res = await api.post(
           `/partners/stores/${partner.storeId}/regions`,
           {
@@ -174,6 +178,37 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(201)
         expect(res.data.region).toBeDefined()
         expect(res.data.region.name).toBe("EU Region")
+
+        // Verify the new region appears in the partner's region list
+        const listRes = await api.get(`/partners/stores/${partner.storeId}/regions`, {
+          headers: partner.headers,
+        })
+        expect(listRes.data.regions.length).toBeGreaterThanOrEqual(2)
+        const euRegion = listRes.data.regions.find((r: any) => r.name === "EU Region")
+        expect(euRegion).toBeDefined()
+      })
+
+      it("regions are scoped per partner - another partner cannot see them", async () => {
+        // Create a second region for partner 1
+        await api.post(
+          `/partners/stores/${partner.storeId}/regions`,
+          {
+            name: "Partner1 Region",
+            currency_code: partner.currencyCode,
+            countries: ["de"],
+          },
+          { headers: partner.headers }
+        )
+
+        // Create partner 2
+        const partner2 = await createPartnerWithStore(api, adminHeaders)
+
+        // Partner 2 should NOT see partner 1's regions
+        const res2 = await api.get(`/partners/stores/${partner2.storeId}/regions`, {
+          headers: partner2.headers,
+        })
+        const partner1Region = res2.data.regions.find((r: any) => r.name === "Partner1 Region")
+        expect(partner1Region).toBeUndefined()
       })
     })
 

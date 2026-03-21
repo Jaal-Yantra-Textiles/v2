@@ -624,6 +624,22 @@ const linkPartnerToStoreStep = createStep(
   }
 )
 
+// Step: link region to partner for partner-scoped region queries
+const linkPartnerToRegionStep = createStep(
+  "link-partner-to-region-step",
+  async (
+    input: { partner_id: string; region_id: string },
+    { container }
+  ) => {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    await remoteLink.create({
+      [PARTNER_MODULE]: { partner_id: input.partner_id },
+      [Modules.REGION]: { region_id: input.region_id },
+    })
+    return new StepResponse({ partner_id: input.partner_id, region_id: input.region_id })
+  }
+)
+
 export const createStoreWithDefaultsWorkflow = createWorkflow(
   "create-store-with-defaults",
   (input: CreateStoreWithDefaultsInput) => {
@@ -662,6 +678,9 @@ export const createStoreWithDefaultsWorkflow = createWorkflow(
 
     // Always link using explicit partner_id from workflow input
     linkPartnerToStoreStep({ partner_id: input.partner_id, store_id: store.id })
+
+    // Link region to partner for partner-scoped region queries
+    linkPartnerToRegionStep({ partner_id: input.partner_id, region_id: region.id })
 
     return new WorkflowResponse({
       store,

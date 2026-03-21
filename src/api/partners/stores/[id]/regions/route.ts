@@ -2,7 +2,9 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createRegionsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../helpers"
+import { getPartnerFromAuthContext } from "../../../helpers"
 import { PartnerCreateRegionReq } from "../validators"
+import partnerRegionLink from "../../../../../links/partner-region"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -14,34 +16,41 @@ export const GET = async (
     req.scope
   )
 
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { getPartnerFromAuthContext } = await import("../../../helpers")
   const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Return regions belonging to this partner (tagged via metadata.partner_id)
-  // plus the store's current default region if it exists
-  const { data: allRegions } = await query.graph({
-    entity: "region",
+  // Get regions linked to this partner via the partner-region link table
+  const { data: links } = await query.graph({
+    entity: partnerRegionLink.entryPoint,
+    filters: { partner_id: partner!.id },
     fields: [
-      "id",
-      "name",
-      "currency_code",
-      "automatic_taxes",
-      "metadata",
-      "created_at",
-      "updated_at",
-      "countries.*",
+      "region_id",
+      "region.*",
+      "region.countries.*",
     ],
   })
 
-  // Filter to partner's own regions + the store's default region
-  const regions = (allRegions || []).filter((r: any) => {
-    const ownerId = r.metadata?.partner_id
-    return ownerId === partner?.id || r.id === store.default_region_id
-  })
+  const regions = (links || [])
+    .map((l: any) => l.region)
+    .filter(Boolean)
 
-  // Fetch payment providers linked to these regions
-  const regionIds = (regions || []).map((r: any) => r.id)
+  // Also include the store's default region if it's not already in the list
+  if (store.default_region_id) {
+    const hasDefault = regions.some((r: any) => r.id === store.default_region_id)
+    if (!hasDefault) {
+      const { data: defaultRegions } = await query.graph({
+        entity: "region",
+        fields: ["id", "name", "currency_code", "automatic_taxes", "metadata", "created_at", "updated_at", "countries.*"],
+        filters: { id: store.default_region_id },
+      })
+      if (defaultRegions?.[0]) {
+        regions.unshift(defaultRegions[0])
+      }
+    }
+  }
+
+  // Enrich with payment providers
+  const regionIds = regions.map((r: any) => r.id)
   let providersByRegion: Record<string, any[]> = {}
   if (regionIds.length > 0) {
     try {
@@ -63,7 +72,7 @@ export const GET = async (
     }
   }
 
-  const enrichedRegions = (regions || []).map((r: any) => ({
+  const enrichedRegions = regions.map((r: any) => ({
     ...r,
     payment_providers: providersByRegion[r.id] || [],
   }))
@@ -86,29 +95,27 @@ export const POST = async (
     req.scope
   )
 
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   const body = PartnerCreateRegionReq.parse(req.body)
   const { payment_providers: paymentProviderIds, ...regionData } = body
 
-  const { getPartnerFromAuthContext: getPartner } = await import("../../../helpers")
-  const partner = await getPartner(req.auth_context, req.scope)
-
   const { result } = await createRegionsWorkflow(req.scope).run({
     input: {
-      regions: [{
-        ...regionData,
-        metadata: {
-          ...(regionData.metadata || {}),
-          partner_id: partner?.id,
-        },
-      }],
+      regions: [regionData],
     },
   })
 
   const region = result[0]
 
+  // Link region to partner via the partner-region link
+  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+  await remoteLink.create({
+    partner: { partner_id: partner!.id },
+    [Modules.REGION]: { region_id: region.id },
+  })
+
   // Link payment providers to the new region
   if (paymentProviderIds?.length) {
-    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
     await remoteLink.create(
       paymentProviderIds.map((providerId: string) => ({
         [Modules.REGION]: { region_id: region.id },

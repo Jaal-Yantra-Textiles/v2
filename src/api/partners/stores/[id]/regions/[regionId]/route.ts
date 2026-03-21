@@ -1,26 +1,44 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { deleteRegionsWorkflow } from "@medusajs/medusa/core-flows"
-import { validatePartnerStoreAccess } from "../../../../helpers"
+import { validatePartnerStoreAccess, getPartnerFromAuthContext } from "../../../../helpers"
 import { PartnerUpdateRegionReq } from "../../validators"
+import partnerRegionLink from "../../../../../../links/partner-region"
 
-export const GET = async (
-  req: AuthenticatedMedusaRequest,
-  res: MedusaResponse
-) => {
+async function verifyRegionOwnership(req: AuthenticatedMedusaRequest) {
   const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
   )
 
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   const regionId = req.params.regionId
-  if (store.default_region_id !== regionId) {
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  // Check if region is linked to this partner
+  const { data: links } = await query.graph({
+    entity: partnerRegionLink.entryPoint,
+    filters: { partner_id: partner!.id, region_id: regionId },
+    fields: ["region_id"],
+  })
+
+  // Also allow access if it's the store's default region (for backwards compatibility)
+  if (!links?.length && store.default_region_id !== regionId) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      "Region not found for this store"
+      "Region not found for this partner"
     )
   }
+
+  return { store, partner, regionId }
+}
+
+export const GET = async (
+  req: AuthenticatedMedusaRequest,
+  res: MedusaResponse
+) => {
+  const { regionId } = await verifyRegionOwnership(req)
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: regions } = await query.graph({
@@ -64,19 +82,7 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { store } = await validatePartnerStoreAccess(
-    req.auth_context,
-    req.params.id,
-    req.scope
-  )
-
-  const regionId = req.params.regionId
-  if (store.default_region_id !== regionId) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_FOUND,
-      "Region not found for this store"
-    )
-  }
+  const { regionId } = await verifyRegionOwnership(req)
 
   const body = PartnerUpdateRegionReq.parse(req.body)
   const { payment_providers: paymentProviderIds, ...regionData } = body
@@ -127,28 +133,29 @@ export const DELETE = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { store } = await validatePartnerStoreAccess(
-    req.auth_context,
-    req.params.id,
-    req.scope
-  )
+  const { store, partner, regionId } = await verifyRegionOwnership(req)
 
-  const regionId = req.params.regionId
-  if (store.default_region_id !== regionId) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_FOUND,
-      "Region not found for this store"
-    )
+  // Remove the partner-region link
+  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+  try {
+    await remoteLink.dismiss({
+      partner: { partner_id: partner!.id },
+      [Modules.REGION]: { region_id: regionId },
+    })
+  } catch {
+    // Link may not exist
   }
 
   await deleteRegionsWorkflow(req.scope).run({ input: { ids: [regionId] } })
 
-  // Clear the store's default region
-  const storeService = req.scope.resolve(Modules.STORE) as any
-  await storeService.updateStores({
-    id: store.id,
-    default_region_id: null,
-  })
+  // Clear the store's default region if it was the deleted one
+  if (store.default_region_id === regionId) {
+    const storeService = req.scope.resolve(Modules.STORE) as any
+    await storeService.updateStores({
+      id: store.id,
+      default_region_id: null,
+    })
+  }
 
   res.json({ id: regionId, object: "region", deleted: true })
 }
