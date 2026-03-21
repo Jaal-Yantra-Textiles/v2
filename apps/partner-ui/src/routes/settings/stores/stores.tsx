@@ -16,6 +16,7 @@ import { Link } from "react-router-dom"
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { GeneralSectionSkeleton, Skeleton } from "../../../components/common/skeleton"
 import { SectionRow } from "../../../components/common/section"
+import { ActionMenu } from "../../../components/common/action-menu"
 import { usePartnerStores } from "../../../hooks/api/partner-stores"
 import {
   useStorefrontStatus,
@@ -631,24 +632,35 @@ export const SettingsStores = () => {
 
   const store = stores?.[0]
   const currencies = store?.supported_currencies || []
+  const region = store?.region?.[0]
+  const salesChannel = store?.sales_channel?.[0]
+  const location = store?.location?.[0]
 
   return (
     <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet>
+      {/* Store General Section */}
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
           <div>
             <Heading>Store</Heading>
-            <Text size="small" className="text-ui-fg-subtle">
+            <Text className="text-ui-fg-subtle" size="small">
               Manage your store's details
             </Text>
           </div>
           {store && (
-            <Link to="/settings/store/edit">
-              <Button variant="secondary" size="small">
-                <PencilSquare className="w-4 h-4 mr-1" />
-                Edit
-              </Button>
-            </Link>
+            <ActionMenu
+              groups={[
+                {
+                  actions: [
+                    {
+                      icon: <PencilSquare />,
+                      label: "Edit Store Details",
+                      to: "/settings/store/edit",
+                    },
+                  ],
+                },
+              ]}
+            />
           )}
         </div>
 
@@ -664,66 +676,123 @@ export const SettingsStores = () => {
         ) : !store ? (
           <div className="px-6 py-4">
             <Text size="small" className="text-ui-fg-subtle">
-              No store
+              No store found. Complete onboarding to create your store.
             </Text>
           </div>
         ) : (
           <>
-            <SectionRow title="Name" value={store?.name || "-"} />
+            <div className="text-ui-fg-subtle grid grid-cols-2 px-6 py-4">
+              <Text size="small" leading="compact" weight="plus">
+                Name
+              </Text>
+              <Text size="small" leading="compact">
+                {store.name || "-"}
+              </Text>
+            </div>
 
-            <SectionRow
-              title="Currencies"
-              value={
-                currencies.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {currencies.map((c: any) => (
-                      <Badge key={c.currency_code} size="2xsmall" color={c.is_default ? "blue" : "grey"}>
-                        {c.currency_code?.toUpperCase()}
-                        {c.is_default && " (default)"}
-                      </Badge>
+            <div className="text-ui-fg-subtle grid grid-cols-2 px-6 py-4">
+              <Text size="small" leading="compact" weight="plus">
+                Default Currency
+              </Text>
+              {currencies.length > 0 ? (
+                <div className="flex items-center gap-x-2 flex-wrap">
+                  {currencies
+                    .filter((c: any) => c.is_default)
+                    .map((c: any) => (
+                      <div key={c.currency_code} className="flex items-center gap-x-2">
+                        <Badge size="2xsmall">
+                          {c.currency_code?.toUpperCase()}
+                        </Badge>
+                      </div>
                     ))}
-                  </div>
-                ) : (
-                  store?.region?.[0]?.currency_code ? (
-                    <Badge size="2xsmall">
-                      {String(store.region[0].currency_code).toUpperCase()}
-                    </Badge>
-                  ) : "-"
-                )
-              }
-            />
+                </div>
+              ) : (
+                <Text size="small" leading="compact">-</Text>
+              )}
+            </div>
 
-            <SectionRow
-              title="Default region"
-              value={
-                store?.region?.[0]?.name ? (
-                  <Badge size="2xsmall">{String(store.region[0].name)}</Badge>
-                ) : "-"
-              }
-            />
-
-            <SectionRow
-              title="Default sales channel"
-              value={
-                store?.sales_channel?.[0]?.name ? (
-                  <Badge size="2xsmall">
-                    {String(store.sales_channel[0].name)}
+            <div className="text-ui-fg-subtle grid grid-cols-2 px-6 py-4">
+              <Text size="small" leading="compact" weight="plus">
+                Default Region
+              </Text>
+              <div className="flex items-center gap-x-2">
+                {region ? (
+                  <Badge size="2xsmall" asChild>
+                    <Link to={`/settings/regions/${region.id || ""}`}>
+                      {region.name}
+                    </Link>
                   </Badge>
-                ) : "-"
-              }
-            />
+                ) : (
+                  <Text size="small" leading="compact">-</Text>
+                )}
+              </div>
+            </div>
 
-            <SectionRow
-              title="Default location"
-              value={
-                store?.location?.[0]?.name ? (
-                  <Badge size="2xsmall">{String(store.location[0].name)}</Badge>
-                ) : "-"
-              }
-            />
+            <div className="text-ui-fg-subtle grid grid-cols-2 px-6 py-4">
+              <Text size="small" leading="compact" weight="plus">
+                Default Sales Channel
+              </Text>
+              <div className="flex items-center gap-x-2">
+                {salesChannel ? (
+                  <Badge size="2xsmall" asChild>
+                    <Link to={`/settings/sales-channels/${salesChannel.id || ""}`}>
+                      {salesChannel.name}
+                    </Link>
+                  </Badge>
+                ) : (
+                  <Text size="small" leading="compact">-</Text>
+                )}
+              </div>
+            </div>
+
+            <div className="text-ui-fg-subtle grid grid-cols-2 px-6 py-4">
+              <Text size="small" leading="compact" weight="plus">
+                Default Location
+              </Text>
+              <div className="flex items-center gap-x-2">
+                {location ? (
+                  <Badge size="2xsmall" asChild>
+                    <Link to={`/settings/locations/${location.id || ""}`}>
+                      {location.name}
+                    </Link>
+                  </Badge>
+                ) : (
+                  <Text size="small" leading="compact">-</Text>
+                )}
+              </div>
+            </div>
           </>
         )}
       </Container>
+
+      {/* Currencies Section */}
+      {store && currencies.length > 0 && (
+        <Container className="divide-y p-0">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div>
+              <Heading level="h2">Currencies</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Currencies supported by your store
+              </Text>
+            </div>
+          </div>
+          {currencies.map((c: any) => (
+            <div key={c.currency_code} className="text-ui-fg-subtle grid grid-cols-2 px-6 py-4">
+              <div className="flex items-center gap-x-2">
+                <Badge size="2xsmall">
+                  {c.currency_code?.toUpperCase()}
+                </Badge>
+                {c.is_default && (
+                  <Badge size="2xsmall" color="blue">Default</Badge>
+                )}
+              </div>
+              <Text size="small" leading="compact">
+                {c.currency?.name || c.currency_code?.toUpperCase()}
+              </Text>
+            </div>
+          ))}
+        </Container>
+      )}
 
       {store && <StorefrontSection />}
       {store && <StorefrontDomainWrapper />}

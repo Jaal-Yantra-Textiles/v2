@@ -1081,6 +1081,40 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // Partner Return Reasons
+    {
+      matcher: "/partners/return-reasons",
+      method: ["GET", "POST"],
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/return-reasons/:id",
+      method: ["GET", "POST", "DELETE"],
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Refund Reasons
+    {
+      matcher: "/partners/refund-reasons",
+      method: ["GET", "POST"],
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/refund-reasons/:id",
+      method: ["GET", "POST", "DELETE"],
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Tax Providers
     {
       matcher: "/partners/tax-providers",

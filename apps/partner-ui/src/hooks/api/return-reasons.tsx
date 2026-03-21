@@ -1,4 +1,3 @@
-import { HttpTypes } from "@medusajs/types"
 import {
   QueryKey,
   UseMutationOptions,
@@ -15,20 +14,34 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 const RETURN_REASONS_QUERY_KEY = "return_reasons" as const
 export const returnReasonsQueryKeys = queryKeysFactory(RETURN_REASONS_QUERY_KEY)
 
+type ReturnReason = {
+  id: string
+  value: string
+  label: string
+  description?: string
+  parent_return_reason_id?: string
+  created_at: string
+  updated_at: string
+}
+
+type ReturnReasonsResponse = {
+  return_reasons: ReturnReason[]
+  count: number
+}
+
 export const useReturnReasons = (
-  query?: HttpTypes.AdminReturnReasonListParams,
+  query?: Record<string, any>,
   options?: Omit<
-    UseQueryOptions<
-      HttpTypes.AdminReturnReasonListResponse,
-      FetchError,
-      HttpTypes.AdminReturnReasonListResponse,
-      QueryKey
-    >,
+    UseQueryOptions<ReturnReasonsResponse, FetchError, ReturnReasonsResponse, QueryKey>,
     "queryFn" | "queryKey"
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.returnReason.list(query),
+    queryFn: () =>
+      sdk.client.fetch<ReturnReasonsResponse>("/partners/return-reasons", {
+        method: "GET",
+        query,
+      }),
     queryKey: returnReasonsQueryKeys.list(query),
     ...options,
   })
@@ -38,19 +51,17 @@ export const useReturnReasons = (
 
 export const useReturnReason = (
   id: string,
-  query?: HttpTypes.AdminReturnReasonParams,
+  query?: Record<string, any>,
   options?: Omit<
-    UseQueryOptions<
-      HttpTypes.AdminReturnReasonResponse,
-      FetchError,
-      HttpTypes.AdminReturnReasonResponse,
-      QueryKey
-    >,
+    UseQueryOptions<{ return_reason: ReturnReason }, FetchError, { return_reason: ReturnReason }, QueryKey>,
     "queryFn" | "queryKey"
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.returnReason.retrieve(id, query),
+    queryFn: () =>
+      sdk.client.fetch<{ return_reason: ReturnReason }>(`/partners/return-reasons/${id}`, {
+        method: "GET",
+      }),
     queryKey: returnReasonsQueryKeys.detail(id),
     ...options,
   })
@@ -59,44 +70,45 @@ export const useReturnReason = (
 }
 
 export const useCreateReturnReason = (
-  query?: HttpTypes.AdminReturnReasonParams,
+  query?: any,
   options?: UseMutationOptions<
-    HttpTypes.AdminReturnReasonResponse,
+    { return_reason: ReturnReason },
     FetchError,
-    HttpTypes.AdminCreateReturnReason
+    { value: string; label: string; description?: string }
   >
 ) => {
   return useMutation({
-    mutationFn: async (data) => sdk.admin.returnReason.create(data, query),
+    mutationFn: async (data) =>
+      sdk.client.fetch<{ return_reason: ReturnReason }>("/partners/return-reasons", {
+        method: "POST",
+        body: data,
+      }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({
-        queryKey: returnReasonsQueryKeys.lists(),
-      })
-
+      queryClient.invalidateQueries({ queryKey: returnReasonsQueryKeys.lists() })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
   })
 }
+
 export const useUpdateReturnReason = (
   id: string,
-  query?: HttpTypes.AdminReturnReasonParams,
+  query?: any,
   options?: UseMutationOptions<
-    HttpTypes.AdminReturnReasonResponse,
+    { return_reason: ReturnReason },
     FetchError,
-    HttpTypes.AdminUpdateReturnReason
+    { value?: string; label?: string; description?: string }
   >
 ) => {
   return useMutation({
-    mutationFn: async (data) => sdk.admin.returnReason.update(id, data, query),
+    mutationFn: async (data) =>
+      sdk.client.fetch<{ return_reason: ReturnReason }>(`/partners/return-reasons/${id}`, {
+        method: "POST",
+        body: data,
+      }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({
-        queryKey: returnReasonsQueryKeys.lists(),
-      })
-      queryClient.invalidateQueries({
-        queryKey: returnReasonsQueryKeys.detail(data.return_reason.id, query),
-      })
-
+      queryClient.invalidateQueries({ queryKey: returnReasonsQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: returnReasonsQueryKeys.detail(id) })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
@@ -105,26 +117,14 @@ export const useUpdateReturnReason = (
 
 export const useDeleteReturnReason = (
   id: string,
-  options?: UseMutationOptions<
-    HttpTypes.AdminReturnReasonDeleteResponse,
-    FetchError,
-    void
-  >
+  options?: UseMutationOptions<any, FetchError, void>
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.returnReason.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch(`/partners/return-reasons/${id}`, { method: "DELETE" }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({
-        queryKey: returnReasonsQueryKeys.lists(),
-      })
-      queryClient.invalidateQueries({
-        queryKey: returnReasonsQueryKeys.detail(id),
-      })
-
-      queryClient.invalidateQueries({
-        queryKey: returnReasonsQueryKeys.details(),
-      })
-
+      queryClient.invalidateQueries({ queryKey: returnReasonsQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: returnReasonsQueryKeys.details() })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

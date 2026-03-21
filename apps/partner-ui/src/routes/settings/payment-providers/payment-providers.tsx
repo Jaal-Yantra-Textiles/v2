@@ -79,7 +79,7 @@ export const PaymentProvidersPage = () => {
 
   if (storesLoading || providersLoading) {
     return (
-      <SingleColumnPage>
+      <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
         <GeneralSectionSkeleton rowCount={4} />
       </SingleColumnPage>
     )
@@ -87,7 +87,7 @@ export const PaymentProvidersPage = () => {
 
   if (!store) {
     return (
-      <SingleColumnPage>
+      <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
         <Container className="p-6">
           <Text className="text-ui-fg-subtle">No store found. Create a store first.</Text>
         </Container>
@@ -96,7 +96,7 @@ export const PaymentProvidersPage = () => {
   }
 
   return (
-    <SingleColumnPage>
+    <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
       <Container className="divide-y p-0">
         <div className="px-6 py-4">
           <Heading level="h1">Payment Providers</Heading>

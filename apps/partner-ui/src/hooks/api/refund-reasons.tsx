@@ -1,9 +1,9 @@
-import { HttpTypes } from "@medusajs/types"
 import {
   useMutation,
   UseMutationOptions,
   useQuery,
   UseQueryOptions,
+  QueryKey,
 } from "@tanstack/react-query"
 
 import { FetchError } from "@medusajs/js-sdk"
@@ -14,19 +14,32 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 const REFUND_REASONS_QUERY_KEY = "refund_reasons" as const
 export const refundReasonsQueryKeys = queryKeysFactory(REFUND_REASONS_QUERY_KEY)
 
+type RefundReason = {
+  id: string
+  label: string
+  description?: string
+  created_at: string
+  updated_at: string
+}
+
+type RefundReasonsResponse = {
+  refund_reasons: RefundReason[]
+  count: number
+}
+
 export const useRefundReasons = (
-  query?: HttpTypes.AdminRefundReasonListParams,
+  query?: Record<string, any>,
   options?: Omit<
-    UseQueryOptions<
-      HttpTypes.AdminRefundReasonListResponse,
-      FetchError,
-      HttpTypes.AdminRefundReasonListResponse
-    >,
+    UseQueryOptions<RefundReasonsResponse, FetchError, RefundReasonsResponse, QueryKey>,
     "queryFn" | "queryKey"
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.refundReason.list(query),
+    queryFn: () =>
+      sdk.client.fetch<RefundReasonsResponse>("/partners/refund-reasons", {
+        method: "GET",
+        query,
+      }),
     queryKey: refundReasonsQueryKeys.list(query),
     ...options,
   })
@@ -36,18 +49,17 @@ export const useRefundReasons = (
 
 export const useRefundReason = (
   id: string,
-  query?: HttpTypes.AdminRefundReasonParams,
+  query?: Record<string, any>,
   options?: Omit<
-    UseQueryOptions<
-      HttpTypes.AdminRefundReasonResponse,
-      FetchError,
-      HttpTypes.AdminRefundReasonResponse
-    >,
+    UseQueryOptions<{ refund_reason: RefundReason }, FetchError, { refund_reason: RefundReason }, QueryKey>,
     "queryFn" | "queryKey"
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.refundReason.retrieve(id, query),
+    queryFn: () =>
+      sdk.client.fetch<{ refund_reason: RefundReason }>(`/partners/refund-reasons/${id}`, {
+        method: "GET",
+      }),
     queryKey: refundReasonsQueryKeys.detail(id),
     ...options,
   })
@@ -56,20 +68,20 @@ export const useRefundReason = (
 }
 
 export const useCreateRefundReason = (
-  query?: HttpTypes.AdminRefundReasonParams,
   options?: UseMutationOptions<
-    HttpTypes.RefundReasonResponse,
+    { refund_reason: RefundReason },
     FetchError,
-    HttpTypes.AdminCreateRefundReason
+    { label: string; description?: string }
   >
 ) => {
   return useMutation({
-    mutationFn: async (data) => sdk.admin.refundReason.create(data, query),
+    mutationFn: async (data) =>
+      sdk.client.fetch<{ refund_reason: RefundReason }>("/partners/refund-reasons", {
+        method: "POST",
+        body: data,
+      }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({
-        queryKey: refundReasonsQueryKeys.lists(),
-      })
-
+      queryClient.invalidateQueries({ queryKey: refundReasonsQueryKeys.lists() })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
@@ -79,44 +91,36 @@ export const useCreateRefundReason = (
 export const useUpdateRefundReason = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminRefundReasonResponse,
+    { refund_reason: RefundReason },
     FetchError,
-    HttpTypes.AdminUpdateRefundReason
+    { label?: string; description?: string }
   >
 ) => {
   return useMutation({
-    mutationFn: async (data) => sdk.admin.refundReason.update(id, data),
+    mutationFn: async (data) =>
+      sdk.client.fetch<{ refund_reason: RefundReason }>(`/partners/refund-reasons/${id}`, {
+        method: "POST",
+        body: data,
+      }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({
-        queryKey: refundReasonsQueryKeys.lists(),
-      })
-      queryClient.invalidateQueries({
-        queryKey: refundReasonsQueryKeys.detail(data.refund_reason.id),
-      })
-
+      queryClient.invalidateQueries({ queryKey: refundReasonsQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: refundReasonsQueryKeys.detail(id) })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
   })
 }
 
-export const useDeleteRefundReasonLazy = (
-  options?: UseMutationOptions<
-    HttpTypes.AdminRefundReasonDeleteResponse,
-    FetchError,
-    string
-  >
+export const useDeleteRefundReason = (
+  id: string,
+  options?: UseMutationOptions<any, FetchError, void>
 ) => {
   return useMutation({
-    mutationFn: (id: string) => sdk.admin.refundReason.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch(`/partners/refund-reasons/${id}`, { method: "DELETE" }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({
-        queryKey: refundReasonsQueryKeys.lists(),
-      })
-      queryClient.invalidateQueries({
-        queryKey: refundReasonsQueryKeys.details(),
-      })
-
+      queryClient.invalidateQueries({ queryKey: refundReasonsQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: refundReasonsQueryKeys.details() })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
