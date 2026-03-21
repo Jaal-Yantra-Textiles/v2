@@ -1,6 +1,8 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { createRefundReasonsWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../helpers"
+import partnerRefundReasonLink from "../../../links/partner-refund-reason"
 
 export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) => {
   const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
@@ -8,17 +10,18 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Partner not found")
   }
 
-  const orderModule = req.scope.resolve(Modules.ORDER) as any
-  const allReasons = await orderModule.listRefundReasons(
-    {},
-    { take: 500, order: { created_at: "ASC" } }
-  )
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Filter: partner's own + global (no partner_id)
-  const reasons = allReasons.filter((r: any) => {
-    const ownerId = r.metadata?.partner_id
-    return !ownerId || ownerId === partner.id
+  // Get refund reasons linked to this partner
+  const { data: links } = await query.graph({
+    entity: partnerRefundReasonLink.entryPoint,
+    filters: { partner_id: partner.id },
+    fields: ["refund_reason_id", "refund_reason.*"],
   })
+
+  const reasons = (links || [])
+    .map((l: any) => l.refund_reason)
+    .filter(Boolean)
 
   res.json({ refund_reasons: reasons, count: reasons.length })
 }
@@ -29,13 +32,18 @@ export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse)
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Partner not found")
   }
 
-  const orderModule = req.scope.resolve(Modules.ORDER) as any
   const body = req.body as { label: string; description?: string }
 
-  const reason = await orderModule.createRefundReasons({
-    ...body,
-    metadata: { partner_id: partner.id },
+  const { result: [refundReason] } = await createRefundReasonsWorkflow(req.scope).run({
+    input: { data: [body] },
   })
 
-  res.status(201).json({ refund_reason: reason })
+  // Link refund reason to partner
+  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+  await remoteLink.create({
+    partner: { partner_id: partner.id },
+    [Modules.PAYMENT]: { refund_reason_id: refundReason.id },
+  })
+
+  res.status(201).json({ refund_reason: refundReason })
 }
