@@ -253,6 +253,7 @@ export type WebsiteTheme = {
   hero?: {
     layout?: "center" | "left" | "right" | "split"
     animation?: string
+    bg_animation?: "none" | "ken-burns" | "zoom-in" | "fade-in" | "pan-left" | "pan-right"
     badge_text?: string
     title?: string
     subtitle?: string

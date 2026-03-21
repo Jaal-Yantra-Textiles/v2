@@ -972,6 +972,71 @@ function HeroPanel({
           }
           hint="Recommended: 1920x1080px or larger"
         />
+
+        {/* Background Image Animation */}
+        <div className="space-y-1">
+          <Label size="xsmall">Background Animation</Label>
+          <div className="grid grid-cols-3 gap-1">
+            {([
+              ["none", "None"],
+              ["ken-burns", "Ken Burns"],
+              ["zoom-in", "Zoom In"],
+              ["fade-in", "Fade In"],
+              ["pan-left", "Pan Left"],
+              ["pan-right", "Pan Right"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (form.hero?.bg_animation || "none") === value
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => {
+                  updateForm("hero", { ...form.hero, bg_animation: value })
+                  sendPreview("animations", { bg_animation: value })
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <Text size="xsmall" className="text-ui-fg-muted">
+            {form.hero?.bg_animation === "ken-burns" ? "Slow cinematic zoom (20s)" :
+             form.hero?.bg_animation === "pan-left" || form.hero?.bg_animation === "pan-right" ? "Slow pan across image (25s)" :
+             form.hero?.bg_animation === "zoom-in" ? "Quick zoom entrance" :
+             form.hero?.bg_animation === "fade-in" ? "Smooth fade in" :
+             "No background animation"}
+          </Text>
+        </div>
+
+        {/* Content Entrance Animation */}
+        <div className="space-y-1">
+          <Label size="xsmall">Content Entrance</Label>
+          <div className="grid grid-cols-4 gap-1">
+            {([
+              ["none", "None"],
+              ["fade-up", "Fade Up"],
+              ["fade-in", "Fade In"],
+              ["zoom-in", "Zoom In"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                className={`px-2 py-1 text-xs rounded border ${
+                  (form.hero?.animation || "none") === value
+                    ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                    : "border-ui-border-base text-ui-fg-subtle"
+                }`}
+                onClick={() => {
+                  updateForm("hero", { ...form.hero, animation: value })
+                  sendPreview("animations", { hero_entrance: value })
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="space-y-1">
           <Label size="xsmall">
             Overlay ({form.hero?.overlay_opacity ?? 0}%)

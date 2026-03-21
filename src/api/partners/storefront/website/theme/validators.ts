@@ -91,6 +91,7 @@ export const websiteThemeSchema = z.object({
     .object({
       layout: z.enum(["center", "left", "right", "split"]).optional(),
       animation: animationTypeEnum.optional(),
+      bg_animation: z.enum(["none", "ken-burns", "zoom-in", "fade-in", "pan-left", "pan-right"]).optional(),
       badge_text: z.string().optional(),
       title: z.string().optional(),
       subtitle: z.string().optional(),
