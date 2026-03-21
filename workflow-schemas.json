@@ -1692,6 +1692,36 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/designs/create-design.ts"
   },
+  "create-draft-order-from-designs": {
+    "fields": [
+      {
+        "name": "customer_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.customer_id }}"
+      },
+      {
+        "name": "design_ids",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.design_ids }}"
+      },
+      {
+        "name": "currency_code",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.currency_code }}"
+      },
+      {
+        "name": "price_overrides",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/designs/create-draft-order-from-designs.ts"
+  },
   "create-product-from-design": {
     "fields": [
       {

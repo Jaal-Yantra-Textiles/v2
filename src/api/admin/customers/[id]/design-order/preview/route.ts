@@ -15,7 +15,15 @@ export const POST = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
 
-  const estimates = []
+  const estimates: Array<{
+    design_id: string
+    name: string
+    total_estimated: number
+    unit_price: number
+    confidence: string
+    material_cost: number
+    production_cost: number
+  }> = []
 
   for (const design_id of design_ids) {
     const { data: designs } = await query.graph({

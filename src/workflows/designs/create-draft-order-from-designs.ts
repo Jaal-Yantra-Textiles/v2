@@ -5,7 +5,6 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import type { Link } from "@medusajs/framework/link"
 import { DESIGN_MODULE } from "../../modules/designs"
 import {
   estimateDesignCostWorkflow,
@@ -195,7 +194,7 @@ const linkDesignsToLineItemsStep = createStep(
     },
     { container }
   ) => {
-    const remoteLink = container.resolve<Link>(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
 
     const links: any[] = []
     for (let i = 0; i < input.estimates.length; i++) {
@@ -219,7 +218,7 @@ const linkDesignsToLineItemsStep = createStep(
   },
   async (links, { container }) => {
     if (!links || links.length === 0) return
-    const remoteLink = container.resolve<Link>(ContainerRegistrationKeys.LINK)
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
     await remoteLink.dismiss(links)
   }
 )
