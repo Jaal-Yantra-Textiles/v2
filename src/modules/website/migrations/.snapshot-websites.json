@@ -86,14 +86,14 @@
           "nullable": true,
           "mappedType": "text"
         },
-        "analytics_id": {
-          "name": "analytics_id",
-          "type": "text",
+        "theme": {
+          "name": "theme",
+          "type": "jsonb",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": true,
-          "mappedType": "text"
+          "mappedType": "json"
         },
         "metadata": {
           "name": "metadata",
@@ -147,7 +147,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_website_domain_unique\" ON \"website\" (domain) WHERE deleted_at IS NULL"
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_website_domain_unique\" ON \"website\" (\"domain\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_website_deleted_at",
@@ -156,7 +156,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_website_deleted_at\" ON \"website\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_website_deleted_at\" ON \"website\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "website_pkey",
@@ -393,7 +393,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_page_website_id\" ON \"page\" (website_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_page_website_id\" ON \"page\" (\"website_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_page_deleted_at",
@@ -402,7 +402,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_page_deleted_at\" ON \"page\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_page_deleted_at\" ON \"page\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_page_slug_website_id_unique",
@@ -411,7 +411,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_page_slug_website_id_unique\" ON \"page\" (slug, website_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_page_slug_website_id_unique\" ON \"page\" (\"slug\", \"website_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "page_pkey",
@@ -589,7 +589,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_block_page_id\" ON \"block\" (page_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_block_page_id\" ON \"block\" (\"page_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_block_deleted_at",
@@ -598,7 +598,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_block_deleted_at\" ON \"block\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_block_deleted_at\" ON \"block\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "unique_block_type_per_page",
@@ -607,7 +607,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"unique_block_type_per_page\" ON \"block\" (page_id, type) WHERE type IN ('Hero', 'Header', 'Footer', 'MainContent', 'ContactForm') AND deleted_at IS NULL"
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"unique_block_type_per_page\" ON \"block\" (\"page_id\", \"type\") WHERE type IN ('Hero', 'Header', 'Footer', 'MainContent', 'ContactForm') AND deleted_at IS NULL"
         },
         {
           "keyName": "block_pkey",

@@ -106,6 +106,33 @@ export const usePartnerStores = (
   }
 }
 
+export type PartnerStoreUpdatePayload = {
+  name?: string
+  supported_currencies?: Array<{ currency_code: string; is_default?: boolean }>
+  metadata?: Record<string, any>
+}
+
+export const useUpdatePartnerStore = (
+  storeId: string,
+  options?: UseMutationOptions<{ store: PartnerStore }, FetchError, PartnerStoreUpdatePayload>
+) => {
+  return useMutation({
+    ...options,
+    mutationFn: async (payload) => {
+      return await sdk.client.fetch<{ store: PartnerStore }>(
+        `/partners/stores/${storeId}`,
+        { method: "POST", body: payload }
+      )
+    },
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({
+        queryKey: partnerStoresQueryKeys.details(),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
 export const usePartnerStoresQueryString = (params?: Record<string, any>) => {
   const query = qs.stringify(params || {}, { skipNulls: true })
   return query ? `?${query}` : ""

@@ -21,7 +21,7 @@ export const GET = async (
     const publicWebsiteData = {
       name: result.name,
       domain: result.domain,
-      theme: result.metadata?.theme || null,
+      theme: result.theme || result.metadata?.theme || null,
       favicon_url: result.favicon_url || null,
       pages: result.pages?.map(page => ({
         title: page.title,

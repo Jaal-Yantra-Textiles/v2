@@ -223,12 +223,12 @@ const ThemeEditorInner = () => {
 
   // Only sync server theme → form on initial load (not on every refetch after save)
   useEffect(() => {
-    if (theme && !initializedRef.current) {
+    if (!isPending && !initializedRef.current) {
       setForm(theme)
       formRef.current = theme
       initializedRef.current = true
     }
-  }, [theme])
+  }, [theme, isPending])
 
   // Wrapped setForm that keeps the ref in sync — pass this to panels
   const setFormSynced = useCallback((newForm: WebsiteTheme | ((prev: WebsiteTheme) => WebsiteTheme)) => {

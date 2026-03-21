@@ -1064,6 +1064,23 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // Partner Payment Config (per-partner credentials)
+    {
+      matcher: "/partners/payment-config",
+      method: ["GET", "POST"],
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/payment-config/:configId",
+      method: ["GET", "POST", "DELETE"],
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Tax Providers
     {
       matcher: "/partners/tax-providers",

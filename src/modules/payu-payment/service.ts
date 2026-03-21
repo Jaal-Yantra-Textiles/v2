@@ -44,11 +44,13 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
 
   protected logger_: Logger
   protected options_: PayUOptions
+  protected container_: any
 
   constructor(container: InjectedDependencies, options: PayUOptions) {
     super(container, options)
     this.logger_ = container.logger
     this.options_ = options
+    this.container_ = container
   }
 
   static validateOptions(options: Record<any, any>): void {
@@ -60,15 +62,98 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     }
   }
 
-  private get paymentUrl(): string {
-    return this.options_.mode === "live" ? PAYU_LIVE_URL : PAYU_TEST_URL
+  /**
+   * Resolve PayU credentials: partner-specific > global defaults.
+   *
+   * Flow: context.extra.sales_channel_id → store → partner → partner_payment_config
+   * Falls back to this.options_ (global credentials from medusa-config.ts).
+   */
+  private async resolveCredentials(context?: Record<string, unknown>): Promise<PayUOptions> {
+    if (!context) return this.options_
+
+    try {
+      const salesChannelId = (context as any)?.extra?.sales_channel_id
+        || (context as any)?.sales_channel_id
+      if (!salesChannelId) return this.options_
+
+      // Resolve partner from sales channel → store → partner link
+      const query = this.container_.resolve?.("query")
+      if (!query) return this.options_
+
+      // Find store linked to this sales channel
+      const { data: stores } = await query.graph({
+        entity: "store",
+        filters: { default_sales_channel_id: salesChannelId },
+        fields: ["id"],
+      })
+
+      if (!stores?.length) return this.options_
+
+      const storeId = stores[0].id
+
+      // Find partner linked to this store
+      const { data: partnerLinks } = await query.graph({
+        entity: "partner_store",
+        filters: { store_id: storeId },
+        fields: ["partner_id"],
+      }).catch(() => ({ data: [] }))
+
+      if (!partnerLinks?.length) return this.options_
+
+      const partnerId = partnerLinks[0].partner_id
+
+      // Look up partner payment config
+      const configService = this.container_.resolve?.("partner_payment_config")
+      if (!configService) return this.options_
+
+      const configs = await configService.listPartnerPaymentConfigs({
+        partner_id: partnerId,
+        provider_id: "pp_payu_payu",
+        is_active: true,
+      })
+
+      if (!configs?.length) return this.options_
+
+      const partnerCreds = configs[0].credentials
+      if (partnerCreds?.merchant_key && partnerCreds?.merchant_salt) {
+        this.logger_.info(`[PayU] Using partner credentials for partner=${partnerId}`)
+        return {
+          merchant_key: partnerCreds.merchant_key,
+          merchant_salt: partnerCreds.merchant_salt,
+          mode: partnerCreds.mode || this.options_.mode,
+          auto_capture: this.options_.auto_capture,
+        }
+      }
+    } catch (e: any) {
+      this.logger_.warn(`[PayU] Failed to resolve partner credentials, using defaults: ${e.message}`)
+    }
+
+    return this.options_
   }
 
-  private get infoUrl(): string {
-    return this.options_.mode === "live" ? PAYU_INFO_URL_LIVE : PAYU_INFO_URL_TEST
+  /**
+   * Resolve credentials from payment session data (for operations after initiate
+   * where context may not be available, but we stored partner info in the session).
+   */
+  private resolveFromSessionData(data?: Record<string, unknown>): PayUOptions | null {
+    if (!data?.partner_merchant_key || !data?.partner_merchant_salt) return null
+    return {
+      merchant_key: data.partner_merchant_key as string,
+      merchant_salt: data.partner_merchant_salt as string,
+      mode: (data.partner_mode as "test" | "live") || this.options_.mode,
+      auto_capture: this.options_.auto_capture,
+    }
   }
 
-  private generateHash(params: {
+  private getPaymentUrl(opts: PayUOptions): string {
+    return opts.mode === "live" ? PAYU_LIVE_URL : PAYU_TEST_URL
+  }
+
+  private getInfoUrl(opts: PayUOptions): string {
+    return opts.mode === "live" ? PAYU_INFO_URL_LIVE : PAYU_INFO_URL_TEST
+  }
+
+  private generateHashWithOpts(opts: PayUOptions, params: {
     txnid: string
     amount: string
     productinfo: string
@@ -85,13 +170,25 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
       udf1 = "", udf2 = "", udf3 = "", udf4 = "", udf5 = "",
     } = params
 
-    const hashString = `${this.options_.merchant_key}|${txnid}|${amount}|${productinfo}|${firstname}|${email}|${udf1}|${udf2}|${udf3}|${udf4}|${udf5}||||||${this.options_.merchant_salt}`
+    const hashString = `${opts.merchant_key}|${txnid}|${amount}|${productinfo}|${firstname}|${email}|${udf1}|${udf2}|${udf3}|${udf4}|${udf5}||||||${opts.merchant_salt}`
     return crypto.createHash("sha512").update(hashString).digest("hex")
   }
 
-  private generateApiHash(command: string, var1: string): string {
-    const hashString = `${this.options_.merchant_key}|${command}|${var1}|${this.options_.merchant_salt}`
+  private generateApiHashWithOpts(opts: PayUOptions, command: string, var1: string): string {
+    const hashString = `${opts.merchant_key}|${command}|${var1}|${opts.merchant_salt}`
     return crypto.createHash("sha512").update(hashString).digest("hex")
+  }
+
+  // Keep legacy methods for backwards compat
+  private generateHash(params: {
+    txnid: string; amount: string; productinfo: string; firstname: string; email: string;
+    udf1?: string; udf2?: string; udf3?: string; udf4?: string; udf5?: string;
+  }): string {
+    return this.generateHashWithOpts(this.options_, params)
+  }
+
+  private generateApiHash(command: string, var1: string): string {
+    return this.generateApiHashWithOpts(this.options_, command, var1)
   }
 
   private generateTxnId(): string {
@@ -108,6 +205,9 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
   ): Promise<InitiatePaymentOutput> {
     const { amount, currency_code, context, data } = input
 
+    // Resolve partner-specific or global credentials
+    const opts = await this.resolveCredentials(context)
+
     const txnid = this.generateTxnId()
     const amountStr = this.toAmount(amount)
     const firstname = (context?.customer as any)?.first_name || "Customer"
@@ -115,15 +215,14 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     const phone = (context?.customer as any)?.phone || ""
     const productinfo = `Order ${txnid}`
 
-    // udf1 will be set to session_id (cart uses this for tracking)
     const udf1 = (data?.session_id as string) || ""
 
-    const hash = this.generateHash({
-      txnid, amount: amountStr, productinfo, firstname, email,
-      udf1,
+    const hash = this.generateHashWithOpts(opts, {
+      txnid, amount: amountStr, productinfo, firstname, email, udf1,
     })
 
-    this.logger_.info(`[PayU] Initiated payment: txnid=${txnid}, amount=${amountStr} ${currency_code}`)
+    const isPartnerCreds = opts.merchant_key !== this.options_.merchant_key
+    this.logger_.info(`[PayU] Initiated payment: txnid=${txnid}, amount=${amountStr} ${currency_code}, partner_creds=${isPartnerCreds}`)
 
     return {
       id: txnid,
@@ -136,10 +235,18 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
         phone,
         udf1,
         hash,
-        key: this.options_.merchant_key,
-        payment_url: this.paymentUrl,
+        key: opts.merchant_key,
+        payment_url: this.getPaymentUrl(opts),
         currency: currency_code?.toUpperCase() || "INR",
         status: "pending",
+        // Store partner credentials reference in session for subsequent operations
+        ...(isPartnerCreds
+          ? {
+              partner_merchant_key: opts.merchant_key,
+              partner_merchant_salt: opts.merchant_salt,
+              partner_mode: opts.mode,
+            }
+          : {}),
       },
     }
   }
@@ -148,6 +255,7 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     input: AuthorizePaymentInput
   ): Promise<AuthorizePaymentOutput> {
     const { data } = input
+    const opts = this.resolveFromSessionData(data) || this.options_
     const payuStatus = ((data?.payu_status as string) || (data?.status as string) || "").toLowerCase()
     const mihpayid = (data?.mihpayid as string) || ""
     const txnid = (data?.txnid as string) || ""
@@ -156,10 +264,9 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
       let verifiedMihpayid = mihpayid
       let isVerified = false
 
-      // Try to verify with PayU API for extra security
       if (txnid) {
         try {
-          const verified = await this.verifyPayment(txnid)
+          const verified = await this.verifyPaymentWithOpts(opts, txnid)
           if (verified.status === "success" || verified.status === "captured") {
             verifiedMihpayid = verified.mihpayid || mihpayid
             isVerified = true
@@ -169,7 +276,6 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
         }
       }
 
-      // If PayU sent success + mihpayid, authorize even if verify API failed
       if (isVerified || mihpayid) {
         const finalStatus = this.options_.auto_capture ? "captured" : "authorized"
         this.logger_.info(`[PayU] ${finalStatus}: txnid=${txnid}, mihpayid=${verifiedMihpayid}, verified=${isVerified}`)
@@ -179,7 +285,6 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
         }
       }
 
-      // PayU said success but no mihpayid and verify failed — suspicious
       this.logger_.warn(`[PayU] Success status but no mihpayid and verify failed: txnid=${txnid}`)
     }
 
@@ -192,9 +297,10 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
 
   async capturePayment(input: CapturePaymentInput): Promise<CapturePaymentOutput> {
     const { data } = input
+    const opts = this.resolveFromSessionData(data) || this.options_
     const txnid = data?.txnid as string
     try {
-      const verified = await this.verifyPayment(txnid)
+      const verified = await this.verifyPaymentWithOpts(opts, txnid)
       this.logger_.info(`[PayU] Captured: txnid=${txnid}`)
       return { data: { ...data, mihpayid: verified.mihpayid, captured_at: new Date().toISOString() } }
     } catch {
@@ -204,15 +310,16 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
 
   async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentOutput> {
     const { data, amount } = input
+    const opts = this.resolveFromSessionData(data) || this.options_
     const mihpayid = data?.mihpayid as string
     if (!mihpayid) throw new Error("PayU mihpayid required for refund")
 
     const refundAmount = this.toAmount(amount)
     const tokenId = `refund_${Date.now()}`
-    const hash = this.generateApiHash("cancel_refund_transaction", mihpayid)
+    const hash = this.generateApiHashWithOpts(opts, "cancel_refund_transaction", mihpayid)
 
     const params = new URLSearchParams({
-      key: this.options_.merchant_key,
+      key: opts.merchant_key,
       command: "cancel_refund_transaction",
       hash,
       var1: mihpayid,
@@ -220,7 +327,7 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
       var3: refundAmount,
     })
 
-    const response = await fetch(this.infoUrl, {
+    const response = await fetch(this.getInfoUrl(opts), {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
@@ -245,8 +352,9 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
   async retrievePayment(input: RetrievePaymentInput): Promise<RetrievePaymentOutput> {
     const txnid = input.data?.txnid as string
     if (!txnid) return { data: input.data }
+    const opts = this.resolveFromSessionData(input.data) || this.options_
     try {
-      const result = await this.verifyPayment(txnid)
+      const result = await this.verifyPaymentWithOpts(opts, txnid)
       return { data: { ...input.data, ...result } }
     } catch {
       return { data: input.data }
@@ -274,17 +382,18 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
 
   async updatePayment(input: UpdatePaymentInput): Promise<UpdatePaymentOutput> {
     const { amount, currency_code, context, data } = input
+    const opts = this.resolveFromSessionData(data) || await this.resolveCredentials(context) || this.options_
 
     if (amount && data?.txnid) {
       const amountStr = this.toAmount(amount)
-      const hash = this.generateHash({
+      const hash = this.generateHashWithOpts(opts, {
         txnid: data.txnid as string,
         amount: amountStr,
         productinfo: (data.productinfo as string) || `Order ${data.txnid}`,
         firstname: (context?.customer as any)?.first_name || (data.firstname as string) || "Customer",
         email: (context as any)?.email || (data.email as string) || "",
       })
-      return { data: { ...data, amount: amountStr, hash, currency: currency_code?.toUpperCase() || "INR" } }
+      return { data: { ...data, amount: amountStr, hash, key: opts.merchant_key, currency: currency_code?.toUpperCase() || "INR" } }
     }
     return { data: { ...data } }
   }
@@ -298,8 +407,11 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     const status = ((data?.status as string) || "").toLowerCase()
     const txnid = data?.txnid as string
 
+    // Resolve credentials from session data stored during initiate
+    const opts = this.resolveFromSessionData(data) || this.options_
+
     if (data?.hash && txnid) {
-      const reverseHashString = `${this.options_.merchant_salt}|${data.status}||||||${data.udf5 || ""}|${data.udf4 || ""}|${data.udf3 || ""}|${data.udf2 || ""}|${data.udf1 || ""}|${data.email || ""}|${data.firstname || ""}|${data.productinfo || ""}|${data.amount || ""}|${txnid}|${this.options_.merchant_key}`
+      const reverseHashString = `${opts.merchant_salt}|${data.status}||||||${data.udf5 || ""}|${data.udf4 || ""}|${data.udf3 || ""}|${data.udf2 || ""}|${data.udf1 || ""}|${data.email || ""}|${data.firstname || ""}|${data.productinfo || ""}|${data.amount || ""}|${txnid}|${opts.merchant_key}`
       const expectedHash = crypto.createHash("sha512").update(reverseHashString).digest("hex")
       if (expectedHash !== data.hash) {
         this.logger_.warn(`[PayU] Webhook hash mismatch: txnid=${txnid}`)
@@ -316,16 +428,16 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     return { action: "not_supported" }
   }
 
-  private async verifyPayment(txnid: string): Promise<Record<string, any>> {
-    const hash = this.generateApiHash("verify_payment", txnid)
+  private async verifyPaymentWithOpts(opts: PayUOptions, txnid: string): Promise<Record<string, any>> {
+    const hash = this.generateApiHashWithOpts(opts, "verify_payment", txnid)
     const params = new URLSearchParams({
-      key: this.options_.merchant_key,
+      key: opts.merchant_key,
       command: "verify_payment",
       hash,
       var1: txnid,
     })
 
-    const response = await fetch(this.infoUrl, {
+    const response = await fetch(this.getInfoUrl(opts), {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
@@ -336,6 +448,11 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
       return result.transaction_details[txnid]
     }
     throw new Error(`PayU verify failed: ${result.msg || "Unknown error"}`)
+  }
+
+  // Legacy verify (uses global credentials)
+  private async verifyPayment(txnid: string): Promise<Record<string, any>> {
+    return this.verifyPaymentWithOpts(this.options_, txnid)
   }
 }
 

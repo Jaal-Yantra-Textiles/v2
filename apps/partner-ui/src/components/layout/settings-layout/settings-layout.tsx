@@ -44,6 +44,14 @@ const useSettingRoutes = (): INavItem[] => {
         to: "/settings/tax-regions",
       },
       {
+        label: "Return Reasons",
+        to: "/settings/return-reasons",
+      },
+      {
+        label: "Refund Reasons",
+        to: "/settings/refund-reasons",
+      },
+      {
         label: "Onboarding",
         to: "/settings/onboarding",
       },
@@ -54,6 +62,10 @@ const useSettingRoutes = (): INavItem[] => {
       {
         label: "Payments",
         to: "/settings/payments",
+      },
+      {
+        label: "Payment Providers",
+        to: "/settings/payment-providers",
       },
       {
         label: "Plan & Billing",

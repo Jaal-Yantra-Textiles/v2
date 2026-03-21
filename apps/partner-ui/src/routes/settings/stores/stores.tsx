@@ -9,8 +9,9 @@ import {
   toast,
   usePrompt,
 } from "@medusajs/ui"
-import { ArrowUpRightOnBox, ArrowPath, XMark } from "@medusajs/icons"
+import { ArrowUpRightOnBox, ArrowPath, XMark, PencilSquare } from "@medusajs/icons"
 import { useState } from "react"
+import { Link } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { GeneralSectionSkeleton, Skeleton } from "../../../components/common/skeleton"
@@ -629,20 +630,31 @@ export const SettingsStores = () => {
   }
 
   const store = stores?.[0]
+  const currencies = store?.supported_currencies || []
 
   return (
-    <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
+    <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet>
       <Container className="divide-y p-0">
-        <div className="px-6 py-4">
-          <Heading>Store</Heading>
-          <Text size="small" className="text-ui-fg-subtle">
-            Manage your store's details
-          </Text>
+        <div className="flex items-center justify-between px-6 py-4">
+          <div>
+            <Heading>Store</Heading>
+            <Text size="small" className="text-ui-fg-subtle">
+              Manage your store's details
+            </Text>
+          </div>
+          {store && (
+            <Link to="/settings/store/edit">
+              <Button variant="secondary" size="small">
+                <PencilSquare className="w-4 h-4 mr-1" />
+                Edit
+              </Button>
+            </Link>
+          )}
         </div>
 
         {isPending ? (
           <div className="px-6 py-4 space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="grid grid-cols-2 items-center">
                 <Skeleton className="h-4 w-20" />
                 <Skeleton className="h-5 w-28 rounded-full" />
@@ -660,14 +672,23 @@ export const SettingsStores = () => {
             <SectionRow title="Name" value={store?.name || "-"} />
 
             <SectionRow
-              title="Default currency"
+              title="Currencies"
               value={
-                store?.region?.[0]?.currency_code ? (
-                  <Badge size="2xsmall">
-                    {String(store.region[0].currency_code).toUpperCase()}
-                  </Badge>
+                currencies.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {currencies.map((c: any) => (
+                      <Badge key={c.currency_code} size="2xsmall" color={c.is_default ? "blue" : "grey"}>
+                        {c.currency_code?.toUpperCase()}
+                        {c.is_default && " (default)"}
+                      </Badge>
+                    ))}
+                  </div>
                 ) : (
-                  "-"
+                  store?.region?.[0]?.currency_code ? (
+                    <Badge size="2xsmall">
+                      {String(store.region[0].currency_code).toUpperCase()}
+                    </Badge>
+                  ) : "-"
                 )
               }
             />
@@ -677,9 +698,7 @@ export const SettingsStores = () => {
               value={
                 store?.region?.[0]?.name ? (
                   <Badge size="2xsmall">{String(store.region[0].name)}</Badge>
-                ) : (
-                  "-"
-                )
+                ) : "-"
               }
             />
 
@@ -690,9 +709,7 @@ export const SettingsStores = () => {
                   <Badge size="2xsmall">
                     {String(store.sales_channel[0].name)}
                   </Badge>
-                ) : (
-                  "-"
-                )
+                ) : "-"
               }
             />
 
@@ -701,9 +718,7 @@ export const SettingsStores = () => {
               value={
                 store?.location?.[0]?.name ? (
                   <Badge size="2xsmall">{String(store.location[0].name)}</Badge>
-                ) : (
-                  "-"
-                )
+                ) : "-"
               }
             />
           </>

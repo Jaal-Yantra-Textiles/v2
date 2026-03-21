@@ -98,6 +98,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/social-provider",
     },
+    {
+      resolve: "./src/modules/partner-payment-config",
+    },
 
     // Production-ready modules
     // {

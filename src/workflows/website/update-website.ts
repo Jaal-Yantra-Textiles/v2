@@ -20,6 +20,7 @@ export type UpdateWebsiteStepInput = {
   supported_languages?: Record<string, unknown>;
   favicon_url?: string;
   analytics_id?: string;
+  theme?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
 };
 

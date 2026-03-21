@@ -9,7 +9,8 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
     req.scope
   )
 
-  res.json({ theme: website.metadata?.theme || {} })
+  // Read from dedicated theme column, fall back to legacy metadata.theme
+  res.json({ theme: website.theme || website.metadata?.theme || {} })
 }
 
 export const PUT = async (
@@ -23,15 +24,10 @@ export const PUT = async (
 
   const theme = req.validatedBody as WebsiteTheme
 
-  const existingMetadata = website.metadata || {}
-
   const { result, errors } = await updateWebsiteWorkflow(req.scope).run({
     input: {
       id: website.id,
-      metadata: {
-        ...existingMetadata,
-        theme,
-      },
+      theme,
     },
   })
 

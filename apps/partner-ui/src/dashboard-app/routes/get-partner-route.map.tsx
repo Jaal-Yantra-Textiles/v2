@@ -725,6 +725,12 @@ export function getPartnerRouteMap(): RouteObject[] {
                 {
                   path: "store",
                   lazy: () => import("../../routes/settings/stores"),
+                  children: [
+                    {
+                      path: "edit",
+                      lazy: () => import("../../routes/settings/stores/store-edit"),
+                    },
+                  ],
                 },
                 {
                   path: "onboarding",
@@ -1048,6 +1054,62 @@ export function getPartnerRouteMap(): RouteObject[] {
                       ],
                     },
                   ],
+                },
+                // Return Reasons
+                {
+                  path: "return-reasons",
+                  errorElement: <ErrorBoundary />,
+                  element: <Outlet />,
+                  handle: {
+                    breadcrumb: () => "Return Reasons",
+                  },
+                  children: [
+                    {
+                      path: "",
+                      lazy: () => import("../../routes/return-reasons/return-reason-list"),
+                      children: [
+                        {
+                          path: "create",
+                          lazy: () => import("../../routes/return-reasons/return-reason-create"),
+                        },
+                      ],
+                    },
+                    {
+                      path: ":id/edit",
+                      lazy: () => import("../../routes/return-reasons/return-reason-edit"),
+                    },
+                  ],
+                },
+                // Refund Reasons
+                {
+                  path: "refund-reasons",
+                  errorElement: <ErrorBoundary />,
+                  element: <Outlet />,
+                  handle: {
+                    breadcrumb: () => "Refund Reasons",
+                  },
+                  children: [
+                    {
+                      path: "",
+                      lazy: () => import("../../routes/refund-reasons/refund-reason-list"),
+                      children: [
+                        {
+                          path: "create",
+                          lazy: () => import("../../routes/refund-reasons/refund-reason-create"),
+                        },
+                      ],
+                    },
+                    {
+                      path: ":id/edit",
+                      lazy: () => import("../../routes/refund-reasons/refund-reason-edit"),
+                    },
+                  ],
+                },
+                // Payment Providers
+                {
+                  path: "payment-providers",
+                  errorElement: <ErrorBoundary />,
+                  lazy: () => import("../../routes/settings/payment-providers"),
                 },
                 // Tax Regions
                 {

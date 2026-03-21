@@ -9,29 +9,29 @@ const heroFeatureSchema = z.object({
   icon: z.string().optional(),
   title: z.string().min(1),
   description: z.string().optional(),
-})
+}).passthrough()
 
 const navigationLinkSchema = z.object({
   label: z.string().min(1),
   href: z.string().min(1),
-})
+}).passthrough()
 
 const socialLinkSchema = z.object({
   platform: z.string().min(1),
   url: z.string().url(),
-})
+}).passthrough()
 
 const trustBannerItemSchema = z.object({
   icon: z.string().optional(),
   text: z.string().min(1),
-})
+}).passthrough()
 
 const testimonialItemSchema = z.object({
   quote: z.string().min(1),
   author: z.string().min(1),
   role: z.string().optional(),
   avatar_url: z.string().optional(),
-})
+}).passthrough()
 
 const animationTypeEnum = z.enum([
   "none",
@@ -52,6 +52,7 @@ export const websiteThemeSchema = z.object({
       favicon_url: z.string().optional(),
       tagline: z.string().optional(),
     })
+    .passthrough()
     .optional(),
   colors: z
     .object({
@@ -63,6 +64,7 @@ export const websiteThemeSchema = z.object({
       muted: hexColor,
       border: hexColor,
     })
+    .passthrough()
     .optional(),
   typography: z
     .object({
@@ -71,12 +73,14 @@ export const websiteThemeSchema = z.object({
       base_font_size: z.string().optional(),
       heading_weight: z.string().optional(),
     })
+    .passthrough()
     .optional(),
   buttons: z
     .object({
       border_radius: z.string().optional(),
       primary_style: z.enum(["filled", "outline"]).optional(),
     })
+    .passthrough()
     .optional(),
   animations: z
     .object({
@@ -86,6 +90,7 @@ export const websiteThemeSchema = z.object({
       section_entrance: z.enum(["none", "fade-up", "stagger"]).optional(),
       stagger_delay: z.number().min(50).max(500).optional(),
     })
+    .passthrough()
     .optional(),
   hero: z
     .object({
@@ -105,6 +110,7 @@ export const websiteThemeSchema = z.object({
       features: z.array(heroFeatureSchema).optional(),
       min_height: z.string().optional(),
     })
+    .passthrough()
     .optional(),
   navigation: z
     .object({
@@ -115,6 +121,7 @@ export const websiteThemeSchema = z.object({
       sticky: z.boolean().optional(),
       style: z.enum(["transparent", "solid", "bordered"]).optional(),
     })
+    .passthrough()
     .optional(),
   footer: z
     .object({
@@ -125,6 +132,7 @@ export const websiteThemeSchema = z.object({
       newsletter_heading: z.string().optional(),
       newsletter_description: z.string().optional(),
     })
+    .passthrough()
     .optional(),
   home_sections: z
     .object({
@@ -154,6 +162,7 @@ export const websiteThemeSchema = z.object({
           items: z.array(trustBannerItemSchema).optional(),
           background: hexColor,
         })
+        .passthrough()
         .optional(),
       text_with_image: z
         .object({
@@ -164,12 +173,14 @@ export const websiteThemeSchema = z.object({
           cta_link: z.string().optional(),
           layout: z.enum(["image-left", "image-right"]).optional(),
         })
+        .passthrough()
         .optional(),
       testimonials: z
         .object({
           heading: z.string().optional(),
           items: z.array(testimonialItemSchema).optional(),
         })
+        .passthrough()
         .optional(),
       banner: z
         .object({
@@ -180,6 +191,7 @@ export const websiteThemeSchema = z.object({
           cta_text: z.string().optional(),
           cta_link: z.string().optional(),
         })
+        .passthrough()
         .optional(),
       newsletter: z
         .object({
@@ -188,8 +200,10 @@ export const websiteThemeSchema = z.object({
           placeholder: z.string().optional(),
           button_text: z.string().optional(),
         })
+        .passthrough()
         .optional(),
     })
+    .passthrough()
     .optional(),
   product_page: z
     .object({
@@ -206,6 +220,7 @@ export const websiteThemeSchema = z.object({
       sample_product_name: z.string().optional(),
       sample_product_price: z.string().optional(),
     })
+    .passthrough()
     .optional(),
   cart: z
     .object({
@@ -219,7 +234,8 @@ export const websiteThemeSchema = z.object({
       show_free_shipping_bar: z.boolean().optional(),
       free_shipping_threshold: z.string().optional(),
     })
+    .passthrough()
     .optional(),
-})
+}).passthrough()
 
 export type WebsiteTheme = z.infer<typeof websiteThemeSchema>

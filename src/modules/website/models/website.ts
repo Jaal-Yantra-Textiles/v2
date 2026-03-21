@@ -14,8 +14,9 @@ const Website = model.define("website", {
   primary_language: model.text().default("en"),
   supported_languages: model.json().nullable(),
   favicon_url: model.text().nullable(),
+  theme: model.json().nullable(),
   metadata: model.json().nullable(),
-  
+
   // Relationship with Pages
   pages: model.hasMany(() => Page),
 })
