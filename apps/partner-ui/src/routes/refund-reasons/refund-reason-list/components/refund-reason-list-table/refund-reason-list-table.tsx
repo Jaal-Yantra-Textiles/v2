@@ -79,7 +79,7 @@ const useColumns = () => {
   const navigate = useNavigate()
   const base = useRefundReasonTableColumns()
 
-  
+  const { mutateAsync: deleteRefundReason } = useDeleteRefundReason()
 
   const handleDelete = useCallback(
     async (refundReason: HttpTypes.AdminRefundReason) => {
@@ -95,9 +95,8 @@ const useColumns = () => {
       if (!confirm) {
         return
       }
-      const { mutateAsync } = useDeleteRefundReason(refundReason.id)
 
-      await mutateAsync(undefined, {
+      await deleteRefundReason(refundReason.id, {
         onSuccess: () => {
           toast.success(t("refundReasons.delete.successToast"))
         },
@@ -106,7 +105,7 @@ const useColumns = () => {
         },
       })
     },
-    [t, prompt]
+    [t, prompt, deleteRefundReason]
   )
 
   return useMemo(

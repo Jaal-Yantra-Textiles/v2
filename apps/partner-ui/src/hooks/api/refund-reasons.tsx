@@ -112,11 +112,10 @@ export const useUpdateRefundReason = (
 }
 
 export const useDeleteRefundReason = (
-  id: string,
-  options?: UseMutationOptions<any, FetchError, void>
+  options?: UseMutationOptions<any, FetchError, string>
 ) => {
   return useMutation({
-    mutationFn: () =>
+    mutationFn: (id: string) =>
       sdk.client.fetch(`/partners/refund-reasons/${id}`, { method: "DELETE" }),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: refundReasonsQueryKeys.lists() })
