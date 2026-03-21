@@ -126,6 +126,17 @@ module.exports = defineConfig({
             },
           },
           {
+            resolve: "./src/modules/mailjet",
+            id: "mailjet",
+            options: {
+              channels: ["email_bulk"],
+              api_key: process.env.MAILJET_API_KEY,
+              secret_key: process.env.MAILJET_SECRET_KEY,
+              from_email: process.env.MAILJET_FROM_EMAIL,
+              from_name: process.env.MAILJET_FROM_NAME || "Jaal Yantra Textiles",
+            },
+          },
+          {
             resolve: "@medusajs/medusa/notification-local",
             id: "local",
             options: {
@@ -134,7 +145,7 @@ module.exports = defineConfig({
           },
         ],
       },
-    }, 
+    },
     {
       resolve: "@medusajs/medusa/file",
       options: {
@@ -227,6 +238,9 @@ module.exports = defineConfig({
   },
    {
       resolve: "./src/modules/hang_tag_settings",
+    },
+    {
+      resolve: "./src/modules/email-provider-manager",
     },
 ],
 });

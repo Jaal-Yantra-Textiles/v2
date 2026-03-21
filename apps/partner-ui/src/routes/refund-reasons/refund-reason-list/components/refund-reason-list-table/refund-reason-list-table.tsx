@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { DataTable } from "../../../../../components/data-table"
 import {
-  useDeleteRefundReasonLazy,
+  useDeleteRefundReason,
   useRefundReasons,
 } from "../../../../../hooks/api"
 import { useRefundReasonTableColumns } from "../../../../../hooks/table/columns"
@@ -79,7 +79,7 @@ const useColumns = () => {
   const navigate = useNavigate()
   const base = useRefundReasonTableColumns()
 
-  const { mutateAsync } = useDeleteRefundReasonLazy()
+  
 
   const handleDelete = useCallback(
     async (refundReason: HttpTypes.AdminRefundReason) => {
@@ -95,8 +95,9 @@ const useColumns = () => {
       if (!confirm) {
         return
       }
+      const { mutateAsync } = useDeleteRefundReason(refundReason.id)
 
-      await mutateAsync(refundReason.id, {
+      await mutateAsync(undefined, {
         onSuccess: () => {
           toast.success(t("refundReasons.delete.successToast"))
         },
@@ -105,7 +106,7 @@ const useColumns = () => {
         },
       })
     },
-    [t, prompt, mutateAsync]
+    [t, prompt]
   )
 
   return useMemo(
