@@ -32,10 +32,13 @@ export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse)
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Partner not found")
   }
 
-  const body = req.body as { label: string; description?: string }
+  const body = req.body as { label: string; code?: string; description?: string }
+
+  // Auto-generate code from label if not provided (lowercase, underscored)
+  const code = body.code || body.label.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
 
   const { result: [refundReason] } = await createRefundReasonsWorkflow(req.scope).run({
-    input: { data: [body] },
+    input: { data: [{ ...body, code }] },
   })
 
   // Link refund reason to partner
