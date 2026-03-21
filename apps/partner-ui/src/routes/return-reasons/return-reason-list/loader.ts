@@ -1,21 +1,20 @@
-import {
-  AdminReturnReasonListParams,
-  AdminReturnReasonListResponse,
-} from "@medusajs/types"
-
 import { returnReasonsQueryKeys } from "../../../hooks/api/return-reasons"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
 
-const returnReasonListQuery = (query?: AdminReturnReasonListParams) => ({
+const returnReasonListQuery = (query?: Record<string, any>) => ({
   queryKey: returnReasonsQueryKeys.list(query),
-  queryFn: async () => sdk.admin.returnReason.list(query),
+  queryFn: async () =>
+    sdk.client.fetch<{ return_reasons: any[]; count: number }>(
+      "/partners/return-reasons",
+      { method: "GET", query }
+    ),
 })
 
 export const returnReasonListLoader = async () => {
   const query = returnReasonListQuery()
   return (
-    queryClient.getQueryData<AdminReturnReasonListResponse>(query.queryKey) ??
+    queryClient.getQueryData(query.queryKey) ??
     (await queryClient.fetchQuery(query))
   )
 }

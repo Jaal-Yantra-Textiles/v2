@@ -15,10 +15,12 @@ export const GET = async (
   )
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { getPartnerFromAuthContext } = await import("../../../helpers")
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
 
-  // Return all available regions, not just the default one,
-  // so the store edit form can show all options in the dropdown
-  const { data: regions } = await query.graph({
+  // Return regions belonging to this partner (tagged via metadata.partner_id)
+  // plus the store's current default region if it exists
+  const { data: allRegions } = await query.graph({
     entity: "region",
     fields: [
       "id",
@@ -30,6 +32,12 @@ export const GET = async (
       "updated_at",
       "countries.*",
     ],
+  })
+
+  // Filter to partner's own regions + the store's default region
+  const regions = (allRegions || []).filter((r: any) => {
+    const ownerId = r.metadata?.partner_id
+    return ownerId === partner?.id || r.id === store.default_region_id
   })
 
   // Fetch payment providers linked to these regions
@@ -81,9 +89,18 @@ export const POST = async (
   const body = PartnerCreateRegionReq.parse(req.body)
   const { payment_providers: paymentProviderIds, ...regionData } = body
 
+  const { getPartnerFromAuthContext: getPartner } = await import("../../../helpers")
+  const partner = await getPartner(req.auth_context, req.scope)
+
   const { result } = await createRegionsWorkflow(req.scope).run({
     input: {
-      regions: [regionData],
+      regions: [{
+        ...regionData,
+        metadata: {
+          ...(regionData.metadata || {}),
+          partner_id: partner?.id,
+        },
+      }],
     },
   })
 

@@ -1105,11 +1105,20 @@ export function getPartnerRouteMap(): RouteObject[] {
                     },
                   ],
                 },
-                // Payment Providers
+                // Payment Config
                 {
                   path: "payment-providers",
                   errorElement: <ErrorBoundary />,
                   lazy: () => import("../../routes/settings/payment-providers"),
+                  children: [
+                    {
+                      path: "create",
+                      lazy: () =>
+                        import(
+                          "../../routes/settings/payment-providers/payment-config-create"
+                        ),
+                    },
+                  ],
                 },
                 // Tax Regions
                 {
