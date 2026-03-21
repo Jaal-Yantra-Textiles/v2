@@ -5,7 +5,10 @@ import CustomerModule from "@medusajs/medusa/customer"
 export default defineLink(
   {
     linkable: DesignModule.linkable.design,
-    isList: true, // a customer can have many designs
+    isList: true,
   },
-  CustomerModule.linkable.customer
+  {
+    linkable: CustomerModule.linkable.customer,
+    isList: true,
+  }
 )

@@ -19,12 +19,12 @@ const confidenceColor = (c: string): "green" | "orange" | "red" | "blue" => {
   }
 }
 
-const formatCurrency = (amountInCents: number, currency: string) => {
+const formatCurrency = (amount: number, currency: string) => {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: currency.toUpperCase(),
     minimumFractionDigits: 2,
-  }).format(amountInCents / 100)
+  }).format(amount)
 }
 
 type EditableEstimate = {
@@ -54,14 +54,14 @@ export const DesignOrderPreviewDrawer = ({
 }: DesignOrderPreviewDrawerProps) => {
   const [edited, setEdited] = useState<Record<string, EditableEstimate>>({})
 
-  // Initialize from estimates
+  // Initialize from estimates — prices are stored as-is (not in cents)
   useEffect(() => {
     const initial: Record<string, EditableEstimate> = {}
     for (const est of estimates) {
       initial[est.design_id] = {
         material: est.material_cost.toFixed(2),
         production: est.production_cost.toFixed(2),
-        unitPrice: (est.unit_price / 100).toFixed(2),
+        unitPrice: est.unit_price.toFixed(2),
       }
     }
     setEdited(initial)
@@ -96,11 +96,11 @@ export const DesignOrderPreviewDrawer = ({
 
     for (const est of estimates) {
       const entry = edited[est.design_id]
-      const editedCents = Math.round(parseFloat(entry?.unitPrice || "0") * 100)
-      newTotal += editedCents
+      const editedPrice = parseFloat(entry?.unitPrice || "0")
+      newTotal += editedPrice
 
-      if (editedCents !== est.unit_price) {
-        overrides[est.design_id] = editedCents
+      if (editedPrice !== est.unit_price) {
+        overrides[est.design_id] = editedPrice
         changed = true
       }
     }
@@ -128,8 +128,8 @@ export const DesignOrderPreviewDrawer = ({
               const entry = edited[est.design_id]
               if (!entry) return null
 
-              const editedCents = Math.round(parseFloat(entry.unitPrice || "0") * 100)
-              const isModified = editedCents !== est.unit_price
+              const editedPrice = parseFloat(entry.unitPrice || "0")
+              const isModified = editedPrice !== est.unit_price
 
               return (
                 <div

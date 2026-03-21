@@ -38,7 +38,7 @@ export const POST = async (
       design_id,
       name: design.name,
       total_estimated: costEstimate.total_estimated,
-      unit_price: Math.round(costEstimate.total_estimated * 100),
+      unit_price: costEstimate.total_estimated,
       confidence: costEstimate.confidence,
       material_cost: costEstimate.material_cost,
       production_cost: costEstimate.production_cost,

@@ -16,12 +16,12 @@ export const POST = async (
 
   const remoteLink = req.scope.resolve<Link>(ContainerRegistrationKeys.LINK)
 
-  for (const design_id of design_ids) {
-    await remoteLink.create({
-      [DESIGN_MODULE]: { design_id },
-      [Modules.CUSTOMER]: { customer_id },
-    })
-  }
+  const links = design_ids.map((design_id) => ({
+    [DESIGN_MODULE]: { design_id },
+    [Modules.CUSTOMER]: { customer_id },
+  }))
+
+  await remoteLink.create(links)
 
   res.json({ linked: design_ids.length })
 }

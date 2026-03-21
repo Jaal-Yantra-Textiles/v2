@@ -1,10 +1,10 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
-import { Container, Text, Badge, StatusBadge, Skeleton, Heading, toast, Checkbox, CommandBar } from "@medusajs/ui"
+import { Container, Text, Badge, StatusBadge, Skeleton, Heading, toast, Checkbox, CommandBar, Button } from "@medusajs/ui"
 import { DetailWidgetProps } from "@medusajs/framework/types"
 import { useState, useMemo, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../components/common/action-menu"
-import { BellAlert, PencilSquare, Plus, Link as LinkIcon, ShoppingBag } from "@medusajs/icons"
+import { BellAlert, PencilSquare, Plus, Link as LinkIcon, ShoppingBag, SquareTwoStack } from "@medusajs/icons"
 import {
   useDesigns,
   useNotifyDesignCustomer,
@@ -111,7 +111,8 @@ const DesignRow = ({
 }
 
 const OrderedDesignRow = ({ design }: { design: any }) => {
-  const navigate = useNavigate()
+  const isPending = design.checkout_status === "pending"
+  const checkoutUrl = design.checkout_url
 
   const actionGroups = [
     {
@@ -126,26 +127,60 @@ const OrderedDesignRow = ({ design }: { design: any }) => {
           icon: <ShoppingBag />,
           to: `/orders/${orderId}`,
         })),
+        ...(checkoutUrl
+          ? [
+              {
+                label: "Copy Checkout Link",
+                icon: <SquareTwoStack />,
+                onClick: () => {
+                  navigator.clipboard.writeText(checkoutUrl)
+                  toast.success("Checkout link copied")
+                },
+              },
+            ]
+          : []),
       ],
     },
   ]
 
   return (
-    <div className="flex items-center justify-between px-6 py-3">
-      <div className="flex flex-col min-w-0">
-        <Text size="small" weight="plus" className="truncate">{design.name}</Text>
-        <div className="flex items-center gap-x-2 mt-1">
-          {design.status && (
-            <StatusBadge color={designStatusColor(design.status)}>
-              {design.status}
-            </StatusBadge>
+    <div className="px-6 py-3">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col min-w-0 flex-1">
+          <Text size="small" weight="plus" className="truncate">{design.name}</Text>
+          <div className="flex items-center gap-x-2 mt-1">
+            {design.status && (
+              <StatusBadge color={designStatusColor(design.status)}>
+                {design.status}
+              </StatusBadge>
+            )}
+            <Badge size="2xsmall" color={isPending ? "orange" : "green"}>
+              {isPending ? "Pending Checkout" : "Ordered"}
+            </Badge>
+          </div>
+        </div>
+        <div className="flex items-center gap-x-2">
+          {isPending && checkoutUrl && (
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={() => {
+                navigator.clipboard.writeText(checkoutUrl)
+                toast.success("Checkout link copied")
+              }}
+            >
+              <SquareTwoStack className="w-3.5 h-3.5 mr-1" />
+              Copy URL
+            </Button>
           )}
-          <Badge size="2xsmall" color="green">
-            Ordered
-          </Badge>
+          <ActionMenu groups={actionGroups} />
         </div>
       </div>
-      <ActionMenu groups={actionGroups} />
+      {isPending && checkoutUrl && (
+        <Text size="xsmall" className="text-ui-fg-subtle mt-1 truncate">
+          {checkoutUrl}
+        </Text>
+      )}
     </div>
   )
 }
@@ -164,10 +199,21 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
   } | null>(null)
   const [previewDesignIds, setPreviewDesignIds] = useState<string[]>([])
 
-  const { designs, isLoading, isError, error } = useDesigns({ customer_id: data.id } as any)
+  const { designs: allLinkedDesigns, isLoading, isError, error } = useDesigns({ customer_id: data.id } as any)
   const { designs: orderedDesigns, isLoading: isLoadingOrdered } = useCustomerOrderedDesigns(data.id)
 
-  const linkedDesignIds = useMemo(() => designs.map((d: any) => d.id), [designs])
+  // Split: active = linked but not in checkout/ordered; ordered = has cart/order
+  const orderedDesignIds = useMemo(
+    () => new Set(orderedDesigns.map((d: any) => d.id)),
+    [orderedDesigns]
+  )
+  const designs = useMemo(
+    () => allLinkedDesigns.filter((d: any) => !orderedDesignIds.has(d.id)),
+    [allLinkedDesigns, orderedDesignIds]
+  )
+
+  // All linked IDs (active + ordered) for the drawer to exclude
+  const linkedDesignIds = useMemo(() => allLinkedDesigns.map((d: any) => d.id), [allLinkedDesigns])
 
   const selectedIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
   const selectedCount = selectedIds.length
@@ -200,16 +246,15 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
 
   const { mutate: createDesignOrder, isPending: isCreatingOrder } = useCreateDesignOrder(data.id, {
     onSuccess: (resp) => {
-      toast.success("Draft order created", {
-        description: `Order created with ${previewDesignIds.length} design(s).`,
-      })
       setPreviewOpen(false)
       setPreviewData(null)
       clearSelection()
-      navigate(`/orders/${resp.order.id}`)
+      toast.success("Checkout cart created", {
+        description: "Share the checkout link with the customer to complete payment.",
+      })
     },
     onError: (err: any) => {
-      toast.error("Failed to create draft order", {
+      toast.error("Failed to create checkout cart", {
         description: err?.message || "An unexpected error occurred.",
       })
     },
@@ -296,13 +341,13 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
           )}
         </div>
 
-        {/* Ordered designs section */}
+        {/* Sent to Checkout section */}
         {!isLoadingOrdered && orderedDesigns.length > 0 && (
           <>
             <div className="px-6 py-3 bg-ui-bg-subtle">
               <div className="flex items-center gap-x-3">
                 <Text size="small" weight="plus" className="text-ui-fg-subtle">
-                  Past Orders
+                  Sent to Checkout
                 </Text>
                 <Badge size="2xsmall" color="grey">
                   {orderedDesigns.length}

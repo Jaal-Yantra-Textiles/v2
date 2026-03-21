@@ -2210,6 +2210,11 @@ export default defineMiddlewares({
       middlewares: [authenticate("user", ["session", "bearer"])],
     },
     {
+      matcher: "/admin/designs/orders/:lineItemId",
+      method: "GET",
+      middlewares: [authenticate("user", ["session", "bearer"])],
+    },
+    {
       matcher: "/admin/designs/:id",
       method: "PUT",
       middlewares: [validateAndTransformBody(wrapSchema(UpdateDesignSchema))],

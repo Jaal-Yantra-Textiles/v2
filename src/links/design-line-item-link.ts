@@ -3,7 +3,10 @@ import DesignModule from "../modules/designs"
 import CartModule from "@medusajs/medusa/cart"
 
 export default defineLink(
-  DesignModule.linkable.design,
+  {
+    linkable: DesignModule.linkable.design,
+    isList: true,
+  },
   {
     linkable: CartModule.linkable.lineItem,
     isList: true,

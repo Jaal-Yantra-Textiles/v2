@@ -6,19 +6,15 @@ import {
   ContainerRegistrationKeys,
   Modules,
 } from "@medusajs/framework/utils";
-import type { IOrderModuleService } from "@medusajs/types";
 import designLineItemLink from "../../../../links/design-line-item-link";
 import designCustomerLink from "../../../../links/design-customer-link";
+import designOrderLink from "../../../../links/design-order-link";
 
 /**
  * GET /admin/designs/orders
  *
  * Returns all designs that have been added to carts (as custom line items),
  * joined with their order details if the cart was completed into an order.
- *
- * Flow:
- *   design → [designLineItemLink] → CartLineItem (has cart_id)
- *   cart_id → Order (order.cart_id matches)
  */
 export async function GET(
   req: AuthenticatedMedusaRequest,
@@ -43,8 +39,8 @@ export async function GET(
     const designIds = [...new Set(linkRows.map((r: any) => r.design_id))] as string[];
     const lineItemIds = linkRows.map((r: any) => r.line_item_id) as string[];
 
-    // 2. Fetch design details + linked customer in parallel
-    const [designsResult, customerLinksResult] = await Promise.all([
+    // 2. Fetch design details + linked customer + linked orders in parallel
+    const [designsResult, customerLinksResult, orderLinksResult] = await Promise.all([
       query.graph({
         entity: "design",
         filters: { id: designIds },
@@ -54,6 +50,11 @@ export async function GET(
         entity: designCustomerLink.entryPoint,
         filters: { design_id: designIds },
         fields: ["design_id", "customer_id", "customer.*"],
+      }),
+      query.graph({
+        entity: designOrderLink.entryPoint,
+        filters: { design_id: designIds },
+        fields: ["design_id", "order_id", "order.id", "order.display_id", "order.status", "order.total", "order.currency_code", "order.created_at"],
       }),
     ]);
 
@@ -70,6 +71,13 @@ export async function GET(
       }
     }
 
+    const orderByDesignId: Record<string, any> = {};
+    for (const ol of orderLinksResult.data as any[]) {
+      if (ol.design_id && ol.order) {
+        orderByDesignId[ol.design_id] = ol.order;
+      }
+    }
+
     // 3. Fetch cart line items to get cart_id and price
     const cartService = req.scope.resolve(Modules.CART) as any;
     const cartLineItems = await cartService.listLineItems(
@@ -82,44 +90,51 @@ export async function GET(
       lineItemById[li.id] = li;
     }
 
-    // 4. Find orders linked to those carts via order.cart_id
-    const cartIds = [
-      ...new Set(
-        cartLineItems.map((li: any) => li.cart_id).filter(Boolean)
-      ),
-    ] as string[];
+    // 4. Resolve customers from carts for designs without a direct customer link
+    const cartIds = [...new Set(
+      (cartLineItems as any[]).map((li: any) => li.cart_id).filter(Boolean)
+    )] as string[];
 
-    const ordersByCartId: Record<string, any> = {};
+    const customerByCartId: Record<string, any> = {};
     if (cartIds.length > 0) {
-      const orderService = req.scope.resolve(Modules.ORDER) as IOrderModuleService;
-      const orders = await orderService.listOrders(
-        { cart_id: cartIds } as any,
-        {
-          select: [
-            "id",
-            "display_id",
-            "status",
-            "payment_status",
-            "fulfillment_status",
-            "total",
-            "currency_code",
-            "cart_id",
-            "created_at",
-            "canceled_at",
-          ] as any,
+      try {
+        const { data: carts } = await query.graph({
+          entity: "cart",
+          filters: { id: cartIds },
+          fields: ["id", "customer_id"],
+        });
+        const customerIds = [...new Set(
+          (carts || []).map((c: any) => c.customer_id).filter(Boolean)
+        )];
+        if (customerIds.length > 0) {
+          const { data: customers } = await query.graph({
+            entity: "customer",
+            filters: { id: customerIds },
+            fields: ["id", "email", "first_name", "last_name"],
+          });
+          const customerById: Record<string, any> = {};
+          for (const c of customers || []) {
+            customerById[c.id] = c;
+          }
+          for (const cart of carts || []) {
+            if (cart.customer_id && customerById[cart.customer_id]) {
+              customerByCartId[cart.id] = customerById[cart.customer_id];
+            }
+          }
         }
-      );
-      for (const o of orders as any[]) {
-        if (o.cart_id) ordersByCartId[o.cart_id] = o;
-      }
+      } catch {}
     }
 
     // 5. Build combined rows — one row per design → line item link
     const allRows = (linkRows as any[]).map((linkRow) => {
       const design = designById[linkRow.design_id];
       const lineItem = lineItemById[linkRow.line_item_id];
-      const customer = customerByDesignId[linkRow.design_id] || null;
-      const order = lineItem ? ordersByCartId[lineItem.cart_id] || null : null;
+      const order = orderByDesignId[linkRow.design_id] || null;
+
+      // Try design-customer link first, fall back to cart's customer
+      const customer = customerByDesignId[linkRow.design_id]
+        || (lineItem?.cart_id ? customerByCartId[lineItem.cart_id] : null)
+        || null;
 
       return {
         design: design
@@ -142,18 +157,15 @@ export async function GET(
               id: order.id,
               display_id: order.display_id,
               status: order.status,
-              payment_status: order.payment_status,
-              fulfillment_status: order.fulfillment_status,
               total: order.total,
               currency_code: order.currency_code,
               created_at: order.created_at,
-              canceled_at: order.canceled_at,
             }
           : null,
       };
     });
 
-    // 6. Sort newest first, then paginate
+    // 5. Sort newest first, then paginate
     allRows.sort((a, b) => {
       const ta = a.added_at ? new Date(a.added_at).getTime() : 0;
       const tb = b.added_at ? new Date(b.added_at).getTime() : 0;

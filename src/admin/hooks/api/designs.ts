@@ -658,7 +658,8 @@ export interface CreateDesignOrderPayload {
 }
 
 export interface CreateDesignOrderResponse {
-  order: any
+  cart: any
+  checkout_url: string
 }
 
 export interface DesignEstimatePreview {

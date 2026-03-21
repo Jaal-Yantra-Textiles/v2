@@ -93,11 +93,11 @@ const getFulfillmentStatusColor = (
   }
 };
 
-const formatCurrency = (amount: number, currencyCode = "usd") => {
-  return new Intl.NumberFormat("en-US", {
+const formatCurrency = (amount: number, currencyCode = "inr") => {
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: currencyCode.toUpperCase(),
-  }).format(amount / 100);
+  }).format(amount);
 };
 
 // ─── Row actions component ────────────────────────────────────────────────────
@@ -345,7 +345,7 @@ const DesignOrdersPage = () => {
     columns,
     data: filteredRows,
     getRowId: (row) => row.line_item_id,
-    onRowClick: (_, row) => navigate(`/designs/${row.design.id}`),
+    onRowClick: (_, row) => navigate(`/design-orders/${row.original.line_item_id}`),
     rowCount: count ?? 0,
     isLoading,
     filters,

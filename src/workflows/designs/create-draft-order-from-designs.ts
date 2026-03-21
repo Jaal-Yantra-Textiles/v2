@@ -68,7 +68,7 @@ const estimateDesignCostsStep = createStep(
         estimates.push({
           design_id,
           name: design.name,
-          unit_price: Math.round(costEstimate.total_estimated * 100),
+          unit_price: costEstimate.total_estimated,
           confidence: costEstimate.confidence,
         })
       }
@@ -78,10 +78,10 @@ const estimateDesignCostsStep = createStep(
   }
 )
 
-// ─── Step 2: Create draft order ──────────────────────────────────────────────
+// ─── Step 2: Create cart with design line items ──────────────────────────────
 
-const createDraftOrderStep = createStep(
-  "create-draft-order-step",
+const createDesignCartStep = createStep(
+  "create-design-cart-step",
   async (
     input: {
       customer_id: string
@@ -90,98 +90,137 @@ const createDraftOrderStep = createStep(
     },
     { container }
   ) => {
-    const orderModuleService = container.resolve(Modules.ORDER)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const cartService = container.resolve(Modules.CART) as any
 
     const currencyCode = input.currency_code || "inr"
 
-    const items = input.estimates.map((est) => ({
-      title: est.name,
-      quantity: 1,
-      unit_price: est.unit_price,
-      metadata: {
-        design_id: est.design_id,
-        cost_confidence: est.confidence,
-      },
-    }))
-
-    const order = await (orderModuleService as any).createOrders({
-      status: "draft",
-      currency_code: currencyCode,
-      customer_id: input.customer_id,
-      items,
+    // Find a region that supports this currency
+    const { data: regions } = await query.graph({
+      entity: "region",
+      filters: {},
+      fields: ["id", "currency_code"],
     })
 
-    return new StepResponse(order, order.id)
+    const region = regions?.find(
+      (r: any) => r.currency_code === currencyCode
+    ) || regions?.[0]
+
+    if (!region) {
+      throw new Error("No region found for cart creation")
+    }
+
+    // Find the default sales channel from the store
+    const { data: stores } = await query.graph({
+      entity: "store",
+      filters: {},
+      fields: ["id", "default_sales_channel_id"],
+    })
+
+    let salesChannelId = stores?.[0]?.default_sales_channel_id
+
+    if (!salesChannelId) {
+      // Fallback: find any sales channel
+      const { data: salesChannels } = await query.graph({
+        entity: "sales_channel",
+        filters: {},
+        fields: ["id"],
+      })
+      if (!salesChannels?.length) {
+        throw new Error("No sales channel found for cart creation")
+      }
+      salesChannelId = salesChannels[0].id
+    }
+
+    // Find the customer's email
+    const { data: customers } = await query.graph({
+      entity: "customer",
+      filters: { id: input.customer_id },
+      fields: ["id", "email"],
+    })
+    const customerEmail = customers?.[0]?.email
+
+    // Create the cart
+    const cart = await cartService.createCarts({
+      region_id: region.id,
+      currency_code: currencyCode,
+      customer_id: input.customer_id,
+      email: customerEmail,
+      sales_channel_id: salesChannelId,
+      metadata: {
+        created_by: "admin",
+        source: "design-order",
+      },
+    })
+
+    // Add custom-priced line items for each design
+    const lineItems = await cartService.addLineItems(
+      cart.id,
+      input.estimates.map((est) => ({
+        title: est.name,
+        unit_price: est.unit_price,
+        is_custom_price: true,
+        quantity: 1,
+        metadata: {
+          design_id: est.design_id,
+          cost_confidence: est.confidence,
+        },
+      }))
+    )
+
+    return new StepResponse(
+      { cart, lineItems },
+      cart.id
+    )
   },
-  async (orderId, { container }) => {
-    if (!orderId) return
-    const orderModuleService = container.resolve(Modules.ORDER)
-    await (orderModuleService as any).deleteOrders(orderId)
+  async (cartId, { container }) => {
+    if (!cartId) return
+    const cartService = container.resolve(Modules.CART) as any
+    try {
+      await cartService.deleteCarts(cartId)
+    } catch {
+      // Cart may have been completed already
+    }
   }
 )
 
-// ─── Step 3: Link designs to the order ───────────────────────────────────────
+// ─── Step 3: Link designs to cart line items ─────────────────────────────────
 
-const linkDesignsToOrderStep = createStep(
-  "link-designs-to-order-step",
+const linkDesignsToLineItemsStep = createStep(
+  "link-designs-to-line-items-step",
   async (
-    input: { design_ids: string[]; order_id: string },
+    input: {
+      estimates: DesignEstimate[]
+      lineItems: any[]
+    },
     { container }
   ) => {
     const remoteLink = container.resolve<Link>(ContainerRegistrationKeys.LINK)
 
-    const links = input.design_ids.map((design_id) => ({
-      [DESIGN_MODULE]: { design_id },
-      [Modules.ORDER]: { order_id: input.order_id },
-    }))
+    const links: any[] = []
+    for (let i = 0; i < input.estimates.length; i++) {
+      const lineItem = input.lineItems[i]
+      if (lineItem) {
+        links.push({
+          [DESIGN_MODULE]: { design_id: input.estimates[i].design_id },
+          [Modules.CART]: { line_item_id: lineItem.id },
+        })
+      }
+    }
 
-    await remoteLink.create(links)
+    if (links.length > 0) {
+      await remoteLink.create(links)
+    }
 
-    return new StepResponse(null, input)
+    return new StepResponse(
+      null,
+      links
+    )
   },
-  async (input, { container }) => {
-    if (!input) return
+  async (links, { container }) => {
+    if (!links || links.length === 0) return
     const remoteLink = container.resolve<Link>(ContainerRegistrationKeys.LINK)
-
-    const links = input.design_ids.map((design_id) => ({
-      [DESIGN_MODULE]: { design_id },
-      [Modules.ORDER]: { order_id: input.order_id },
-    }))
-
     await remoteLink.dismiss(links)
-  }
-)
-
-// ─── Step 4: Delink designs from customer ────────────────────────────────────
-
-const delinkDesignsFromCustomerStep = createStep(
-  "delink-designs-from-customer-step",
-  async (
-    input: { design_ids: string[]; customer_id: string },
-    { container }
-  ) => {
-    const remoteLink = container.resolve<Link>(ContainerRegistrationKeys.LINK)
-
-    const links = input.design_ids.map((design_id) => ({
-      [DESIGN_MODULE]: { design_id },
-      [Modules.CUSTOMER]: { customer_id: input.customer_id },
-    }))
-
-    await remoteLink.dismiss(links)
-
-    return new StepResponse(null, input)
-  },
-  async (input, { container }) => {
-    // Compensation: re-link designs back to customer
-    if (!input) return
-    const remoteLink = container.resolve<Link>(ContainerRegistrationKeys.LINK)
-
-    const links = input.design_ids.map((design_id) => ({
-      [DESIGN_MODULE]: { design_id },
-      [Modules.CUSTOMER]: { customer_id: input.customer_id },
-    }))
-
-    await remoteLink.create(links)
   }
 )
 
@@ -195,23 +234,18 @@ export const createDraftOrderFromDesignsWorkflow = createWorkflow(
       price_overrides: input.price_overrides,
     })
 
-    const order = createDraftOrderStep({
+    const cartResult = createDesignCartStep({
       customer_id: input.customer_id,
       currency_code: input.currency_code,
       estimates: estimatesResult.estimates as unknown as DesignEstimate[],
     })
 
-    linkDesignsToOrderStep({
-      design_ids: input.design_ids,
-      order_id: order.id,
+    linkDesignsToLineItemsStep({
+      estimates: estimatesResult.estimates as unknown as DesignEstimate[],
+      lineItems: cartResult.lineItems,
     })
 
-    delinkDesignsFromCustomerStep({
-      design_ids: input.design_ids,
-      customer_id: input.customer_id,
-    })
-
-    return new WorkflowResponse(order)
+    return new WorkflowResponse(cartResult.cart)
   }
 )
 

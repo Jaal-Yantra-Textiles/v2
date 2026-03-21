@@ -14,7 +14,7 @@ export const POST = async (
   const { id: customer_id } = req.params
   const { design_ids, currency_code, price_overrides } = req.validatedBody as CreateDesignOrderBody
 
-  const { result: order } = await createDraftOrderFromDesignsWorkflow(
+  const { result: cart } = await createDraftOrderFromDesignsWorkflow(
     req.scope
   ).run({
     input: {
@@ -25,5 +25,11 @@ export const POST = async (
     },
   })
 
-  res.json({ order })
+  const storeUrl = process.env.STORE_URL || "https://cicilabel.com"
+  const checkoutUrl = `${storeUrl}/checkout/cart/${cart.id}`
+
+  res.json({
+    cart,
+    checkout_url: checkoutUrl,
+  })
 }

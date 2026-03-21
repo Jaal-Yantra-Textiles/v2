@@ -90,6 +90,31 @@ export const useDesignOrders = (
   return { ...data, ...rest };
 };
 
+export const useDesignOrder = (
+  lineItemId: string,
+  options?: Omit<
+    UseQueryOptions<
+      { design_order: DesignOrderItem },
+      FetchError,
+      { design_order: DesignOrderItem },
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<{ design_order: DesignOrderItem }>(
+        `/admin/designs/orders/${lineItemId}`,
+        { method: "GET" }
+      ),
+    queryKey: designOrdersQueryKeys.detail(lineItemId),
+    ...options,
+  });
+
+  return { designOrder: data?.design_order, ...rest };
+};
+
 export const useApproveDesign = (
   designId: string,
   options?: UseMutationOptions<ApproveDesignResponse, FetchError>
