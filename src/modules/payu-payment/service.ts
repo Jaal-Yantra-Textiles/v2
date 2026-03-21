@@ -76,31 +76,28 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
         || (context as any)?.sales_channel_id
       if (!salesChannelId) return this.options_
 
-      // Resolve partner from sales channel → store → partner link
+      // Resolve partner from sales channel → store → partner (via link)
       const query = this.container_.resolve?.("query")
       if (!query) return this.options_
 
-      // Find store linked to this sales channel
+      // Find store linked to this sales channel, and traverse the partner link
       const { data: stores } = await query.graph({
         entity: "store",
         filters: { default_sales_channel_id: salesChannelId },
-        fields: ["id"],
-      })
+        fields: ["id", "partner.*"],
+      }).catch(() => ({ data: [] }))
 
       if (!stores?.length) return this.options_
 
-      const storeId = stores[0].id
+      // The partner is resolved via the module link traversal
+      const partner = stores[0].partner
+      const partnerId = partner?.id
 
-      // Find partner linked to this store
-      const { data: partnerLinks } = await query.graph({
-        entity: "partner_store",
-        filters: { store_id: storeId },
-        fields: ["partner_id"],
-      }).catch(() => ({ data: [] }))
-
-      if (!partnerLinks?.length) return this.options_
-
-      const partnerId = partnerLinks[0].partner_id
+      if (!partnerId) {
+        // Fallback: try to find partner from store metadata
+        this.logger_.debug(`[PayU] No partner link found for store ${stores[0].id}`)
+        return this.options_
+      }
 
       // Look up partner payment config
       const configService = this.container_.resolve?.("partner_payment_config")

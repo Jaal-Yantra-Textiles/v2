@@ -1353,6 +1353,12 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // PayU subscription callback (unauthenticated — called by PayU)
+    {
+      matcher: "/partners/subscription/payu/complete",
+      method: "POST",
+      middlewares: [],
+    },
     // Partner Price Preferences
     {
       matcher: "/partners/price-preferences",
@@ -2167,6 +2173,12 @@ export default defineMiddlewares({
       matcher: "/admin/partners",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(PostPartnerSchema))],
+    },
+    // Admin Partner Subscription
+    {
+      matcher: "/admin/partners/:id/subscription",
+      method: ["GET", "POST", "DELETE"],
+      middlewares: [],
     },
     // Admin Partner Storefront Provisioning
     {

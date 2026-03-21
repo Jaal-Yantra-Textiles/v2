@@ -36,6 +36,13 @@ export type PartnerSubscription = {
   updated_at: string
 }
 
+type SubscribeResponse = {
+  subscription: PartnerSubscription | null
+  payment_url?: string | null
+  payment_provider?: string
+  payment_data?: Record<string, any>
+}
+
 const SUBSCRIPTION_QUERY_KEY = "partner_subscription" as const
 export const subscriptionQueryKeys = queryKeysFactory(SUBSCRIPTION_QUERY_KEY)
 
@@ -70,15 +77,37 @@ export const usePartnerSubscription = (
 
 export const useSubscribeToPlan = () => {
   return useMutation({
-    mutationFn: (payload: { plan_id: string }) =>
-      sdk.client.fetch<{ subscription: PartnerSubscription }>(
+    mutationFn: async (payload: { plan_id: string }) => {
+      const result = await sdk.client.fetch<SubscribeResponse>(
         "/partners/subscription",
         { method: "POST", body: payload }
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: subscriptionQueryKeys.all,
-      })
+      )
+
+      // If the server returns a payment URL, handle the redirect
+      if (result.payment_url) {
+        if (result.payment_provider === "payu" && result.payment_data) {
+          // PayU: create a form and auto-submit (PayU requires form POST)
+          redirectToPayU(result.payment_url, result.payment_data)
+          // Return a pending state — the page will redirect
+          return { subscription: null, payment_url: result.payment_url, payment_provider: "payu" }
+        }
+
+        if (result.payment_provider === "stripe") {
+          // Stripe: simple redirect to checkout URL
+          window.location.href = result.payment_url
+          return { subscription: null, payment_url: result.payment_url, payment_provider: "stripe" }
+        }
+      }
+
+      return result
+    },
+    onSuccess: (data) => {
+      // Only invalidate if subscription was created (free plan / no redirect)
+      if (data?.subscription) {
+        queryClient.invalidateQueries({
+          queryKey: subscriptionQueryKeys.all,
+        })
+      }
     },
   })
 }
@@ -93,4 +122,28 @@ export const useCancelSubscription = () => {
       })
     },
   })
+}
+
+/**
+ * PayU requires a form POST submission (not a simple redirect).
+ * Creates a hidden form with all payment data and auto-submits it.
+ */
+function redirectToPayU(url: string, data: Record<string, any>) {
+  const form = document.createElement("form")
+  form.method = "POST"
+  form.action = url
+  form.style.display = "none"
+
+  for (const [key, value] of Object.entries(data)) {
+    if (value != null) {
+      const input = document.createElement("input")
+      input.type = "hidden"
+      input.name = key
+      input.value = String(value)
+      form.appendChild(input)
+    }
+  }
+
+  document.body.appendChild(form)
+  form.submit()
 }

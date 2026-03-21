@@ -187,3 +187,93 @@ export const useAddPartnerAdmin = (partnerId: string) => {
     },
   })
 }
+
+// ─── Partner Subscription (Admin) ───────────────────────────────────────────
+
+export type AdminPartnerSubscription = {
+  id: string
+  partner_id: string
+  status: "active" | "canceled" | "expired" | "past_due"
+  payment_provider: string
+  current_period_start: string
+  current_period_end?: string
+  canceled_at?: string
+  plan?: {
+    id: string
+    name: string
+    slug: string
+    price: number
+    currency_code: string
+    interval: string
+  }
+  payments?: Array<{
+    id: string
+    amount: number
+    currency_code: string
+    status: string
+    provider: string
+    paid_at?: string
+    failed_at?: string
+  }>
+  created_at: string
+}
+
+export type AdminPartnerPlan = {
+  id: string
+  name: string
+  slug: string
+  price: number
+  currency_code: string
+  interval: string
+  is_active: boolean
+}
+
+export const usePartnerSubscriptions = (partnerId: string) => {
+  const { data, ...rest } = useQuery({
+    queryKey: ["partner-subscriptions", partnerId],
+    queryFn: () =>
+      sdk.client.fetch<{
+        subscriptions: AdminPartnerSubscription[]
+        plans: AdminPartnerPlan[]
+      }>(`/admin/partners/${partnerId}/subscription`, { method: "GET" }),
+    enabled: !!partnerId,
+  })
+  return {
+    subscriptions: data?.subscriptions || [],
+    plans: data?.plans || [],
+    ...rest,
+  }
+}
+
+export const useAdminAssignSubscription = (partnerId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      plan_id: string
+      skip_payment?: boolean
+      notes?: string
+    }) =>
+      sdk.client.fetch(`/admin/partners/${partnerId}/subscription`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["partner-subscriptions", partnerId] })
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.details() })
+    },
+  })
+}
+
+export const useAdminCancelSubscription = (partnerId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch(`/admin/partners/${partnerId}/subscription`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["partner-subscriptions", partnerId] })
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.details() })
+    },
+  })
+}
