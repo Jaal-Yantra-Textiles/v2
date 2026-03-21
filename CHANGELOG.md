@@ -1,3 +1,15 @@
+# [10.17.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.16.0...v10.17.0) (2026-03-21)
+
+
+### Bug Fixes
+
+* **api:** Animation editor fix ([d8acdaf](https://github.com/Jaal-Yantra-Textiles/v2/commit/d8acdafbae1e5304067e23e7fb501f18aaabeae3))
+
+
+### Features
+
+* **api:** Product Design Page Matches the layout ([0df86e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/0df86e98c3c1e3b1b077df461d63a27324fc4f6b))
+
 # [10.16.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.15.0...v10.16.0) (2026-03-21)
 
 
