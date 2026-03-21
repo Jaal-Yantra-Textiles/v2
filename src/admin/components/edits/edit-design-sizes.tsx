@@ -15,6 +15,39 @@ const standardSizes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
 // Define common measurement fields
 const commonMeasurements = ["chest", "length", "shoulder", "sleeve", "waist", "hip"];
 
+// Standard size charts (measurements in inches)
+type GenderType = "women" | "men" | "unisex";
+
+const STANDARD_SIZE_CHARTS: Record<GenderType, Record<string, Record<string, number>>> = {
+  women: {
+    XS:   { chest: 32, waist: 24, hip: 34, shoulder: 14, sleeve: 22, length: 25 },
+    S:    { chest: 34, waist: 26, hip: 36, shoulder: 14.5, sleeve: 22.5, length: 25.5 },
+    M:    { chest: 36, waist: 28, hip: 38, shoulder: 15, sleeve: 23, length: 26 },
+    L:    { chest: 38, waist: 30, hip: 40, shoulder: 15.5, sleeve: 23.5, length: 26.5 },
+    XL:   { chest: 40, waist: 32, hip: 42, shoulder: 16, sleeve: 24, length: 27 },
+    XXL:  { chest: 42, waist: 34, hip: 44, shoulder: 16.5, sleeve: 24.5, length: 27.5 },
+    XXXL: { chest: 44, waist: 36, hip: 46, shoulder: 17, sleeve: 25, length: 28 },
+  },
+  men: {
+    XS:   { chest: 34, waist: 28, hip: 34, shoulder: 16, sleeve: 24, length: 27 },
+    S:    { chest: 36, waist: 30, hip: 36, shoulder: 17, sleeve: 25, length: 28 },
+    M:    { chest: 38, waist: 32, hip: 38, shoulder: 18, sleeve: 25.5, length: 29 },
+    L:    { chest: 40, waist: 34, hip: 40, shoulder: 18.5, sleeve: 26, length: 30 },
+    XL:   { chest: 42, waist: 36, hip: 42, shoulder: 19, sleeve: 26.5, length: 31 },
+    XXL:  { chest: 44, waist: 38, hip: 44, shoulder: 19.5, sleeve: 27, length: 32 },
+    XXXL: { chest: 46, waist: 40, hip: 46, shoulder: 20, sleeve: 27.5, length: 33 },
+  },
+  unisex: {
+    XS:   { chest: 33, waist: 26, hip: 34, shoulder: 15, sleeve: 23, length: 26 },
+    S:    { chest: 35, waist: 28, hip: 36, shoulder: 15.5, sleeve: 23.5, length: 27 },
+    M:    { chest: 37, waist: 30, hip: 38, shoulder: 16.5, sleeve: 24, length: 28 },
+    L:    { chest: 39, waist: 32, hip: 40, shoulder: 17, sleeve: 25, length: 29 },
+    XL:   { chest: 41, waist: 34, hip: 42, shoulder: 17.5, sleeve: 25.5, length: 30 },
+    XXL:  { chest: 43, waist: 36, hip: 44, shoulder: 18, sleeve: 26, length: 31 },
+    XXXL: { chest: 45, waist: 38, hip: 46, shoulder: 18.5, sleeve: 26.5, length: 32 },
+  },
+};
+
 // Schema for sizes form
 const sizesSchema = z.object({
   custom_sizes_json: z.string().min(1, "Size data is required"),
@@ -56,6 +89,7 @@ type SizeData = {
 // Custom component for sizes JSON editor with helper UI
 const SizesJsonEditor = ({ value, onChange }: any) => {
   const [showJsonEditor, setShowJsonEditor] = useState(false);
+  const [gender, setGender] = useState<GenderType>("women");
   const [structuredSizes, setStructuredSizes] = useState<SizeData[]>(() => {
     try {
       const parsedSizes = value ? JSON.parse(value) : {};
@@ -119,17 +153,17 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
   };
 
   const handleAddStandardSize = (sizeName: string) => {
+    // Get standard measurements for this size + gender
+    const chart = STANDARD_SIZE_CHARTS[gender]
+    const standardMeasurements = chart[sizeName] || { chest: 0, length: 0 }
+
     if (showJsonEditor) {
       // JSON editor mode
       try {
         const currentSizes = value ? JSON.parse(value) : {};
-        
-        // Only add if it doesn't exist
+
         if (!currentSizes[sizeName]) {
-          currentSizes[sizeName] = {
-            chest: 0,
-            length: 0
-          };
+          currentSizes[sizeName] = { ...standardMeasurements };
           onChange(JSON.stringify(currentSizes, null, 2));
         } else {
           toast.error(`Size ${sizeName} already exists`);
@@ -141,24 +175,50 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
     } else {
       // Structured editor mode
       const sizeExists = structuredSizes.some(size => size.name === sizeName);
-      
+
       if (!sizeExists) {
         const newStructuredSizes = [
           ...structuredSizes,
           {
             name: sizeName,
-            measurements: [
-              { name: "chest", value: 0 },
-              { name: "length", value: 0 }
-            ]
+            measurements: Object.entries(standardMeasurements).map(([name, val]) => ({
+              name,
+              value: val,
+            })),
           }
         ];
-        
+
         updateJsonFromStructured(newStructuredSizes);
       } else {
         toast.error(`Size ${sizeName} already exists`);
       }
     }
+  };
+
+  const handleAddAllStandardSizes = () => {
+    const chart = STANDARD_SIZE_CHARTS[gender]
+    const existingNames = new Set(structuredSizes.map(s => s.name))
+    const newSizes: SizeData[] = []
+
+    for (const sizeName of standardSizes) {
+      if (!existingNames.has(sizeName)) {
+        newSizes.push({
+          name: sizeName,
+          measurements: Object.entries(chart[sizeName] || {}).map(([name, val]) => ({
+            name,
+            value: val,
+          })),
+        })
+      }
+    }
+
+    if (newSizes.length === 0) {
+      toast.error("All standard sizes already exist")
+      return
+    }
+
+    updateJsonFromStructured([...structuredSizes, ...newSizes])
+    toast.success(`Added ${newSizes.length} sizes with ${gender} measurements`)
   };
 
   const handleAddMeasurement = (measurementName: string) => {
@@ -219,17 +279,18 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
   };
 
   const handleAddSize = () => {
+    // Use the selected gender chart's measurement keys with zero values
+    const chart = STANDARD_SIZE_CHARTS[gender]
+    const sampleKeys = Object.keys(chart["M"] || { chest: 0, length: 0 })
+
     const newStructuredSizes = [
       ...structuredSizes,
       {
         name: "",
-        measurements: [
-          { name: "chest", value: 0 },
-          { name: "length", value: 0 }
-        ]
+        measurements: sampleKeys.map((name) => ({ name, value: 0 })),
       }
     ];
-    
+
     updateJsonFromStructured(newStructuredSizes);
   };
 
@@ -284,13 +345,46 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
         </div>
       </div>
 
-      {/* Quick add buttons (available in both modes) */}
+      {/* Gender selector */}
       <div>
-        <Text className="mb-2 font-medium">Quick Add Size:</Text>
+        <Text className="mb-2 font-medium">Size Chart:</Text>
+        <div className="flex gap-1 mb-3">
+          {(["women", "men", "unisex"] as const).map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setGender(g)}
+              className={`flex-1 py-1.5 text-xs font-medium rounded border capitalize transition-colors ${
+                gender === g
+                  ? "bg-ui-bg-interactive text-ui-fg-on-inverted border-ui-bg-interactive"
+                  : "border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle"
+              }`}
+            >
+              {g === "women" ? "Women's" : g === "men" ? "Men's" : "Unisex"}
+            </button>
+          ))}
+        </div>
+        <Text size="small" className="text-ui-fg-subtle mb-3">
+          Standard measurements (inches) will be pre-filled based on the selected chart.
+        </Text>
+      </div>
+
+      {/* Quick add buttons */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <Text className="font-medium">Quick Add Size:</Text>
+          <button
+            type="button"
+            onClick={handleAddAllStandardSizes}
+            className="text-xs text-ui-fg-interactive hover:underline"
+          >
+            Add All Sizes
+          </button>
+        </div>
         <div className="flex flex-wrap gap-2 mb-4">
           {standardSizes.map((size) => (
-            <Badge 
-              key={size} 
+            <Badge
+              key={size}
               className="cursor-pointer hover:bg-ui-bg-base-hover"
               onClick={() => handleAddStandardSize(size)}
             >
@@ -299,13 +393,13 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
           ))}
         </div>
       </div>
-      
+
       <div>
         <Text className="mb-2 font-medium">Quick Add Measurement:</Text>
         <div className="flex flex-wrap gap-2 mb-4">
           {commonMeasurements.map((measurement) => (
-            <Badge 
-              key={measurement} 
+            <Badge
+              key={measurement}
               className="cursor-pointer hover:bg-ui-bg-base-hover"
               onClick={() => handleAddMeasurement(measurement)}
             >

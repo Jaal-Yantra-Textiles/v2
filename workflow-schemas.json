@@ -5960,6 +5960,12 @@
         "placeholder": "{{ $last.analytics_id }}"
       },
       {
+        "name": "theme",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      },
+      {
         "name": "metadata",
         "type": "object",
         "required": false,

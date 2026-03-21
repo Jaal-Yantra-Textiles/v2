@@ -1,10 +1,20 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { estimateDesignCostWorkflow, EstimateCostOutput } from "../../../../../../workflows/designs/estimate-design-cost"
+import { estimateDesignCostWorkflow, type EstimateCostOutput } from "../../../../../../workflows/designs/estimate-design-cost"
 
 type PreviewDesignOrderBody = {
   design_ids: string[]
   currency_code?: string
+}
+
+type EstimatePreviewItem = {
+  design_id: string
+  name: string
+  total_estimated: number
+  unit_price: number
+  confidence: string
+  material_cost: number
+  production_cost: number
 }
 
 export const POST = async (
@@ -15,15 +25,7 @@ export const POST = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
 
-  const estimates: Array<{
-    design_id: string
-    name: string
-    total_estimated: number
-    unit_price: number
-    confidence: string
-    material_cost: number
-    production_cost: number
-  }> = []
+  const estimates: EstimatePreviewItem[] = []
 
   for (const design_id of design_ids) {
     const { data: designs } = await query.graph({
