@@ -1,3 +1,12 @@
+## [10.17.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.17.0...v10.17.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* **workflows:** 500 errors are gone ([103197d](https://github.com/Jaal-Yantra-Textiles/v2/commit/103197d2a972b9b13df8addcd9fae69708d9ca66))
+* **api:** Fixed the metadata to use the theme data ([182ac12](https://github.com/Jaal-Yantra-Textiles/v2/commit/182ac1254957b3f707077c122e5b6c98e80faea8))
+* **Api:** Fixed the partner Update ([7111e73](https://github.com/Jaal-Yantra-Textiles/v2/commit/7111e733f3d12d50fdd9ac3ae3c1cc065e49981c))
+
 # [10.17.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.16.0...v10.17.0) (2026-03-21)
 
 
