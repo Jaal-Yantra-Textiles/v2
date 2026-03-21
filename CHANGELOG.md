@@ -1,3 +1,10 @@
+# [10.16.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.15.0...v10.16.0) (2026-03-21)
+
+
+### Features
+
+* **api:** Admin can now send designs ([7b508a2](https://github.com/Jaal-Yantra-Textiles/v2/commit/7b508a2c813bc9fcccec4b60204cdf36a1908f17))
+
 # [10.15.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.14.2...v10.15.0) (2026-03-20)
 
 
