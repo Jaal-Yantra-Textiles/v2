@@ -224,7 +224,7 @@ export const GET = async (
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "partners",
-    fields: ["id", "stores.*"],
+    fields: ["id", "stores.*", "stores.supported_currencies.*", "stores.supported_currencies.currency.*"],
     filters: { id: partner.id },
   })
 

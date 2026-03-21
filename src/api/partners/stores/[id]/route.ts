@@ -15,10 +15,14 @@ export const GET = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Enrich store with related entities
+  // Enrich store with related entities including nested currency details
   const { data: stores } = await query.graph({
     entity: "stores",
-    fields: ["*", "supported_currencies.*"],
+    fields: [
+      "*",
+      "supported_currencies.*",
+      "supported_currencies.currency.*",
+    ],
     filters: { id: store.id },
   })
 

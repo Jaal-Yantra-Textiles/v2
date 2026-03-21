@@ -16,10 +16,8 @@ export const GET = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  if (!store.default_region_id) {
-    return res.json({ regions: [], count: 0, offset: 0, limit: 20 })
-  }
-
+  // Return all available regions, not just the default one,
+  // so the store edit form can show all options in the dropdown
   const { data: regions } = await query.graph({
     entity: "region",
     fields: [
@@ -32,7 +30,6 @@ export const GET = async (
       "updated_at",
       "countries.*",
     ],
-    filters: { id: store.default_region_id },
   })
 
   // Fetch payment providers linked to these regions
@@ -82,14 +79,26 @@ export const POST = async (
   )
 
   const body = PartnerCreateRegionReq.parse(req.body)
+  const { payment_providers: paymentProviderIds, ...regionData } = body
 
   const { result } = await createRegionsWorkflow(req.scope).run({
     input: {
-      regions: [body],
+      regions: [regionData],
     },
   })
 
   const region = result[0]
+
+  // Link payment providers to the new region
+  if (paymentProviderIds?.length) {
+    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+    await remoteLink.create(
+      paymentProviderIds.map((providerId: string) => ({
+        [Modules.REGION]: { region_id: region.id },
+        [Modules.PAYMENT]: { payment_provider_id: providerId },
+      }))
+    )
+  }
 
   // If the store doesn't have a default region yet, set it
   if (!store.default_region_id) {

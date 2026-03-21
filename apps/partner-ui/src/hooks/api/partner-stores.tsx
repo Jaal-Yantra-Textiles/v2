@@ -109,6 +109,9 @@ export const usePartnerStores = (
 export type PartnerStoreUpdatePayload = {
   name?: string
   supported_currencies?: Array<{ currency_code: string; is_default?: boolean }>
+  default_sales_channel_id?: string | null
+  default_region_id?: string | null
+  default_location_id?: string | null
   metadata?: Record<string, any>
 }
 

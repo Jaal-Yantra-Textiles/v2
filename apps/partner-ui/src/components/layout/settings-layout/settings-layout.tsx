@@ -64,7 +64,7 @@ const useSettingRoutes = (): INavItem[] => {
         to: "/settings/payments",
       },
       {
-        label: "Payment Providers",
+        label: "Payment Config",
         to: "/settings/payment-providers",
       },
       {
