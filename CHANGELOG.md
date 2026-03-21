@@ -1,3 +1,16 @@
+## [10.17.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.17.1...v10.17.2) (2026-03-21)
+
+
+### Bug Fixes
+
+* **api:** Fixed code workflow error ([addf9c0](https://github.com/Jaal-Yantra-Textiles/v2/commit/addf9c01ac36ddcee10a39501dddfe1a47a4a79c))
+* **api:** Fixed mailjet and distribution load ([5f371f4](https://github.com/Jaal-Yantra-Textiles/v2/commit/5f371f42c3bf0efbd0e89e9d49129a9c8f35eeeb))
+* **api:** Fixed the payment providers and return and refunds ([d11c797](https://github.com/Jaal-Yantra-Textiles/v2/commit/d11c79700b335a20a578e64376403aa6c7e2981b))
+* **api:** Fixed the regin, providers ([3dfeca0](https://github.com/Jaal-Yantra-Textiles/v2/commit/3dfeca0fbee28d6fb902cdb76b83580219ac9836))
+* **api:** Fixed the return reason link service ([d361b2c](https://github.com/Jaal-Yantra-Textiles/v2/commit/d361b2cb5f34673eb6eb53967bde2867369a4abb))
+* **api:** Partners can now add subsc and delete them ([fd35d76](https://github.com/Jaal-Yantra-Textiles/v2/commit/fd35d76a4e290ae487ee726c368df1fab686fa5b))
+* **api:** Payment provider to config ([01a6488](https://github.com/Jaal-Yantra-Textiles/v2/commit/01a648875aa04644c4068b56d4383a717289b20e))
+
 ## [10.17.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.17.0...v10.17.1) (2026-03-21)
 
 
