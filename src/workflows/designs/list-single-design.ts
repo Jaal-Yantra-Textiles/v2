@@ -21,16 +21,37 @@ export const listSingleDesignStep = createStep(
       relations: ["colors", "size_sets", "specifications"],
     });
 
-    const fields = Array.from(new Set([...(input.fields || []), "*"]));
+    const allFields = Array.from(new Set([...(input.fields || []), "*"]));
 
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY);
-    const { data: design } = await query.graph({
-      entity: "designs",
-      fields: fields.length ? fields : ["*"],
-      filters: {
-        id: input.id,
-      },
-    });
+
+    // Try with all fields first (including link fields like customer.*, order.*).
+    // If query.graph fails (e.g. the remote joiner can't resolve a field),
+    // retry with only safe model fields.
+    let design: any[];
+    try {
+      const result = await query.graph({
+        entity: "design",
+        fields: allFields.length ? allFields : ["*"],
+        filters: { id: input.id },
+      });
+      design = result.data;
+    } catch (graphError: any) {
+      // Filter out link fields that the remote joiner can't resolve
+      // and retry with model-only fields
+      const LINK_FIELDS = ["customer", "order", "partner"]
+      const safeFields = allFields.filter((f) => {
+        const root = f.split(".")[0].replace(/^\+/, "")
+        return !LINK_FIELDS.includes(root)
+      })
+
+      const result = await query.graph({
+        entity: "design",
+        fields: safeFields.length ? safeFields : ["*"],
+        filters: { id: input.id },
+      });
+      design = result.data;
+    }
 
     const graphDesign = design?.[0];
 
