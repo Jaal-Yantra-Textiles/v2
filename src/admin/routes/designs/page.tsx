@@ -37,7 +37,7 @@ export const useColumns = () => {
       {
         icon: <Eye />,
         label: "Preview",
-        to: (design: AdminDesign) => `/designs/${design.id}/preview`,
+        to: (design: AdminDesign) => `/designs/preview/${design.id}`,
       },
       {
         icon: <PencilSquare />,

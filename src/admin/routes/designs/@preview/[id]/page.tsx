@@ -82,7 +82,6 @@ const DesignPreviewPage = () => {
 
   const partners = (design as any).partners || []
 
-  // Extract moodboard thumbnail elements for read-only display
   const moodboard = design.moodboard as any
   const hasMoodboard = moodboard?.elements?.length > 0
 
@@ -187,7 +186,6 @@ const DesignPreviewPage = () => {
                           </div>
                         )
                       }
-                      // For image elements, check if we have the file data
                       const fileId = el.fileId
                       const file = fileId && moodboard.files?.[fileId]
                       const dataURL = file?.dataURL
