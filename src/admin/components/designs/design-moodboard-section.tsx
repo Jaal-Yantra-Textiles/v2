@@ -1,6 +1,6 @@
 import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Route, useNavigate, useParams } from "react-router-dom";
 import { useDesign } from "../../hooks/api/designs";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
@@ -22,6 +22,8 @@ export function DesignMoodboardSection() {
   };
   
   const [fashionPanelOpen, setFashionPanelOpen] = useState(false);
+  const [fashionPanelInitialTab, setFashionPanelInitialTab] = useState<string | undefined>(undefined);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
 
   const {
     isSaving,
@@ -35,6 +37,31 @@ export function DesignMoodboardSection() {
     designId: id,
     onClose
   });
+
+  // Track when an image element is selected on the canvas
+  const handleSelectionChange = useCallback(() => {
+    const api = excalidrawAPIRef.current;
+    if (!api) return;
+
+    const selected = api.getAppState()?.selectedElementIds || {};
+    const selectedIds = Object.keys(selected).filter((k) => selected[k]);
+
+    if (selectedIds.length === 1) {
+      const elements = api.getSceneElements();
+      const el = elements.find((e: any) => e.id === selectedIds[0]);
+      if (el?.type === "image" && !el.isDeleted) {
+        setSelectedImageId(el.id);
+        return;
+      }
+    }
+    setSelectedImageId(null);
+  }, [excalidrawAPIRef]);
+
+  // Open Fabric tab with the selected canvas image
+  const handleUseForFabric = useCallback(() => {
+    setFashionPanelInitialTab("fabric");
+    setFashionPanelOpen(true);
+  }, []);
 
   function getCanvasCenter() {
     const api = excalidrawAPIRef.current;
@@ -74,8 +101,32 @@ export function DesignMoodboardSection() {
               <FashionPanel
                 excalidrawAPI={excalidrawAPIRef.current}
                 getCanvasCenter={getCanvasCenter}
-                onClose={() => setFashionPanelOpen(false)}
+                onClose={() => {
+                  setFashionPanelOpen(false);
+                  setFashionPanelInitialTab(undefined);
+                }}
+                initialTab={fashionPanelInitialTab}
               />
+            </div>
+          )}
+          {/* Floating action when an image element is selected */}
+          {selectedImageId && !fashionPanelOpen && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex gap-2">
+              <button
+                onClick={handleUseForFabric}
+                className="rounded-full px-4 py-2 text-sm font-medium bg-ui-bg-base border border-ui-border-base shadow-elevation-flyout hover:bg-ui-bg-base-hover transition-colors"
+              >
+                🧵 Use for Fabric Preview
+              </button>
+              <button
+                onClick={() => {
+                  setFashionPanelInitialTab("fabric");
+                  setFashionPanelOpen(true);
+                }}
+                className="rounded-full px-4 py-2 text-sm font-medium bg-ui-bg-base border border-ui-border-base shadow-elevation-flyout hover:bg-ui-bg-base-hover transition-colors"
+              >
+                🔍 3D Texture
+              </button>
             </div>
           )}
           <Excalidraw
@@ -127,7 +178,10 @@ export function DesignMoodboardSection() {
               },
               files: (design?.moodboard as any)?.files ?? {}
             }}
-            onChange={handleExcalidrawChange}
+            onChange={(elements, appState, files) => {
+              handleExcalidrawChange(elements, appState, files);
+              handleSelectionChange();
+            }}
             renderTopRightUI={() => (
               <button
                 className="rounded px-3 py-1 text-sm font-medium bg-ui-bg-subtle border border-ui-border-base hover:bg-ui-bg-base"

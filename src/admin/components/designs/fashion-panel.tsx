@@ -19,6 +19,7 @@ interface FashionPanelProps {
   excalidrawAPI: any | null
   getCanvasCenter: () => { x: number; y: number }
   onClose: () => void
+  initialTab?: string
 }
 
 type Tab = "figures" | "garments" | "patterns" | "pinterest" | "fabric"
@@ -199,8 +200,8 @@ function PatternCard({
 // ---------------------------------------------------------------------------
 // Main panel
 // ---------------------------------------------------------------------------
-export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose }: FashionPanelProps) {
-  const [tab, setTab] = useState<Tab>("figures")
+export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialTab }: FashionPanelProps) {
+  const [tab, setTab] = useState<Tab>((initialTab as Tab) || "figures")
 
   // Figures tab state
   const [selectedFigure, setSelectedFigure] = useState<CrquisType>("female")

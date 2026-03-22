@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useParams } from "react-router-dom"
-import { sdk } from "../../lib/config"
+import { sdk, API_BASE_URL } from "../../lib/config"
 import { Texture3DViewer } from "./texture-3d-viewer"
 
 interface FabricPreviewTabProps {
@@ -63,11 +63,26 @@ function makeImageElement(
 }
 
 // ---------------------------------------------------------------------------
-// Helper: fetch a remote URL as a data URL (avoids CORS canvas tainting)
+// Helper: fetch a URL as a data URL
+// Remote URLs (fal.ai CDN etc) are proxied through our backend to avoid CORS.
 // ---------------------------------------------------------------------------
-async function fetchAsDataUrl(url: string): Promise<string> {
-  if (url.startsWith("data:")) return url
-  const res = await fetch(url)
+async function fetchAsDataUrl(
+  url: string,
+  designId?: string
+): Promise<string> {
+  if (url.startsWith("data:") || url.startsWith("blob:")) {
+    return url
+  }
+
+  // For remote http(s) URLs, proxy through our backend
+  const fetchUrl =
+    designId && url.startsWith("http")
+      ? `${API_BASE_URL}/admin/designs/${designId}/segment/proxy-image?url=${encodeURIComponent(url)}`
+      : url
+
+  const res = await fetch(fetchUrl, { credentials: "include" })
+  if (!res.ok) throw new Error(`Failed to fetch image: ${res.status}`)
+
   const blob = await res.blob()
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -175,7 +190,7 @@ export function FabricPreviewTab({
 
       try {
         // Convert to data URL if remote, so we have a local preview + blob
-        const dataUrl = await fetchAsDataUrl(src)
+        const dataUrl = await fetchAsDataUrl(src, designId)
         setSourcePreview(dataUrl)
 
         // Create a File from the data URL for the segment API
@@ -192,7 +207,7 @@ export function FabricPreviewTab({
         setErrorMsg("Could not load this image. Try uploading from device.")
       }
     },
-    [resetDerived]
+    [resetDerived, designId]
   )
 
   // ---------------------------------------------------------------------------
@@ -303,8 +318,8 @@ export function FabricPreviewTab({
 
       // Fetch both images as data URLs to avoid CORS
       const [maskDataUrl, fabricDataUrl] = await Promise.all([
-        fetchAsDataUrl(maskSrc),
-        fetchAsDataUrl(fabricPreview!),
+        fetchAsDataUrl(maskSrc, designId),
+        fetchAsDataUrl(fabricPreview!, designId),
       ])
 
       if (cancelled) return
@@ -360,7 +375,7 @@ export function FabricPreviewTab({
 
       try {
         // Always convert to data URL so Excalidraw can persist it
-        const dataUrl = await fetchAsDataUrl(src)
+        const dataUrl = await fetchAsDataUrl(src, designId)
         const img = await loadImage(dataUrl)
 
         const center = getCanvasCenter()
@@ -398,7 +413,7 @@ export function FabricPreviewTab({
         setAddingToCanvas(false)
       }
     },
-    [excalidrawAPI, getCanvasCenter]
+    [excalidrawAPI, getCanvasCenter, designId]
   )
 
   const handleAddCutoutToCanvas = useCallback(
