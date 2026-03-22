@@ -132,6 +132,12 @@ export const processAllBatchesStep = createStep(
 
     let queuedCount = 0
 
+    // Build a lookup: email -> subscriber data (shared across both branches)
+    const emailToSubscriber = new Map<string, typeof allSubscribers[0]>()
+    for (const entry of allSubscribers) {
+      emailToSubscriber.set(entry.subscriber.email, entry)
+    }
+
     if (providerManager) {
       // Get remaining capacity across providers
       const capacities = await providerManager.getRemainingCapacity()
@@ -149,12 +155,6 @@ export const processAllBatchesStep = createStep(
         allocations.map((a) => `${a.provider}: ${a.emails.length} emails`).join(", "),
         overflow.length > 0 ? `| Overflow: ${overflow.length} emails queued for tomorrow` : ""
       )
-
-      // Build a lookup: email -> subscriber data
-      const emailToSubscriber = new Map<string, typeof allSubscribers[0]>()
-      for (const entry of allSubscribers) {
-        emailToSubscriber.set(entry.subscriber.email, entry)
-      }
 
       // Build a lookup: email -> provider
       const emailToProvider = new Map<string, string>()
@@ -223,8 +223,7 @@ export const processAllBatchesStep = createStep(
               to: email,
               channel: "email",
               template:
-                process.env.SENDGRID_BLOG_SUBSCRIPTION_TEMPLATE ||
-                "d-blog-subscription-template",
+                "blog-subscriber",
               data: emailData,
             })
 
@@ -261,9 +260,7 @@ export const processAllBatchesStep = createStep(
           return {
             to_email: email,
             channel: "email", // default channel, job will re-distribute
-            template:
-              process.env.SENDGRID_BLOG_SUBSCRIPTION_TEMPLATE ||
-              "d-blog-subscription-template",
+            template: "blog-subscriber",
             data: emailData,
           }
         }).filter(Boolean) as any[]
@@ -303,9 +300,7 @@ export const processAllBatchesStep = createStep(
           await notificationModuleService.createNotifications({
             to: subscriber.email,
             channel: "email",
-            template:
-              process.env.SENDGRID_BLOG_SUBSCRIPTION_TEMPLATE ||
-              "d-blog-subscription-template",
+            template: "blog-subscriber",
             data: emailData,
           })
 
@@ -324,6 +319,50 @@ export const processAllBatchesStep = createStep(
         }
 
         await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    }
+
+    // Retry failed sends that are not validation errors (queue for next day)
+    const PERMANENT_ERROR_PATTERNS = [
+      "invalid `to` field",
+      "validation_error",
+      "invalid email",
+      "email address",
+    ]
+
+    if (providerManager) {
+      const retryable = allResults.filter((r) => {
+        if (r.success) return false
+        const errLower = (r.error || "").toLowerCase()
+        // Skip permanent/validation errors — no point retrying those
+        return !PERMANENT_ERROR_PATTERNS.some((pat) => errLower.includes(pat))
+      })
+
+      if (retryable.length > 0) {
+        console.log(`Queuing ${retryable.length} failed emails for retry tomorrow`)
+        const retryEntries = retryable
+          .map((r) => {
+            const entry = emailToSubscriber?.get(r.email)
+            if (!entry) return null
+            const htmlContent = sharedHtmlContent || ""
+            const emailData = buildEmailData(entry.subscriber, entry.blogData, htmlContent, entry.emailConfig)
+            return {
+              to_email: r.email,
+              channel: "email",
+              template:
+                "blog-subscriber",
+              data: emailData,
+            }
+          })
+          .filter(Boolean) as any[]
+
+        try {
+          const retriedCount = await providerManager.queueOverflowEmails(retryEntries)
+          queuedCount += retriedCount
+          console.log(`Queued ${retriedCount} failed emails for retry`)
+        } catch (err) {
+          console.error("Failed to queue retry emails:", err.message)
+        }
       }
     }
 
