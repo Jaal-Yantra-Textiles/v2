@@ -13,6 +13,7 @@ import {
   createPatternPieceElement,
 } from "./fashion-croquis"
 import { sdk } from "../../lib/config"
+import { FabricPreviewTab } from "./fabric-preview-tab"
 
 interface FashionPanelProps {
   excalidrawAPI: any | null
@@ -20,7 +21,7 @@ interface FashionPanelProps {
   onClose: () => void
 }
 
-type Tab = "figures" | "garments" | "patterns" | "pinterest"
+type Tab = "figures" | "garments" | "patterns" | "pinterest" | "fabric"
 
 type PinterestPin = {
   id: string
@@ -355,6 +356,7 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose }: Fashio
     { key: "garments", label: "Garments" },
     { key: "patterns", label: "Patterns" },
     { key: "pinterest", label: "Pinterest" },
+    { key: "fabric",   label: "Fabric" },
   ]
 
   return (
@@ -607,6 +609,14 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose }: Fashio
               </p>
             )}
           </>
+        )}
+
+        {/* ── FABRIC PREVIEW TAB ────────────────────────────────────── */}
+        {tab === "fabric" && (
+          <FabricPreviewTab
+            excalidrawAPI={excalidrawAPI}
+            getCanvasCenter={getCanvasCenter}
+          />
         )}
       </div>
     </div>

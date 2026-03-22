@@ -58,6 +58,7 @@ import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-it
 import { splitInventorySchema } from "./admin/inventory-items/[id]/split/validators";
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
 import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
+import { SegmentImageSchema } from "./admin/designs/[id]/segment/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
@@ -2358,6 +2359,14 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/link-media-folder",
       method: "DELETE",
       middlewares: [],
+    },
+
+    // Image segmentation on designs (fal.ai BiRefNet)
+    {
+      matcher: "/admin/designs/:id/segment",
+      method: "POST",
+      bodyParser: { sizeLimit: "20mb" },
+      middlewares: [validateAndTransformBody(wrapSchema(SegmentImageSchema))],
     },
 
     // Link designs to customer + convert to draft order
