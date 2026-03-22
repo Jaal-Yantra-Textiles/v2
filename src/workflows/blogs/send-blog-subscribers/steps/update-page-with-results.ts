@@ -41,6 +41,7 @@ export const updatePageWithResultsStep = createStep(
               subscription_total_subscribers: summary.totalSubscribers,
               subscription_sent_count: summary.sentCount,
               subscription_failed_count: summary.failedCount,
+              subscription_queued_count: summary.queuedCount || 0,
               subscription_sent_at: new Date().toISOString(),
               
               // Store a list of subscribers who received the email (limit to IDs to save space)

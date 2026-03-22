@@ -33,7 +33,7 @@ setupSharedTestSuite(() => {
       const mailjet = providers.find((p) => p.provider === "mailjet")
       expect(mailjet).toBeDefined()
       expect(mailjet.limit).toBe(200)
-      expect(mailjet.remaining).toBe(200) // Fresh day, no usage
+      expect(mailjet.remaining).toBe(200)
       expect(mailjet.used).toBe(0)
 
       // Verify resend provider (100/day)
@@ -55,7 +55,10 @@ setupSharedTestSuite(() => {
       // Generate 250 test email addresses
       const emails = Array.from({ length: 250 }, (_, i) => `test${i}@example.com`)
 
-      const allocations = await providerManager.distributeEmails(emails)
+      const { allocations, overflow } = await providerManager.distributeEmails(emails)
+
+      // No overflow — 250 fits within 300 capacity
+      expect(overflow).toHaveLength(0)
 
       // Should have allocations for both providers
       expect(allocations.length).toBe(2)
@@ -84,7 +87,9 @@ setupSharedTestSuite(() => {
       // Generate 150 test emails - fits within mailjet alone
       const emails = Array.from({ length: 150 }, (_, i) => `small${i}@example.com`)
 
-      const allocations = await providerManager.distributeEmails(emails)
+      const { allocations, overflow } = await providerManager.distributeEmails(emails)
+
+      expect(overflow).toHaveLength(0)
 
       // Mailjet has highest capacity (200), should get all 150
       const mailjetAlloc = allocations.find((a) => a.provider === "mailjet")
@@ -98,22 +103,29 @@ setupSharedTestSuite(() => {
       }
     })
 
-    it("should handle overflow when total exceeds 300 emails", async () => {
+    it("should return overflow when total exceeds 300 emails", async () => {
       const { getContainer } = getSharedTestEnv()
       const container = getContainer()
       const providerManager = container.resolve("email_provider_manager")
 
-      // Generate 350 emails - exceeds total capacity
+      // Generate 350 emails - exceeds total capacity of 300
       const emails = Array.from({ length: 350 }, (_, i) => `overflow${i}@example.com`)
 
-      const allocations = await providerManager.distributeEmails(emails)
+      const { allocations, overflow } = await providerManager.distributeEmails(emails)
 
-      // All emails should still be allocated (overflow goes to first provider)
+      // Allocations should max out at 300
       const totalAllocated = allocations.reduce(
         (sum, a) => sum + a.emails.length,
         0
       )
-      expect(totalAllocated).toBe(350)
+      expect(totalAllocated).toBe(300)
+
+      // 50 emails should be overflow
+      expect(overflow).toHaveLength(50)
+
+      // Overflow emails should be the last 50
+      expect(overflow[0]).toBe("overflow300@example.com")
+      expect(overflow[49]).toBe("overflow349@example.com")
     })
 
     it("should track usage and reduce remaining capacity", async () => {
@@ -147,7 +159,9 @@ setupSharedTestSuite(() => {
       // Now distribute 50 emails
       const emails = Array.from({ length: 50 }, (_, i) => `adjusted${i}@example.com`)
 
-      const allocations = await providerManager.distributeEmails(emails)
+      const { allocations, overflow } = await providerManager.distributeEmails(emails)
+
+      expect(overflow).toHaveLength(0)
 
       // Resend has 100 remaining, mailjet has only 20 remaining
       // Resend should get more since it has higher remaining capacity
@@ -232,6 +246,255 @@ setupSharedTestSuite(() => {
 
       // Reset for other tests
       providerManager.setProviderLimit("resend", 100)
+    })
+  })
+
+  describe("Email Provider Manager - Overflow Queue", () => {
+    it("should queue overflow emails for the next day", async () => {
+      const { getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const providerManager = container.resolve("email_provider_manager")
+
+      const entries = [
+        {
+          to_email: "queued1@example.com",
+          channel: "email",
+          template: "d-blog-subscription-template",
+          data: { subject: "Test Blog", blog_content: "<p>Hello</p>" },
+        },
+        {
+          to_email: "queued2@example.com",
+          channel: "email",
+          template: "d-blog-subscription-template",
+          data: { subject: "Test Blog", blog_content: "<p>Hello</p>" },
+        },
+      ]
+
+      const count = await providerManager.queueOverflowEmails(entries)
+      expect(count).toBe(2)
+
+      // Verify queue entries were created
+      const queued = await providerManager.listEmailQueues(
+        { status: "pending" },
+        { take: 10 }
+      )
+
+      expect(queued.length).toBeGreaterThanOrEqual(2)
+
+      const first = queued.find((q) => q.to_email === "queued1@example.com")
+      expect(first).toBeDefined()
+      expect(first.status).toBe("pending")
+      expect(first.channel).toBe("email")
+      expect(first.template).toBe("d-blog-subscription-template")
+      expect(first.attempts).toBe(0)
+
+      // Data should be JSON-serialized
+      const parsedData = JSON.parse(first.data)
+      expect(parsedData.subject).toBe("Test Blog")
+      expect(parsedData.blog_content).toBe("<p>Hello</p>")
+
+      // scheduled_for should be tomorrow
+      const tomorrow = providerManager.getNextDate()
+      expect(first.scheduled_for).toBe(tomorrow)
+    })
+
+    it("should create queue entries with correct defaults", async () => {
+      const { getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const providerManager = container.resolve("email_provider_manager")
+
+      await providerManager.queueOverflowEmails([
+        {
+          to_email: "defaults@example.com",
+          channel: "email_bulk",
+          template: "my-template",
+          data: { key: "value" },
+        },
+      ])
+
+      const queued = await providerManager.listEmailQueues(
+        { to_email: "defaults@example.com" },
+        { take: 1 }
+      )
+
+      expect(queued.length).toBe(1)
+      expect(queued[0].status).toBe("pending")
+      expect(queued[0].attempts).toBe(0)
+      expect(queued[0].last_error).toBeNull()
+    })
+
+    it("should return 0 when queuing an empty list", async () => {
+      const { getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const providerManager = container.resolve("email_provider_manager")
+
+      const count = await providerManager.queueOverflowEmails([])
+      expect(count).toBe(0)
+    })
+
+    it("should handle full overflow scenario end-to-end", async () => {
+      const { getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const providerManager = container.resolve("email_provider_manager")
+
+      // Exhaust all providers
+      await providerManager.recordUsage("mailjet", 200)
+      await providerManager.recordUsage("resend", 100)
+
+      // Try to distribute 10 emails — all should overflow
+      const emails = Array.from({ length: 10 }, (_, i) => `full${i}@example.com`)
+      const { allocations, overflow } = await providerManager.distributeEmails(emails)
+
+      // No allocations possible
+      const totalAllocated = allocations.reduce(
+        (sum, a) => sum + a.emails.length,
+        0
+      )
+      expect(totalAllocated).toBe(0)
+
+      // All 10 are overflow
+      expect(overflow).toHaveLength(10)
+
+      // Queue them
+      const queueEntries = overflow.map((email) => ({
+        to_email: email,
+        channel: "email",
+        template: "blog-template",
+        data: { subject: "Blog Post", content: "Hello" },
+      }))
+
+      const queued = await providerManager.queueOverflowEmails(queueEntries)
+      expect(queued).toBe(10)
+
+      // Verify total remaining is 0
+      const totalRemaining = await providerManager.getTotalRemainingCapacity()
+      expect(totalRemaining).toBe(0)
+    })
+
+    it("should update queue entry status", async () => {
+      const { getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const providerManager = container.resolve("email_provider_manager")
+
+      // Create a queue entry
+      await providerManager.queueOverflowEmails([
+        {
+          to_email: "status-test@example.com",
+          channel: "email",
+          template: "test",
+          data: { msg: "test" },
+        },
+      ])
+
+      const [entry] = await providerManager.listEmailQueues(
+        { to_email: "status-test@example.com" },
+        { take: 1 }
+      )
+
+      // Simulate processing -> sent
+      await providerManager.updateEmailQueues({
+        id: entry.id,
+        status: "processing",
+      })
+
+      const [processing] = await providerManager.listEmailQueues(
+        { id: entry.id },
+        { take: 1 }
+      )
+      expect(processing.status).toBe("processing")
+
+      // Mark as sent
+      await providerManager.updateEmailQueues({
+        id: entry.id,
+        status: "sent",
+      })
+
+      const [sent] = await providerManager.listEmailQueues(
+        { id: entry.id },
+        { take: 1 }
+      )
+      expect(sent.status).toBe("sent")
+    })
+
+    it("should track attempts and errors on queue entries", async () => {
+      const { getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const providerManager = container.resolve("email_provider_manager")
+
+      await providerManager.queueOverflowEmails([
+        {
+          to_email: "retry@example.com",
+          channel: "email",
+          template: "test",
+          data: {},
+        },
+      ])
+
+      const [entry] = await providerManager.listEmailQueues(
+        { to_email: "retry@example.com" },
+        { take: 1 }
+      )
+
+      // Simulate first failure
+      await providerManager.updateEmailQueues({
+        id: entry.id,
+        attempts: 1,
+        last_error: "Provider timeout",
+        scheduled_for: providerManager.getNextDate(),
+      })
+
+      const [retry1] = await providerManager.listEmailQueues(
+        { id: entry.id },
+        { take: 1 }
+      )
+      expect(retry1.attempts).toBe(1)
+      expect(retry1.last_error).toBe("Provider timeout")
+
+      // Simulate second failure
+      await providerManager.updateEmailQueues({
+        id: entry.id,
+        attempts: 2,
+        last_error: "Rate limited",
+      })
+
+      // Simulate third failure -> mark as permanently failed
+      await providerManager.updateEmailQueues({
+        id: entry.id,
+        attempts: 3,
+        status: "failed",
+        last_error: "Exceeded max attempts",
+      })
+
+      const [failed] = await providerManager.listEmailQueues(
+        { id: entry.id },
+        { take: 1 }
+      )
+      expect(failed.status).toBe("failed")
+      expect(failed.attempts).toBe(3)
+      expect(failed.last_error).toBe("Exceeded max attempts")
+    })
+
+    it("should compute next date correctly", async () => {
+      const { getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const providerManager = container.resolve("email_provider_manager")
+
+      const nextDate = providerManager.getNextDate()
+
+      // Should be tomorrow in YYYY-MM-DD format
+      const tomorrow = new Date()
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+      const expected = tomorrow.toISOString().split("T")[0]
+
+      expect(nextDate).toBe(expected)
+
+      // Also test with a specific date
+      const nextFromSpecific = providerManager.getNextDate("2026-03-22")
+      expect(nextFromSpecific).toBe("2026-03-23")
+
+      // Month boundary
+      const nextFromMonthEnd = providerManager.getNextDate("2026-01-31")
+      expect(nextFromMonthEnd).toBe("2026-02-01")
     })
   })
 })

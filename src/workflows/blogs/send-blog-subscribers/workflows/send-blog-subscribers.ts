@@ -51,6 +51,7 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
     totalSubscribers: number
     sentCount: number
     failedCount: number
+    queuedCount: number
   }> => {
     // Step 1: Fetch blog data
     const blogData = fetchBlogDataStep(input)
@@ -106,6 +107,7 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
         totalSubscribers: 0,
         sentCount: 0,
         failedCount: 0,
+        queuedCount: 0,
         sentList: [],
         failedList: [],
         sentAt: new Date().toISOString()
@@ -120,6 +122,9 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
     
     // Step 7: Send success notification
     const successNotification = transform({ input, blogData, sendingSummary }, (data) => {
+      const queuedMsg = data.sendingSummary.queuedCount > 0
+        ? ` ${data.sendingSummary.queuedCount} queued for tomorrow.`
+        : ""
       return [
         {
           to: "",
@@ -127,7 +132,7 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
           template: "admin-ui",
           data: {
             title: "Blog Subscription",
-            description: `Successfully sent blog "${data.blogData.title}" to ${data.sendingSummary.sentCount} subscribers.`,
+            description: `Successfully sent blog "${data.blogData.title}" to ${data.sendingSummary.sentCount} subscribers.${queuedMsg}`,
           },
         },
       ]
@@ -139,9 +144,10 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
     const result = transform({ input, sendingSummary, subscriberCount }, (data) => {
       return {
         page_id: data.input.page_id,
-        totalSubscribers: data.subscriberCount, // Use early calculated subscriber count
+        totalSubscribers: data.subscriberCount,
         sentCount: data.sendingSummary.sentCount,
-        failedCount: data.sendingSummary.failedCount
+        failedCount: data.sendingSummary.failedCount,
+        queuedCount: data.sendingSummary.queuedCount || 0
       }
     })
     

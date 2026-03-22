@@ -1,20 +1,26 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import EmailUsage from "./models/email-usage"
+import EmailQueue from "./models/email-queue"
 
 type ProviderConfig = {
   id: string
   daily_limit: number
 }
 
-type ProviderAllocation = {
+export type ProviderAllocation = {
   provider: string
-  emails: string[] // email addresses assigned to this provider
+  emails: string[]
 }
 
-class EmailProviderManagerService extends MedusaService({ EmailUsage }) {
+export type DistributionResult = {
+  allocations: ProviderAllocation[]
+  overflow: string[]
+}
+
+class EmailProviderManagerService extends MedusaService({ EmailUsage, EmailQueue }) {
   private providers: ProviderConfig[] = [
-    { id: "mailjet", daily_limit: 200 },
-    { id: "resend", daily_limit: 100 },
+    { id: "mailjet", daily_limit: parseInt(process.env.MAILJET_DAILY_LIMIT || "200", 10) },
+    { id: "resend", daily_limit: parseInt(process.env.RESEND_DAILY_LIMIT || "100", 10) },
   ]
 
   /**
@@ -22,6 +28,15 @@ class EmailProviderManagerService extends MedusaService({ EmailUsage }) {
    */
   private getTodayDate(): string {
     return new Date().toISOString().split("T")[0]
+  }
+
+  /**
+   * Get the next day's date string in YYYY-MM-DD format
+   */
+  getNextDate(fromDate?: string): string {
+    const d = fromDate ? new Date(fromDate + "T00:00:00Z") : new Date()
+    d.setUTCDate(d.getUTCDate() + 1)
+    return d.toISOString().split("T")[0]
   }
 
   /**
@@ -72,9 +87,9 @@ class EmailProviderManagerService extends MedusaService({ EmailUsage }) {
 
   /**
    * Distribute a list of email addresses across providers based on remaining capacity.
-   * Returns an allocation plan: which emails go to which provider.
+   * Returns allocations (within capacity) and overflow (beyond daily limit).
    */
-  async distributeEmails(emails: string[]): Promise<ProviderAllocation[]> {
+  async distributeEmails(emails: string[]): Promise<DistributionResult> {
     const capacities = await this.getRemainingCapacity()
     const allocations: ProviderAllocation[] = []
     let emailIndex = 0
@@ -97,21 +112,41 @@ class EmailProviderManagerService extends MedusaService({ EmailUsage }) {
       emailIndex += count
     }
 
-    // If there are still unallocated emails (all providers exhausted),
-    // assign them to the first provider anyway (will likely fail but we track it)
-    if (emailIndex < emails.length) {
-      const overflow = emails.slice(emailIndex)
-      if (allocations.length > 0) {
-        allocations[0].emails.push(...overflow)
-      } else {
-        allocations.push({
-          provider: this.providers[0].id,
-          emails: overflow,
-        })
-      }
-    }
+    // Anything beyond capacity is overflow — to be queued for the next day
+    const overflow = emailIndex < emails.length
+      ? emails.slice(emailIndex)
+      : []
 
-    return allocations
+    return { allocations, overflow }
+  }
+
+  /**
+   * Queue overflow emails for sending on the next available day.
+   * Each entry stores the full email payload as serialized JSON.
+   */
+  async queueOverflowEmails(
+    entries: {
+      to_email: string
+      channel: string
+      template: string
+      data: Record<string, any>
+    }[]
+  ): Promise<number> {
+    if (entries.length === 0) return 0
+
+    const scheduledFor = this.getNextDate()
+    const queueItems = entries.map((e) => ({
+      to_email: e.to_email,
+      channel: e.channel,
+      template: e.template,
+      data: JSON.stringify(e.data),
+      status: "pending",
+      scheduled_for: scheduledFor,
+      attempts: 0,
+    }))
+
+    await this.createEmailQueues(queueItems)
+    return queueItems.length
   }
 
   /**

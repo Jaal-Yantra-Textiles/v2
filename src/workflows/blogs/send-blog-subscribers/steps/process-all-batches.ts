@@ -2,17 +2,12 @@ import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { SubscriberBatch, EmailSendingResult, SendingSummary } from "../types"
 import { Modules } from "@medusajs/framework/utils"
 import { convertTipTapToHtml } from "../utils/tiptap-to-html"
+import { sendMailjetBulk, BulkEmailEntry } from "../utils/mailjet-bulk-send"
 import { INotificationModuleService } from "@medusajs/types"
 import { EMAIL_PROVIDER_MANAGER_MODULE } from "../../../../modules/email-provider-manager"
 import EmailProviderManagerService from "../../../../modules/email-provider-manager/service"
 
 export const processAllBatchesStepId = "process-all-batches"
-
-// Maps provider IDs to notification channels
-const PROVIDER_CHANNEL_MAP: Record<string, string> = {
-  resend: "email",
-  mailjet: "email_bulk",
-}
 
 /**
  * Converts blog content to HTML, handling TipTap JSON and plain text formats.
@@ -81,10 +76,11 @@ function buildEmailData(
 
 /**
  * This step processes all subscriber batches with load distribution across
- * multiple email providers (Resend: 100/day, Mailjet: 200/day).
+ * multiple email providers (Resend + Mailjet).
  *
- * It uses the email-provider-manager module to track daily usage and
- * distribute emails across providers based on remaining capacity.
+ * - Uses Mailjet bulk API (up to 50 per call) for Mailjet-allocated emails
+ * - Sends one-at-a-time via notification module for Resend-allocated emails
+ * - Queues overflow emails for the next day when daily limits are exceeded
  */
 export const processAllBatchesStep = createStep(
   processAllBatchesStepId,
@@ -124,6 +120,18 @@ export const processAllBatchesStep = createStep(
     const totalEmails = allSubscribers.length
     console.log(`Processing ${totalEmails} total subscriber emails with load distribution`)
 
+    // Pre-compute HTML content once (same blog for all subscribers)
+    let sharedHtmlContent: string | null = null
+    if (allSubscribers.length > 0) {
+      try {
+        sharedHtmlContent = convertContentToHtml(allSubscribers[0].blogData.content)
+      } catch {
+        sharedHtmlContent = String(allSubscribers[0].blogData.content || "No content available")
+      }
+    }
+
+    let queuedCount = 0
+
     if (providerManager) {
       // Get remaining capacity across providers
       const capacities = await providerManager.getRemainingCapacity()
@@ -134,12 +142,19 @@ export const processAllBatchesStep = createStep(
 
       // Distribute email addresses across providers
       const emailAddresses = allSubscribers.map((s) => s.subscriber.email)
-      const allocations = await providerManager.distributeEmails(emailAddresses)
+      const { allocations, overflow } = await providerManager.distributeEmails(emailAddresses)
 
       console.log(
         "Allocation plan:",
-        allocations.map((a) => `${a.provider}: ${a.emails.length} emails`).join(", ")
+        allocations.map((a) => `${a.provider}: ${a.emails.length} emails`).join(", "),
+        overflow.length > 0 ? `| Overflow: ${overflow.length} emails queued for tomorrow` : ""
       )
+
+      // Build a lookup: email -> subscriber data
+      const emailToSubscriber = new Map<string, typeof allSubscribers[0]>()
+      for (const entry of allSubscribers) {
+        emailToSubscriber.set(entry.subscriber.email, entry)
+      }
 
       // Build a lookup: email -> provider
       const emailToProvider = new Map<string, string>()
@@ -149,46 +164,117 @@ export const processAllBatchesStep = createStep(
         }
       }
 
-      // Process each subscriber, sending through the assigned provider
-      for (const { subscriber, blogData, emailConfig } of allSubscribers) {
-        const provider = emailToProvider.get(subscriber.email) || "resend"
-        const channel = PROVIDER_CHANNEL_MAP[provider] || "email"
+      // --- Mailjet bulk sending ---
+      const mailjetAllocation = allocations.find((a) => a.provider === "mailjet")
+      if (mailjetAllocation && mailjetAllocation.emails.length > 0) {
+        console.log(`Sending ${mailjetAllocation.emails.length} emails via Mailjet bulk API`)
 
-        try {
-          let htmlContent: string
+        const bulkEntries: BulkEmailEntry[] = []
+        for (const email of mailjetAllocation.emails) {
+          const entry = emailToSubscriber.get(email)
+          if (!entry) continue
+
+          const htmlContent = sharedHtmlContent || ""
+          const emailData = buildEmailData(entry.subscriber, entry.blogData, htmlContent, entry.emailConfig)
+
+          bulkEntries.push({
+            to: email,
+            subject: entry.emailConfig.subject,
+            // Use the processed template content if available, otherwise fall back
+            htmlContent: emailData._template_html_content || htmlContent,
+          })
+        }
+
+        const bulkResult = await sendMailjetBulk(bulkEntries)
+
+        for (const email of bulkResult.successful) {
+          const entry = emailToSubscriber.get(email)
+          allResults.push({
+            success: true,
+            subscriber_id: entry?.subscriber.id || "",
+            email,
+          })
+        }
+
+        for (const fail of bulkResult.failed) {
+          const entry = emailToSubscriber.get(fail.email)
+          allResults.push({
+            success: false,
+            subscriber_id: entry?.subscriber.id || "",
+            email: fail.email,
+            error: fail.error,
+          })
+        }
+      }
+
+      // --- Resend one-at-a-time sending ---
+      const resendAllocation = allocations.find((a) => a.provider === "resend")
+      if (resendAllocation && resendAllocation.emails.length > 0) {
+        console.log(`Sending ${resendAllocation.emails.length} emails via Resend`)
+
+        for (const email of resendAllocation.emails) {
+          const entry = emailToSubscriber.get(email)
+          if (!entry) continue
+
           try {
-            htmlContent = convertContentToHtml(blogData.content)
-          } catch {
-            htmlContent = String(blogData.content || "No content available")
+            const htmlContent = sharedHtmlContent || ""
+            const emailData = buildEmailData(entry.subscriber, entry.blogData, htmlContent, entry.emailConfig)
+
+            await notificationModuleService.createNotifications({
+              to: email,
+              channel: "email",
+              template:
+                process.env.SENDGRID_BLOG_SUBSCRIPTION_TEMPLATE ||
+                "d-blog-subscription-template",
+              data: emailData,
+            })
+
+            allResults.push({
+              success: true,
+              subscriber_id: entry.subscriber.id,
+              email,
+            })
+          } catch (error) {
+            allResults.push({
+              success: false,
+              subscriber_id: entry.subscriber.id,
+              email,
+              error: error.message || "Unknown error",
+            })
           }
 
-          const emailData = buildEmailData(subscriber, blogData, htmlContent, emailConfig)
+          // Small delay between individual sends
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+      }
 
-          await notificationModuleService.createNotifications({
-            to: subscriber.email,
-            channel,
+      // --- Queue overflow emails for the next day ---
+      if (overflow.length > 0) {
+        console.log(`Queuing ${overflow.length} overflow emails for tomorrow`)
+
+        const queueEntries = overflow.map((email) => {
+          const entry = emailToSubscriber.get(email)
+          if (!entry) return null
+
+          const htmlContent = sharedHtmlContent || ""
+          const emailData = buildEmailData(entry.subscriber, entry.blogData, htmlContent, entry.emailConfig)
+
+          return {
+            to_email: email,
+            channel: "email", // default channel, job will re-distribute
             template:
               process.env.SENDGRID_BLOG_SUBSCRIPTION_TEMPLATE ||
               "d-blog-subscription-template",
             data: emailData,
-          })
+          }
+        }).filter(Boolean) as any[]
 
-          allResults.push({
-            success: true,
-            subscriber_id: subscriber.id,
-            email: subscriber.email,
-          })
-        } catch (error) {
-          allResults.push({
-            success: false,
-            subscriber_id: subscriber.id,
-            email: subscriber.email,
-            error: error.message || "Unknown error",
-          })
+        try {
+          queuedCount = await providerManager.queueOverflowEmails(queueEntries)
+          console.log(`Successfully queued ${queuedCount} emails for tomorrow`)
+        } catch (err) {
+          console.error("Failed to queue overflow emails:", err.message)
         }
-
-        // Small delay to avoid overwhelming providers
-        await new Promise((resolve) => setTimeout(resolve, 100))
       }
 
       // Record usage per provider
@@ -210,12 +296,8 @@ export const processAllBatchesStep = createStep(
       // Fallback: single provider (Resend via "email" channel)
       for (const { subscriber, blogData, emailConfig } of allSubscribers) {
         try {
-          let htmlContent: string
-          try {
-            htmlContent = convertContentToHtml(blogData.content)
-          } catch {
-            htmlContent = String(blogData.content || "No content available")
-          }
+          const htmlContent = sharedHtmlContent ||
+            (() => { try { return convertContentToHtml(blogData.content) } catch { return String(blogData.content || "No content available") } })()
 
           const emailData = buildEmailData(subscriber, blogData, htmlContent, emailConfig)
 
@@ -263,16 +345,17 @@ export const processAllBatchesStep = createStep(
       }))
 
     const summary: SendingSummary = {
-      totalSubscribers: allResults.length,
+      totalSubscribers: allResults.length + queuedCount,
       sentCount: sentList.length,
       failedCount: failedList.length,
+      queuedCount,
       sentList,
       failedList,
       sentAt: new Date().toISOString(),
     }
 
     console.log(
-      `Blog email sending complete. Sent: ${summary.sentCount}, Failed: ${summary.failedCount}`
+      `Blog email sending complete. Sent: ${summary.sentCount}, Failed: ${summary.failedCount}, Queued: ${queuedCount}`
     )
 
     return new StepResponse(summary)

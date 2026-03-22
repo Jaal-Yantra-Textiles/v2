@@ -70,6 +70,7 @@ export interface SendingSummary {
   totalSubscribers: number
   sentCount: number
   failedCount: number
+  queuedCount?: number
   sentList: {
     subscriber_id: string
     email: string
