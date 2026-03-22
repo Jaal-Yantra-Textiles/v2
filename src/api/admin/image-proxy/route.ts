@@ -5,18 +5,26 @@ import {
 import { MedusaError } from "@medusajs/framework/utils"
 
 /**
- * GET /admin/designs/:id/segment/proxy-image?url=<remote-url>
+ * GET /admin/image-proxy?url=<remote-url>
  *
  * Proxies a remote image through the backend to avoid CORS issues
- * when the browser needs to load fal.ai CDN images as data URLs.
+ * when the browser needs to display or process images from external CDNs.
  *
- * Only allows URLs from known safe origins (fal.ai).
+ * Only allows URLs from known safe origins.
  */
 const ALLOWED_HOSTS = [
+  // fal.ai
   "fal.media",
+  "v3-fal.fal.media",
   "storage.googleapis.com",
   "fal-cdn.batuhan.co",
-  "v3-fal.fal.media",
+  // JYT CDN
+  "automatic.jaalyantra.com",
+  "jaalyantra.com",
+  // Common CDNs
+  "cdn.shopify.com",
+  "images.unsplash.com",
+  "i.pinimg.com",
 ]
 
 export const GET = async (
@@ -32,14 +40,13 @@ export const GET = async (
     )
   }
 
-  // Validate the URL is from an allowed host
   let parsedUrl: URL
   try {
     parsedUrl = new URL(url)
   } catch {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      "Invalid URL"
+      "Invalid URL provided"
     )
   }
 
@@ -52,7 +59,7 @@ export const GET = async (
   if (!isAllowed) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      `Host ${parsedUrl.hostname} is not in the allowed list`
+      `Host ${parsedUrl.hostname} is not allowed for proxying`
     )
   }
 

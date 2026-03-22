@@ -2375,9 +2375,9 @@ export default defineMiddlewares({
       bodyParser: { sizeLimit: "20mb" },
       middlewares: [],
     },
-    // Image proxy for fal.ai CDN (avoids CORS)
+    // Image proxy for external CDNs (avoids CORS)
     {
-      matcher: "/admin/designs/:id/segment/proxy-image",
+      matcher: "/admin/image-proxy",
       method: "GET",
       middlewares: [],
     },

@@ -66,19 +66,18 @@ function makeImageElement(
 // Helper: fetch a URL as a data URL
 // Remote URLs (fal.ai CDN etc) are proxied through our backend to avoid CORS.
 // ---------------------------------------------------------------------------
-async function fetchAsDataUrl(
-  url: string,
-  designId?: string
-): Promise<string> {
+function proxyUrl(url: string): string {
+  if (!url.startsWith("http")) return url
+  return `${API_BASE_URL}/admin/image-proxy?url=${encodeURIComponent(url)}`
+}
+
+async function fetchAsDataUrl(url: string): Promise<string> {
   if (url.startsWith("data:") || url.startsWith("blob:")) {
     return url
   }
 
-  // For remote http(s) URLs, proxy through our backend
-  const fetchUrl =
-    designId && url.startsWith("http")
-      ? `${API_BASE_URL}/admin/designs/${designId}/segment/proxy-image?url=${encodeURIComponent(url)}`
-      : url
+  // For remote http(s) URLs, proxy through our backend to avoid CORS
+  const fetchUrl = proxyUrl(url)
 
   const res = await fetch(fetchUrl, { credentials: "include" })
   if (!res.ok) throw new Error(`Failed to fetch image: ${res.status}`)
@@ -174,16 +173,15 @@ export function FabricPreviewTab({
         const originalSrc = file?.dataURL || (el as any).url || null
         if (originalSrc) {
           // For remote URLs, proxy through backend to avoid CORS on thumbnails
-          const src =
-            originalSrc.startsWith("http") && designId
-              ? `${API_BASE_URL}/admin/designs/${designId}/segment/proxy-image?url=${encodeURIComponent(originalSrc)}`
-              : originalSrc
+          const src = originalSrc.startsWith("http")
+            ? proxyUrl(originalSrc)
+            : originalSrc
           images.push({ id: el.id, fileId: el.fileId, src, originalSrc })
         }
       }
     }
     setCanvasImages(images)
-  }, [excalidrawAPI, designId])
+  }, [excalidrawAPI])
 
   // ---------------------------------------------------------------------------
   // Select an image from the canvas — handles both data URLs and remote URLs
@@ -195,7 +193,7 @@ export function FabricPreviewTab({
 
       try {
         // Convert to data URL if remote, so we have a local preview + blob
-        const dataUrl = await fetchAsDataUrl(src, designId)
+        const dataUrl = await fetchAsDataUrl(src)
         setSourcePreview(dataUrl)
 
         // Create a File from the data URL for the segment API
@@ -212,7 +210,7 @@ export function FabricPreviewTab({
         setErrorMsg("Could not load this image. Try uploading from device.")
       }
     },
-    [resetDerived, designId]
+    [resetDerived]
   )
 
   // ---------------------------------------------------------------------------
@@ -323,8 +321,8 @@ export function FabricPreviewTab({
 
       // Fetch both images as data URLs to avoid CORS
       const [maskDataUrl, fabricDataUrl] = await Promise.all([
-        fetchAsDataUrl(maskSrc, designId),
-        fetchAsDataUrl(fabricPreview!, designId),
+        fetchAsDataUrl(maskSrc),
+        fetchAsDataUrl(fabricPreview!),
       ])
 
       if (cancelled) return
@@ -380,7 +378,7 @@ export function FabricPreviewTab({
 
       try {
         // Always convert to data URL so Excalidraw can persist it
-        const dataUrl = await fetchAsDataUrl(src, designId)
+        const dataUrl = await fetchAsDataUrl(src)
         const img = await loadImage(dataUrl)
 
         const center = getCanvasCenter()
@@ -418,7 +416,7 @@ export function FabricPreviewTab({
         setAddingToCanvas(false)
       }
     },
-    [excalidrawAPI, getCanvasCenter, designId]
+    [excalidrawAPI, getCanvasCenter]
   )
 
   const handleAddCutoutToCanvas = useCallback(
