@@ -1,3 +1,12 @@
+## [10.18.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.18.0...v10.18.1) (2026-03-22)
+
+
+### Bug Fixes
+
+* **api:** Fixed image loading ([bb00ba7](https://github.com/Jaal-Yantra-Textiles/v2/commit/bb00ba7a4a7756edbd621b5ec794eeacd0073ef4))
+* **admin:** Fixed it to handle the existing image ([3bfed8a](https://github.com/Jaal-Yantra-Textiles/v2/commit/3bfed8aae44234e5351a96a797514d0bd0a41320))
+* **admin:** Fixed the excalidraw ([a0f0add](https://github.com/Jaal-Yantra-Textiles/v2/commit/a0f0addb4d230cfcecc3b5f958c7c365c5f0605a))
+
 # [10.18.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.17.3...v10.18.0) (2026-03-22)
 
 
