@@ -180,8 +180,7 @@ export const processAllBatchesStep = createStep(
           bulkEntries.push({
             to: email,
             subject: entry.emailConfig.subject,
-            // Use the processed template content if available, otherwise fall back
-            htmlContent: emailData._template_html_content || htmlContent,
+            htmlContent: (emailData as any)._template_html_content || htmlContent,
           })
         }
 

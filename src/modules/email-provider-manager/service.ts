@@ -140,7 +140,7 @@ class EmailProviderManagerService extends MedusaService({ EmailUsage, EmailQueue
       channel: e.channel,
       template: e.template,
       data: JSON.stringify(e.data),
-      status: "pending",
+      status: "pending" as const,
       scheduled_for: scheduledFor,
       attempts: 0,
     }))

@@ -122,8 +122,9 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
     
     // Step 7: Send success notification
     const successNotification = transform({ input, blogData, sendingSummary }, (data) => {
-      const queuedMsg = data.sendingSummary.queuedCount > 0
-        ? ` ${data.sendingSummary.queuedCount} queued for tomorrow.`
+      const queuedCount = data.sendingSummary.queuedCount || 0
+      const queuedMsg = queuedCount > 0
+        ? ` ${queuedCount} queued for tomorrow.`
         : ""
       return [
         {
