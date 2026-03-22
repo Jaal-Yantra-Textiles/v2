@@ -1,3 +1,17 @@
+# [11.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.18.1...v11.0.0) (2026-03-22)
+
+
+### Bug Fixes
+
+* **api:** Fixed the graph catch all api issue ([e779fbc](https://github.com/Jaal-Yantra-Textiles/v2/commit/e779fbc8a98cb09d1a0d4a73293d5c6d863867fc))
+* **admin:** Fixed the url path for image loading the Moodboard ([6e1c24d](https://github.com/Jaal-Yantra-Textiles/v2/commit/6e1c24de4d0d4dd8550f314e3ee38aa308e8fd6e))
+* **admin:** refreshCanvasImages now: ([5c4f611](https://github.com/Jaal-Yantra-Textiles/v2/commit/5c4f6117f3f9d11fec0875ba178c72045529a3fd))
+
+
+### BREAKING CHANGES
+
+* **admin:**
+
 ## [10.18.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.18.0...v10.18.1) (2026-03-22)
 
 
