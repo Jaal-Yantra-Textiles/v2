@@ -75,7 +75,7 @@ export default async function processEmailQueue(container: MedusaContainer) {
   let sentCount = 0
   let failedCount = 0
 
-  // --- Mailjet bulk sending ---
+  // --- Mailjet bulk sending + notification record creation ---
   const mailjetAllocation = allocations.find((a) => a.provider === "mailjet")
   if (mailjetAllocation && mailjetAllocation.emails.length > 0) {
     const bulkEntries: BulkEmailEntry[] = []
@@ -93,19 +93,48 @@ export default async function processEmailQueue(container: MedusaContainer) {
 
       bulkEntries.push({
         to: email,
-        subject: data.subject || "Blog Newsletter",
+        subject: data.subject || data._template_subject || "Blog Newsletter",
         htmlContent: data.blog_content || data._template_html_content || "No content",
       })
     }
 
+    // Send via Mailjet bulk API (efficient batches of 50)
     const bulkResult = await sendMailjetBulk(bulkEntries)
 
-    for (const email of bulkResult.successful) {
-      const entry = emailToEntry.get(email)
-      if (entry) {
-        await providerManager.updateEmailQueues({ id: entry.id, status: "sent" })
-        sentCount++
+    // Create notification records for successful sends (provider skips re-sending)
+    for (const sent of bulkResult.successful) {
+      const entry = emailToEntry.get(sent.email)
+      if (!entry) continue
+
+      let data: any
+      try {
+        data = JSON.parse(entry.data)
+      } catch {
+        data = {}
       }
+
+      try {
+        await notificationService.createNotifications({
+          to: sent.email,
+          channel: "email_bulk",
+          template: entry.template,
+          data: {
+            ...data,
+            _already_sent: true,
+            _external_id: sent.messageId,
+            _mailjet_response: {
+              message_id: sent.messageId,
+              message_uuid: sent.messageUuid,
+              status: sent.status,
+            },
+          },
+        })
+      } catch (err) {
+        logger.warn(`[Email Queue] Failed to create notification record for ${sent.email}: ${err.message}`)
+      }
+
+      await providerManager.updateEmailQueues({ id: entry.id, status: "sent" })
+      sentCount++
     }
 
     for (const fail of bulkResult.failed) {

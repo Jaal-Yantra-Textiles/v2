@@ -242,17 +242,22 @@ export const processAllBatchesStep = createStep(
         }
       }
 
-      // --- Mailjet bulk sending (uses rendered template directly) ---
+      // --- Mailjet bulk sending + notification record creation ---
       const mailjetAllocation = allocations.find((a) => a.provider === "mailjet")
       if (mailjetAllocation && mailjetAllocation.emails.length > 0) {
         console.log(`Sending ${mailjetAllocation.emails.length} emails via Mailjet bulk API`)
 
+        // Build bulk entries for efficient Mailjet API sending
         const bulkEntries: BulkEmailEntry[] = []
+        const emailRenderedMap = new Map<string, { emailData: Record<string, any>; rendered: ReturnType<typeof renderTemplate> | null }>()
+
         for (const email of mailjetAllocation.emails) {
           const entry = emailToSubscriber.get(email)
           if (!entry) continue
 
-          const { rendered } = getRenderedEmail(entry)
+          const { emailData, rendered } = getRenderedEmail(entry)
+          emailRenderedMap.set(email, { emailData, rendered })
+
           bulkEntries.push({
             to: email,
             subject: rendered?.subject || entry.emailConfig.subject,
@@ -260,12 +265,46 @@ export const processAllBatchesStep = createStep(
           })
         }
 
+        // Send via Mailjet bulk API (batches of 50)
         const bulkResult = await sendMailjetBulk(bulkEntries)
 
-        for (const email of bulkResult.successful) {
-          const entry = emailToSubscriber.get(email)
-          allResults.push({ success: true, subscriber_id: entry?.subscriber.id || "", email })
+        // For successful sends, create notification records via the module
+        // (provider sees _already_sent flag and skips re-sending)
+        for (const sent of bulkResult.successful) {
+          const entry = emailToSubscriber.get(sent.email)
+          const cached = emailRenderedMap.get(sent.email)
+
+          try {
+            const notificationData: Record<string, any> = {
+              ...(cached?.emailData || {}),
+              _already_sent: true,
+              _external_id: sent.messageId,
+              _mailjet_response: {
+                message_id: sent.messageId,
+                message_uuid: sent.messageUuid,
+                status: sent.status,
+              },
+            }
+            if (cached?.rendered) {
+              notificationData._template_subject = cached.rendered.subject
+              notificationData._template_html_content = cached.rendered.htmlContent
+              notificationData._template_from = cached.rendered.from
+              notificationData._template_processed = true
+            }
+
+            await notificationModuleService.createNotifications({
+              to: sent.email,
+              channel: "email_bulk",
+              template: BLOG_TEMPLATE_KEY,
+              data: notificationData,
+            })
+          } catch (err) {
+            console.warn(`Failed to create notification record for ${sent.email}:`, err.message)
+          }
+
+          allResults.push({ success: true, subscriber_id: entry?.subscriber.id || "", email: sent.email })
         }
+
         for (const fail of bulkResult.failed) {
           const entry = emailToSubscriber.get(fail.email)
           allResults.push({ success: false, subscriber_id: entry?.subscriber.id || "", email: fail.email, error: fail.error })

@@ -8,8 +8,15 @@ export type BulkEmailEntry = {
   htmlContent: string
 }
 
+export type BulkSendSuccess = {
+  email: string
+  messageId: string
+  messageUuid: string
+  status: string
+}
+
 export type BulkSendResult = {
-  successful: string[]
+  successful: BulkSendSuccess[]
   failed: { email: string; error: string }[]
 }
 
@@ -17,6 +24,9 @@ export type BulkSendResult = {
  * Send emails in bulk via Mailjet's v3.1 API.
  * Chunks into groups of 50 (Mailjet's per-call limit) and sends each chunk
  * as a single API call with multiple Messages.
+ *
+ * Returns full Mailjet response metadata (MessageID, MessageUUID, Status)
+ * for each successful send so callers can store it in notification records.
  */
 export async function sendMailjetBulk(
   entries: BulkEmailEntry[]
@@ -28,7 +38,7 @@ export async function sendMailjetBulk(
   const fromEmail = process.env.MAILJET_FROM_EMAIL!
   const fromName = process.env.MAILJET_FROM_NAME || "Jaal Yantra Textiles"
 
-  const successful: string[] = []
+  const successful: BulkSendSuccess[] = []
   const failed: { email: string; error: string }[] = []
 
   for (let i = 0; i < entries.length; i += MAILJET_BATCH_SIZE) {
@@ -57,7 +67,13 @@ export async function sendMailjetBulk(
             error: msg.Errors?.[0]?.ErrorMessage || "Unknown Mailjet error",
           })
         } else {
-          successful.push(batch[j].to)
+          const recipient = msg.To?.[0] || {}
+          successful.push({
+            email: batch[j].to,
+            messageId: String(recipient.MessageID || ""),
+            messageUuid: String(recipient.MessageUUID || ""),
+            status: msg.Status || "success",
+          })
         }
       }
     } catch (error) {

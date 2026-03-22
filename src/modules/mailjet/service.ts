@@ -57,12 +57,23 @@ class MailjetNotificationProviderService extends AbstractNotificationProviderSer
   async send(
     notification: ProviderSendNotificationDTO
   ): Promise<ProviderSendNotificationResultsDTO> {
+    const templateData = notification.data as any
+
+    // If the email was already sent via bulk API, skip sending and just return
+    // the external ID so Medusa still creates the notification record.
+    // The Mailjet response metadata (_mailjet_response) is already included in
+    // the notification's data field and will be persisted by Medusa.
+    if (templateData?._already_sent) {
+      const externalId = templateData._external_id || "bulk-sent"
+      this.logger.info(`Mailjet: Skipping send for ${notification.to} — already sent (id: ${externalId})`)
+      return { id: String(externalId) }
+    }
+
     let htmlContent: string | null = null
     let subject = "We have a message for you"
     let fromEmail = this.options.from_email
     let fromName = this.options.from_name || "Jaal Yantra Textiles"
 
-    const templateData = notification.data as any
     if (templateData?._template_html_content && templateData?._template_processed) {
       htmlContent = templateData._template_html_content
       subject = templateData._template_subject || subject
