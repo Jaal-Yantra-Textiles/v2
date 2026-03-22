@@ -1,3 +1,17 @@
+# [11.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v11.0.0...v11.1.0) (2026-03-22)
+
+
+### Bug Fixes
+
+* **admin:** Fixed the issue for the data table ([0a63e9e](https://github.com/Jaal-Yantra-Textiles/v2/commit/0a63e9ec51f4fcd65ad42efdbb6609dc41c4d712))
+* **workflows:** Fixed the mailjet settings ([fb84953](https://github.com/Jaal-Yantra-Textiles/v2/commit/fb84953e585f3b81bf98cb84b84a5f2417f7ab84))
+
+
+### Features
+
+* **api:** Built designs logs for the samples ([309a1ac](https://github.com/Jaal-Yantra-Textiles/v2/commit/309a1ac19b725045875861b7c52ff4d13bb647e4))
+* **admin:** UI features to send partner in batches ([69437a3](https://github.com/Jaal-Yantra-Textiles/v2/commit/69437a3a628edb8aecf2bb266c84c8635a8e593f))
+
 # [11.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.18.1...v11.0.0) (2026-03-22)
 
 
