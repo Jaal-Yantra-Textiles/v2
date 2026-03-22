@@ -9,6 +9,7 @@ import {
   DataTableFilteringState,
   Button,
   Badge,
+  CommandBar,
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -27,6 +28,7 @@ import { SaveViewDialog } from "../../components/views/save-view-dialog";
 import { useViewConfigurationActions } from "../../hooks/use-view-configurations";
 import type { ViewConfiguration } from "../../hooks/api/views";
 import { usePartners } from "../../hooks/api/partners";
+import { BatchSendToPartnerDrawer } from "../../components/designs/batch-send-to-partner-drawer";
 
 const columnHelper = createColumnHelper<AdminDesign>();
 export const useColumns = () => {
@@ -86,6 +88,10 @@ const DesignsPage = () => {
     search: "",
   });
   const [tableUiResetKey, setTableUiResetKey] = useState(0);
+
+  // Batch send-to-partner state
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [batchSendDrawerOpen, setBatchSendDrawerOpen] = useState(false);
 
   const {
     listViews,
@@ -486,7 +492,10 @@ const DesignsPage = () => {
     rowCount: count,
     isLoading,
     filters,
-
+    rowSelection: {
+      state: rowSelection,
+      onRowSelectionChange: setRowSelection,
+    },
     pagination: {
       state: pagination,
       onPaginationChange: setPagination,
@@ -500,6 +509,14 @@ const DesignsPage = () => {
       onFilteringChange: handleFilterChange,
     },
   });
+
+  const selectedDesignIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
+  const selectedDesigns = useMemo(
+    () => (designs ?? []).filter((d) => selectedDesignIds.includes(d.id)),
+    [designs, selectedDesignIds]
+  );
+  const selectedCount = selectedDesigns.length;
+  const clearSelection = () => setRowSelection({});
 
   if (isError) {
     throw error;
@@ -580,6 +597,31 @@ const DesignsPage = () => {
         onSaved={handleViewSaved}
       />
     )}
+
+    <CommandBar open={selectedCount > 0}>
+      <CommandBar.Bar>
+        <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
+        <CommandBar.Seperator />
+        <CommandBar.Command
+          action={() => setBatchSendDrawerOpen(true)}
+          label="Send to Partner"
+          shortcut="s"
+        />
+        <CommandBar.Seperator />
+        <CommandBar.Command
+          action={clearSelection}
+          label="Clear"
+          shortcut="esc"
+        />
+      </CommandBar.Bar>
+    </CommandBar>
+
+    <BatchSendToPartnerDrawer
+      open={batchSendDrawerOpen}
+      onOpenChange={setBatchSendDrawerOpen}
+      selectedDesigns={selectedDesigns}
+      onComplete={clearSelection}
+    />
     </div>
   );
 };
