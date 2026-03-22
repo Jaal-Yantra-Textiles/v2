@@ -160,27 +160,37 @@ export function FabricPreviewTab({
   // Collect images currently on the Excalidraw canvas
   // Handles both data URLs and remote URLs stored in files
   // ---------------------------------------------------------------------------
-  const refreshCanvasImages = useCallback(() => {
+  const refreshCanvasImages = useCallback(async () => {
     if (!excalidrawAPI) return
     const elements = excalidrawAPI.getSceneElements() || []
     const files = excalidrawAPI.getFiles() || {}
-    const images: Array<{ id: string; fileId: string; src: string; originalSrc: string }> = []
+    const results: Array<{ id: string; fileId: string; src: string; originalSrc: string }> = []
 
     for (const el of elements) {
       if (el.type === "image" && el.fileId && !el.isDeleted) {
         const file = files[el.fileId]
-        // Check for dataURL (inline) or url property (remote CDN)
         const originalSrc = file?.dataURL || (el as any).url || null
-        if (originalSrc) {
-          // For remote URLs, proxy through backend to avoid CORS on thumbnails
-          const src = originalSrc.startsWith("http")
-            ? proxyUrl(originalSrc)
-            : originalSrc
-          images.push({ id: el.id, fileId: el.fileId, src, originalSrc })
+        if (!originalSrc) continue
+
+        if (originalSrc.startsWith("data:") || originalSrc.startsWith("blob:")) {
+          // Inline data — use directly
+          results.push({ id: el.id, fileId: el.fileId, src: originalSrc, originalSrc })
+        } else if (originalSrc.startsWith("http")) {
+          // Remote URL — fetch via proxy and convert to blob URL for display
+          try {
+            const res = await fetch(proxyUrl(originalSrc), { credentials: "include" })
+            if (res.ok) {
+              const blob = await res.blob()
+              const blobUrl = URL.createObjectURL(blob)
+              results.push({ id: el.id, fileId: el.fileId, src: blobUrl, originalSrc })
+            }
+          } catch {
+            // Skip images that can't be loaded
+          }
         }
       }
     }
-    setCanvasImages(images)
+    setCanvasImages(results)
   }, [excalidrawAPI])
 
   // ---------------------------------------------------------------------------
