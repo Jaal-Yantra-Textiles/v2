@@ -1,3 +1,17 @@
+# [10.18.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.17.3...v10.18.0) (2026-03-22)
+
+
+### Bug Fixes
+
+* **admin:** Custom design preview ([d7f824c](https://github.com/Jaal-Yantra-Textiles/v2/commit/d7f824ce631925c625d484a71becc0c418e54861))
+* **admin:** Fixed the poreview route ([ad6e389](https://github.com/Jaal-Yantra-Textiles/v2/commit/ad6e389279620df731231b9b90577a78bfad65dc))
+* **api:** Fixed the printing ([790112e](https://github.com/Jaal-Yantra-Textiles/v2/commit/790112ecd9faeefb9d9d763def235ffb74a99cb5))
+
+
+### Features
+
+* **api:** moodboard sending cutout ([14b2577](https://github.com/Jaal-Yantra-Textiles/v2/commit/14b25773bdec6ed7356b87e492af518858097d6f))
+
 ## [10.17.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v10.17.2...v10.17.3) (2026-03-22)
 
 
