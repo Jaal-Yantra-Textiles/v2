@@ -62,6 +62,34 @@ function makeImageElement(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Helper: fetch a remote URL as a data URL (avoids CORS canvas tainting)
+// ---------------------------------------------------------------------------
+async function fetchAsDataUrl(url: string): Promise<string> {
+  if (url.startsWith("data:")) return url
+  const res = await fetch(url)
+  const blob = await res.blob()
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Helper: load an image and get its dimensions
+// ---------------------------------------------------------------------------
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
+
 export function FabricPreviewTab({
   excalidrawAPI,
   getCanvasCenter,
@@ -94,65 +122,81 @@ export function FabricPreviewTab({
 
   // Canvas image selection
   const [canvasImages, setCanvasImages] = useState<
-    Array<{ id: string; fileId: string; dataUrl: string }>
+    Array<{ id: string; fileId: string; src: string }>
   >([])
   const [showCanvasPicker, setShowCanvasPicker] = useState(false)
 
+  // Adding to canvas state
+  const [addingToCanvas, setAddingToCanvas] = useState(false)
+
+  // ---------------------------------------------------------------------------
+  // Reset all derived state
+  // ---------------------------------------------------------------------------
+  const resetDerived = useCallback(() => {
+    setSegmentResult(null)
+    setCompositeDataUrl(null)
+    setErrorMsg(null)
+    setProcessingState("idle")
+    setDepthResult(null)
+    setDepthError(null)
+    setFabricPreview(null)
+  }, [])
+
   // ---------------------------------------------------------------------------
   // Collect images currently on the Excalidraw canvas
+  // Handles both data URLs and remote URLs stored in files
   // ---------------------------------------------------------------------------
   const refreshCanvasImages = useCallback(() => {
     if (!excalidrawAPI) return
     const elements = excalidrawAPI.getSceneElements() || []
     const files = excalidrawAPI.getFiles() || {}
-    const images: Array<{ id: string; fileId: string; dataUrl: string }> = []
+    const images: Array<{ id: string; fileId: string; src: string }> = []
 
     for (const el of elements) {
       if (el.type === "image" && el.fileId && !el.isDeleted) {
         const file = files[el.fileId]
-        if (file?.dataURL) {
-          images.push({
-            id: el.id,
-            fileId: el.fileId,
-            dataUrl: file.dataURL,
-          })
+        // Check for dataURL (inline) or url property (remote CDN)
+        const src = file?.dataURL || (el as any).url || null
+        if (src) {
+          images.push({ id: el.id, fileId: el.fileId, src })
         }
       }
     }
     setCanvasImages(images)
   }, [excalidrawAPI])
 
+  // ---------------------------------------------------------------------------
+  // Select an image from the canvas — handles both data URLs and remote URLs
+  // ---------------------------------------------------------------------------
   const handleSelectFromCanvas = useCallback(
-    (dataUrl: string) => {
-      // Convert the data URL to a File-like source
-      setSourcePreview(dataUrl)
+    async (src: string) => {
       setShowCanvasPicker(false)
-      setSegmentResult(null)
-      setCompositeDataUrl(null)
-      setErrorMsg(null)
-      setProcessingState("idle")
-      setDepthResult(null)
-      setDepthError(null)
+      resetDerived()
 
-      // Create a File from the data URL for the segment API
-      fetch(dataUrl)
-        .then((res) => res.blob())
-        .then((blob) => {
-          const file = new File([blob], "canvas-image.png", {
-            type: blob.type || "image/png",
-          })
-          setSourceFile(file)
+      try {
+        // Convert to data URL if remote, so we have a local preview + blob
+        const dataUrl = await fetchAsDataUrl(src)
+        setSourcePreview(dataUrl)
+
+        // Create a File from the data URL for the segment API
+        const res = await fetch(dataUrl)
+        const blob = await res.blob()
+        const file = new File([blob], "canvas-image.png", {
+          type: blob.type || "image/png",
         })
-        .catch(() => {
-          // If data URL conversion fails, the user can still upload manually
-          setSourceFile(null)
-        })
+        setSourceFile(file)
+      } catch {
+        // Fallback: use the URL directly as preview, but sourceFile won't work
+        setSourcePreview(src)
+        setSourceFile(null)
+        setErrorMsg("Could not load this image. Try uploading from device.")
+      }
     },
-    []
+    [resetDerived]
   )
 
   // ---------------------------------------------------------------------------
-  // Source image upload
+  // Source image upload from device
   // ---------------------------------------------------------------------------
   const handleSourceSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,27 +204,20 @@ export function FabricPreviewTab({
       if (!file) return
       setSourceFile(file)
       setSourcePreview(URL.createObjectURL(file))
-      setSegmentResult(null)
-      setCompositeDataUrl(null)
-      setErrorMsg(null)
-      setProcessingState("idle")
-      setDepthResult(null)
-      setDepthError(null)
+      resetDerived()
     },
-    []
+    [resetDerived]
   )
 
   // ---------------------------------------------------------------------------
-  // Run segmentation via backend
+  // Run segmentation via backend (fal.ai BiRefNet)
   // ---------------------------------------------------------------------------
   const handleSegment = useCallback(async () => {
     if (!sourceFile || !designId) return
-
     setProcessingState("uploading")
     setErrorMsg(null)
 
     try {
-      // Convert file to base64
       const base64 = await new Promise<string>((resolve) => {
         const reader = new FileReader()
         reader.onloadend = () => resolve(reader.result as string)
@@ -193,10 +230,7 @@ export function FabricPreviewTab({
         `/admin/designs/${designId}/segment`,
         {
           method: "POST",
-          body: {
-            image_base64: base64,
-            model: "General Use (Light)",
-          },
+          body: { image_base64: base64, model: "General Use (Light)" },
         }
       )
 
@@ -205,6 +239,35 @@ export function FabricPreviewTab({
     } catch (err: any) {
       setErrorMsg(err?.message || "Segmentation failed")
       setProcessingState("error")
+    }
+  }, [sourceFile, designId])
+
+  // ---------------------------------------------------------------------------
+  // Generate 3D depth + normal maps (fal.ai MiDaS)
+  // ---------------------------------------------------------------------------
+  const handleGenerateDepth = useCallback(async () => {
+    if (!sourceFile || !designId) return
+    setDepthProcessing(true)
+    setDepthError(null)
+    setDepthResult(null)
+
+    try {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(sourceFile)
+      })
+
+      const result = await sdk.client.fetch<{ depth: DepthResult }>(
+        `/admin/designs/${designId}/segment/depth`,
+        { method: "POST", body: { image_base64: base64 } }
+      )
+
+      setDepthResult(result.depth)
+    } catch (err: any) {
+      setDepthError(err?.message || "Depth generation failed")
+    } finally {
+      setDepthProcessing(false)
     }
   }, [sourceFile, designId])
 
@@ -222,188 +285,161 @@ export function FabricPreviewTab({
   )
 
   // ---------------------------------------------------------------------------
-  // Generate 3D depth + normal maps from source image
-  // ---------------------------------------------------------------------------
-  const handleGenerateDepth = useCallback(async () => {
-    if (!sourceFile || !designId) return
-
-    setDepthProcessing(true)
-    setDepthError(null)
-    setDepthResult(null)
-
-    try {
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result as string)
-        reader.readAsDataURL(sourceFile)
-      })
-
-      const result = await sdk.client.fetch<{ depth: DepthResult }>(
-        `/admin/designs/${designId}/segment/depth`,
-        {
-          method: "POST",
-          body: { image_base64: base64 },
-        }
-      )
-
-      setDepthResult(result.depth)
-    } catch (err: any) {
-      setDepthError(err?.message || "Depth generation failed")
-    } finally {
-      setDepthProcessing(false)
-    }
-  }, [sourceFile, designId])
-
-  // ---------------------------------------------------------------------------
   // Composite: apply fabric within silhouette mask
+  // Uses fetch to avoid CORS canvas tainting
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!segmentResult || !fabricPreview) return
 
-    const maskSrc = segmentResult.mask_url || segmentResult.cutout_url
-    const canvas = compositeCanvasRef.current
-    if (!canvas) return
+    let cancelled = false
 
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    async function composite() {
+      const cvs = compositeCanvasRef.current
+      if (!cvs) return
+      const c = cvs.getContext("2d")
+      if (!c) return
 
-    const maskImg = new Image()
-    maskImg.crossOrigin = "anonymous"
-    const fabricImg = new Image()
-    fabricImg.crossOrigin = "anonymous"
+      const maskSrc = segmentResult!.mask_url || segmentResult!.cutout_url
 
-    let maskLoaded = false
-    let fabricLoaded = false
+      // Fetch both images as data URLs to avoid CORS
+      const [maskDataUrl, fabricDataUrl] = await Promise.all([
+        fetchAsDataUrl(maskSrc),
+        fetchAsDataUrl(fabricPreview!),
+      ])
 
-    const tryComposite = () => {
-      if (!maskLoaded || !fabricLoaded) return
+      if (cancelled) return
+
+      const [maskImg, fabricImg] = await Promise.all([
+        loadImage(maskDataUrl),
+        loadImage(fabricDataUrl),
+      ])
+
+      if (cancelled) return
 
       const w = maskImg.width
       const h = maskImg.height
-      canvas.width = w
-      canvas.height = h
+      cvs.width = w
+      cvs.height = h
 
-      // Step 1: Draw fabric pattern tiled to fill the canvas
-      ctx.clearRect(0, 0, w, h)
-
-      const patW = fabricImg.width
-      const patH = fabricImg.height
-      const scaleF = Math.max(w / patW, h / patH, 1)
-      const drawW = patW * scaleF
-      const drawH = patH * scaleF
-
+      // Draw fabric tiled
+      c.clearRect(0, 0, w, h)
+      const scaleF = Math.max(w / fabricImg.width, h / fabricImg.height, 1)
+      const drawW = fabricImg.width * scaleF
+      const drawH = fabricImg.height * scaleF
       for (let x = 0; x < w; x += drawW) {
         for (let y = 0; y < h; y += drawH) {
-          ctx.drawImage(fabricImg, x, y, drawW, drawH)
+          c.drawImage(fabricImg, x, y, drawW, drawH)
         }
       }
 
-      // Step 2: Use the mask as a clip via destination-in compositing
-      ctx.globalCompositeOperation = "destination-in"
-      ctx.drawImage(maskImg, 0, 0, w, h)
+      // Clip with mask
+      c.globalCompositeOperation = "destination-in"
+      c.drawImage(maskImg, 0, 0, w, h)
+      c.globalCompositeOperation = "source-over"
 
-      // Reset compositing
-      ctx.globalCompositeOperation = "source-over"
-
-      setCompositeDataUrl(canvas.toDataURL("image/png"))
+      setCompositeDataUrl(cvs.toDataURL("image/png"))
     }
 
-    maskImg.onload = () => {
-      maskLoaded = true
-      tryComposite()
-    }
-    fabricImg.onload = () => {
-      fabricLoaded = true
-      tryComposite()
-    }
+    composite().catch(() => {
+      /* silently fail — user can retry */
+    })
 
-    maskImg.src = maskSrc
-    fabricImg.src = fabricPreview
+    return () => {
+      cancelled = true
+    }
   }, [segmentResult, fabricPreview])
 
   // ---------------------------------------------------------------------------
-  // Add image to Excalidraw canvas (shared logic)
+  // Add an image to Excalidraw canvas
+  // Fetches remote URLs as data URLs first so Excalidraw can store them
   // ---------------------------------------------------------------------------
-  const addImageDataUrlToCanvas = useCallback(
-    (dataUrl: string, prefix: string) => {
+  const addToExcalidrawCanvas = useCallback(
+    async (src: string, prefix: string) => {
       if (!excalidrawAPI) return
+      setAddingToCanvas(true)
 
-      const center = getCanvasCenter()
-      const fileId = `${prefix}_${Date.now()}`
+      try {
+        // Always convert to data URL so Excalidraw can persist it
+        const dataUrl = await fetchAsDataUrl(src)
+        const img = await loadImage(dataUrl)
 
-      const img = new Image()
-      img.crossOrigin = "anonymous"
-      img.onload = () => {
+        const center = getCanvasCenter()
+        const fileId = `${prefix}_${Date.now()}`
         const maxSize = 400
         const scale = Math.min(maxSize / img.width, maxSize / img.height, 1)
         const width = img.width * scale
         const height = img.height * scale
 
-        // If the source is a remote URL, draw onto a temp canvas to get a data URL
-        let finalDataUrl = dataUrl
-        if (dataUrl.startsWith("http")) {
-          const tmpCanvas = document.createElement("canvas")
-          tmpCanvas.width = img.width
-          tmpCanvas.height = img.height
-          const tmpCtx = tmpCanvas.getContext("2d")!
-          tmpCtx.drawImage(img, 0, 0)
-          finalDataUrl = tmpCanvas.toDataURL("image/png")
-        }
-
         excalidrawAPI.addFiles([
           {
             id: fileId,
-            dataURL: finalDataUrl,
+            dataURL: dataUrl,
             mimeType: "image/png",
             created: Date.now(),
             lastRetrieved: Date.now(),
           },
         ])
 
-        const element = makeImageElement(
-          fileId,
-          center.x - width / 2,
-          center.y - height / 2,
-          width,
-          height
-        )
-
         excalidrawAPI.updateScene({
-          elements: [...excalidrawAPI.getSceneElements(), element],
+          elements: [
+            ...excalidrawAPI.getSceneElements(),
+            makeImageElement(
+              fileId,
+              center.x - width / 2,
+              center.y - height / 2,
+              width,
+              height
+            ),
+          ],
         })
+      } catch {
+        setErrorMsg("Failed to add image to canvas")
+      } finally {
+        setAddingToCanvas(false)
       }
-      img.src = dataUrl
     },
     [excalidrawAPI, getCanvasCenter]
   )
 
-  const handleAddToCanvas = useCallback(() => {
-    if (!compositeDataUrl) return
-    addImageDataUrlToCanvas(compositeDataUrl, "fabric_composite")
-  }, [compositeDataUrl, addImageDataUrlToCanvas])
+  const handleAddCutoutToCanvas = useCallback(
+    () =>
+      segmentResult?.cutout_url &&
+      addToExcalidrawCanvas(segmentResult.cutout_url, "cutout"),
+    [segmentResult, addToExcalidrawCanvas]
+  )
 
-  const handleAddCutoutToCanvas = useCallback(() => {
-    if (!segmentResult?.cutout_url) return
-    addImageDataUrlToCanvas(segmentResult.cutout_url, "cutout")
-  }, [segmentResult, addImageDataUrlToCanvas])
+  const handleAddMaskToCanvas = useCallback(
+    () =>
+      segmentResult?.mask_url &&
+      addToExcalidrawCanvas(segmentResult.mask_url, "mask"),
+    [segmentResult, addToExcalidrawCanvas]
+  )
+
+  const handleAddCompositeToCanvas = useCallback(
+    () =>
+      compositeDataUrl &&
+      addToExcalidrawCanvas(compositeDataUrl, "fabric_composite"),
+    [compositeDataUrl, addToExcalidrawCanvas]
+  )
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   const isProcessing =
     processingState === "uploading" || processingState === "segmenting"
+  const isBusy = isProcessing || depthProcessing
 
   return (
     <>
       <p className="text-xs text-ui-fg-subtle leading-snug">
-        Upload or select an image from the canvas, extract its silhouette, then
-        apply a fabric pattern over it.
+        Select an image from the canvas or upload one, then extract its
+        silhouette or reveal fabric texture in 3D.
       </p>
 
-      {/* Step 1: Source image */}
+      {/* ── SOURCE IMAGE ───────────────────────────────────────────── */}
       <div>
         <label className="text-xs font-medium text-ui-fg-base mb-1.5 block">
-          1. Model / Garment Photo
+          1. Source Image
         </label>
         <input
           ref={sourceInputRef}
@@ -423,11 +459,7 @@ export function FabricPreviewTab({
               onClick={() => {
                 setSourcePreview(null)
                 setSourceFile(null)
-                setSegmentResult(null)
-                setCompositeDataUrl(null)
-                setProcessingState("idle")
-                setDepthResult(null)
-                setDepthError(null)
+                resetDerived()
               }}
               className="absolute top-1 right-1 bg-ui-bg-base border border-ui-border-base rounded-full size-5 flex items-center justify-center text-xs hover:bg-ui-bg-base-hover"
             >
@@ -437,30 +469,30 @@ export function FabricPreviewTab({
         ) : (
           <div className="flex flex-col gap-1.5">
             <button
-              onClick={() => sourceInputRef.current?.click()}
-              className="w-full py-3 rounded-md border-2 border-dashed border-ui-border-base hover:border-ui-border-strong bg-ui-bg-subtle text-xs text-ui-fg-subtle transition-colors"
-            >
-              Upload from device
-            </button>
-            <button
               onClick={() => {
                 refreshCanvasImages()
                 setShowCanvasPicker(true)
               }}
+              className="w-full py-3 rounded-md border-2 border-dashed border-ui-border-base hover:border-ui-border-strong bg-ui-bg-subtle text-xs text-ui-fg-base transition-colors"
+            >
+              Pick from moodboard canvas
+            </button>
+            <button
+              onClick={() => sourceInputRef.current?.click()}
               className="w-full py-2 text-xs font-medium rounded border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors"
             >
-              Select from canvas
+              Or upload from device
             </button>
           </div>
         )}
       </div>
 
-      {/* Canvas image picker */}
+      {/* ── CANVAS IMAGE PICKER ────────────────────────────────────── */}
       {showCanvasPicker && (
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-medium text-ui-fg-base">
-              Canvas Images
+              Images on Canvas
             </span>
             <button
               onClick={() => setShowCanvasPicker(false)}
@@ -471,24 +503,25 @@ export function FabricPreviewTab({
           </div>
           {canvasImages.length === 0 ? (
             <p className="text-xs text-ui-fg-muted text-center py-3">
-              No images on the canvas yet
+              No images on the canvas yet. Add an image to the moodboard first.
             </p>
           ) : (
-            <div className="grid grid-cols-3 gap-1.5 max-h-[160px] overflow-y-auto">
+            <div className="grid grid-cols-3 gap-1.5 max-h-[180px] overflow-y-auto">
               {canvasImages.map((ci) => (
                 <button
                   key={ci.id}
-                  onClick={() => handleSelectFromCanvas(ci.dataUrl)}
+                  onClick={() => handleSelectFromCanvas(ci.src)}
                   className="group relative rounded-md border border-ui-border-base overflow-hidden hover:border-ui-fg-interactive transition-colors"
                 >
                   <img
-                    src={ci.dataUrl}
+                    src={ci.src}
                     alt="Canvas image"
                     className="w-full aspect-square object-cover"
+                    crossOrigin="anonymous"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                     <span className="text-white text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                      Select
+                      Use this
                     </span>
                   </div>
                 </button>
@@ -498,15 +531,18 @@ export function FabricPreviewTab({
         </div>
       )}
 
-      {/* Action buttons */}
-      {sourcePreview && !segmentResult && (
+      {/* ── ACTION BUTTONS (always visible when source is set) ──── */}
+      {sourcePreview && sourceFile && (
         <div className="flex flex-col gap-1.5">
+          {/* Segmentation */}
           <button
             onClick={handleSegment}
-            disabled={isProcessing || depthProcessing}
+            disabled={isBusy}
             className={`w-full py-2 text-sm font-medium rounded transition-colors ${
-              isProcessing || depthProcessing
+              isBusy
                 ? "bg-ui-bg-disabled text-ui-fg-disabled cursor-wait"
+                : segmentResult
+                ? "border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle"
                 : "bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90"
             }`}
           >
@@ -514,18 +550,28 @@ export function FabricPreviewTab({
               ? "Uploading..."
               : processingState === "segmenting"
               ? "Extracting silhouette..."
+              : segmentResult
+              ? "Re-extract Silhouette"
               : "Extract Silhouette"}
           </button>
+
+          {/* 3D Texture */}
           <button
             onClick={handleGenerateDepth}
-            disabled={isProcessing || depthProcessing}
+            disabled={isBusy}
             className={`w-full py-2 text-sm font-medium rounded transition-colors ${
-              isProcessing || depthProcessing
+              isBusy
                 ? "bg-ui-bg-disabled text-ui-fg-disabled cursor-wait"
+                : depthResult
+                ? "border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle"
                 : "border border-ui-border-strong text-ui-fg-base hover:bg-ui-bg-subtle"
             }`}
           >
-            {depthProcessing ? "Generating 3D texture..." : "3D Texture Reveal"}
+            {depthProcessing
+              ? "Generating 3D texture..."
+              : depthResult
+              ? "Re-generate 3D Texture"
+              : "3D Texture Reveal"}
           </button>
         </div>
       )}
@@ -533,7 +579,7 @@ export function FabricPreviewTab({
       {errorMsg && <p className="text-xs text-ui-fg-error">{errorMsg}</p>}
       {depthError && <p className="text-xs text-ui-fg-error">{depthError}</p>}
 
-      {/* 3D Texture Viewer */}
+      {/* ── 3D TEXTURE VIEWER ──────────────────────────────────────── */}
       {depthResult && sourcePreview && (
         <div>
           <label className="text-xs font-medium text-ui-fg-base mb-1.5 block">
@@ -556,6 +602,7 @@ export function FabricPreviewTab({
                 src={depthResult.depth_url}
                 alt="Depth"
                 className="w-full object-contain max-h-[60px]"
+                crossOrigin="anonymous"
               />
               <div className="bg-ui-bg-base px-2 py-0.5 text-center">
                 <span className="text-[9px] text-ui-fg-muted">Depth Map</span>
@@ -567,9 +614,12 @@ export function FabricPreviewTab({
                   src={depthResult.normal_url}
                   alt="Normal"
                   className="w-full object-contain max-h-[60px]"
+                  crossOrigin="anonymous"
                 />
                 <div className="bg-ui-bg-base px-2 py-0.5 text-center">
-                  <span className="text-[9px] text-ui-fg-muted">Normal Map</span>
+                  <span className="text-[9px] text-ui-fg-muted">
+                    Normal Map
+                  </span>
                 </div>
               </div>
             )}
@@ -577,7 +627,7 @@ export function FabricPreviewTab({
         </div>
       )}
 
-      {/* Step 2: Segmentation result */}
+      {/* ── SEGMENTATION RESULT ────────────────────────────────────── */}
       {segmentResult && (
         <div>
           <label className="text-xs font-medium text-ui-fg-base mb-1.5 block">
@@ -589,6 +639,7 @@ export function FabricPreviewTab({
                 src={segmentResult.cutout_url}
                 alt="Cutout"
                 className="w-full object-contain max-h-[120px]"
+                crossOrigin="anonymous"
               />
               <div className="bg-ui-bg-base px-2 py-1 text-center">
                 <span className="text-[10px] text-ui-fg-muted">Cutout</span>
@@ -600,6 +651,7 @@ export function FabricPreviewTab({
                   src={segmentResult.mask_url}
                   alt="Mask"
                   className="w-full object-contain max-h-[120px]"
+                  crossOrigin="anonymous"
                 />
                 <div className="bg-ui-bg-base px-2 py-1 text-center">
                   <span className="text-[10px] text-ui-fg-muted">Mask</span>
@@ -607,16 +659,28 @@ export function FabricPreviewTab({
               </div>
             )}
           </div>
-          <button
-            onClick={handleAddCutoutToCanvas}
-            className="w-full mt-2 py-1.5 text-xs font-medium rounded border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors"
-          >
-            + Add cutout to canvas
-          </button>
+          <div className="flex gap-1.5 mt-2">
+            <button
+              onClick={handleAddCutoutToCanvas}
+              disabled={addingToCanvas}
+              className="flex-1 py-1.5 text-xs font-medium rounded border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors disabled:opacity-50"
+            >
+              {addingToCanvas ? "Adding..." : "+ Cutout"}
+            </button>
+            {segmentResult.mask_url && (
+              <button
+                onClick={handleAddMaskToCanvas}
+                disabled={addingToCanvas}
+                className="flex-1 py-1.5 text-xs font-medium rounded border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors disabled:opacity-50"
+              >
+                {addingToCanvas ? "Adding..." : "+ Mask"}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Step 3: Fabric pattern */}
+      {/* ── FABRIC PATTERN ─────────────────────────────────────────── */}
       {segmentResult && (
         <div>
           <label className="text-xs font-medium text-ui-fg-base mb-1.5 block">
@@ -660,11 +724,11 @@ export function FabricPreviewTab({
       {/* Hidden composite canvas */}
       <canvas ref={compositeCanvasRef} className="hidden" />
 
-      {/* Step 4: Composite result */}
+      {/* ── COMPOSITE RESULT ───────────────────────────────────────── */}
       {compositeDataUrl && (
         <div>
           <label className="text-xs font-medium text-ui-fg-base mb-1.5 block">
-            Preview
+            Fabric Applied
           </label>
           <div className="rounded-md border border-ui-border-base overflow-hidden bg-[repeating-conic-gradient(#f0f0f0_0%_25%,#fff_0%_50%)_0_0/16px_16px]">
             <img
@@ -674,10 +738,11 @@ export function FabricPreviewTab({
             />
           </div>
           <button
-            onClick={handleAddToCanvas}
-            className="w-full mt-2 py-2 text-sm font-medium rounded bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90 transition-colors"
+            onClick={handleAddCompositeToCanvas}
+            disabled={addingToCanvas}
+            className="w-full mt-2 py-2 text-sm font-medium rounded bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90 transition-colors disabled:opacity-50"
           >
-            Add to Moodboard
+            {addingToCanvas ? "Adding..." : "Add to Moodboard"}
           </button>
         </div>
       )}
