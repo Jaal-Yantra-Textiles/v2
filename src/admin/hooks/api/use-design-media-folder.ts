@@ -9,21 +9,16 @@ export const useDesignMediaFolder = (designId: string) => {
   return useQuery<AdminMediaFolder | null>({
     queryKey: designMediaFolderKey(designId),
     queryFn: async () => {
-      const res = await sdk.client.fetch<{ data: any[] }>(
-        `/admin/query/graph`,
+      const res = await sdk.client.fetch<{ design: { folder?: AdminMediaFolder } }>(
+        `/admin/designs/${designId}`,
         {
-          method: "POST",
-          body: {
-            entity: "design",
-            filters: { id: designId },
-            fields: [
-              "folders.*",
-              "folders.media_files.*",
-            ],
+          method: "GET",
+          query: {
+            fields: "folder.*,folder.media_files.*",
           },
         }
       )
-      return res?.data?.[0]?.folders?.[0] ?? null
+      return res?.design?.folder ?? null
     },
     staleTime: 30_000,
   })

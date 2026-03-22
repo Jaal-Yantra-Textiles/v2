@@ -7,6 +7,7 @@ import { DesignMediaSection } from "../../../components/designs/design-media-sec
 import { DesignMediaFolderSection } from "../../../components/designs/design-media-folder-section";
 import { DesignMoodboardSidebarSection } from "../../../components/designs/design-moodboard-sidebar-section";
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
+import { DesignConsumptionLogsSection } from "../../../components/designs/design-consumption-logs-section";
 import { DesignSizesSection } from "../../../components/designs/design-sizes-section";
 import { DesignTagsSection } from "../../../components/designs/design-tags-section";
 import { DesignColorPaletteSection } from "../../../components/designs/design-color-palette-section";
@@ -78,6 +79,7 @@ const DesignDetailPage = () => {
           <DesignMoodboardSidebarSection design={design} />
           <DesignTasksSection design={design} />
           <DesignInventorySection design={design} />
+          <DesignConsumptionLogsSection design={design} />
           <DesignPartnerSection design={design} />
           <DesignComponentsSection design={design} />
           <DesignProductionRunsSection design={design} />

@@ -719,3 +719,110 @@ export const useCreateDesignOrder = (
     },
   })
 }
+
+// ─── Consumption Logs ────────────────────────────────────────────────
+
+export interface ConsumptionLog {
+  id: string;
+  design_id: string;
+  inventory_item_id: string;
+  raw_material_id?: string | null;
+  quantity: number;
+  unit_of_measure: string;
+  consumption_type: "sample" | "production" | "wastage";
+  is_committed: boolean;
+  consumed_by: "admin" | "partner";
+  consumed_at: string;
+  notes?: string | null;
+  location_id?: string | null;
+  metadata?: Record<string, any> | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ConsumptionLogsListResponse {
+  logs: ConsumptionLog[];
+  count: number;
+}
+
+export interface LogConsumptionPayload {
+  inventoryItemId: string;
+  rawMaterialId?: string;
+  quantity: number;
+  unitOfMeasure?: string;
+  consumptionType?: "sample" | "production" | "wastage";
+  notes?: string;
+  locationId?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface CommitConsumptionPayload {
+  logIds?: string[];
+  commitAll?: boolean;
+  defaultLocationId?: string;
+}
+
+export const useDesignConsumptionLogs = (
+  designId: string,
+  params?: Record<string, any>,
+  options?: Omit<
+    UseQueryOptions<ConsumptionLogsListResponse, FetchError, ConsumptionLogsListResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  return useQuery({
+    queryKey: designQueryKeys.detail(designId, ["consumption-logs", params]),
+    queryFn: async () => {
+      const searchParams = new URLSearchParams()
+      if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && v !== "") searchParams.set(k, String(v))
+        })
+      }
+      const qs = searchParams.toString()
+      return sdk.client.fetch<ConsumptionLogsListResponse>(
+        `/admin/designs/${designId}/consumption-logs${qs ? `?${qs}` : ""}`,
+        { method: "GET" }
+      )
+    },
+    ...options,
+  })
+}
+
+export const useLogConsumption = (
+  designId: string,
+  options?: UseMutationOptions<{ consumption_log: ConsumptionLog }, FetchError, LogConsumptionPayload>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: LogConsumptionPayload) =>
+      sdk.client.fetch<{ consumption_log: ConsumptionLog }>(
+        `/admin/designs/${designId}/consumption-logs`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export const useCommitConsumption = (
+  designId: string,
+  options?: UseMutationOptions<any, FetchError, CommitConsumptionPayload>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: CommitConsumptionPayload) =>
+      sdk.client.fetch<any>(
+        `/admin/designs/${designId}/consumption-logs/commit`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}

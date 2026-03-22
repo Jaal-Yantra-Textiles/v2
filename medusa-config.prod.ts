@@ -358,5 +358,8 @@ module.exports = defineConfig({
   {
       resolve: "./src/modules/partner-payment-config",
     },
+    {
+      resolve: "./src/modules/consumption_log",
+    },
 ],
 });

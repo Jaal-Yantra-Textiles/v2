@@ -80,6 +80,7 @@ import {
 } from "./admin/websites/[id]/pages/validators";
 import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
+import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq } from "./admin/designs/[id]/consumption-logs/validators";
 import { partnerSchema, partnerUpdateSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
@@ -145,6 +146,7 @@ import { AdminCreateDesignProductionRunSchema } from "./admin/designs/[id]/produ
 import { listDesignsQuerySchema } from "./partners/designs/validators";
 import { listProductionRunsQuerySchema } from "./partners/production-runs/validators";
 import { PartnerDesignInventorySchema } from "./partners/designs/[designId]/inventory/validators";
+import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
@@ -2310,7 +2312,21 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(AdminDeleteDesignInventoryReq))],
     },
 
-    //Task on Designs 
+    // Consumption logs on Designs
+
+    {
+      matcher: "/admin/designs/:id/consumption-logs",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostConsumptionLogReq))],
+    },
+
+    {
+      matcher: "/admin/designs/:id/consumption-logs/commit",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostCommitConsumptionReq))],
+    },
+
+    //Task on Designs
 
     {
       matcher: "/admin/designs/:id/tasks",
@@ -3016,6 +3032,21 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerDesignInventorySchema)),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/consumption-logs",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerPostConsumptionLogReq)),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/consumption-logs",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
       ],
     },
     {
