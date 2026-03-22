@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { sdk } from "../../lib/config"
+import { Texture3DViewer } from "./texture-3d-viewer"
 
 interface FabricPreviewTabProps {
   excalidrawAPI: any | null
@@ -12,6 +13,11 @@ type ProcessingState = "idle" | "uploading" | "segmenting" | "done" | "error"
 interface SegmentResult {
   cutout_url: string
   mask_url: string | null
+}
+
+interface DepthResult {
+  depth_url: string
+  normal_url: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +87,11 @@ export function FabricPreviewTab({
   const compositeCanvasRef = useRef<HTMLCanvasElement>(null)
   const [compositeDataUrl, setCompositeDataUrl] = useState<string | null>(null)
 
+  // 3D texture depth state
+  const [depthResult, setDepthResult] = useState<DepthResult | null>(null)
+  const [depthProcessing, setDepthProcessing] = useState(false)
+  const [depthError, setDepthError] = useState<string | null>(null)
+
   // Canvas image selection
   const [canvasImages, setCanvasImages] = useState<
     Array<{ id: string; fileId: string; dataUrl: string }>
@@ -120,6 +131,8 @@ export function FabricPreviewTab({
       setCompositeDataUrl(null)
       setErrorMsg(null)
       setProcessingState("idle")
+      setDepthResult(null)
+      setDepthError(null)
 
       // Create a File from the data URL for the segment API
       fetch(dataUrl)
@@ -151,6 +164,8 @@ export function FabricPreviewTab({
       setCompositeDataUrl(null)
       setErrorMsg(null)
       setProcessingState("idle")
+      setDepthResult(null)
+      setDepthError(null)
     },
     []
   )
@@ -205,6 +220,39 @@ export function FabricPreviewTab({
     },
     []
   )
+
+  // ---------------------------------------------------------------------------
+  // Generate 3D depth + normal maps from source image
+  // ---------------------------------------------------------------------------
+  const handleGenerateDepth = useCallback(async () => {
+    if (!sourceFile || !designId) return
+
+    setDepthProcessing(true)
+    setDepthError(null)
+    setDepthResult(null)
+
+    try {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(sourceFile)
+      })
+
+      const result = await sdk.client.fetch<{ depth: DepthResult }>(
+        `/admin/designs/${designId}/segment/depth`,
+        {
+          method: "POST",
+          body: { image_base64: base64 },
+        }
+      )
+
+      setDepthResult(result.depth)
+    } catch (err: any) {
+      setDepthError(err?.message || "Depth generation failed")
+    } finally {
+      setDepthProcessing(false)
+    }
+  }, [sourceFile, designId])
 
   // ---------------------------------------------------------------------------
   // Composite: apply fabric within silhouette mask
@@ -378,6 +426,8 @@ export function FabricPreviewTab({
                 setSegmentResult(null)
                 setCompositeDataUrl(null)
                 setProcessingState("idle")
+                setDepthResult(null)
+                setDepthError(null)
               }}
               className="absolute top-1 right-1 bg-ui-bg-base border border-ui-border-base rounded-full size-5 flex items-center justify-center text-xs hover:bg-ui-bg-base-hover"
             >
@@ -448,26 +498,84 @@ export function FabricPreviewTab({
         </div>
       )}
 
-      {/* Extract button */}
+      {/* Action buttons */}
       {sourcePreview && !segmentResult && (
-        <button
-          onClick={handleSegment}
-          disabled={isProcessing}
-          className={`w-full py-2 text-sm font-medium rounded transition-colors ${
-            isProcessing
-              ? "bg-ui-bg-disabled text-ui-fg-disabled cursor-wait"
-              : "bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90"
-          }`}
-        >
-          {processingState === "uploading"
-            ? "Uploading..."
-            : processingState === "segmenting"
-            ? "Extracting silhouette..."
-            : "Extract Silhouette"}
-        </button>
+        <div className="flex flex-col gap-1.5">
+          <button
+            onClick={handleSegment}
+            disabled={isProcessing || depthProcessing}
+            className={`w-full py-2 text-sm font-medium rounded transition-colors ${
+              isProcessing || depthProcessing
+                ? "bg-ui-bg-disabled text-ui-fg-disabled cursor-wait"
+                : "bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90"
+            }`}
+          >
+            {processingState === "uploading"
+              ? "Uploading..."
+              : processingState === "segmenting"
+              ? "Extracting silhouette..."
+              : "Extract Silhouette"}
+          </button>
+          <button
+            onClick={handleGenerateDepth}
+            disabled={isProcessing || depthProcessing}
+            className={`w-full py-2 text-sm font-medium rounded transition-colors ${
+              isProcessing || depthProcessing
+                ? "bg-ui-bg-disabled text-ui-fg-disabled cursor-wait"
+                : "border border-ui-border-strong text-ui-fg-base hover:bg-ui-bg-subtle"
+            }`}
+          >
+            {depthProcessing ? "Generating 3D texture..." : "3D Texture Reveal"}
+          </button>
+        </div>
       )}
 
       {errorMsg && <p className="text-xs text-ui-fg-error">{errorMsg}</p>}
+      {depthError && <p className="text-xs text-ui-fg-error">{depthError}</p>}
+
+      {/* 3D Texture Viewer */}
+      {depthResult && sourcePreview && (
+        <div>
+          <label className="text-xs font-medium text-ui-fg-base mb-1.5 block">
+            3D Texture Preview
+          </label>
+          <p className="text-[10px] text-ui-fg-muted mb-2">
+            Move your mouse over the image to reveal fabric texture depth
+          </p>
+          <Texture3DViewer
+            textureUrl={sourcePreview}
+            depthUrl={depthResult.depth_url}
+            normalUrl={depthResult.normal_url}
+            width={280}
+            height={280}
+            strength={0.035}
+          />
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div className="rounded-md border border-ui-border-base overflow-hidden">
+              <img
+                src={depthResult.depth_url}
+                alt="Depth"
+                className="w-full object-contain max-h-[60px]"
+              />
+              <div className="bg-ui-bg-base px-2 py-0.5 text-center">
+                <span className="text-[9px] text-ui-fg-muted">Depth Map</span>
+              </div>
+            </div>
+            {depthResult.normal_url && (
+              <div className="rounded-md border border-ui-border-base overflow-hidden">
+                <img
+                  src={depthResult.normal_url}
+                  alt="Normal"
+                  className="w-full object-contain max-h-[60px]"
+                />
+                <div className="bg-ui-bg-base px-2 py-0.5 text-center">
+                  <span className="text-[9px] text-ui-fg-muted">Normal Map</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Step 2: Segmentation result */}
       {segmentResult && (

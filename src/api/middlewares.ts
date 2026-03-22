@@ -2368,6 +2368,13 @@ export default defineMiddlewares({
       bodyParser: { sizeLimit: "20mb" },
       middlewares: [validateAndTransformBody(wrapSchema(SegmentImageSchema))],
     },
+    // Depth + normal map generation (fal.ai MiDaS)
+    {
+      matcher: "/admin/designs/:id/segment/depth",
+      method: "POST",
+      bodyParser: { sizeLimit: "20mb" },
+      middlewares: [],
+    },
 
     // Link designs to customer + convert to draft order
     {
