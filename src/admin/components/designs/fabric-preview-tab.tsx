@@ -14,6 +14,48 @@ interface SegmentResult {
   mask_url: string | null
 }
 
+// ---------------------------------------------------------------------------
+// Helper: create a valid Excalidraw image element with all required fields
+// ---------------------------------------------------------------------------
+function makeImageElement(
+  fileId: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): object {
+  return {
+    type: "image",
+    id: fileId,
+    fileId,
+    x,
+    y,
+    width,
+    height,
+    angle: 0,
+    strokeColor: "transparent",
+    backgroundColor: "transparent",
+    fillStyle: "solid",
+    strokeWidth: 0,
+    strokeStyle: "solid",
+    roughness: 0,
+    opacity: 100,
+    groupIds: [],
+    frameId: null,
+    roundness: null,
+    seed: Math.floor(Math.random() * 100000),
+    version: 1,
+    versionNonce: Math.floor(Math.random() * 100000),
+    isDeleted: false,
+    boundElements: null,
+    updated: Date.now(),
+    link: null,
+    locked: false,
+    status: "saved",
+    scale: [1, 1] as [number, number],
+  }
+}
+
 export function FabricPreviewTab({
   excalidrawAPI,
   getCanvasCenter,
@@ -38,6 +80,63 @@ export function FabricPreviewTab({
   // Composite result
   const compositeCanvasRef = useRef<HTMLCanvasElement>(null)
   const [compositeDataUrl, setCompositeDataUrl] = useState<string | null>(null)
+
+  // Canvas image selection
+  const [canvasImages, setCanvasImages] = useState<
+    Array<{ id: string; fileId: string; dataUrl: string }>
+  >([])
+  const [showCanvasPicker, setShowCanvasPicker] = useState(false)
+
+  // ---------------------------------------------------------------------------
+  // Collect images currently on the Excalidraw canvas
+  // ---------------------------------------------------------------------------
+  const refreshCanvasImages = useCallback(() => {
+    if (!excalidrawAPI) return
+    const elements = excalidrawAPI.getSceneElements() || []
+    const files = excalidrawAPI.getFiles() || {}
+    const images: Array<{ id: string; fileId: string; dataUrl: string }> = []
+
+    for (const el of elements) {
+      if (el.type === "image" && el.fileId && !el.isDeleted) {
+        const file = files[el.fileId]
+        if (file?.dataURL) {
+          images.push({
+            id: el.id,
+            fileId: el.fileId,
+            dataUrl: file.dataURL,
+          })
+        }
+      }
+    }
+    setCanvasImages(images)
+  }, [excalidrawAPI])
+
+  const handleSelectFromCanvas = useCallback(
+    (dataUrl: string) => {
+      // Convert the data URL to a File-like source
+      setSourcePreview(dataUrl)
+      setShowCanvasPicker(false)
+      setSegmentResult(null)
+      setCompositeDataUrl(null)
+      setErrorMsg(null)
+      setProcessingState("idle")
+
+      // Create a File from the data URL for the segment API
+      fetch(dataUrl)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const file = new File([blob], "canvas-image.png", {
+            type: blob.type || "image/png",
+          })
+          setSourceFile(file)
+        })
+        .catch(() => {
+          // If data URL conversion fails, the user can still upload manually
+          setSourceFile(null)
+        })
+    },
+    []
+  )
 
   // ---------------------------------------------------------------------------
   // Source image upload
@@ -139,7 +238,6 @@ export function FabricPreviewTab({
       // Step 1: Draw fabric pattern tiled to fill the canvas
       ctx.clearRect(0, 0, w, h)
 
-      // Tile the fabric pattern
       const patW = fabricImg.width
       const patH = fabricImg.height
       const scaleF = Math.max(w / patW, h / patH, 1)
@@ -176,133 +274,70 @@ export function FabricPreviewTab({
   }, [segmentResult, fabricPreview])
 
   // ---------------------------------------------------------------------------
-  // Add composite to Excalidraw canvas
+  // Add image to Excalidraw canvas (shared logic)
   // ---------------------------------------------------------------------------
+  const addImageDataUrlToCanvas = useCallback(
+    (dataUrl: string, prefix: string) => {
+      if (!excalidrawAPI) return
+
+      const center = getCanvasCenter()
+      const fileId = `${prefix}_${Date.now()}`
+
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => {
+        const maxSize = 400
+        const scale = Math.min(maxSize / img.width, maxSize / img.height, 1)
+        const width = img.width * scale
+        const height = img.height * scale
+
+        // If the source is a remote URL, draw onto a temp canvas to get a data URL
+        let finalDataUrl = dataUrl
+        if (dataUrl.startsWith("http")) {
+          const tmpCanvas = document.createElement("canvas")
+          tmpCanvas.width = img.width
+          tmpCanvas.height = img.height
+          const tmpCtx = tmpCanvas.getContext("2d")!
+          tmpCtx.drawImage(img, 0, 0)
+          finalDataUrl = tmpCanvas.toDataURL("image/png")
+        }
+
+        excalidrawAPI.addFiles([
+          {
+            id: fileId,
+            dataURL: finalDataUrl,
+            mimeType: "image/png",
+            created: Date.now(),
+            lastRetrieved: Date.now(),
+          },
+        ])
+
+        const element = makeImageElement(
+          fileId,
+          center.x - width / 2,
+          center.y - height / 2,
+          width,
+          height
+        )
+
+        excalidrawAPI.updateScene({
+          elements: [...excalidrawAPI.getSceneElements(), element],
+        })
+      }
+      img.src = dataUrl
+    },
+    [excalidrawAPI, getCanvasCenter]
+  )
+
   const handleAddToCanvas = useCallback(() => {
-    if (!excalidrawAPI || !compositeDataUrl) return
+    if (!compositeDataUrl) return
+    addImageDataUrlToCanvas(compositeDataUrl, "fabric_composite")
+  }, [compositeDataUrl, addImageDataUrlToCanvas])
 
-    const center = getCanvasCenter()
-    const fileId = `fabric_composite_${Date.now()}`
-
-    const img = new Image()
-    img.onload = () => {
-      const maxSize = 400
-      const scale = Math.min(maxSize / img.width, maxSize / img.height, 1)
-      const width = img.width * scale
-      const height = img.height * scale
-
-      excalidrawAPI.addFiles([
-        {
-          id: fileId,
-          dataURL: compositeDataUrl,
-          mimeType: "image/png",
-          created: Date.now(),
-          lastRetrieved: Date.now(),
-        },
-      ])
-
-      excalidrawAPI.updateScene({
-        elements: [
-          ...excalidrawAPI.getSceneElements(),
-          {
-            type: "image",
-            id: fileId,
-            fileId,
-            x: center.x - width / 2,
-            y: center.y - height / 2,
-            width,
-            height,
-            strokeColor: "transparent",
-            backgroundColor: "transparent",
-            fillStyle: "solid",
-            strokeWidth: 0,
-            roughness: 0,
-            opacity: 100,
-            roundness: null,
-            seed: Math.floor(Math.random() * 100000),
-            version: 1,
-            versionNonce: Math.floor(Math.random() * 100000),
-            isDeleted: false,
-            boundElements: null,
-            updated: Date.now(),
-            link: null,
-            locked: false,
-            status: "saved",
-            scale: [1, 1] as [number, number],
-          },
-        ],
-      })
-    }
-    img.src = compositeDataUrl
-  }, [excalidrawAPI, compositeDataUrl, getCanvasCenter])
-
-  // Also allow adding just the cutout (no fabric)
   const handleAddCutoutToCanvas = useCallback(() => {
-    if (!excalidrawAPI || !segmentResult?.cutout_url) return
-
-    const center = getCanvasCenter()
-    const fileId = `cutout_${Date.now()}`
-
-    const img = new Image()
-    img.crossOrigin = "anonymous"
-    img.onload = () => {
-      const maxSize = 400
-      const scale = Math.min(maxSize / img.width, maxSize / img.height, 1)
-      const width = img.width * scale
-      const height = img.height * scale
-
-      // Fetch as data URL for Excalidraw
-      const tmpCanvas = document.createElement("canvas")
-      tmpCanvas.width = img.width
-      tmpCanvas.height = img.height
-      const tmpCtx = tmpCanvas.getContext("2d")!
-      tmpCtx.drawImage(img, 0, 0)
-      const dataUrl = tmpCanvas.toDataURL("image/png")
-
-      excalidrawAPI.addFiles([
-        {
-          id: fileId,
-          dataURL: dataUrl,
-          mimeType: "image/png",
-          created: Date.now(),
-          lastRetrieved: Date.now(),
-        },
-      ])
-
-      excalidrawAPI.updateScene({
-        elements: [
-          ...excalidrawAPI.getSceneElements(),
-          {
-            type: "image",
-            id: fileId,
-            fileId,
-            x: center.x - width / 2,
-            y: center.y - height / 2,
-            width,
-            height,
-            strokeColor: "transparent",
-            backgroundColor: "transparent",
-            fillStyle: "solid",
-            strokeWidth: 0,
-            roughness: 0,
-            opacity: 100,
-            roundness: null,
-            seed: Math.floor(Math.random() * 100000),
-            version: 1,
-            versionNonce: Math.floor(Math.random() * 100000),
-            isDeleted: false,
-            boundElements: null,
-            updated: Date.now(),
-            link: null,
-            locked: false,
-            status: "saved",
-            scale: [1, 1] as [number, number],
-          },
-        ],
-      })
-    }
-    img.src = segmentResult.cutout_url
-  }, [excalidrawAPI, segmentResult, getCanvasCenter])
+    if (!segmentResult?.cutout_url) return
+    addImageDataUrlToCanvas(segmentResult.cutout_url, "cutout")
+  }, [segmentResult, addImageDataUrlToCanvas])
 
   // ---------------------------------------------------------------------------
   // Render
@@ -313,8 +348,8 @@ export function FabricPreviewTab({
   return (
     <>
       <p className="text-xs text-ui-fg-subtle leading-snug">
-        Upload a model or garment photo to extract its silhouette, then apply a
-        fabric pattern over it.
+        Upload or select an image from the canvas, extract its silhouette, then
+        apply a fabric pattern over it.
       </p>
 
       {/* Step 1: Source image */}
@@ -350,14 +385,68 @@ export function FabricPreviewTab({
             </button>
           </div>
         ) : (
-          <button
-            onClick={() => sourceInputRef.current?.click()}
-            className="w-full py-4 rounded-md border-2 border-dashed border-ui-border-base hover:border-ui-border-strong bg-ui-bg-subtle text-xs text-ui-fg-subtle transition-colors"
-          >
-            Click to upload image
-          </button>
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={() => sourceInputRef.current?.click()}
+              className="w-full py-3 rounded-md border-2 border-dashed border-ui-border-base hover:border-ui-border-strong bg-ui-bg-subtle text-xs text-ui-fg-subtle transition-colors"
+            >
+              Upload from device
+            </button>
+            <button
+              onClick={() => {
+                refreshCanvasImages()
+                setShowCanvasPicker(true)
+              }}
+              className="w-full py-2 text-xs font-medium rounded border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors"
+            >
+              Select from canvas
+            </button>
+          </div>
         )}
       </div>
+
+      {/* Canvas image picker */}
+      {showCanvasPicker && (
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-medium text-ui-fg-base">
+              Canvas Images
+            </span>
+            <button
+              onClick={() => setShowCanvasPicker(false)}
+              className="text-xs text-ui-fg-subtle hover:text-ui-fg-base"
+            >
+              Cancel
+            </button>
+          </div>
+          {canvasImages.length === 0 ? (
+            <p className="text-xs text-ui-fg-muted text-center py-3">
+              No images on the canvas yet
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5 max-h-[160px] overflow-y-auto">
+              {canvasImages.map((ci) => (
+                <button
+                  key={ci.id}
+                  onClick={() => handleSelectFromCanvas(ci.dataUrl)}
+                  className="group relative rounded-md border border-ui-border-base overflow-hidden hover:border-ui-fg-interactive transition-colors"
+                >
+                  <img
+                    src={ci.dataUrl}
+                    alt="Canvas image"
+                    className="w-full aspect-square object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <span className="text-white text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                      Select
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Extract button */}
       {sourcePreview && !segmentResult && (
@@ -378,9 +467,7 @@ export function FabricPreviewTab({
         </button>
       )}
 
-      {errorMsg && (
-        <p className="text-xs text-ui-fg-error">{errorMsg}</p>
-      )}
+      {errorMsg && <p className="text-xs text-ui-fg-error">{errorMsg}</p>}
 
       {/* Step 2: Segmentation result */}
       {segmentResult && (
