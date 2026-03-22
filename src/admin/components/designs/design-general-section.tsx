@@ -1,4 +1,4 @@
-import { PencilSquare, Trash, Newspaper, BookOpen, Link } from "@medusajs/icons";
+import { PencilSquare, Trash, Newspaper, BookOpen, Link, DocumentText } from "@medusajs/icons";
 import {
   Container,
   Heading,
@@ -126,6 +126,11 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
                     label: 'Edit Moodboard',
                     icon: <BookOpen />,
                     to: "moodboard",
+                  },
+                  {
+                    label: 'Print for Stitching',
+                    icon: <DocumentText />,
+                    to: "print",
                   },
                 ],
               },
