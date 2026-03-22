@@ -137,7 +137,7 @@ export function FabricPreviewTab({
 
   // Canvas image selection
   const [canvasImages, setCanvasImages] = useState<
-    Array<{ id: string; fileId: string; src: string }>
+    Array<{ id: string; fileId: string; src: string; originalSrc: string }>
   >([])
   const [showCanvasPicker, setShowCanvasPicker] = useState(false)
 
@@ -165,20 +165,25 @@ export function FabricPreviewTab({
     if (!excalidrawAPI) return
     const elements = excalidrawAPI.getSceneElements() || []
     const files = excalidrawAPI.getFiles() || {}
-    const images: Array<{ id: string; fileId: string; src: string }> = []
+    const images: Array<{ id: string; fileId: string; src: string; originalSrc: string }> = []
 
     for (const el of elements) {
       if (el.type === "image" && el.fileId && !el.isDeleted) {
         const file = files[el.fileId]
         // Check for dataURL (inline) or url property (remote CDN)
-        const src = file?.dataURL || (el as any).url || null
-        if (src) {
-          images.push({ id: el.id, fileId: el.fileId, src })
+        const originalSrc = file?.dataURL || (el as any).url || null
+        if (originalSrc) {
+          // For remote URLs, proxy through backend to avoid CORS on thumbnails
+          const src =
+            originalSrc.startsWith("http") && designId
+              ? `${API_BASE_URL}/admin/designs/${designId}/segment/proxy-image?url=${encodeURIComponent(originalSrc)}`
+              : originalSrc
+          images.push({ id: el.id, fileId: el.fileId, src, originalSrc })
         }
       }
     }
     setCanvasImages(images)
-  }, [excalidrawAPI])
+  }, [excalidrawAPI, designId])
 
   // ---------------------------------------------------------------------------
   // Select an image from the canvas — handles both data URLs and remote URLs
@@ -525,14 +530,13 @@ export function FabricPreviewTab({
               {canvasImages.map((ci) => (
                 <button
                   key={ci.id}
-                  onClick={() => handleSelectFromCanvas(ci.src)}
+                  onClick={() => handleSelectFromCanvas(ci.originalSrc)}
                   className="group relative rounded-md border border-ui-border-base overflow-hidden hover:border-ui-fg-interactive transition-colors"
                 >
                   <img
                     src={ci.src}
                     alt="Canvas image"
                     className="w-full aspect-square object-cover"
-                    crossOrigin="anonymous"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                     <span className="text-white text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
