@@ -5,11 +5,13 @@ import {
   DataTable,
   useDataTable,
   createDataTableFilterHelper,
+  createDataTableColumnHelper,
+  createDataTableCommandHelper,
   DataTablePaginationState,
   DataTableFilteringState,
+  DataTableRowSelectionState,
   Button,
   Badge,
-  CommandBar,
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -18,7 +20,6 @@ import { ToolsSolid, PencilSquare, Eye } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
-import { createColumnHelper } from "@tanstack/react-table";
 import { AdminDesign, useDesigns } from "../../hooks/api/designs";
 import { useDesignsTableColumns } from "../../hooks/columns/useDesignsTableColumns";
 import { AdminDesignsQuery } from "../../hooks/api/designs";
@@ -30,7 +31,25 @@ import type { ViewConfiguration } from "../../hooks/api/views";
 import { usePartners } from "../../hooks/api/partners";
 import { BatchSendToPartnerDrawer } from "../../components/designs/batch-send-to-partner-drawer";
 
-const columnHelper = createColumnHelper<AdminDesign>();
+const columnHelper = createDataTableColumnHelper<AdminDesign>();
+
+const commandHelper = createDataTableCommandHelper();
+
+// Commands need a ref to the drawer setter — we use a callback pattern
+let _openBatchSendDrawer: (() => void) | null = null;
+
+const useCommands = () => {
+  return [
+    commandHelper.command({
+      label: "Send to Partner",
+      shortcut: "s",
+      action: async (_selection) => {
+        _openBatchSendDrawer?.();
+      },
+    }),
+  ];
+};
+
 export const useColumns = () => {
   const columns = useDesignsTableColumns();
 
@@ -51,6 +70,7 @@ export const useColumns = () => {
 
   return useMemo(
     () => [
+      columnHelper.select(),
       ...columns,
       columnHelper.display({
         id: "actions",
@@ -90,8 +110,11 @@ const DesignsPage = () => {
   const [tableUiResetKey, setTableUiResetKey] = useState(0);
 
   // Batch send-to-partner state
-  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({});
   const [batchSendDrawerOpen, setBatchSendDrawerOpen] = useState(false);
+
+  // Wire the command callback to this component's state
+  _openBatchSendDrawer = () => setBatchSendDrawerOpen(true);
 
   const {
     listViews,
@@ -482,6 +505,14 @@ const DesignsPage = () => {
     </div>
   ) : null;
 
+  const commands = useCommands();
+
+  const selectedDesignIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
+  const selectedDesigns = useMemo(
+    () => (designs ?? []).filter((d) => selectedDesignIds.includes(d.id)),
+    [designs, selectedDesignIds]
+  );
+
   const table = useDataTable({
     columns,
     data: designs ?? [],
@@ -492,6 +523,7 @@ const DesignsPage = () => {
     rowCount: count,
     isLoading,
     filters,
+    commands,
     rowSelection: {
       state: rowSelection,
       onRowSelectionChange: setRowSelection,
@@ -510,12 +542,6 @@ const DesignsPage = () => {
     },
   });
 
-  const selectedDesignIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
-  const selectedDesigns = useMemo(
-    () => (designs ?? []).filter((d) => selectedDesignIds.includes(d.id)),
-    [designs, selectedDesignIds]
-  );
-  const selectedCount = selectedDesigns.length;
   const clearSelection = () => setRowSelection({});
 
   if (isError) {
@@ -585,6 +611,7 @@ const DesignsPage = () => {
         
         <DataTable.Table />
         <DataTable.Pagination />
+        <DataTable.CommandBar selectedLabel={(count) => `${count} selected`} />
       </DataTable>
     </Container>
     <Outlet></Outlet>
@@ -597,24 +624,6 @@ const DesignsPage = () => {
         onSaved={handleViewSaved}
       />
     )}
-
-    <CommandBar open={selectedCount > 0}>
-      <CommandBar.Bar>
-        <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
-        <CommandBar.Seperator />
-        <CommandBar.Command
-          action={() => setBatchSendDrawerOpen(true)}
-          label="Send to Partner"
-          shortcut="s"
-        />
-        <CommandBar.Seperator />
-        <CommandBar.Command
-          action={clearSelection}
-          label="Clear"
-          shortcut="esc"
-        />
-      </CommandBar.Bar>
-    </CommandBar>
 
     <BatchSendToPartnerDrawer
       open={batchSendDrawerOpen}
