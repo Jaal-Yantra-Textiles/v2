@@ -78,30 +78,6 @@ export const useDesignsTableColumns = () => {
           );
         },
       }),
-      columnHelper.accessor("tags", {
-        header: "Tags",
-        cell: ({ getValue }) => {
-          const tags = getValue();
-          if (!tags?.length) return "N/A";
-          return tags.join(", ");
-        },
-      }),
-      columnHelper.accessor("target_completion_date", {
-        header: "Target Date",
-        cell: ({ getValue }) => {
-          const date = getValue();
-          if (!date) return "N/A";
-          return new Date(date).toLocaleDateString();
-        },
-      }),
-      columnHelper.accessor("created_at", {
-        header: "Created At",
-        cell: ({ getValue }) => {
-          const date = getValue();
-          if (!date) return "N/A";
-          return new Date(date).toLocaleDateString();
-        },
-      }),
     ],
     [],
   );

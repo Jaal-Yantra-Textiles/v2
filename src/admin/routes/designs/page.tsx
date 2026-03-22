@@ -13,7 +13,7 @@ import {
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { ToolsSolid, PencilSquare } from "@medusajs/icons";
+import { ToolsSolid, PencilSquare, Eye } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
@@ -35,11 +35,15 @@ export const useColumns = () => {
   const designActionsConfig = {
     actions: [
       {
+        icon: <Eye />,
+        label: "Preview",
+        to: (design: AdminDesign) => `/designs/${design.id}/preview`,
+      },
+      {
         icon: <PencilSquare />,
         label: "Edit",
         to: (design: AdminDesign) => `/designs/${design.id}/edit`,
       },
-      // Add more actions as needed
     ],
   };
 
