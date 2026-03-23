@@ -74,17 +74,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
 
       // 3) Create raw material + link
-      const rawMaterialData: Record<string, any> = {
+      const rawMaterialData = {
         name: item.name,
         description: item.description || "",
         composition: item.composition || "",
         unit_of_measure: item.unit_of_measure || "Other",
-      }
-      if (item.color) rawMaterialData.color = item.color
-      if (item.material_type)
-        rawMaterialData.material_type = item.material_type
-      if (item.media && item.media.length > 0) {
-        rawMaterialData.media = { files: item.media }
+        ...(item.color ? { color: item.color } : {}),
+        ...(item.material_type
+          ? { material_type: item.material_type }
+          : {}),
+        ...(item.media && item.media.length > 0
+          ? { media: { files: item.media } }
+          : {}),
       }
 
       const { result: rawResult } = await createRawMaterialWorkflow(
