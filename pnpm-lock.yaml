@@ -292,6 +292,9 @@ importers:
       lucide-react:
         specifier: ^0.503.0
         version: 0.503.0(react@18.3.1)
+      maileroo-sdk:
+        specifier: ^1.0.1
+        version: 1.0.1
       mailparser:
         specifier: ^3.9.3
         version: 3.9.3
@@ -11201,6 +11204,10 @@ packages:
   magic-string@0.30.5:
     resolution: {integrity: sha512-7xlpfBaQaP/T6Vh8MO/EqXSW5En6INHEvEXQiuff7Gku0PWjU3uf6w/j9o7O+SpB5fOAkrI5HeoNgwjEO0pFsA==}
     engines: {node: '>=12'}
+
+  maileroo-sdk@1.0.1:
+    resolution: {integrity: sha512-8Ij/neVnbIq6Fwb4mIHBPg/Ui+S//lF/noxEOUyuM7CO4us66a8O4T0BqaVlNydLdsl6J4dQdUOz+Re6KFM9pQ==}
+    engines: {node: '>=18.0.0'}
 
   mailparser@3.9.3:
     resolution: {integrity: sha512-AnB0a3zROum6fLaa52L+/K2SoRJVyFDk78Ea6q1D0ofcZLxWEWDtsS1+OrVqKbV7r5dulKL/AwYQccFGAPpuYQ==}
@@ -30013,6 +30020,8 @@ snapshots:
   magic-string@0.30.5:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  maileroo-sdk@1.0.1: {}
 
   mailparser@3.9.3:
     dependencies:

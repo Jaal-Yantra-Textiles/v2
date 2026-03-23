@@ -19,5 +19,8 @@ export * from "./workflows/send-notification-email-with-retry-and-feed"
 export * from "./workflows/retry-failed-email"
 export * from "./workflows/send-design-assigned-email"
 
+export * from "./workflows/send-partner-order-email"
+export * from "./steps/resolve-partner-from-order"
+
 // Export types
 export * from "./types"

@@ -881,7 +881,7 @@ const emailTemplatesData = [
   {
     name: "Partner New Order",
     template_key: "partner-order-placed",
-    from: "orders@jyt.com",
+    from: "partner@partner.jaalyantra.com",
     subject: "New order received: #{{order_display_id}}",
     html_content: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
@@ -942,15 +942,15 @@ const emailTemplatesData = [
   {
     name: "Partner Order Fulfilled",
     template_key: "partner-order-fulfilled",
-    from: "orders@jyt.com",
+    from: "partner@partner.jaalyantra.com",
     subject: "Order #{{order_display_id}} has been fulfilled",
     html_content: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
         <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <h1 style="color: #0369a1; font-size: 24px; margin-bottom: 20px;">Order Fulfilled</h1>
-          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{customer_name}},</p>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{admin_first_name}},</p>
           <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-            Great news! Your order <strong>#{{order_display_id}}</strong> from <strong>{{store_name}}</strong> has been fulfilled and is on its way to you.
+            Order <strong>#{{order_display_id}}</strong> for <strong>{{customer_name}}</strong> has been fulfilled and is on its way.
           </p>
           {{#if tracking_number}}
           <div style="margin: 20px 0; padding: 20px; background-color: #f0f9ff; border-radius: 6px; border-left: 4px solid #0369a1;">
@@ -995,15 +995,15 @@ const emailTemplatesData = [
   {
     name: "Partner Order Cancelled",
     template_key: "partner-order-cancelled",
-    from: "orders@jyt.com",
+    from: "partner@partner.jaalyantra.com",
     subject: "Order #{{order_display_id}} has been cancelled",
     html_content: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
         <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <h1 style="color: #dc2626; font-size: 24px; margin-bottom: 20px;">Order Cancelled</h1>
-          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{customer_name}},</p>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{admin_first_name}},</p>
           <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-            We're sorry to let you know that your order <strong>#{{order_display_id}}</strong> from <strong>{{store_name}}</strong> has been cancelled.
+            Order <strong>#{{order_display_id}}</strong> for <strong>{{customer_name}}</strong> has been cancelled.
           </p>
           {{#if cancellation_reason}}
           <div style="margin: 20px 0; padding: 16px; background-color: #fef2f2; border-radius: 6px; border-left: 4px solid #dc2626;">

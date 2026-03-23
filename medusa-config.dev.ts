@@ -137,6 +137,16 @@ module.exports = defineConfig({
             },
           },
           {
+            resolve: "./src/modules/maileroo",
+            id: "maileroo",
+            options: {
+              channels: ["email_partner"],
+              api_key: process.env.MAILEROO_API_KEY,
+              from_email: process.env.MAILEROO_FROM_EMAIL || "partner@partner.jaalyantra.com",
+              from_name: process.env.MAILEROO_FROM_NAME || "Jaal Yantra Textiles Partners",
+            },
+          },
+          {
             resolve: "@medusajs/medusa/notification-local",
             id: "local",
             options: {

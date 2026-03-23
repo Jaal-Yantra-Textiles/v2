@@ -2,6 +2,7 @@ import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IOrderModuleService, Logger } from "@medusajs/types"
 import { sendOrderConfirmationWorkflow } from "../workflows/email/send-notification-email"
+import { sendPartnerOrderPlacedWorkflow } from "../workflows/email/workflows/send-partner-order-email"
 import { createProductionRunWorkflow } from "../workflows/production-runs/create-production-run"
 import designLineItemLink from "../links/design-line-item-link"
 import { DESIGN_MODULE } from "../modules/designs"
@@ -12,12 +13,23 @@ export default async function orderPlacedHandler({
 }: SubscriberArgs<{ id: string }>) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
 
-  // Execute the order confirmation email workflow
+  // Execute the order confirmation email workflow (customer)
   await sendOrderConfirmationWorkflow(container).run({
     input: {
       orderId: data.id,
     },
   })
+
+  // Notify the partner (if order belongs to a partner store)
+  try {
+    await sendPartnerOrderPlacedWorkflow(container).run({
+      input: { orderId: data.id },
+    })
+  } catch (e: any) {
+    logger.warn(
+      `[order.placed] Partner notification failed for order ${data.id}: ${e?.message || e}`
+    )
+  }
 
   try {
     const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
