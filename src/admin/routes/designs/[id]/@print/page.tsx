@@ -52,6 +52,55 @@ const priorityColor = (priority: string) => {
   }
 }
 
+const PrintStyles = () => (
+  <style>{`
+    @media print {
+      /* Prevent images from being cut across pages */
+      img {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        max-height: 280px !important;
+        object-fit: contain !important;
+      }
+      /* Each card / grid item should not split across pages */
+      [class*="print\\:break-inside-avoid"] {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      /* Grid items should not be split */
+      .grid > * {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      /* Allow sections to break between them, not inside */
+      .divide-y > * {
+        break-inside: avoid !important;
+      }
+      /* Ensure the modal body takes full width */
+      [role="dialog"] {
+        position: static !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        transform: none !important;
+        box-shadow: none !important;
+      }
+      /* Remove modal overlay */
+      [data-radix-popper-content-wrapper],
+      [data-state="open"][role="dialog"] ~ div {
+        display: none !important;
+      }
+      /* Page margins */
+      @page {
+        margin: 12mm 10mm;
+        size: A4;
+      }
+    }
+  `}</style>
+)
+
 const DesignStitchingPrintPage = () => {
   const { id } = useParams<{ id: string }>()
 
@@ -157,6 +206,7 @@ const DesignStitchingPrintPage = () => {
 
   return (
     <RouteFocusModal>
+      <PrintStyles />
       <RouteFocusModal.Header>
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-x-3">
@@ -295,7 +345,7 @@ const DesignStitchingPrintPage = () => {
         </Container>
 
         {/* Moodboard — centered and prominent */}
-        <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
+        <Container className="p-0 print:shadow-none print:border print:border-ui-border-base">
           <div className="px-6 py-3">
             <Heading level="h2">Moodboard</Heading>
             <Text className="text-ui-fg-subtle" size="small">
@@ -304,8 +354,8 @@ const DesignStitchingPrintPage = () => {
           </div>
           <div className="px-6 pb-6">
             {hasMoodboard ? (
-              <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4">
-                <div className="flex flex-wrap justify-center gap-4">
+              <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 print:bg-white print:border-gray-300">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 print:grid-cols-2 print:gap-3">
                   {moodboard.elements
                     .filter(
                       (el: any) => el.type === "image" || el.type === "text"
@@ -315,11 +365,11 @@ const DesignStitchingPrintPage = () => {
                         return (
                           <div
                             key={el.id || i}
-                            className="rounded-md bg-ui-bg-base border border-ui-border-base p-3 flex items-center justify-center min-w-[120px] max-w-[200px]"
+                            className="rounded-md bg-ui-bg-base border border-ui-border-base p-3 flex items-center justify-center print:break-inside-avoid print:border-gray-300"
                           >
                             <Text
                               size="small"
-                              className="text-center line-clamp-4"
+                              className="text-center"
                             >
                               {el.text}
                             </Text>
@@ -334,22 +384,12 @@ const DesignStitchingPrintPage = () => {
                         return (
                           <div
                             key={el.id || i}
-                            className="rounded-md border border-ui-border-base overflow-hidden"
-                            style={{
-                              width: Math.min(
-                                Math.max(el.width || 200, 120),
-                                320
-                              ),
-                              height: Math.min(
-                                Math.max(el.height || 200, 120),
-                                320
-                              ),
-                            }}
+                            className="rounded-md border border-ui-border-base overflow-hidden print:break-inside-avoid print:border-gray-300"
                           >
                             <img
                               src={imageUrl}
                               alt=""
-                              className="w-full h-full object-cover"
+                              className="w-full h-auto object-contain print:max-h-[280px]"
                               crossOrigin="anonymous"
                             />
                           </div>
@@ -375,7 +415,7 @@ const DesignStitchingPrintPage = () => {
 
         {/* Design Photos from linked media folder + design media_files */}
         {allMediaFiles.length > 0 && (
-          <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
+          <Container className="p-0 print:shadow-none print:border print:border-ui-border-base">
             <div className="px-6 py-3">
               <Heading level="h2">Design Photos</Heading>
               <Text className="text-ui-fg-subtle" size="small">
@@ -383,7 +423,7 @@ const DesignStitchingPrintPage = () => {
               </Text>
             </div>
             <div className="px-6 pb-6">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 print:grid-cols-2 print:gap-3">
                 {allMediaFiles
                   .filter((f: any) => f.file_type === "image" || f.mime_type?.startsWith("image/"))
                   .map((file: any) => {
@@ -392,12 +432,12 @@ const DesignStitchingPrintPage = () => {
                     return (
                       <div
                         key={file.id}
-                        className="rounded-md border border-ui-border-base overflow-hidden print:border-gray-300"
+                        className="rounded-md border border-ui-border-base overflow-hidden print:break-inside-avoid print:border-gray-300"
                       >
                         <img
                           src={url}
                           alt={file.alt_text || file.title || file.original_name || ""}
-                          className="w-full h-auto object-cover aspect-square"
+                          className="w-full h-auto object-contain print:max-h-[280px]"
                           crossOrigin="anonymous"
                         />
                         {(file.title || file.original_name) && (
