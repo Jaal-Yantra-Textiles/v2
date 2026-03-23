@@ -15,6 +15,7 @@ import {
   LinkedInventoryItem,
   DesignSizeSet,
 } from "../../../../hooks/api/designs"
+import { useDesignMediaFolder } from "../../../../hooks/api/use-design-media-folder"
 import { RouteFocusModal } from "../../../../components/modal/route-focus-modal"
 
 const statusColor = (status: string) => {
@@ -59,6 +60,7 @@ const DesignStitchingPrintPage = () => {
       "colors.*",
       "size_sets.*",
       "moodboard",
+      "media_files",
     ],
   })
 
@@ -66,6 +68,10 @@ const DesignStitchingPrintPage = () => {
     useDesignInventory(id!)
   const inventoryItems: LinkedInventoryItem[] =
     inventoryData?.inventory_items || []
+
+  const { data: mediaFolder, isLoading: mediaFolderLoading } =
+    useDesignMediaFolder(id!)
+  const mediaFiles = (mediaFolder as any)?.media_files || []
 
   if (isLoading) {
     return (
@@ -83,6 +89,12 @@ const DesignStitchingPrintPage = () => {
 
   const moodboard = design.moodboard as any
   const hasMoodboard = moodboard?.elements?.length > 0
+
+  // Combine media from linked folder and any direct media_files on the design
+  const designMediaFiles = Array.isArray((design as any).media_files) ? (design as any).media_files : []
+  const allMediaFiles = [...mediaFiles, ...designMediaFiles].filter(
+    (f: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === f.id) === i // dedupe
+  )
 
   const structuredSizeSets: DesignSizeSet[] = design.size_sets || []
   const customSizes = design.custom_sizes || {}
@@ -263,10 +275,11 @@ const DesignStitchingPrintPage = () => {
                           </div>
                         )
                       }
+                      // Resolve image URL from moodboard files map
                       const fileId = el.fileId
                       const file = fileId && moodboard.files?.[fileId]
-                      const dataURL = file?.dataURL
-                      if (dataURL) {
+                      const imageUrl = file?.dataURL || file?.url || el.url || el.src
+                      if (imageUrl) {
                         return (
                           <div
                             key={el.id || i}
@@ -283,9 +296,10 @@ const DesignStitchingPrintPage = () => {
                             }}
                           >
                             <img
-                              src={dataURL}
+                              src={imageUrl}
                               alt=""
                               className="w-full h-full object-cover"
+                              crossOrigin="anonymous"
                             />
                           </div>
                         )
@@ -307,6 +321,48 @@ const DesignStitchingPrintPage = () => {
             )}
           </div>
         </Container>
+
+        {/* Design Photos from linked media folder + design media_files */}
+        {allMediaFiles.length > 0 && (
+          <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
+            <div className="px-6 py-3">
+              <Heading level="h2">Design Photos</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Reference images from the design media folder
+              </Text>
+            </div>
+            <div className="px-6 pb-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {allMediaFiles
+                  .filter((f: any) => f.file_type === "image" || f.mime_type?.startsWith("image/"))
+                  .map((file: any) => {
+                    const url = file.file_path || file.url
+                    if (!url) return null
+                    return (
+                      <div
+                        key={file.id}
+                        className="rounded-md border border-ui-border-base overflow-hidden print:border-gray-300"
+                      >
+                        <img
+                          src={url}
+                          alt={file.alt_text || file.title || file.original_name || ""}
+                          className="w-full h-auto object-cover aspect-square"
+                          crossOrigin="anonymous"
+                        />
+                        {(file.title || file.original_name) && (
+                          <div className="px-2 py-1.5 bg-ui-bg-subtle print:bg-gray-50">
+                            <Text size="xsmall" className="truncate text-ui-fg-subtle">
+                              {file.title || file.original_name}
+                            </Text>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
+          </Container>
+        )}
 
         {/* Size Chart — the most critical section for stitching */}
         <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
