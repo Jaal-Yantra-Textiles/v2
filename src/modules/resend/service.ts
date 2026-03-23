@@ -61,11 +61,18 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
       template = templateData._template_html_content
       subject = templateData._template_subject || subject
       fromAddress = templateData._template_from || fromAddress
-      
+
       this.logger.info(`Using processed database template for ${notification.template} with from: ${fromAddress}`)
     } else {
-      // No processed template found - use default React template with data as-is
-      this.logger.info(`No processed template found for ${notification.template}, using default template`)
+      // No processed template found — log a warning but still proceed.
+      // The default React template is only used for system notifications
+      // (password reset, order confirmation etc.) that don't have a DB template.
+      // For newsletter/blog emails, the workflow should always attach _template_* data.
+      this.logger.warn(
+        `No processed database template found for "${notification.template}". ` +
+        `Falling back to default template. If this is a newsletter email, ` +
+        `ensure the email template exists in the database with is_active=true.`
+      )
     }
 
     const commonOptions = {
@@ -149,7 +156,7 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
         },
         failed_at: new Date().toISOString(),
       }
-      this.logger.error("Failed to send email", error)
+      this.logger.error("Failed to send email")
       // Re-throw the error to properly mark notification as failed
       throw error
     }

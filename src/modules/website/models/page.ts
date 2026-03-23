@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils";
 import Website from "./website";
 import Block  from "./blocks";
+import SubscriptionSendLog from "./subscription-send-log";
 
 const Page = model.define("page", {
   id: model.id().primaryKey(),
@@ -42,8 +43,10 @@ const Page = model.define("page", {
   website: model.belongsTo(() => Website, { mappedBy: "pages" }),
   // Relationship with blocks
   blocks: model.hasMany(() => Block),
+  // Subscription send logs
+  subscription_send_logs: model.hasMany(() => SubscriptionSendLog),
 }).cascades({
-  delete: ['blocks'],
+  delete: ['blocks', 'subscription_send_logs'],
 }).indexes([
   {
     on: ["slug", "website_id"],

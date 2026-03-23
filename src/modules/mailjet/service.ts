@@ -17,6 +17,34 @@ type MailjetOptions = {
   from_name?: string
 }
 
+// ---------------------------------------------------------------------------
+// Bulk send types (exported for callers)
+// ---------------------------------------------------------------------------
+
+export type BulkEmailEntry = {
+  to: string
+  subject: string
+  htmlContent: string
+}
+
+export type BulkSendSuccess = {
+  email: string
+  messageId: string
+  messageUuid: string
+  status: string
+}
+
+export type BulkSendResult = {
+  successful: BulkSendSuccess[]
+  failed: { email: string; error: string }[]
+}
+
+// ---------------------------------------------------------------------------
+// Provider service
+// ---------------------------------------------------------------------------
+
+const MAILJET_BATCH_SIZE = 50
+
 class MailjetNotificationProviderService extends AbstractNotificationProviderService {
   static identifier = "mailjet"
   protected readonly mailjetClient: ReturnType<typeof Mailjet.apiConnect>
@@ -54,6 +82,10 @@ class MailjetNotificationProviderService extends AbstractNotificationProviderSer
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Standard single-email send (called by Medusa's notification module)
+  // -------------------------------------------------------------------------
+
   async send(
     notification: ProviderSendNotificationDTO
   ): Promise<ProviderSendNotificationResultsDTO> {
@@ -61,8 +93,6 @@ class MailjetNotificationProviderService extends AbstractNotificationProviderSer
 
     // If the email was already sent via bulk API, skip sending and just return
     // the external ID so Medusa still creates the notification record.
-    // The Mailjet response metadata (_mailjet_response) is already included in
-    // the notification's data field and will be persisted by Medusa.
     if (templateData?._already_sent) {
       const externalId = templateData._external_id || "bulk-sent"
       this.logger.info(`Mailjet: Skipping send for ${notification.to} — already sent (id: ${externalId})`)
@@ -90,15 +120,8 @@ class MailjetNotificationProviderService extends AbstractNotificationProviderSer
         .request({
           Messages: [
             {
-              From: {
-                Email: fromEmail,
-                Name: fromName,
-              },
-              To: [
-                {
-                  Email: notification.to,
-                },
-              ],
+              From: { Email: fromEmail, Name: fromName },
+              To: [{ Email: notification.to }],
               Subject: subject,
               HTMLPart: htmlContent || "No content",
             },
@@ -133,6 +156,81 @@ class MailjetNotificationProviderService extends AbstractNotificationProviderSer
         `Failed to send email via Mailjet: ${error instanceof Error ? error.message : String(error)}`
       )
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Bulk send (called directly by workflows/jobs, NOT via notification module)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Send emails in bulk via Mailjet's v3.1 API.
+   * Chunks into groups of 50 (Mailjet's per-call limit) and sends each chunk
+   * as a single API call with multiple Messages.
+   *
+   * Uses the same client instance and from address configured for this provider.
+   */
+  async sendBulk(entries: BulkEmailEntry[]): Promise<BulkSendResult> {
+    const fromEmail = this.options.from_email
+    const fromName = this.options.from_name || "Jaal Yantra Textiles"
+
+    const successful: BulkSendSuccess[] = []
+    const failed: { email: string; error: string }[] = []
+
+    for (let i = 0; i < entries.length; i += MAILJET_BATCH_SIZE) {
+      const batch = entries.slice(i, i + MAILJET_BATCH_SIZE)
+
+      const messages = batch.map((entry) => ({
+        From: { Email: fromEmail, Name: fromName },
+        To: [{ Email: entry.to }],
+        Subject: entry.subject,
+        HTMLPart: entry.htmlContent,
+      }))
+
+      try {
+        const result = await this.mailjetClient
+          .post("send", { version: "v3.1" })
+          .request({ Messages: messages })
+
+        const body = result.body as any
+        const responseMessages = body?.Messages || []
+
+        for (let j = 0; j < responseMessages.length; j++) {
+          const msg = responseMessages[j]
+          if (msg.Status === "error") {
+            failed.push({
+              email: batch[j].to,
+              error: msg.Errors?.[0]?.ErrorMessage || "Unknown Mailjet error",
+            })
+          } else {
+            const recipient = msg.To?.[0] || {}
+            successful.push({
+              email: batch[j].to,
+              messageId: String(recipient.MessageID || ""),
+              messageUuid: String(recipient.MessageUUID || ""),
+              status: msg.Status || "success",
+            })
+          }
+        }
+      } catch (error) {
+        for (const entry of batch) {
+          failed.push({
+            email: entry.to,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+
+      // Small delay between batch API calls to avoid rate limiting
+      if (i + MAILJET_BATCH_SIZE < entries.length) {
+        await new Promise((resolve) => setTimeout(resolve, 300))
+      }
+    }
+
+    this.logger.info(
+      `Mailjet bulk: ${successful.length} sent, ${failed.length} failed (${entries.length} total)`
+    )
+
+    return { successful, failed }
   }
 }
 

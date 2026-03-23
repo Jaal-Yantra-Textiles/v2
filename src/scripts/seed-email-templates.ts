@@ -1195,6 +1195,475 @@ const emailTemplatesData = [
     template_type: "refund_processed",
     is_active: true
   },
+
+  // =========================================================================
+  // MEDUSA-STYLED TEMPLATES — Using Medusa UI design tokens:
+  //   bg-base: #FFFFFF       bg-subtle: #FAFAFA      bg-highlight: #EFF6FF
+  //   fg-base: #18181B       fg-subtle: #52525B      fg-muted: #71717A
+  //   fg-interactive: #3B82F6  fg-error: #E11D48     fg-on-color: #FFFFFF
+  //   border-base: #E4E4E7   border-strong: #D4D4D8
+  //   button-inverted: #27272A  success: #059669
+  // =========================================================================
+
+  // =========================================================================
+  // ORDER LIFECYCLE EVENTS
+  // =========================================================================
+
+  {
+    name: "Order Canceled",
+    template_key: "order-canceled",
+    from: "orders@jaalyantra.com",
+    subject: "Order #{{order_display_id}} has been canceled",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;letter-spacing:-0.02em;">Jaal Yantra Textiles</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0 0;">Your order <strong style="color:#18181B;">#{{order_display_id}}</strong> has been canceled.</p>
+    {{#if cancel_reason}}<p style="color:#52525B;font-size:14px;margin:12px 0 0;"><strong>Reason:</strong> {{cancel_reason}}</p>{{/if}}
+    <div style="margin:20px 0;padding:16px;background:#FEF2F2;border-radius:8px;border:1px solid #FECACA;">
+      <p style="color:#E11D48;font-size:13px;margin:0;">If a payment was captured, a refund will be processed automatically. It may take 5–10 business days to appear.</p>
+    </div>
+    <p style="color:#71717A;font-size:13px;margin-top:16px;">If this was a mistake, please visit our store or contact us.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: {
+      customer_first_name: "Customer's first name",
+      order_display_id: "Order display ID",
+      cancel_reason: "Cancellation reason (optional)",
+      current_year: "Current year",
+    },
+    template_type: "order_canceled",
+    is_active: true,
+  },
+
+  {
+    name: "Order Completed",
+    template_key: "order-completed",
+    from: "orders@jaalyantra.com",
+    subject: "Your order #{{order_display_id}} is complete!",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;letter-spacing:-0.02em;">Order Complete</h1>
+    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">Thank you for shopping with us</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">Your order <strong style="color:#18181B;">#{{order_display_id}}</strong> has been completed. We hope you love your textiles!</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="{{store_url}}" style="display:inline-block;background:#27272A;color:#FFFFFF;text-decoration:none;padding:10px 24px;border-radius:8px;font-weight:500;font-size:14px;">Shop Again</a>
+    </div>
+    <p style="color:#71717A;font-size:13px;">If you have any questions or need assistance, we're here to help.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: {
+      customer_first_name: "Customer's first name",
+      order_display_id: "Order display ID",
+      store_url: "Store URL",
+      current_year: "Current year",
+    },
+    template_type: "order_completed",
+    is_active: true,
+  },
+
+  {
+    name: "Return Requested",
+    template_key: "order-return-requested",
+    from: "orders@jaalyantra.com",
+    subject: "Return request received for order #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;letter-spacing:-0.02em;">Jaal Yantra Textiles</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">We've received your return request for order <strong style="color:#18181B;">#{{order_display_id}}</strong>.</p>
+    <div style="margin:20px 0;padding:16px;background:#EFF6FF;border-radius:8px;border:1px solid #BFDBFE;">
+      <p style="color:#3B82F6;font-size:13px;font-weight:500;margin:0 0 8px;">What happens next:</p>
+      <ol style="color:#52525B;font-size:13px;line-height:1.8;margin:0;padding-left:18px;">
+        <li>Our team reviews your request</li>
+        <li>You'll receive return shipping instructions</li>
+        <li>Refund processed after items are received</li>
+      </ol>
+    </div>
+    {{#if return_reason}}<p style="color:#52525B;font-size:13px;"><strong>Reason:</strong> {{return_reason}}</p>{{/if}}
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", return_reason: "Return reason (optional)", current_year: "Current year" },
+    template_type: "return_requested",
+    is_active: true,
+  },
+
+  {
+    name: "Return Received",
+    template_key: "order-return-received",
+    from: "orders@jaalyantra.com",
+    subject: "Return received for order #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Return Received</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">We've received your returned items for order <strong style="color:#18181B;">#{{order_display_id}}</strong>. Your refund is being processed.</p>
+    <div style="margin:20px 0;padding:16px;background:#F0FDF4;border-radius:8px;border:1px solid #BBF7D0;">
+      <p style="color:#059669;font-size:13px;margin:0;">Refund should appear in your account within 5–10 business days.</p>
+    </div>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", current_year: "Current year" },
+    template_type: "return_received",
+    is_active: true,
+  },
+
+  {
+    name: "Claim Created",
+    template_key: "order-claim-created",
+    from: "orders@jaalyantra.com",
+    subject: "Claim created for order #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Jaal Yantra Textiles</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">A claim has been created for your order <strong style="color:#18181B;">#{{order_display_id}}</strong>. Our team is reviewing it and will follow up shortly.</p>
+    {{#if claim_reason}}<p style="color:#52525B;font-size:13px;margin:12px 0;"><strong>Reason:</strong> {{claim_reason}}</p>{{/if}}
+    <p style="color:#71717A;font-size:13px;margin-top:16px;">We take quality seriously and will resolve this quickly.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", claim_reason: "Claim reason (optional)", current_year: "Current year" },
+    template_type: "claim_created",
+    is_active: true,
+  },
+
+  {
+    name: "Exchange Created",
+    template_key: "order-exchange-created",
+    from: "orders@jaalyantra.com",
+    subject: "Exchange initiated for order #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Exchange Initiated</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">An exchange has been initiated for order <strong style="color:#18181B;">#{{order_display_id}}</strong>.</p>
+    <div style="margin:20px 0;padding:16px;background:#EFF6FF;border-radius:8px;border:1px solid #BFDBFE;">
+      <p style="color:#3B82F6;font-size:13px;margin:0;">We'll send return shipping instructions. Once we receive the originals, the replacement ships to you.</p>
+    </div>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", current_year: "Current year" },
+    template_type: "exchange_created",
+    is_active: true,
+  },
+
+  {
+    name: "Order Transfer Requested",
+    template_key: "order-transfer-requested",
+    from: "orders@jaalyantra.com",
+    subject: "Order #{{order_display_id}} transfer request",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Jaal Yantra Textiles</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">A transfer has been requested for order <strong style="color:#18181B;">#{{order_display_id}}</strong> to <strong>{{new_customer_email}}</strong>.</p>
+    <div style="margin:20px 0;padding:16px;background:#FEF2F2;border-radius:8px;border:1px solid #FECACA;">
+      <p style="color:#E11D48;font-size:13px;margin:0;">If you did not request this, contact support immediately.</p>
+    </div>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", new_customer_email: "New customer email", current_year: "Current year" },
+    template_type: "order_transfer_requested",
+    is_active: true,
+  },
+
+  {
+    name: "Fulfillment Created",
+    template_key: "order-fulfillment-created",
+    from: "orders@jaalyantra.com",
+    subject: "Your order #{{order_display_id}} is being prepared",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Order Being Prepared</h1>
+    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">Your textiles are being packed with care</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">We've started preparing your order <strong style="color:#18181B;">#{{order_display_id}}</strong> for shipment.</p>
+    <p style="color:#71717A;font-size:13px;">You'll receive tracking details once your package is on its way.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", current_year: "Current year" },
+    template_type: "fulfillment_created",
+    is_active: true,
+  },
+
+  // =========================================================================
+  // PAYMENT EVENTS
+  // =========================================================================
+
+  {
+    name: "Payment Captured",
+    template_key: "payment-captured",
+    from: "orders@jaalyantra.com",
+    subject: "Payment received for order #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Payment Confirmed</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">Payment received for order <strong style="color:#18181B;">#{{order_display_id}}</strong>.</p>
+    <div style="margin:20px 0;padding:16px;background:#F0FDF4;border-radius:8px;border:1px solid #BBF7D0;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="padding:4px 0;color:#52525B;font-size:13px;"><strong>Amount:</strong></td><td style="padding:4px 0;font-size:16px;font-weight:600;color:#059669;">{{payment_amount}}</td></tr>
+        {{#if payment_method}}<tr><td style="padding:4px 0;color:#52525B;font-size:13px;"><strong>Method:</strong></td><td style="padding:4px 0;font-size:13px;color:#52525B;">{{payment_method}}</td></tr>{{/if}}
+      </table>
+    </div>
+    <p style="color:#71717A;font-size:13px;">Your order is now being processed.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", payment_amount: "Formatted payment amount", payment_method: "Payment method (optional)", current_year: "Current year" },
+    template_type: "payment_captured",
+    is_active: true,
+  },
+
+  // =========================================================================
+  // INVITE & USER EVENTS
+  // =========================================================================
+
+  {
+    name: "Admin Invite",
+    template_key: "invite-created",
+    from: "admin@jaalyantra.com",
+    subject: "You're invited to join Jaal Yantra Textiles",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">You're Invited</h1>
+    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">Join the Jaal Yantra Textiles team</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:0 0 16px;">You've been invited to join the Jaal Yantra Textiles admin panel. Click below to accept and set up your account.</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="{{invite_url}}" style="display:inline-block;background:#27272A;color:#FFFFFF;text-decoration:none;padding:10px 24px;border-radius:8px;font-weight:500;font-size:14px;">Accept Invitation</a>
+    </div>
+    <p style="color:#A1A1AA;font-size:12px;margin-top:16px;">This invitation expires in 7 days. If unexpected, ignore this email.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { invite_url: "Invitation acceptance URL", current_year: "Current year" },
+    template_type: "invite_created",
+    is_active: true,
+  },
+
+  // =========================================================================
+  // ORDER EDIT EVENTS
+  // =========================================================================
+
+  {
+    name: "Order Edit Requested",
+    template_key: "order-edit-requested",
+    from: "orders@jaalyantra.com",
+    subject: "Edit requested for order #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Jaal Yantra Textiles</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">An edit has been requested for order <strong style="color:#18181B;">#{{order_display_id}}</strong>. Please review and confirm or decline.</p>
+    {{#if edit_description}}<div style="margin:16px 0;padding:12px 16px;background:#FFFBEB;border-radius:8px;border:1px solid #FDE68A;"><p style="color:#92400E;font-size:13px;margin:0;"><strong>Changes:</strong> {{edit_description}}</p></div>{{/if}}
+    <div style="text-align:center;margin:24px 0;">
+      <a href="{{confirm_url}}" style="display:inline-block;background:#27272A;color:#FFFFFF;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:500;font-size:14px;margin-right:8px;">Confirm</a>
+      <a href="{{decline_url}}" style="display:inline-block;background:#FFFFFF;color:#E11D48;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:500;font-size:14px;border:1px solid #E4E4E7;">Decline</a>
+    </div>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", edit_description: "Description of changes (optional)", confirm_url: "URL to confirm the edit", decline_url: "URL to decline the edit", current_year: "Current year" },
+    template_type: "order_edit_requested",
+    is_active: true,
+  },
+
+  {
+    name: "Order Edit Confirmed",
+    template_key: "order-edit-confirmed",
+    from: "orders@jaalyantra.com",
+    subject: "Order edit confirmed for #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Edit Confirmed</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">The edit to order <strong style="color:#18181B;">#{{order_display_id}}</strong> has been confirmed and applied.</p>
+    {{#if difference_due}}<div style="margin:16px 0;padding:12px 16px;background:#EFF6FF;border-radius:8px;border:1px solid #BFDBFE;"><p style="color:#3B82F6;font-size:13px;margin:0;"><strong>Additional amount:</strong> {{difference_due}}</p></div>{{/if}}
+    <p style="color:#71717A;font-size:13px;margin-top:16px;">Your updated order is now being processed.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", difference_due: "Additional amount due (optional)", current_year: "Current year" },
+    template_type: "order_edit_confirmed",
+    is_active: true,
+  },
+
+  // =========================================================================
+  // DELIVERY & PARTNER EVENTS
+  // =========================================================================
+
+  {
+    name: "Delivery Confirmed",
+    template_key: "delivery-created",
+    from: "orders@jaalyantra.com",
+    subject: "Your order #{{order_display_id}} has been delivered",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Delivered</h1>
+    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">Your textiles have arrived</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">Your order <strong style="color:#18181B;">#{{order_display_id}}</strong> has been delivered. We hope you love your new textiles!</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="{{store_url}}" style="display:inline-block;background:#27272A;color:#FFFFFF;text-decoration:none;padding:10px 24px;border-radius:8px;font-weight:500;font-size:14px;">Shop More</a>
+    </div>
+    <p style="color:#71717A;font-size:13px;">Not happy? Contact us within 7 days for a return or exchange.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", store_url: "Store URL", current_year: "Current year" },
+    template_type: "delivery_created",
+    is_active: true,
+  },
+
+  {
+    name: "Partner Admin Added",
+    template_key: "partner-admin-added",
+    from: "partners@jaalyantra.com",
+    subject: "You've been added as an admin for {{partner_name}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Jaal Yantra Textiles</h1>
+    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">Partner Portal</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{admin_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">You've been added as an administrator for <strong style="color:#18181B;">{{partner_name}}</strong>.</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="{{login_url}}" style="display:inline-block;background:#27272A;color:#FFFFFF;text-decoration:none;padding:10px 24px;border-radius:8px;font-weight:500;font-size:14px;">Access Partner Portal</a>
+    </div>
+    <p style="color:#71717A;font-size:13px;">You can now manage orders, products, and settings for {{partner_name}}.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { admin_name: "New admin's name", partner_name: "Partner organization name", login_url: "Partner portal login URL", current_year: "Current year" },
+    template_type: "partner_admin_added",
+    is_active: true,
+  },
+
+  // =========================================================================
+  // CART EVENTS
+  // =========================================================================
+
+  {
+    name: "Abandoned Cart Reminder",
+    template_key: "cart-abandoned",
+    from: "shop@jaalyantra.com",
+    subject: "You left something beautiful behind",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Your cart is waiting</h1>
+    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">You left some beautiful textiles behind</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">We noticed you left some items in your cart. They're still available — but they might not be for long.</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="{{cart_url}}" style="display:inline-block;background:#27272A;color:#FFFFFF;text-decoration:none;padding:10px 24px;border-radius:8px;font-weight:500;font-size:14px;">Complete Your Order</a>
+    </div>
+    <p style="color:#71717A;font-size:13px;">Need help choosing? Our team is always here.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+    <p style="color:#A1A1AA;font-size:10px;margin:4px 0 0;"><a href="{{unsubscribe_url}}" style="color:#A1A1AA;">Unsubscribe</a></p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", cart_url: "Cart recovery URL", unsubscribe_url: "Unsubscribe URL", current_year: "Current year" },
+    template_type: "cart_abandoned",
+    is_active: true,
+  },
 ]
 
 export default async function seedEmailTemplates({ container }: { container: any }) {

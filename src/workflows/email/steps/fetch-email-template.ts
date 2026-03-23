@@ -65,18 +65,20 @@ const registerEmailTemplateHelpers = () => {
   templateHelpersRegistered = true
 }
 
-// Step to fetch and process email template data from database
+// Step to fetch and process email template data from database.
+// Throws when the template is not found — emails must always use the DB template,
+// never fall back to a provider default. The workflow will fail and surface the
+// error so the admin can fix the template and retry.
 export const fetchEmailTemplateStep = createStep(
   { name: "fetch-email-template", store: true },
   async (input: { templateKey: string; data?: Record<string, any> }, { container }) => {
     const emailTemplatesService: EmailTemplatesService = container.resolve(EMAIL_TEMPLATES_MODULE)
-    
     const template = await emailTemplatesService.getTemplateByKey(input.templateKey)
-     
+
     // Process the template with Handlebars if data is provided
     let processedHtmlContent = template.html_content
     let processedSubject = template.subject
-    
+
     if (input.data) {
       try {
         registerEmailTemplateHelpers()
@@ -87,31 +89,26 @@ export const fetchEmailTemplateStep = createStep(
             obj[key] = input.data![key]
             return obj
           }, {} as Record<string, any>)
-        
-        
-        // Compile and render the HTML template
+
         const htmlTemplate = Handlebars.compile(template.html_content)
         processedHtmlContent = htmlTemplate(filteredData)
-        
-        // Compile and render the subject template
+
         const subjectTemplate = Handlebars.compile(template.subject)
         processedSubject = subjectTemplate(filteredData)
-        
-        
       } catch (error) {
-        console.error("Error processing email template with Handlebars:", error)
+        console.error("[fetch-email-template] Handlebars rendering failed:", error)
         // Keep original template content if processing fails
       }
     }
-    
+
     const processedTemplateData = {
       subject: processedSubject,
       html_content: processedHtmlContent,
       from: template.from,
-      processed: true
+      processed: true,
     } as ProcessedEmailTemplateData
-    
-    console.log('Returning processed template data')
+
+    console.log(`[fetch-email-template] Processed template "${input.templateKey}" successfully`)
     return new StepResponse(processedTemplateData)
   }
 )

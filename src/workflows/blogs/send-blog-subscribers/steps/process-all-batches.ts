@@ -2,7 +2,7 @@ import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { SubscriberBatch, EmailSendingResult, SendingSummary } from "../types"
 import { Modules } from "@medusajs/framework/utils"
 import { convertTipTapToHtml } from "../utils/tiptap-to-html"
-import { sendMailjetBulk, BulkEmailEntry } from "../utils/mailjet-bulk-send"
+import { sendMailjetBulk, BulkEmailEntry } from "../../../../modules/mailjet/bulk"
 import { INotificationModuleService } from "@medusajs/types"
 import { EMAIL_PROVIDER_MANAGER_MODULE } from "../../../../modules/email-provider-manager"
 import EmailProviderManagerService from "../../../../modules/email-provider-manager/service"
@@ -143,41 +143,83 @@ export const processAllBatchesStep = createStep(
       console.warn("Email provider manager not available, falling back to single provider:", err.message)
     }
 
-    // Fetch the blog-subscriber template from DB once
-    let compiledHtml: HandlebarsTemplateDelegate | null = null
-    let compiledSubject: HandlebarsTemplateDelegate | null = null
+    // Fetch the blog-subscriber template from DB — this is REQUIRED.
+    // If the template cannot be loaded, abort the entire batch and surface
+    // the error so the admin can fix the template and retry.
+    let compiledHtml: HandlebarsTemplateDelegate
+    let compiledSubject: HandlebarsTemplateDelegate
     let templateFrom = ""
-    try {
-      const emailTemplatesService: EmailTemplatesService = container.resolve(EMAIL_TEMPLATES_MODULE)
-      const template = await emailTemplatesService.getTemplateByKey(BLOG_TEMPLATE_KEY)
-      ensureHandlebarsHelpers()
-      compiledHtml = Handlebars.compile(template.html_content)
-      compiledSubject = Handlebars.compile(template.subject)
-      templateFrom = template.from || ""
-      console.log(`Loaded email template "${BLOG_TEMPLATE_KEY}" from database`)
-    } catch (err) {
-      console.warn(`Failed to load email template "${BLOG_TEMPLATE_KEY}":`, err.message)
-    }
 
-    // Collect all subscribers from all batches
+    const emailTemplatesService: EmailTemplatesService = container.resolve(EMAIL_TEMPLATES_MODULE)
+    const template = await emailTemplatesService.getTemplateByKey(BLOG_TEMPLATE_KEY)
+    ensureHandlebarsHelpers()
+    compiledHtml = Handlebars.compile(template.html_content)
+    compiledSubject = Handlebars.compile(template.subject)
+    templateFrom = template.from || ""
+    console.log(
+      `[processAllBatches] Loaded email template "${BLOG_TEMPLATE_KEY}" (from: ${templateFrom}, ` +
+      `subject pattern: "${template.subject.substring(0, 60)}...", ` +
+      `html length: ${template.html_content?.length || 0})`
+    )
+
+    // Collect all subscribers from all batches, filtering out malformed emails
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
     const allSubscribers: {
       subscriber: any
       blogData: any
       emailConfig: { subject: string; customMessage?: string }
     }[] = []
+    const skippedInvalid: { email: string; reason: string }[] = []
 
     for (const batch of batches) {
       for (const subscriber of batch.subscribers) {
+        const email = subscriber.email?.trim()
+        if (!email) {
+          skippedInvalid.push({ email: "(empty)", reason: "empty email" })
+          continue
+        }
+        // Reject multi-value emails (comma/semicolon separated)
+        if (/[,;]/.test(email)) {
+          skippedInvalid.push({ email, reason: "multi-value email field" })
+          continue
+        }
+        // Reject emails with whitespace
+        if (/\s/.test(email)) {
+          skippedInvalid.push({ email, reason: "contains whitespace" })
+          continue
+        }
+        // Reject emails that don't match the standard pattern
+        if (email.length > 254 || !EMAIL_REGEX.test(email)) {
+          skippedInvalid.push({ email, reason: "invalid format" })
+          continue
+        }
+
         allSubscribers.push({
-          subscriber,
+          subscriber: { ...subscriber, email },
           blogData: batch.blogData,
           emailConfig: batch.emailConfig,
         })
       }
     }
 
+    if (skippedInvalid.length > 0) {
+      console.warn(
+        `[processAllBatches] Skipped ${skippedInvalid.length} invalid emails:`,
+        skippedInvalid.map((s) => `${s.email} (${s.reason})`).join(", ")
+      )
+      // Record skipped emails as failed results
+      for (const skip of skippedInvalid) {
+        allResults.push({
+          success: false,
+          subscriber_id: "",
+          email: skip.email,
+          error: `Skipped: ${skip.reason}`,
+        })
+      }
+    }
+
     const totalEmails = allSubscribers.length
-    console.log(`Processing ${totalEmails} subscriber emails`)
+    console.log(`[processAllBatches] Processing ${totalEmails} valid subscriber emails (${skippedInvalid.length} skipped)`)
 
     // Pre-compute blog HTML content once (same blog for all subscribers)
     let sharedBlogHtml: string | null = null
@@ -205,15 +247,10 @@ export const processAllBatchesStep = createStep(
       const blogHtml = sharedBlogHtml || ""
       const emailData = buildEmailData(entry.subscriber, entry.blogData, blogHtml, entry.emailConfig)
 
-      if (compiledHtml && compiledSubject) {
-        return {
-          emailData,
-          rendered: renderTemplate(compiledHtml, compiledSubject, templateFrom, emailData),
-        }
+      return {
+        emailData,
+        rendered: renderTemplate(compiledHtml, compiledSubject, templateFrom, emailData),
       }
-
-      // No template — emailData will be sent raw (Resend falls back to default template)
-      return { emailData, rendered: null }
     }
 
     if (providerManager) {

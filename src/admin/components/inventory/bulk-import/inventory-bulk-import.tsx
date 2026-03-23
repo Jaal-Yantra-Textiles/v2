@@ -137,6 +137,7 @@ export const InventoryBulkImport: React.FC = () => {
   })
   const [mediaModalOpen, setMediaModalOpen] = useState(false)
   const [mediaRowIndex, setMediaRowIndex] = useState<number | null>(null)
+  const [mediaInitialUrls, setMediaInitialUrls] = useState<string[]>([])
   const [importErrors, setImportErrors] = useState<
     { index: number; name: string; error: string }[]
   >([])
@@ -198,10 +199,17 @@ export const InventoryBulkImport: React.FC = () => {
 
   // ---- Media modal --------------------------------------------------------
 
-  const openMediaForRow = useCallback((index: number) => {
-    setMediaRowIndex(index)
-    setMediaModalOpen(true)
-  }, [])
+  const openMediaForRow = useCallback(
+    (index: number) => {
+      // Snapshot the current row's media before opening so the modal
+      // always starts with the correct selection, not a stale one.
+      const currentMedia = form.getValues(`items.${index}.media`) || []
+      setMediaRowIndex(index)
+      setMediaInitialUrls([...currentMedia])
+      setMediaModalOpen(true)
+    },
+    [form]
+  )
 
   const handleMediaSave = useCallback(
     (urls: string[]) => {
@@ -387,21 +395,40 @@ export const InventoryBulkImport: React.FC = () => {
   // ---- Grid keyboard shortcut: Enter on last row adds new row -------------
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      const activeElement = document.activeElement
-      const gridContainer = activeElement?.closest('[role="grid"]')
-      if (gridContainer) {
-        const rows = gridContainer.querySelectorAll(
-          '[role="row"]:not(:first-child)'
-        )
-        if (rows.length > 0) {
-          const lastRow = rows[rows.length - 1]
-          if (lastRow && lastRow.contains(activeElement)) {
-            addRow()
-            e.preventDefault()
-          }
-        }
-      }
+    if (e.key !== "Enter") return
+
+    // Don't add a row when Cmd/Ctrl+Enter (that's form submit)
+    if (e.metaKey || e.ctrlKey) return
+
+    const activeElement = document.activeElement
+    if (!activeElement) return
+
+    // Only trigger on actual text inputs — not select triggers,
+    // dropdown items, or buttons which use Enter for their own action
+    const isTextInput =
+      activeElement.tagName === "INPUT" &&
+      (activeElement as HTMLInputElement).type !== "button"
+
+    if (!isTextInput) return
+
+    // Check if a select dropdown is currently open anywhere
+    const openDropdown = document.querySelector(
+      '[data-state="open"][role="listbox"], [data-state="open"][data-radix-select-content]'
+    )
+    if (openDropdown) return
+
+    const gridContainer = activeElement.closest('[role="grid"]')
+    if (!gridContainer) return
+
+    const rows = gridContainer.querySelectorAll(
+      '[role="row"]:not(:first-child)'
+    )
+    if (rows.length === 0) return
+
+    const lastRow = rows[rows.length - 1]
+    if (lastRow && lastRow.contains(activeElement)) {
+      addRow()
+      e.preventDefault()
     }
   }
 
@@ -625,11 +652,7 @@ export const InventoryBulkImport: React.FC = () => {
       <ProductMediaModal
         open={mediaModalOpen}
         onOpenChange={setMediaModalOpen}
-        initialUrls={
-          mediaRowIndex !== null
-            ? items[mediaRowIndex]?.media || []
-            : []
-        }
+        initialUrls={mediaInitialUrls}
         onSave={handleMediaSave}
       />
     </RouteFocusModal.Form>
