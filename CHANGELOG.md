@@ -1,3 +1,10 @@
+# [12.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.0.0...v12.1.0) (2026-03-23)
+
+
+### Features
+
+* **admin:** Adding the category dropdown values ([452abef](https://github.com/Jaal-Yantra-Textiles/v2/commit/452abef8e1e9bc9c0b7141b177f27d78af270130))
+
 # [12.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v11.1.0...v12.0.0) (2026-03-23)
 
 
