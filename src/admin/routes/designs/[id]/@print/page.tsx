@@ -59,6 +59,7 @@ const DesignStitchingPrintPage = () => {
     fields: [
       "colors.*",
       "size_sets.*",
+      "specifications.*",
       "moodboard",
       "media_files",
     ],
@@ -121,6 +122,35 @@ const DesignStitchingPrintPage = () => {
       )
     : []
 
+  const description = design.description || ""
+  const tags: string[] = Array.isArray(design.tags) ? design.tags : []
+  const inspirationSources: string[] = Array.isArray(design.inspiration_sources) ? design.inspiration_sources : []
+  const designFiles: string[] = Array.isArray(design.design_files) ? design.design_files : []
+  const specifications: any[] = (design as any).specifications || []
+  const feedbackHistory: any[] = Array.isArray(design.feedback_history) ? design.feedback_history : []
+  const metadata = (design.metadata || {}) as Record<string, any>
+
+  // TipTap JSON text extraction helper
+  const extractTipTapText = (input: any): string => {
+    if (!input) return ""
+    if (typeof input === "string") {
+      if (!input.startsWith("{")) return input
+      try {
+        const parsed = JSON.parse(input)
+        return extractTipTapText(parsed)
+      } catch {
+        return input
+      }
+    }
+    if (typeof input === "object") {
+      if (input.text) return input.text
+      if (Array.isArray(input.content)) {
+        return input.content.map(extractTipTapText).join("\n")
+      }
+    }
+    return String(input)
+  }
+
   const handlePrint = () => {
     window.print()
   }
@@ -182,49 +212,27 @@ const DesignStitchingPrintPage = () => {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-6 py-4">
             <div>
-              <Text
-                size="xsmall"
-                className="text-ui-fg-muted uppercase tracking-wide"
-              >
-                Type
-              </Text>
-              <Text size="small" weight="plus">
-                {design.design_type || "-"}
-              </Text>
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Type</Text>
+              <Text size="small" weight="plus">{design.design_type || "-"}</Text>
             </div>
             <div>
-              <Text
-                size="xsmall"
-                className="text-ui-fg-muted uppercase tracking-wide"
-              >
-                Est. Cost
-              </Text>
-              <Text size="small" weight="plus">
-                {design.estimated_cost ? `$${design.estimated_cost}` : "-"}
-              </Text>
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Origin</Text>
+              <Text size="small" weight="plus">{(design as any).origin_source || "-"}</Text>
             </div>
             <div>
-              <Text
-                size="xsmall"
-                className="text-ui-fg-muted uppercase tracking-wide"
-              >
-                Target Date
-              </Text>
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Est. Cost</Text>
+              <Text size="small" weight="plus">{design.estimated_cost ? `$${design.estimated_cost}` : "-"}</Text>
+            </div>
+            <div>
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Target Date</Text>
               <Text size="small" weight="plus">
                 {design.target_completion_date
-                  ? new Date(
-                      design.target_completion_date
-                    ).toLocaleDateString()
+                  ? new Date(design.target_completion_date).toLocaleDateString()
                   : "-"}
               </Text>
             </div>
             <div>
-              <Text
-                size="xsmall"
-                className="text-ui-fg-muted uppercase tracking-wide"
-              >
-                Colors
-              </Text>
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Colors</Text>
               <div className="flex items-center gap-1.5 mt-0.5">
                 {design.colors?.length ? (
                   design.colors.map((color, i) => (
@@ -240,7 +248,50 @@ const DesignStitchingPrintPage = () => {
                 )}
               </div>
             </div>
+            <div>
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Created</Text>
+              <Text size="small" weight="plus">
+                {design.created_at ? new Date(design.created_at).toLocaleDateString() : "-"}
+              </Text>
+            </div>
+            <div>
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Updated</Text>
+              <Text size="small" weight="plus">
+                {design.updated_at ? new Date(design.updated_at).toLocaleDateString() : "-"}
+              </Text>
+            </div>
+            {tags.length > 0 && (
+              <div>
+                <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Tags</Text>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {tags.map((tag, i) => (
+                    <Badge key={i} size="2xsmall" color="grey">{tag}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Description row */}
+          {description && (
+            <div className="px-6 py-4">
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide mb-1">Description</Text>
+              <Text size="small" className="whitespace-pre-line">{description}</Text>
+            </div>
+          )}
+
+          {/* Thumbnail */}
+          {design.thumbnail_url && (
+            <div className="px-6 py-4">
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide mb-2">Thumbnail</Text>
+              <img
+                src={design.thumbnail_url}
+                alt={design.name || "Design thumbnail"}
+                className="rounded-md border border-ui-border-base max-w-[200px] max-h-[200px] object-cover print:border-gray-300"
+                crossOrigin="anonymous"
+              />
+            </div>
+          )}
         </Container>
 
         {/* Moodboard — centered and prominent */}
@@ -569,7 +620,115 @@ const DesignStitchingPrintPage = () => {
           </Container>
         )}
 
-        {/* Designer notes if present */}
+        {/* Specifications */}
+        {specifications.length > 0 && (
+          <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
+            <div className="px-6 py-3">
+              <Heading level="h2">Specifications</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Technical specifications for construction and finishing
+              </Text>
+            </div>
+            <div className="px-6 pb-6">
+              <div className="flex flex-col gap-4">
+                {specifications.map((spec: any, idx: number) => (
+                  <div
+                    key={spec.id || idx}
+                    className="rounded-md border border-ui-border-base p-4 print:border-gray-300"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Text size="small" weight="plus">{spec.title}</Text>
+                      <Badge size="2xsmall" color="blue">{spec.category}</Badge>
+                      <Badge size="2xsmall" color={spec.status === "Approved" ? "green" : "grey"}>
+                        {spec.status}
+                      </Badge>
+                      {spec.version && (
+                        <Text size="xsmall" className="text-ui-fg-muted">v{spec.version}</Text>
+                      )}
+                    </div>
+                    <Text size="small" className="whitespace-pre-line">{spec.details}</Text>
+                    {spec.special_instructions && (
+                      <div className="mt-2 pt-2 border-t border-ui-border-base">
+                        <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Special Instructions</Text>
+                        <Text size="small" className="whitespace-pre-line mt-1">{spec.special_instructions}</Text>
+                      </div>
+                    )}
+                    {spec.materials_required && Array.isArray(spec.materials_required) && spec.materials_required.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-ui-border-base">
+                        <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Materials Required</Text>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {spec.materials_required.map((m: any, i: number) => (
+                            <Badge key={i} size="2xsmall" color="grey">{typeof m === "string" ? m : m.name || JSON.stringify(m)}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {spec.reviewer_notes && (
+                      <div className="mt-2 pt-2 border-t border-ui-border-base">
+                        <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">Reviewer Notes</Text>
+                        <Text size="small" className="whitespace-pre-line mt-1 text-ui-fg-subtle italic">{spec.reviewer_notes}</Text>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Container>
+        )}
+
+        {/* Inspiration Sources */}
+        {inspirationSources.length > 0 && (
+          <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
+            <div className="px-6 py-3">
+              <Heading level="h2">Inspiration Sources</Heading>
+            </div>
+            <div className="px-6 pb-6">
+              <ul className="list-disc pl-5 space-y-1">
+                {inspirationSources.map((source, i) => (
+                  <li key={i}>
+                    <Text size="small">
+                      {typeof source === "string" && source.startsWith("http") ? (
+                        <a href={source} className="text-ui-fg-interactive underline print:text-black print:no-underline" target="_blank" rel="noopener noreferrer">
+                          {source}
+                        </a>
+                      ) : (
+                        String(source)
+                      )}
+                    </Text>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Container>
+        )}
+
+        {/* Design Files */}
+        {designFiles.length > 0 && (
+          <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
+            <div className="px-6 py-3">
+              <Heading level="h2">Design Files</Heading>
+            </div>
+            <div className="px-6 pb-6">
+              <ul className="list-disc pl-5 space-y-1">
+                {designFiles.map((file, i) => (
+                  <li key={i}>
+                    <Text size="small">
+                      {typeof file === "string" && file.startsWith("http") ? (
+                        <a href={file} className="text-ui-fg-interactive underline print:text-black" target="_blank" rel="noopener noreferrer">
+                          {file.split("/").pop() || file}
+                        </a>
+                      ) : (
+                        String(file)
+                      )}
+                    </Text>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Container>
+        )}
+
+        {/* Designer Notes */}
         {design.designer_notes && (
           <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
             <div className="px-6 py-3">
@@ -578,31 +737,81 @@ const DesignStitchingPrintPage = () => {
             <div className="px-6 pb-6">
               <div className="rounded-md border border-ui-border-base bg-ui-bg-subtle p-4 print:border-gray-300">
                 <Text size="small" className="whitespace-pre-wrap">
-                  {typeof design.designer_notes === "string" &&
-                  design.designer_notes.startsWith("{")
-                    ? (() => {
-                        try {
-                          const parsed = JSON.parse(design.designer_notes)
-                          // Extract text from TipTap JSON
-                          const extractText = (node: any): string => {
-                            if (node.text) return node.text
-                            if (node.content)
-                              return node.content
-                                .map(extractText)
-                                .join("")
-                            return ""
-                          }
-                          return extractText(parsed)
-                        } catch {
-                          return design.designer_notes
-                        }
-                      })()
-                    : design.designer_notes}
+                  {extractTipTapText(design.designer_notes)}
                 </Text>
               </div>
             </div>
           </Container>
         )}
+
+        {/* Feedback History */}
+        {feedbackHistory.length > 0 && (
+          <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
+            <div className="px-6 py-3">
+              <Heading level="h2">Feedback History</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Design review and revision history
+              </Text>
+            </div>
+            <div className="px-6 pb-6">
+              <div className="flex flex-col gap-3">
+                {feedbackHistory.map((entry: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="rounded-md border border-ui-border-base p-3 print:border-gray-300"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <Text size="small" weight="plus">
+                        {entry.author || "Unknown"}
+                      </Text>
+                      {entry.date && (
+                        <Text size="xsmall" className="text-ui-fg-muted">
+                          {new Date(entry.date).toLocaleDateString()}
+                        </Text>
+                      )}
+                    </div>
+                    <Text size="small" className="whitespace-pre-line text-ui-fg-subtle">
+                      {entry.feedback || entry.comment || entry.message || JSON.stringify(entry)}
+                    </Text>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Container>
+        )}
+
+        {/* Metadata */}
+        {Object.keys(metadata).length > 0 && (
+          <Container className="p-0 print:shadow-none print:border print:border-ui-border-base print:break-inside-avoid">
+            <div className="px-6 py-3">
+              <Heading level="h2">Additional Details</Heading>
+            </div>
+            <div className="px-6 pb-6">
+              <div className="grid grid-cols-2 gap-3">
+                {Object.entries(metadata)
+                  .filter(([key]) => !key.startsWith("_"))
+                  .map(([key, value]) => (
+                    <div key={key}>
+                      <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">{key.replace(/_/g, " ")}</Text>
+                      <Text size="small" weight="plus">
+                        {typeof value === "string" || typeof value === "number"
+                          ? String(value)
+                          : JSON.stringify(value)}
+                      </Text>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </Container>
+        )}
+
+        {/* Print footer */}
+        <div className="hidden print:block print:mt-4 print:pt-3 print:border-t print:border-gray-300">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>Jaal Yantra Textiles — Stitching &amp; Sampling Sheet</span>
+            <span>Confidential — For internal use only</span>
+          </div>
+        </div>
       </RouteFocusModal.Body>
     </RouteFocusModal>
   )
