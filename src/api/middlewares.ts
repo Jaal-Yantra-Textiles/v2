@@ -150,6 +150,7 @@ import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/cons
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
+import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq } from "./partners/products/validators";
 import {
@@ -2687,6 +2688,13 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-items/raw-materials",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(ListInventoryItemRawMaterialsQuerySchema), {})],
+    },
+
+    // Bulk Import Inventory
+    {
+      matcher: "/admin/inventory-items/bulk-import",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(BulkImportSchema))],
     },
 
     {
