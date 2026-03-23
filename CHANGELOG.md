@@ -1,3 +1,10 @@
+## [12.1.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.0...v12.1.1) (2026-03-23)
+
+
+### Bug Fixes
+
+* **admin:** Fixed the email templating issue ([0002d72](https://github.com/Jaal-Yantra-Textiles/v2/commit/0002d72d918549c324639e9a9598a69d7d144676))
+
 # [12.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.0.0...v12.1.0) (2026-03-23)
 
 
