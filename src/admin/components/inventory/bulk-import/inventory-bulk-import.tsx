@@ -24,6 +24,7 @@ import { DataGridReadonlyCell } from "../../data-grid/components/data-grid-reado
 import { createDataGridHelper } from "../../data-grid/helpers/create-data-grid-column-helper"
 import { useStockLocations } from "../../../hooks/api/stock_location"
 import { useBulkImportInventory } from "../../../hooks/api/inventory-bulk-import"
+import { useRawMaterialCategories } from "../../../hooks/api/raw-materials"
 import ProductMediaModal from "../../media/product-media-modal"
 
 // ---------------------------------------------------------------------------
@@ -143,6 +144,8 @@ export const InventoryBulkImport: React.FC = () => {
   const { handleSuccess } = useRouteModal()
   const { stock_locations = [] } = useStockLocations()
   const { mutateAsync: bulkImport, isPending } = useBulkImportInventory()
+  const { categories: materialCategories = [], isLoading: categoriesLoading } =
+    useRawMaterialCategories({})
 
   const form = useForm<BulkImportFormValues>({
     defaultValues: {
@@ -211,6 +214,17 @@ export const InventoryBulkImport: React.FC = () => {
     [mediaRowIndex, form]
   )
 
+  // ---- Category options for material type dropdown -------------------------
+
+  const categoryOptions = useMemo(
+    () =>
+      materialCategories.map((cat) => ({
+        label: cat.name,
+        value: cat.name,
+      })),
+    [materialCategories]
+  )
+
   // ---- DataGrid columns ---------------------------------------------------
 
   const columns: ColumnDef<BulkImportRow>[] = useMemo(() => {
@@ -262,7 +276,15 @@ export const InventoryBulkImport: React.FC = () => {
         field: (context: any) =>
           `items.${context.row.index}.material_type`,
         type: "text",
-        cell: (context: any) => <DataGridTextCell context={context} />,
+        cell: (context: any) => (
+          <DataGridSelectCell
+            context={context}
+            options={categoryOptions}
+            loading={categoriesLoading}
+            searchable
+            noResultsLabel="Type a name to create new"
+          />
+        ),
       }),
       columnHelper.column({
         id: "media",
@@ -318,7 +340,7 @@ export const InventoryBulkImport: React.FC = () => {
           return col
       }
     })
-  }, [fields.length, openMediaForRow, removeRow])
+  }, [fields.length, openMediaForRow, removeRow, categoryOptions, categoriesLoading])
 
   // ---- Submit -------------------------------------------------------------
 
