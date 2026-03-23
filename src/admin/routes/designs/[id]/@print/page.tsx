@@ -179,25 +179,115 @@ const DesignStitchingPrintPage = () => {
   const feedbackHistory: any[] = Array.isArray(design.feedback_history) ? design.feedback_history : []
   const metadata = (design.metadata || {}) as Record<string, any>
 
-  // TipTap JSON text extraction helper
+  // TipTap JSON → plain text extraction
   const extractTipTapText = (input: any): string => {
     if (!input) return ""
     if (typeof input === "string") {
-      if (!input.startsWith("{")) return input
+      if (!input.startsWith("{") && !input.startsWith("[")) return input
       try {
-        const parsed = JSON.parse(input)
-        return extractTipTapText(parsed)
+        return extractTipTapText(JSON.parse(input))
       } catch {
         return input
       }
     }
+    if (Array.isArray(input)) {
+      return input.map(extractTipTapText).filter(Boolean).join("\n")
+    }
     if (typeof input === "object") {
-      if (input.text) return input.text
-      if (Array.isArray(input.content)) {
+      // Text node — return the text content
+      if (input.type === "text") return input.text || ""
+      // Hard break — newline
+      if (input.type === "hardBreak") return "\n"
+      // Horizontal rule
+      if (input.type === "horizontalRule") return "---"
+      // Nodes with content children (paragraph, heading, listItem, blockquote, etc.)
+      if (Array.isArray(input.content) && input.content.length > 0) {
+        const childText = input.content.map(extractTipTapText).join("")
+        // Block-level nodes get newlines between them
+        if (["paragraph", "heading", "listItem", "blockquote"].includes(input.type)) {
+          return childText
+        }
+        return childText
+      }
+      // List wrappers — join children with newlines and add bullets/numbers
+      if (input.type === "bulletList" && Array.isArray(input.content)) {
+        return input.content
+          .map((li: any) => `• ${extractTipTapText(li)}`)
+          .join("\n")
+      }
+      if (input.type === "orderedList" && Array.isArray(input.content)) {
+        return input.content
+          .map((li: any, i: number) => `${i + 1}. ${extractTipTapText(li)}`)
+          .join("\n")
+      }
+      // Empty paragraph (enter key) — blank line
+      if (input.type === "paragraph" || input.type === "heading") return ""
+      // Doc root
+      if (input.type === "doc" && Array.isArray(input.content)) {
         return input.content.map(extractTipTapText).join("\n")
       }
+      // Unknown node with no content — skip, don't stringify
+      return ""
     }
-    return String(input)
+    return ""
+  }
+
+  // TipTap JSON → HTML string for rich rendering
+  const tipTapToHtml = (input: any): string => {
+    if (!input) return ""
+    if (typeof input === "string") {
+      if (!input.startsWith("{") && !input.startsWith("[")) {
+        return input.replace(/\n/g, "<br/>")
+      }
+      try {
+        return tipTapToHtml(JSON.parse(input))
+      } catch {
+        return input.replace(/\n/g, "<br/>")
+      }
+    }
+    if (typeof input !== "object") return ""
+
+    const renderInline = (node: any): string => {
+      if (!node) return ""
+      if (node.type === "text") {
+        let html = (node.text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        for (const mark of node.marks || []) {
+          if (mark.type === "bold") html = `<strong>${html}</strong>`
+          else if (mark.type === "italic") html = `<em>${html}</em>`
+          else if (mark.type === "underline") html = `<u>${html}</u>`
+          else if (mark.type === "strike") html = `<s>${html}</s>`
+          else if (mark.type === "code") html = `<code style="background:#f1f1f1;padding:1px 4px;border-radius:3px;font-size:0.9em">${html}</code>`
+          else if (mark.type === "link") html = `<a href="${mark.attrs?.href || "#"}" style="color:#0066cc;text-decoration:underline">${html}</a>`
+        }
+        return html
+      }
+      if (node.type === "hardBreak") return "<br/>"
+      return ""
+    }
+
+    const renderBlock = (node: any): string => {
+      if (!node) return ""
+      const children = (node.content || []).map((c: any) =>
+        c.type === "text" || c.type === "hardBreak" ? renderInline(c) : renderBlock(c)
+      ).join("")
+
+      switch (node.type) {
+        case "doc": return children
+        case "paragraph": return children ? `<p style="margin:0 0 8px">${children}</p>` : `<p style="margin:0 0 8px">&nbsp;</p>`
+        case "heading": {
+          const level = Math.min(Math.max(node.attrs?.level || 2, 1), 6)
+          return `<h${level} style="margin:12px 0 6px;font-weight:600">${children}</h${level}>`
+        }
+        case "bulletList": return `<ul style="margin:0 0 8px;padding-left:20px;list-style:disc">${children}</ul>`
+        case "orderedList": return `<ol style="margin:0 0 8px;padding-left:20px;list-style:decimal">${children}</ol>`
+        case "listItem": return `<li style="margin:2px 0">${children}</li>`
+        case "blockquote": return `<blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:0 0 8px;color:#666;font-style:italic">${children}</blockquote>`
+        case "horizontalRule": return `<hr style="border:none;border-top:1px solid #ddd;margin:12px 0"/>`
+        default: return children
+      }
+    }
+
+    return renderBlock(input)
   }
 
   const handlePrint = () => {
@@ -775,11 +865,10 @@ const DesignStitchingPrintPage = () => {
               <Heading level="h2">Designer Notes</Heading>
             </div>
             <div className="px-6 pb-6">
-              <div className="rounded-md border border-ui-border-base bg-ui-bg-subtle p-4 print:border-gray-300">
-                <Text size="small" className="whitespace-pre-wrap">
-                  {extractTipTapText(design.designer_notes)}
-                </Text>
-              </div>
+              <div
+                className="rounded-md border border-ui-border-base bg-ui-bg-subtle p-4 print:border-gray-300 text-sm leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: tipTapToHtml(design.designer_notes) }}
+              />
             </div>
           </Container>
         )}
