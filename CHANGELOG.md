@@ -1,3 +1,23 @@
+# [12.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v11.1.0...v12.0.0) (2026-03-23)
+
+
+### Bug Fixes
+
+* **admin:** Adding more fields at the design printing stuff ([e16294c](https://github.com/Jaal-Yantra-Textiles/v2/commit/e16294cf74a447770f0e2324cc752b49aff27b3d))
+* **admin:** Images were getting cut across page breaks because: ([c3bc29d](https://github.com/Jaal-Yantra-Textiles/v2/commit/c3bc29d92da715dc26d73fbbb9ffa4ec650f7147))
+* **admin:** Moodboard raster images ([2412327](https://github.com/Jaal-Yantra-Textiles/v2/commit/2412327ba11513500c4d3da02e964ffd3ee5c0ca))
+
+
+### Features
+
+* **api:** Fixed the build issues ([fe5837a](https://github.com/Jaal-Yantra-Textiles/v2/commit/fe5837af22a80200528e5d88bd6967cb09f4e673))
+* **api:** Inventory Import using data grid ([db92a6f](https://github.com/Jaal-Yantra-Textiles/v2/commit/db92a6f0ac1a12806923ead718e8f39272bf1959))
+
+
+### BREAKING CHANGES
+
+* **api:**
+
 # [11.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v11.0.0...v11.1.0) (2026-03-22)
 
 
