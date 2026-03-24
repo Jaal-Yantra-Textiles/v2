@@ -12,7 +12,6 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { AD_PLANNING_MODULE } from "../../../modules/ad-planning";
 import type AdPlanningService from "../../../modules/ad-planning/service";
-import { ANALYTICS_MODULE } from "../../../modules/analytics";
 
 type CalculateEngagementInput = {
   person_id: string;
@@ -41,7 +40,6 @@ const gatherActivityStep = createStep(
   "gather-activity",
   async (input: { person_id: string }, { container }) => {
     const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
-    const analyticsService = container.resolve(ANALYTICS_MODULE);
 
     // Get conversions for this person
     const conversions = await adPlanningService.listConversions({

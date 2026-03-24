@@ -64,20 +64,18 @@ const fetchUnresolvedSessionsStep = createStep(
       console.warn("[BulkResolve] Could not fetch analytics sessions, continuing with empty set");
     }
 
-    // Get already attributed session IDs
-    let resolvedSessionIds = new Set<string>();
+    // Get ALL existing attribution session IDs (both resolved and unresolved)
+    let existingSessionIds = new Set<string>();
     try {
-      const existingAttributions = await adPlanningService.listCampaignAttributions({
-        is_resolved: true,
-      });
-      resolvedSessionIds = new Set(existingAttributions.map((a: any) => a.analytics_session_id));
+      const existingAttributions = await adPlanningService.listCampaignAttributions({});
+      existingSessionIds = new Set(existingAttributions.map((a: any) => a.analytics_session_id));
     } catch (error) {
       console.warn("[BulkResolve] Could not fetch existing attributions");
     }
 
-    // Filter out already resolved sessions
+    // Filter out sessions that already have attribution records
     const unresolvedSessions = sessions.filter(
-      (s: any) => !resolvedSessionIds.has(s.session_id)
+      (s: any) => !existingSessionIds.has(s.session_id)
     );
 
     return new StepResponse(unresolvedSessions);
@@ -166,9 +164,9 @@ const batchResolveStep = createStep(
           confidence = 1.0;
           method = "exact_utm_match";
         }
-        // 2. Meta campaign ID match
-        else if (input.campaignData.metaIdMap[session.utm_campaign]) {
-          matchedCampaign = input.campaignData.metaIdMap[session.utm_campaign];
+        // 2. Meta campaign ID match (try both raw and normalized)
+        else if (input.campaignData.metaIdMap[session.utm_campaign] || input.campaignData.metaIdMap[utmCampaign]) {
+          matchedCampaign = input.campaignData.metaIdMap[session.utm_campaign] || input.campaignData.metaIdMap[utmCampaign];
           confidence = 1.0;
           method = "exact_utm_match";
         }
@@ -226,12 +224,28 @@ const batchResolveStep = createStep(
       }
     }
 
-    // Batch create attributions
-    if (attributionsToCreate.length > 0) {
+    // Dedup by analytics_session_id before inserting
+    const seen = new Set<string>();
+    const dedupedAttributions = attributionsToCreate.filter((a: any) => {
+      if (seen.has(a.analytics_session_id)) return false;
+      seen.add(a.analytics_session_id);
+      return true;
+    });
+
+    // Batch create attributions with per-record fallback on failure
+    if (dedupedAttributions.length > 0) {
       try {
-        await adPlanningService.createCampaignAttributions(attributionsToCreate);
+        await adPlanningService.createCampaignAttributions(dedupedAttributions);
       } catch (error: any) {
-        results.errors.push(`Batch create failed: ${error.message}`);
+        // Batch failed — try individual inserts
+        for (const attribution of dedupedAttributions) {
+          try {
+            await adPlanningService.createCampaignAttributions([attribution]);
+          } catch (individualError: any) {
+            results.failed++;
+            results.errors.push(`Session ${attribution.analytics_session_id}: ${individualError.message}`);
+          }
+        }
       }
     }
 

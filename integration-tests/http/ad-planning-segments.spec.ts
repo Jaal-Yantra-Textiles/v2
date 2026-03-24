@@ -312,7 +312,7 @@ setupSharedTestSuite(() => {
   });
 
   describe("Segment Building", () => {
-    describe("POST /admin/ad-planning/segments/:id/build", () => {
+    describe("PUT /admin/ad-planning/segments/:id with rebuild", () => {
       it("should rebuild a segment", async () => {
         // Create a segment first
         const createResponse = await api.post(
@@ -326,9 +326,9 @@ setupSharedTestSuite(() => {
         );
         const testSegmentId = createResponse.data.segment.id;
 
-        const response = await api.post(
-          `/admin/ad-planning/segments/${testSegmentId}/build`,
-          {},
+        const response = await api.put(
+          `/admin/ad-planning/segments/${testSegmentId}`,
+          { rebuild: true },
           headers
         );
 
@@ -353,9 +353,9 @@ setupSharedTestSuite(() => {
         );
         const testSegmentId = createResponse.data.segment.id;
 
-        const response = await api.post(
-          `/admin/ad-planning/segments/${testSegmentId}/build`,
-          {},
+        const response = await api.put(
+          `/admin/ad-planning/segments/${testSegmentId}`,
+          { rebuild: true },
           headers
         );
 

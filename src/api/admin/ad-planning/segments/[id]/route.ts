@@ -6,6 +6,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { z } from "@medusajs/framework/zod";
 import { MedusaError } from "@medusajs/framework/utils";
 import { AD_PLANNING_MODULE } from "../../../../../modules/ad-planning";
+import { buildSegmentWorkflow } from "../../../../../workflows/ad-planning/segments/build-segment";
 
 /**
  * Get segment by ID
@@ -67,6 +68,7 @@ const UpdateSegmentSchema = z.object({
   auto_update: z.boolean().optional(),
   color: z.string().optional().nullable(),
   metadata: z.record(z.any()).optional().nullable(),
+  rebuild: z.boolean().optional(),
 });
 
 /**
@@ -86,10 +88,34 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     );
   }
 
-  const segment = await adPlanningService.updateCustomerSegments({
-    id,
-    ...data,
-  });
+  const { rebuild, ...updateData } = data;
+
+  // If only rebuilding, skip the update call
+  if (Object.keys(updateData).length > 0) {
+    await adPlanningService.updateCustomerSegments({
+      id,
+      ...updateData,
+    });
+  }
+
+  // Trigger rebuild if requested
+  if (rebuild) {
+    const result = await buildSegmentWorkflow(req.scope).run({
+      input: { segment_id: id },
+    });
+
+    const [refreshed] = await adPlanningService.listCustomerSegments({ id });
+    const members = await adPlanningService.listSegmentMembers({ segment: { id } });
+
+    res.json({
+      segment: { ...refreshed, member_count: members.length },
+      build_result: result.result,
+      message: `Segment rebuilt: ${result.result.members_added} added, ${result.result.members_removed} removed`,
+    });
+    return;
+  }
+
+  const [segment] = await adPlanningService.listCustomerSegments({ id });
 
   res.json({ segment });
 };

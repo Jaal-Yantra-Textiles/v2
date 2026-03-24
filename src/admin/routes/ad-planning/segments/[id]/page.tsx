@@ -443,8 +443,8 @@ const SegmentDetailPage = () => {
   const rebuildMutation = useMutation({
     mutationFn: async () => {
       return await sdk.client.fetch<any>(
-        `/admin/ad-planning/segments/${id}/build`,
-        { method: "POST" }
+        `/admin/ad-planning/segments/${id}`,
+        { method: "PUT", body: { rebuild: true } }
       )
     },
     onSuccess: (result) => {

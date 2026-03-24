@@ -257,11 +257,11 @@ const updateMembersStep = createStep(
     });
     const currentMemberIds = new Set(currentMembers.map((m: any) => m.person_id));
 
-    // Determine adds and removes
+    // Determine adds and removes — preserve manually added members
     const newMemberIds = new Set(input.matching_person_ids);
     const toAdd = input.matching_person_ids.filter(id => !currentMemberIds.has(id));
     const toRemove = currentMembers
-      .filter((m: any) => !newMemberIds.has(m.person_id))
+      .filter((m: any) => !newMemberIds.has(m.person_id) && m.added_reason === "rule_match")
       .map((m: any) => m.id);
 
     // Add new members
@@ -296,23 +296,27 @@ const updateSegmentStatsStep = createStep(
   async (
     input: {
       segment_id: string;
-      customer_count: number;
     },
     { container }
   ) => {
     const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
 
+    // Count actual members after add/remove for accuracy
+    const members = await adPlanningService.listSegmentMembers({
+      segment_id: input.segment_id,
+    });
+
     await adPlanningService.updateCustomerSegments([
       {
         selector: { id: input.segment_id },
         data: {
-          customer_count: input.customer_count,
+          customer_count: members.length,
           last_calculated_at: new Date(),
         },
       },
     ]);
 
-    return new StepResponse({ updated: true });
+    return new StepResponse({ updated: true, customer_count: members.length });
   }
 );
 
@@ -337,7 +341,6 @@ export const buildSegmentWorkflow = createWorkflow(
 
     updateSegmentStatsStep({
       segment_id: input.segment_id,
-      customer_count: evaluation.matching_ids.length,
     });
 
     return new WorkflowResponse({

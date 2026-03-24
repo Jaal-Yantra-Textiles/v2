@@ -17,13 +17,12 @@ type CalculateChurnRiskInput = {
   person_id: string;
 };
 
-// Churn risk factors and weights
+// Churn risk factors and weights (must sum to 1.0)
 const CHURN_FACTORS = {
-  days_since_last_activity: { weight: 0.3, threshold: 30 },
-  days_since_last_purchase: { weight: 0.25, threshold: 60 },
-  engagement_score_decline: { weight: 0.2, threshold: 20 },
+  days_since_last_activity: { weight: 0.35, threshold: 30 },
+  days_since_last_purchase: { weight: 0.30, threshold: 60 },
+  engagement_score_decline: { weight: 0.20, threshold: 20 },
   negative_sentiment_ratio: { weight: 0.15, threshold: 0.3 },
-  support_ticket_increase: { weight: 0.1, threshold: 3 },
 };
 
 /**

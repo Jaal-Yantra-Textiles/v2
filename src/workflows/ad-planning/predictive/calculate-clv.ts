@@ -124,17 +124,27 @@ const calculatePredictedCLVStep = createStep(
     // CLV = AOV × Purchase Frequency × Predicted Lifespan
 
     // Estimate future purchase frequency (with decay)
-    const monthlyFrequency = input.purchase_frequency;
+    // For single-purchase customers, use a conservative estimate instead of 1/month
+    let monthlyFrequency: number;
+    if (input.purchase_count <= 1) {
+      // Conservative: assume 1 purchase per 3 months for single buyers
+      monthlyFrequency = 1 / 3;
+    } else {
+      monthlyFrequency = input.purchase_frequency;
+    }
 
     // Estimate average customer lifespan (24 months default, adjusted by activity)
     const baseLifespanMonths = 24;
     let adjustedLifespan = baseLifespanMonths;
 
-    // If customer is active (purchased recently), extend lifespan estimate
-    if (input.avg_days_between_purchases > 0 && input.avg_days_between_purchases < 90) {
+    // Only extend lifespan for customers with repeat purchases (avg_days > 0 means 2+ purchases)
+    if (input.purchase_count >= 2 && input.avg_days_between_purchases > 0 && input.avg_days_between_purchases < 90) {
       adjustedLifespan = Math.min(36, baseLifespanMonths * 1.5);
     } else if (input.avg_days_between_purchases > 180) {
       adjustedLifespan = Math.max(6, baseLifespanMonths * 0.5);
+    } else if (input.purchase_count <= 1) {
+      // Single purchase — conservative 12-month lifespan
+      adjustedLifespan = 12;
     }
 
     // Calculate predicted CLV

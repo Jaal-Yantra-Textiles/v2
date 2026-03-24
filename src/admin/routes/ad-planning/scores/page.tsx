@@ -145,14 +145,13 @@ const ScoresPage = () => {
   })
   const [searchValue, setSearchValue] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
-  const [tierFilter, setTierFilter] = useState<string>("all")
 
   const limit = pagination.pageSize
   const offset = pagination.pageIndex * limit
 
   // Fetch scores
   const { data, isLoading } = useQuery({
-    queryKey: ["ad-planning", "scores", limit, offset, typeFilter, tierFilter],
+    queryKey: ["ad-planning", "scores", limit, offset, typeFilter],
     queryFn: async () => {
       const params = new URLSearchParams({
         limit: limit.toString(),
@@ -160,9 +159,6 @@ const ScoresPage = () => {
       })
       if (typeFilter !== "all") {
         params.set("score_type", typeFilter)
-      }
-      if (tierFilter !== "all") {
-        params.set("tier", tierFilter)
       }
       const res = await sdk.client.fetch<any>(`/admin/ad-planning/scores?${params}`)
       return res
@@ -193,13 +189,6 @@ const ScoresPage = () => {
     { value: "nps", label: "NPS Score" },
   ]
 
-  const tiers = [
-    { value: "all", label: "All Tiers" },
-    { value: "platinum", label: "Platinum" },
-    { value: "gold", label: "Gold" },
-    { value: "silver", label: "Silver" },
-    { value: "bronze", label: "Bronze" },
-  ]
 
   return (
     <Container className="divide-y p-0">
@@ -223,22 +212,6 @@ const ScoresPage = () => {
                 </Select.Trigger>
                 <Select.Content>
                   {scoreTypes.map((t) => (
-                    <Select.Item key={t.value} value={t.value}>
-                      {t.label}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-              <Select
-                size="small"
-                value={tierFilter}
-                onValueChange={setTierFilter}
-              >
-                <Select.Trigger>
-                  <Select.Value placeholder="Filter by tier" />
-                </Select.Trigger>
-                <Select.Content>
-                  {tiers.map((t) => (
                     <Select.Item key={t.value} value={t.value}>
                       {t.label}
                     </Select.Item>

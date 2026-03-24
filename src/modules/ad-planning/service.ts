@@ -165,9 +165,12 @@ class AdPlanningService extends MedusaService({
       }
     }
 
-    // Try exact match on meta_campaign_id
+    // Try exact match on meta_campaign_id (compare both raw and normalized)
     for (const campaign of adCampaigns) {
-      if (campaign.meta_campaign_id === utmCampaign) {
+      if (campaign.meta_campaign_id && (
+        campaign.meta_campaign_id === utmCampaign ||
+        campaign.meta_campaign_id.toLowerCase().trim() === normalizedUtm
+      )) {
         return { campaignId: campaign.id, confidence: 1.0, method: "exact_utm_match" };
       }
     }

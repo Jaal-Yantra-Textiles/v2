@@ -33,6 +33,11 @@ const SegmentMember = model.define("SegmentMember", {
     on: ["person_id"],
     name: "idx_segment_member_person",
   },
+  {
+    on: ["segment_id", "person_id"],
+    name: "idx_segment_member_unique",
+    unique: true,
+  },
 ])
 
 export default SegmentMember

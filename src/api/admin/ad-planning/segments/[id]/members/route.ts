@@ -31,7 +31,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   // Get segment members
-  const members = await adPlanningService.listSegmentMembers(
+  const [members, totalCount] = await adPlanningService.listAndCountSegmentMembers(
     { segment_id: id },
     {
       skip: params.offset,
@@ -126,7 +126,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       customer_count: segment.customer_count,
     },
     members: enrichedMembers,
-    count: members.length,
+    count: totalCount,
     offset: params.offset,
     limit: params.limit,
   });

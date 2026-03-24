@@ -33,9 +33,9 @@ interface Segment {
   description: string | null
   segment_type: string
   criteria: any
-  member_count: number | null
-  is_dynamic: boolean
-  status: string
+  customer_count: number
+  auto_update: boolean
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -86,8 +86,7 @@ const SegmentsPage = () => {
         const colors: Record<string, "green" | "blue" | "orange" | "purple" | "grey"> = {
           behavioral: "blue",
           demographic: "green",
-          value: "purple",
-          engagement: "orange",
+          rfm: "purple",
           custom: "grey",
         }
         return (
@@ -97,7 +96,7 @@ const SegmentsPage = () => {
         )
       },
     }),
-    columnHelper.accessor("member_count", {
+    columnHelper.accessor("customer_count", {
       header: "Members",
       cell: ({ getValue }) => {
         const count = getValue()
@@ -111,7 +110,7 @@ const SegmentsPage = () => {
         )
       },
     }),
-    columnHelper.accessor("is_dynamic", {
+    columnHelper.accessor("auto_update", {
       header: "Dynamic",
       cell: ({ getValue }) => (
         <Badge color={getValue() ? "green" : "grey"} size="xsmall">
@@ -119,13 +118,13 @@ const SegmentsPage = () => {
         </Badge>
       ),
     }),
-    columnHelper.accessor("status", {
+    columnHelper.accessor("is_active", {
       header: "Status",
       cell: ({ getValue }) => {
-        const status = getValue()
+        const active = getValue()
         return (
-          <Badge color={status === "active" ? "green" : "grey"} size="xsmall">
-            {status}
+          <Badge color={active ? "green" : "grey"} size="xsmall">
+            {active ? "Active" : "Inactive"}
           </Badge>
         )
       },
@@ -217,9 +216,9 @@ const SegmentsPage = () => {
       name: formData.name,
       description: formData.description || null,
       segment_type: formData.segment_type,
-      is_dynamic: formData.is_dynamic,
+      auto_update: formData.is_dynamic,
       criteria: formData.criteria,
-      status: "active",
+      is_active: true,
     })
   }
 
@@ -243,8 +242,7 @@ const SegmentsPage = () => {
     { value: "all", label: "All Types" },
     { value: "behavioral", label: "Behavioral" },
     { value: "demographic", label: "Demographic" },
-    { value: "value", label: "Value-Based" },
-    { value: "engagement", label: "Engagement" },
+    { value: "rfm", label: "RFM" },
     { value: "custom", label: "Custom" },
   ]
 

@@ -8,6 +8,8 @@ import { z } from "@medusajs/framework/zod";
 import { AD_PLANNING_MODULE } from "../../../../modules/ad-planning";
 import { calculateNPSWorkflow } from "../../../../workflows/ad-planning/scoring/calculate-nps";
 import { calculateEngagementWorkflow } from "../../../../workflows/ad-planning/scoring/calculate-engagement";
+import { calculateCLVWorkflow } from "../../../../workflows/ad-planning/predictive/calculate-clv";
+import { calculateChurnRiskWorkflow } from "../../../../workflows/ad-planning/predictive/calculate-churn-risk";
 
 const ListScoresQuerySchema = z.object({
   person_id: z.string().optional(),
@@ -18,7 +20,7 @@ const ListScoresQuerySchema = z.object({
 
 const CalculateScoreSchema = z.object({
   person_id: z.string(),
-  score_type: z.enum(["nps", "engagement"]),
+  score_type: z.enum(["nps", "engagement", "clv", "churn_risk"]),
   // For NPS
   rating: z.number().optional(),
   scale: z.enum(["5", "10"]).optional(),
@@ -38,13 +40,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (params.person_id) filters.person_id = params.person_id;
   if (params.score_type) filters.score_type = params.score_type;
 
-  const scores = await adPlanningService.listCustomerScores(filters, {
+  const [scores, totalCount] = await adPlanningService.listAndCountCustomerScores(filters, {
     skip: params.offset,
     take: params.limit,
     order: { calculated_at: "DESC" },
   });
 
-  // Calculate aggregates
+  // Calculate aggregates (use separate unbounded query)
   const allScores = await adPlanningService.listCustomerScores(filters);
 
   const aggregates: Record<string, { count: number; avg: number; min: number; max: number }> = {};
@@ -71,7 +73,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   res.json({
     scores,
     aggregates,
-    count: scores.length,
+    count: totalCount,
     offset: params.offset,
     limit: params.limit,
   });
@@ -114,6 +116,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     res.status(201).json({
       score_type: "engagement",
+      result: result.result,
+    });
+  } else if (data.score_type === "clv") {
+    const result = await calculateCLVWorkflow(req.scope).run({
+      input: {
+        person_id: data.person_id,
+      },
+    });
+
+    res.status(201).json({
+      score_type: "clv",
+      result: result.result,
+    });
+  } else if (data.score_type === "churn_risk") {
+    const result = await calculateChurnRiskWorkflow(req.scope).run({
+      input: {
+        person_id: data.person_id,
+      },
+    });
+
+    res.status(201).json({
+      score_type: "churn_risk",
       result: result.result,
     });
   } else {

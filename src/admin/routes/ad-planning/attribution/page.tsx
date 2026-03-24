@@ -24,17 +24,17 @@ import { ArrowPath } from "@medusajs/icons"
 
 interface Attribution {
   id: string
-  session_id: string
-  campaign_id: string | null
-  campaign_name: string | null
+  analytics_session_id: string
+  ad_campaign_id: string | null
   utm_source: string | null
   utm_medium: string | null
   utm_campaign: string | null
-  attribution_model: string
-  attribution_weight: number
-  touch_type: string | null
-  converted: boolean
-  conversion_value: number | null
+  platform: string
+  is_resolved: boolean
+  resolution_confidence: number
+  resolution_method: string
+  entry_page: string | null
+  session_pageviews: number
   attributed_at: string
   campaign_spend?: number | null
 }
@@ -42,15 +42,15 @@ interface Attribution {
 const columnHelper = createDataTableColumnHelper<Attribution>()
 
 const columns = [
-  columnHelper.accessor("campaign_name", {
+  columnHelper.accessor("utm_campaign", {
     header: "Campaign",
     cell: ({ getValue, row }) => {
-      const name = getValue()
+      const campaign = getValue()
       const source = row.original.utm_source
       return (
         <div>
           <Text size="small" leading="compact" weight="plus">
-            {name || "Unknown"}
+            {campaign || "Unknown"}
           </Text>
           {source && (
             <Text size="xsmall" leading="compact" className="text-ui-fg-subtle">
@@ -88,51 +88,49 @@ const columns = [
       </Text>
     ),
   }),
-  columnHelper.accessor("attribution_model", {
-    header: "Model",
-    cell: ({ getValue }) => (
-      <Badge color="grey" size="xsmall">
-        {getValue().replace(/_/g, " ")}
-      </Badge>
-    ),
-  }),
-  columnHelper.accessor("touch_type", {
-    header: "Touch",
+  columnHelper.accessor("platform", {
+    header: "Platform",
     cell: ({ getValue }) => {
-      const touch = getValue()
-      const colors: Record<string, "green" | "blue" | "orange"> = {
-        first: "green",
-        last: "blue",
-        middle: "orange",
+      const platform = getValue()
+      const colors: Record<string, "green" | "blue" | "purple" | "grey"> = {
+        meta: "purple",
+        google: "blue",
+        generic: "grey",
       }
-      return touch ? (
-        <Badge color={colors[touch] || "grey"} size="xsmall">
-          {touch}
+      return (
+        <Badge color={colors[platform] || "grey"} size="xsmall">
+          {platform}
         </Badge>
-      ) : (
-        <Text className="text-ui-fg-muted">-</Text>
       )
     },
   }),
-  columnHelper.accessor("converted", {
-    header: "Converted",
+  columnHelper.accessor("is_resolved", {
+    header: "Resolved",
     cell: ({ getValue }) => (
       <Badge color={getValue() ? "green" : "grey"} size="xsmall">
         {getValue() ? "Yes" : "No"}
       </Badge>
     ),
   }),
-  columnHelper.accessor("conversion_value", {
-    header: "Value",
+  columnHelper.accessor("resolution_method", {
+    header: "Method",
     cell: ({ getValue }) => {
-      const value = getValue()
-      if (!value) return <Text className="text-ui-fg-muted">-</Text>
+      const method = getValue()
+      if (!method || method === "unresolved") return <Text className="text-ui-fg-muted">-</Text>
       return (
-        <Text size="small" leading="compact" weight="plus">
-          ₹{(value / 100).toLocaleString()}
-        </Text>
+        <Badge color="grey" size="xsmall">
+          {method.replace(/_/g, " ")}
+        </Badge>
       )
     },
+  }),
+  columnHelper.accessor("session_pageviews", {
+    header: "Pageviews",
+    cell: ({ getValue }) => (
+      <Text size="small" leading="compact">
+        {getValue()}
+      </Text>
+    ),
   }),
   columnHelper.accessor("campaign_spend", {
     header: "Ad Spend",
@@ -164,21 +162,20 @@ const AttributionPage = () => {
   })
   const [searchValue, setSearchValue] = useState("")
   const [modelFilter, setModelFilter] = useState<string>("all")
-  const [sourceFilter, setSourceFilter] = useState<string>("all")
 
   const limit = pagination.pageSize
   const offset = pagination.pageIndex * limit
 
   // Fetch attributions
   const { data, isLoading } = useQuery({
-    queryKey: ["ad-planning", "attributions", limit, offset, modelFilter, sourceFilter],
+    queryKey: ["ad-planning", "attributions", limit, offset, modelFilter],
     queryFn: async () => {
       const params = new URLSearchParams({
         limit: limit.toString(),
         offset: offset.toString(),
       })
       if (modelFilter !== "all") {
-        params.set("attribution_model", modelFilter)
+        params.set("is_resolved", modelFilter === "resolved" ? "true" : "false")
       }
       const res = await sdk.client.fetch<any>(`/admin/ad-planning/attribution?${params}`)
       return res
@@ -210,7 +207,6 @@ const AttributionPage = () => {
   const enrichedAttributions = useMemo(() => {
     return (data?.attributions || []).map((attr: Attribution) => {
       const key = (
-        attr.campaign_name ||
         attr.utm_campaign ||
         ""
       ).toLowerCase()
@@ -225,8 +221,9 @@ const AttributionPage = () => {
   // Bulk resolve
   const bulkResolve = useMutation({
     mutationFn: async () => {
-      const res = await sdk.client.fetch<any>("/admin/ad-planning/attribution/bulk-resolve", {
+      const res = await sdk.client.fetch<any>("/admin/ad-planning/attribution/resolve", {
         method: "POST",
+        body: { bulk: true },
       })
       return res
     },
@@ -256,22 +253,10 @@ const AttributionPage = () => {
     },
   })
 
-  const models = [
-    { value: "all", label: "All Models" },
-    { value: "last_click", label: "Last Click" },
-    { value: "first_click", label: "First Click" },
-    { value: "linear", label: "Linear" },
-    { value: "time_decay", label: "Time Decay" },
-    { value: "position_based", label: "Position Based" },
-  ]
-
-  const sources = [
-    { value: "all", label: "All Sources" },
-    { value: "google", label: "Google" },
-    { value: "facebook", label: "Facebook" },
-    { value: "instagram", label: "Instagram" },
-    { value: "email", label: "Email" },
-    { value: "direct", label: "Direct" },
+  const statusFilters = [
+    { value: "all", label: "All Attributions" },
+    { value: "resolved", label: "Resolved" },
+    { value: "unresolved", label: "Unresolved" },
   ]
 
   return (
@@ -292,10 +277,10 @@ const AttributionPage = () => {
                 onValueChange={setModelFilter}
               >
                 <Select.Trigger>
-                  <Select.Value placeholder="Filter by model" />
+                  <Select.Value placeholder="Filter by status" />
                 </Select.Trigger>
                 <Select.Content>
-                  {models.map((m) => (
+                  {statusFilters.map((m) => (
                     <Select.Item key={m.value} value={m.value}>
                       {m.label}
                     </Select.Item>

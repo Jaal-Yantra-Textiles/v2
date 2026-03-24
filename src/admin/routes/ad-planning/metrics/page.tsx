@@ -103,23 +103,23 @@ const MetricsModal = () => {
     },
   })
 
-  // Scores
+  // Scores (use main scores endpoint for aggregates)
   const { data: tierStats } = useQuery({
     queryKey: ["ad-planning", "scores", "tiers"],
     queryFn: async () => {
       const res = await sdk.client.fetch<any>(
-        "/admin/ad-planning/scores/tier-distribution"
+        "/admin/ad-planning/scores?limit=1"
       )
       return res
     },
   })
 
-  // Attribution
+  // Attribution (use stats endpoint)
   const { data: attrSummary } = useQuery({
     queryKey: ["ad-planning", "attribution", "summary"],
     queryFn: async () => {
       const res = await sdk.client.fetch<any>(
-        "/admin/ad-planning/attribution/summary"
+        "/admin/ad-planning/attribution/stats"
       )
       return res
     },
@@ -200,7 +200,7 @@ const MetricsModal = () => {
 
   const totalSegments = segmentsData?.count || 0
   const activeSegments =
-    segmentsData?.segments?.filter((s: any) => s.status === "active").length ||
+    segmentsData?.segments?.filter((s: any) => s.is_active === true).length ||
     0
   const totalMembers =
     segmentsData?.segments?.reduce(
@@ -210,17 +210,15 @@ const MetricsModal = () => {
 
   const funnel = journeyStats?.funnel || []
 
-  const distribution = tierStats?.distribution || []
-  const totalScored = distribution.reduce(
-    (acc: number, t: any) => acc + t.count,
+  const scoreAggregates = tierStats?.aggregates || {}
+  const totalScored: number = Object.values(scoreAggregates).reduce(
+    (acc: number, agg: any) => acc + (agg?.count || 0),
     0
-  )
+  ) as number
+  const distribution: any[] = []
 
-  const totalAttributions = attrSummary?.total || 0
-  const attrConversionRate =
-    totalAttributions > 0
-      ? ((attrSummary?.converted || 0) / totalAttributions) * 100
-      : 0
+  const totalAttributions = attrSummary?.totals?.total_sessions || 0
+  const attrConversionRate = attrSummary?.totals?.resolution_rate || 0
 
   // Meta Ads derived
   const totalSpend = campaignTotals?.spend || 0

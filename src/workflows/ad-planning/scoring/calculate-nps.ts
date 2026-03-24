@@ -29,12 +29,12 @@ const normalizeRatingStep = createStep(
   async (input: { rating: number; scale?: "5" | "10" }) => {
     let npsValue: number;
 
-    if (input.scale === "5" || input.rating <= 5) {
-      // Convert 1-5 to 0-10
-      // 1 → 2, 2 → 4, 3 → 6, 4 → 8, 5 → 10
-      npsValue = Math.round(input.rating * 2);
+    if (input.scale === "5") {
+      // Convert 1-5 to 0-10 using full range mapping
+      // 1 → 0, 2 → 2.5, 3 → 5, 4 → 7.5, 5 → 10
+      npsValue = Math.round((input.rating - 1) * 2.5);
     } else {
-      // Already 0-10 scale
+      // Explicit 10-point scale or default: use as-is
       npsValue = Math.round(input.rating);
     }
 
