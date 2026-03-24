@@ -877,6 +877,109 @@ const emailTemplatesData = [
     template_type: "design_status_updated",
     is_active: true
   },
+  {
+    name: "Design Inventory Linked",
+    template_key: "design-inventory-linked",
+    from: "designs@jyt.com",
+    subject: "Materials assigned to your design: {{design_name}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #333333; font-size: 24px; margin-bottom: 20px;">Materials Assigned</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{customer_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            Inventory materials have been linked to your design <strong>{{design_name}}</strong>. This means your design is progressing toward production.
+          </p>
+          <div style="margin: 20px 0; padding: 20px; background-color: #f0fdf4; border-radius: 6px; border-left: 4px solid #16a34a;">
+            <p style="color: #15803d; font-size: 14px; margin: 0;"><strong>Current Status:</strong> {{design_status}}</p>
+          </div>
+          {{#if design_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{design_url}}" style="background-color: #0369a1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              View Design
+            </a>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+    `,
+    variables: {
+      customer_name: "Customer's name",
+      design_name: "Design name",
+      design_status: "Current design status",
+      design_url: "URL to the design (optional)",
+    },
+    template_type: "design_inventory_linked",
+    is_active: true
+  },
+  {
+    name: "Design Production Started",
+    template_key: "design-production-started",
+    from: "designs@jyt.com",
+    subject: "Production has started for your design: {{design_name}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #333333; font-size: 24px; margin-bottom: 20px;">Production Started</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{customer_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            Great news! Production has officially started for your design <strong>{{design_name}}</strong>. Our production partner is now working on bringing your design to life.
+          </p>
+          <div style="margin: 20px 0; padding: 20px; background-color: #eff6ff; border-radius: 6px; border-left: 4px solid #2563eb;">
+            <p style="color: #1e40af; font-size: 14px; margin: 0;"><strong>Status:</strong> In Production</p>
+          </div>
+          {{#if design_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{design_url}}" style="background-color: #0369a1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              View Design
+            </a>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+    `,
+    variables: {
+      customer_name: "Customer's name",
+      design_name: "Design name",
+      design_url: "URL to the design (optional)",
+    },
+    template_type: "design_production_started",
+    is_active: true
+  },
+  {
+    name: "Design Production Completed",
+    template_key: "design-production-completed",
+    from: "designs@jyt.com",
+    subject: "Production complete for your design: {{design_name}}",
+    html_content: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h1 style="color: #16a34a; font-size: 24px; margin-bottom: 20px;">Production Complete!</h1>
+          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">Hi {{customer_name}},</p>
+          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+            Your design <strong>{{design_name}}</strong> has completed production. It is now being prepared for the next steps.
+          </p>
+          <div style="margin: 20px 0; padding: 20px; background-color: #f0fdf4; border-radius: 6px; border-left: 4px solid #16a34a;">
+            <p style="color: #15803d; font-size: 14px; margin: 0;"><strong>Status:</strong> Production Complete</p>
+          </div>
+          {{#if design_url}}
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="{{design_url}}" style="background-color: #0369a1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              View Design
+            </a>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+    `,
+    variables: {
+      customer_name: "Customer's name",
+      design_name: "Design name",
+      design_url: "URL to the design (optional)",
+    },
+    template_type: "design_production_completed",
+    is_active: true
+  },
   // ── Partner Order Emails ───────────────────────────────────────────
   {
     name: "Partner New Order",

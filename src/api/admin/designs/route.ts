@@ -151,7 +151,7 @@ import createDesignWorkflow from "../../../workflows/designs/create-design";
 import listDesignsWorkflow from "../../../workflows/designs/list-designs";
 import { DesignAllowedFields, refetchDesign } from "./helpers";
 import { DateComparisonOperator } from "@medusajs/types";
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import designCustomerLink from "../../../links/design-customer-link";
 
 // Create new design
@@ -182,30 +182,6 @@ export const POST = async (
     req.scope,
     req.remoteQueryConfig?.fields || ["*"],
   );
-
-  // Emit design.assigned event when linked to a customer so the notification
-  // subscriber can send the assignment email asynchronously.
-  const customerId = req.validatedBody?.customer_id_for_link
-  if (customerId) {
-    try {
-      const eventBus = req.scope.resolve(Modules.EVENT_BUS)
-      await eventBus.emit({
-        name: "design.assigned",
-        data: {
-          design_id: result.id,
-          customer_id: customerId,
-          design_name: result.name,
-          design_status: result.status,
-          design_url: result.metadata?.base_product_handle
-            ? `${process.env.STORE_URL || "https://cicilabel.com"}/products/${result.metadata.base_product_handle}/design?designId=${result.id}`
-            : undefined,
-        },
-      })
-    } catch (emitError) {
-      // Non-fatal — design was created successfully; log and continue
-      console.warn("[admin/designs] Failed to emit design.assigned event:", emitError)
-    }
-  }
 
   res.status(201).json({ design });
 };

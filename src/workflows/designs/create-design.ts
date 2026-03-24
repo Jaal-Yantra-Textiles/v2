@@ -4,6 +4,7 @@ import {
   StepResponse,
   WorkflowResponse,
   when,
+  transform,
 } from "@medusajs/framework/workflows-sdk";
 import DesignService from "../../modules/designs/service";
 import { DESIGN_MODULE } from "../../modules/designs";
@@ -13,6 +14,7 @@ import {
   convertCustomSizesToSizeSets,
 } from "./helpers/size-set-utils";
 import type { Link } from "@medusajs/modules-sdk";
+import type { IEventBusModuleService } from "@medusajs/types";
 
 type DesignType = "Original" | "Derivative" | "Custom" | "Collaboration";
 type DesignStatus = "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold" | "Commerce_Ready";
@@ -127,17 +129,47 @@ const linkDesignToCustomerStep = createStep(
   }
 );
 
+const emitDesignAssignedStep = createStep(
+  "emit-design-assigned",
+  async (
+    input: { design_id: string; customer_id: string; design_name: string; design_status?: string },
+    { container }
+  ) => {
+    const eventBus = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
+    await eventBus.emit({
+      name: "design.assigned",
+      data: {
+        design_id: input.design_id,
+        customer_id: input.customer_id,
+        design_name: input.design_name,
+        design_status: input.design_status,
+      },
+    })
+    return new StepResponse(undefined)
+  }
+)
+
 export const createDesignWorkflow = createWorkflow(
   "create-design",
   (input: CreateDesignWorkFlowInput) => {
     const design = createDesignStep(input);
 
     when({ input, design }, ({ input }) => Boolean(input.customer_id_for_link)).then(
-      () =>
+      () => {
         linkDesignToCustomerStep({
           design_id: design.id,
           customer_id: input.customer_id_for_link!,
         })
+
+        const eventPayload = transform({ input, design }, (data) => ({
+          design_id: data.design.id,
+          customer_id: data.input.customer_id_for_link!,
+          design_name: data.design.name,
+          design_status: data.design.status,
+        }))
+
+        emitDesignAssignedStep(eventPayload)
+      }
     );
 
     return new WorkflowResponse(design);

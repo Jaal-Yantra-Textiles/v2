@@ -251,14 +251,23 @@ const notifyPartnerStep = createStep(
   "notify-partner-production-run",
   async (input: { run: any }, { container }) => {
     const eventService = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
-    await eventService.emit({
-      name: "production_run.sent_to_partner",
-      data: {
-        production_run_id: input.run.id,
-        partner_id: input.run.partner_id,
-        design_id: input.run.design_id,
+    await eventService.emit([
+      {
+        name: "production_run.sent_to_partner",
+        data: {
+          production_run_id: input.run.id,
+          partner_id: input.run.partner_id,
+          design_id: input.run.design_id,
+        },
       },
-    })
+      {
+        name: "design.production_started",
+        data: {
+          design_id: input.run.design_id,
+          production_run_id: input.run.id,
+        },
+      },
+    ])
   }
 )
 

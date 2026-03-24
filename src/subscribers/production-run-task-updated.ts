@@ -1,6 +1,6 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import type { Logger } from "@medusajs/types"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import type { IEventBusModuleService, Logger } from "@medusajs/types"
 
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
@@ -50,7 +50,7 @@ export default async function productionRunTaskUpdatedHandler({
 
     const { data: runs } = await query.graph({
       entity: "production_runs",
-      fields: ["id", "status", "parent_run_id", "tasks.*"],
+      fields: ["id", "status", "parent_run_id", "design_id", "tasks.*"],
       filters: { id: String(productionRunId) },
       pagination: { skip: 0, take: 1 },
     })
@@ -97,6 +97,25 @@ export default async function productionRunTaskUpdatedHandler({
       id: String(productionRunId),
       status: "completed" as any,
     })
+
+    // Emit design.production_completed for customer notifications
+    try {
+      const designId = (node as any)?.design_id ?? (run as any)?.design_id
+      if (designId) {
+        const eventBus = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
+        await eventBus.emit({
+          name: "design.production_completed",
+          data: {
+            design_id: String(designId),
+            production_run_id: String(productionRunId),
+          },
+        })
+      }
+    } catch (e: any) {
+      logger.warn(
+        `[tasks.task.updated] Failed to emit design.production_completed: ${e?.message || String(e)}`
+      )
+    }
 
     const parentRunId = (node as any)?.parent_run_id ?? null
     if (!parentRunId) {

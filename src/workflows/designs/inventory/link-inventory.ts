@@ -13,6 +13,7 @@ import {
   createWorkflow,
   transform,
 } from "@medusajs/framework/workflows-sdk"
+import type { IEventBusModuleService } from "@medusajs/types"
 import { DESIGN_MODULE } from "../../../modules/designs"
 import DesignService from "../../../modules/designs/service"
 import { MedusaError } from "@medusajs/utils"
@@ -188,6 +189,21 @@ const createDesignInventoryLinks = createStep(
 
 
 
+const emitDesignInventoryLinkedStep = createStep(
+  "emit-design-inventory-linked",
+  async (input: { design_id: string; inventory_count: number }, { container }) => {
+    const eventBus = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
+    await eventBus.emit({
+      name: "design.inventory_linked",
+      data: {
+        design_id: input.design_id,
+        inventory_count: input.inventory_count,
+      },
+    })
+    return new StepResponse(undefined)
+  }
+)
+
 export const linkDesignInventoryWorkflow = createWorkflow(
   {
     name: "link-design-inventory",
@@ -207,6 +223,13 @@ export const linkDesignInventoryWorkflow = createWorkflow(
     const linksResult = createDesignInventoryLinks({
       design_id: input.design_id,
       payloads,
+    })
+
+    const inventoryCount = transform({ payloads }, ({ payloads }) => payloads.length) as unknown as number
+
+    emitDesignInventoryLinkedStep({
+      design_id: input.design_id,
+      inventory_count: inventoryCount,
     })
 
     return new WorkflowResponse(linksResult)
