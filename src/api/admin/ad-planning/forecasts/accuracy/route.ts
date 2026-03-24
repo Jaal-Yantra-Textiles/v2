@@ -6,6 +6,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { z } from "@medusajs/framework/zod";
 import { AD_PLANNING_MODULE } from "../../../../../modules/ad-planning";
+import { SOCIALS_MODULE } from "../../../../../modules/socials";
 import { calculateForecastAccuracy } from "../../../../../modules/ad-planning/utils/forecast-engine";
 
 const AccuracyQuerySchema = z.object({
@@ -20,6 +21,12 @@ const AccuracyQuerySchema = z.object({
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const params = AccuracyQuerySchema.parse(req.query);
   const adPlanningService = req.scope.resolve(AD_PLANNING_MODULE);
+  let socialsService: any = null;
+  try {
+    socialsService = req.scope.resolve(SOCIALS_MODULE);
+  } catch {
+    // Socials module not available — will fall back to conversion-based estimates
+  }
 
   const filters: Record<string, any> = {
     is_actual_recorded: true,
@@ -97,10 +104,27 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       totalAccuracy += accuracy.accuracy;
       count++;
 
+      // Pull actual spend from AdInsights if available
+      let actualSpend = 0;
+      if (socialsService && forecast.ad_campaign_id) {
+        try {
+          const insights = await socialsService.listAdInsights({
+            ad_campaign_id: forecast.ad_campaign_id,
+            date_start: { $gte: periodStart },
+            date_stop: { $lte: periodEnd },
+          });
+          actualSpend = insights.reduce((sum: number, i: any) => sum + (Number(i.spend) || 0), 0);
+        } catch {
+          // Fall back to estimated spend from daily budget × days
+          const days = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (24 * 60 * 60 * 1000));
+          actualSpend = (Number(forecast.predicted_spend) / (forecastMetadata?.forecast_days || 30)) * days;
+        }
+      }
+
       // Update forecast with actual data
       await adPlanningService.updateBudgetForecasts({
         id: forecast.id,
-        actual_spend: forecast.predicted_spend, // Would need actual spend data
+        actual_spend: actualSpend,
         actual_conversions: conversions.length,
         actual_revenue: Object.values(actualByDay).reduce((a, b) => a + b, 0),
         forecast_error_percent: 100 - accuracy.accuracy,

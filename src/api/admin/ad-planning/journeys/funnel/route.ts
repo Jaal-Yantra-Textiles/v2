@@ -42,17 +42,22 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const journeys = await adPlanningService.listCustomerJourneys(filters);
 
-  // Group by person and find their highest stage
-  const personStages: Record<string, Set<string>> = {};
+  // Group by unique identity (person_id or visitor_id) and find their stages
+  const entityStages: Record<string, Set<string>> = {};
+  let identifiedCount = 0;
+  let anonymousCount = 0;
 
   for (const journey of journeys) {
-    // Skip journeys without person_id
-    if (!journey.person_id) continue;
+    // Use person_id if available, fall back to visitor_id
+    const entityId = journey.person_id || journey.visitor_id;
+    if (!entityId) continue;
 
-    if (!personStages[journey.person_id]) {
-      personStages[journey.person_id] = new Set();
+    if (!entityStages[entityId]) {
+      entityStages[entityId] = new Set();
+      if (journey.person_id) identifiedCount++;
+      else anonymousCount++;
     }
-    personStages[journey.person_id].add(journey.stage);
+    entityStages[entityId].add(journey.stage);
   }
 
   // Calculate funnel metrics
@@ -63,29 +68,29 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     dropoff_rate: number;
   }> = [];
 
-  const totalCustomers = Object.keys(personStages).length;
-  let previousCount = totalCustomers;
+  const totalEntities = Object.keys(entityStages).length;
+  let previousCount = totalEntities;
 
   for (const stage of STAGES) {
-    // Count customers who reached this stage or higher
-    const customersAtStage = Object.values(personStages).filter((stages) => {
+    // Count entities who reached this stage or higher
+    const entitiesAtStage = Object.values(entityStages).filter((stages) => {
       const stageIndex = STAGES.indexOf(stage);
       return Array.from(stages).some((s) => STAGES.indexOf(s) >= stageIndex);
     }).length;
 
-    const percentage = totalCustomers > 0 ? (customersAtStage / totalCustomers) * 100 : 0;
+    const percentage = totalEntities > 0 ? (entitiesAtStage / totalEntities) * 100 : 0;
     const dropoffRate = previousCount > 0
-      ? ((previousCount - customersAtStage) / previousCount) * 100
+      ? ((previousCount - entitiesAtStage) / previousCount) * 100
       : 0;
 
     funnelData.push({
       stage,
-      count: customersAtStage,
+      count: entitiesAtStage,
       percentage: Math.round(percentage * 100) / 100,
       dropoff_rate: Math.round(dropoffRate * 100) / 100,
     });
 
-    previousCount = customersAtStage;
+    previousCount = entitiesAtStage;
   }
 
   // Calculate conversion rates
@@ -125,14 +130,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   res.json({
     funnel: funnelData,
     summary: {
-      total_customers: totalCustomers,
+      total_customers: totalEntities,
+      identified_customers: identifiedCount,
+      anonymous_visitors: anonymousCount,
       awareness_to_conversion_rate: Math.round(conversionRate * 100) / 100,
       biggest_dropoff: biggestDropoff,
       avg_stages_per_customer:
-        totalCustomers > 0
+        totalEntities > 0
           ? Math.round(
-              (Object.values(personStages).reduce((sum, stages) => sum + stages.size, 0) /
-                totalCustomers) *
+              (Object.values(entityStages).reduce((sum, stages) => sum + stages.size, 0) /
+                totalEntities) *
                 100
             ) / 100
           : 0,

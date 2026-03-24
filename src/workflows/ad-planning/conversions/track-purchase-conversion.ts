@@ -14,6 +14,7 @@ import {
 import { AD_PLANNING_MODULE } from "../../../modules/ad-planning";
 import type AdPlanningService from "../../../modules/ad-planning/service";
 import { Modules } from "@medusajs/framework/utils";
+import { PERSON_MODULE } from "../../../modules/person";
 
 type TrackPurchaseConversionInput = {
   order_id: string;
@@ -57,7 +58,38 @@ const fetchOrderStep = createStep(
 );
 
 /**
- * Step 2: Find attribution from session or customer
+ * Step 2: Resolve person_id from order email
+ */
+const resolvePersonStep = createStep(
+  "resolve-person",
+  async (
+    input: { email?: string; person_id?: string },
+    { container }
+  ) => {
+    // If person_id already provided, use it
+    if (input.person_id) {
+      return new StepResponse({ person_id: input.person_id });
+    }
+
+    // Try to resolve person from order email
+    if (input.email) {
+      try {
+        const personService = container.resolve(PERSON_MODULE) as any;
+        const persons = await personService.listPeople({ email: input.email });
+        if (persons?.length > 0) {
+          return new StepResponse({ person_id: persons[0].id });
+        }
+      } catch {
+        // Person module lookup failed — non-fatal
+      }
+    }
+
+    return new StepResponse({ person_id: null as string | null });
+  }
+);
+
+/**
+ * Step 3: Find attribution from session or customer
  */
 const findAttributionStep = createStep(
   "find-attribution",
@@ -211,15 +243,13 @@ const createPurchaseConversionStep = createStep(
 );
 
 /**
- * Step 4: Update customer lifetime value
+ * Step 4: Recalculate customer lifetime value (full prediction, not just increment)
  */
-const updateCustomerValueStep = createStep(
-  "update-customer-value",
+const recalculateCLVStep = createStep(
+  "recalculate-clv",
   async (
     input: {
-      person_id?: string;
-      order_total: number;
-      currency: string;
+      person_id?: string | null;
     },
     { container }
   ) => {
@@ -227,47 +257,132 @@ const updateCustomerValueStep = createStep(
       return new StepResponse({ updated: false });
     }
 
-    const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
+    try {
+      // Import and run the full CLV workflow inline as a step
+      // to avoid circular workflow dependencies
+      const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
 
-    // Check for existing CLV score
-    const existing = await adPlanningService.listCustomerScores({
-      person_id: input.person_id,
-      score_type: "clv",
-    });
-
-    if (existing.length > 0) {
-      // Update existing CLV
-      const newValue = (Number(existing[0].score_value) || 0) + input.order_total;
-      const existingMetadata = (existing[0].metadata || {}) as Record<string, any>;
-      await adPlanningService.updateCustomerScores({
-        id: existing[0].id,
-        score_value: newValue,
-        metadata: {
-          ...existingMetadata,
-          last_purchase_at: new Date().toISOString(),
-          total_purchases: (existingMetadata.total_purchases || 0) + 1,
-        },
-        calculated_at: new Date(),
+      // Get all purchases for this person
+      const purchases = await adPlanningService.listConversions({
+        person_id: input.person_id,
+        conversion_type: "purchase",
       });
-    } else {
-      // Create new CLV record
-      await adPlanningService.createCustomerScores([
-        {
-          person_id: input.person_id,
-          score_type: "clv",
-          score_value: input.order_total,
+
+      const sortedPurchases = purchases.sort(
+        (a: any, b: any) => new Date(a.converted_at).getTime() - new Date(b.converted_at).getTime()
+      );
+
+      const purchaseCount = sortedPurchases.length;
+      const totalRevenue = sortedPurchases.reduce(
+        (sum: number, p: any) => sum + (Number(p.conversion_value) || 0), 0
+      );
+
+      if (purchaseCount === 0) {
+        return new StepResponse({ updated: false });
+      }
+
+      const averageOrderValue = totalRevenue / purchaseCount;
+
+      // Calculate purchase frequency
+      const firstPurchase = sortedPurchases[0];
+      const lifespanDays = Math.max(1, Math.floor(
+        (Date.now() - new Date(firstPurchase.converted_at).getTime()) / (24 * 60 * 60 * 1000)
+      ));
+      const lifespanMonths = Math.max(1, lifespanDays / 30);
+
+      let monthlyFrequency: number;
+      let avgDaysBetween = 0;
+
+      if (purchaseCount <= 1) {
+        monthlyFrequency = 1 / 3;
+      } else {
+        monthlyFrequency = purchaseCount / lifespanMonths;
+        const daysBetween: number[] = [];
+        for (let i = 1; i < sortedPurchases.length; i++) {
+          daysBetween.push(Math.floor(
+            (new Date(sortedPurchases[i].converted_at).getTime() -
+              new Date(sortedPurchases[i - 1].converted_at).getTime()) / (24 * 60 * 60 * 1000)
+          ));
+        }
+        avgDaysBetween = daysBetween.reduce((a, b) => a + b, 0) / daysBetween.length;
+      }
+
+      // Estimate lifespan
+      let adjustedLifespan = 24;
+      if (purchaseCount >= 2 && avgDaysBetween > 0 && avgDaysBetween < 90) {
+        adjustedLifespan = Math.min(36, 24 * 1.5);
+      } else if (avgDaysBetween > 180) {
+        adjustedLifespan = Math.max(6, 24 * 0.5);
+      } else if (purchaseCount <= 1) {
+        adjustedLifespan = 12;
+      }
+
+      const predictedCLV = Math.round(averageOrderValue * monthlyFrequency * adjustedLifespan * 100) / 100;
+      const remainingCLV = Math.max(0, predictedCLV - totalRevenue);
+
+      // Determine tier
+      let tier: string;
+      if (predictedCLV >= 50000) tier = "platinum";
+      else if (predictedCLV >= 20000) tier = "gold";
+      else if (predictedCLV >= 5000) tier = "silver";
+      else tier = "bronze";
+
+      // Upsert CLV score
+      const existing = await adPlanningService.listCustomerScores({
+        person_id: input.person_id,
+        score_type: "clv",
+      });
+
+      const scoreData = {
+        predicted_clv: predictedCLV,
+        remaining_clv: remainingCLV,
+        realized_clv: totalRevenue,
+        tier,
+        metrics: {
+          average_order_value: Math.round(averageOrderValue * 100) / 100,
+          monthly_frequency: Math.round(monthlyFrequency * 100) / 100,
+          purchase_count: purchaseCount,
+        },
+        calculated_at: new Date().toISOString(),
+      };
+
+      if (existing.length > 0) {
+        const existingMetadata = (existing[0].metadata as Record<string, any>) || {};
+        const history = existingMetadata.history || [];
+        history.push({
+          predicted_clv: predictedCLV,
+          realized_clv: totalRevenue,
+          date: new Date().toISOString(),
+        });
+
+        await adPlanningService.updateCustomerScores({
+          id: existing[0].id,
+          score_value: predictedCLV,
           metadata: {
-            first_purchase_at: new Date().toISOString(),
-            last_purchase_at: new Date().toISOString(),
-            total_purchases: 1,
-            currency: input.currency,
+            ...scoreData,
+            history: history.slice(-12),
+            previous_predicted: existingMetadata.predicted_clv,
           },
           calculated_at: new Date(),
-        },
-      ]);
-    }
+        });
+      } else {
+        await adPlanningService.createCustomerScores([{
+          person_id: input.person_id,
+          score_type: "clv",
+          score_value: predictedCLV,
+          metadata: {
+            ...scoreData,
+            history: [{ predicted_clv: predictedCLV, realized_clv: totalRevenue, date: new Date().toISOString() }],
+          },
+          calculated_at: new Date(),
+        }]);
+      }
 
-    return new StepResponse({ updated: true });
+      return new StepResponse({ updated: true, predicted_clv: predictedCLV, tier });
+    } catch (error) {
+      console.error("[AdPlanning] CLV recalculation failed:", error);
+      return new StepResponse({ updated: false });
+    }
   }
 );
 
@@ -312,6 +427,223 @@ const addPurchaseJourneyStep = createStep(
 );
 
 /**
+ * Step 6: Recalculate engagement score after purchase
+ */
+const recalculateEngagementAfterPurchaseStep = createStep(
+  "recalculate-engagement-after-purchase",
+  async (input: { person_id?: string | null }, { container }) => {
+    if (!input.person_id) return new StepResponse({ updated: false });
+
+    try {
+      const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
+
+      const conversions = await adPlanningService.listConversions({ person_id: input.person_id });
+      const sentiments = await adPlanningService.listSentimentAnalyses({ person_id: input.person_id });
+      const journeyEvents = await adPlanningService.listCustomerJourneys({ person_id: input.person_id });
+
+      const WEIGHTS: Record<string, number> = {
+        page_view: 1, session: 5, product_view: 3, add_to_cart: 10,
+        begin_checkout: 15, purchase: 25, form_submit: 15, feedback: 20,
+        social_share: 8, email_open: 2, email_click: 5,
+      };
+
+      const now = Date.now();
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+      let totalScore = 0;
+
+      const score = (type: string, date: Date, value?: number) => {
+        const age = now - date.getTime();
+        let w = WEIGHTS[type] || 1;
+        if (age < thirtyDaysMs) w *= 1.0;
+        else if (age < ninetyDaysMs) w *= 0.5;
+        else w *= 0.25;
+        if (type === "purchase" && value && value > 0) w += Math.log10(value + 1) * 2;
+        totalScore += w;
+      };
+
+      for (const c of conversions) score(c.conversion_type, new Date(c.converted_at), Number(c.conversion_value) || 0);
+      for (const s of sentiments) score("feedback", new Date(s.analyzed_at));
+      for (const e of journeyEvents) score(e.event_type, new Date(e.occurred_at));
+
+      const normalized = Math.min(100, Math.round(totalScore / 5));
+      const level = normalized >= 70 ? "high" : normalized >= 40 ? "medium" : normalized > 0 ? "low" : "inactive";
+
+      const existing = await adPlanningService.listCustomerScores({
+        person_id: input.person_id, score_type: "engagement",
+      });
+
+      if (existing.length > 0) {
+        const meta = (existing[0].metadata as Record<string, any>) || {};
+        const history = meta.score_history || [];
+        history.push({ score: normalized, date: new Date().toISOString() });
+        await adPlanningService.updateCustomerScores({
+          id: existing[0].id, score_value: normalized,
+          metadata: { level, score_history: history.slice(-30), previous_score: existing[0].score_value },
+          calculated_at: new Date(),
+        });
+      } else {
+        await adPlanningService.createCustomerScores([{
+          person_id: input.person_id, score_type: "engagement" as const,
+          score_value: normalized,
+          metadata: { level, score_history: [{ score: normalized, date: new Date().toISOString() }] },
+          calculated_at: new Date(),
+        }]);
+      }
+
+      return new StepResponse({ updated: true, score: normalized });
+    } catch (error) {
+      console.error("[AdPlanning] Post-purchase engagement recalc failed:", error);
+      return new StepResponse({ updated: false });
+    }
+  }
+);
+
+/**
+ * Step 7: Recalculate churn risk after purchase (purchase resets inactivity signals)
+ */
+const recalculateChurnRiskAfterPurchaseStep = createStep(
+  "recalculate-churn-after-purchase",
+  async (input: { person_id?: string | null }, { container }) => {
+    if (!input.person_id) return new StepResponse({ updated: false });
+
+    try {
+      const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
+      const now = new Date();
+
+      const journeyEvents = await adPlanningService.listCustomerJourneys({ person_id: input.person_id });
+      const conversions = await adPlanningService.listConversions({ person_id: input.person_id });
+      const sentiments = await adPlanningService.listSentimentAnalyses({ person_id: input.person_id });
+      const scores = await adPlanningService.listCustomerScores({ person_id: input.person_id });
+
+      // Days since last activity
+      const lastActivity = journeyEvents.length > 0
+        ? new Date(Math.max(...journeyEvents.map((e: any) => new Date(e.occurred_at).getTime())))
+        : null;
+      const daysSinceActivity = lastActivity
+        ? Math.floor((now.getTime() - lastActivity.getTime()) / (24 * 60 * 60 * 1000))
+        : 365;
+
+      // Days since last purchase
+      const lastPurchase = conversions
+        .filter((c: any) => c.conversion_type === "purchase")
+        .sort((a: any, b: any) => new Date(b.converted_at).getTime() - new Date(a.converted_at).getTime())[0];
+      const daysSincePurchase = lastPurchase
+        ? Math.floor((now.getTime() - new Date(lastPurchase.converted_at).getTime()) / (24 * 60 * 60 * 1000))
+        : 365;
+
+      // Engagement decline
+      const engagementScore = scores.find((s: any) => s.score_type === "engagement");
+      const engagementMeta = engagementScore?.metadata as Record<string, any> | null;
+      const engHistory = engagementMeta?.score_history || [];
+      let engagementDecline = 0;
+      if (engHistory.length >= 2) {
+        const recent = engHistory.slice(-3).map((h: any) => h.score);
+        const earlier = engHistory.slice(0, 3).map((h: any) => h.score);
+        const recentAvg = recent.reduce((a: number, b: number) => a + b, 0) / recent.length;
+        const earlierAvg = earlier.reduce((a: number, b: number) => a + b, 0) / earlier.length;
+        engagementDecline = earlierAvg > 0 ? ((earlierAvg - recentAvg) / earlierAvg) * 100 : 0;
+      }
+
+      // Negative sentiment ratio
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const recentSentiments = sentiments.filter((s: any) => new Date(s.analyzed_at) >= thirtyDaysAgo);
+      const negRatio = recentSentiments.length > 0
+        ? recentSentiments.filter((s: any) => s.sentiment_label === "negative").length / recentSentiments.length
+        : 0;
+
+      // Weighted risk score (weights must sum to 1.0)
+      const activityRisk = Math.min(1, daysSinceActivity / 90) * 0.35;
+      const purchaseRisk = Math.min(1, daysSincePurchase / 180) * 0.30;
+      const engRisk = Math.min(1, Math.max(0, engagementDecline) / 100) * 0.20;
+      const sentRisk = negRatio * 0.15;
+
+      let riskScore = activityRisk + purchaseRisk + engRisk + sentRisk;
+
+      // Value adjustments
+      const totalPurchases = conversions.filter((c: any) => c.conversion_type === "purchase").length;
+      if (totalPurchases > 5) riskScore -= 0.05;
+      else if (totalPurchases === 0) riskScore += 0.1;
+
+      riskScore = Math.max(0, Math.min(1, riskScore));
+      const normalized = Math.round(riskScore * 100);
+
+      const riskLevel = normalized >= 75 ? "critical" : normalized >= 50 ? "high" : normalized >= 25 ? "medium" : "low";
+
+      // Upsert
+      const existing = await adPlanningService.listCustomerScores({
+        person_id: input.person_id, score_type: "churn_risk",
+      });
+
+      if (existing.length > 0) {
+        const meta = (existing[0].metadata as Record<string, any>) || {};
+        const history = meta.history || [];
+        history.push({ score: normalized, level: riskLevel, date: new Date().toISOString() });
+        await adPlanningService.updateCustomerScores({
+          id: existing[0].id, score_value: normalized,
+          metadata: { risk_level: riskLevel, history: history.slice(-30), previous_score: existing[0].score_value },
+          calculated_at: new Date(),
+        });
+      } else {
+        await adPlanningService.createCustomerScores([{
+          person_id: input.person_id, score_type: "churn_risk",
+          score_value: normalized,
+          metadata: { risk_level: riskLevel, history: [{ score: normalized, level: riskLevel, date: new Date().toISOString() }] },
+          calculated_at: new Date(),
+        }]);
+      }
+
+      return new StepResponse({ updated: true, risk_score: normalized, risk_level: riskLevel });
+    } catch (error) {
+      console.error("[AdPlanning] Post-purchase churn risk recalc failed:", error);
+      return new StepResponse({ updated: false });
+    }
+  }
+);
+
+/**
+ * Step 8: Rebuild active auto-update segments that may be affected by score changes
+ */
+const rebuildAutoSegmentsStep = createStep(
+  "rebuild-auto-segments",
+  async (input: { person_id?: string | null }, { container }) => {
+    if (!input.person_id) return new StepResponse({ rebuilt: 0 });
+
+    try {
+      const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
+
+      // Find active segments with auto_update enabled
+      const segments = await adPlanningService.listCustomerSegments({
+        is_active: true,
+        auto_update: true,
+      });
+
+      if (segments.length === 0) return new StepResponse({ rebuilt: 0 });
+
+      // Import build workflow dynamically to avoid circular deps
+      const { buildSegmentWorkflow } = await import("../segments/build-segment.js");
+
+      let rebuilt = 0;
+      for (const segment of segments) {
+        try {
+          await buildSegmentWorkflow(container).run({
+            input: { segment_id: segment.id },
+          });
+          rebuilt++;
+        } catch (error) {
+          console.error(`[AdPlanning] Failed to rebuild segment ${segment.id}:`, error);
+        }
+      }
+
+      return new StepResponse({ rebuilt });
+    } catch (error) {
+      console.error("[AdPlanning] Segment auto-rebuild failed:", error);
+      return new StepResponse({ rebuilt: 0 });
+    }
+  }
+);
+
+/**
  * Main workflow: Track purchase conversion
  */
 export const trackPurchaseConversionWorkflow = createWorkflow(
@@ -319,10 +651,16 @@ export const trackPurchaseConversionWorkflow = createWorkflow(
   (input: TrackPurchaseConversionInput) => {
     const order = fetchOrderStep({ order_id: input.order_id });
 
+    // Resolve person_id from input or order email
+    const personResolution = resolvePersonStep({
+      email: order.email,
+      person_id: input.person_id,
+    });
+
     const attribution = findAttributionStep({
       session_id: input.session_id,
       customer_id: input.customer_id,
-      person_id: input.person_id,
+      person_id: personResolution.person_id,
     });
 
     const conversion = createPurchaseConversionStep({
@@ -331,26 +669,39 @@ export const trackPurchaseConversionWorkflow = createWorkflow(
       session_id: input.session_id,
       visitor_id: input.visitor_id,
       website_id: input.website_id,
-      person_id: input.person_id,
+      person_id: personResolution.person_id,
     });
 
-    updateCustomerValueStep({
-      person_id: input.person_id,
-      order_total: order.total,
-      currency: order.currency,
+    recalculateCLVStep({
+      person_id: personResolution.person_id,
     });
 
     addPurchaseJourneyStep({
-      person_id: input.person_id,
+      person_id: personResolution.person_id,
       order_id: input.order_id,
       order_total: order.total,
       website_id: input.website_id,
       session_id: input.session_id,
     });
 
+    // Recalculate engagement and churn risk after purchase
+    recalculateEngagementAfterPurchaseStep({
+      person_id: personResolution.person_id,
+    });
+
+    recalculateChurnRiskAfterPurchaseStep({
+      person_id: personResolution.person_id,
+    });
+
+    // Rebuild auto-update segments with refreshed scores
+    rebuildAutoSegmentsStep({
+      person_id: personResolution.person_id,
+    });
+
     return new WorkflowResponse({
       conversion,
       order_id: input.order_id,
+      person_id: personResolution.person_id,
       attributed: attribution.ad_campaign_id !== null,
       attribution_method: attribution.attribution_method,
     });

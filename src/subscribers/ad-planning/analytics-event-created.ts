@@ -7,6 +7,7 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
 import { AD_PLANNING_MODULE } from "../../modules/ad-planning";
 import { trackConversionWorkflow } from "../../workflows/ad-planning/conversions/track-conversion";
+import { resolveSessionAttributionWorkflow } from "../../workflows/ad-planning/attribution/resolve-session-attribution";
 
 type AnalyticsEventCreatedEvent = {
   id: string;
@@ -114,6 +115,20 @@ export default async function analyticsEventCreatedHandler({
     console.log(`[AdPlanning] Conversion tracked for event: ${eventName}`);
   } catch (error) {
     console.error("[AdPlanning] Failed to process analytics event:", error);
+  }
+
+  // Auto-resolve attribution if session has UTM campaign data
+  if (data.utm_campaign && data.session_id) {
+    try {
+      await resolveSessionAttributionWorkflow(container).run({
+        input: {
+          session_id: data.session_id,
+          website_id: data.website_id,
+        },
+      });
+    } catch {
+      // Attribution resolution is non-critical — don't log noise for duplicates
+    }
   }
 }
 

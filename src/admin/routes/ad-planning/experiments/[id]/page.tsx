@@ -8,13 +8,19 @@ import {
   Heading,
   Text,
   Badge,
+  Button,
+  Input,
+  Label,
+  Textarea,
+  FocusModal,
   toast,
   usePrompt,
   StatusBadge,
 } from "@medusajs/ui"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useParams, useNavigate, UIMatch } from "react-router-dom"
-import { PlaySolid, Pause, Trash } from "@medusajs/icons"
+import { useState } from "react"
+import { PlaySolid, Pause, Trash, PencilSquare } from "@medusajs/icons"
 import { TwoColumnPage } from "../../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../../components/table/skeleton"
 import { ActionMenu } from "../../../../components/common/action-menu"
@@ -34,6 +40,7 @@ const ExperimentGeneralSection = ({
   onStart,
   onStop,
   onDelete,
+  onEdit,
   isStarting,
   isStopping,
 }: {
@@ -41,6 +48,7 @@ const ExperimentGeneralSection = ({
   onStart: () => void
   onStop: () => void
   onDelete: () => void
+  onEdit: () => void
   isStarting: boolean
   isStopping: boolean
 }) => {
@@ -64,6 +72,11 @@ const ExperimentGeneralSection = ({
   if (experiment.status === "draft") {
     actions.push({
       actions: [
+        {
+          label: "Edit",
+          icon: <PencilSquare />,
+          onClick: onEdit,
+        },
         {
           label: "Start Experiment",
           icon: <PlaySolid />,
@@ -360,9 +373,52 @@ const ExperimentResultsSection = ({
   )
 }
 
-const ExperimentSidebar = ({ experiment }: { experiment: any }) => {
+const ExperimentSidebar = ({ experiment, results }: { experiment: any; results?: any }) => {
+  // Calculate sample progress
+  const totalSamples = (results?.control?.samples || 0) + (results?.treatment?.samples || 0)
+  const targetSize = experiment.target_sample_size || 0
+  const progressPercent = targetSize > 0 ? Math.min(100, Math.round((totalSamples / targetSize) * 100)) : 0
+
   return (
     <Container className="divide-y p-0">
+      {/* Sample Progress */}
+      {(experiment.status === "running" || experiment.status === "completed") && targetSize > 0 && (
+        <>
+          <div className="px-6 py-4">
+            <Heading level="h2">Sample Progress</Heading>
+          </div>
+          <div className="px-6 py-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <Text size="xsmall" className="text-ui-fg-muted">
+                {totalSamples.toLocaleString()} / {targetSize.toLocaleString()}
+              </Text>
+              <Text size="xsmall" weight="plus" className={progressPercent >= 100 ? "text-ui-fg-positive" : ""}>
+                {progressPercent}%
+              </Text>
+            </div>
+            <div className="w-full bg-ui-bg-subtle rounded-full h-2.5">
+              <div
+                className={`h-2.5 rounded-full transition-all ${progressPercent >= 100 ? "bg-ui-tag-green-bg" : "bg-ui-tag-blue-bg"}`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            {results?.control && results?.treatment && (
+              <div className="flex justify-between text-center">
+                <div>
+                  <Text size="xsmall" className="text-ui-fg-muted">Control</Text>
+                  <Text size="small" weight="plus">{results.control.samples?.toLocaleString() || 0}</Text>
+                </div>
+                <div>
+                  <Text size="xsmall" className="text-ui-fg-muted">Treatment</Text>
+                  <Text size="small" weight="plus">{results.treatment.samples?.toLocaleString() || 0}</Text>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Timeline */}
       <div className="px-6 py-4">
         <Heading level="h2">Timeline</Heading>
       </div>
@@ -455,6 +511,8 @@ const ExperimentDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ name: "", description: "" })
 
   const { data: experimentData, isLoading } = useQuery({
     queryKey: ["ad-planning", "experiment", id],
@@ -536,6 +594,31 @@ const ExperimentDetailPage = () => {
     },
   })
 
+  const editExperiment = useMutation({
+    mutationFn: async (data: { name: string; description: string }) => {
+      return await sdk.client.fetch<any>(
+        `/admin/ad-planning/experiments/${id}`,
+        { method: "PUT", body: data }
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ad-planning", "experiment", id] })
+      toast.success("Experiment updated")
+      setEditOpen(false)
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to update experiment")
+    },
+  })
+
+  const handleOpenEdit = () => {
+    const exp = experimentData?.experiment
+    if (exp) {
+      setEditForm({ name: exp.name || "", description: exp.description || "" })
+      setEditOpen(true)
+    }
+  }
+
   if (isLoading) {
     return (
       <TwoColumnPageSkeleton
@@ -557,6 +640,7 @@ const ExperimentDetailPage = () => {
   }
 
   return (
+    <>
     <TwoColumnPage showJSON data={experiment}>
       <TwoColumnPage.Main>
         <ExperimentGeneralSection
@@ -564,6 +648,7 @@ const ExperimentDetailPage = () => {
           onStart={() => startExperiment.mutate()}
           onStop={() => stopExperiment.mutate()}
           onDelete={() => deleteExperiment.mutate()}
+          onEdit={handleOpenEdit}
           isStarting={startExperiment.isPending}
           isStopping={stopExperiment.isPending}
         />
@@ -575,9 +660,45 @@ const ExperimentDetailPage = () => {
         />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
-        <ExperimentSidebar experiment={experiment} />
+        <ExperimentSidebar experiment={experiment} results={resultsData?.results} />
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
+
+    {/* Edit Modal */}
+    <FocusModal open={editOpen} onOpenChange={setEditOpen}>
+      <FocusModal.Content>
+        <FocusModal.Header>
+          <Text size="large" weight="plus">Edit Experiment</Text>
+        </FocusModal.Header>
+        <FocusModal.Body className="flex flex-col gap-y-4 p-6">
+          <div>
+            <Label>Name</Label>
+            <Input
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label>Description</Label>
+            <Textarea
+              value={editForm.description}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+            />
+          </div>
+        </FocusModal.Body>
+        <FocusModal.Footer>
+          <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => editExperiment.mutate(editForm)}
+            isLoading={editExperiment.isPending}
+            disabled={!editForm.name}
+          >
+            Save
+          </Button>
+        </FocusModal.Footer>
+      </FocusModal.Content>
+    </FocusModal>
+    </>
   )
 }
 

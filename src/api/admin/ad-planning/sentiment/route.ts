@@ -94,6 +94,41 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     .slice(0, 10)
     .map(([emotion, count]) => ({ emotion, count }));
 
+  // Get top entities (brands, people, products mentioned)
+  const entityCounts: Record<string, number> = {};
+  for (const s of allSentiments) {
+    const entities = (s.entities as string[] | null) || [];
+    for (const entity of entities) {
+      entityCounts[entity] = (entityCounts[entity] || 0) + 1;
+    }
+  }
+  const topEntities = Object.entries(entityCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([entity, count]) => ({ entity, count }));
+
+  // Get top topics
+  const topicCounts: Record<string, number> = {};
+  for (const s of allSentiments) {
+    const topics = (s.topics as string[] | null) || [];
+    for (const topic of topics) {
+      topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+    }
+  }
+  const topTopics = Object.entries(topicCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([topic, count]) => ({ topic, count }));
+
+  // Include summary excerpts from recent sentiments
+  const recentSummaries = allSentiments
+    .slice(0, 5)
+    .map((s: any) => {
+      const meta = s.metadata as Record<string, any> | null;
+      return meta?.summary || null;
+    })
+    .filter(Boolean);
+
   res.json({
     sentiments,
     stats: {
@@ -103,6 +138,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     },
     top_keywords: topKeywords,
     top_emotions: topEmotions,
+    top_entities: topEntities,
+    top_topics: topTopics,
+    recent_summaries: recentSummaries,
     count: sentiments.length,
     offset: params.offset,
     limit: params.limit,

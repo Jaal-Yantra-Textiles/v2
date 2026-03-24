@@ -1,6 +1,6 @@
 /**
  * Conversions List Page
- * Displays all conversion events with filtering and search
+ * Displays all conversion events with filtering, summary stats, and drill-down links
  */
 
 import { defineRouteConfig } from "@medusajs/admin-sdk"
@@ -16,7 +16,8 @@ import {
   Select,
 } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useState, useMemo } from "react"
+import { Link } from "react-router-dom"
 import { sdk } from "../../../lib/config"
 
 interface Conversion {
@@ -24,6 +25,7 @@ interface Conversion {
   conversion_type: string
   conversion_name: string | null
   visitor_id: string
+  person_id: string | null
   session_id: string | null
   conversion_value: number | null
   currency: string
@@ -31,81 +33,11 @@ interface Conversion {
   platform: string
   utm_source: string | null
   utm_campaign: string | null
+  ad_campaign_id: string | null
   converted_at: string
 }
 
 const columnHelper = createDataTableColumnHelper<Conversion>()
-
-const columns = [
-  columnHelper.accessor("conversion_type", {
-    header: "Type",
-    cell: ({ getValue }) => {
-      const type = getValue()
-      const colors: Record<string, "green" | "blue" | "orange" | "purple" | "grey"> = {
-        purchase: "green",
-        lead_form_submission: "blue",
-        add_to_cart: "orange",
-        begin_checkout: "purple",
-      }
-      return (
-        <Badge color={colors[type] || "grey"} size="xsmall">
-          {type.replace(/_/g, " ")}
-        </Badge>
-      )
-    },
-  }),
-  columnHelper.accessor("conversion_value", {
-    header: "Value",
-    cell: ({ getValue, row }) => {
-      const value = getValue()
-      const currency = row.original.currency
-      if (!value) return <Text className="text-ui-fg-muted">-</Text>
-      return (
-        <Text size="small" leading="compact">
-          {currency === "INR" ? "₹" : currency} {(value / 100).toLocaleString()}
-        </Text>
-      )
-    },
-  }),
-  columnHelper.accessor("utm_source", {
-    header: "Source",
-    cell: ({ getValue }) => {
-      const source = getValue()
-      return (
-        <Text size="small" leading="compact" className={!source ? "text-ui-fg-muted" : ""}>
-          {source || "Direct"}
-        </Text>
-      )
-    },
-  }),
-  columnHelper.accessor("utm_campaign", {
-    header: "Campaign",
-    cell: ({ getValue }) => {
-      const campaign = getValue()
-      return (
-        <Text size="small" leading="compact" className={!campaign ? "text-ui-fg-muted" : ""}>
-          {campaign || "-"}
-        </Text>
-      )
-    },
-  }),
-  columnHelper.accessor("platform", {
-    header: "Platform",
-    cell: ({ getValue }) => (
-      <Badge color="grey" size="xsmall">
-        {getValue()}
-      </Badge>
-    ),
-  }),
-  columnHelper.accessor("converted_at", {
-    header: "Date",
-    cell: ({ getValue }) => (
-      <Text size="small" leading="compact" className="text-ui-fg-subtle">
-        {new Date(getValue()).toLocaleString()}
-      </Text>
-    ),
-  }),
-]
 
 const ConversionsPage = () => {
   const [pagination, setPagination] = useState<DataTablePaginationState>({
@@ -134,6 +66,113 @@ const ConversionsPage = () => {
     },
   })
 
+  // Fetch stats for summary
+  const { data: stats } = useQuery({
+    queryKey: ["ad-planning", "conversions", "stats-summary"],
+    queryFn: async () => {
+      const res = await sdk.client.fetch<any>("/admin/ad-planning/conversions/stats")
+      return res
+    },
+  })
+
+  const columns = useMemo(() => [
+    columnHelper.accessor("conversion_type", {
+      header: "Type",
+      cell: ({ getValue }) => {
+        const type = getValue()
+        const colors: Record<string, "green" | "blue" | "orange" | "purple" | "grey"> = {
+          purchase: "green",
+          lead_form_submission: "blue",
+          add_to_cart: "orange",
+          begin_checkout: "purple",
+        }
+        return (
+          <Badge color={colors[type] || "grey"} size="xsmall">
+            {type.replace(/_/g, " ")}
+          </Badge>
+        )
+      },
+    }),
+    columnHelper.accessor("conversion_value", {
+      header: "Value",
+      cell: ({ getValue, row }) => {
+        const value = getValue()
+        const currency = row.original.currency
+        if (!value) return <Text className="text-ui-fg-muted">-</Text>
+        return (
+          <Text size="small" leading="compact" weight="plus">
+            {currency === "INR" ? "₹" : currency} {value.toLocaleString()}
+          </Text>
+        )
+      },
+    }),
+    columnHelper.accessor("order_id", {
+      header: "Order",
+      cell: ({ getValue }) => {
+        const orderId = getValue()
+        if (!orderId) return <Text className="text-ui-fg-muted">-</Text>
+        return (
+          <Link to={`/orders/${orderId}`}>
+            <Text size="small" leading="compact" className="text-ui-fg-interactive hover:underline font-mono">
+              {orderId.slice(0, 10)}...
+            </Text>
+          </Link>
+        )
+      },
+    }),
+    columnHelper.accessor("utm_campaign", {
+      header: "Campaign",
+      cell: ({ getValue }) => {
+        const campaign = getValue()
+        if (!campaign) return <Text className="text-ui-fg-muted">-</Text>
+        return (
+          <Link to={`/ad-planning/attribution?utm_campaign=${encodeURIComponent(campaign)}`}>
+            <Text size="small" leading="compact" className="text-ui-fg-interactive hover:underline">
+              {campaign}
+            </Text>
+          </Link>
+        )
+      },
+    }),
+    columnHelper.accessor("person_id", {
+      header: "Customer",
+      cell: ({ getValue, row }) => {
+        const personId = getValue()
+        const visitorId = row.original.visitor_id
+        if (personId) {
+          return (
+            <Link to={`/ad-planning/journeys?person_id=${personId}`}>
+              <Text size="small" leading="compact" className="text-ui-fg-interactive hover:underline font-mono">
+                {personId.slice(0, 10)}...
+              </Text>
+            </Link>
+          )
+        }
+        return (
+          <Text size="small" leading="compact" className="text-ui-fg-muted font-mono">
+            {visitorId?.slice(0, 10)}...
+          </Text>
+        )
+      },
+    }),
+    columnHelper.accessor("platform", {
+      header: "Platform",
+      cell: ({ getValue }) => (
+        <Badge color="grey" size="xsmall">
+          {getValue()}
+        </Badge>
+      ),
+    }),
+    columnHelper.accessor("converted_at", {
+      header: "Date",
+      cell: ({ getValue }) => (
+        <Text size="small" leading="compact" className="text-ui-fg-subtle">
+          {new Date(getValue()).toLocaleString()}
+        </Text>
+      ),
+    }),
+  ], [])
+
   const table = useDataTable({
     data: data?.conversions || [],
     columns,
@@ -160,8 +199,38 @@ const ConversionsPage = () => {
     { value: "time_on_site", label: "Time on Site" },
   ]
 
+  const totalValue = stats?.total_value || 0
+  const totalConversions = stats?.total_conversions || 0
+  const purchaseCount = stats?.by_type?.purchase || 0
+
   return (
-    <Container className="divide-y p-0">
+    <div className="flex flex-col gap-y-3">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
+          <Text size="xsmall" className="text-ui-fg-subtle">Total Conversions</Text>
+          <Text size="xlarge" weight="plus" className="mt-1">{totalConversions.toLocaleString()}</Text>
+        </div>
+        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
+          <Text size="xsmall" className="text-ui-fg-subtle">Total Value</Text>
+          <Text size="xlarge" weight="plus" className="mt-1 text-ui-fg-positive">
+            ₹{totalValue.toLocaleString()}
+          </Text>
+        </div>
+        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
+          <Text size="xsmall" className="text-ui-fg-subtle">Purchases</Text>
+          <Text size="xlarge" weight="plus" className="mt-1">{purchaseCount.toLocaleString()}</Text>
+        </div>
+        <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
+          <Text size="xsmall" className="text-ui-fg-subtle">Avg Value</Text>
+          <Text size="xlarge" weight="plus" className="mt-1">
+            {totalConversions > 0 ? `₹${Math.round(totalValue / totalConversions).toLocaleString()}` : "-"}
+          </Text>
+        </div>
+      </div>
+
+      {/* Data Table */}
+      <Container className="divide-y p-0">
         <DataTable instance={table}>
           <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
             <div>
@@ -193,7 +262,8 @@ const ConversionsPage = () => {
           <DataTable.Table />
           <DataTable.Pagination />
         </DataTable>
-    </Container>
+      </Container>
+    </div>
   )
 }
 
