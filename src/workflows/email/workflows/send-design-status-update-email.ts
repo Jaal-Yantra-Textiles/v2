@@ -1,4 +1,4 @@
-import { createWorkflow, createStep, StepResponse, WorkflowResponse, transform } from "@medusajs/framework/workflows-sdk"
+import { createWorkflow, createStep, StepResponse, WorkflowResponse, transform, when } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { ICustomerModuleService } from "@medusajs/types"
 import { sendNotificationEmailStep } from "../steps/send-notification-email"
@@ -76,7 +76,9 @@ export const sendDesignStatusUpdateEmailWorkflow = createWorkflow(
       }
     })
 
-    sendNotificationEmailStep(emailData)
+    when({ emailData }, (data) => data.emailData !== null).then(() => {
+      sendNotificationEmailStep(emailData!)
+    })
 
     return new WorkflowResponse(emailData)
   }
