@@ -1,3 +1,10 @@
+## [12.1.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.1...v12.1.2) (2026-03-24)
+
+
+### Bug Fixes
+
+* **workflows:** Fixed the maileroo ([ba066a8](https://github.com/Jaal-Yantra-Textiles/v2/commit/ba066a86c0343e2c6273ce0a1d5db508b7c47120))
+
 ## [12.1.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.0...v12.1.1) (2026-03-23)
 
 
