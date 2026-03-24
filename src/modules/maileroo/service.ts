@@ -7,7 +7,11 @@ import {
   ProviderSendNotificationDTO,
   ProviderSendNotificationResultsDTO,
 } from "@medusajs/framework/types"
-import { MailerooClient, EmailAddress } from "maileroo-sdk"
+// maileroo-sdk is ESM-only — use lazy dynamic import
+const mailerooImport = import("maileroo-sdk")
+type MailerooClientType = InstanceType<
+  Awaited<typeof mailerooImport>["MailerooClient"]
+>
 
 type InjectedDependencies = {
   logger: Logger
@@ -47,7 +51,7 @@ export type BulkSendResult = {
 
 class MailerooNotificationProviderService extends AbstractNotificationProviderService {
   static identifier = "maileroo"
-  protected readonly client: MailerooClient
+  protected client_: MailerooClientType | null = null
   protected readonly options: MailerooOptions
   protected readonly logger: Logger
 
@@ -56,9 +60,21 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
     options: MailerooOptions
   ) {
     super()
-    this.client = new MailerooClient(options.api_key)
     this.options = options
     this.logger = logger
+  }
+
+  protected async getClient(): Promise<MailerooClientType> {
+    if (!this.client_) {
+      const { MailerooClient } = await mailerooImport
+      this.client_ = new MailerooClient(this.options.api_key)
+    }
+    return this.client_
+  }
+
+  protected async emailAddress(email: string, name?: string) {
+    const { EmailAddress } = await mailerooImport
+    return new EmailAddress(email, name)
   }
 
   static validateOptions(options: Record<any, any>) {
@@ -126,9 +142,10 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
     }
 
     try {
-      const referenceId = await this.client.sendBasicEmail({
-        from: new EmailAddress(fromEmail, fromName),
-        to: [new EmailAddress(notification.to)],
+      const client = await this.getClient()
+      const referenceId = await client.sendBasicEmail({
+        from: await this.emailAddress(fromEmail, fromName),
+        to: [await this.emailAddress(notification.to)],
         subject,
         html: htmlContent || "No content",
       })
@@ -164,19 +181,24 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
       const batch = entries.slice(i, i + BATCH_SIZE)
 
       try {
-        const referenceIds = await this.client.sendBulkEmails({
-          subject: batch[0].subject, // Bulk API uses a shared subject
-          html: "{{{_html_content}}}",  // Use template passthrough
-          messages: batch.map((entry) => ({
-            from: new EmailAddress(
+        const bulkClient = await this.getClient()
+        const bulkMessages: any[] = []
+        for (const entry of batch) {
+          bulkMessages.push({
+            from: await this.emailAddress(
               entry.from || defaultFrom,
               entry.fromName || defaultName
             ),
-            to: new EmailAddress(entry.to),
+            to: await this.emailAddress(entry.to),
             template_data: {
               _html_content: entry.htmlContent,
             },
-          })),
+          })
+        }
+        const referenceIds = await bulkClient.sendBulkEmails({
+          subject: batch[0].subject, // Bulk API uses a shared subject
+          html: "{{{_html_content}}}",  // Use template passthrough
+          messages: bulkMessages,
         })
 
         // Map results back to entries
@@ -194,12 +216,13 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
         // If bulk fails, fall back to individual sends
         for (const entry of batch) {
           try {
-            const refId = await this.client.sendBasicEmail({
-              from: new EmailAddress(
+            const fallbackClient = await this.getClient()
+            const refId = await fallbackClient.sendBasicEmail({
+              from: await this.emailAddress(
                 entry.from || defaultFrom,
                 entry.fromName || defaultName
               ),
-              to: [new EmailAddress(entry.to)],
+              to: [await this.emailAddress(entry.to)],
               subject: entry.subject,
               html: entry.htmlContent,
             })

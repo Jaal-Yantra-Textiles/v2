@@ -6,7 +6,7 @@ sidebar_position: 1
 
 # Design Production Lifecycle
 
-_Last updated: 2026-03-23_
+_Last updated: 2026-03-24_
 
 This document covers how designs move from creation through sampling and into production, and the recommendation to consolidate two overlapping systems into one.
 

@@ -4512,6 +4512,12 @@
         "placeholder": "0"
       },
       {
+        "name": "run_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.run_type }}"
+      },
+      {
         "name": "product_id",
         "type": "id",
         "required": false,
@@ -4550,6 +4556,24 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/create-production-run.ts"
+  },
+  "signal-lifecycle-step-success": {
+    "fields": [
+      {
+        "name": "transaction_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.transaction_id }}"
+      },
+      {
+        "name": "step_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.step_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/production-run-steps.ts"
   },
   "send-production-run-to-production": {
     "fields": [

@@ -6,7 +6,7 @@ sidebar_position: 2
 
 # Production Run Convergence Plan
 
-_Last updated: 2026-03-23_
+_Last updated: 2026-03-24_
 
 This document details how to retire the `send-to-partner` design workflow and converge all partner production work into the Production Runs system. It covers the gap analysis, the specific changes needed, and the partner API/UI surface that needs to be unified.
 
@@ -244,104 +244,131 @@ The lifecycle workflow checks `run_type` to decide whether to update design stat
 
 ---
 
-## Implementation Order
+## Implementation Status
 
-### Step 1 — Add `run_type` to ProductionRun model
+### Step 1 — Add `run_type` + proper columns to ProductionRun model ✅
 
-- Add `run_type` enum field with default `"production"`
-- Migration
-- Update admin create endpoint to accept `run_type`
-- Update partner list endpoint to support `run_type` filter
+- `run_type` enum (`production` | `sample`, default `production`)
+- Lifecycle timestamps: `accepted_at`, `started_at`, `finished_at`, `completed_at`
+- Dispatch columns: `dispatch_state`, `dispatch_started_at`, `dispatch_completed_at`, `dispatch_template_names`
+- Migration `Migration20260324022553.ts` with backfill from metadata
+- Validators and routes updated to accept `run_type`
+- Workflows updated to use columns instead of `metadata.acceptance.*` and `metadata.dispatch.*`
 
-### Step 2 — Create `runProductionRunLifecycleWorkflow`
+### Step 2 — `runProductionRunLifecycleWorkflow` ✅
 
-- New workflow at `src/workflows/production-runs/run-production-run-lifecycle.ts`
-- Async gate steps: `await-run-start`, `await-run-finish`, `await-run-complete`
-- 23-day timeout per step (matching current design workflow)
-- Triggered by `sendProductionRunToProductionWorkflow` after task creation
-- Uses `store: true` for durability
-- No redo gates — redo is handled via task templates at the task level
+- `src/workflows/production-runs/run-production-run-lifecycle.ts` — durable workflow (`store: true`)
+- 3 async gate steps: `await-run-start`, `await-run-finish`, `await-run-complete`
+- 23-day timeout per step (configurable via `PRODUCTION_RUN_AWAIT_TIMEOUT_SECONDS`)
+- Stamps `metadata.lifecycle_transaction_id` on the run for partner endpoint signaling
+- Cascade completion step checks parent run
+- Started fire-and-forget from `sendProductionRunToProductionWorkflow` via `startLifecycleWorkflowStep`
+- Signal utility: `src/workflows/production-runs/production-run-steps.ts`
 
-### Step 3 — Add partner milestone endpoints
+### Step 3 — Partner milestone endpoints ✅
 
-- `POST /partners/production-runs/:id/start`
-- `POST /partners/production-runs/:id/finish`
-- `POST /partners/production-runs/:id/complete`
-- Each endpoint: validates partner ownership, updates run metadata, signals workflow step
-- `/complete` runs inventory adjustment + consumption recording (port from `completePartnerDesignWorkflow`)
+- `POST /partners/production-runs/:id/start` — sets `started_at`, signals `await-run-start`
+- `POST /partners/production-runs/:id/finish` — sets `finished_at`, signals `await-run-finish`
+- `POST /partners/production-runs/:id/complete` — sets `completed_at` + status `completed`, signals `await-run-complete`
+- All validate partner ownership (`.catch(() => null)` on retrieve), status guards, duplicate-action prevention
+- Registered in `middlewares.ts` with partner CORS + auth
 
-### Step 4 — Add admin endpoint for redo tasks
+### Step 4 — Redo via task templates ✅ (no new endpoint needed)
 
-- `POST /admin/production-runs/:id/tasks` — creates tasks from template names, links to run + partner + design
-- Reuses `createTaskWithTemplates` from TaskService
-- New tasks automatically block run completion via the existing subscriber
+- Redo = admin adds more tasks from redo templates to the same run
+- The `production-run-task-updated` subscriber checks all linked tasks before marking run complete
+- New redo tasks automatically block completion
 
-### Step 5 — Add consumption log endpoints on production runs
+### Step 5 — Consumption log endpoints on production runs ✅
 
-- `POST /partners/production-runs/:id/consumption-logs`
-- `GET /partners/production-runs/:id/consumption-logs`
-- Reuse `logConsumptionWorkflow` and `listConsumptionLogsWorkflow` with `production_run_id` context
+- `POST /partners/production-runs/:id/consumption-logs` — logs via the run's `design_id`, adds `production_run_id` to metadata
+- `GET /partners/production-runs/:id/consumption-logs` — lists consumption logs
+- Validates partner ownership + run must be `in_progress`
+- Zod validator at `src/api/partners/production-runs/[id]/consumption-logs/validators.ts`
 
-### Step 6 — Add media endpoints on production runs
+### Step 6 — Media endpoints on production runs ✅
 
-- `POST /partners/production-runs/:id/media`
-- `POST /partners/production-runs/:id/media/attach`
-- Route media to the run's linked design (since designs own media)
+- `POST /partners/production-runs/:id/media` — multipart file upload via `uploadFilesWorkflow`
+- `POST /partners/production-runs/:id/media/attach` — attach URLs to the run's design with de-duplication
+- Validates partner ownership
+- Registered with multer for upload, JSON parser for attach
 
-### Step 7 — Update partner-ui
+### Step 7 — Partner-ui updates ✅
 
-- Add milestone action buttons to production run detail page
-- Add consumption logs section
-- Add media upload section
-- Add `run_type` filter (Sampling / Production tabs)
-- Retire `/designs/*` routes from partner-ui
+- **List page**: `run_type` filter (Production/Sample dropdown) + Type column
+- **Detail page**: Start, Mark Finished, Complete action buttons with status-gating
+- **Detail page**: Activity timeline uses proper columns (`accepted_at`, `started_at`, `finished_at`, `completed_at`) instead of metadata
+- **Detail page**: Type (run_type) shown in General section
+- **Hooks**: `useStartPartnerProductionRun`, `useFinishPartnerProductionRun`, `useCompletePartnerProductionRun` added via `createRunMilestoneHook` factory. `PartnerProductionRun` type updated with new fields.
 
-### Step 8 — Admin UI updates
+### Step 8 — Admin UI updates ✅
 
-- Add "Create Sample Run" action on design detail page
-- Update batch send drawer to create production runs instead of calling send-to-partner
-- Add `run_type` column to production runs list
+- **Detail page**: Type field added to Overview tab
+- **Design section**: `run_type` badge (blue=Sample, grey=Production) on each run card
+- **Hooks**: `AdminProductionRun` type updated with `run_type`
 
-### Step 9 — Deprecate send-to-partner
+### Step 9 — Deprecate send-to-partner (pending)
 
-- Mark `POST /admin/designs/:id/send-to-partner` as deprecated (log warning)
-- Remove admin UI entry points
-- Keep the endpoint functional for in-flight workflows
+- Send-to-partner remains active for existing designs
+- New designs should use production runs
+- When ready: guard the route, remove admin UI entry points
+- See [Migration Guide](./send-to-partner-migration.md)
 
-### Step 10 — Remove send-to-partner
+### Step 10 — Remove send-to-partner (pending)
 
-- Remove the workflow, route, validators, and admin UI components
-- Remove `/partners/designs/:id/start|finish|redo|refinish|complete` endpoints
-- Remove partner-ui design routes
-- Clean up old task templates if no longer referenced
+- After all in-flight workflows are completed
+- Remove workflow, routes, validators, admin UI components
+- Remove partner design endpoints and partner-ui design routes
+- See [Migration Guide](./send-to-partner-migration.md)
 
 ---
 
-## Files to Create
+## Files Created
 
 | File | Purpose |
 |------|---------|
-| `src/workflows/production-runs/run-production-run-lifecycle.ts` | Long-running lifecycle workflow |
+| `src/workflows/production-runs/run-production-run-lifecycle.ts` | Long-running lifecycle workflow (3 async gates) |
+| `src/workflows/production-runs/production-run-steps.ts` | Signal utility for lifecycle workflow steps |
+| `src/modules/production_runs/migrations/Migration20260324022553.ts` | Add `run_type`, lifecycle timestamps, dispatch columns + backfill |
 | `src/api/partners/production-runs/[id]/start/route.ts` | Partner start endpoint |
 | `src/api/partners/production-runs/[id]/finish/route.ts` | Partner finish endpoint |
 | `src/api/partners/production-runs/[id]/complete/route.ts` | Partner complete endpoint |
-| `src/api/admin/production-runs/[id]/tasks/route.ts` | Admin endpoint to add redo tasks |
-| `src/api/partners/production-runs/[id]/consumption-logs/route.ts` | Consumption log CRUD |
-| `src/api/partners/production-runs/[id]/media/route.ts` | Media upload |
-| `src/api/partners/production-runs/[id]/media/attach/route.ts` | Media attach |
+| `src/api/partners/production-runs/[id]/consumption-logs/route.ts` | Consumption log POST + GET |
+| `src/api/partners/production-runs/[id]/consumption-logs/validators.ts` | Zod schema |
+| `src/api/partners/production-runs/[id]/media/route.ts` | Multipart file upload |
+| `src/api/partners/production-runs/[id]/media/attach/route.ts` | Attach media URLs to design |
+| `integration-tests/http/production-run-lifecycle.spec.ts` | Integration tests (4 tests) |
 
-## Files to Modify
+## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/modules/production_runs/models/production-run.ts` | Add `run_type` field |
-| `src/workflows/production-runs/send-production-run-to-production.ts` | Trigger lifecycle workflow after task creation |
-| `src/api/partners/production-runs/route.ts` | Add `run_type` filter |
-| `src/api/partners/production-runs/[id]/route.ts` | Return consumption logs + media in detail |
-| `src/api/middlewares.ts` | Register new partner routes |
-| `apps/partner-ui/src/routes/production-runs/` | Add milestone buttons, consumption, media |
+| `src/modules/production_runs/models/production-run.ts` | Added 9 columns: `run_type`, lifecycle timestamps, dispatch fields |
+| `src/workflows/production-runs/send-production-run-to-production.ts` | Fire-and-forget lifecycle workflow after task creation |
+| `src/workflows/production-runs/accept-production-run.ts` | Use `accepted_at` column instead of metadata |
+| `src/workflows/production-runs/dispatch-production-run.ts` | Use `dispatch_state`/`dispatch_started_at`/`dispatch_completed_at` columns |
+| `src/workflows/production-runs/approve-production-run.ts` | Use `dispatch_template_names` column, pass `run_type` |
+| `src/workflows/production-runs/create-production-run.ts` | Accept and pass `run_type` |
+| `src/modules/production_policy/service.ts` | Read `dispatch_state` from column |
+| `src/api/admin/production-runs/validators.ts` | Added `run_type` to create schema |
+| `src/api/admin/production-runs/route.ts` | Pass `run_type`, support `run_type` filter |
+| `src/api/admin/production-runs/[id]/approve/route.ts` | Read `dispatch_template_names` from column |
+| `src/api/admin/designs/[id]/production-runs/route.ts` | Read `dispatch_template_names` from column |
+| `src/api/partners/production-runs/validators.ts` | Added `run_type` filter |
+| `src/api/partners/production-runs/route.ts` | Support `run_type` filter |
+| `src/api/middlewares.ts` | Register all new partner routes |
+| `src/subscribers/production-run-task-updated.ts` | Race condition guard + column read for `dispatch_template_names` |
+| `src/subscribers/order-placed.ts` | Added logging when product has no design linked |
+| `src/api/partners/assigned-tasks/[taskId]/subtasks/[subtaskId]/complete/route.ts` | Added `updateTaskWorkflow` call for event emission |
+| `apps/partner-ui/src/hooks/api/partner-production-runs.tsx` | Added milestone hooks, updated types |
+| `apps/partner-ui/src/routes/production-runs/production-run-list/production-run-list.tsx` | Added `run_type` filter + column |
+| `apps/partner-ui/src/routes/production-runs/production-run-detail/production-run-detail.tsx` | Added milestone buttons, activity timeline from columns |
+| `src/admin/hooks/api/production-runs.ts` | Updated `AdminProductionRun` type |
+| `src/admin/components/designs/design-production-runs-section.tsx` | Added `run_type` badge |
+| `src/admin/routes/production-runs/[id]/page.tsx` | Added Type field |
+| `src/modules/maileroo/service.ts` | Fixed ESM import for maileroo-sdk |
 
-## Files to Remove (Step 9)
+## Files to Remove (Steps 9-10, when ready)
 
 | File | Reason |
 |------|--------|

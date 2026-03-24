@@ -6,7 +6,7 @@ sidebar_position: 3
 
 # Send-to-Partner Migration Guide
 
-_Last updated: 2026-03-23_
+_Last updated: 2026-03-24_
 
 This document covers how to migrate from the `send-to-partner` design workflow to Production Runs.
 
