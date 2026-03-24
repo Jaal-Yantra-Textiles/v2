@@ -79,6 +79,9 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Badge color={run.run_type === "sample" ? "blue" : "grey"}>
+                          {run.run_type === "sample" ? "Sample" : "Production"}
+                        </Badge>
                         <Badge color={statusColor(status)}>{status}</Badge>
                         <Badge>{String(quantity)}</Badge>
                       </div>

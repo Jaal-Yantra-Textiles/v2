@@ -13,6 +13,7 @@ const ProductionRun = model.define("production_runs", {
       "cancelled",
     ])
     .default("pending_review"),
+  run_type: model.enum(["production", "sample"]).default("production"),
   quantity: model.float().default(1),
 
   parent_run_id: model.text().nullable(),
@@ -25,6 +26,20 @@ const ProductionRun = model.define("production_runs", {
   variant_id: model.text().nullable(),
   order_id: model.text().nullable(),
   order_line_item_id: model.text().nullable(),
+
+  // Lifecycle timestamps
+  accepted_at: model.dateTime().nullable(),
+  started_at: model.dateTime().nullable(),
+  finished_at: model.dateTime().nullable(),
+  completed_at: model.dateTime().nullable(),
+
+  // Dispatch state
+  dispatch_state: model
+    .enum(["idle", "awaiting_templates", "completed"])
+    .default("idle"),
+  dispatch_started_at: model.dateTime().nullable(),
+  dispatch_completed_at: model.dateTime().nullable(),
+  dispatch_template_names: model.json().nullable(),
 
   snapshot: model.json(),
   captured_at: model.dateTime(),

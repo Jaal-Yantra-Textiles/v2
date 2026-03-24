@@ -83,19 +83,11 @@ const markDispatchStartedStep = createStep(
     )
 
     const run = input.run
-    const existingMetadata = (run?.metadata || {}) as Record<string, any>
-    const existingDispatch = (existingMetadata.dispatch || {}) as Record<string, any>
 
     const updated = await productionRunService.updateProductionRuns({
       id: run.id,
-      metadata: {
-        ...existingMetadata,
-        dispatch: {
-          ...existingDispatch,
-          state: "awaiting_templates",
-          started_at: new Date().toISOString(),
-        },
-      },
+      dispatch_state: "awaiting_templates" as any,
+      dispatch_started_at: new Date(),
     })
 
     return new StepResponse(updated)
@@ -119,19 +111,11 @@ const markDispatchCompletedStep = createStep(
     )
 
     const run = await productionRunService.retrieveProductionRun(input.run.id)
-    const existingMetadata = (run?.metadata || {}) as Record<string, any>
-    const existingDispatch = (existingMetadata.dispatch || {}) as Record<string, any>
 
     const updated = await productionRunService.updateProductionRuns({
       id: run.id,
-      metadata: {
-        ...existingMetadata,
-        dispatch: {
-          ...existingDispatch,
-          state: "completed",
-          completed_at: new Date().toISOString(),
-        },
-      },
+      dispatch_state: "completed" as any,
+      dispatch_completed_at: new Date(),
     })
 
     return new StepResponse(updated)

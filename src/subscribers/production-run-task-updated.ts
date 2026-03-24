@@ -83,6 +83,16 @@ export default async function productionRunTaskUpdatedHandler({
       return
     }
 
+    // Re-check status before writing to guard against race conditions
+    // when multiple tasks complete simultaneously
+    const freshRun = await productionRunService
+      .retrieveProductionRun(String(productionRunId))
+      .catch(() => null)
+
+    if (!freshRun || ["completed", "cancelled"].includes(String((freshRun as any).status))) {
+      return
+    }
+
     await productionRunService.updateProductionRuns({
       id: String(productionRunId),
       status: "completed" as any,
@@ -118,8 +128,7 @@ export default async function productionRunTaskUpdatedHandler({
         if (!allDepsCompleted) continue
 
         // Auto-dispatch: use template_names from metadata if available
-        const siblingMetadata = ((sibling as any).metadata || {}) as Record<string, any>
-        const templateNames = siblingMetadata.dispatch_template_names as string[] | undefined
+        const templateNames = ((sibling as any).dispatch_template_names ?? (sibling as any)?.metadata?.dispatch_template_names) as string[] | undefined
 
         if (templateNames?.length) {
           logger.info(

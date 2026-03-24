@@ -12,6 +12,7 @@ type ProductionRunLike = {
   partner_id?: string | null
   role?: string | null
   depends_on_run_ids?: string[] | null
+  dispatch_state?: string | null
   metadata?: Record<string, any> | null
 }
 
@@ -32,9 +33,7 @@ class ProductionPolicyService extends MedusaService({
   }
 
   private getDispatchState(run: ProductionRun): string | null {
-    const metadata = (run?.metadata || {}) as Record<string, any>
-    const dispatch = (metadata.dispatch || {}) as Record<string, any>
-    return dispatch.state ? String(dispatch.state) : null
+    return (run as any)?.dispatch_state ? String((run as any).dispatch_state) : null
   }
 
   private defaultPolicyConfig(): Record<string, any> {

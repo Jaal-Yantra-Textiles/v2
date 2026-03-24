@@ -29,6 +29,7 @@ export type AdminCreateDesignProductionRunPayload = {
 export type AdminProductionRun = Record<string, any> & {
   id: string
   status?: string
+  run_type?: "production" | "sample"
   partner_id?: string | null
   design_id?: string
 }

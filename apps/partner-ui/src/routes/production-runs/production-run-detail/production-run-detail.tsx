@@ -14,6 +14,9 @@ import { getStatusBadgeColor } from "../../../lib/status-badge"
 import { extractErrorMessage } from "../../../lib/extract-error-message"
 import {
   useAcceptPartnerProductionRun,
+  useStartPartnerProductionRun,
+  useFinishPartnerProductionRun,
+  useCompletePartnerProductionRun,
   usePartnerProductionRun,
 } from "../../../hooks/api/partner-production-runs"
 import {
@@ -29,13 +32,23 @@ export const ProductionRunDetail = () => {
 
   const { production_run, tasks, isPending, isError, error } = usePartnerProductionRun(runId)
   const accept = useAcceptPartnerProductionRun(runId, {
-    onSuccess: () => {
-      toast.success("Run accepted")
-    },
+    onSuccess: () => toast.success("Run accepted"),
+  })
+  const start = useStartPartnerProductionRun(runId, {
+    onSuccess: () => toast.success("Run started"),
+  })
+  const finish = useFinishPartnerProductionRun(runId, {
+    onSuccess: () => toast.success("Run finished"),
+  })
+  const complete = useCompletePartnerProductionRun(runId, {
+    onSuccess: () => toast.success("Run completed"),
   })
 
   const status = String(production_run?.status || "")
   const canAccept = status === "sent_to_partner"
+  const canStart = status === "in_progress" && !production_run?.started_at
+  const canFinish = status === "in_progress" && !!production_run?.started_at && !production_run?.finished_at
+  const canComplete = status === "in_progress" && !!production_run?.finished_at
 
   const activity = useMemo<ActivityItem[]>(() => {
     const items: ActivityItem[] = [
@@ -53,32 +66,57 @@ export const ProductionRunDetail = () => {
       },
     ]
 
-    const acceptance = (production_run?.metadata as any)?.acceptance
-    if (acceptance?.accepted_at) {
+    if (production_run?.accepted_at) {
       items.push({
         id: "accepted",
         title: "Accepted",
         status: "Recorded",
-        timestamp: acceptance.accepted_at,
+        timestamp: production_run.accepted_at,
       })
     }
 
-    const dispatch = (production_run?.metadata as any)?.dispatch
-    if (dispatch?.started_at) {
+    if (production_run?.started_at) {
+      items.push({
+        id: "started",
+        title: "Started",
+        status: "Recorded",
+        timestamp: production_run.started_at,
+      })
+    }
+
+    if (production_run?.finished_at) {
+      items.push({
+        id: "finished",
+        title: "Finished",
+        status: "Recorded",
+        timestamp: production_run.finished_at,
+      })
+    }
+
+    if (production_run?.completed_at) {
+      items.push({
+        id: "completed",
+        title: "Completed",
+        status: "Recorded",
+        timestamp: production_run.completed_at,
+      })
+    }
+
+    if (production_run?.dispatch_started_at) {
       items.push({
         id: "dispatch_started",
         title: "Dispatch started",
-        status: String(dispatch?.state || "-") || "-",
-        timestamp: dispatch.started_at,
+        status: String(production_run.dispatch_state || "-"),
+        timestamp: production_run.dispatch_started_at,
       })
     }
 
-    if (dispatch?.completed_at) {
+    if (production_run?.dispatch_completed_at) {
       items.push({
         id: "dispatch_completed",
         title: "Dispatch completed",
         status: "Recorded",
-        timestamp: dispatch.completed_at,
+        timestamp: production_run.dispatch_completed_at,
       })
     }
 
@@ -142,15 +180,44 @@ export const ProductionRunDetail = () => {
                 Role: {production_run?.role || "-"}
               </Text>
             </div>
-            {canAccept && (
-              <Button
-                size="small"
-                isLoading={accept.isPending}
-                onClick={() => accept.mutate()}
-              >
-                Accept
-              </Button>
-            )}
+            <div className="flex items-center gap-x-2">
+              {canAccept && (
+                <Button
+                  size="small"
+                  isLoading={accept.isPending}
+                  onClick={() => accept.mutate()}
+                >
+                  Accept
+                </Button>
+              )}
+              {canStart && (
+                <Button
+                  size="small"
+                  isLoading={start.isPending}
+                  onClick={() => start.mutate()}
+                >
+                  Start
+                </Button>
+              )}
+              {canFinish && (
+                <Button
+                  size="small"
+                  isLoading={finish.isPending}
+                  onClick={() => finish.mutate()}
+                >
+                  Mark Finished
+                </Button>
+              )}
+              {canComplete && (
+                <Button
+                  size="small"
+                  isLoading={complete.isPending}
+                  onClick={() => complete.mutate()}
+                >
+                  Complete
+                </Button>
+              )}
+            </div>
           </div>
         </Container>
 
@@ -171,6 +238,7 @@ export const ProductionRunDetail = () => {
               )
             }
           />
+          <SectionRow title="Type" value={production_run?.run_type === "sample" ? "Sample" : "Production"} />
           <SectionRow title="Quantity" value={production_run?.quantity != null ? String(production_run.quantity) : "-"} />
           <SectionRow title="Design" value={production_run?.design_id || "-"} />
           <SectionRow title="Parent run" value={production_run?.parent_run_id || "-"} />

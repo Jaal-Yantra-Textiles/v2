@@ -82,19 +82,10 @@ const acceptProductionRunStep = createStep(
       metadata: (latest as any).metadata ?? null,
     }
 
-    const existingMetadata = ((latest as any)?.metadata || {}) as Record<string, any>
-    const existingAcceptance = (existingMetadata.acceptance || {}) as Record<string, any>
-
     const updatedChild = await productionRunService.updateProductionRuns({
       id: latest.id,
       status: "in_progress" as any,
-      metadata: {
-        ...existingMetadata,
-        acceptance: {
-          ...existingAcceptance,
-          accepted_at: new Date().toISOString(),
-        },
-      },
+      accepted_at: new Date(),
     })
 
     const parentRunId = (latest as any)?.parent_run_id ?? null

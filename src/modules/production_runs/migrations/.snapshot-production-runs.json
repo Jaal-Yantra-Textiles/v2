@@ -34,6 +34,20 @@
           ],
           "mappedType": "enum"
         },
+        "run_type": {
+          "name": "run_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'production'",
+          "enumItems": [
+            "production",
+            "sample"
+          ],
+          "mappedType": "enum"
+        },
         "quantity": {
           "name": "quantity",
           "type": "real",
@@ -115,6 +129,90 @@
           "primary": false,
           "nullable": true,
           "mappedType": "text"
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "dispatch_state": {
+          "name": "dispatch_state",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'idle'",
+          "enumItems": [
+            "idle",
+            "awaiting_templates",
+            "completed"
+          ],
+          "mappedType": "enum"
+        },
+        "dispatch_started_at": {
+          "name": "dispatch_started_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "dispatch_completed_at": {
+          "name": "dispatch_completed_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "dispatch_template_names": {
+          "name": "dispatch_template_names",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
         },
         "snapshot": {
           "name": "snapshot",

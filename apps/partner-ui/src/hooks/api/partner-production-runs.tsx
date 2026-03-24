@@ -21,11 +21,16 @@ export const partnerProductionRunsQueryKeys = queryKeysFactory(
 export type PartnerProductionRun = Record<string, any> & {
   id: string
   status?: string | null
+  run_type?: "production" | "sample" | null
   role?: string | null
   quantity?: number | null
   design_id?: string | null
   partner_id?: string | null
   parent_run_id?: string | null
+  accepted_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  completed_at?: string | null
   created_at?: string
   updated_at?: string
   metadata?: Record<string, any> | null
@@ -37,6 +42,7 @@ export type ListPartnerProductionRunsParams = {
   offset?: number
   status?: string
   role?: string
+  run_type?: "production" | "sample"
 }
 
 export type PartnerProductionRunsListResponse = {
@@ -122,30 +128,36 @@ export const usePartnerProductionRun = (
   }
 }
 
-export const useAcceptPartnerProductionRun = (
-  id: string,
-  options?: UseMutationOptions<PartnerAcceptProductionRunResponse, FetchError, void>
-) => {
-  return useMutation({
-    mutationFn: async () =>
-      await sdk.client.fetch<PartnerAcceptProductionRunResponse>(
-        `/partners/production-runs/${id}/accept`,
-        { method: "POST" }
-      ),
-    onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({
-        queryKey: partnerProductionRunsQueryKeys.lists(),
-      })
-      queryClient.invalidateQueries({
-        queryKey: partnerProductionRunsQueryKeys.detail(id),
-      })
-      queryClient.refetchQueries({
-        queryKey: partnerProductionRunsQueryKeys.detail(id),
-      })
-      // Cross-invalidate tasks (accepting a run changes task state)
-      queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
-      options?.onSuccess?.(data, variables, context)
-    },
-    ...options,
-  })
+const createRunMilestoneHook = (action: string) => {
+  return (
+    id: string,
+    options?: UseMutationOptions<any, FetchError, void>
+  ) => {
+    return useMutation({
+      mutationFn: async () =>
+        await sdk.client.fetch<any>(
+          `/partners/production-runs/${id}/${action}`,
+          { method: "POST" }
+        ),
+      onSuccess: (data, variables, context) => {
+        queryClient.invalidateQueries({
+          queryKey: partnerProductionRunsQueryKeys.lists(),
+        })
+        queryClient.invalidateQueries({
+          queryKey: partnerProductionRunsQueryKeys.detail(id),
+        })
+        queryClient.refetchQueries({
+          queryKey: partnerProductionRunsQueryKeys.detail(id),
+        })
+        queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
+        options?.onSuccess?.(data, variables, context)
+      },
+      ...options,
+    })
+  }
 }
+
+export const useAcceptPartnerProductionRun = createRunMilestoneHook("accept")
+export const useStartPartnerProductionRun = createRunMilestoneHook("start")
+export const useFinishPartnerProductionRun = createRunMilestoneHook("finish")
+export const useCompletePartnerProductionRun = createRunMilestoneHook("complete")

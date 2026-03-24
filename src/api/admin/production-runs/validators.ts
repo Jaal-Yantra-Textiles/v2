@@ -12,6 +12,7 @@ export const AdminCreateProductionRunReq = z.object({
   design_id: z.string().min(1),
   partner_id: z.string().optional(),
   quantity: z.number().optional(),
+  run_type: z.enum(["production", "sample"]).optional(),
   product_id: z.string().optional(),
   variant_id: z.string().optional(),
   order_id: z.string().optional(),

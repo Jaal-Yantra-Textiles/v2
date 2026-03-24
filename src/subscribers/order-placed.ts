@@ -104,6 +104,9 @@ export default async function orderPlacedHandler({
       }
 
       if (!designId) {
+        logger.info(
+          `[order.placed] No design linked to product ${productId} (variant ${variantId}) — skipping production run creation for line item ${lineItemId}`
+        )
         continue
       }
 

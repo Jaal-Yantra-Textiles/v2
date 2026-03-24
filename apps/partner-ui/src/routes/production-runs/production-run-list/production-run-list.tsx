@@ -28,11 +28,12 @@ const RUN_STATUS_OPTIONS = [
 const EXCLUDED_RUN_STATUSES = ["completed", "cancelled"]
 
 export const ProductionRunList = () => {
-  const raw = useQueryParams(["offset", "q", "status", "role", "order"])
+  const raw = useQueryParams(["offset", "q", "status", "role", "run_type", "order"])
   const offset = raw.offset ? Number(raw.offset) : 0
   const q = raw.q?.trim() || ""
   const statusFilter = raw.status?.trim() || ""
   const roleFilter = raw.role?.trim() || ""
+  const runTypeFilter = (raw.run_type?.trim() || "") as "production" | "sample" | ""
   const order = raw.order?.trim() || ""
 
   const { production_runs, isPending, isError, error } = usePartnerProductionRuns(
@@ -41,6 +42,7 @@ export const ProductionRunList = () => {
       offset,
       status: statusFilter || undefined,
       role: roleFilter || undefined,
+      run_type: runTypeFilter || undefined,
     },
     {
       staleTime: 30000,
@@ -118,6 +120,15 @@ export const ProductionRunList = () => {
         options: RUN_STATUS_OPTIONS,
       },
       {
+        type: "select",
+        key: "run_type",
+        label: "Type",
+        options: [
+          { label: "Production", value: "production" },
+          { label: "Sample", value: "sample" },
+        ],
+      },
+      {
         type: "string",
         key: "role",
         label: "Role",
@@ -140,6 +151,13 @@ export const ProductionRunList = () => {
         cell: ({ getValue }) => {
           const v = getValue()
           return v ? String(v) : "-"
+        },
+      }),
+      columnHelper.accessor("run_type", {
+        header: () => "Type",
+        cell: ({ getValue }) => {
+          const v = getValue()
+          return v === "sample" ? "Sample" : "Production"
         },
       }),
       columnHelper.accessor("role", {

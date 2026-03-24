@@ -5,6 +5,7 @@ export const listProductionRunsQuerySchema = z.object({
   offset: z.string().transform(Number).optional(),
   status: z.string().optional(),
   role: z.string().optional(),
+  run_type: z.enum(["production", "sample"]).optional(),
 })
 
 export type ListProductionRunsQuery = z.infer<typeof listProductionRunsQuerySchema>

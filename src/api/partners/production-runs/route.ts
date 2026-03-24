@@ -94,7 +94,7 @@ export async function GET(
   req: AuthenticatedMedusaRequest<ListProductionRunsQuery>,
   res: MedusaResponse
 ) {
-  const { limit = 20, offset = 0, status, role } = req.validatedQuery || {}
+  const { limit = 20, offset = 0, status, role, run_type } = req.validatedQuery || {}
 
   const partnerId = req.auth_context?.actor_id
   if (!partnerId) {
@@ -111,6 +111,9 @@ export async function GET(
   }
   if (role) {
     filters.role = role
+  }
+  if (run_type) {
+    filters.run_type = run_type
   }
 
   const { data: runs, metadata } = await query.graph({

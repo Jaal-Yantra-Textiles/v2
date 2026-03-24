@@ -147,6 +147,7 @@ import { listDesignsQuerySchema } from "./partners/designs/validators";
 import { listProductionRunsQuerySchema } from "./partners/production-runs/validators";
 import { PartnerDesignInventorySchema } from "./partners/designs/[designId]/inventory/validators";
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
+import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
@@ -1718,6 +1719,65 @@ export default defineMiddlewares({
     },
     {
       matcher: "/partners/production-runs/:id/accept",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/start",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/finish",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/complete",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/consumption-logs",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerPostProductionRunConsumptionLogReq)),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/consumption-logs",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/media",
+      method: "POST",
+      bodyParser: false,
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        maybeMulterArray("files"),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/media/attach",
       method: "POST",
       middlewares: [
         createCorsPartnerMiddleware(),

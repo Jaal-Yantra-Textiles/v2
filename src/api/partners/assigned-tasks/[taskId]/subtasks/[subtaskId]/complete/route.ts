@@ -67,6 +67,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../../../../../helpers";
 import { TASKS_MODULE } from "../../../../../../../modules/tasks";
 import TaskService from "../../../../../../../modules/tasks/service";
+import { updateTaskWorkflow } from "../../../../../../../workflows/tasks/update-task";
+import { Status } from "../../../../../../../workflows/tasks/create-task";
 
 /**
  * POST /partners/assigned-tasks/[taskId]/subtasks/[subtaskId]/complete
@@ -172,12 +174,20 @@ export async function POST(
 
     let parentCompleted = false;
 
-    // If all subtasks are completed, complete the parent task
+    // If all subtasks are completed, complete the parent task via workflow
+    // so that the tasks.task.updated event is properly emitted for the
+    // production-run-task-updated subscriber
     if (allSubtasksCompleted && (parentTaskWithSubtasks as any).status !== "completed") {
       await taskService.updateTasks({
         id: taskId,
         status: "completed",
         completed_at: new Date(),
+      });
+      await updateTaskWorkflow(req.scope).run({
+        input: {
+          id: taskId,
+          update: { status: Status.completed },
+        },
       });
       parentCompleted = true;
     }

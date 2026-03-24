@@ -92,11 +92,6 @@ const approveProductionRunStep = createStep(
           }
         : originalSnapshot
 
-      const baseMetadata = (original as any).metadata ?? {}
-      const childMetadata = a.template_names?.length
-        ? { ...baseMetadata, dispatch_template_names: a.template_names }
-        : baseMetadata
-
       return {
         parent_run_id: original.id,
         role: a.role ?? null,
@@ -110,7 +105,9 @@ const approveProductionRunStep = createStep(
         snapshot,
         captured_at: (original as any).captured_at,
         status: "approved" as any,
-        metadata: Object.keys(childMetadata).length ? childMetadata : null,
+        run_type: (original as any).run_type ?? "production",
+        dispatch_template_names: a.template_names?.length ? a.template_names : null,
+        metadata: (original as any).metadata ?? null,
       }
     })
 

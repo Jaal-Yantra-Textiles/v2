@@ -142,6 +142,7 @@ export const POST = async (
       design_id: body.design_id,
       partner_id: body.partner_id ?? null,
       quantity: body.quantity,
+      run_type: body.run_type,
       product_id: body.product_id,
       variant_id: body.variant_id,
       order_id: body.order_id,
@@ -179,6 +180,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
   if (q.parent_run_id) {
     filters.parent_run_id = q.parent_run_id
+  }
+  if (q.run_type) {
+    filters.run_type = q.run_type
   }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)

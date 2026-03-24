@@ -189,7 +189,7 @@ export const POST = async (
   // trigger sendProductionRunToProductionWorkflow to actually create tasks.
   const children = approved?.children || []
   for (const child of children) {
-    const templateNames = (child as any)?.metadata?.dispatch_template_names as string[] | undefined
+    const templateNames = ((child as any)?.dispatch_template_names ?? (child as any)?.metadata?.dispatch_template_names) as string[] | undefined
     if (templateNames?.length) {
       await sendProductionRunToProductionWorkflow(req.scope).run({
         input: {

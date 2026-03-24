@@ -21,6 +21,9 @@ import type TaskService from "../../modules/tasks/service"
 
 import { DESIGN_MODULE } from "../../modules/designs"
 import { PARTNER_MODULE } from "../../modules/partner"
+import {
+  runProductionRunLifecycleWorkflow,
+} from "./run-production-run-lifecycle"
 
 export type SendProductionRunToProductionInput = {
   production_run_id: string
@@ -259,6 +262,22 @@ const notifyPartnerStep = createStep(
   }
 )
 
+const startLifecycleWorkflowStep = createStep(
+  "start-lifecycle-workflow",
+  async (input: { production_run_id: string }, { container }) => {
+    // Fire-and-forget: start the lifecycle workflow without awaiting it.
+    // The .run() call returns immediately because the workflow suspends
+    // at its first async step (await-run-start).
+    await runProductionRunLifecycleWorkflow(container).run({
+      input: {
+        production_run_id: input.production_run_id,
+      },
+    })
+
+    return new StepResponse(true)
+  }
+)
+
 export const sendProductionRunToProductionWorkflow = createWorkflow(
   "send-production-run-to-production",
   (input: SendProductionRunToProductionInput) => {
@@ -293,6 +312,12 @@ export const sendProductionRunToProductionWorkflow = createWorkflow(
     })
 
     notifyPartnerStep({ run })
+
+    // Start the long-running lifecycle workflow fire-and-forget
+    // (cannot use runAsStep — it would block until all async gates complete)
+    startLifecycleWorkflowStep({
+      production_run_id: input.production_run_id,
+    })
 
     return new WorkflowResponse({ run, tasksResult })
   }

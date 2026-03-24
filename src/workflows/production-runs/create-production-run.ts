@@ -39,6 +39,7 @@ export type CreateProductionRunInput = {
   design_id: string
   partner_id?: string | null
   quantity?: number
+  run_type?: "production" | "sample"
   product_id?: string
   variant_id?: string
   order_id?: string
@@ -133,6 +134,7 @@ const createProductionRunStep = createStep(
       design_id: input.payload.design_id,
       partner_id: input.payload.partner_id ?? null,
       quantity: input.payload.quantity ?? 1,
+      run_type: input.payload.run_type ?? "production",
       product_id: input.payload.product_id,
       variant_id: input.payload.variant_id,
       order_id: input.payload.order_id,

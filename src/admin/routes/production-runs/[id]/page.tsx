@@ -69,6 +69,10 @@ const ProductionRunDetailPage = () => {
               <Tabs.Content value="overview" className="mt-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <Text size="small" className="text-ui-fg-subtle">Type</Text>
+                    <Text>{run.run_type === "sample" ? "Sample" : "Production"}</Text>
+                  </div>
+                  <div>
                     <Text size="small" className="text-ui-fg-subtle">Partner</Text>
                     <Text>{String(run.partner_id || "-")}</Text>
                   </div>
