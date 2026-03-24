@@ -1,3 +1,11 @@
+## [12.1.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.2...v12.1.3) (2026-03-24)
+
+
+### Bug Fixes
+
+* **docs:** Entering bug fixes ([95189ab](https://github.com/Jaal-Yantra-Textiles/v2/commit/95189ab25700ede1b3b6aa8acf04dac218f30830))
+* **api:** Fixed the production runs ([f89ae6b](https://github.com/Jaal-Yantra-Textiles/v2/commit/f89ae6babcf2b3aaa0064f967de4a50a6f113e58))
+
 ## [12.1.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.1...v12.1.2) (2026-03-24)
 
 
