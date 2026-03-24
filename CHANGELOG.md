@@ -1,3 +1,11 @@
+## [12.1.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.3...v12.1.4) (2026-03-24)
+
+
+### Bug Fixes
+
+* **api:** Fixed the customer updates ([4071fb8](https://github.com/Jaal-Yantra-Textiles/v2/commit/4071fb8e056188fbe3151e3f10b9000f874aa8f4))
+* **workflows:** Fixed the when guards ([512d041](https://github.com/Jaal-Yantra-Textiles/v2/commit/512d041441463fb511e77039c6c7197a1b85449a))
+
 ## [12.1.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.2...v12.1.3) (2026-03-24)
 
 
