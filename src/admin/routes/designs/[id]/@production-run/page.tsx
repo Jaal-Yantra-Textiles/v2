@@ -23,6 +23,7 @@ import { useStackedModal } from "../../../../components/modal/stacked-modal/use-
 
 import { usePartners } from "../../../../hooks/api/partners"
 import { useTaskTemplates } from "../../../../hooks/api/task-templates"
+import { useTaskTemplateCategories } from "../../../../hooks/api/task-template-categories"
 import {
   useCreateDesignProductionRun,
   useSendProductionRunToProduction,
@@ -212,22 +213,63 @@ const AssignmentsModal = ({
                   <Text size="small" weight="plus" className="mb-2">
                     Task Templates
                   </Text>
-                  <div className="flex flex-wrap gap-2">
-                    {templatesToShow.map((tpl: any) => {
-                      const name = String(tpl.name)
-                      const selected = (assignment.template_names || []).includes(name)
-                      return (
-                        <button
-                          key={name}
-                          type="button"
-                          className="rounded-md border px-3 py-1.5 text-sm"
-                          onClick={() => toggleTemplate(idx, name)}
-                        >
-                          <Badge color={selected ? "green" : "grey"}>{name}</Badge>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  {Object.entries(
+                    templatesToShow.reduce((acc: Record<string, any[]>, tpl: any) => {
+                      const cat = typeof tpl.category === "object"
+                        ? tpl.category?.name || "Uncategorized"
+                        : String(tpl.category || "Uncategorized")
+                      if (!acc[cat]) acc[cat] = []
+                      acc[cat].push(tpl)
+                      return acc
+                    }, {} as Record<string, any[]>)
+                  ).map(([categoryName, categoryTemplates]) => {
+                    const categoryNames = categoryTemplates.map((t: any) => String(t.name))
+                    const selectedNames = assignment.template_names || []
+                    const allSelected = categoryNames.every((n: string) => selectedNames.includes(n))
+
+                    return (
+                      <div key={categoryName} className="mb-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
+                            {categoryName}
+                          </Text>
+                          <button
+                            type="button"
+                            className="text-xs text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+                            onClick={() => {
+                              if (allSelected) {
+                                // Deselect all in this category
+                                const next = selectedNames.filter((n: string) => !categoryNames.includes(n))
+                                updateField(idx, "template_names", next)
+                              } else {
+                                // Select all in this category
+                                const next = [...new Set([...selectedNames, ...categoryNames])]
+                                updateField(idx, "template_names", next)
+                              }
+                            }}
+                          >
+                            {allSelected ? "Deselect all" : "Select all"}
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {categoryTemplates.map((tpl: any) => {
+                            const name = String(tpl.name)
+                            const selected = selectedNames.includes(name)
+                            return (
+                              <button
+                                key={name}
+                                type="button"
+                                className="rounded-md border px-3 py-1.5 text-sm"
+                                onClick={() => toggleTemplate(idx, name)}
+                              >
+                                <Badge color={selected ? "green" : "grey"}>{name}</Badge>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}
@@ -452,30 +494,77 @@ const CreateProductionRunDrawerForm = () => {
                 {sendToProduction && (
                   <div className="mt-4">
                     <Text size="small" className="text-ui-fg-subtle">
-                      Select task templates (names) to create for the run.
+                      Select task templates by category to create for the run.
                     </Text>
 
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {templatesToShow.map((tpl: any) => {
-                        const name = String(tpl.name)
-                        const selected = selectedTemplateNames.includes(name)
+                    <div className="mt-2">
+                      {Object.entries(
+                        templatesToShow.reduce((acc: Record<string, any[]>, tpl: any) => {
+                          const cat = typeof tpl.category === "object"
+                            ? tpl.category?.name || "Uncategorized"
+                            : String(tpl.category || "Uncategorized")
+                          if (!acc[cat]) acc[cat] = []
+                          acc[cat].push(tpl)
+                          return acc
+                        }, {} as Record<string, any[]>)
+                      ).map(([categoryName, categoryTemplates]) => {
+                        const categoryNames = categoryTemplates.map((t: any) => String(t.name))
+                        const allSelected = categoryNames.every((n: string) => selectedTemplateNames.includes(n))
+
                         return (
-                          <button
-                            key={name}
-                            type="button"
-                            className="rounded-md border px-2 py-1 text-xs"
-                            onClick={() => {
-                              const current = form.getValues("template_names") || []
-                              const next = selected
-                                ? current.filter((n) => n !== name)
-                                : [...current, name]
-                              form.setValue("template_names", next, {
-                                shouldDirty: true,
-                              })
-                            }}
-                          >
-                            <Badge color={selected ? "green" : "grey"}>{name}</Badge>
-                          </button>
+                          <div key={categoryName} className="mb-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
+                                {categoryName}
+                              </Text>
+                              <button
+                                type="button"
+                                className="text-xs text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+                                onClick={() => {
+                                  const current = form.getValues("template_names") || []
+                                  if (allSelected) {
+                                    form.setValue(
+                                      "template_names",
+                                      current.filter((n) => !categoryNames.includes(n)),
+                                      { shouldDirty: true }
+                                    )
+                                  } else {
+                                    form.setValue(
+                                      "template_names",
+                                      [...new Set([...current, ...categoryNames])],
+                                      { shouldDirty: true }
+                                    )
+                                  }
+                                }}
+                              >
+                                {allSelected ? "Deselect all" : "Select all"}
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {categoryTemplates.map((tpl: any) => {
+                                const name = String(tpl.name)
+                                const selected = selectedTemplateNames.includes(name)
+                                return (
+                                  <button
+                                    key={name}
+                                    type="button"
+                                    className="rounded-md border px-2 py-1 text-xs"
+                                    onClick={() => {
+                                      const current = form.getValues("template_names") || []
+                                      const next = selected
+                                        ? current.filter((n) => n !== name)
+                                        : [...current, name]
+                                      form.setValue("template_names", next, {
+                                        shouldDirty: true,
+                                      })
+                                    }}
+                                  >
+                                    <Badge color={selected ? "green" : "grey"}>{name}</Badge>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
                         )
                       })}
                     </div>

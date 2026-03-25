@@ -1,8 +1,9 @@
-import { Container, Heading, Text, Avatar, Button, toast } from "@medusajs/ui";
+import { Container, Heading, Text, Avatar, Button, Badge, toast } from "@medusajs/ui";
 import { Plus, TriangleRightMini } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
 import { AdminDesign, useSendDesignToPartner } from "../../hooks/api/designs";
-import { AdminPartner } from "../../hooks/api/partners";  
+import { AdminPartner } from "../../hooks/api/partners";
+import { useProductionRuns } from "../../hooks/api/production-runs";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 
@@ -14,6 +15,18 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
   const navigate = useNavigate();
   const partners = design.partners || [];
   const { mutateAsync: sendDesign, isPending } = useSendDesignToPartner(design.id)
+  const { production_runs = [] } = useProductionRuns({
+    design_id: design.id,
+    limit: 50,
+    offset: 0,
+  })
+
+  // Build a map of partner_id → production run status
+  const partnerRunStatus = (partnerId: string) => {
+    const run = production_runs.find((r: any) => r.partner_id === partnerId)
+    if (!run) return null
+    return String(run.status || "assigned")
+  }
 
   const handleSendToPartner = async (e: React.MouseEvent, partnerId: string) => {
     e.preventDefault()
@@ -73,14 +86,26 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button
-                      size="small"
-                      variant="secondary"
-                      isLoading={isPending}
-                      onClick={(e) => handleSendToPartner(e, partner.id)}
-                    >
-                      Send
-                    </Button>
+                    {(() => {
+                      const runStatus = partnerRunStatus(partner.id)
+                      if (runStatus) {
+                        return (
+                          <Badge color={runStatus === "completed" ? "green" : "orange"}>
+                            {runStatus === "sent_to_partner" ? "Sent" : runStatus.replace(/_/g, " ")}
+                          </Badge>
+                        )
+                      }
+                      return (
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          isLoading={isPending}
+                          onClick={(e) => handleSendToPartner(e, partner.id)}
+                        >
+                          Send
+                        </Button>
+                      )
+                    })()}
                     <div className="size-7 flex items-center justify-center">
                       <TriangleRightMini className="text-ui-fg-muted" />
                     </div>
