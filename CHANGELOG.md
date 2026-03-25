@@ -1,3 +1,12 @@
+## [12.1.8](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.7...v12.1.8) (2026-03-25)
+
+
+### Bug Fixes
+
+* **api:** Fixed the cancel guard ([f2147b7](https://github.com/Jaal-Yantra-Textiles/v2/commit/f2147b7ee88373859c066bcb69743b8cd121cf2a))
+* **api:** Fixed the partner send to design stuff ([c0dcaa3](https://github.com/Jaal-Yantra-Textiles/v2/commit/c0dcaa3066b0d44bde9dfbd2bf9fd89d9ec29bf3))
+* **api:** Fixed the UI and prod run cancel workflow ([e891064](https://github.com/Jaal-Yantra-Textiles/v2/commit/e89106418e29e2e323f4a0e498b5e33a13476b31))
+
 ## [12.1.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.6...v12.1.7) (2026-03-25)
 
 
