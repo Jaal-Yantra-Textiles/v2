@@ -1,8 +1,8 @@
-import { Container, Heading, Skeleton, Text, Badge } from "@medusajs/ui"
+import { Container, Heading, Skeleton, Text, Badge, Button, toast } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 
 import { AdminDesign } from "../../hooks/api/designs"
-import { useProductionRuns } from "../../hooks/api/production-runs"
+import { useProductionRuns, useCancelProductionRun } from "../../hooks/api/production-runs"
 
 interface DesignProductionRunsSectionProps {
   design: AdminDesign
@@ -58,41 +58,68 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
               <Text className="text-ui-fg-subtle">No production runs yet</Text>
             </div>
           ) : (
-            runs.map((run: any) => {
-              const id = String(run.id)
-              const status = String(run.status || "-")
-              const partnerId = run.partner_id ? String(run.partner_id) : "-"
-              const quantity = run.quantity ?? "-"
-
-              return (
-                <Link
-                  key={id}
-                  to={`/production-runs/${id}`}
-                  className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
-                >
-                  <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex flex-col overflow-hidden">
-                        <span className="text-ui-fg-base font-medium truncate">{id}</span>
-                        <span className="text-ui-fg-subtle text-xs truncate">
-                          Partner: {partnerId}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge color={run.run_type === "sample" ? "blue" : "grey"}>
-                          {run.run_type === "sample" ? "Sample" : "Production"}
-                        </Badge>
-                        <Badge color={statusColor(status)}>{status}</Badge>
-                        <Badge>{String(quantity)}</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              )
-            })
+            runs.map((run: any) => (
+              <ProductionRunRow key={String(run.id)} run={run} />
+            ))
           )}
         </div>
       )}
     </Container>
+  )
+}
+
+const ProductionRunRow = ({ run }: { run: any }) => {
+  const id = String(run.id)
+  const status = String(run.status || "-")
+  const partnerId = run.partner_id ? String(run.partner_id) : "-"
+  const quantity = run.quantity ?? "-"
+  const canCancel = !["completed", "cancelled"].includes(status)
+
+  const cancelRun = useCancelProductionRun(id)
+
+  const handleCancel = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      await cancelRun.mutateAsync({ reason: "Admin cancelled from design page" })
+      toast.success("Production run cancelled")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to cancel")
+    }
+  }
+
+  return (
+    <Link
+      to={`/production-runs/${id}`}
+      className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
+    >
+      <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-ui-fg-base font-medium truncate">{id}</span>
+            <span className="text-ui-fg-subtle text-xs truncate">
+              Partner: {partnerId}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge color={run.run_type === "sample" ? "blue" : "grey"}>
+              {run.run_type === "sample" ? "Sample" : "Production"}
+            </Badge>
+            <Badge color={statusColor(status)}>{status.replace(/_/g, " ")}</Badge>
+            <Badge>{String(quantity)}</Badge>
+            {canCancel && (
+              <Button
+                size="small"
+                variant="danger"
+                isLoading={cancelRun.isPending}
+                onClick={handleCancel}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </Link>
   )
 }

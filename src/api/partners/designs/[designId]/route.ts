@@ -189,10 +189,14 @@ export const GET = async (
   const finishTask = findCompleted("partner-design-finish")
   const completedTask = findCompleted("partner-design-completed")
 
+  // Check if assignment was cancelled
+  const designMeta = (workflowDesign as any)?.metadata || (linkData.design as any)?.metadata || {}
+  const wasCancelled = !!designMeta.partner_assignment_cancelled_at
+
   // Prefer metadata from the design node (authoritative), then infer from tasks
-  let partner_status: "incoming" | "assigned" | "in_progress" | "finished" | "completed" =
-    ((workflowDesign as any)?.metadata?.partner_status as any) || ((linkData.design as any)?.metadata?.partner_status as any) || (hasWorkflowTasks ? "assigned" : "incoming")
-  let partner_phase: "redo" | null = ((workflowDesign as any)?.metadata?.partner_phase as any) || ((linkData.design as any)?.metadata?.partner_phase as any) || null
+  let partner_status: "incoming" | "assigned" | "in_progress" | "finished" | "completed" | "cancelled" =
+    wasCancelled ? "cancelled" : (designMeta.partner_status || (hasWorkflowTasks ? "assigned" : "incoming"))
+  let partner_phase: "redo" | null = designMeta.partner_phase || null
   let partner_started_at: string | null = ((workflowDesign as any)?.metadata?.partner_started_at as any) || ((linkData.design as any)?.metadata?.partner_started_at as any) || null
   let partner_finished_at: string | null = ((workflowDesign as any)?.metadata?.partner_finished_at as any) || ((linkData.design as any)?.metadata?.partner_finished_at as any) || null
   let partner_completed_at: string | null = ((workflowDesign as any)?.metadata?.partner_completed_at as any) || ((linkData.design as any)?.metadata?.partner_completed_at as any) || null

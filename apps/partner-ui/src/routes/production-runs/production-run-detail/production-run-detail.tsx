@@ -45,10 +45,11 @@ export const ProductionRunDetail = () => {
   })
 
   const status = String(production_run?.status || "")
-  const canAccept = status === "sent_to_partner"
-  const canStart = status === "in_progress" && !production_run?.started_at
-  const canFinish = status === "in_progress" && !!production_run?.started_at && !production_run?.finished_at
-  const canComplete = status === "in_progress" && !!production_run?.finished_at
+  const isCancelled = status === "cancelled"
+  const canAccept = !isCancelled && status === "sent_to_partner"
+  const canStart = !isCancelled && status === "in_progress" && !production_run?.started_at
+  const canFinish = !isCancelled && status === "in_progress" && !!production_run?.started_at && !production_run?.finished_at
+  const canComplete = !isCancelled && status === "in_progress" && !!production_run?.finished_at
 
   const activity = useMemo<ActivityItem[]>(() => {
     const items: ActivityItem[] = [
@@ -179,6 +180,11 @@ export const ProductionRunDetail = () => {
               <Text size="small" className="text-ui-fg-subtle">
                 Role: {production_run?.role || "-"}
               </Text>
+              {isCancelled && (
+                <Text size="small" className="text-ui-fg-error mt-1">
+                  This production run has been cancelled.
+                </Text>
+              )}
             </div>
             <div className="flex items-center gap-x-2">
               {canAccept && (

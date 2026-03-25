@@ -1,9 +1,10 @@
-import { Badge, Button, Container, Heading, Tabs, Text } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, Tabs, Text, toast } from "@medusajs/ui"
 import { Link, LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom"
 
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { productionRunLoader } from "./loader"
+import { useCancelProductionRun } from "../../../hooks/api/production-runs"
 
 const statusColor = (status?: string) => {
   switch (status) {
@@ -32,6 +33,18 @@ const ProductionRunDetailPage = () => {
 
   const run = initialData?.production_run
   const tasks = initialData?.tasks || []
+  const cancelRun = useCancelProductionRun(id || "")
+
+  const canCancel = run?.status && !["completed", "cancelled"].includes(run.status)
+
+  const handleCancel = async () => {
+    try {
+      await cancelRun.mutateAsync({ reason: "Admin cancelled" })
+      toast.success("Production run cancelled")
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to cancel")
+    }
+  }
 
   if (!id || !run) {
     return <TwoColumnPageSkeleton mainSections={1} sidebarSections={1} showJSON showMetadata />
@@ -51,11 +64,23 @@ const ProductionRunDetailPage = () => {
                 Design: {String(run.design_id || "-")}
               </Text>
             </div>
-            {run.status === "pending_review" && (
-              <Link to="approve">
-                <Button size="small">Approve</Button>
-              </Link>
-            )}
+            <div className="flex items-center gap-x-2">
+              {run.status === "pending_review" && (
+                <Link to="approve">
+                  <Button size="small">Approve</Button>
+                </Link>
+              )}
+              {canCancel && (
+                <Button
+                  size="small"
+                  variant="danger"
+                  isLoading={cancelRun.isPending}
+                  onClick={handleCancel}
+                >
+                  Cancel Run
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="px-6 py-4">

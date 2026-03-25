@@ -84,6 +84,7 @@ const ProductionRunCard = ({ run }: { run: any }) => {
     onSuccess: () => toast.success("Run completed"),
   })
 
+  const isCancelled = status === "cancelled"
   const canAccept = status === "sent_to_partner"
   const canStart = status === "in_progress" && !run.started_at
   const canFinish = status === "in_progress" && !!run.started_at && !run.finished_at
@@ -93,7 +94,7 @@ const ProductionRunCard = ({ run }: { run: any }) => {
   const totalTasks = tasks.length
 
   return (
-    <Container className="divide-y p-0">
+    <Container className={`divide-y p-0${isCancelled ? " opacity-60" : ""}`}>
       <div className="flex items-center justify-between px-6 py-4">
         <div>
           <div className="flex items-center gap-2">
@@ -110,24 +111,29 @@ const ProductionRunCard = ({ run }: { run: any }) => {
             {run.role ? ` · Role: ${run.role}` : ""}
             {totalTasks > 0 ? ` · Tasks: ${completedTasks}/${totalTasks}` : ""}
           </Text>
+          {isCancelled && (
+            <Text size="xsmall" className="text-ui-fg-error mt-1">
+              This production run has been cancelled by the admin.
+            </Text>
+          )}
         </div>
         <div className="flex items-center gap-x-2">
-          {canAccept && (
+          {!isCancelled && canAccept && (
             <Button size="small" isLoading={accept.isPending} onClick={() => accept.mutate()}>
               Accept
             </Button>
           )}
-          {canStart && (
+          {!isCancelled && canStart && (
             <Button size="small" isLoading={start.isPending} onClick={() => start.mutate()}>
               Start
             </Button>
           )}
-          {canFinish && (
+          {!isCancelled && canFinish && (
             <Button size="small" isLoading={finish.isPending} onClick={() => finish.mutate()}>
               Mark Finished
             </Button>
           )}
-          {canComplete && (
+          {!isCancelled && canComplete && (
             <Button size="small" isLoading={complete.isPending} onClick={() => complete.mutate()}>
               Complete
             </Button>

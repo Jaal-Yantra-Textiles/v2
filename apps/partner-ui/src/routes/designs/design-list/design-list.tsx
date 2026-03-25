@@ -1,4 +1,4 @@
-import { createDataTableColumnHelper } from "@medusajs/ui"
+import { Badge, createDataTableColumnHelper } from "@medusajs/ui"
 import { Container, Heading } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo } from "react"
@@ -10,10 +10,20 @@ import { _DataTable } from "../../../components/table/data-table/data-table"
 import { usePartnerDesigns, PartnerDesign } from "../../../hooks/api/partner-designs"
 import { useDataTable } from "../../../hooks/use-data-table"
 import { useQueryParams } from "../../../hooks/use-query-params"
+import { getStatusBadgeColor } from "../../../lib/status-badge"
 
 const columnHelper = createDataTableColumnHelper<PartnerDesign>()
 
 const PAGE_SIZE = 20
+
+const PARTNER_STATUS_OPTIONS = [
+  { label: "Incoming", value: "incoming" },
+  { label: "Assigned", value: "assigned" },
+  { label: "In Progress", value: "in_progress" },
+  { label: "Finished", value: "finished" },
+  { label: "Completed", value: "completed" },
+  { label: "Cancelled", value: "cancelled" },
+]
 
 const DESIGN_STATUS_OPTIONS = [
   { label: "Conceptual", value: "Conceptual" },
@@ -27,7 +37,24 @@ const DESIGN_STATUS_OPTIONS = [
   { label: "Commerce Ready", value: "Commerce_Ready" },
 ]
 
+// Partner statuses excluded from the default view — show active work only
+const EXCLUDED_PARTNER_STATUSES = ["completed", "cancelled"]
 const EXCLUDED_DESIGN_STATUSES = ["Rejected"]
+
+function relativeDate(dateStr: string | undefined | null): string {
+  if (!dateStr) return "-"
+  const d = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return "just now"
+  if (diffMins < 60) return `${diffMins}m ago`
+  const diffHrs = Math.floor(diffMins / 60)
+  if (diffHrs < 24) return `${diffHrs}h ago`
+  const diffDays = Math.floor(diffHrs / 24)
+  if (diffDays < 7) return `${diffDays}d ago`
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
 
 export const DesignList = () => {
   const { t } = useTranslation()
@@ -36,7 +63,8 @@ export const DesignList = () => {
   const q = raw.q?.trim() || ""
   const statusFilter = raw.status?.trim() || ""
   const partnerStatusFilter = raw.partner_status?.trim() || ""
-  const order = raw.order?.trim() || ""
+  // Default sort: most recently updated first
+  const order = raw.order?.trim() || "-updated_at"
 
   const { designs, count = 0, isPending, isError, error } = usePartnerDesigns(
     {
@@ -57,13 +85,19 @@ export const DesignList = () => {
       const status = String(row.status || "").toLowerCase()
       const partnerStatus = String(row?.partner_info?.partner_status || "").toLowerCase()
 
+      // Partner status filter
       if (partnerStatusFilter) {
-        const p = partnerStatusFilter.toLowerCase()
-        if (!partnerStatus.includes(p)) {
+        if (partnerStatus !== partnerStatusFilter.toLowerCase()) {
+          return false
+        }
+      } else {
+        // Default: exclude completed and cancelled
+        if (EXCLUDED_PARTNER_STATUSES.includes(partnerStatus)) {
           return false
         }
       }
 
+      // Design status filter
       if (statusFilter) {
         if (status !== statusFilter.toLowerCase()) {
           return false
@@ -84,30 +118,23 @@ export const DesignList = () => {
       )
     })
 
-    if (order) {
-      const desc = order.startsWith("-")
-      const key = (desc ? order.slice(1) : order) as keyof PartnerDesign
+    // Sort
+    const sortKey = order.startsWith("-") ? order.slice(1) : order
+    const desc = order.startsWith("-")
 
-      data = [...data].sort((a, b) => {
-        const av = (a as any)?.[key]
-        const bv = (b as any)?.[key]
+    data = [...data].sort((a, b) => {
+      const av = (a as any)?.[sortKey]
+      const bv = (b as any)?.[sortKey]
 
-        if (av == null && bv == null) {
-          return 0
-        }
-        if (av == null) {
-          return desc ? 1 : -1
-        }
-        if (bv == null) {
-          return desc ? -1 : 1
-        }
+      if (av == null && bv == null) return 0
+      if (av == null) return desc ? 1 : -1
+      if (bv == null) return desc ? -1 : 1
 
-        const aStr = String(av)
-        const bStr = String(bv)
-        const cmp = aStr.localeCompare(bStr)
-        return desc ? -cmp : cmp
-      })
-    }
+      const aStr = String(av)
+      const bStr = String(bv)
+      const cmp = aStr.localeCompare(bStr)
+      return desc ? -cmp : cmp
+    })
 
     return data
   }, [designs, order, partnerStatusFilter, q, statusFilter])
@@ -116,14 +143,15 @@ export const DesignList = () => {
     () => [
       {
         type: "select",
+        key: "partner_status",
+        label: "Work Status",
+        options: PARTNER_STATUS_OPTIONS,
+      },
+      {
+        type: "select",
         key: "status",
         label: t("fields.status"),
         options: DESIGN_STATUS_OPTIONS,
-      },
-      {
-        type: "string",
-        key: "partner_status",
-        label: "Partner Status",
       },
     ],
     [t]
@@ -133,23 +161,56 @@ export const DesignList = () => {
     () => [
       columnHelper.accessor("name", {
         header: () => "Name",
-        cell: ({ getValue }) => getValue() || "-",
+        cell: ({ getValue }) => (
+          <span className="font-medium">{getValue() || "-"}</span>
+        ),
       }),
       columnHelper.accessor((row) => row?.partner_info?.partner_status, {
         id: "partner_status",
-        header: () => "Partner Status",
-        cell: ({ getValue }) => getValue() || "-",
+        header: () => "Work Status",
+        cell: ({ getValue }) => {
+          const val = getValue()
+          if (!val) return "-"
+          return (
+            <Badge size="2xsmall" color={getStatusBadgeColor(val)}>
+              {String(val).replace(/_/g, " ")}
+            </Badge>
+          )
+        },
+      }),
+      columnHelper.accessor((row) => (row as any)?.priority, {
+        id: "priority",
+        header: () => "Priority",
+        cell: ({ getValue }) => {
+          const val = getValue()
+          if (!val) return "-"
+          const color =
+            val === "urgent" ? "red" :
+            val === "high" ? "orange" :
+            val === "medium" ? "blue" : "grey"
+          return (
+            <Badge size="2xsmall" color={color}>
+              {String(val)}
+            </Badge>
+          )
+        },
       }),
       columnHelper.accessor("status", {
-        header: () => "Status",
-        cell: ({ getValue }) => getValue() || "-",
+        header: () => "Design Status",
+        cell: ({ getValue }) => {
+          const val = getValue()
+          if (!val) return "-"
+          return (
+            <Badge size="2xsmall" color={getStatusBadgeColor(val)}>
+              {String(val).replace(/_/g, " ")}
+            </Badge>
+          )
+        },
       }),
       columnHelper.accessor("updated_at", {
-        header: () => t("fields.updatedAt"),
-        cell: ({ getValue }) => {
-          const v = getValue()
-          return v ? String(v) : "-"
-        },
+        header: () => "Last Updated",
+        cell: ({ getValue }) => relativeDate(getValue() as string),
+        enableSorting: true,
       }),
     ],
     [t]
@@ -177,7 +238,14 @@ export const DesignList = () => {
     >
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
-          <Heading>Designs</Heading>
+          <div>
+            <Heading>Designs</Heading>
+            {!partnerStatusFilter && (
+              <span className="text-ui-fg-subtle text-xs">
+                Showing active designs. Use filters to see completed or cancelled.
+              </span>
+            )}
+          </div>
         </div>
         <_DataTable
           columns={columns}
@@ -189,14 +257,14 @@ export const DesignList = () => {
           pageSize={PAGE_SIZE}
           filters={filters}
           orderBy={[
+            { key: "updated_at", label: "Last Updated" },
             { key: "name", label: "Name" },
             { key: "created_at", label: t("fields.createdAt") },
-            { key: "updated_at", label: t("fields.updatedAt") },
           ]}
           search
           queryObject={raw}
           noRecords={{
-            message: "No designs",
+            message: "No active designs. Use filters to see completed or cancelled designs.",
           }}
         />
       </Container>

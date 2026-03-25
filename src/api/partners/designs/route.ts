@@ -164,16 +164,19 @@ export async function GET(
       ].includes(t.title)
     const workflowTasks = tasks.filter(isPartnerWorkflowTask)
 
+    // Check if assignment was cancelled
+    const wasCancelled = !!design?.metadata?.partner_assignment_cancelled_at
+
     // Derive from metadata first (authoritative), then fall back to task-based inference
-    let partnerStatus: "incoming" | "assigned" | "in_progress" | "finished" | "completed" =
-      (design?.metadata?.partner_status as any) || "incoming"
+    let partnerStatus: "incoming" | "assigned" | "in_progress" | "finished" | "completed" | "cancelled" =
+      wasCancelled ? "cancelled" : ((design?.metadata?.partner_status as any) || "incoming")
     let partnerPhase: "redo" | null = (design?.metadata?.partner_phase as any) || null
     let partnerStartedAt: string | null = (design?.metadata?.partner_started_at as any) || null
     let partnerFinishedAt: string | null = (design?.metadata?.partner_finished_at as any) || null
     let partnerCompletedAt: string | null = (design?.metadata?.partner_completed_at as any) || null
 
     // If redo phase is flagged in metadata, reflect in-progress immediately (deterministic)
-    if (partnerPhase === "redo") {
+    if (partnerPhase === "redo" && !wasCancelled) {
       partnerStatus = "in_progress"
     }
 

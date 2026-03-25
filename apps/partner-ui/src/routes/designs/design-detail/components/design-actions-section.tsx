@@ -32,13 +32,17 @@ export const DesignActionsSection = ({
   // Redo: finished → Redo → in_progress (with phase="redo")
   // Refinish: redo phase + in_progress → Refinish → finished
 
+  const isCancelled = partnerStatus === "cancelled"
+
   const canStart =
+    !isCancelled &&
     (partnerStatus === "assigned" || partnerStatus === "incoming") &&
     !design?.partner_info?.partner_started_at
-  const canFinish = partnerStatus === "in_progress" && partnerPhase !== "redo"
-  const canRefinish = partnerStatus === "in_progress" && partnerPhase === "redo"
-  const canRedo = partnerStatus === "finished"
+  const canFinish = !isCancelled && partnerStatus === "in_progress" && partnerPhase !== "redo"
+  const canRefinish = !isCancelled && partnerStatus === "in_progress" && partnerPhase === "redo"
+  const canRedo = !isCancelled && partnerStatus === "finished"
   const canComplete =
+    !isCancelled &&
     partnerStatus === "finished" &&
     !design?.partner_info?.partner_completed_at
 
@@ -97,6 +101,11 @@ export const DesignActionsSection = ({
         )}
       </div>
       <div className="flex flex-col gap-y-2 px-6 py-4">
+        {isCancelled && (
+          <Text size="small" className="text-ui-fg-error">
+            This design assignment has been cancelled by the admin.
+          </Text>
+        )}
         {canStart && (
           <Button
             size="small"

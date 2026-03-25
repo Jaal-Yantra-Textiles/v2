@@ -189,6 +189,32 @@ export type AdminApproveProductionRunResponse = {
   children?: AdminProductionRun[]
 }
 
+export const useCancelProductionRun = (
+  runId: string,
+  options?: UseMutationOptions<
+    { production_run: AdminProductionRun; message: string },
+    FetchError,
+    { reason?: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: { reason?: string }) =>
+      sdk.client.fetch<{ production_run: AdminProductionRun; message: string }>(
+        `/admin/production-runs/${runId}/cancel`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
 export const useApproveProductionRun = (
   runId: string,
   options?: UseMutationOptions<
