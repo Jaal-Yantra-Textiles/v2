@@ -1,3 +1,12 @@
+## [12.1.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.6...v12.1.7) (2026-03-25)
+
+
+### Bug Fixes
+
+* Fix 1: Manage Locations — partner-scoped stock locations ([fedae4e](https://github.com/Jaal-Yantra-Textiles/v2/commit/fedae4ee265c3565ce0b88b2a30465f62c331f8f))
+* **api:** Fixed reservation api related , products variant and etc ([02d4842](https://github.com/Jaal-Yantra-Textiles/v2/commit/02d4842a64e9c158f80bce81a9c5af28b9c258ab))
+* **api:** New: Partner-scoped Reservations API ([ff6af03](https://github.com/Jaal-Yantra-Textiles/v2/commit/ff6af032b21e96401fb8e86e971f73ab32131af0))
+
 ## [12.1.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.5...v12.1.6) (2026-03-25)
 
 
