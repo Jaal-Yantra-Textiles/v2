@@ -15,6 +15,7 @@ import { DesignActionsSection } from "./components/design-actions-section"
 import { DesignMediaSection } from "./components/design-media-section"
 import { DesignMoodboardSection } from "./components/design-moodboard-section"
 import { DesignConsumptionLogsSection } from "./components/design-consumption-logs-section"
+import { DesignProductionSection } from "./components/design-production-section"
 
 type MarkLinkAttrs = { href?: string; target?: string }
 type Mark = {
@@ -475,6 +476,8 @@ export const DesignDetail = () => {
         </Container>
 
         {design && <DesignConsumptionLogsSection design={design} />}
+
+        {design && <DesignProductionSection design={design} />}
 
         <Container className="divide-y p-0">
           <div className="px-6 py-4">

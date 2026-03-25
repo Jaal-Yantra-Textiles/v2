@@ -43,6 +43,7 @@ export type ListPartnerProductionRunsParams = {
   status?: string
   role?: string
   run_type?: "production" | "sample"
+  design_id?: string
 }
 
 export type PartnerProductionRunsListResponse = {
