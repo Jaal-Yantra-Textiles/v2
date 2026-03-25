@@ -26,8 +26,11 @@
  * });
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { linkDesignPartnerWorkflow } from "../../../../../workflows/designs/partner/link-design-to-partner";
 import { LinkDesignPartner } from "../../validators";
+import { DESIGN_MODULE } from "../../../../../modules/designs";
+import { PARTNER_MODULE } from "../../../../../modules/partner";
 
 
  export const POST = async (
@@ -51,3 +54,52 @@ import { LinkDesignPartner } from "../../validators";
   
     res.status(201).json( result );
   };
+
+/**
+ * DELETE /admin/designs/:id/partner
+ * Unlink a partner from a design.
+ * Body: { partnerId: string }
+ * Only allowed if the partner has no active production runs for this design.
+ */
+export const DELETE = async (
+  req: MedusaRequest,
+  res: MedusaResponse
+) => {
+  const designId = req.params.id
+  const { partnerId } = (req.body || {}) as { partnerId?: string }
+
+  if (!partnerId) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "partnerId is required"
+    )
+  }
+
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+
+  // Check for active production runs for this partner + design
+  const { data: runs } = await query.graph({
+    entity: "production_runs",
+    filters: {
+      design_id: designId,
+      partner_id: partnerId,
+      status: { $nin: ["completed", "cancelled"] },
+    },
+    fields: ["id", "status"],
+  })
+
+  if (runs?.length) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Cannot unlink partner — ${runs.length} active production run(s) exist. Complete or cancel them first.`
+    )
+  }
+
+  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+  await remoteLink.dismiss({
+    [DESIGN_MODULE]: { design_id: designId },
+    [PARTNER_MODULE]: { partner_id: partnerId },
+  })
+
+  res.json({ design_id: designId, partner_id: partnerId, unlinked: true })
+}

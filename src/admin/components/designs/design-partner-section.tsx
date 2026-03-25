@@ -1,7 +1,7 @@
 import { Container, Heading, Text, Avatar, Button, Badge, toast } from "@medusajs/ui";
-import { Plus, TriangleRightMini } from "@medusajs/icons";
+import { Plus, Trash, TriangleRightMini } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
-import { AdminDesign, useSendDesignToPartner } from "../../hooks/api/designs";
+import { AdminDesign, useSendDesignToPartner, useUnlinkDesignFromPartner } from "../../hooks/api/designs";
 import { AdminPartner } from "../../hooks/api/partners";
 import { useProductionRuns } from "../../hooks/api/production-runs";
 import { useNavigate } from "react-router-dom";
@@ -14,18 +14,28 @@ interface DesignPartnerSectionProps {
 export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
   const navigate = useNavigate();
   const partners = design.partners || [];
-  const { mutateAsync: sendDesign, isPending } = useSendDesignToPartner(design.id)
+  const { mutateAsync: sendDesign, isPending: isSending } = useSendDesignToPartner(design.id)
+  const { mutateAsync: unlinkPartner, isPending: isUnlinking } = useUnlinkDesignFromPartner(design.id)
   const { production_runs = [] } = useProductionRuns({
     design_id: design.id,
     limit: 50,
     offset: 0,
   })
 
-  // Build a map of partner_id → production run status
+  // Check if a partner has an active (non-completed, non-cancelled) production run
   const partnerRunStatus = (partnerId: string) => {
     const run = production_runs.find((r: any) => r.partner_id === partnerId)
     if (!run) return null
     return String(run.status || "assigned")
+  }
+
+  const hasActiveRun = (partnerId: string) => {
+    return production_runs.some(
+      (r: any) =>
+        r.partner_id === partnerId &&
+        r.status !== "completed" &&
+        r.status !== "cancelled"
+    )
   }
 
   const handleSendToPartner = async (e: React.MouseEvent, partnerId: string) => {
@@ -38,6 +48,19 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
       toast.error(err?.message || "Failed to send design to partner")
     }
   }
+
+  const handleUnlinkPartner = async (e: React.MouseEvent, partnerId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      await unlinkPartner({ partnerId })
+      toast.success("Partner unlinked from design")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to unlink partner")
+    }
+  }
+
+  const isAnyLoading = isSending || isUnlinking
 
   return (
     <Container className="p-0">
@@ -72,7 +95,9 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
         ) : (
           partners.map((partner) => {
             const link = `/partners/${partner.id}`;
-            
+            const runStatus = partnerRunStatus(partner.id)
+            const canUnlink = !hasActiveRun(partner.id)
+
             const Inner = (
               <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2 transition-colors">
                 <div className="flex items-center gap-3">
@@ -86,26 +111,32 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    {(() => {
-                      const runStatus = partnerRunStatus(partner.id)
-                      if (runStatus) {
-                        return (
-                          <Badge color={runStatus === "completed" ? "green" : "orange"}>
-                            {runStatus === "sent_to_partner" ? "Sent" : runStatus.replace(/_/g, " ")}
-                          </Badge>
-                        )
-                      }
-                      return (
-                        <Button
-                          size="small"
-                          variant="secondary"
-                          isLoading={isPending}
-                          onClick={(e) => handleSendToPartner(e, partner.id)}
-                        >
-                          Send
-                        </Button>
-                      )
-                    })()}
+                    {runStatus ? (
+                      <Badge color={runStatus === "completed" ? "green" : "orange"}>
+                        {runStatus === "sent_to_partner" ? "Sent" : runStatus.replace(/_/g, " ")}
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="small"
+                        variant="secondary"
+                        isLoading={isSending}
+                        disabled={isAnyLoading}
+                        onClick={(e) => handleSendToPartner(e, partner.id)}
+                      >
+                        Send
+                      </Button>
+                    )}
+                    {canUnlink && (
+                      <Button
+                        size="small"
+                        variant="transparent"
+                        isLoading={isUnlinking}
+                        disabled={isAnyLoading}
+                        onClick={(e) => handleUnlinkPartner(e, partner.id)}
+                      >
+                        <Trash className="text-ui-fg-subtle" />
+                      </Button>
+                    )}
                     <div className="size-7 flex items-center justify-center">
                       <TriangleRightMini className="text-ui-fg-muted" />
                     </div>
@@ -113,7 +144,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                 </div>
               </div>
             );
-            
+
             return (
               <Link
                 to={link}

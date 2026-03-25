@@ -31,6 +31,24 @@ export const GET = async (
     { take: 100 }
   )
 
+  // Enrich levels with stock location names
+  if (levels?.length) {
+    const locationIds = [...new Set(levels.map((l: any) => l.location_id).filter(Boolean))]
+    if (locationIds.length) {
+      const stockLocationService = req.scope.resolve(Modules.STOCK_LOCATION) as any
+      const stockLocations = await stockLocationService.listStockLocations(
+        { id: locationIds },
+        { select: ["id", "name"] }
+      )
+      const locationMap = new Map(stockLocations.map((sl: any) => [sl.id, sl]))
+
+      for (const level of levels) {
+        const sl = locationMap.get(level.location_id)
+        level.stock_locations = sl ? [sl] : []
+      }
+    }
+  }
+
   res.json({
     inventory_levels: levels || [],
     count,

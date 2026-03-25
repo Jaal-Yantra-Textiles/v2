@@ -3051,6 +3051,11 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(LinkDesignPartnerSchema))],
     },
+    {
+      matcher: "/admin/designs/:id/partner",
+      method: "DELETE",
+      middlewares: [authenticate("user", ["session", "bearer"])],
+    },
     // Admin Designs -> send to partner
     {
       matcher: "/admin/designs/:id/send-to-partner",

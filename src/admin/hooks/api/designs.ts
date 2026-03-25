@@ -415,6 +415,30 @@ export const useLinkDesignToPartner = (
   });
 }
 
+export const useUnlinkDesignFromPartner = (
+  designId: string,
+  options?: UseMutationOptions<
+    { design_id: string; partner_id: string; unlinked: boolean },
+    FetchError,
+    { partnerId: string }
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { partnerId: string }) =>
+      sdk.client.fetch<{ design_id: string; partner_id: string; unlinked: boolean }>(
+        `/admin/designs/${designId}/partner`,
+        { method: "DELETE", body: data }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+}
+
 export const useSendDesignToPartner = (
   id: string,
   options?: UseMutationOptions<
