@@ -9,6 +9,7 @@ import type DeploymentService from "../../modules/deployment/service"
 import PartnerService from "../../modules/partner/service"
 import { WEBSITE_MODULE } from "../../modules/website"
 import type WebsiteService from "../../modules/website/service"
+import { seedDefaultPagesWorkflow } from "../website/seed-default-pages"
 
 export type ProvisionStorefrontInput = {
   partner_id: string
@@ -235,17 +236,19 @@ const createWebsiteRecordStep = createStep(
   "create-website-record",
   async (
     input: {
-      domain: string
+      handle: string
+      rootDomain: string
       partnerName: string
       partnerId: string
     },
     { container }
   ) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE)
+    const domain = `${input.handle}.${input.rootDomain}`
 
     // Check if a website already exists for this domain
     const [existing] = await websiteService.listAndCountWebsites(
-      { domain: input.domain },
+      { domain },
       { take: 1 }
     )
     if (existing.length) {
@@ -256,8 +259,8 @@ const createWebsiteRecordStep = createStep(
     }
 
     const website = await websiteService.createWebsites({
-      domain: input.domain,
-      name: input.partnerName || input.domain,
+      domain,
+      name: input.partnerName || domain,
       status: "Active",
     })
 
@@ -297,10 +300,6 @@ const seedDefaultWebsitePagesStep = createStep(
     }
 
     try {
-      // Import and run the seed workflow inline to avoid circular deps
-      const { seedDefaultPagesWorkflow } = await import(
-        "../../workflows/website/seed-default-pages"
-      )
       const { result } = await seedDefaultPagesWorkflow(container).run({
         input: { website_id: input.websiteId },
       })
@@ -369,7 +368,8 @@ export const provisionStorefrontWorkflow = createWorkflow(
 
     // Step 7: Create website record for the domain
     const websiteResult = createWebsiteRecordStep({
-      domain: `${input.handle}.${input.root_domain}` as unknown as string,
+      handle: input.handle,
+      rootDomain: input.root_domain,
       partnerName: input.partner_name as unknown as string,
       partnerId: input.partner_id,
     })
