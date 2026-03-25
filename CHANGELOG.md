@@ -1,3 +1,12 @@
+## [12.1.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.5...v12.1.6) (2026-03-25)
+
+
+### Bug Fixes
+
+* **api:** Currency Conversion ([2c0a3fa](https://github.com/Jaal-Yantra-Textiles/v2/commit/2c0a3fa8856f01500da9f6284296e9deda72852a))
+* **admin:** Fixed the partner to show the send or not send ([47ffa36](https://github.com/Jaal-Yantra-Textiles/v2/commit/47ffa36ccd81748a11b841dd539517b07104753e))
+* **api:** Fixed the prodution sectoin in the partner ui ([d6408a1](https://github.com/Jaal-Yantra-Textiles/v2/commit/d6408a1395d8a1e6ca4b126c229d6013e48eca8c))
+
 ## [12.1.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.4...v12.1.5) (2026-03-24)
 
 
