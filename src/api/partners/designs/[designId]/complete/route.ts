@@ -122,6 +122,17 @@ export async function POST(
     return res.status(401).json({ error: "Partner authentication required" })
   }
 
+  // Check if assignment was cancelled
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+  const { data: designCheck } = await query.graph({
+    entity: "designs",
+    fields: ["metadata"],
+    filters: { id: designId },
+  })
+  if (designCheck?.[0]?.metadata?.partner_assignment_cancelled_at) {
+    return res.status(400).json({ error: "This design assignment has been cancelled" })
+  }
+
   // Parse optional consumptions payload for inventory adjustments
   const BodySchema = z.object({
     consumptions: z

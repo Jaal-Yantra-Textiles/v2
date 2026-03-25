@@ -331,5 +331,163 @@ setupSharedTestSuite(() => {
         expect(runRes.data.production_run.partner_id).toBe(partnerId)
       })
     })
+
+    // ─── Partner action guards after v1 cancel ──────────────────────
+
+    describe("Partner actions blocked after v1 cancel", () => {
+      it("should block partner /start after v1 cancel", async () => {
+        const { api, container, adminHeaders, unique } = await setup()
+        const { partnerId, partnerHeaders } = await createPartner(api, unique)
+        const designId = await createDesign(api, adminHeaders, unique)
+
+        // Simulate v1 send
+        await simulateV1Send(container, designId, partnerId)
+
+        // Partner sees the design
+        const designsBefore = await api.get("/partners/designs", {
+          headers: partnerHeaders,
+        })
+        const found = designsBefore.data.designs?.find((d: any) => d.id === designId)
+        expect(found).toBeDefined()
+
+        // Admin cancels v1
+        const cancelRes = await api.post(
+          `/admin/designs/${designId}/cancel-partner-assignment`,
+          { partner_id: partnerId },
+          adminHeaders
+        )
+        expect(cancelRes.status).toBe(200)
+
+        // Partner tries to start — should be blocked
+        const startRes = await api
+          .post(
+            `/partners/designs/${designId}/start`,
+            {},
+            { headers: partnerHeaders, validateStatus: () => true }
+          )
+        expect(startRes.status).toBe(400)
+        expect(startRes.data.error).toContain("cancelled")
+      })
+
+      it("should block partner /finish after v1 cancel", async () => {
+        const { api, container, adminHeaders, unique } = await setup()
+        const { partnerId, partnerHeaders } = await createPartner(api, unique)
+        const designId = await createDesign(api, adminHeaders, unique)
+
+        await simulateV1Send(container, designId, partnerId)
+
+        // Admin cancels
+        await api.post(
+          `/admin/designs/${designId}/cancel-partner-assignment`,
+          { partner_id: partnerId },
+          adminHeaders
+        )
+
+        // Partner tries to finish — blocked
+        const finishRes = await api
+          .post(
+            `/partners/designs/${designId}/finish`,
+            {},
+            { headers: partnerHeaders, validateStatus: () => true }
+          )
+        expect(finishRes.status).toBe(400)
+        expect(finishRes.data.error).toContain("cancelled")
+      })
+
+      it("should block partner /complete after v1 cancel", async () => {
+        const { api, container, adminHeaders, unique } = await setup()
+        const { partnerId, partnerHeaders } = await createPartner(api, unique)
+        const designId = await createDesign(api, adminHeaders, unique)
+
+        await simulateV1Send(container, designId, partnerId)
+
+        // Admin cancels
+        await api.post(
+          `/admin/designs/${designId}/cancel-partner-assignment`,
+          { partner_id: partnerId },
+          adminHeaders
+        )
+
+        // Partner tries to complete — blocked
+        const completeRes = await api
+          .post(
+            `/partners/designs/${designId}/complete`,
+            {},
+            { headers: partnerHeaders, validateStatus: () => true }
+          )
+        expect(completeRes.status).toBe(400)
+        expect(completeRes.data.error).toContain("cancelled")
+      })
+
+      it("should show cancelled status in partner design list", async () => {
+        const { api, container, adminHeaders, unique } = await setup()
+        const { partnerId, partnerHeaders } = await createPartner(api, unique)
+        const designId = await createDesign(api, adminHeaders, unique)
+
+        await simulateV1Send(container, designId, partnerId)
+
+        // Admin cancels
+        await api.post(
+          `/admin/designs/${designId}/cancel-partner-assignment`,
+          { partner_id: partnerId },
+          adminHeaders
+        )
+
+        // Partner list should show cancelled status
+        const listRes = await api.get("/partners/designs", {
+          headers: partnerHeaders,
+        })
+        expect(listRes.status).toBe(200)
+        const design = listRes.data.designs?.find((d: any) => d.id === designId)
+        expect(design).toBeDefined()
+        expect(design.partner_info.partner_status).toBe("cancelled")
+      })
+
+      it("should show cancelled status in partner design detail", async () => {
+        const { api, container, adminHeaders, unique } = await setup()
+        const { partnerId, partnerHeaders } = await createPartner(api, unique)
+        const designId = await createDesign(api, adminHeaders, unique)
+
+        await simulateV1Send(container, designId, partnerId)
+
+        // Admin cancels
+        await api.post(
+          `/admin/designs/${designId}/cancel-partner-assignment`,
+          { partner_id: partnerId },
+          adminHeaders
+        )
+
+        // Partner detail should show cancelled status
+        const detailRes = await api.get(
+          `/partners/designs/${designId}`,
+          { headers: partnerHeaders }
+        )
+        expect(detailRes.status).toBe(200)
+        expect(detailRes.data.design.partner_info.partner_status).toBe("cancelled")
+      })
+
+      it("should allow partner actions on non-cancelled v1 design (normal flow)", async () => {
+        const { api, container, adminHeaders, unique } = await setup()
+        const { partnerId, partnerHeaders } = await createPartner(api, unique)
+        const designId = await createDesign(api, adminHeaders, unique)
+
+        // Simulate v1 send (NOT cancelled)
+        await simulateV1Send(container, designId, partnerId)
+
+        // Partner should be able to start — NOT blocked
+        // This will fail at the workflow signal step (fake txId) but should NOT return 400 "cancelled"
+        const startRes = await api
+          .post(
+            `/partners/designs/${designId}/start`,
+            {},
+            { headers: partnerHeaders, validateStatus: () => true }
+          )
+        // Should NOT be 400 with "cancelled" error — the design is active
+        // It may be 500 (workflow signal fails on fake txId) or 200, but not "cancelled"
+        if (startRes.status === 400) {
+          expect(startRes.data.error).not.toContain("cancelled")
+        }
+      })
+    })
   })
 })

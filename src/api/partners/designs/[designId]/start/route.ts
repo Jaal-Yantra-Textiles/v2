@@ -77,8 +77,18 @@ export async function POST(
     return res.status(401).json({ error: "Partner authentication required" })
   }
 
-  // Load tasks to get transaction id
+  // Check if assignment was cancelled
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: designCheck } = await query.graph({
+    entity: "designs",
+    fields: ["metadata"],
+    filters: { id: designId },
+  })
+  if (designCheck?.[0]?.metadata?.partner_assignment_cancelled_at) {
+    return res.status(400).json({ error: "This design assignment has been cancelled" })
+  }
+
+  // Load tasks to get transaction id
   const taskLinksResult = await query.graph({
     entity: "designs",
     fields: ["id", "tasks.*"],

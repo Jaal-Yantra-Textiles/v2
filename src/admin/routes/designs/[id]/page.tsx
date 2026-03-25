@@ -5,7 +5,6 @@ import { DesignPartnerSection } from "../../../components/designs/design-partner
 import { DesignTasksSection } from "../../../components/designs/design-tasks-section";
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
 import { DesignMediaFolderSection } from "../../../components/designs/design-media-folder-section";
-import { DesignMoodboardSidebarSection } from "../../../components/designs/design-moodboard-sidebar-section";
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
 import { DesignConsumptionLogsSection } from "../../../components/designs/design-consumption-logs-section";
 import { DesignSizesSection } from "../../../components/designs/design-sizes-section";
@@ -69,6 +68,10 @@ const DesignDetailPage = () => {
       >
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
+          <DesignProductionRunsSection design={design} />
+          <DesignPartnerSection design={design} />
+          <DesignInventorySection design={design} />
+          <DesignConsumptionLogsSection design={design} />
           <DesignSizesSection design={design} />
           <DesignTagsSection design={design} />
           <DesignColorPaletteSection design={design} />
@@ -76,13 +79,8 @@ const DesignDetailPage = () => {
         <TwoColumnPage.Sidebar>
           <DesignMediaFolderSection design={design} />
           <DesignMediaSection design={design} />
-          <DesignMoodboardSidebarSection design={design} />
           <DesignTasksSection design={design} />
-          <DesignInventorySection design={design} />
-          <DesignConsumptionLogsSection design={design} />
-          <DesignPartnerSection design={design} />
           <DesignComponentsSection design={design} />
-          <DesignProductionRunsSection design={design} />
         </TwoColumnPage.Sidebar>  
         </TwoColumnPage>
     </>

@@ -439,6 +439,30 @@ export const useUnlinkDesignFromPartner = (
   });
 }
 
+export const useCancelPartnerAssignment = (
+  designId: string,
+  options?: UseMutationOptions<
+    { design_id: string; partner_id: string; cancelled_tasks: number; unlinked: boolean; message: string },
+    FetchError,
+    { partner_id: string; unlink?: boolean }
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { partner_id: string; unlink?: boolean }) =>
+      sdk.client.fetch<{ design_id: string; partner_id: string; cancelled_tasks: number; unlinked: boolean; message: string }>(
+        `/admin/designs/${designId}/cancel-partner-assignment`,
+        { method: "POST", body: data }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+}
+
 export const useSendDesignToPartner = (
   id: string,
   options?: UseMutationOptions<
