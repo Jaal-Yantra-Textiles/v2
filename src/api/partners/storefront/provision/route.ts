@@ -162,6 +162,7 @@ export const POST = async (
   const { result } = await provisionStorefrontWorkflow(req.scope).run({
     input: {
       partner_id: partner.id,
+      partner_name: partnerData.name || handle,
       handle,
       publishable_key: matchingKey.token,
       root_domain: ROOT_DOMAIN,

@@ -7,9 +7,12 @@ import {
 import { DEPLOYMENT_MODULE } from "../../modules/deployment"
 import type DeploymentService from "../../modules/deployment/service"
 import PartnerService from "../../modules/partner/service"
+import { WEBSITE_MODULE } from "../../modules/website"
+import type WebsiteService from "../../modules/website/service"
 
 export type ProvisionStorefrontInput = {
   partner_id: string
+  partner_name?: string
   handle: string
   publishable_key: string
   root_domain: string
@@ -227,6 +230,89 @@ const saveStorefrontMetadataStep = createStep(
   }
 )
 
+// Step 7: Create website record for the storefront domain
+const createWebsiteRecordStep = createStep(
+  "create-website-record",
+  async (
+    input: {
+      domain: string
+      partnerName: string
+      partnerId: string
+    },
+    { container }
+  ) => {
+    const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE)
+
+    // Check if a website already exists for this domain
+    const [existing] = await websiteService.listAndCountWebsites(
+      { domain: input.domain },
+      { take: 1 }
+    )
+    if (existing.length) {
+      return new StepResponse(
+        { website: existing[0], created: false },
+        null
+      )
+    }
+
+    const website = await websiteService.createWebsites({
+      domain: input.domain,
+      name: input.partnerName || input.domain,
+      status: "Active",
+    })
+
+    // Save website_id on partner record
+    const partnerService: PartnerService = container.resolve("partner")
+    await partnerService.updatePartners({
+      id: input.partnerId,
+      website_id: website.id,
+    })
+
+    return new StepResponse(
+      { website, created: true },
+      website.id
+    )
+  },
+  async (websiteId, { container }) => {
+    if (!websiteId) return
+    const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE)
+    try {
+      await websiteService.softDeleteWebsites(websiteId)
+    } catch {
+      // best-effort rollback
+    }
+  }
+)
+
+// Step 8: Seed default pages for the website
+const seedDefaultWebsitePagesStep = createStep(
+  "seed-default-website-pages",
+  async (
+    input: { websiteId: string; wasCreated: boolean },
+    { container }
+  ) => {
+    // Only seed pages if we just created the website
+    if (!input.wasCreated) {
+      return new StepResponse({ skipped: true })
+    }
+
+    try {
+      // Import and run the seed workflow inline to avoid circular deps
+      const { seedDefaultPagesWorkflow } = await import(
+        "../../workflows/website/seed-default-pages"
+      )
+      const { result } = await seedDefaultPagesWorkflow(container).run({
+        input: { website_id: input.websiteId },
+      })
+      return new StepResponse({ skipped: false, pages: result?.pages })
+    } catch (e: any) {
+      // Non-fatal — provisioning should succeed even if page seeding fails
+      console.error("[provision-storefront] Page seeding failed:", e.message)
+      return new StepResponse({ skipped: false, error: e.message })
+    }
+  }
+)
+
 export const provisionStorefrontWorkflow = createWorkflow(
   "provision-storefront",
   (input: ProvisionStorefrontInput) => {
@@ -279,6 +365,19 @@ export const provisionStorefrontWorkflow = createWorkflow(
       handle: input.handle,
       rootDomain: input.root_domain,
       existingMetadata: input.existing_metadata,
+    })
+
+    // Step 7: Create website record for the domain
+    const websiteResult = createWebsiteRecordStep({
+      domain: `${input.handle}.${input.root_domain}` as unknown as string,
+      partnerName: input.partner_name as unknown as string,
+      partnerId: input.partner_id,
+    })
+
+    // Step 8: Seed default pages
+    seedDefaultWebsitePagesStep({
+      websiteId: websiteResult.website.id as unknown as string,
+      wasCreated: websiteResult.created as unknown as boolean,
     })
 
     return new WorkflowResponse({

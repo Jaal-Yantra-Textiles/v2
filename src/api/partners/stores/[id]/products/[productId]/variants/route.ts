@@ -15,7 +15,13 @@ export const GET = async (
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: products } = await query.graph({
     entity: "products",
-    fields: ["variants.*", "variants.prices.*", "variants.options.*"],
+    fields: [
+      "variants.*",
+      "variants.prices.*",
+      "variants.options.*",
+      "variants.inventory_items.inventory.*",
+      "variants.inventory_items.inventory.location_levels.*",
+    ],
     filters: { id: req.params.productId },
   })
 

@@ -53,15 +53,9 @@ export const normalizeVariants = (
   variants: ProductCreateSchemaType["variants"],
   regionsCurrencyMap: Record<string, string>
 ): HttpTypes.AdminCreateProductVariant[] => {
-  return variants.map((variant) => ({
-    title: variant.title || Object.values(variant.options || {}).join(" / "),
-    options: variant.options,
-    sku: variant.sku || undefined,
-    manage_inventory: !!variant.manage_inventory,
-    allow_backorder: !!variant.allow_backorder,
-    variant_rank: variant.variant_rank,
-    inventory_items: variant
-      .inventory!.map((i) => {
+  return variants.map((variant) => {
+    const inventoryItems = (variant.inventory || [])
+      .map((i) => {
         const quantity = i.required_quantity
           ? castNumber(i.required_quantity)
           : null
@@ -80,7 +74,18 @@ export const normalizeVariants = (
           item
         ): item is { required_quantity: number; inventory_item_id: string } =>
           item !== false
-      ),
+      )
+
+    return {
+    title: variant.title || Object.values(variant.options || {}).join(" / "),
+    options: variant.options,
+    sku: variant.sku || undefined,
+    manage_inventory: !!variant.manage_inventory,
+    allow_backorder: !!variant.allow_backorder,
+    variant_rank: variant.variant_rank,
+    // Only send inventory_items when the user explicitly configured kit items.
+    // When empty, omit so Medusa auto-creates inventory items for managed variants.
+    ...(inventoryItems.length > 0 ? { inventory_items: inventoryItems } : {}),
     prices: Object.entries(variant.prices || {})
       .map(([key, value]: any) => {
         if (value === "" || value === undefined) {
@@ -101,7 +106,7 @@ export const normalizeVariants = (
         }
       })
       .filter((v) => !!v),
-  }))
+  }})
 }
 
 export const decorateVariantsWithDefaultValues = (

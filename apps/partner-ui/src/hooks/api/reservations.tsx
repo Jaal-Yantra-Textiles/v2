@@ -5,7 +5,6 @@ import {
   useMutation,
   useQuery,
 } from "@tanstack/react-query"
-import { HttpTypes } from "@medusajs/types"
 import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
@@ -14,20 +13,26 @@ import {
   inventoryItemsQueryKeys,
 } from "./inventory.tsx"
 import { FetchError } from "@medusajs/js-sdk"
+import qs from "qs"
 
 const RESERVATION_ITEMS_QUERY_KEY = "reservation_items" as const
 export const reservationItemsQueryKeys = queryKeysFactory(
   RESERVATION_ITEMS_QUERY_KEY
 )
 
+const buildQuery = (params?: Record<string, any>) => {
+  const query = qs.stringify(params || {}, { skipNulls: true, arrayFormat: "brackets" })
+  return query ? `?${query}` : ""
+}
+
 export const useReservationItem = (
   id: string,
-  query?: HttpTypes.AdminReservationParams,
+  query?: Record<string, any>,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminReservationResponse,
+      { reservation: any },
       FetchError,
-      HttpTypes.AdminReservationResponse,
+      { reservation: any },
       QueryKey
     >,
     "queryFn" | "queryKey"
@@ -35,7 +40,12 @@ export const useReservationItem = (
 ) => {
   const { data, ...rest } = useQuery({
     queryKey: reservationItemsQueryKeys.detail(id),
-    queryFn: async () => sdk.admin.reservation.retrieve(id, query),
+    queryFn: async () =>
+      sdk.client.fetch<{ reservation: any }>(
+        `/partners/reservations/${id}`,
+        { method: "GET" }
+      ),
+    enabled: !!id,
     ...options,
   })
 
@@ -43,19 +53,23 @@ export const useReservationItem = (
 }
 
 export const useReservationItems = (
-  query?: HttpTypes.AdminGetReservationsParams,
+  query?: Record<string, any>,
   options?: Omit<
     UseQueryOptions<
-      HttpTypes.AdminGetReservationsParams,
+      { reservations: any[]; count: number; limit: number; offset: number },
       FetchError,
-      HttpTypes.AdminReservationListResponse,
+      { reservations: any[]; count: number; limit: number; offset: number },
       QueryKey
     >,
     "queryKey" | "queryFn"
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.reservation.list(query),
+    queryFn: () =>
+      sdk.client.fetch<{ reservations: any[]; count: number; limit: number; offset: number }>(
+        `/partners/reservations${buildQuery(query)}`,
+        { method: "GET" }
+      ),
     queryKey: reservationItemsQueryKeys.list(query),
     ...options,
   })
@@ -66,14 +80,17 @@ export const useReservationItems = (
 export const useUpdateReservationItem = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminReservationResponse,
+    { reservation: any },
     FetchError,
-    HttpTypes.AdminUpdateReservation
+    { quantity?: number; location_id?: string; description?: string }
   >
 ) => {
   return useMutation({
-    mutationFn: (payload: HttpTypes.AdminUpdateReservation) =>
-      sdk.admin.reservation.update(id, payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ reservation: any }>(
+        `/partners/reservations/${id}`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: reservationItemsQueryKeys.detail(id),
@@ -95,14 +112,17 @@ export const useUpdateReservationItem = (
 
 export const useCreateReservationItem = (
   options?: UseMutationOptions<
-    HttpTypes.AdminReservationResponse,
+    { reservation: any },
     FetchError,
-    HttpTypes.AdminCreateReservation
+    { inventory_item_id: string; location_id: string; quantity: number; description?: string }
   >
 ) => {
   return useMutation({
-    mutationFn: (payload: HttpTypes.AdminCreateReservation) =>
-      sdk.admin.reservation.create(payload),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ reservation: any }>(
+        `/partners/reservations`,
+        { method: "POST", body: payload }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: reservationItemsQueryKeys.lists(),
@@ -122,13 +142,17 @@ export const useCreateReservationItem = (
 export const useDeleteReservationItem = (
   id: string,
   options?: UseMutationOptions<
-    HttpTypes.AdminReservationDeleteResponse,
+    { id: string; object: string; deleted: boolean },
     FetchError,
     void
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.reservation.delete(id),
+    mutationFn: () =>
+      sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(
+        `/partners/reservations/${id}`,
+        { method: "DELETE" }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: reservationItemsQueryKeys.lists(),
