@@ -14,6 +14,7 @@ import { LocationItem } from "./location-item"
 import { LocationSearchInput } from "./location-search-input"
 import { InfiniteList } from "../../../../../../components/common/infinite-list/infinite-list"
 import { useStockLocations } from "../../../../../../hooks/api/stock-locations"
+import { usePartnerStores } from "../../../../../../hooks/api/partner-stores"
 
 type EditInventoryItemAttributeFormProps = {
   item: AdminInventoryItem
@@ -30,6 +31,8 @@ export const ManageLocationsForm = ({
 
   const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLocationIds, setSelectedLocationIds] = useState<Set<string>>(
     existingLocationLevels
@@ -134,10 +137,11 @@ export const ManageLocationsForm = ({
             HttpTypes.AdminStockLocation,
             HttpTypes.AdminStockLocationListParams
           >
-            queryKey={["stock-locations", searchQuery]}
+            queryKey={["stock-locations", storeId, searchQuery]}
             queryFn={async (params) => {
+              if (!storeId) return { stock_locations: [], count: 0 }
               const response = await sdk.client.fetch<any>(
-                "/partners/stock-locations",
+                `/partners/stores/${storeId}/locations`,
                 { method: "GET", query: { limit: params.limit, offset: params.offset, ...(searchQuery && { q: searchQuery }) } }
               )
               return response

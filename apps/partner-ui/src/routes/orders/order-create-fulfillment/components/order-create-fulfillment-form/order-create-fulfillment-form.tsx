@@ -25,6 +25,7 @@ import {
 import { getReservationsLimitCount } from "../../../../../lib/orders"
 import { sdk } from "../../../../../lib/client"
 import { useComboboxData } from "../../../../../hooks/use-combobox-data"
+import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { Combobox } from "../../../../../components/inputs/combobox"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
 
@@ -43,16 +44,22 @@ export function OrderCreateFulfillmentForm({
   const { mutateAsync: createOrderFulfillment, isPending: isMutating } =
     useCreateOrderFulfillment(order.id)
 
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
   const { reservations } = useReservationItems({
     line_item_id: order.items.map((i) => i.id),
     limit: getReservationsLimitCount(order),
   })
 
   const stockLocations = useComboboxData({
-    queryFn: (params) => sdk.client.fetch<any>("/partners/stock-locations", { method: "GET", query: params }),
-    queryKey: ["stock_locations"],
+    queryFn: (params) => {
+      if (!storeId) return Promise.resolve({ stock_locations: [] })
+      return sdk.client.fetch<any>(`/partners/stores/${storeId}/locations`, { method: "GET", query: params })
+    },
+    queryKey: ["stock_locations", storeId],
     getOptions: (data) =>
-      data.stock_locations.map((location) => ({
+      (data.stock_locations || []).map((location: any) => ({
         label: location.name,
         value: location.id,
       })),
