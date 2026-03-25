@@ -2646,6 +2646,11 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(AdminSendProductionRunToProductionReq))],
     },
     {
+      matcher: "/admin/production-runs/:id/cancel",
+      method: "POST",
+      middlewares: [authenticate("user", ["session", "bearer"])],
+    },
+    {
       matcher: "/admin/production-runs/:id/start-dispatch",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminStartDispatchProductionRunReq))],
@@ -3054,6 +3059,11 @@ export default defineMiddlewares({
     {
       matcher: "/admin/designs/:id/partner",
       method: "DELETE",
+      middlewares: [authenticate("user", ["session", "bearer"])],
+    },
+    {
+      matcher: "/admin/designs/:id/cancel-partner-assignment",
+      method: "POST",
       middlewares: [authenticate("user", ["session", "bearer"])],
     },
     // Admin Designs -> send to partner
