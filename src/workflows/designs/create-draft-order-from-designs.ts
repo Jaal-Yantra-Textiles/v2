@@ -25,6 +25,8 @@ type DesignEstimate = {
   name: string
   unit_price: number
   confidence: string
+  original_price?: number
+  original_currency?: string
 }
 
 // ─── Step 1: Estimate costs for each design ──────────────────────────────────
@@ -77,7 +79,111 @@ const estimateDesignCostsStep = createStep(
   }
 )
 
-// ─── Step 2: Create cart with design line items ──────────────────────────────
+// ─── Step 2: Convert estimates to target currency ───────────────────────────
+//
+// Fetches live exchange rates from the Frankfurter API (ECB data, free, no key).
+// Rates update once per business day. Results are cached in-memory for 1 hour.
+
+type FrankfurterResponse = {
+  base: string
+  date: string
+  rates: Record<string, number>
+}
+
+const frankfurterCache = new Map<string, { rate: number; fetchedAt: number }>()
+const CACHE_TTL_MS = 60 * 60 * 1000
+
+async function fetchExchangeRate(from: string, to: string): Promise<number> {
+  const fromUpper = from.toUpperCase()
+  const toUpper = to.toUpperCase()
+
+  if (fromUpper === toUpper) return 1
+
+  const cacheKey = `${fromUpper}_${toUpper}`
+  const cached = frankfurterCache.get(cacheKey)
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    return cached.rate
+  }
+
+  const url = `https://api.frankfurter.app/latest?from=${fromUpper}&to=${toUpper}`
+  const res = await fetch(url)
+
+  if (!res.ok) {
+    throw new Error(
+      `Failed to fetch exchange rate ${fromUpper}→${toUpper}: ${res.status} ${res.statusText}`
+    )
+  }
+
+  const data: FrankfurterResponse = await res.json()
+  const rate = data.rates[toUpper]
+
+  if (rate == null) {
+    throw new Error(`Exchange rate not available for ${fromUpper}→${toUpper}`)
+  }
+
+  frankfurterCache.set(cacheKey, { rate, fetchedAt: Date.now() })
+  return rate
+}
+
+function applyRate(amount: number, rate: number): number {
+  return Math.round(amount * rate * 100) / 100
+}
+
+const convertEstimateCurrencyStep = createStep(
+  "convert-estimate-currency-step",
+  async (
+    input: {
+      estimates: DesignEstimate[]
+      target_currency: string
+    },
+    { container }
+  ) => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const targetCurrency = (input.target_currency || "inr").toLowerCase()
+
+    // Determine the store's default (base) currency
+    const { data: stores } = await query.graph({
+      entity: "store",
+      filters: {},
+      fields: ["supported_currencies.currency_code", "supported_currencies.is_default"],
+    })
+
+    const store = stores?.[0]
+    const defaultCurrency = (
+      store?.supported_currencies?.find((sc: any) => sc.is_default)?.currency_code ||
+      "inr"
+    ).toLowerCase()
+
+    // If target matches the store default, no conversion needed
+    if (targetCurrency === defaultCurrency) {
+      return new StepResponse({
+        estimates: input.estimates,
+        exchange_rate: 1,
+        base_currency: defaultCurrency,
+        target_currency: targetCurrency,
+      })
+    }
+
+    // Fetch live exchange rate from store default → target currency
+    const rate = await fetchExchangeRate(defaultCurrency, targetCurrency)
+
+    const converted: DesignEstimate[] = input.estimates.map((est) => ({
+      ...est,
+      original_price: est.unit_price,
+      original_currency: defaultCurrency,
+      unit_price: applyRate(est.unit_price, rate),
+    }))
+
+    return new StepResponse({
+      estimates: converted,
+      exchange_rate: rate,
+      base_currency: defaultCurrency,
+      target_currency: targetCurrency,
+    })
+  }
+)
+
+// ─── Step 3: Create cart with design line items ──────────────────────────────
 
 const createDesignCartStep = createStep(
   "create-design-cart-step",
@@ -163,6 +269,10 @@ const createDesignCartStep = createStep(
         metadata: {
           design_id: est.design_id,
           cost_confidence: est.confidence,
+          ...(est.original_price != null && {
+            original_currency: est.original_currency,
+            original_amount: est.original_price,
+          }),
         },
       }))
     )
@@ -183,7 +293,7 @@ const createDesignCartStep = createStep(
   }
 )
 
-// ─── Step 3: Link designs to cart line items ─────────────────────────────────
+// ─── Step 4: Link designs to cart line items ─────────────────────────────────
 
 const linkDesignsToLineItemsStep = createStep(
   "link-designs-to-line-items-step",
@@ -233,14 +343,20 @@ export const createDraftOrderFromDesignsWorkflow = createWorkflow(
       price_overrides: input.price_overrides,
     })
 
+    // Convert prices from store default currency to target currency
+    const convertedResult = convertEstimateCurrencyStep({
+      estimates: estimatesResult.estimates as unknown as DesignEstimate[],
+      target_currency: input.currency_code as unknown as string,
+    })
+
     const cartResult = createDesignCartStep({
       customer_id: input.customer_id,
       currency_code: input.currency_code,
-      estimates: estimatesResult.estimates as unknown as DesignEstimate[],
+      estimates: convertedResult.estimates as unknown as DesignEstimate[],
     })
 
     linkDesignsToLineItemsStep({
-      estimates: estimatesResult.estimates as unknown as DesignEstimate[],
+      estimates: convertedResult.estimates as unknown as DesignEstimate[],
       lineItems: cartResult.lineItems,
     })
 
@@ -249,3 +365,7 @@ export const createDraftOrderFromDesignsWorkflow = createWorkflow(
 )
 
 export default createDraftOrderFromDesignsWorkflow
+
+// ─── Exported for use in store checkout route ────────────────────────────────
+
+export { fetchExchangeRate, applyRate }

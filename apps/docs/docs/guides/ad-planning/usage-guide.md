@@ -6,8 +6,9 @@ sidebar_position: 1
 
 # Ad Planning & Attribution - Usage Guide
 
-**Date**: 2026-02-07
+**Date**: 2026-03-25
 **Status**: Production Ready
+**Last Updated**: 2026-03-25 — Major bug fixes, automation improvements, and UI enhancements
 
 A comprehensive guide to using the Ad Planning & Attribution module in the JYT Commerce admin dashboard. This module connects your Meta ad campaigns, social content, lead pipeline, and customer data into a unified planning and analytics system.
 
@@ -61,18 +62,39 @@ The module is organized into seven sub-pages accessible from the main dashboard:
 
 ## 2. Dashboard Overview
 
-The Ad Planning dashboard (`/ad-planning`) is a quick-navigation landing page with cards linking to each module. Use the **View Metrics** button in the top-right to open the consolidated metrics modal.
+The Ad Planning dashboard (`/ad-planning`) shows live KPI summary cards and quick-navigation links to each module. Use the **View Metrics** button in the top-right to open the consolidated metrics modal.
+
+### Live KPI Cards
+
+Six real-time metrics are displayed at the top of the dashboard:
+
+| Metric | Description |
+|--------|-------------|
+| **Conversions** | Total conversion count (all time) |
+| **Revenue** | Total conversion value |
+| **Active Segments** | Count of active segments with total member count |
+| **Experiments** | Count of currently running experiments |
+| **Attribution Rate** | Percentage of sessions successfully attributed to campaigns |
+| **Scored Customers** | Total customers with at least one computed score |
+
+### Navigation Cards
+
+Below the KPIs, six cards link to each sub-page. Cards include contextual badges (e.g., "3 running" for experiments, "5 active" for segments) so you can quickly gauge activity without clicking through.
 
 ```
 ┌────────────────────────────────────────────────────┐
 │  Ad Planning & Attribution          [View Metrics] │
-│  Manage conversions, experiments, segments, ...    │
+├────────────────────────────────────────────────────┤
+│  [Conversions: 1,204] [Revenue: ₹4.5L] [Segments] │
+│  [Experiments: 2]     [Attr Rate: 78%] [Scored: 89]│
 ├────────────────────────────────────────────────────┤
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────┐ │
 │  │ Conversions  │  │ A/B Tests    │  │ Journeys │ │
+│  │  ✓ 1,204     │  │  ● 2 running │  │          │ │
 │  └──────────────┘  └──────────────┘  └──────────┘ │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────┐ │
 │  │ Segments     │  │ Scores       │  │ Attrib.  │ │
+│  │  ● 5 active  │  │              │  │          │ │
 │  └──────────────┘  └──────────────┘  └──────────┘ │
 └────────────────────────────────────────────────────┘
 ```
@@ -150,13 +172,25 @@ Track every conversion event that happens across your channels.
 | `scroll_depth` | User scrolled past a threshold |
 | `time_on_site` | User spent significant time on site |
 
+### Summary Cards
+
+Four KPI cards appear above the data table:
+
+| Card | Description |
+|------|-------------|
+| **Total Conversions** | Count of all conversion events |
+| **Total Value** | Sum of all conversion values |
+| **Purchases** | Count of purchase-type conversions |
+| **Avg Value** | Average value per conversion |
+
 ### Viewing Conversions
 
 The list page shows a DataTable with columns:
 - **Type** - Color-coded badge (green for purchase, blue for lead form, etc.)
-- **Value** - Conversion value in INR
-- **Source** - UTM source (Google, Facebook, Email, Direct)
-- **Campaign** - UTM campaign name
+- **Value** - Conversion value with currency
+- **Order** - Clickable link to the order detail page (for purchase conversions)
+- **Campaign** - UTM campaign name, links to the attribution page filtered by that campaign
+- **Customer** - Person ID (links to their journey timeline) or anonymous visitor ID
 - **Platform** - Where the conversion occurred (meta, google, direct)
 - **Date** - When the conversion happened
 
@@ -239,6 +273,7 @@ Navigate to an experiment by clicking its name. The detail page shows:
   - Winner and recommendation
 
 **Sidebar**:
+- **Sample Progress** (running/completed) — Progress bar showing current samples vs target sample size, with control/treatment split. Bar turns green when target is reached.
 - Timeline (created, started, ended dates)
 - Statistical significance badge
 - P-value and improvement percentage
@@ -247,6 +282,7 @@ Navigate to an experiment by clicking its name. The detail page shows:
 
 | Action | Available When | What It Does |
 |--------|---------------|--------------|
+| Edit | Draft | Edit experiment name and description |
 | Start | Draft | Begins the experiment, starts collecting data |
 | Stop | Running | Ends the experiment, calculates final results |
 | Delete | Draft | Removes the experiment entirely |
@@ -278,21 +314,26 @@ Awareness → Interest → Consideration → Intent → Conversion → Retention
 | `purchase` | Completed a purchase | Green |
 | `social_engage` | Engaged on social media | Grey |
 
+### Funnel Visualization
+
+At the top of the journeys page, a **visual funnel chart** shows stage-by-stage progression:
+
+- Horizontal bars proportional to the number of visitors at each stage
+- **Drop-off percentages** shown at each transition
+- **Overall conversion rate** badge (awareness → conversion)
+- **Biggest drop-off** highlighted below the funnel
+- Includes both **identified customers** (with person_id) and **anonymous visitors** (visitor_id only)
+
 ### Filtering
 
-Use the two dropdowns to filter:
+Below the funnel, the event log table has two filter dropdowns:
 - **Stage filter** - Show only events at a specific funnel stage
 - **Event type filter** - Show only specific event types
 
-### Funnel Analysis
+### Cross-links
 
-The funnel endpoint provides stage-by-stage counts and drop-off rates:
-
-```
-GET /admin/ad-planning/journeys/funnel
-```
-
-This data powers the funnel visualization in the Metrics modal.
+- **Customer column** — Person IDs link to their full journey timeline at `/ad-planning/journeys/{personId}`
+- **Order column** — For purchase events, links directly to the order detail page
 
 ---
 
@@ -306,10 +347,9 @@ Create rule-based customer segments for targeting and analysis.
 
 | Type | Description | Example |
 |------|-------------|---------|
-| `behavioral` | Based on customer actions | "Visited 3+ times in 7 days" |
-| `demographic` | Based on customer attributes | "Located in Mumbai" |
-| `value-based` | Based on spending patterns | "Lifetime value > ₹10,000" |
-| `engagement` | Based on engagement metrics | "Engagement score > 70" |
+| `behavioral` | Based on customer actions | "Purchased 3+ times in 30 days" |
+| `demographic` | Based on customer attributes | "Located in Mumbai, age > 25" |
+| `rfm` | Recency, Frequency, Monetary analysis | "High frequency buyers with recent activity" |
 | `custom` | Custom rule combinations | Any criteria combination |
 
 ### Creating a Segment
@@ -347,8 +387,12 @@ Click a segment name to view its detail page (`/ad-planning/segments/{id}`):
 
 ### Dynamic vs Static Segments
 
-- **Dynamic** (`auto_update: true`) - Membership is recalculated automatically
-- **Static** - Members are fixed until manually rebuilt
+- **Dynamic** (`auto_update: true`) - Membership is automatically rebuilt after purchase events. When a customer makes a purchase, all active auto-update segments are recalculated with the latest scores and data.
+- **Static** - Members are fixed until manually rebuilt via the **Rebuild** button on the segment detail page.
+
+### Manual Members
+
+Members added manually (`added_reason: "manual"`) are preserved during segment rebuilds. Only rule-matched members are removed when they no longer meet the criteria.
 
 ---
 
@@ -380,13 +424,23 @@ Customers are grouped into tiers based on their scores:
 
 ### Filtering
 
-Use the dropdowns to filter by:
-- **Score Type** - CLV, Engagement, Churn Risk, NPS
-- **Tier** - Platinum, Gold, Silver, Bronze
+Use the **Score Type** dropdown to filter by: CLV, Engagement, Churn Risk, NPS.
+
+### Automatic Score Recalculation
+
+Scores are automatically recalculated after key events:
+
+| Event | Scores Updated |
+|-------|---------------|
+| **Purchase** (`order.placed`) | CLV (full prediction), Engagement, Churn Risk |
+| **Feedback** (`feedback.created`) | Engagement (full recalc), NPS (if rating provided) |
+| **Sentiment analysis** | Engagement (full recalc) |
+
+This means scores stay fresh without manual intervention. The purchase workflow resolves the customer's `person_id` from their order email, then recalculates all three scores and rebuilds auto-update segments.
 
 ### Calculating Scores via API
 
-Scores are computed via the scoring endpoints:
+Scores can also be triggered manually via the API. All four score types are supported:
 
 ```bash
 # Calculate NPS for a customer
@@ -396,6 +450,14 @@ curl -X POST /admin/ad-planning/scores \
 # Calculate engagement score
 curl -X POST /admin/ad-planning/scores \
   -d '{"person_id": "person_abc", "score_type": "engagement"}'
+
+# Calculate predicted CLV
+curl -X POST /admin/ad-planning/scores \
+  -d '{"person_id": "person_abc", "score_type": "clv"}'
+
+# Calculate churn risk
+curl -X POST /admin/ad-planning/scores \
+  -d '{"person_id": "person_abc", "score_type": "churn_risk"}'
 ```
 
 ---
@@ -406,41 +468,33 @@ curl -X POST /admin/ad-planning/scores \
 
 Track which campaigns and channels drive conversions using multi-touch attribution models.
 
-### Attribution Models
+### Attribution Resolution
 
-| Model | Description |
-|-------|-------------|
-| `last_click` | 100% credit to the last touchpoint before conversion |
-| `first_click` | 100% credit to the first touchpoint |
-| `linear` | Equal credit to all touchpoints |
-| `time_decay` | More credit to touchpoints closer to conversion |
-| `position_based` | 40% first, 40% last, 20% split across middle touches |
+Attribution works by matching UTM parameters from analytics sessions to known ad campaigns. Resolution happens in two ways:
 
-### Touch Types
-
-| Touch | Description |
-|-------|-------------|
-| `first` | First interaction in the journey |
-| `last` | Last interaction before conversion |
-| `middle` | Any interaction between first and last |
+1. **Automatic** — When an analytics event arrives with `utm_campaign` data, attribution is resolved immediately via the event subscriber.
+2. **Manual bulk resolve** — Click **Resolve Attributions** to process any remaining unresolved sessions.
 
 ### Table Columns
 
 The attribution list shows:
 
-- **Campaign** - Campaign name with UTM source
+- **Campaign** - UTM campaign name with UTM source
 - **Source** - Color-coded badge (Google = blue, Facebook/Instagram/Meta = purple, Email = green)
 - **Medium** - UTM medium (cpc, social, email, etc.)
-- **Model** - Attribution model used
-- **Touch** - Touch type (first, last, middle)
-- **Converted** - Yes/No badge
-- **Value** - Conversion value in INR
+- **Platform** - Ad platform (meta, google, generic)
+- **Resolved** - Yes/No badge indicating whether the session was matched to a campaign
+- **Method** - How the match was made (exact UTM match, fuzzy name match)
+- **Pageviews** - Number of pages viewed in the session
 - **Ad Spend** - Campaign spend from Meta Ads (enriched data)
 - **Date** - Attribution date
 
-### Campaign Spend Enrichment
+### Filtering
 
-The attribution table automatically enriches each row with the **Ad Spend** from the matching Meta Ads campaign. This is done by matching the `campaign_name` or `utm_campaign` to Meta campaign names, allowing you to see spend alongside attributed conversion value for quick ROAS assessment.
+Use the status dropdown to filter by:
+- **All Attributions** — Show everything
+- **Resolved** — Only sessions matched to campaigns
+- **Unresolved** — Sessions that couldn't be matched
 
 ### Bulk Resolve
 
@@ -542,7 +596,7 @@ Before using ad-planning metrics, ensure your Meta data is synced:
 | GET | `/admin/ad-planning/segments` | List segments (filters: `segment_type`, `is_active`) |
 | POST | `/admin/ad-planning/segments` | Create a segment with rules |
 | GET | `/admin/ad-planning/segments/:id` | Get segment details |
-| POST | `/admin/ad-planning/segments/:id/build` | Rebuild segment membership |
+| PUT | `/admin/ad-planning/segments/:id` | Update segment (pass `rebuild: true` to trigger rebuild) |
 | DELETE | `/admin/ad-planning/segments/:id` | Delete a segment |
 | GET | `/admin/ad-planning/segments/:id/members` | List segment members |
 
@@ -559,18 +613,15 @@ Before using ad-planning metrics, ensure your Meta data is synced:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/admin/ad-planning/scores` | List scores (filters: `score_type`, `person_id`) |
-| POST | `/admin/ad-planning/scores` | Calculate and record a score |
-| GET | `/admin/ad-planning/scores/tier-distribution` | Get tier distribution stats |
+| GET | `/admin/ad-planning/scores` | List scores with aggregates (filters: `score_type`, `person_id`) |
+| POST | `/admin/ad-planning/scores` | Calculate a score (`score_type`: nps, engagement, clv, churn_risk) |
 
 ### Attribution
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/admin/ad-planning/attribution` | List attributions (filters: `attribution_model`, `platform`, `is_resolved`) |
-| POST | `/admin/ad-planning/attribution` | Create an attribution record |
-| POST | `/admin/ad-planning/attribution/resolve` | Resolve pending attributions |
-| POST | `/admin/ad-planning/attribution/bulk-resolve` | Bulk resolve all unresolved |
+| GET | `/admin/ad-planning/attribution` | List attributions (filters: `platform`, `is_resolved`) |
+| POST | `/admin/ad-planning/attribution/resolve` | Resolve attributions (single or bulk with `bulk: true`) |
 | GET | `/admin/ad-planning/attribution/stats` | Get attribution statistics |
 
 ### Goals
@@ -588,7 +639,7 @@ Before using ad-planning metrics, ensure your Meta data is synced:
 |--------|----------|-------------|
 | GET | `/admin/ad-planning/dashboard` | Dashboard summary data |
 | GET | `/admin/ad-planning/nps` | NPS scores |
-| GET | `/admin/ad-planning/sentiment` | Sentiment analysis data |
+| GET | `/admin/ad-planning/sentiment` | Sentiment analysis with top keywords, emotions, entities, topics |
 | GET | `/admin/ad-planning/predictive` | Predictive scores |
 | GET | `/admin/ad-planning/predictive/at-risk` | At-risk customers |
 | GET | `/admin/ad-planning/forecasts` | Budget forecasts |

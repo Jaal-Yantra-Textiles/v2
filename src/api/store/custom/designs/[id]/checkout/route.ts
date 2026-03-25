@@ -7,6 +7,10 @@ import { estimateDesignCostWorkflow } from "../../../../../../workflows/designs/
 import designCustomerLink from "../../../../../../links/design-customer-link";
 import designLineItemLink from "../../../../../../links/design-line-item-link";
 import { DESIGN_MODULE } from "../../../../../../modules/designs";
+import {
+  fetchExchangeRate,
+  applyRate,
+} from "../../../../../../workflows/designs/create-draft-order-from-designs";
 
 /**
  * POST /store/custom/designs/:id/checkout
@@ -76,19 +80,42 @@ export async function POST(
     throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "Failed to estimate design cost");
   }
 
-  // Prices in Medusa carts are stored in the smallest currency unit (cents)
-  const unitPriceCents = Math.round(costEstimate.total_estimated * 100);
-
   const cartService = req.scope.resolve(Modules.CART) as any;
+
+  // Determine the cart's currency so we can convert from store default
+  const cart = await cartService.retrieveCart(body.cart_id);
+  const cartCurrency = (cart?.currency_code || body.currency_code || "usd").toLowerCase();
+
+  // Determine store's default (base) currency — estimates are always in this currency
+  const { data: stores } = await query.graph({
+    entity: "store",
+    filters: {},
+    fields: ["supported_currencies.currency_code", "supported_currencies.is_default"],
+  });
+  const storeCurrency = (
+    stores?.[0]?.supported_currencies?.find((sc: any) => sc.is_default)?.currency_code ||
+    "inr"
+  ).toLowerCase();
+
+  // Convert estimated cost from store currency to cart currency
+  const rate = await fetchExchangeRate(storeCurrency, cartCurrency);
+  const convertedEstimate = applyRate(costEstimate.total_estimated, rate);
+
+  const wasCurrencyConverted = storeCurrency !== cartCurrency;
+
   const lineItems = await cartService.addLineItems(body.cart_id, [
     {
       title: designName,
-      unit_price: unitPriceCents,
+      unit_price: convertedEstimate,
       is_custom_price: true,
       quantity: 1,
       metadata: {
         design_id: designId,
         cost_confidence: costEstimate.confidence,
+        ...(wasCurrencyConverted && {
+          original_currency: storeCurrency,
+          original_amount: costEstimate.total_estimated,
+        }),
       },
     },
   ]);
@@ -107,13 +134,17 @@ export async function POST(
 
   res.status(200).json({
     line_item_id: lineItem.id,
-    price: costEstimate.total_estimated,
+    price: convertedEstimate,
+    currency_code: cartCurrency,
     cost_estimate: {
       material_cost: costEstimate.material_cost,
       production_cost: costEstimate.production_cost,
       total_estimated: costEstimate.total_estimated,
       confidence: costEstimate.confidence,
       breakdown: costEstimate.breakdown,
+      original_currency: storeCurrency,
+      converted_amount: convertedEstimate,
+      converted_currency: cartCurrency,
     },
   });
 }
