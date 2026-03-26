@@ -1,3 +1,13 @@
+## [12.1.11](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.10...v12.1.11) (2026-03-26)
+
+
+### Bug Fixes
+
+* **api:** Fixed awaiting review ([9e895d1](https://github.com/Jaal-Yantra-Textiles/v2/commit/9e895d131427304ed974072d3febfbd15897e02f))
+* **api:** Fixed the production run related details ([52c4b2e](https://github.com/Jaal-Yantra-Textiles/v2/commit/52c4b2e8463f74e52153cb273beb48100d329eae))
+* **api:** Fixed the UI and Ux related fixe ([9050732](https://github.com/Jaal-Yantra-Textiles/v2/commit/905073246646f88471b62904fb4351a38d5b5e23))
+* **workflows:** Workflow missing the template key ([9c6937c](https://github.com/Jaal-Yantra-Textiles/v2/commit/9c6937ca9de3c86f43c74ec816e7e82220c621ba))
+
 ## [12.1.10](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.9...v12.1.10) (2026-03-26)
 
 
