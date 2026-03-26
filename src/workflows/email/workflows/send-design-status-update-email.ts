@@ -2,6 +2,7 @@ import { createWorkflow, createStep, StepResponse, WorkflowResponse, transform, 
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { ICustomerModuleService } from "@medusajs/types"
 import { sendNotificationEmailStep } from "../steps/send-notification-email"
+import { fetchEmailTemplateStep } from "../steps/fetch-email-template"
 import designCustomerLink from "../../../links/design-customer-link"
 
 /**
@@ -77,7 +78,19 @@ export const sendDesignStatusUpdateEmailWorkflow = createWorkflow(
     })
 
     when({ emailData }, (data) => data.emailData !== null).then(() => {
-      sendNotificationEmailStep(emailData!)
+      // Fetch and process the email template from DB
+      const templateData = fetchEmailTemplateStep({
+        templateKey: input.templateKey,
+        data: emailData!.data as unknown as Record<string, any>,
+      })
+
+      // Merge template data into the email step input
+      const emailWithTemplate = transform({ emailData, templateData }, (d) => ({
+        ...d.emailData!,
+        templateData: d.templateData,
+      }))
+
+      sendNotificationEmailStep(emailWithTemplate as any)
     })
 
     return new WorkflowResponse(emailData)
