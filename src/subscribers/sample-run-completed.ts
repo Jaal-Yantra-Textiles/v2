@@ -94,7 +94,7 @@ export default async function sampleRunCompletedHandler({
   }
 
   // Use partner's cost estimate if provided, otherwise fall back to 30% overhead
-  const partnerEstimate = Number(run.metadata?.partner_cost_estimate) || 0
+  const partnerEstimate = Number(run.partner_cost_estimate) || 0
   const productionCost = partnerEstimate > 0
     ? partnerEstimate
     : materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)

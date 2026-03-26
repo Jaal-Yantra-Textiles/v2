@@ -2636,6 +2636,11 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(AdminCreateProductionRunReq))],
     },
     {
+      matcher: "/admin/production-runs/:id",
+      method: "POST",
+      middlewares: [authenticate("user", ["session", "bearer"])],
+    },
+    {
       matcher: "/admin/production-runs/:id/approve",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminApproveProductionRunReq))],

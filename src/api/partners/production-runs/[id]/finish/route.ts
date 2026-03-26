@@ -1,10 +1,15 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
+import { z } from "@medusajs/framework/zod"
 
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { signalLifecycleStepSuccessWorkflow } from "../../../../../workflows/production-runs/production-run-steps"
 import { awaitRunFinishStepId } from "../../../../../workflows/production-runs/run-production-run-lifecycle"
+
+const FinishBodySchema = z.object({
+  notes: z.string().optional(),
+}).optional()
 
 export async function POST(
   req: AuthenticatedMedusaRequest & { params: { id: string } },
@@ -47,10 +52,35 @@ export async function POST(
     )
   }
 
+  // Parse optional notes
+  const parsed = FinishBodySchema.safeParse(
+    (req as any).validatedBody || req.body
+  )
+  const notes = parsed?.success && parsed.data ? parsed.data.notes : undefined
+
   await productionRunService.updateProductionRuns({
     id: run.id,
     finished_at: new Date(),
+    ...(notes ? { finish_notes: notes } : {}),
   })
+
+  // Move design to Technical_Review for admin review
+  if ((run as any).design_id) {
+    try {
+      const designService = req.scope.resolve("design") as any
+      const design = await designService.retrieveDesign((run as any).design_id)
+      // Only transition if design is in a development state
+      const devStatuses = ["In_Development", "Sample_Production", "Revision"]
+      if (devStatuses.includes(design.status)) {
+        await designService.updateDesigns({
+          id: (run as any).design_id,
+          status: "Technical_Review",
+        })
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
 
   // Signal the lifecycle workflow
   const transactionId = (run as any).metadata?.lifecycle_transaction_id
@@ -68,6 +98,16 @@ export async function POST(
   }
 
   const updated = await productionRunService.retrieveProductionRun(id)
+
+  // Emit event for notifications
+  try {
+    const { Modules } = await import("@medusajs/framework/utils")
+    const eventService = req.scope.resolve(Modules.EVENT_BUS) as any
+    await eventService.emit([{
+      name: "production_run.finished",
+      data: { id, production_run_id: id, partner_id: partnerId, action: "finished", notes },
+    }])
+  } catch { /* non-fatal */ }
 
   return res.status(200).json({
     production_run: updated,

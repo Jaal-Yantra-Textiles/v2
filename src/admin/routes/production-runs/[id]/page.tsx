@@ -1,10 +1,11 @@
-import { Badge, Button, Container, Heading, Tabs, Text, toast } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, Input, Select, Tabs, Text, toast } from "@medusajs/ui"
 import { Link, LoaderFunctionArgs, UIMatch, useLoaderData, useNavigate, useParams } from "react-router-dom"
+import { useState } from "react"
 
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { productionRunLoader } from "./loader"
-import { useCancelProductionRun } from "../../../hooks/api/production-runs"
+import { useCancelProductionRun, useUpdateProductionRun } from "../../../hooks/api/production-runs"
 import { productionRunStatusColor as statusColor } from "../../../lib/status-colors"
 
 const formatStatus = (s: string) => s.replace(/_/g, " ")
@@ -17,8 +18,47 @@ const ProductionRunDetailPage = () => {
   const run = initialData?.production_run
   const tasks = initialData?.tasks || []
   const cancelRun = useCancelProductionRun(id || "")
+  const updateRun = useUpdateProductionRun(id || "")
 
   const canCancel = run?.status && !["completed", "cancelled"].includes(run.status)
+  const canEdit = run && !run.accepted_at && !run.started_at && run.status !== "completed" && run.status !== "cancelled"
+
+  const [editQuantity, setEditQuantity] = useState<string>("")
+  const [editRole, setEditRole] = useState<string>("")
+  const [editRunType, setEditRunType] = useState<string>("")
+  const [isEditing, setIsEditing] = useState(false)
+
+  const startEditing = () => {
+    setEditQuantity(String(run?.quantity ?? ""))
+    setEditRole(run?.role || "")
+    setEditRunType(run?.run_type || "production")
+    setIsEditing(true)
+  }
+
+  const handleSave = async () => {
+    const updates: Record<string, any> = {}
+    if (editQuantity && Number(editQuantity) !== run?.quantity) {
+      updates.quantity = Number(editQuantity)
+    }
+    if (editRole !== (run?.role || "")) {
+      updates.role = editRole || undefined
+    }
+    if (editRunType !== run?.run_type) {
+      updates.run_type = editRunType
+    }
+    if (Object.keys(updates).length === 0) {
+      setIsEditing(false)
+      return
+    }
+    try {
+      await updateRun.mutateAsync(updates)
+      toast.success("Production run updated")
+      setIsEditing(false)
+      navigate(0)
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update")
+    }
+  }
 
   const handleCancel = async () => {
     try {
@@ -85,7 +125,17 @@ const ProductionRunDetailPage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Text size="small" className="text-ui-fg-subtle">Type</Text>
-                    <Text>{run.run_type === "sample" ? "Sample" : "Production"}</Text>
+                    {isEditing ? (
+                      <Select value={editRunType} onValueChange={setEditRunType}>
+                        <Select.Trigger><Select.Value /></Select.Trigger>
+                        <Select.Content>
+                          <Select.Item value="production">Production</Select.Item>
+                          <Select.Item value="sample">Sample</Select.Item>
+                        </Select.Content>
+                      </Select>
+                    ) : (
+                      <Text>{run.run_type === "sample" ? "Sample" : "Production"}</Text>
+                    )}
                   </div>
                   <div>
                     <Text size="small" className="text-ui-fg-subtle">Partner</Text>
@@ -97,19 +147,54 @@ const ProductionRunDetailPage = () => {
                   </div>
                   <div>
                     <Text size="small" className="text-ui-fg-subtle">Quantity</Text>
-                    <Text>{String(run.quantity ?? "-")}</Text>
+                    {isEditing ? (
+                      <Input
+                        type="number"
+                        min={1}
+                        value={editQuantity}
+                        onChange={(e) => setEditQuantity(e.target.value)}
+                      />
+                    ) : (
+                      <Text>{String(run.quantity ?? "-")}</Text>
+                    )}
                   </div>
                   <div>
                     <Text size="small" className="text-ui-fg-subtle">Role</Text>
-                    <Text>{String(run.role || "-")}</Text>
+                    {isEditing ? (
+                      <Input
+                        placeholder="e.g. manufacturing, cutting"
+                        value={editRole}
+                        onChange={(e) => setEditRole(e.target.value)}
+                      />
+                    ) : (
+                      <Text>{String(run.role || "-")}</Text>
+                    )}
                   </div>
                   {run.parent_run_id && (
-                  <div>
-                    <Text size="small" className="text-ui-fg-subtle">Parent Run</Text>
-                    <Link to={`/production-runs/${run.parent_run_id}`} className="text-ui-fg-interactive hover:underline">
-                      <Text>{run.parent_run_id}</Text>
-                    </Link>
-                  </div>
+                    <div>
+                      <Text size="small" className="text-ui-fg-subtle">Parent Run</Text>
+                      <Link to={`/production-runs/${run.parent_run_id}`} className="text-ui-fg-interactive hover:underline">
+                        <Text>{run.parent_run_id}</Text>
+                      </Link>
+                    </div>
+                  )}
+                  {run.finish_notes && (
+                    <div className="col-span-2">
+                      <Text size="small" className="text-ui-fg-subtle">Partner Finish Notes</Text>
+                      <Text size="small" className="mt-1">{run.finish_notes}</Text>
+                    </div>
+                  )}
+                  {run.completion_notes && (
+                    <div className="col-span-2">
+                      <Text size="small" className="text-ui-fg-subtle">Partner Completion Notes</Text>
+                      <Text size="small" className="mt-1">{run.completion_notes}</Text>
+                    </div>
+                  )}
+                  {run.partner_cost_estimate && (
+                    <div>
+                      <Text size="small" className="text-ui-fg-subtle">Partner Cost Estimate</Text>
+                      <Text>{run.partner_cost_estimate}</Text>
+                    </div>
                   )}
                   {run.depends_on_run_ids?.length > 0 && (
                     <div className="col-span-2">
@@ -124,6 +209,25 @@ const ProductionRunDetailPage = () => {
                     </div>
                   )}
                 </div>
+                {/* Edit / Save buttons */}
+                {canEdit && (
+                  <div className="mt-4 flex gap-x-2">
+                    {isEditing ? (
+                      <>
+                        <Button size="small" variant="secondary" onClick={() => setIsEditing(false)}>
+                          Cancel
+                        </Button>
+                        <Button size="small" isLoading={updateRun.isPending} onClick={handleSave}>
+                          Save Changes
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="small" variant="secondary" onClick={startEditing}>
+                        Edit Details
+                      </Button>
+                    )}
+                  </div>
+                )}
               </Tabs.Content>
 
               <Tabs.Content value="tasks" className="mt-4">

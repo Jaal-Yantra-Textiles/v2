@@ -6,6 +6,7 @@ import {
   WorkflowResponse,
   transform,
 } from "@medusajs/framework/workflows-sdk"
+import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
 import type { Link } from "@medusajs/modules-sdk"
 import type { LinkDefinition } from "@medusajs/framework/types"
 import type { IEventBusModuleService, Logger } from "@medusajs/types"
@@ -290,6 +291,18 @@ const startLifecycleWorkflowStep = createStep(
 export const sendProductionRunToProductionWorkflow = createWorkflow(
   "send-production-run-to-production",
   (input: SendProductionRunToProductionInput) => {
+    // Failure notification — shown in admin feed if workflow fails
+    const failureNotification = transform({ input }, (data) => [{
+      to: "",
+      channel: "feed",
+      template: "admin-ui",
+      data: {
+        title: "Production Run Dispatch Failed",
+        description: `Failed to dispatch production run ${data.input.production_run_id}. Tasks may not have been created.`,
+      },
+    }])
+    notifyOnFailureStep(failureNotification)
+
     const run = retrieveProductionRunStep({ production_run_id: input.production_run_id })
 
     const tasksResult = createTasksForProductionRunStep({
@@ -323,10 +336,21 @@ export const sendProductionRunToProductionWorkflow = createWorkflow(
     notifyPartnerStep({ run })
 
     // Start the long-running lifecycle workflow fire-and-forget
-    // (cannot use runAsStep — it would block until all async gates complete)
     startLifecycleWorkflowStep({
       production_run_id: input.production_run_id,
     })
+
+    // Success notification — shown in admin feed
+    const successNotification = transform({ input, run }, (data) => [{
+      to: "",
+      channel: "feed",
+      template: "admin-ui",
+      data: {
+        title: "Production Run Dispatched",
+        description: `Production run ${data.input.production_run_id} sent to partner. Tasks created and ready for acceptance.`,
+      },
+    }])
+    sendNotificationsStep(successNotification)
 
     return new WorkflowResponse({ run, tasksResult })
   }

@@ -242,3 +242,29 @@ export const useApproveProductionRun = (
     ...options,
   })
 }
+
+export const useUpdateProductionRun = (
+  runId: string,
+  options?: UseMutationOptions<
+    { production_run: AdminProductionRun },
+    FetchError,
+    { quantity?: number; role?: string; run_type?: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<{ production_run: AdminProductionRun }>(
+        `/admin/production-runs/${runId}`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}

@@ -166,9 +166,32 @@ const createRunMilestoneHook = (action: string) => {
 
 export const useAcceptPartnerProductionRun = createRunMilestoneHook("accept")
 export const useStartPartnerProductionRun = createRunMilestoneHook("start")
-export const useFinishPartnerProductionRun = createRunMilestoneHook("finish")
 
-// Complete hook accepts optional body (consumptions)
+// Finish hook accepts optional body (notes)
+export const useFinishPartnerProductionRun = (
+  id: string,
+  options?: UseMutationOptions<any, FetchError, any>
+) => {
+  return useMutation({
+    mutationFn: async (body?: any) =>
+      await sdk.client.fetch<any>(
+        `/partners/production-runs/${id}/finish`,
+        { method: "POST", body: body || {} }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: partnerProductionRunsQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: partnerProductionRunsQueryKeys.detail(id) })
+      queryClient.refetchQueries({ queryKey: partnerProductionRunsQueryKeys.lists() })
+      queryClient.refetchQueries({ queryKey: partnerProductionRunsQueryKeys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
+      queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+// Complete hook accepts optional body (consumptions, cost estimate, notes)
 export const useCompletePartnerProductionRun = (
   id: string,
   options?: UseMutationOptions<any, FetchError, any>

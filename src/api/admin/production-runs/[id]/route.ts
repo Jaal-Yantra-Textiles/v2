@@ -89,7 +89,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import type ProductionRunService from "../../../../modules/production_runs/service"
@@ -118,4 +118,47 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   return res.status(200).json({ production_run: run, tasks })
+}
+
+/**
+ * POST /admin/production-runs/:id
+ * Update a production run. Only allowed before the run has started (accepted_at).
+ * Editable fields: quantity, role, run_type
+ */
+export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const id = req.params.id
+  const productionRunService: ProductionRunService = req.scope.resolve(PRODUCTION_RUNS_MODULE)
+
+  const run = await productionRunService.retrieveProductionRun(id) as any
+
+  // Block edits after the run has been accepted/started
+  if (run.accepted_at || run.started_at) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "Cannot edit a production run after it has been accepted or started"
+    )
+  }
+
+  if (run.status === "completed" || run.status === "cancelled") {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Cannot edit a ${run.status} production run`
+    )
+  }
+
+  const body = req.body as Record<string, any>
+  const update: Record<string, any> = {}
+
+  if (body.quantity !== undefined) update.quantity = Number(body.quantity)
+  if (body.role !== undefined) update.role = body.role
+  if (body.run_type !== undefined) update.run_type = body.run_type
+
+  if (Object.keys(update).length === 0) {
+    return res.json({ production_run: run, message: "No changes" })
+  }
+
+  await productionRunService.updateProductionRuns({ id, ...update })
+  const updated = await productionRunService.retrieveProductionRun(id)
+
+  res.json({ production_run: updated })
 }

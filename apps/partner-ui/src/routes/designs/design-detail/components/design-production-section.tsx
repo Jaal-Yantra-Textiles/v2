@@ -1,4 +1,4 @@
-import { Badge, Button, Checkbox, Container, Heading, Input, Select, Text, Textarea, toast, usePrompt } from "@medusajs/ui"
+import { Badge, Button, Checkbox, Container, Heading, Input, Select, Text, Textarea, toast } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 import { useState } from "react"
 
@@ -112,9 +112,9 @@ const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign })
   const runId = String(run.id)
   const status = String(run.status || "")
   const tasks = run.tasks || []
-  const prompt = usePrompt()
-
+  const [showFinishForm, setShowFinishForm] = useState(false)
   const [showCompleteForm, setShowCompleteForm] = useState(false)
+  const [finishNotes, setFinishNotes] = useState("")
 
   const accept = useAcceptPartnerProductionRun(runId, {
     onSuccess: () => toast.success("Run accepted"),
@@ -156,18 +156,14 @@ const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign })
     catch (e) { toast.error(extractErrorMessage(e)) }
   }
 
-  const handleFinish = async () => {
-    if (pendingTasks.length > 0) {
-      const confirmed = await prompt({
-        title: "Pending Tasks",
-        description: `${pendingTasks.length} task(s) are still pending. Marking as finished will proceed regardless. Continue?`,
-        confirmText: "Mark Finished",
-        cancelText: "Go Back",
-      })
-      if (!confirmed) return
-    }
-    try { await finish.mutateAsync() }
-    catch (e) { toast.error(extractErrorMessage(e)) }
+  const handleFinishClick = () => setShowFinishForm(true)
+
+  const handleFinishConfirm = async () => {
+    try {
+      await finish.mutateAsync({ notes: finishNotes || undefined } as any)
+      setShowFinishForm(false)
+      setFinishNotes("")
+    } catch (e) { toast.error(extractErrorMessage(e)) }
   }
 
   const handleCompleteClick = () => setShowCompleteForm(true)
@@ -178,7 +174,7 @@ const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign })
     : canStart
     ? { label: "Start Working", onClick: handleStart, loading: start.isPending }
     : canFinish
-    ? { label: "Mark Finished", onClick: handleFinish, loading: finish.isPending }
+    ? { label: "Mark Finished", onClick: handleFinishClick, loading: finish.isPending }
     : canComplete
     ? { label: "Complete Run", onClick: handleCompleteClick, loading: complete.isPending }
     : null
@@ -228,6 +224,50 @@ const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign })
 
       {/* Progress stepper */}
       <ProgressStepper run={run} />
+
+      {/* Finish confirmation form */}
+      {showFinishForm && canFinish && (
+        <div className="px-6 py-4 bg-ui-bg-subtle border-t">
+          <Heading level="h3" className="mb-2">Mark as Finished</Heading>
+          <Text size="small" className="text-ui-fg-subtle mb-3">
+            The design will move to Technical Review for admin to inspect.
+          </Text>
+
+          {pendingTasks.length > 0 && (
+            <div className="mb-3 rounded-md border p-3 bg-ui-bg-base">
+              <Text size="small" weight="plus" className="text-ui-fg-on-color-disabled mb-1">
+                {pendingTasks.length} task(s) still pending
+              </Text>
+              {pendingTasks.map((t: any) => (
+                <Text key={t.id} size="xsmall" className="text-ui-fg-subtle">
+                  • {t.title || t.id}
+                </Text>
+              ))}
+            </div>
+          )}
+
+          <div className="mb-3">
+            <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+              Notes for reviewer (optional)
+            </Text>
+            <Textarea
+              placeholder="Any notes about the finished work, issues encountered, etc."
+              value={finishNotes}
+              onChange={(e) => setFinishNotes(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="flex justify-end gap-x-2">
+            <Button variant="secondary" size="small" onClick={() => { setShowFinishForm(false); setFinishNotes("") }}>
+              Cancel
+            </Button>
+            <Button size="small" isLoading={finish.isPending} onClick={handleFinishConfirm}>
+              Confirm & Mark Finished
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Complete confirmation form */}
       {showCompleteForm && canComplete && (
@@ -330,8 +370,9 @@ const CompleteRunForm = ({
     (t: any) => t.status !== "completed" && t.status !== "cancelled"
   )
 
-  // Partner's own cost estimate (labor, overheads, profit)
+  // Partner's own cost estimate and notes
   const [partnerEstimate, setPartnerEstimate] = useState("")
+  const [completionNotes, setCompletionNotes] = useState("")
 
   // Initialize one consumption entry per inventory item
   const [consumptions, setConsumptions] = useState<ConsumptionEntry[]>(
@@ -367,6 +408,9 @@ const CompleteRunForm = ({
     }
     if (partnerEstimate && parseFloat(partnerEstimate) > 0) {
       body.partner_cost_estimate = parseFloat(partnerEstimate)
+    }
+    if (completionNotes.trim()) {
+      body.notes = completionNotes.trim()
     }
 
     await onComplete(Object.keys(body).length > 0 ? body : undefined)
@@ -477,6 +521,18 @@ const CompleteRunForm = ({
           )}
         </div>
       )}
+
+      <div className="mb-3">
+        <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+          Completion notes (optional)
+        </Text>
+        <Textarea
+          placeholder="Quality observations, issues, or feedback for the admin team"
+          value={completionNotes}
+          onChange={(e) => setCompletionNotes(e.target.value)}
+          rows={3}
+        />
+      </div>
 
       <div className="flex justify-end gap-x-2 mt-3">
         <Button variant="secondary" size="small" onClick={onCancel} disabled={isLoading}>

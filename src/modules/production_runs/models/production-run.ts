@@ -32,6 +32,15 @@ const ProductionRun = model.define("production_runs", {
   started_at: model.dateTime().nullable(),
   finished_at: model.dateTime().nullable(),
   completed_at: model.dateTime().nullable(),
+  cancelled_at: model.dateTime().nullable(),
+  cancelled_reason: model.text().nullable(),
+
+  // Stage notes (captured at each milestone by partner)
+  finish_notes: model.text().nullable(),
+  completion_notes: model.text().nullable(),
+
+  // Cost
+  partner_cost_estimate: model.float().nullable(),
 
   // Dispatch state
   dispatch_state: model

@@ -69,6 +69,16 @@ export async function POST(
 
   const updated = await productionRunService.retrieveProductionRun(id)
 
+  // Emit event for notifications
+  try {
+    const { Modules } = await import("@medusajs/framework/utils")
+    const eventService = req.scope.resolve(Modules.EVENT_BUS) as any
+    await eventService.emit([{
+      name: "production_run.started",
+      data: { id, production_run_id: id, partner_id: partnerId, action: "started" },
+    }])
+  } catch { /* non-fatal */ }
+
   return res.status(200).json({
     production_run: updated,
     message: "Production run started",

@@ -95,5 +95,15 @@ export async function POST(
     )
   }
 
+  // Emit event for notifications
+  try {
+    const { Modules } = await import("@medusajs/framework/utils")
+    const eventService = req.scope.resolve(Modules.EVENT_BUS) as any
+    await eventService.emit([{
+      name: "production_run.accepted",
+      data: { id, production_run_id: id, partner_id: partnerId, action: "accepted" },
+    }])
+  } catch { /* non-fatal */ }
+
   return res.status(200).json({ result })
 }

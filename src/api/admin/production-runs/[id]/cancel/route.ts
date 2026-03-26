@@ -22,11 +22,8 @@ async function cancelSingleRun(
   await productionRunService.updateProductionRuns({
     id: runId,
     status: "cancelled",
-    metadata: {
-      ...(run.metadata || {}),
-      cancelled_at: new Date().toISOString(),
-      cancelled_reason: reason,
-    },
+    cancelled_at: new Date(),
+    cancelled_reason: reason,
   })
 
   // Cancel linked tasks
@@ -133,11 +130,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           await productionRunService.updateProductionRuns({
             id: run.parent_run_id,
             status: "cancelled",
-            metadata: {
-              ...(parent.metadata || {}),
-              cancelled_at: new Date().toISOString(),
-              cancelled_reason: "All child runs cancelled",
-            },
+            cancelled_at: new Date(),
+            cancelled_reason: "All child runs cancelled",
           })
         }
       }
@@ -145,6 +139,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       console.error("[cancel-production-run] Failed to check/cancel parent:", e.message)
     }
   }
+
+  // Emit event for notifications
+  try {
+    const { Modules } = await import("@medusajs/framework/utils")
+    const eventService = req.scope.resolve(Modules.EVENT_BUS) as any
+    await eventService.emit([{
+      name: "production_run.cancelled",
+      data: { id, production_run_id: id, action: "cancelled", notes: reason },
+    }])
+  } catch { /* non-fatal */ }
 
   const final = await productionRunService.retrieveProductionRun(id)
   res.json({
