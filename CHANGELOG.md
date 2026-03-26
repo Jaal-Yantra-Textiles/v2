@@ -1,3 +1,11 @@
+## [12.1.10](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.9...v12.1.10) (2026-03-26)
+
+
+### Bug Fixes
+
+* **docs:** Ficed the bugs ([47b6c26](https://github.com/Jaal-Yantra-Textiles/v2/commit/47b6c260e0b68af80f699823127a58a3fd6093f0))
+* **api:** Raw Material unit cost ([1f407ef](https://github.com/Jaal-Yantra-Textiles/v2/commit/1f407ef660b1ca580bc5fbf2c307586d9b52f839))
+
 ## [12.1.9](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.8...v12.1.9) (2026-03-26)
 
 
