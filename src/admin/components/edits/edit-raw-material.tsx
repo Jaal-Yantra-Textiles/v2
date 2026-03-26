@@ -14,6 +14,8 @@ interface RawMaterialUpdateData {
   description?: string
   composition: string
   unit_of_measure?: "Meter" | "Yard" | "Kilogram" | "Gram" | "Piece" | "Roll" | "Other"
+  unit_cost?: number
+  cost_currency?: string
   minimum_order_quantity?: number
   lead_time_days?: number
   color?: string
@@ -41,6 +43,12 @@ const rawMaterialEditSchema = z.object({
     "Roll",
     "Other"
   ]),
+  unit_cost: z.any().optional().transform(val => {
+    if (val === "" || val === null || val === undefined) return undefined;
+    const num = Number(val);
+    return isNaN(num) ? undefined : num;
+  }),
+  cost_currency: z.string().optional(),
   minimum_order_quantity: z.any().optional().transform(val => {
     if (val === "" || val === null || val === undefined) return undefined;
     const num = Number(val);
@@ -125,6 +133,8 @@ export const EditRawMaterialForm = ({ rawMaterial }: EditRawMaterialFormProps) =
       description: data.description,
       composition: data.composition,
       unit_of_measure: data.unit_of_measure,
+      unit_cost: data.unit_cost,
+      cost_currency: data.cost_currency,
       minimum_order_quantity: data.minimum_order_quantity,
       lead_time_days: data.lead_time_days,
       color: data.color,
@@ -195,6 +205,16 @@ await mutateAsync({ rawMaterialData: rawMaterialData as any },
       label: t("Unit of Measure"),
       options: unitOfMeasureOptions,
       gridCols: 1
+    },
+    {
+      name: "unit_cost" as any,
+      type: "number",
+      label: "Cost per Unit",
+    },
+    {
+      name: "cost_currency" as any,
+      type: "text",
+      label: "Currency (e.g. inr, usd)",
     },
     {
       name: "minimum_order_quantity",

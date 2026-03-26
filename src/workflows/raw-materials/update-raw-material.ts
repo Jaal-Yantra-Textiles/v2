@@ -16,6 +16,8 @@ type UpdateRawMaterialStepInput = {
     composition?: string;
     specifications?: Record<string, any> | null;
     unit_of_measure?: "Meter" | "Yard" | "Kilogram" | "Gram" | "Piece" | "Roll" | "Other";
+    unit_cost?: number;
+    cost_currency?: string;
     minimum_order_quantity?: number;
     lead_time_days?: number;
     color?: string;

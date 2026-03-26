@@ -31,6 +31,8 @@ const rawMaterialDataSchema = z.object({
     "Roll",
     "Other"
   ]).optional().default("Other"),
+  unit_cost: z.number().positive().optional(),
+  cost_currency: z.string().optional(),
   minimum_order_quantity: z.number().positive().optional(),
   lead_time_days: z.number().positive().optional(),
   color: z.string().optional(),
@@ -59,5 +61,7 @@ export const rawMaterialSchema = z.object({
 export type RawMaterial = z.infer<typeof rawMaterialSchema>;
 export type UpdateRawMaterial = Partial<RawMaterial>;
 
-export const UpdateRawMaterialSchema = rawMaterialSchema.partial();
+export const UpdateRawMaterialSchema = z.object({
+  rawMaterialData: rawMaterialDataSchema.partial(),
+});
 

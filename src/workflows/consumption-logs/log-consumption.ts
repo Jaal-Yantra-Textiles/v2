@@ -18,6 +18,7 @@ export type LogConsumptionInput = {
   inventory_item_id: string
   raw_material_id?: string
   quantity: number
+  unit_cost?: number
   unit_of_measure?: "Meter" | "Yard" | "Kilogram" | "Gram" | "Piece" | "Roll" | "Other"
   consumption_type?: "sample" | "production" | "wastage"
   consumed_by: "admin" | "partner"
@@ -70,6 +71,7 @@ const createConsumptionLogStep = createStep(
       inventory_item_id: input.inventory_item_id,
       raw_material_id: input.raw_material_id || null,
       quantity: input.quantity,
+      unit_cost: input.unit_cost ?? null,
       unit_of_measure: input.unit_of_measure || "Other",
       consumption_type: input.consumption_type || "sample",
       is_committed: false,

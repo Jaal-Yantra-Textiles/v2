@@ -6,6 +6,7 @@ const ConsumptionLog = model.define("consumption_log", {
   inventory_item_id: model.text(),
   raw_material_id: model.text().nullable(),
   quantity: model.float(),
+  unit_cost: model.float().nullable(),
   unit_of_measure: model
     .enum(["Meter", "Yard", "Kilogram", "Gram", "Piece", "Roll", "Other"])
     .default("Other"),

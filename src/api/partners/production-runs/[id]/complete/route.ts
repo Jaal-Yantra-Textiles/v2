@@ -1,5 +1,5 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
@@ -147,6 +147,17 @@ export async function POST(
     status: "completed" as any,
     completed_at: new Date(),
   })
+
+  // Emit event for subscribers (e.g. sample cost calculation)
+  try {
+    const eventService = req.scope.resolve(Modules.EVENT_BUS) as any
+    await eventService.emit([{
+      name: "production_run.completed",
+      data: { id: run.id },
+    }])
+  } catch {
+    // Non-fatal
+  }
 
   // Signal the lifecycle workflow
   const transactionId = (run as any).metadata?.lifecycle_transaction_id

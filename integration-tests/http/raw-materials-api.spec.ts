@@ -10,6 +10,8 @@ const sampleRawMaterial = {
     description: "Lightweight cotton poplin fabric for shirts",
     composition: "100% Cotton",
     unit_of_measure: "Meter",
+    unit_cost: 350,
+    cost_currency: "inr",
     color: "White",
     width: "150cm",
     weight: "120gsm",
@@ -73,6 +75,8 @@ setupSharedTestSuite(() => {
           composition: sampleRawMaterial.rawMaterialData.composition,
           color: sampleRawMaterial.rawMaterialData.color,
           unit_of_measure: sampleRawMaterial.rawMaterialData.unit_of_measure,
+          unit_cost: sampleRawMaterial.rawMaterialData.unit_cost,
+          cost_currency: sampleRawMaterial.rawMaterialData.cost_currency,
         }),
       })
 
@@ -145,7 +149,7 @@ setupSharedTestSuite(() => {
       )
 
       expect(response.status).toBe(200)
-      expect(response.data.raw_materials).toMatchObject({
+      expect(response.data.raw_material).toMatchObject({
         id: rawMaterialId,
         name: sampleRawMaterial.rawMaterialData.name,
       })
@@ -189,7 +193,7 @@ setupSharedTestSuite(() => {
       )
 
       expect(response.status).toBe(200)
-      expect(response.data.raw_materials).toMatchObject({
+      expect(response.data.raw_material).toMatchObject({
         name: updateData.rawMaterialData.name,
         composition: updateData.rawMaterialData.composition,
         color: updateData.rawMaterialData.color,
@@ -210,9 +214,30 @@ setupSharedTestSuite(() => {
       )
 
       expect(response.status).toBe(200)
-      expect(response.data.raw_materials.grade).toBe("B")
+      expect(response.data.raw_material.grade).toBe("B")
       // Original fields should remain
-      expect(response.data.raw_materials.name).toBe(sampleRawMaterial.rawMaterialData.name)
+      expect(response.data.raw_material.name).toBe(sampleRawMaterial.rawMaterialData.name)
+    })
+
+    it("should update unit_cost and cost_currency", async () => {
+      const updateData = {
+        rawMaterialData: {
+          unit_cost: 750,
+          cost_currency: "usd",
+        },
+      }
+
+      const response = await api.put(
+        `/admin/inventory-items/${inventoryItemId}/rawmaterials/${rawMaterialId}`,
+        updateData,
+        headers
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.data.raw_material.unit_cost).toBe(750)
+      expect(response.data.raw_material.cost_currency).toBe("usd")
+      // Original fields should remain
+      expect(response.data.raw_material.name).toBe(sampleRawMaterial.rawMaterialData.name)
     })
   })
 

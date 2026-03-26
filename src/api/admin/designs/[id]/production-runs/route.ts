@@ -183,6 +183,7 @@ export const POST = async (
       design_id: designId,
       partner_id: null,
       quantity: parentQuantity,
+      run_type: body.run_type || "production",
       metadata: {
         source: "admin.designs.manual",
       },

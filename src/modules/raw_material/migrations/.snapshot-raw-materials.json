@@ -114,7 +114,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_material_types_deleted_at\" ON \"material_types\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_material_types_deleted_at\" ON \"material_types\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "material_types_pkey",
@@ -196,6 +196,24 @@
             "Other"
           ],
           "mappedType": "enum"
+        },
+        "unit_cost": {
+          "name": "unit_cost",
+          "type": "real",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "float"
+        },
+        "cost_currency": {
+          "name": "cost_currency",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
         },
         "minimum_order_quantity": {
           "name": "minimum_order_quantity",
@@ -364,7 +382,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_raw_materials_material_type_id\" ON \"raw_materials\" (material_type_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_raw_materials_material_type_id\" ON \"raw_materials\" (\"material_type_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_raw_materials_deleted_at",
@@ -373,7 +391,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_raw_materials_deleted_at\" ON \"raw_materials\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_raw_materials_deleted_at\" ON \"raw_materials\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "raw_materials_pkey",

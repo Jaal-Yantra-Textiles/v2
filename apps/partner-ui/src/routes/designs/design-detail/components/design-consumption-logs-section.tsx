@@ -65,6 +65,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   // Form state
   const [formInventoryId, setFormInventoryId] = useState("")
   const [formQuantity, setFormQuantity] = useState("")
+  const [formUnitCost, setFormUnitCost] = useState("")
   const [formUnit, setFormUnit] = useState("Meter")
   const [formType, setFormType] = useState("sample")
   const [formNotes, setFormNotes] = useState("")
@@ -72,6 +73,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   const resetForm = () => {
     setFormInventoryId("")
     setFormQuantity("")
+    setFormUnitCost("")
     setFormUnit("Meter")
     setFormType("sample")
     setFormNotes("")
@@ -87,6 +89,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
       await logConsumption({
         inventoryItemId: formInventoryId,
         quantity: parseFloat(formQuantity),
+        unitCost: formUnitCost ? parseFloat(formUnitCost) : undefined,
         unitOfMeasure: formUnit,
         consumptionType: formType as "sample" | "production" | "wastage",
         notes: formNotes || undefined,
@@ -145,7 +148,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
       {/* Log Form */}
       {showForm && canLog && (
         <div className="px-6 py-4 bg-ui-bg-subtle">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
                 Inventory Item
@@ -174,6 +177,19 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                 placeholder="0.00"
                 value={formQuantity}
                 onChange={(e) => setFormQuantity(e.target.value)}
+              />
+            </div>
+            <div>
+              <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+                Cost per unit
+              </Text>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Optional"
+                value={formUnitCost}
+                onChange={(e) => setFormUnitCost(e.target.value)}
               />
             </div>
             <div>
@@ -253,6 +269,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                     <div className="flex items-center gap-2">
                       <Text size="small" weight="plus">
                         {log.quantity} {log.unit_of_measure}
+                        {(log as any).unit_cost ? ` @ ${(log as any).unit_cost}/unit` : ""}
                       </Text>
                       <Badge size="2xsmall" color={typeBadgeColor(log.consumption_type)}>
                         {log.consumption_type}

@@ -19,6 +19,8 @@ type CreateRawMaterialInput = {
     composition: string
     specifications?: Record<string, any>
     unit_of_measure?: string
+    unit_cost?: number
+    cost_currency?: string
     minimum_order_quantity?: number
     lead_time_days?: number
     color?: string

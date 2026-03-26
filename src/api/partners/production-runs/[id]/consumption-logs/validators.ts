@@ -4,6 +4,7 @@ export const PartnerPostProductionRunConsumptionLogReq = z.object({
   inventoryItemId: z.string(),
   rawMaterialId: z.string().optional(),
   quantity: z.number().positive(),
+  unitCost: z.number().positive().optional(),
   unitOfMeasure: z
     .enum(["Meter", "Yard", "Kilogram", "Gram", "Piece", "Roll", "Other"])
     .optional(),

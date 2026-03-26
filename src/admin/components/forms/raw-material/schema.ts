@@ -73,6 +73,8 @@ export const rawMaterialFormSchema = z.object({
     "Roll",
     "Other"
   ]).default("Other").optional(),
+  unit_cost: z.number().positive().optional(),
+  cost_currency: z.string().optional(),
   minimum_order_quantity: z.number().positive().optional(),
   lead_time_days: z.number().positive().optional(),
   color: z.string().optional(),

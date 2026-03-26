@@ -39,6 +39,7 @@ const assignmentSchema = z.object({
 
 const createSchema = z.object({
   quantity: z.coerce.number().positive().optional(),
+  run_type: z.enum(["production", "sample"]).optional(),
   assignments: z.array(assignmentSchema).optional(),
   send_to_production: z.boolean().optional(),
   template_names: z.array(z.string()).optional(),
@@ -309,6 +310,7 @@ const CreateProductionRunDrawerForm = () => {
     resolver: zodResolver(createSchema),
     defaultValues: {
       quantity: undefined,
+      run_type: "production",
       assignments: [],
       send_to_production: false,
       template_names: [],
@@ -361,6 +363,7 @@ const CreateProductionRunDrawerForm = () => {
     try {
       const res = await createRun({
         quantity: values.quantity,
+        run_type: values.run_type || "production",
         assignments: values.assignments?.length ? values.assignments : undefined,
       })
 
@@ -408,13 +411,37 @@ const CreateProductionRunDrawerForm = () => {
           <div className="flex flex-col gap-y-6">
             <Container className="divide-y p-0">
               <div className="px-6 py-4">
-                <Heading level="h2">Quantity</Heading>
+                <Heading level="h2">Run Details</Heading>
                 <Text size="small" className="text-ui-fg-subtle">
-                  Optional parent quantity. If using assignments, their quantities should sum to this.
+                  Set the type and quantity for this production run.
                 </Text>
               </div>
 
-              <div className="px-6 py-4">
+              <div className="px-6 py-4 grid grid-cols-2 gap-4">
+                <Form.Field
+                  control={form.control}
+                  name="run_type"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <Form.Label>Type</Form.Label>
+                      <Form.Control>
+                        <Select
+                          value={field.value || "production"}
+                          onValueChange={field.onChange}
+                        >
+                          <Select.Trigger>
+                            <Select.Value />
+                          </Select.Trigger>
+                          <Select.Content>
+                            <Select.Item value="production">Production</Select.Item>
+                            <Select.Item value="sample">Sample</Select.Item>
+                          </Select.Content>
+                        </Select>
+                      </Form.Control>
+                    </Form.Item>
+                  )}
+                />
+
                 <Form.Field
                   control={form.control}
                   name="quantity"

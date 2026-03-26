@@ -16,6 +16,8 @@ const RawMaterial = model.define("raw_materials", {
     "Roll",
     "Other"
   ]).default("Other"),
+  unit_cost: model.float().nullable(), // Cost per unit of measure
+  cost_currency: model.text().nullable(), // e.g. "inr", "usd"
   minimum_order_quantity: model.number().nullable(),
   lead_time_days: model.number().nullable(),
   color: model.text().nullable(),

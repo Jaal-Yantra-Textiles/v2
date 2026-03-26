@@ -44,6 +44,10 @@ const Design = model.define("design", {
   color_palette: model.json().nullable(), // Color codes and names
   tags: model.json().nullable(), // For categorization and searching
   estimated_cost: model.bigNumber().nullable(),
+  material_cost: model.bigNumber().nullable(),
+  production_cost: model.bigNumber().nullable(),
+  cost_breakdown: model.json().nullable(), // Structured: { items: [{ inventory_item_id, title, quantity, unit_cost, line_total, cost_source }], calculated_at, source }
+  cost_currency: model.text().nullable(), // e.g. "inr"
   designer_notes: model.text().nullable(),
   feedback_history: model.json().nullable(), // Track feedback and changes
   metadata: model.json().nullable(),

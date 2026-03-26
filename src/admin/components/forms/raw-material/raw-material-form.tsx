@@ -87,6 +87,8 @@ export const RawMaterialForm = () => {
       "description",
       "composition",
       "unit_of_measure",
+      "unit_cost",
+      "cost_currency",
       "minimum_order_quantity",
       "lead_time_days",
       "color",
@@ -365,6 +367,54 @@ export const RawMaterialForm = () => {
                     <FileModal onSave={setMediaUrls} initialUrls={mediaUrls} />
                   </div>
                 </div>
+                {/* Additional Information */}
+                <div>
+                  <UIText className="mb-4 font-semibold">Pricing</UIText>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Form.Field
+                      control={form.control}
+                      name="unit_cost"
+                      render={({ field }) => (
+                        <Form.Item>
+                          <Form.Label optional>{"Cost per Unit"}</Form.Label>
+                          <Form.Control>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="e.g. 500"
+                              autoComplete="off"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                            />
+                          </Form.Control>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )}
+                    />
+
+                    <Form.Field
+                      control={form.control}
+                      name="cost_currency"
+                      render={({ field }) => (
+                        <Form.Item>
+                          <Form.Label optional>{"Currency"}</Form.Label>
+                          <Form.Control>
+                            <Input
+                              placeholder="e.g. inr, usd"
+                              autoComplete="off"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </Form.Control>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )}
+                    />
+                  </div>
+                </div>
+
                 {/* Additional Information */}
                 <div>
                   <UIText className="mb-4 font-semibold">Additional Information</UIText>
