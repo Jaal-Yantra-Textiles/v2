@@ -206,6 +206,7 @@ export const useCompletePartnerAssignedTaskSubtask = (
       })
       // Cross-invalidate production runs
       queryClient.invalidateQueries({ queryKey: ["partner-production-runs"] })
+      queryClient.refetchQueries({ queryKey: ["partner-production-runs"] })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
@@ -293,6 +294,7 @@ export const useAcceptPartnerAssignedTask = (
       })
       // Cross-invalidate production runs (tasks affect their status)
       queryClient.invalidateQueries({ queryKey: ["partner-production-runs"] })
+      queryClient.refetchQueries({ queryKey: ["partner-production-runs"] })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

@@ -155,7 +155,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                     </span>
                     {isV1Active && (
                       <span className="text-ui-fg-muted text-xs">
-                        Legacy workflow · {metadata.partner_status || "assigned"}
+                        Assigned via direct send · {String(metadata.partner_status || "assigned").replace(/_/g, " ")}
                       </span>
                     )}
                     {wasV1Cancelled && !isV1Active && !runStatus && (
@@ -202,6 +202,8 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                         isLoading={isUnlinking}
                         disabled={isAnyLoading}
                         onClick={(e) => handleUnlinkPartner(e, partner.id)}
+                        title="Unlink partner from design"
+                        aria-label={`Unlink ${partner.name || "partner"}`}
                       >
                         <Trash className="text-ui-fg-subtle" />
                       </Button>

@@ -1,34 +1,17 @@
 import { Badge, Button, Container, Heading, Tabs, Text, toast } from "@medusajs/ui"
-import { Link, LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom"
+import { Link, LoaderFunctionArgs, UIMatch, useLoaderData, useNavigate, useParams } from "react-router-dom"
 
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { productionRunLoader } from "./loader"
 import { useCancelProductionRun } from "../../../hooks/api/production-runs"
+import { productionRunStatusColor as statusColor } from "../../../lib/status-colors"
 
-const statusColor = (status?: string) => {
-  switch (status) {
-    case "draft":
-      return "grey"
-    case "pending_review":
-      return "orange"
-    case "approved":
-      return "green"
-    case "sent_to_partner":
-      return "orange"
-    case "in_progress":
-      return "orange"
-    case "completed":
-      return "green"
-    case "cancelled":
-      return "red"
-    default:
-      return "grey"
-  }
-}
+const formatStatus = (s: string) => s.replace(/_/g, " ")
 
 const ProductionRunDetailPage = () => {
   const { id } = useParams()
+  const navigate = useNavigate()
   const initialData = useLoaderData() as Awaited<{ production_run: any; tasks: any[] }>
 
   const run = initialData?.production_run
@@ -41,6 +24,7 @@ const ProductionRunDetailPage = () => {
     try {
       await cancelRun.mutateAsync({ reason: "Admin cancelled" })
       toast.success("Production run cancelled")
+      navigate(0) // reload the page to reflect the new status
     } catch (e: any) {
       toast.error(e?.message || "Failed to cancel")
     }
@@ -57,11 +41,17 @@ const ProductionRunDetailPage = () => {
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex flex-col gap-y-1">
               <div className="flex items-center gap-x-2">
-                <Heading level="h1">{String(run.id)}</Heading>
-                <Badge color={statusColor(run.status)}>{String(run.status || "-")}</Badge>
+                <Heading level="h1">
+                  {run.run_type === "sample" ? "Sample" : "Production"} Run
+                </Heading>
+                <Badge color={statusColor(run.status)}>{formatStatus(String(run.status || "-"))}</Badge>
               </div>
               <Text size="small" className="text-ui-fg-subtle">
-                Design: {String(run.design_id || "-")}
+                {run.design_id ? (
+                  <Link to={`/designs/${run.design_id}`} className="text-ui-fg-interactive hover:underline">
+                    Design: {run.design_id}
+                  </Link>
+                ) : "No design linked"}
               </Text>
             </div>
             <div className="flex items-center gap-x-2">
@@ -99,7 +89,11 @@ const ProductionRunDetailPage = () => {
                   </div>
                   <div>
                     <Text size="small" className="text-ui-fg-subtle">Partner</Text>
-                    <Text>{String(run.partner_id || "-")}</Text>
+                    {run.partner_id ? (
+                      <Link to={`/partners/${run.partner_id}`} className="text-ui-fg-interactive hover:underline">
+                        <Text>{run.partner_id}</Text>
+                      </Link>
+                    ) : <Text>-</Text>}
                   </div>
                   <div>
                     <Text size="small" className="text-ui-fg-subtle">Quantity</Text>
@@ -109,10 +103,14 @@ const ProductionRunDetailPage = () => {
                     <Text size="small" className="text-ui-fg-subtle">Role</Text>
                     <Text>{String(run.role || "-")}</Text>
                   </div>
+                  {run.parent_run_id && (
                   <div>
                     <Text size="small" className="text-ui-fg-subtle">Parent Run</Text>
-                    <Text>{String(run.parent_run_id || "-")}</Text>
+                    <Link to={`/production-runs/${run.parent_run_id}`} className="text-ui-fg-interactive hover:underline">
+                      <Text>{run.parent_run_id}</Text>
+                    </Link>
                   </div>
+                  )}
                   {run.depends_on_run_ids?.length > 0 && (
                     <div className="col-span-2">
                       <Text size="small" className="text-ui-fg-subtle">Depends On</Text>

@@ -3,30 +3,10 @@ import { Link } from "react-router-dom"
 
 import { AdminDesign } from "../../hooks/api/designs"
 import { useProductionRuns, useCancelProductionRun } from "../../hooks/api/production-runs"
+import { productionRunStatusColor as statusColor } from "../../lib/status-colors"
 
 interface DesignProductionRunsSectionProps {
   design: AdminDesign
-}
-
-const statusColor = (status?: string) => {
-  switch (status) {
-    case "draft":
-      return "grey"
-    case "pending_review":
-      return "orange"
-    case "approved":
-      return "green"
-    case "sent_to_partner":
-      return "orange"
-    case "in_progress":
-      return "orange"
-    case "completed":
-      return "green"
-    case "cancelled":
-      return "red"
-    default:
-      return "grey"
-  }
 }
 
 export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSectionProps) => {
@@ -96,17 +76,16 @@ const ProductionRunRow = ({ run }: { run: any }) => {
       <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col overflow-hidden">
-            <span className="text-ui-fg-base font-medium truncate">{id}</span>
+            <span className="text-ui-fg-base font-medium truncate">
+              {run.run_type === "sample" ? "Sample" : "Production"} Run
+            </span>
             <span className="text-ui-fg-subtle text-xs truncate">
-              Partner: {partnerId}
+              {partnerId !== "-" ? `Partner: ${partnerId}` : "No partner assigned"}
+              {quantity !== "-" ? ` · Qty: ${quantity}` : ""}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Badge color={run.run_type === "sample" ? "blue" : "grey"}>
-              {run.run_type === "sample" ? "Sample" : "Production"}
-            </Badge>
             <Badge color={statusColor(status)}>{status.replace(/_/g, " ")}</Badge>
-            <Badge>{String(quantity)}</Badge>
             {canCancel && (
               <Button
                 size="small"

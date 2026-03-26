@@ -4573,7 +4573,7 @@
       }
     ],
     "source": "custom_ts",
-    "sourceFile": "src/workflows/production-runs/production-run-steps.ts"
+    "sourceFile": "src/workflows/production-runs/production-run-steps 2.ts"
   },
   "send-production-run-to-production": {
     "fields": [
@@ -5405,6 +5405,12 @@
         "type": "id",
         "required": true,
         "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "partner_name",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.partner_name }}"
       },
       {
         "name": "handle",

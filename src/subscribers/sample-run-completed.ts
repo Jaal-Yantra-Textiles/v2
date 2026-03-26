@@ -93,7 +93,12 @@ export default async function sampleRunCompletedHandler({
     })
   }
 
-  const productionCost = materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)
+  // Use partner's cost estimate if provided, otherwise fall back to 30% overhead
+  const partnerEstimate = Number(run.metadata?.partner_cost_estimate) || 0
+  const productionCost = partnerEstimate > 0
+    ? partnerEstimate
+    : materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)
+  const costSource = partnerEstimate > 0 ? "partner_estimate" : "overhead_percent"
   const totalEstimate = Math.round((materialCost + productionCost) * 100) / 100
 
   try {
@@ -104,7 +109,9 @@ export default async function sampleRunCompletedHandler({
       production_cost: Math.round(productionCost * 100) / 100,
       cost_breakdown: {
         items,
-        production_overhead_percent: DEFAULT_PRODUCTION_OVERHEAD_PERCENT,
+        production_cost_source: costSource,
+        production_overhead_percent: costSource === "overhead_percent" ? DEFAULT_PRODUCTION_OVERHEAD_PERCENT : undefined,
+        partner_cost_estimate: partnerEstimate > 0 ? partnerEstimate : undefined,
         calculated_at: new Date().toISOString(),
         source: "sample_consumption",
         production_run_id: runId,

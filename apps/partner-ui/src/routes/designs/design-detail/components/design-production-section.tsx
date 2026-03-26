@@ -1,5 +1,6 @@
-import { Badge, Button, Checkbox, Container, Heading, Text, toast } from "@medusajs/ui"
+import { Badge, Button, Checkbox, Container, Heading, Input, Select, Text, Textarea, toast, usePrompt } from "@medusajs/ui"
 import { Link } from "react-router-dom"
+import { useState } from "react"
 
 import { PartnerDesign } from "../../../../hooks/api/partner-designs"
 import {
@@ -41,13 +42,13 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
   }
 
   if (!production_runs.length) {
-    return null // Don't show section if no runs — design actions handle v1 flow
+    return null
   }
 
   return (
     <>
       {production_runs.map((run: any) => (
-        <ProductionRunCard key={String(run.id)} run={run} />
+        <ProductionRunCard key={String(run.id)} run={run} design={design} />
       ))}
     </>
   )
@@ -67,7 +68,6 @@ const ProgressStepper = ({ run }: { run: any }) => {
   const status = String(run.status || "")
   if (status === "cancelled") return null
 
-  // Determine current step index
   let currentIdx = 0
   if (run.completed_at) currentIdx = 4
   else if (run.finished_at) currentIdx = 3
@@ -85,18 +85,14 @@ const ProgressStepper = ({ run }: { run: any }) => {
             <div className="flex flex-col items-center flex-1">
               <div
                 className={`h-1.5 w-full rounded-full ${
-                  isDone
-                    ? "bg-ui-fg-interactive"
-                    : "bg-ui-border-base"
+                  isDone ? "bg-ui-fg-interactive" : "bg-ui-border-base"
                 }`}
               />
               <Text
                 size="xsmall"
                 className={`mt-1 ${
-                  isCurrent
-                    ? "text-ui-fg-base font-medium"
-                    : isDone
-                    ? "text-ui-fg-subtle"
+                  isCurrent ? "text-ui-fg-base font-medium"
+                    : isDone ? "text-ui-fg-subtle"
                     : "text-ui-fg-muted"
                 }`}
               >
@@ -112,10 +108,13 @@ const ProgressStepper = ({ run }: { run: any }) => {
 
 // ── Production Run Card ─────────────────────────────────────────────
 
-const ProductionRunCard = ({ run }: { run: any }) => {
+const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign }) => {
   const runId = String(run.id)
   const status = String(run.status || "")
   const tasks = run.tasks || []
+  const prompt = usePrompt()
+
+  const [showCompleteForm, setShowCompleteForm] = useState(false)
 
   const accept = useAcceptPartnerProductionRun(runId, {
     onSuccess: () => toast.success("Run accepted"),
@@ -127,7 +126,10 @@ const ProductionRunCard = ({ run }: { run: any }) => {
     onSuccess: () => toast.success("Run finished"),
   })
   const complete = useCompletePartnerProductionRun(runId, {
-    onSuccess: () => toast.success("Run completed"),
+    onSuccess: () => {
+      toast.success("Run completed")
+      setShowCompleteForm(false)
+    },
   })
 
   const isCancelled = status === "cancelled"
@@ -139,21 +141,51 @@ const ProductionRunCard = ({ run }: { run: any }) => {
 
   const completedTasks = tasks.filter((t: any) => String(t.status) === "completed").length
   const totalTasks = tasks.length
+  const pendingTasks = tasks.filter(
+    (t: any) => t.status !== "completed" && t.status !== "cancelled"
+  )
+
+  // Handle actions with error handling
+  const handleAccept = async () => {
+    try { await accept.mutateAsync() }
+    catch (e) { toast.error(extractErrorMessage(e)) }
+  }
+
+  const handleStart = async () => {
+    try { await start.mutateAsync() }
+    catch (e) { toast.error(extractErrorMessage(e)) }
+  }
+
+  const handleFinish = async () => {
+    if (pendingTasks.length > 0) {
+      const confirmed = await prompt({
+        title: "Pending Tasks",
+        description: `${pendingTasks.length} task(s) are still pending. Marking as finished will proceed regardless. Continue?`,
+        confirmText: "Mark Finished",
+        cancelText: "Go Back",
+      })
+      if (!confirmed) return
+    }
+    try { await finish.mutateAsync() }
+    catch (e) { toast.error(extractErrorMessage(e)) }
+  }
+
+  const handleCompleteClick = () => setShowCompleteForm(true)
 
   // Derive the primary action
   const primaryAction = canAccept
-    ? { label: "Accept Run", onClick: () => accept.mutate(), loading: accept.isPending }
+    ? { label: "Accept Run", onClick: handleAccept, loading: accept.isPending }
     : canStart
-    ? { label: "Start Working", onClick: () => start.mutate(), loading: start.isPending }
+    ? { label: "Start Working", onClick: handleStart, loading: start.isPending }
     : canFinish
-    ? { label: "Mark Finished", onClick: () => finish.mutate(), loading: finish.isPending }
+    ? { label: "Mark Finished", onClick: handleFinish, loading: finish.isPending }
     : canComplete
-    ? { label: "Complete Run", onClick: () => complete.mutate(), loading: complete.isPending }
+    ? { label: "Complete Run", onClick: handleCompleteClick, loading: complete.isPending }
     : null
 
   return (
     <Container className={`divide-y p-0${isCancelled ? " opacity-60" : ""}`}>
-      {/* Header with status + primary action */}
+      {/* Header */}
       <div className="flex items-center justify-between px-6 py-4">
         <div>
           <div className="flex items-center gap-2">
@@ -175,6 +207,11 @@ const ProductionRunCard = ({ run }: { run: any }) => {
               This production run has been cancelled by the admin.
             </Text>
           )}
+          {canFinish && pendingTasks.length > 0 && (
+            <Text size="xsmall" className="text-ui-fg-on-color-disabled mt-1">
+              {pendingTasks.length} task(s) still pending
+            </Text>
+          )}
         </div>
         <div className="flex items-center gap-x-2">
           {primaryAction && (
@@ -186,16 +223,30 @@ const ProductionRunCard = ({ run }: { run: any }) => {
               {primaryAction.label}
             </Button>
           )}
-          {isCompleted && (
-            <Badge color="green" size="small">Done</Badge>
-          )}
         </div>
       </div>
 
       {/* Progress stepper */}
       <ProgressStepper run={run} />
 
-      {/* Timeline details */}
+      {/* Complete confirmation form */}
+      {showCompleteForm && canComplete && (
+        <CompleteRunForm
+          run={run}
+          design={design}
+          onComplete={async (consumptions) => {
+            try {
+              await complete.mutateAsync(consumptions as any)
+            } catch (e) {
+              toast.error(extractErrorMessage(e))
+            }
+          }}
+          onCancel={() => setShowCompleteForm(false)}
+          isLoading={complete.isPending}
+        />
+      )}
+
+      {/* Timeline */}
       {(run.accepted_at || run.started_at || run.finished_at || run.completed_at) && (
         <div className="px-6 py-3">
           <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -240,6 +291,205 @@ const ProductionRunCard = ({ run }: { run: any }) => {
   )
 }
 
+// ── Complete Run Form ───────────────────────────────────────────────
+
+const UNIT_OPTIONS = [
+  { value: "Meter", label: "Meter" },
+  { value: "Yard", label: "Yard" },
+  { value: "Kilogram", label: "Kilogram" },
+  { value: "Gram", label: "Gram" },
+  { value: "Piece", label: "Piece" },
+  { value: "Roll", label: "Roll" },
+  { value: "Other", label: "Other" },
+]
+
+type ConsumptionEntry = {
+  inventory_item_id: string
+  quantity: string
+  unit_cost: string
+  unit_of_measure: string
+  notes: string
+}
+
+const CompleteRunForm = ({
+  run,
+  design,
+  onComplete,
+  onCancel,
+  isLoading,
+}: {
+  run: any
+  design: PartnerDesign
+  onComplete: (body: any) => Promise<void>
+  onCancel: () => void
+  isLoading: boolean
+}) => {
+  const inventoryItems = (design?.inventory_items || []) as Array<Record<string, any>>
+  const tasks = run.tasks || []
+  const pendingTasks = tasks.filter(
+    (t: any) => t.status !== "completed" && t.status !== "cancelled"
+  )
+
+  // Partner's own cost estimate (labor, overheads, profit)
+  const [partnerEstimate, setPartnerEstimate] = useState("")
+
+  // Initialize one consumption entry per inventory item
+  const [consumptions, setConsumptions] = useState<ConsumptionEntry[]>(
+    inventoryItems.map((item) => ({
+      inventory_item_id: item.id,
+      quantity: "",
+      unit_cost: "",
+      unit_of_measure: "Meter",
+      notes: "",
+    }))
+  )
+
+  const updateConsumption = (idx: number, field: keyof ConsumptionEntry, value: string) => {
+    setConsumptions((prev) =>
+      prev.map((c, i) => (i === idx ? { ...c, [field]: value } : c))
+    )
+  }
+
+  const handleSubmit = async () => {
+    const validConsumptions = consumptions
+      .filter((c) => c.quantity && parseFloat(c.quantity) > 0)
+      .map((c) => ({
+        inventory_item_id: c.inventory_item_id,
+        quantity: parseFloat(c.quantity),
+        unit_cost: c.unit_cost ? parseFloat(c.unit_cost) : undefined,
+        unit_of_measure: c.unit_of_measure,
+        notes: c.notes || undefined,
+      }))
+
+    const body: any = {}
+    if (validConsumptions.length > 0) {
+      body.consumptions = validConsumptions
+    }
+    if (partnerEstimate && parseFloat(partnerEstimate) > 0) {
+      body.partner_cost_estimate = parseFloat(partnerEstimate)
+    }
+
+    await onComplete(Object.keys(body).length > 0 ? body : undefined)
+  }
+
+  return (
+    <div className="px-6 py-4 bg-ui-bg-subtle border-t">
+      <Heading level="h3" className="mb-2">Complete Production Run</Heading>
+
+      {pendingTasks.length > 0 && (
+        <div className="mb-4 rounded-md border border-ui-border-base bg-ui-bg-base p-3">
+          <Text size="small" weight="plus" className="text-ui-fg-on-color-disabled mb-1">
+            {pendingTasks.length} pending task(s) will be marked as done
+          </Text>
+          <div className="flex flex-col gap-1">
+            {pendingTasks.map((t: any) => (
+              <Text key={t.id} size="xsmall" className="text-ui-fg-subtle">
+                • {t.title || t.id} ({t.status})
+              </Text>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Partner's cost estimate */}
+      <div className="mb-4">
+        <Text size="small" weight="plus" className="mb-2">
+          Your production cost estimate
+        </Text>
+        <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+          Your total cost for producing this design (labor, overheads, margin) — separate from material costs below.
+        </Text>
+        <div className="max-w-[200px]">
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="e.g. 1500"
+            value={partnerEstimate}
+            onChange={(e) => setPartnerEstimate(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {inventoryItems.length > 0 && (
+        <div className="mb-4">
+          <Text size="small" weight="plus" className="mb-2">
+            Record material consumption (optional)
+          </Text>
+          <div className="flex flex-col gap-3">
+            {consumptions.map((entry, idx) => {
+              const item = inventoryItems.find((i: any) => i.id === entry.inventory_item_id)
+              const label = item?.title || item?.sku || entry.inventory_item_id
+              return (
+                <div key={entry.inventory_item_id} className="rounded-md border p-3 bg-ui-bg-base">
+                  <Text size="xsmall" weight="plus" className="mb-2">{label}</Text>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                    <div>
+                      <Text size="xsmall" className="text-ui-fg-subtle mb-1">Qty</Text>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0"
+                        value={entry.quantity}
+                        onChange={(e) => updateConsumption(idx, "quantity", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Text size="xsmall" className="text-ui-fg-subtle mb-1">Cost/unit</Text>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Optional"
+                        value={entry.unit_cost}
+                        onChange={(e) => updateConsumption(idx, "unit_cost", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Text size="xsmall" className="text-ui-fg-subtle mb-1">Unit</Text>
+                      <Select value={entry.unit_of_measure} onValueChange={(v) => updateConsumption(idx, "unit_of_measure", v)}>
+                        <Select.Trigger><Select.Value /></Select.Trigger>
+                        <Select.Content>
+                          {UNIT_OPTIONS.map((o) => (
+                            <Select.Item key={o.value} value={o.value}>{o.label}</Select.Item>
+                          ))}
+                        </Select.Content>
+                      </Select>
+                    </div>
+                    <div>
+                      <Text size="xsmall" className="text-ui-fg-subtle mb-1">Notes</Text>
+                      <Input
+                        placeholder="Optional"
+                        value={entry.notes}
+                        onChange={(e) => updateConsumption(idx, "notes", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {inventoryItems.length === 0 && (
+            <Text size="xsmall" className="text-ui-fg-muted">
+              No inventory items linked to this design.
+            </Text>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-end gap-x-2 mt-3">
+        <Button variant="secondary" size="small" onClick={onCancel} disabled={isLoading}>
+          Cancel
+        </Button>
+        <Button size="small" onClick={handleSubmit} isLoading={isLoading}>
+          Confirm & Complete
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ── Inline Task Card ────────────────────────────────────────────────
 
 const InlineTaskCard = ({ task }: { task: any }) => {
@@ -280,7 +530,7 @@ const InlineTaskCard = ({ task }: { task: any }) => {
               {String(task.title || task.id)}
             </Text>
             <Badge size="2xsmall" color={getStatusBadgeColor(status)}>
-              {status}
+              {status.replace(/_/g, " ")}
             </Badge>
           </div>
           {task.description && (
@@ -291,21 +541,12 @@ const InlineTaskCard = ({ task }: { task: any }) => {
         </div>
         <div className="flex shrink-0 items-center gap-x-2">
           {canAccept && (
-            <Button
-              size="small"
-              variant="secondary"
-              isLoading={acceptTask.isPending}
-              onClick={handleAccept}
-            >
+            <Button size="small" variant="secondary" isLoading={acceptTask.isPending} onClick={handleAccept}>
               Accept
             </Button>
           )}
           {canFinish && (
-            <Button
-              size="small"
-              isLoading={finishTask.isPending}
-              onClick={handleFinish}
-            >
+            <Button size="small" isLoading={finishTask.isPending} onClick={handleFinish}>
               Finish
             </Button>
           )}
@@ -355,15 +596,12 @@ const InlineSubtaskRow = ({ taskId, subtask }: { taskId: string; subtask: any })
             if (!isCompleted) handleComplete()
           }}
         />
-        <Text
-          size="xsmall"
-          className={isCompleted ? "line-through text-ui-fg-muted" : ""}
-        >
+        <Text size="xsmall" className={isCompleted ? "line-through text-ui-fg-muted" : ""}>
           {String(subtask.title || subtask.id)}
         </Text>
       </div>
       <Badge size="2xsmall" color={getStatusBadgeColor(String(subtask.status))}>
-        {String(subtask.status)}
+        {String(subtask.status).replace(/_/g, " ")}
       </Badge>
     </div>
   )

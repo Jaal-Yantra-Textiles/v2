@@ -500,36 +500,36 @@ export const DesignDetail = () => {
           </div>
         </Container>
 
-        <Container className="divide-y p-0">
-          <div className="px-6 py-4">
-            <Heading level="h2">Specs</Heading>
-          </div>
-          {specsValue && typeof specsValue === "object" && !Array.isArray(specsValue) ? (
-            Object.entries(specsValue as Record<string, any>).map(([key, value]) => (
-              <SectionRow
-                key={key}
-                title={String(key)}
-                value={
-                  typeof value === "string" || typeof value === "number"
-                    ? String(value)
-                    : value
-                    ? JSON.stringify(value)
-                    : "-"
-                }
-              />
-            ))
-          ) : (
+        {specsValue && (
+          <Container className="divide-y p-0">
             <div className="px-6 py-4">
-              <Text size="small" className="text-ui-fg-subtle whitespace-pre-line">
-                {typeof specsValue === "string"
-                  ? specsValue || "-"
-                  : specsValue
-                  ? JSON.stringify(specsValue, null, 2)
-                  : "-"}
-              </Text>
+              <Heading level="h2">Specs</Heading>
             </div>
-          )}
-        </Container>
+            {typeof specsValue === "object" && !Array.isArray(specsValue) ? (
+              Object.entries(specsValue as Record<string, any>).map(([key, value]) => (
+                <SectionRow
+                  key={key}
+                  title={String(key)}
+                  value={
+                    typeof value === "string" || typeof value === "number"
+                      ? String(value)
+                      : value
+                      ? JSON.stringify(value)
+                      : "-"
+                  }
+                />
+              ))
+            ) : (
+              <div className="px-6 py-4">
+                <Text size="small" className="text-ui-fg-subtle whitespace-pre-line">
+                  {typeof specsValue === "string"
+                    ? specsValue
+                    : JSON.stringify(specsValue, null, 2)}
+                </Text>
+              </div>
+            )}
+          </Container>
+        )}
       </TwoColumnPage.Main>
 
       <TwoColumnPage.Sidebar>

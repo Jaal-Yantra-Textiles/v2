@@ -216,16 +216,26 @@ export const DesignList = () => {
     [t]
   )
 
+  // Use filtered count for pagination (client-side filtering)
   const { table } = useDataTable({
     data: filteredData,
     columns,
     enablePagination: true,
-    count,
+    count: filteredData.length,
     pageSize: PAGE_SIZE,
   })
 
   if (isError) {
-    throw error
+    return (
+      <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={true}>
+        <Container className="p-6">
+          <Heading>Designs</Heading>
+          <Text size="small" className="text-ui-fg-error mt-2">
+            Failed to load designs. Please try refreshing the page.
+          </Text>
+        </Container>
+      </SingleColumnPage>
+    )
   }
 
   return (
@@ -252,7 +262,7 @@ export const DesignList = () => {
           table={table}
           pagination
           navigateTo={(row) => `/designs/${row.original.id}`}
-          count={count}
+          count={filteredData.length}
           isLoading={isPending}
           pageSize={PAGE_SIZE}
           filters={filters}

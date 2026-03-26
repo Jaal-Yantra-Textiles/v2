@@ -141,6 +141,7 @@ const createRunMilestoneHook = (action: string) => {
           { method: "POST" }
         ),
       onSuccess: (data, variables, context) => {
+        // Invalidate and refetch all production run queries
         queryClient.invalidateQueries({
           queryKey: partnerProductionRunsQueryKeys.lists(),
         })
@@ -148,9 +149,14 @@ const createRunMilestoneHook = (action: string) => {
           queryKey: partnerProductionRunsQueryKeys.detail(id),
         })
         queryClient.refetchQueries({
+          queryKey: partnerProductionRunsQueryKeys.lists(),
+        })
+        queryClient.refetchQueries({
           queryKey: partnerProductionRunsQueryKeys.detail(id),
         })
+        // Also refresh tasks and design data so the UI updates everywhere
         queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
+        queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
         options?.onSuccess?.(data, variables, context)
       },
       ...options,
@@ -161,4 +167,35 @@ const createRunMilestoneHook = (action: string) => {
 export const useAcceptPartnerProductionRun = createRunMilestoneHook("accept")
 export const useStartPartnerProductionRun = createRunMilestoneHook("start")
 export const useFinishPartnerProductionRun = createRunMilestoneHook("finish")
-export const useCompletePartnerProductionRun = createRunMilestoneHook("complete")
+
+// Complete hook accepts optional body (consumptions)
+export const useCompletePartnerProductionRun = (
+  id: string,
+  options?: UseMutationOptions<any, FetchError, any>
+) => {
+  return useMutation({
+    mutationFn: async (body?: any) =>
+      await sdk.client.fetch<any>(
+        `/partners/production-runs/${id}/complete`,
+        { method: "POST", body: body || {} }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: partnerProductionRunsQueryKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: partnerProductionRunsQueryKeys.detail(id),
+      })
+      queryClient.refetchQueries({
+        queryKey: partnerProductionRunsQueryKeys.lists(),
+      })
+      queryClient.refetchQueries({
+        queryKey: partnerProductionRunsQueryKeys.detail(id),
+      })
+      queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
+      queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}

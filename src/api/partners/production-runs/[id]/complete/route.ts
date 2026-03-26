@@ -22,6 +22,7 @@ const CompleteBodySchema = z.object({
       })
     )
     .optional(),
+  partner_cost_estimate: z.number().positive().optional(),
 })
 
 export async function POST(
@@ -71,6 +72,7 @@ export async function POST(
     (req as any).validatedBody || req.body
   )
   const consumptions = parsed.success ? parsed.data.consumptions : undefined
+  const partnerCostEstimate = parsed.success ? parsed.data.partner_cost_estimate : undefined
 
   // Log consumptions if provided
   const loggedConsumptions: any[] = []
@@ -141,12 +143,29 @@ export async function POST(
     }
   }
 
-  // Mark run as completed
+  // Mark run as completed, store partner estimate on metadata
   await productionRunService.updateProductionRuns({
     id: run.id,
     status: "completed" as any,
     completed_at: new Date(),
+    metadata: {
+      ...((run as any).metadata || {}),
+      ...(partnerCostEstimate ? { partner_cost_estimate: partnerCostEstimate } : {}),
+    },
   })
+
+  // If partner provided a cost estimate, write it to the design
+  if (partnerCostEstimate && (run as any).design_id) {
+    try {
+      const designService = req.scope.resolve("design") as any
+      await designService.updateDesigns({
+        id: (run as any).design_id,
+        production_cost: partnerCostEstimate,
+      })
+    } catch {
+      // Non-fatal
+    }
+  }
 
   // Emit event for subscribers (e.g. sample cost calculation)
   try {

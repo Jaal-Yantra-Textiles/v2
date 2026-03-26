@@ -62,12 +62,21 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
 
   const inventoryItems = (design?.inventory_items || []) as Array<Record<string, any>>
 
+  // Partner status determines defaults and permissions
+  const partnerStatus = design?.partner_info?.partner_status
+  const canLog =
+    partnerStatus === "in_progress" ||
+    partnerStatus === "assigned" ||
+    partnerStatus === "incoming"
+
   // Form state
   const [formInventoryId, setFormInventoryId] = useState("")
   const [formQuantity, setFormQuantity] = useState("")
   const [formUnitCost, setFormUnitCost] = useState("")
   const [formUnit, setFormUnit] = useState("Meter")
-  const [formType, setFormType] = useState("sample")
+  const [formType, setFormType] = useState(
+    partnerStatus === "in_progress" ? "production" : "sample"
+  )
   const [formNotes, setFormNotes] = useState("")
 
   const resetForm = () => {
@@ -75,7 +84,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
     setFormQuantity("")
     setFormUnitCost("")
     setFormUnit("Meter")
-    setFormType("sample")
+    setFormType(partnerStatus === "in_progress" ? "production" : "sample")
     setFormNotes("")
     setShowForm(false)
   }
@@ -116,24 +125,23 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
     return found?.title || found?.sku || itemId
   }
 
-  // Allow logging when partner is actively working (v1 or production run)
-  const partnerStatus = design?.partner_info?.partner_status
-  const canLog =
-    partnerStatus === "in_progress" ||
-    partnerStatus === "assigned" ||
-    partnerStatus === "incoming"
 
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <div>
-          <Heading level="h2">Material Usage</Heading>
+          <div className="flex items-center gap-x-2">
+            <Heading level="h2">Material Usage</Heading>
+            {count > 0 && (
+              <Badge size="2xsmall" color="grey">{count}</Badge>
+            )}
+          </div>
           <Text className="text-ui-fg-subtle" size="small">
             Log raw materials consumed during production
             {partnerLocationName ? ` · ${partnerLocationName}` : ""}
           </Text>
         </div>
-        {canLog && (
+        {canLog ? (
           <Button
             variant="secondary"
             size="small"
@@ -142,6 +150,12 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
             <Plus className="mr-1.5" />
             Log
           </Button>
+        ) : (
+          partnerStatus && partnerStatus !== "incoming" && partnerStatus !== "assigned" && partnerStatus !== "in_progress" && (
+            <Text size="xsmall" className="text-ui-fg-muted">
+              Logging available when work is in progress
+            </Text>
+          )
         )}
       </div>
 
@@ -242,8 +256,8 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
             <Button variant="secondary" size="small" onClick={resetForm}>
               Cancel
             </Button>
-            <Button size="small" onClick={handleLogConsumption} disabled={isLogging}>
-              {isLogging ? "Logging..." : "Log Usage"}
+            <Button size="small" onClick={handleLogConsumption} isLoading={isLogging}>
+              Log Usage
             </Button>
           </div>
         </div>
@@ -251,7 +265,10 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
 
       {/* Logs List */}
       {isLoading ? (
-        <Skeleton className="h-20 w-full" />
+        <div className="flex flex-col gap-2 px-3 pb-4 pt-2">
+          <Skeleton className="h-16 w-full rounded-md" />
+          <Skeleton className="h-16 w-full rounded-md" />
+        </div>
       ) : (
         <div className="flex flex-col gap-2 px-3 pb-4 pt-2">
           {logs.length === 0 ? (

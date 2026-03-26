@@ -1,5 +1,5 @@
-import { Badge, Button, Checkbox, Container, Heading, Text, toast } from "@medusajs/ui"
-import { useMemo } from "react"
+import { Badge, Button, Checkbox, Container, Heading, Input, Select, Text, toast, usePrompt } from "@medusajs/ui"
+import { useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
 import {
@@ -25,10 +25,21 @@ import {
   useCompletePartnerAssignedTaskSubtask,
 } from "../../../hooks/api/partner-assigned-tasks"
 
+const formatStatus = (s: string) => s.replace(/_/g, " ")
+
+const formatDate = (d: string | undefined) => {
+  if (!d) return "-"
+  return new Date(d).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  })
+}
+
 export const ProductionRunDetail = () => {
   const { id } = useParams()
-
   const runId = id ?? ""
+  const prompt = usePrompt()
+  const [showCompleteForm, setShowCompleteForm] = useState(false)
 
   const { production_run, tasks, isPending, isError, error } = usePartnerProductionRun(runId)
   const accept = useAcceptPartnerProductionRun(runId, {
@@ -38,10 +49,13 @@ export const ProductionRunDetail = () => {
     onSuccess: () => toast.success("Run started"),
   })
   const finish = useFinishPartnerProductionRun(runId, {
-    onSuccess: () => toast.success("Run finished"),
+    onSuccess: () => toast.success("Run marked as finished"),
   })
   const complete = useCompletePartnerProductionRun(runId, {
-    onSuccess: () => toast.success("Run completed"),
+    onSuccess: () => {
+      toast.success("Run completed")
+      setShowCompleteForm(false)
+    },
   })
 
   const status = String(production_run?.status || "")
@@ -51,87 +65,63 @@ export const ProductionRunDetail = () => {
   const canFinish = !isCancelled && status === "in_progress" && !!production_run?.started_at && !production_run?.finished_at
   const canComplete = !isCancelled && status === "in_progress" && !!production_run?.finished_at
 
+  const pendingTasks = (tasks || []).filter(
+    (t: any) => t.status !== "completed" && t.status !== "cancelled"
+  )
+
+  const handleAccept = async () => {
+    try {
+      await accept.mutateAsync()
+    } catch (e) {
+      toast.error(extractErrorMessage(e))
+    }
+  }
+
+  const handleStart = async () => {
+    try {
+      await start.mutateAsync()
+    } catch (e) {
+      toast.error(extractErrorMessage(e))
+    }
+  }
+
+  const handleFinish = async () => {
+    if (pendingTasks.length > 0) {
+      const confirmed = await prompt({
+        title: "Pending Tasks",
+        description: `${pendingTasks.length} task(s) are still pending. Marking as finished will proceed regardless. Continue?`,
+        confirmText: "Mark Finished",
+        cancelText: "Go Back",
+      })
+      if (!confirmed) return
+    }
+    try {
+      await finish.mutateAsync()
+    } catch (e) {
+      toast.error(extractErrorMessage(e))
+    }
+  }
+
   const activity = useMemo<ActivityItem[]>(() => {
-    const items: ActivityItem[] = [
-      {
-        id: "created",
-        title: "Run created",
-        status: production_run?.created_at ? "Recorded" : "-",
-        timestamp: production_run?.created_at,
-      },
-      {
-        id: "updated",
-        title: "Run updated",
-        status: production_run?.updated_at ? "Recorded" : "-",
-        timestamp: production_run?.updated_at,
-      },
-    ]
+    const items: ActivityItem[] = []
 
     if (production_run?.accepted_at) {
-      items.push({
-        id: "accepted",
-        title: "Accepted",
-        status: "Recorded",
-        timestamp: production_run.accepted_at,
-      })
+      items.push({ id: "accepted", title: "Accepted", status: "Recorded", timestamp: production_run.accepted_at })
     }
-
     if (production_run?.started_at) {
-      items.push({
-        id: "started",
-        title: "Started",
-        status: "Recorded",
-        timestamp: production_run.started_at,
-      })
+      items.push({ id: "started", title: "Started", status: "Recorded", timestamp: production_run.started_at })
     }
-
     if (production_run?.finished_at) {
-      items.push({
-        id: "finished",
-        title: "Finished",
-        status: "Recorded",
-        timestamp: production_run.finished_at,
-      })
+      items.push({ id: "finished", title: "Finished", status: "Recorded", timestamp: production_run.finished_at })
     }
-
     if (production_run?.completed_at) {
-      items.push({
-        id: "completed",
-        title: "Completed",
-        status: "Recorded",
-        timestamp: production_run.completed_at,
-      })
+      items.push({ id: "completed", title: "Completed", status: "Recorded", timestamp: production_run.completed_at })
     }
 
-    if (production_run?.dispatch_started_at) {
-      items.push({
-        id: "dispatch_started",
-        title: "Dispatch started",
-        status: String(production_run.dispatch_state || "-"),
-        timestamp: production_run.dispatch_started_at,
-      })
-    }
-
-    if (production_run?.dispatch_completed_at) {
-      items.push({
-        id: "dispatch_completed",
-        title: "Dispatch completed",
-        status: "Recorded",
-        timestamp: production_run.dispatch_completed_at,
-      })
-    }
-
-    const completedCount = (tasks || []).filter(
-      (t: any) => String(t?.status || "") === "completed"
-    ).length
+    const completedCount = (tasks || []).filter((t: any) => String(t?.status) === "completed").length
     const total = (tasks || []).length
-
     if (total) {
-      items.push({
-        id: "tasks_progress",
-        title: "Tasks progress",
-        status: `${completedCount} / ${total} completed`,
-      })
+      items.push({ id: "tasks_progress", title: "Tasks progress", status: `${completedCount} / ${total} completed` })
     }
 
     return items
@@ -142,18 +132,13 @@ export const ProductionRunDetail = () => {
       <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
         <Container className="p-6">
           <Heading>Production Run</Heading>
-          <Text size="small" className="text-ui-fg-subtle">
-            Missing production run id
-          </Text>
+          <Text size="small" className="text-ui-fg-subtle">Missing production run id</Text>
         </Container>
       </SingleColumnPage>
     )
   }
 
-  if (isError) {
-    throw error
-  }
-
+  if (isError) throw error
   if (isPending || !production_run) {
     return <TwoColumnPageSkeleton mainSections={3} sidebarSections={2} showJSON />
   }
@@ -166,20 +151,18 @@ export const ProductionRunDetail = () => {
             <div>
               <Heading>Production Run</Heading>
               <div className="mt-2 flex items-center gap-2">
-                <Text size="small" className="text-ui-fg-subtle">
-                  Status
-                </Text>
-                {production_run?.status ? (
-                  <Badge size="2xsmall" color={getStatusBadgeColor(production_run.status)}>
-                    {String(production_run.status)}
-                  </Badge>
-                ) : (
-                  <Text size="small" className="text-ui-fg-subtle">-</Text>
-                )}
+                <Badge size="2xsmall" color={production_run.run_type === "sample" ? "blue" : "grey"}>
+                  {production_run.run_type === "sample" ? "Sample" : "Production"}
+                </Badge>
+                <Badge size="2xsmall" color={getStatusBadgeColor(production_run.status)}>
+                  {formatStatus(String(production_run.status))}
+                </Badge>
               </div>
-              <Text size="small" className="text-ui-fg-subtle">
-                Role: {production_run?.role || "-"}
-              </Text>
+              {production_run.role && (
+                <Text size="small" className="text-ui-fg-subtle mt-1">
+                  Role: {production_run.role}
+                </Text>
+              )}
               {isCancelled && (
                 <Text size="small" className="text-ui-fg-error mt-1">
                   This production run has been cancelled.
@@ -188,44 +171,73 @@ export const ProductionRunDetail = () => {
             </div>
             <div className="flex items-center gap-x-2">
               {canAccept && (
-                <Button
-                  size="small"
-                  isLoading={accept.isPending}
-                  onClick={() => accept.mutate()}
-                >
-                  Accept
+                <Button size="small" isLoading={accept.isPending} onClick={handleAccept}>
+                  Accept Run
                 </Button>
               )}
               {canStart && (
-                <Button
-                  size="small"
-                  isLoading={start.isPending}
-                  onClick={() => start.mutate()}
-                >
-                  Start
+                <Button size="small" isLoading={start.isPending} onClick={handleStart}>
+                  Start Working
                 </Button>
               )}
               {canFinish && (
-                <Button
-                  size="small"
-                  isLoading={finish.isPending}
-                  onClick={() => finish.mutate()}
-                >
+                <Button size="small" isLoading={finish.isPending} onClick={handleFinish}>
                   Mark Finished
                 </Button>
               )}
               {canComplete && (
-                <Button
-                  size="small"
-                  isLoading={complete.isPending}
-                  onClick={() => complete.mutate()}
-                >
-                  Complete
+                <Button size="small" isLoading={complete.isPending} onClick={() => setShowCompleteForm(!showCompleteForm)}>
+                  Complete Run
                 </Button>
               )}
             </div>
           </div>
         </Container>
+
+        {/* Complete form */}
+        {showCompleteForm && canComplete && (
+          <Container className="p-0">
+            <div className="px-6 py-4 bg-ui-bg-subtle">
+              <Heading level="h3" className="mb-3">Complete Production Run</Heading>
+
+              {pendingTasks.length > 0 && (
+                <div className="mb-3 rounded-md border p-3 bg-ui-bg-base">
+                  <Text size="small" weight="plus" className="text-ui-fg-on-color-disabled mb-1">
+                    {pendingTasks.length} pending task(s) will be marked as done
+                  </Text>
+                  {pendingTasks.map((t: any) => (
+                    <Text key={t.id} size="xsmall" className="text-ui-fg-subtle">
+                      • {t.title || t.id}
+                    </Text>
+                  ))}
+                </div>
+              )}
+
+              <Text size="small" className="text-ui-fg-subtle mb-3">
+                Are you sure you want to complete this run? This action cannot be undone.
+              </Text>
+
+              <div className="flex justify-end gap-x-2">
+                <Button variant="secondary" size="small" onClick={() => setShowCompleteForm(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="small"
+                  isLoading={complete.isPending}
+                  onClick={async () => {
+                    try {
+                      await complete.mutateAsync()
+                    } catch (e) {
+                      toast.error(extractErrorMessage(e))
+                    }
+                  }}
+                >
+                  Confirm & Complete
+                </Button>
+              </div>
+            </div>
+          </Container>
+        )}
 
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
@@ -235,19 +247,45 @@ export const ProductionRunDetail = () => {
           <SectionRow
             title="Status"
             value={
-              production_run?.status ? (
-                <Badge size="2xsmall" color={getStatusBadgeColor(production_run.status)}>
-                  {String(production_run.status)}
-                </Badge>
-              ) : (
-                "-"
-              )
+              <Badge size="2xsmall" color={getStatusBadgeColor(production_run.status)}>
+                {formatStatus(String(production_run.status))}
+              </Badge>
             }
           />
-          <SectionRow title="Type" value={production_run?.run_type === "sample" ? "Sample" : "Production"} />
-          <SectionRow title="Quantity" value={production_run?.quantity != null ? String(production_run.quantity) : "-"} />
-          <SectionRow title="Design" value={production_run?.design_id || "-"} />
-          <SectionRow title="Parent run" value={production_run?.parent_run_id || "-"} />
+          <SectionRow title="Type" value={production_run.run_type === "sample" ? "Sample" : "Production"} />
+          <SectionRow title="Quantity" value={production_run.quantity != null ? String(production_run.quantity) : "-"} />
+          <SectionRow
+            title="Design"
+            value={
+              production_run.design_id ? (
+                <Link to={`/designs/${production_run.design_id}`} className="text-ui-fg-interactive hover:underline">
+                  {production_run.design_id}
+                </Link>
+              ) : "-"
+            }
+          />
+          {production_run.parent_run_id && (
+            <SectionRow
+              title="Parent run"
+              value={
+                <Link to={`/production-runs/${production_run.parent_run_id}`} className="text-ui-fg-interactive hover:underline">
+                  {production_run.parent_run_id}
+                </Link>
+              }
+            />
+          )}
+          {production_run.accepted_at && (
+            <SectionRow title="Accepted" value={formatDate(production_run.accepted_at)} />
+          )}
+          {production_run.started_at && (
+            <SectionRow title="Started" value={formatDate(production_run.started_at)} />
+          )}
+          {production_run.finished_at && (
+            <SectionRow title="Finished" value={formatDate(production_run.finished_at)} />
+          )}
+          {production_run.completed_at && (
+            <SectionRow title="Completed" value={formatDate(production_run.completed_at)} />
+          )}
         </Container>
 
         <Container className="divide-y p-0">
@@ -262,9 +300,7 @@ export const ProductionRunDetail = () => {
                 ))}
               </div>
             ) : (
-              <Text size="small" className="text-ui-fg-subtle">
-                No tasks
-              </Text>
+              <Text size="small" className="text-ui-fg-subtle">No tasks</Text>
             )}
           </div>
         </Container>
@@ -288,7 +324,7 @@ export const ProductionRunDetail = () => {
   )
 }
 
-// ── Inline Task Card ─────────────────────────────────────────────────
+// ── Task Card ─────────────────────────────────────────────────────
 
 const TaskCard = ({ task }: { task: any }) => {
   const taskId = String(task.id)
@@ -328,7 +364,7 @@ const TaskCard = ({ task }: { task: any }) => {
               {String(task.title || task.id)}
             </Text>
             <Badge size="2xsmall" color={getStatusBadgeColor(status)}>
-              {status}
+              {formatStatus(status)}
             </Badge>
           </div>
           {task.description && (
@@ -339,27 +375,16 @@ const TaskCard = ({ task }: { task: any }) => {
         </div>
         <div className="flex shrink-0 items-center gap-x-2">
           {canAccept && (
-            <Button
-              size="small"
-              variant="secondary"
-              isLoading={acceptTask.isPending}
-              onClick={handleAccept}
-            >
+            <Button size="small" variant="secondary" isLoading={acceptTask.isPending} onClick={handleAccept}>
               Accept
             </Button>
           )}
           {canFinish && (
-            <Button
-              size="small"
-              isLoading={finishTask.isPending}
-              onClick={handleFinish}
-            >
+            <Button size="small" isLoading={finishTask.isPending} onClick={handleFinish}>
               Finish
             </Button>
           )}
-          {isCompleted && (
-            <Checkbox checked disabled className="mt-0.5" />
-          )}
+          {isCompleted && <Checkbox checked disabled className="mt-0.5" />}
         </div>
       </div>
 
@@ -379,13 +404,7 @@ const TaskCard = ({ task }: { task: any }) => {
   )
 }
 
-const SubtaskRow = ({
-  taskId,
-  subtask,
-}: {
-  taskId: string
-  subtask: any
-}) => {
+const SubtaskRow = ({ taskId, subtask }: { taskId: string; subtask: any }) => {
   const subtaskId = String(subtask.id)
   const isCompleted = subtask.status === "completed"
   const complete = useCompletePartnerAssignedTaskSubtask(taskId, subtaskId)
@@ -405,19 +424,14 @@ const SubtaskRow = ({
         <Checkbox
           checked={isCompleted}
           disabled={isCompleted || complete.isPending}
-          onCheckedChange={() => {
-            if (!isCompleted) handleComplete()
-          }}
+          onCheckedChange={() => { if (!isCompleted) handleComplete() }}
         />
-        <Text
-          size="xsmall"
-          className={isCompleted ? "line-through text-ui-fg-muted" : ""}
-        >
+        <Text size="xsmall" className={isCompleted ? "line-through text-ui-fg-muted" : ""}>
           {String(subtask.title || subtask.id)}
         </Text>
       </div>
       <Badge size="2xsmall" color={getStatusBadgeColor(String(subtask.status))}>
-        {String(subtask.status)}
+        {formatStatus(String(subtask.status))}
       </Badge>
     </div>
   )
