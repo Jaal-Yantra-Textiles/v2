@@ -1,5 +1,5 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
@@ -77,6 +77,28 @@ export async function POST(
   if (consumptions?.length) {
     const designId = (run as any).design_id
 
+    // Auto-resolve partner's default stock location if not specified per-item
+    let defaultLocationId: string | undefined
+    try {
+      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+      const { data: partners } = await query.graph({
+        entity: "partners",
+        fields: ["stores.default_sales_channel_id"],
+        filters: { id: partnerId },
+      })
+      const scId = partners?.[0]?.stores?.[0]?.default_sales_channel_id
+      if (scId) {
+        const { data: channels } = await query.graph({
+          entity: "sales_channels",
+          fields: ["stock_locations.id"],
+          filters: { id: scId },
+        })
+        defaultLocationId = channels?.[0]?.stock_locations?.[0]?.id
+      }
+    } catch {
+      // Non-fatal — location resolution is best-effort
+    }
+
     for (const c of consumptions) {
       try {
         const { result } = await logConsumptionWorkflow(req.scope).run({
@@ -87,7 +109,7 @@ export async function POST(
             unit_of_measure: c.unit_of_measure,
             consumption_type: c.consumption_type || "production",
             consumed_by: "partner",
-            location_id: c.location_id,
+            location_id: c.location_id || defaultLocationId,
             notes: c.notes,
             metadata: {
               production_run_id: id,

@@ -18,6 +18,7 @@ import {
   useLogPartnerConsumption,
 } from "../../../../hooks/api/partner-consumption-logs"
 import { PartnerDesign } from "../../../../hooks/api/partner-designs"
+import { useStockLocations } from "../../../../hooks/api/stock-locations"
 
 interface DesignConsumptionLogsSectionProps {
   design: PartnerDesign
@@ -53,6 +54,11 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
 
   const { logs, count, isLoading } = usePartnerConsumptionLogs(design.id)
   const { mutateAsync: logConsumption, isPending: isLogging } = useLogPartnerConsumption(design.id)
+  const { stock_locations = [] } = useStockLocations({ limit: 1 })
+
+  // Auto-resolve partner's primary stock location
+  const partnerLocationId = stock_locations[0]?.id || undefined
+  const partnerLocationName = stock_locations[0]?.name || undefined
 
   const inventoryItems = (design?.inventory_items || []) as Array<Record<string, any>>
 
@@ -84,6 +90,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
         unitOfMeasure: formUnit,
         consumptionType: formType as "sample" | "production" | "wastage",
         notes: formNotes || undefined,
+        locationId: partnerLocationId,
       })
       toast.success("Consumption logged")
       resetForm()
@@ -106,7 +113,12 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
     return found?.title || found?.sku || itemId
   }
 
-  const canLog = design?.partner_info?.partner_status === "in_progress"
+  // Allow logging when partner is actively working (v1 or production run)
+  const partnerStatus = design?.partner_info?.partner_status
+  const canLog =
+    partnerStatus === "in_progress" ||
+    partnerStatus === "assigned" ||
+    partnerStatus === "incoming"
 
   return (
     <Container className="divide-y p-0">
@@ -114,7 +126,8 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
         <div>
           <Heading level="h2">Material Usage</Heading>
           <Text className="text-ui-fg-subtle" size="small">
-            Log raw materials consumed during sampling
+            Log raw materials consumed during production
+            {partnerLocationName ? ` · ${partnerLocationName}` : ""}
           </Text>
         </div>
         {canLog && (
