@@ -1,3 +1,14 @@
+## [12.1.9](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.8...v12.1.9) (2026-03-26)
+
+
+### Bug Fixes
+
+* **api:** Cancel parent run and individual run ([f2b2da4](https://github.com/Jaal-Yantra-Textiles/v2/commit/f2b2da4fc10f34bf5d4aaf6eb90010f45666c201))
+* **api:** Fixed the consumption log at the final ([18f7db9](https://github.com/Jaal-Yantra-Textiles/v2/commit/18f7db971c6bb9dacc9758c3d4a8e62c0507e4ed))
+* **api:** Fixed the partner consumption logging ([9d01f01](https://github.com/Jaal-Yantra-Textiles/v2/commit/9d01f01765e2ce2ba7edaef8949736c46aec4bcc))
+* **api:** Fixed the production log typescript error ([8734474](https://github.com/Jaal-Yantra-Textiles/v2/commit/87344747982fe862c620508ee4baff17933ad6fe))
+* **admin:** Fixed the production run related API and UI ([1990cc9](https://github.com/Jaal-Yantra-Textiles/v2/commit/1990cc9be767e575a71baa5394b1faefb3fb3fa7))
+
 ## [12.1.8](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.7...v12.1.8) (2026-03-25)
 
 
