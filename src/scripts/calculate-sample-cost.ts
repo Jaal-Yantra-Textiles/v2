@@ -27,9 +27,10 @@ export default async function calculateSampleCost({ container, args }: ExecArgs)
   const consumptionLogService = container.resolve("consumption_log") as any
   const productionRunService = container.resolve("production_runs") as any
 
-  const designId = args?.design_id as string | undefined
-  const runId = args?.production_run_id as string | undefined
-  const allSamples = args?.["all-samples"] !== undefined
+  const a = args as any || {}
+  const designId = a.design_id as string | undefined
+  const runId = a.production_run_id as string | undefined
+  const allSamples = a["all-samples"] !== undefined
 
   // Resolve design IDs to process
   const designIds: string[] = []
@@ -52,7 +53,7 @@ export default async function calculateSampleCost({ container, args }: ExecArgs)
       { run_type: "sample", status: "completed" },
       { take: 500 }
     )
-    const uniqueDesignIds = [...new Set(runs.map((r: any) => r.design_id))]
+    const uniqueDesignIds = [...new Set(runs.map((r: any) => r.design_id))] as string[]
     designIds.push(...uniqueDesignIds)
     console.log(`Found ${uniqueDesignIds.length} designs with completed sample runs`)
   } else {

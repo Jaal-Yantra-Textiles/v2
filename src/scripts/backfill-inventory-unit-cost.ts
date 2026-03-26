@@ -21,8 +21,9 @@ export default async function backfillInventoryUnitCost({ container, args }: Exe
   const inventoryService = container.resolve(Modules.INVENTORY) as any
   const rawMaterialService = container.resolve("raw_materials") as any
 
-  const force = args?.force !== undefined
-  const dryRun = args?.["dry-run"] !== undefined
+  const a = args as any || {}
+  const force = a.force !== undefined
+  const dryRun = a["dry-run"] !== undefined
 
   // Get all inventory items
   const items = await inventoryService.listInventoryItems({}, { take: 1000 })
