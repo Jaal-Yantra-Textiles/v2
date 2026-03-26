@@ -20,6 +20,7 @@ const PARTNER_STATUS_OPTIONS = [
   { label: "Incoming", value: "incoming" },
   { label: "Assigned", value: "assigned" },
   { label: "In Progress", value: "in_progress" },
+  { label: "Awaiting Review", value: "awaiting_review" },
   { label: "Finished", value: "finished" },
   { label: "Completed", value: "completed" },
   { label: "Cancelled", value: "cancelled" },

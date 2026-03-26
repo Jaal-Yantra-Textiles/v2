@@ -218,6 +218,45 @@ export const GET = async (
     }
   }
 
+  // Override with production run status if a run exists for this partner
+  try {
+    const { data: runs } = await query.graph({
+      entity: "production_runs",
+      filters: {
+        design_id: designId,
+        partner_id: partner.id,
+        status: { $nin: ["cancelled"] },
+      },
+      fields: ["id", "status", "accepted_at", "started_at", "finished_at", "completed_at"],
+      pagination: { skip: 0, take: 1 },
+    })
+    const activeRun = runs?.[0]
+    if (activeRun) {
+      const runStatus = String(activeRun.status)
+      if (runStatus === "sent_to_partner") {
+        partner_status = "assigned"
+      } else if (runStatus === "in_progress") {
+        if (activeRun.finished_at) {
+          partner_status = "awaiting_review" as any
+          partner_finished_at = partner_finished_at || String(activeRun.finished_at)
+        } else if (activeRun.started_at) {
+          partner_status = "in_progress"
+          partner_started_at = partner_started_at || String(activeRun.started_at)
+        } else {
+          partner_status = "assigned"
+        }
+      } else if (runStatus === "completed") {
+        partner_status = "completed"
+        partner_completed_at = partner_completed_at || String(activeRun.completed_at)
+      }
+      if (activeRun.finished_at) {
+        partner_finished_at = partner_finished_at || String(activeRun.finished_at)
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+
   const partner_info = {
     assigned_partner_id: linkData.partner?.id || partner.id,
     partner_status,

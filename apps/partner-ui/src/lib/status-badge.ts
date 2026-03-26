@@ -1,4 +1,4 @@
-export type StatusBadgeColor = "green" | "orange" | "red" | "grey"
+export type StatusBadgeColor = "green" | "orange" | "red" | "grey" | "blue"
 
 export const getStatusBadgeColor = (
   status?: string | null
@@ -28,6 +28,12 @@ export const getStatusBadgeColor = (
     case "processing":
     case "proposed":
       return "orange"
+
+    case "awaiting_review":
+    case "awaiting review":
+    case "technical_review":
+    case "under_review":
+      return "blue"
 
     case "failed":
     case "canceled":

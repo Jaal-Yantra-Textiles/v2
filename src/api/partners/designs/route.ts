@@ -151,6 +151,23 @@ export async function GET(
     filtered = allLinked.filter((linkData: any) => linkData.design?.status === status)
   }
 
+  // Pre-fetch all production runs for this partner (one query, not per-design)
+  let partnerRuns: any[] = []
+  try {
+    const { data: runs } = await query.graph({
+      entity: "production_runs",
+      filters: {
+        partner_id: partner.id,
+        status: { $nin: ["cancelled"] },
+      },
+      fields: ["id", "design_id", "status", "accepted_at", "started_at", "finished_at", "completed_at"],
+      pagination: { skip: 0, take: 200 },
+    })
+    partnerRuns = runs || []
+  } catch {
+    // Non-fatal
+  }
+
   const designs = filtered.map((linkData: any) => {
     const design = linkData.design
 
@@ -210,6 +227,30 @@ export async function GET(
     // Final safeguard: if phase is redo, ensure status reflects in-progress
     if (partnerPhase === "redo") {
       partnerStatus = "in_progress"
+    }
+
+    // Override with production run status if a run exists for this partner + design
+    const activeRun = partnerRuns.find((r: any) => r.design_id === design.id)
+    if (activeRun) {
+      const runStatus = String(activeRun.status)
+      if (runStatus === "sent_to_partner") {
+        partnerStatus = "assigned"
+      } else if (runStatus === "in_progress") {
+        if (activeRun.finished_at) {
+          // Partner marked finished, waiting for admin to review and complete
+          partnerStatus = "awaiting_review" as any
+          partnerFinishedAt = partnerFinishedAt || String(activeRun.finished_at)
+        } else if (activeRun.started_at) {
+          partnerStatus = "in_progress"
+          partnerStartedAt = partnerStartedAt || String(activeRun.started_at)
+        } else {
+          partnerStatus = "assigned"
+        }
+      } else if (runStatus === "completed") {
+        partnerStatus = "completed"
+        partnerCompletedAt = partnerCompletedAt || String(activeRun.completed_at)
+      }
+      if (activeRun.finished_at) partnerFinishedAt = partnerFinishedAt || String(activeRun.finished_at)
     }
 
     const partner_info = {
