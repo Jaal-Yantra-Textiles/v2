@@ -30,11 +30,20 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
 
   const metadata = (design as any)?.metadata || {}
 
-  // Check if a partner has a production run
+  // Check if a partner has a production run — prefer active runs over cancelled ones
   const partnerRunStatus = (partnerId: string) => {
-    const run = production_runs.find((r: any) => r.partner_id === partnerId)
-    if (!run) return null
-    return String(run.status || "assigned")
+    const partnerRuns = production_runs.filter((r: any) => r.partner_id === partnerId)
+    if (!partnerRuns.length) return null
+    // Prefer active run status; fall back to cancelled/completed
+    const active = partnerRuns.find(
+      (r: any) => r.status !== "cancelled" && r.status !== "completed"
+    )
+    if (active) return String(active.status || "assigned")
+    // All runs are terminal — show the most recent one
+    const sorted = [...partnerRuns].sort(
+      (a: any, b: any) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
+    )
+    return String(sorted[0].status || "assigned")
   }
 
   const hasActiveRun = (partnerId: string) => {
@@ -46,13 +55,18 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
     )
   }
 
-  // Detect v1 workflow: design has partner_status in metadata but no production run for this partner
+  // Detect v1 workflow: design has partner_status in metadata but no active production run for this partner
   const hasV1Assignment = (partnerId: string) => {
     const ps = metadata.partner_status
     if (!ps || ps === "completed" || ps === "cancelled") return false
-    // No production run for this partner = v1 workflow
-    const hasRun = production_runs.some((r: any) => r.partner_id === partnerId)
-    return !hasRun
+    // Only count non-cancelled, non-completed production runs
+    const hasActiveRun = production_runs.some(
+      (r: any) =>
+        r.partner_id === partnerId &&
+        r.status !== "cancelled" &&
+        r.status !== "completed"
+    )
+    return !hasActiveRun
   }
 
   // Was assignment cancelled?
