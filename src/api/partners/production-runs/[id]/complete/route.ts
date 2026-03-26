@@ -1,10 +1,28 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
+import { z } from "@medusajs/framework/zod"
 
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { signalLifecycleStepSuccessWorkflow } from "../../../../../workflows/production-runs/production-run-steps"
 import { awaitRunCompleteStepId } from "../../../../../workflows/production-runs/run-production-run-lifecycle"
+import { logConsumptionWorkflow } from "../../../../../workflows/consumption-logs/log-consumption"
+import { commitConsumptionWorkflow } from "../../../../../workflows/consumption-logs/commit-consumption"
+
+const CompleteBodySchema = z.object({
+  consumptions: z
+    .array(
+      z.object({
+        inventory_item_id: z.string(),
+        quantity: z.number().positive(),
+        unit_of_measure: z.enum(["Meter", "Yard", "Kilogram", "Gram", "Piece", "Roll", "Other"]).optional(),
+        consumption_type: z.enum(["sample", "production", "wastage"]).optional(),
+        location_id: z.string().optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .optional(),
+})
 
 export async function POST(
   req: AuthenticatedMedusaRequest & { params: { id: string } },
@@ -48,6 +66,57 @@ export async function POST(
     )
   }
 
+  // Parse optional consumptions
+  const parsed = CompleteBodySchema.safeParse(
+    (req as any).validatedBody || req.body
+  )
+  const consumptions = parsed.success ? parsed.data.consumptions : undefined
+
+  // Log consumptions if provided
+  const loggedConsumptions: any[] = []
+  if (consumptions?.length) {
+    const designId = (run as any).design_id
+
+    for (const c of consumptions) {
+      try {
+        const { result } = await logConsumptionWorkflow(req.scope).run({
+          input: {
+            design_id: designId,
+            inventory_item_id: c.inventory_item_id,
+            quantity: c.quantity,
+            unit_of_measure: c.unit_of_measure,
+            consumption_type: c.consumption_type || "production",
+            consumed_by: "partner",
+            location_id: c.location_id,
+            notes: c.notes,
+            metadata: {
+              production_run_id: id,
+              logged_at_completion: true,
+            },
+          },
+        })
+        loggedConsumptions.push(result)
+
+        // Auto-commit the consumption log
+        if (result?.id) {
+          try {
+            await commitConsumptionWorkflow(req.scope).run({
+              input: { consumption_log_id: result.id },
+            })
+          } catch {
+            // Non-fatal — log was created, commit can happen later
+          }
+        }
+      } catch (e: any) {
+        console.error(
+          `[production-run-complete] Failed to log consumption for ${c.inventory_item_id}:`,
+          e.message
+        )
+      }
+    }
+  }
+
+  // Mark run as completed
   await productionRunService.updateProductionRuns({
     id: run.id,
     status: "completed" as any,
@@ -73,6 +142,9 @@ export async function POST(
 
   return res.status(200).json({
     production_run: updated,
-    message: "Production run completed",
+    consumptions_logged: loggedConsumptions.length,
+    message: loggedConsumptions.length
+      ? `Production run completed. ${loggedConsumptions.length} consumption(s) recorded.`
+      : "Production run completed",
   })
 }

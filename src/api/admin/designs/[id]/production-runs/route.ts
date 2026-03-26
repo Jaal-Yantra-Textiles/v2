@@ -95,7 +95,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framework"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 import { createProductionRunWorkflow } from "../../../../../workflows/production-runs/create-production-run"
 import { approveProductionRunWorkflow } from "../../../../../workflows/production-runs/approve-production-run"
@@ -124,7 +124,31 @@ export const POST = async (
   }
 
   const body = (req as any).validatedBody || req.body
-  const assignments = (body.assignments || []) as any[]
+  let assignments = (body.assignments || []) as any[]
+
+  // Auto-populate from linked partners if no assignments provided
+  if (!assignments.length) {
+    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+    const { data: designs } = await query.graph({
+      entity: "design",
+      filters: { id: designId },
+      fields: ["partners.id", "partners.name"],
+    })
+    const linkedPartners = designs?.[0]?.partners || []
+
+    if (linkedPartners.length && body.quantity) {
+      // Single partner: assign full quantity
+      // Multiple partners: split equally (admin can adjust via explicit assignments)
+      const perPartner = Math.ceil(Number(body.quantity) / linkedPartners.length)
+      assignments = linkedPartners.map((p: any, idx: number) => ({
+        partner_id: p.id,
+        quantity: idx === linkedPartners.length - 1
+          ? Number(body.quantity) - perPartner * (linkedPartners.length - 1)
+          : perPartner,
+        template_names: body.template_names || [],
+      }))
+    }
+  }
 
   let parentQuantity: number | undefined = body.quantity
 
