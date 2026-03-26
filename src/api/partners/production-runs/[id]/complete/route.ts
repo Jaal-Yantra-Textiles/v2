@@ -101,7 +101,10 @@ export async function POST(
         if (result?.id) {
           try {
             await commitConsumptionWorkflow(req.scope).run({
-              input: { consumption_log_id: result.id },
+              input: {
+                design_id: (run as any).design_id,
+                log_ids: [result.id],
+              },
             })
           } catch {
             // Non-fatal — log was created, commit can happen later

@@ -29,6 +29,19 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
   })
 
   const metadata = (design as any)?.metadata || {}
+  const tasks = (design as any)?.tasks || []
+
+  // Detect v1 workflow tasks on this design
+  const V1_TASK_TITLES = [
+    "partner-design-start",
+    "partner-design-redo",
+    "partner-design-finish",
+    "partner-design-completed",
+  ]
+  const v1Tasks = tasks.filter(
+    (t: any) => V1_TASK_TITLES.includes(t.title) && t.status !== "cancelled"
+  )
+  const hasActiveV1Tasks = v1Tasks.length > 0
 
   // Check if a partner has a production run — prefer active runs over cancelled ones
   const partnerRunStatus = (partnerId: string) => {
@@ -55,18 +68,24 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
     )
   }
 
-  // Detect v1 workflow: design has partner_status in metadata but no active production run for this partner
+  // Detect v1 workflow: design has active v1 tasks OR partner_status in metadata,
+  // AND no active production run for this partner
   const hasV1Assignment = (partnerId: string) => {
+    // Check metadata-based signal
     const ps = metadata.partner_status
-    if (!ps || ps === "completed" || ps === "cancelled") return false
-    // Only count non-cancelled, non-completed production runs
-    const hasActiveRun = production_runs.some(
+    const hasMetaSignal = ps && ps !== "completed" && ps !== "cancelled"
+
+    // If neither v1 tasks nor metadata signal exist, no v1 assignment
+    if (!hasActiveV1Tasks && !hasMetaSignal) return false
+
+    // Only count non-cancelled, non-completed production runs for this partner
+    const hasActivePartnerRun = production_runs.some(
       (r: any) =>
         r.partner_id === partnerId &&
         r.status !== "cancelled" &&
         r.status !== "completed"
     )
-    return !hasActiveRun
+    return !hasActivePartnerRun
   }
 
   // Was assignment cancelled?
@@ -157,7 +176,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                     </span>
                     {isV1Active && (
                       <span className="text-ui-fg-muted text-xs">
-                        v1 workflow · {metadata.partner_status}
+                        v1 workflow · {metadata.partner_status || "assigned"}
                       </span>
                     )}
                     {wasV1Cancelled && !isV1Active && !runStatus && (
@@ -181,7 +200,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                     {isV1Active && (
                       <>
                         <Badge color="orange">
-                          {String(metadata.partner_status).replace(/_/g, " ")}
+                          {String(metadata.partner_status || "assigned").replace(/_/g, " ")}
                         </Badge>
                         <Button
                           size="small"
