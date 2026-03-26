@@ -29,25 +29,14 @@ import { SaveViewDialog } from "../../components/views/save-view-dialog";
 import { useViewConfigurationActions } from "../../hooks/use-view-configurations";
 import type { ViewConfiguration } from "../../hooks/api/views";
 import { usePartners } from "../../hooks/api/partners";
-import { BatchSendToPartnerDrawer } from "../../components/designs/batch-send-to-partner-drawer";
+// BatchSendToPartnerDrawer removed — v1 send-to-partner deprecated in favor of production runs
 
 const columnHelper = createDataTableColumnHelper<AdminDesign>();
 
 const commandHelper = createDataTableCommandHelper();
 
-// Commands need a ref to the drawer setter — we use a callback pattern
-let _openBatchSendDrawer: (() => void) | null = null;
-
 const useCommands = () => {
-  return [
-    commandHelper.command({
-      label: "Send to Partner",
-      shortcut: "s",
-      action: async (_selection) => {
-        _openBatchSendDrawer?.();
-      },
-    }),
-  ];
+  return [];
 };
 
 export const useColumns = () => {
@@ -109,12 +98,7 @@ const DesignsPage = () => {
   });
   const [tableUiResetKey, setTableUiResetKey] = useState(0);
 
-  // Batch send-to-partner state
   const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({});
-  const [batchSendDrawerOpen, setBatchSendDrawerOpen] = useState(false);
-
-  // Wire the command callback to this component's state
-  _openBatchSendDrawer = () => setBatchSendDrawerOpen(true);
 
   const {
     listViews,
@@ -625,12 +609,6 @@ const DesignsPage = () => {
       />
     )}
 
-    <BatchSendToPartnerDrawer
-      open={batchSendDrawerOpen}
-      onOpenChange={setBatchSendDrawerOpen}
-      selectedDesigns={selectedDesigns}
-      onComplete={clearSelection}
-    />
     </div>
   );
 };

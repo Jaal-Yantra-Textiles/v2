@@ -69,6 +69,7 @@ const DesignDetailPage = () => {
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
           <DesignProductionRunsSection design={design} />
+          <DesignTasksSection design={design} />
           <DesignPartnerSection design={design} />
           <DesignInventorySection design={design} />
           <DesignConsumptionLogsSection design={design} />
@@ -79,7 +80,6 @@ const DesignDetailPage = () => {
         <TwoColumnPage.Sidebar>
           <DesignMediaFolderSection design={design} />
           <DesignMediaSection design={design} />
-          <DesignTasksSection design={design} />
           <DesignComponentsSection design={design} />
         </TwoColumnPage.Sidebar>  
         </TwoColumnPage>

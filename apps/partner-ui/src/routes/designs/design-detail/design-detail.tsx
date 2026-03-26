@@ -11,7 +11,6 @@ import { getStatusBadgeColor } from "../../../lib/status-badge"
 import {
   usePartnerDesign,
 } from "../../../hooks/api/partner-designs"
-import { DesignActionsSection } from "./components/design-actions-section"
 import { DesignMediaSection } from "./components/design-media-section"
 import { DesignMoodboardSection } from "./components/design-moodboard-section"
 import { DesignConsumptionLogsSection } from "./components/design-consumption-logs-section"
@@ -475,9 +474,9 @@ export const DesignDetail = () => {
           )}
         </Container>
 
-        {design && <DesignConsumptionLogsSection design={design} />}
-
         {design && <DesignProductionSection design={design} />}
+
+        {design && <DesignConsumptionLogsSection design={design} />}
 
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
@@ -534,7 +533,6 @@ export const DesignDetail = () => {
       </TwoColumnPage.Main>
 
       <TwoColumnPage.Sidebar>
-        {design && <DesignActionsSection design={design} isPending={isPending} />}
         {design && <DesignMediaSection design={design} />}
         {design && <DesignMoodboardSection design={design} />}
       </TwoColumnPage.Sidebar>

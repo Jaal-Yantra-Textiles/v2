@@ -31,7 +31,7 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
     return (
       <Container className="divide-y p-0">
         <div className="px-6 py-4">
-          <Heading level="h2">Production Runs</Heading>
+          <Heading level="h2">Production</Heading>
         </div>
         <div className="px-6 py-4">
           <Text size="small" className="text-ui-fg-subtle">Loading...</Text>
@@ -41,18 +41,7 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
   }
 
   if (!production_runs.length) {
-    return (
-      <Container className="divide-y p-0">
-        <div className="px-6 py-4">
-          <Heading level="h2">Production Runs</Heading>
-        </div>
-        <div className="px-6 py-4">
-          <Text size="small" className="text-ui-fg-subtle">
-            No production runs assigned for this design.
-          </Text>
-        </div>
-      </Container>
-    )
+    return null // Don't show section if no runs — design actions handle v1 flow
   }
 
   return (
@@ -61,6 +50,63 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
         <ProductionRunCard key={String(run.id)} run={run} />
       ))}
     </>
+  )
+}
+
+// ── Progress Steps ──────────────────────────────────────────────────
+
+const STEPS = [
+  { key: "sent_to_partner", label: "Sent" },
+  { key: "accepted", label: "Accepted" },
+  { key: "started", label: "Started" },
+  { key: "finished", label: "Finished" },
+  { key: "completed", label: "Completed" },
+]
+
+const ProgressStepper = ({ run }: { run: any }) => {
+  const status = String(run.status || "")
+  if (status === "cancelled") return null
+
+  // Determine current step index
+  let currentIdx = 0
+  if (run.completed_at) currentIdx = 4
+  else if (run.finished_at) currentIdx = 3
+  else if (run.started_at) currentIdx = 2
+  else if (run.accepted_at) currentIdx = 1
+  else if (status === "sent_to_partner") currentIdx = 0
+
+  return (
+    <div className="flex items-center gap-1 px-6 py-3">
+      {STEPS.map((step, idx) => {
+        const isDone = idx <= currentIdx
+        const isCurrent = idx === currentIdx
+        return (
+          <div key={step.key} className="flex items-center gap-1 flex-1">
+            <div className="flex flex-col items-center flex-1">
+              <div
+                className={`h-1.5 w-full rounded-full ${
+                  isDone
+                    ? "bg-ui-fg-interactive"
+                    : "bg-ui-border-base"
+                }`}
+              />
+              <Text
+                size="xsmall"
+                className={`mt-1 ${
+                  isCurrent
+                    ? "text-ui-fg-base font-medium"
+                    : isDone
+                    ? "text-ui-fg-subtle"
+                    : "text-ui-fg-muted"
+                }`}
+              >
+                {step.label}
+              </Text>
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -85,20 +131,33 @@ const ProductionRunCard = ({ run }: { run: any }) => {
   })
 
   const isCancelled = status === "cancelled"
-  const canAccept = status === "sent_to_partner"
-  const canStart = status === "in_progress" && !run.started_at
-  const canFinish = status === "in_progress" && !!run.started_at && !run.finished_at
-  const canComplete = status === "in_progress" && !!run.finished_at
+  const isCompleted = status === "completed"
+  const canAccept = !isCancelled && status === "sent_to_partner"
+  const canStart = !isCancelled && status === "in_progress" && !run.started_at
+  const canFinish = !isCancelled && status === "in_progress" && !!run.started_at && !run.finished_at
+  const canComplete = !isCancelled && status === "in_progress" && !!run.finished_at
 
   const completedTasks = tasks.filter((t: any) => String(t.status) === "completed").length
   const totalTasks = tasks.length
 
+  // Derive the primary action
+  const primaryAction = canAccept
+    ? { label: "Accept Run", onClick: () => accept.mutate(), loading: accept.isPending }
+    : canStart
+    ? { label: "Start Working", onClick: () => start.mutate(), loading: start.isPending }
+    : canFinish
+    ? { label: "Mark Finished", onClick: () => finish.mutate(), loading: finish.isPending }
+    : canComplete
+    ? { label: "Complete Run", onClick: () => complete.mutate(), loading: complete.isPending }
+    : null
+
   return (
     <Container className={`divide-y p-0${isCancelled ? " opacity-60" : ""}`}>
+      {/* Header with status + primary action */}
       <div className="flex items-center justify-between px-6 py-4">
         <div>
           <div className="flex items-center gap-2">
-            <Heading level="h2">Production Run</Heading>
+            <Heading level="h2">Production</Heading>
             <Badge size="2xsmall" color={run.run_type === "sample" ? "blue" : "grey"}>
               {run.run_type === "sample" ? "Sample" : "Production"}
             </Badge>
@@ -108,8 +167,8 @@ const ProductionRunCard = ({ run }: { run: any }) => {
           </div>
           <Text size="xsmall" className="text-ui-fg-subtle mt-1">
             Qty: {run.quantity ?? "-"}
-            {run.role ? ` · Role: ${run.role}` : ""}
-            {totalTasks > 0 ? ` · Tasks: ${completedTasks}/${totalTasks}` : ""}
+            {run.role ? ` · ${run.role}` : ""}
+            {totalTasks > 0 ? ` · ${completedTasks}/${totalTasks} tasks done` : ""}
           </Text>
           {isCancelled && (
             <Text size="xsmall" className="text-ui-fg-error mt-1">
@@ -118,62 +177,51 @@ const ProductionRunCard = ({ run }: { run: any }) => {
           )}
         </div>
         <div className="flex items-center gap-x-2">
-          {!isCancelled && canAccept && (
-            <Button size="small" isLoading={accept.isPending} onClick={() => accept.mutate()}>
-              Accept
+          {primaryAction && (
+            <Button
+              size="small"
+              isLoading={primaryAction.loading}
+              onClick={primaryAction.onClick}
+            >
+              {primaryAction.label}
             </Button>
           )}
-          {!isCancelled && canStart && (
-            <Button size="small" isLoading={start.isPending} onClick={() => start.mutate()}>
-              Start
-            </Button>
+          {isCompleted && (
+            <Badge color="green" size="small">Done</Badge>
           )}
-          {!isCancelled && canFinish && (
-            <Button size="small" isLoading={finish.isPending} onClick={() => finish.mutate()}>
-              Mark Finished
-            </Button>
-          )}
-          {!isCancelled && canComplete && (
-            <Button size="small" isLoading={complete.isPending} onClick={() => complete.mutate()}>
-              Complete
-            </Button>
-          )}
-          <Button size="small" variant="secondary" asChild>
-            <Link to={`/production-runs/${runId}`}>View Details</Link>
-          </Button>
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="px-6 py-3">
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          {run.accepted_at && (
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Accepted: {new Date(run.accepted_at).toLocaleDateString()}
-            </Text>
-          )}
-          {run.started_at && (
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Started: {new Date(run.started_at).toLocaleDateString()}
-            </Text>
-          )}
-          {run.finished_at && (
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Finished: {new Date(run.finished_at).toLocaleDateString()}
-            </Text>
-          )}
-          {run.completed_at && (
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Completed: {new Date(run.completed_at).toLocaleDateString()}
-            </Text>
-          )}
-          {!run.accepted_at && !run.started_at && !run.finished_at && !run.completed_at && (
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Created: {run.created_at ? new Date(run.created_at).toLocaleDateString() : "-"}
-            </Text>
-          )}
+      {/* Progress stepper */}
+      <ProgressStepper run={run} />
+
+      {/* Timeline details */}
+      {(run.accepted_at || run.started_at || run.finished_at || run.completed_at) && (
+        <div className="px-6 py-3">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {run.accepted_at && (
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Accepted: {new Date(run.accepted_at).toLocaleDateString()}
+              </Text>
+            )}
+            {run.started_at && (
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Started: {new Date(run.started_at).toLocaleDateString()}
+              </Text>
+            )}
+            {run.finished_at && (
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Finished: {new Date(run.finished_at).toLocaleDateString()}
+              </Text>
+            )}
+            {run.completed_at && (
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Completed: {new Date(run.completed_at).toLocaleDateString()}
+              </Text>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Tasks */}
       {totalTasks > 0 && (

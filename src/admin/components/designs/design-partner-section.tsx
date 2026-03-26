@@ -3,7 +3,6 @@ import { Plus, Trash, XCircle, TriangleRightMini } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
 import {
   AdminDesign,
-  useSendDesignToPartner,
   useUnlinkDesignFromPartner,
   useCancelPartnerAssignment,
 } from "../../hooks/api/designs";
@@ -16,10 +15,16 @@ interface DesignPartnerSectionProps {
   design: AdminDesign & { partners?: AdminPartner[] };
 }
 
+const V1_TASK_TITLES = [
+  "partner-design-start",
+  "partner-design-redo",
+  "partner-design-finish",
+  "partner-design-completed",
+]
+
 export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
   const navigate = useNavigate();
   const partners = design.partners || [];
-  const { mutateAsync: sendDesign, isPending: isSending } = useSendDesignToPartner(design.id)
   const { mutateAsync: unlinkPartner, isPending: isUnlinking } = useUnlinkDesignFromPartner(design.id)
   const { mutateAsync: cancelAssignment, isPending: isCancelling } = useCancelPartnerAssignment(design.id)
   const { production_runs = [] } = useProductionRuns({
@@ -31,28 +36,20 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
   const metadata = (design as any)?.metadata || {}
   const tasks = (design as any)?.tasks || []
 
-  // Detect v1 workflow tasks on this design
-  const V1_TASK_TITLES = [
-    "partner-design-start",
-    "partner-design-redo",
-    "partner-design-finish",
-    "partner-design-completed",
-  ]
+  // Detect active v1 tasks
   const v1Tasks = tasks.filter(
     (t: any) => V1_TASK_TITLES.includes(t.title) && t.status !== "cancelled"
   )
   const hasActiveV1Tasks = v1Tasks.length > 0
 
-  // Check if a partner has a production run — prefer active runs over cancelled ones
+  // Check production run status per partner — prefer active over terminal
   const partnerRunStatus = (partnerId: string) => {
     const partnerRuns = production_runs.filter((r: any) => r.partner_id === partnerId)
     if (!partnerRuns.length) return null
-    // Prefer active run status; fall back to cancelled/completed
     const active = partnerRuns.find(
       (r: any) => r.status !== "cancelled" && r.status !== "completed"
     )
     if (active) return String(active.status || "assigned")
-    // All runs are terminal — show the most recent one
     const sorted = [...partnerRuns].sort(
       (a: any, b: any) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
     )
@@ -68,17 +65,11 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
     )
   }
 
-  // Detect v1 workflow: design has active v1 tasks OR partner_status in metadata,
-  // AND no active production run for this partner
+  // Detect v1 assignment: active v1 tasks or metadata signal, and no active production run
   const hasV1Assignment = (partnerId: string) => {
-    // Check metadata-based signal
     const ps = metadata.partner_status
     const hasMetaSignal = ps && ps !== "completed" && ps !== "cancelled"
-
-    // If neither v1 tasks nor metadata signal exist, no v1 assignment
     if (!hasActiveV1Tasks && !hasMetaSignal) return false
-
-    // Only count non-cancelled, non-completed production runs for this partner
     const hasActivePartnerRun = production_runs.some(
       (r: any) =>
         r.partner_id === partnerId &&
@@ -88,19 +79,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
     return !hasActivePartnerRun
   }
 
-  // Was assignment cancelled?
   const wasV1Cancelled = !!metadata.partner_assignment_cancelled_at
-
-  const handleSendToPartner = async (e: React.MouseEvent, partnerId: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    try {
-      await sendDesign({ partnerId })
-      toast.success("Design sent to partner. Workflow triggered.")
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to send design to partner")
-    }
-  }
 
   const handleUnlinkPartner = async (e: React.MouseEvent, partnerId: string) => {
     e.preventDefault()
@@ -124,7 +103,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
     }
   }
 
-  const isAnyLoading = isSending || isUnlinking || isCancelling
+  const isAnyLoading = isUnlinking || isCancelling
 
   return (
     <Container className="p-0">
@@ -132,7 +111,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
         <div>
           <Heading level="h2">Partners</Heading>
           <Text className="text-ui-fg-subtle" size="small">
-            Partners who can produce this design
+            Partners linked to this design
           </Text>
         </div>
         <ActionMenu
@@ -160,8 +139,8 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
           partners.map((partner) => {
             const link = `/partners/${partner.id}`;
             const runStatus = partnerRunStatus(partner.id)
-            const canUnlink = !hasActiveRun(partner.id) && !hasV1Assignment(partner.id)
             const isV1Active = hasV1Assignment(partner.id)
+            const canUnlink = !hasActiveRun(partner.id) && !isV1Active
 
             const Inner = (
               <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2 transition-colors">
@@ -176,7 +155,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                     </span>
                     {isV1Active && (
                       <span className="text-ui-fg-muted text-xs">
-                        v1 workflow · {metadata.partner_status || "assigned"}
+                        Legacy workflow · {metadata.partner_status || "assigned"}
                       </span>
                     )}
                     {wasV1Cancelled && !isV1Active && !runStatus && (
@@ -186,7 +165,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Production run status badge */}
+                    {/* Production run status */}
                     {runStatus && (
                       <Badge color={
                         runStatus === "completed" ? "green" :
@@ -196,7 +175,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                       </Badge>
                     )}
 
-                    {/* v1 active: show status + cancel button */}
+                    {/* v1 active: show cancel button */}
                     {isV1Active && (
                       <>
                         <Badge color="orange">
@@ -215,20 +194,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                       </>
                     )}
 
-                    {/* No run, no v1, not cancelled: show Send button */}
-                    {!runStatus && !isV1Active && !wasV1Cancelled && (
-                      <Button
-                        size="small"
-                        variant="secondary"
-                        isLoading={isSending}
-                        disabled={isAnyLoading}
-                        onClick={(e) => handleSendToPartner(e, partner.id)}
-                      >
-                        Send
-                      </Button>
-                    )}
-
-                    {/* Unlink button: only when no active run and no active v1 */}
+                    {/* Unlink */}
                     {canUnlink && (
                       <Button
                         size="small"
