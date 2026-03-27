@@ -19,7 +19,6 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
   const runs = production_runs || []
 
   const isInReview = design.status === "Technical_Review"
-  const hasCompletedRuns = runs.some((r: any) => r.status === "completed")
 
   return (
     <Container className="p-0">

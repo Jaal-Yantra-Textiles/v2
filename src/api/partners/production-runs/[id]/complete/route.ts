@@ -15,6 +15,7 @@ const CompleteBodySchema = z.object({
       z.object({
         inventory_item_id: z.string(),
         quantity: z.number().positive(),
+        unit_cost: z.number().positive().optional(),
         unit_of_measure: z.enum(["Meter", "Yard", "Kilogram", "Gram", "Piece", "Roll", "Other"]).optional(),
         consumption_type: z.enum(["sample", "production", "wastage"]).optional(),
         location_id: z.string().optional(),
@@ -110,6 +111,7 @@ export async function POST(
             design_id: designId,
             inventory_item_id: c.inventory_item_id,
             quantity: c.quantity,
+            unit_cost: c.unit_cost,
             unit_of_measure: c.unit_of_measure,
             consumption_type: c.consumption_type || "production",
             consumed_by: "partner",

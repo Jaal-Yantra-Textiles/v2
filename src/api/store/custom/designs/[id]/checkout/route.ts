@@ -5,7 +5,6 @@ import {
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils";
 import { estimateDesignCostWorkflow } from "../../../../../../workflows/designs/estimate-design-cost";
 import designCustomerLink from "../../../../../../links/design-customer-link";
-import designLineItemLink from "../../../../../../links/design-line-item-link";
 import { DESIGN_MODULE } from "../../../../../../modules/designs";
 import {
   fetchExchangeRate,

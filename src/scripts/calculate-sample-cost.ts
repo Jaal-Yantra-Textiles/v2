@@ -63,12 +63,25 @@ export default async function calculateSampleCost({ container, args }: ExecArgs)
 
   for (const dId of designIds) {
     try {
+      // Find the latest completed sample run for this design to get partner_cost_estimate
+      let partnerCostEstimate = 0
+      try {
+        const [sampleRuns] = await productionRunService.listAndCountProductionRuns(
+          { design_id: dId, run_type: "sample", status: "completed" },
+          { take: 1, order: { completed_at: "DESC" } }
+        )
+        if (sampleRuns?.[0]?.partner_cost_estimate) {
+          partnerCostEstimate = Number(sampleRuns[0].partner_cost_estimate)
+        }
+      } catch { /* non-fatal */ }
+
       await calculateCostForDesign(
         dId,
         consumptionLogService,
         inventoryService,
         designService,
-        query
+        query,
+        partnerCostEstimate
       )
     } catch (e: any) {
       console.error(`Failed to calculate cost for design ${dId}:`, e.message)
@@ -83,9 +96,9 @@ async function calculateCostForDesign(
   consumptionLogService: any,
   inventoryService: any,
   designService: any,
-  query: any
+  query: any,
+  partnerCostEstimate: number
 ) {
-  // Fetch committed consumption logs for this design
   const [logs] = await consumptionLogService.listAndCountConsumptionLogs(
     { design_id: designId, is_committed: true },
     { take: 500 }
@@ -96,7 +109,6 @@ async function calculateCostForDesign(
     return
   }
 
-  // Calculate cost per log entry — use log.unit_cost first, fall back to inventory item's unit_cost
   let materialCost = 0
   const breakdown: Array<{
     inventory_item_id: string
@@ -112,23 +124,33 @@ async function calculateCostForDesign(
     let costSource = "partner_input"
     let title = log.inventory_item_id
 
-    if (!unitCost) {
-      try {
-        const item = await inventoryService.retrieveInventoryItem(log.inventory_item_id)
-        unitCost = Number(item.unit_cost) || 0
-        title = item.title || item.sku || log.inventory_item_id
-        costSource = unitCost ? "inventory_item" : "none"
-      } catch {
-        console.warn(`  Inventory item ${log.inventory_item_id} not found — using cost 0`)
-        costSource = "none"
+    // Resolve title
+    try {
+      const item = await inventoryService.retrieveInventoryItem(log.inventory_item_id)
+      title = item.title || item.sku || log.inventory_item_id
+
+      // Fall back to raw_material.unit_cost if log has none
+      if (!unitCost) {
+        try {
+          const { data: rmLinks } = await query.graph({
+            entity: "inventory_item_raw_materials",
+            filters: { inventory_item_id: log.inventory_item_id },
+            fields: ["raw_materials.unit_cost"],
+          })
+          const rmCost = Number(rmLinks?.[0]?.raw_materials?.unit_cost) || 0
+          if (rmCost > 0) {
+            unitCost = rmCost
+            costSource = "raw_material"
+          } else {
+            costSource = "none"
+          }
+        } catch {
+          costSource = "none"
+        }
       }
-    } else {
-      try {
-        const item = await inventoryService.retrieveInventoryItem(log.inventory_item_id)
-        title = item.title || item.sku || log.inventory_item_id
-      } catch {
-        // just use ID as title
-      }
+    } catch {
+      console.warn(`  Inventory item ${log.inventory_item_id} not found — using cost 0`)
+      costSource = "none"
     }
 
     const lineTotal = Number(log.quantity) * unitCost
@@ -144,19 +166,21 @@ async function calculateCostForDesign(
     })
   }
 
-  // Add production overhead
-  const productionCost = materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)
+  // Use partner cost estimate if provided, otherwise fall back to overhead %
+  const productionCost = partnerCostEstimate > 0
+    ? partnerCostEstimate
+    : materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)
+  const costSource = partnerCostEstimate > 0 ? "partner_estimate" : "overhead_percent"
   const totalEstimate = Math.round((materialCost + productionCost) * 100) / 100
 
   console.log(`  Design ${designId}:`)
   console.log(`    Material cost: ${materialCost}`)
-  console.log(`    Production overhead (${DEFAULT_PRODUCTION_OVERHEAD_PERCENT}%): ${productionCost}`)
+  console.log(`    Production cost (${costSource}): ${productionCost}`)
   console.log(`    Total estimate: ${totalEstimate}`)
   for (const item of breakdown) {
     console.log(`      ${item.title}: ${item.quantity} × ${item.unit_cost} = ${item.line_total}`)
   }
 
-  // Write to proper design columns — NOT metadata
   await designService.updateDesigns({
     id: designId,
     estimated_cost: totalEstimate,
@@ -164,7 +188,9 @@ async function calculateCostForDesign(
     production_cost: Math.round(productionCost * 100) / 100,
     cost_breakdown: {
       items: breakdown,
-      production_overhead_percent: DEFAULT_PRODUCTION_OVERHEAD_PERCENT,
+      production_cost_source: costSource,
+      production_overhead_percent: costSource === "overhead_percent" ? DEFAULT_PRODUCTION_OVERHEAD_PERCENT : undefined,
+      partner_cost_estimate: partnerCostEstimate > 0 ? partnerCostEstimate : undefined,
       calculated_at: new Date().toISOString(),
       source: "sample_consumption",
     },
