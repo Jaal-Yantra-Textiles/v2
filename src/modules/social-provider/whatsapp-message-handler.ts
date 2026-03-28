@@ -44,25 +44,35 @@ async function resolvePartnerByPhone(
     // Normalize: strip non-digits
     const normalized = phone.replace(/[^0-9]/g, "")
 
-    // Use query.graph to fetch partners with admins (same pattern as partner helpers.ts)
     const { ContainerRegistrationKeys } = await import("@medusajs/framework/utils")
     const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
     const { data: partners } = await query.graph({
       entity: "partners",
-      fields: ["id", "admins.*"],
+      fields: ["id", "name", "whatsapp_number", "whatsapp_verified", "admins.*"],
       pagination: { skip: 0, take: 200 },
     })
 
-    // Match by phone suffix (handles country code variations)
+    // Priority 1: Match against partner.whatsapp_number (dedicated notification number)
+    for (const partner of partners || []) {
+      if (!partner.whatsapp_number || !partner.whatsapp_verified) continue
+      const waNormalized = partner.whatsapp_number.replace(/[^0-9]/g, "")
+      if (phoneMatches(waNormalized, normalized)) {
+        const firstAdmin = partner.admins?.[0]
+        return {
+          partnerId: partner.id,
+          adminName: firstAdmin
+            ? [firstAdmin.first_name, firstAdmin.last_name].filter(Boolean).join(" ") || partner.name
+            : partner.name || "Partner",
+        }
+      }
+    }
+
+    // Priority 2: Fall back to matching admin phone numbers
     for (const partner of partners || []) {
       for (const admin of partner.admins || []) {
         if (!admin.phone) continue
         const adminNormalized = admin.phone.replace(/[^0-9]/g, "")
-        if (
-          adminNormalized === normalized ||
-          adminNormalized.endsWith(normalized) ||
-          normalized.endsWith(adminNormalized)
-        ) {
+        if (phoneMatches(adminNormalized, normalized)) {
           return {
             partnerId: partner.id,
             adminName: [admin.first_name, admin.last_name].filter(Boolean).join(" ") || "Partner",
@@ -534,4 +544,11 @@ async function emitEvent(scope: any, name: string, data: Record<string, any>): P
     const eventService = scope.resolve(Modules.EVENT_BUS) as any
     await eventService.emit([{ name, data }])
   } catch { /* non-fatal */ }
+}
+
+/**
+ * Match two phone numbers accounting for country code prefix variations.
+ */
+function phoneMatches(a: string, b: string): boolean {
+  return a === b || a.endsWith(b) || b.endsWith(a)
 }

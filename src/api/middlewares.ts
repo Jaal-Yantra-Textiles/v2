@@ -370,6 +370,19 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/wa-auth",
+      method: "GET",
+      middlewares: [createCorsPartnerMiddleware()], // No auth — token is the auth
+    },
+    {
+      matcher: "/partners/whatsapp-verify",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/details",
       method: "GET",
       middlewares: [
