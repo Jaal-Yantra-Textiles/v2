@@ -1,3 +1,15 @@
+# [12.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.14...v12.2.0) (2026-03-28)
+
+
+### Bug Fixes
+
+* **Env Var:** Safely moved ([5842b88](https://github.com/Jaal-Yantra-Textiles/v2/commit/5842b88d6dab522b0ae903f4f87ebf06866f2007))
+
+
+### Features
+
+* **whatsapp:** Add WhatsApp integration for partner production run notifications ([5912089](https://github.com/Jaal-Yantra-Textiles/v2/commit/59120893798c7394fac958c7b66d5091ba9edc3e))
+
 ## [12.1.14](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.13...v12.1.14) (2026-03-28)
 
 
