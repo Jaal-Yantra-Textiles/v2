@@ -192,8 +192,46 @@ const ProductionRunDetailPage = () => {
                   )}
                   {run.partner_cost_estimate && (
                     <div>
-                      <Text size="small" className="text-ui-fg-subtle">Partner Cost Estimate</Text>
-                      <Text>{run.partner_cost_estimate}</Text>
+                      <Text size="small" className="text-ui-fg-subtle">
+                        Partner Cost {run.cost_type === "per_unit" ? "(per unit)" : "(total)"}
+                      </Text>
+                      <Text>
+                        {run.partner_cost_estimate}
+                        {run.cost_type === "per_unit" && run.produced_quantity
+                          ? ` × ${run.produced_quantity} = ${Math.round(run.partner_cost_estimate * run.produced_quantity * 100) / 100}`
+                          : ""
+                        }
+                      </Text>
+                    </div>
+                  )}
+                  {run.produced_quantity != null && (
+                    <div className="col-span-2">
+                      <Text size="small" className="text-ui-fg-subtle">Output / Yield</Text>
+                      <div className="flex items-center gap-4 mt-1">
+                        <Text size="small">
+                          {run.produced_quantity} of {run.quantity} produced
+                        </Text>
+                        {(run.rejected_quantity || 0) > 0 && (
+                          <Text size="small" className="text-ui-fg-error">
+                            {run.rejected_quantity} rejected
+                          </Text>
+                        )}
+                        <Badge size="2xsmall" color={
+                          run.quantity > 0 && (run.produced_quantity / run.quantity) >= 0.9
+                            ? "green"
+                            : (run.produced_quantity / run.quantity) >= 0.7
+                            ? "orange"
+                            : "red"
+                        }>
+                          {run.quantity > 0 ? Math.round((run.produced_quantity / run.quantity) * 100) : 0}% yield
+                        </Badge>
+                      </div>
+                      {run.rejection_reason && (
+                        <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+                          Reason: {run.rejection_reason.replace(/_/g, " ")}
+                          {run.rejection_notes ? ` — ${run.rejection_notes}` : ""}
+                        </Text>
+                      )}
                     </div>
                   )}
                   {run.depends_on_run_ids?.length > 0 && (

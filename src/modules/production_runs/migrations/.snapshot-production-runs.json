@@ -207,6 +207,42 @@
           "nullable": true,
           "mappedType": "text"
         },
+        "produced_quantity": {
+          "name": "produced_quantity",
+          "type": "real",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "float"
+        },
+        "rejected_quantity": {
+          "name": "rejected_quantity",
+          "type": "real",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "float"
+        },
+        "rejection_reason": {
+          "name": "rejection_reason",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "rejection_notes": {
+          "name": "rejection_notes",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "partner_cost_estimate": {
           "name": "partner_cost_estimate",
           "type": "real",
@@ -215,6 +251,20 @@
           "primary": false,
           "nullable": true,
           "mappedType": "float"
+        },
+        "cost_type": {
+          "name": "cost_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "default": "'total'",
+          "enumItems": [
+            "per_unit",
+            "total"
+          ],
+          "mappedType": "enum"
         },
         "dispatch_state": {
           "name": "dispatch_state",

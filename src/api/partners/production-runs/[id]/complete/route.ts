@@ -9,7 +9,29 @@ import { awaitRunCompleteStepId } from "../../../../../workflows/production-runs
 import { logConsumptionWorkflow } from "../../../../../workflows/consumption-logs/log-consumption"
 import { commitConsumptionWorkflow } from "../../../../../workflows/consumption-logs/commit-consumption"
 
+const REJECTION_REASONS = [
+  "stitching_defect",
+  "fabric_flaw",
+  "color_mismatch",
+  "sizing_error",
+  "print_defect",
+  "material_damage",
+  "quality_below_standard",
+  "other",
+] as const
+
 const CompleteBodySchema = z.object({
+  // Output / yield
+  produced_quantity: z.number().min(0).optional(),
+  rejected_quantity: z.number().min(0).optional(),
+  rejection_reason: z.enum(REJECTION_REASONS).optional(),
+  rejection_notes: z.string().optional(),
+
+  // Cost
+  partner_cost_estimate: z.number().positive().optional(),
+  cost_type: z.enum(["per_unit", "total"]).optional(),
+
+  // Consumptions (additional — may already have been logged during production)
   consumptions: z
     .array(
       z.object({
@@ -23,7 +45,7 @@ const CompleteBodySchema = z.object({
       })
     )
     .optional(),
-  partner_cost_estimate: z.number().positive().optional(),
+
   notes: z.string().optional(),
 })
 
@@ -69,13 +91,18 @@ export async function POST(
     )
   }
 
-  // Parse optional consumptions
+  // Parse body
   const parsed = CompleteBodySchema.safeParse(
     (req as any).validatedBody || req.body
   )
   const consumptions = parsed.success ? parsed.data.consumptions : undefined
   const partnerCostEstimate = parsed.success ? parsed.data.partner_cost_estimate : undefined
+  const costType = parsed.success ? parsed.data.cost_type : undefined
   const completionNotes = parsed.success ? parsed.data.notes : undefined
+  const producedQuantity = parsed.success ? parsed.data.produced_quantity : undefined
+  const rejectedQuantity = parsed.success ? parsed.data.rejected_quantity : undefined
+  const rejectionReason = parsed.success ? parsed.data.rejection_reason : undefined
+  const rejectionNotes = parsed.success ? parsed.data.rejection_notes : undefined
 
   // Log consumptions if provided
   const loggedConsumptions: any[] = []
@@ -147,23 +174,36 @@ export async function POST(
     }
   }
 
+  // Normalize cost: if per_unit, compute total for storage; keep original for display
+  const runQuantity = (run as any).quantity || 1
+  const effectiveProduced = producedQuantity != null ? producedQuantity : runQuantity
+  let normalizedCostEstimate = partnerCostEstimate
+  if (partnerCostEstimate && costType === "per_unit") {
+    normalizedCostEstimate = Math.round(partnerCostEstimate * effectiveProduced * 100) / 100
+  }
+
   // Mark run as completed with proper columns
   await productionRunService.updateProductionRuns({
     id: run.id,
     status: "completed" as any,
     completed_at: new Date(),
-    ...(partnerCostEstimate ? { partner_cost_estimate: partnerCostEstimate } : {}),
+    ...(producedQuantity != null ? { produced_quantity: producedQuantity } : {}),
+    ...(rejectedQuantity != null ? { rejected_quantity: rejectedQuantity } : {}),
+    ...(rejectionReason ? { rejection_reason: rejectionReason } : {}),
+    ...(rejectionNotes ? { rejection_notes: rejectionNotes } : {}),
+    ...(normalizedCostEstimate ? { partner_cost_estimate: normalizedCostEstimate } : {}),
+    ...(costType ? { cost_type: costType } : {}),
     ...(completionNotes ? { completion_notes: completionNotes } : {}),
   })
 
-  // Update design: store cost estimate
+  // Update design: store cost estimate (always use normalized total)
   // Design status is NOT auto-changed — admin reviews and approves explicitly
-  if (partnerCostEstimate && (run as any).design_id) {
+  if (normalizedCostEstimate && (run as any).design_id) {
     try {
       const designService = req.scope.resolve("design") as any
       await designService.updateDesigns({
         id: (run as any).design_id,
-        production_cost: partnerCostEstimate,
+        production_cost: normalizedCostEstimate,
       })
     } catch {
       // Non-fatal
@@ -175,7 +215,15 @@ export async function POST(
     const eventService = req.scope.resolve(Modules.EVENT_BUS) as any
     await eventService.emit([{
       name: "production_run.completed",
-      data: { id: run.id, production_run_id: run.id, partner_id: partnerId, action: "completed", notes: completionNotes },
+      data: {
+        id: run.id,
+        production_run_id: run.id,
+        partner_id: partnerId,
+        action: "completed",
+        notes: completionNotes,
+        produced_quantity: effectiveProduced,
+        rejected_quantity: rejectedQuantity || 0,
+      },
     }])
   } catch {
     // Non-fatal

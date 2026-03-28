@@ -39,8 +39,15 @@ const ProductionRun = model.define("production_runs", {
   finish_notes: model.text().nullable(),
   completion_notes: model.text().nullable(),
 
+  // Output / yield (captured at completion by partner)
+  produced_quantity: model.float().nullable(),
+  rejected_quantity: model.float().nullable(),
+  rejection_reason: model.text().nullable(),
+  rejection_notes: model.text().nullable(),
+
   // Cost
   partner_cost_estimate: model.float().nullable(),
+  cost_type: model.enum(["per_unit", "total"]).default("total").nullable(),
 
   // Dispatch state
   dispatch_state: model

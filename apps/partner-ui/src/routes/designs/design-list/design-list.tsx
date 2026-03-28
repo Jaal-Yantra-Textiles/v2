@@ -1,5 +1,4 @@
-import { Badge, createDataTableColumnHelper } from "@medusajs/ui"
-import { Container, Heading } from "@medusajs/ui"
+import { Badge, Container, Heading, StatusBadge, Text, Tooltip, createDataTableColumnHelper } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
@@ -55,6 +54,46 @@ function relativeDate(dateStr: string | undefined | null): string {
   const diffDays = Math.floor(diffHrs / 24)
   if (diffDays < 7) return `${diffDays}d ago`
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+/** Derive the next action label from partner_status */
+function getNextAction(partnerStatus: string | undefined | null): {
+  label: string
+  color: "green" | "blue" | "orange" | "red" | "grey"
+} | null {
+  switch (partnerStatus) {
+    case "incoming":
+    case "assigned":
+      return { label: "Accept", color: "blue" }
+    case "in_progress":
+      return { label: "Working", color: "orange" }
+    case "awaiting_review":
+      return { label: "Complete", color: "orange" }
+    case "finished":
+      return { label: "Under Review", color: "blue" }
+    case "completed":
+      return { label: "Done", color: "green" }
+    case "cancelled":
+      return { label: "Cancelled", color: "red" }
+    default:
+      return null
+  }
+}
+
+/** Format target date with urgency indicator */
+function formatTargetDate(dateStr: string | undefined | null): {
+  label: string
+  color: "red" | "orange" | "grey"
+} | null {
+  if (!dateStr) return null
+  const target = new Date(dateStr)
+  const now = new Date()
+  const diffDays = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  const formatted = target.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+
+  if (diffDays < 0) return { label: `Overdue`, color: "red" }
+  if (diffDays <= 2) return { label: formatted, color: "orange" }
+  return { label: formatted, color: "grey" }
 }
 
 export const DesignList = () => {
@@ -162,9 +201,30 @@ export const DesignList = () => {
     () => [
       columnHelper.accessor("name", {
         header: () => "Name",
-        cell: ({ getValue }) => (
-          <span className="font-medium">{getValue() || "-"}</span>
-        ),
+        cell: ({ getValue, row }) => {
+          const priority = (row.original as any)?.priority
+          return (
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{getValue() || "-"}</span>
+              {priority === "urgent" && (
+                <Badge size="2xsmall" color="red">urgent</Badge>
+              )}
+            </div>
+          )
+        },
+      }),
+      columnHelper.accessor((row) => row?.partner_info?.partner_status, {
+        id: "next_action",
+        header: () => "Next Action",
+        cell: ({ getValue }) => {
+          const action = getNextAction(getValue())
+          if (!action) return "-"
+          return (
+            <StatusBadge color={action.color} className="text-nowrap">
+              {action.label}
+            </StatusBadge>
+          )
+        },
       }),
       columnHelper.accessor((row) => row?.partner_info?.partner_status, {
         id: "partner_status",
@@ -173,9 +233,9 @@ export const DesignList = () => {
           const val = getValue()
           if (!val) return "-"
           return (
-            <Badge size="2xsmall" color={getStatusBadgeColor(val)}>
+            <StatusBadge color={getStatusBadgeColor(val) as any} className="text-nowrap">
               {String(val).replace(/_/g, " ")}
-            </Badge>
+            </StatusBadge>
           )
         },
       }),
@@ -196,6 +256,19 @@ export const DesignList = () => {
           )
         },
       }),
+      columnHelper.accessor((row) => (row as any)?.target_completion_date, {
+        id: "target_date",
+        header: () => "Due",
+        cell: ({ getValue }) => {
+          const info = formatTargetDate(getValue())
+          if (!info) return "-"
+          return (
+            <Badge size="2xsmall" color={info.color}>
+              {info.label}
+            </Badge>
+          )
+        },
+      }),
       columnHelper.accessor("status", {
         header: () => "Design Status",
         cell: ({ getValue }) => {
@@ -210,7 +283,24 @@ export const DesignList = () => {
       }),
       columnHelper.accessor("updated_at", {
         header: () => "Last Updated",
-        cell: ({ getValue }) => relativeDate(getValue() as string),
+        cell: ({ getValue }) => {
+          const val = getValue() as string
+          if (!val) return "-"
+          const fullDate = new Date(val).toLocaleString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+          return (
+            <Tooltip content={fullDate}>
+              <Text size="small" leading="compact" className="text-ui-fg-subtle cursor-default">
+                {relativeDate(val)}
+              </Text>
+            </Tooltip>
+          )
+        },
         enableSorting: true,
       }),
     ],
