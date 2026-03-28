@@ -1,3 +1,10 @@
+## [12.1.14](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.13...v12.1.14) (2026-03-28)
+
+
+### Bug Fixes
+
+* **api:** Low /high and priority fixes ([bb8ceee](https://github.com/Jaal-Yantra-Textiles/v2/commit/bb8ceee8b78cffa06cb1b0f789d7e05d71ae21b9))
+
 ## [12.1.13](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.12...v12.1.13) (2026-03-28)
 
 
