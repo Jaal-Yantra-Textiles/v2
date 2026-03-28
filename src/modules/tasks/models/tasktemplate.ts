@@ -19,6 +19,10 @@ const TaskTemplate = model.define("task_template", {
         .default('medium'),
     
     required_fields: model.json().nullable(), // Array of required field configurations
+
+    // Default cost for this type of work
+    estimated_cost: model.float().nullable(),
+    cost_currency: model.text().nullable(),
     
     eventable: model.boolean().default(false),
     notifiable: model.boolean().default(false),

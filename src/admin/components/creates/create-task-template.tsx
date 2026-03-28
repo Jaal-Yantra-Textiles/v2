@@ -22,6 +22,8 @@ const taskTemplateSchema = z.object({
   description: z.string(),
   priority: z.enum(["low", "medium", "high"]),
   estimated_duration: z.number().min(1, "Duration must be at least 1 minute"),
+  estimated_cost: z.number().min(0).optional(),
+  cost_currency: z.string().optional(),
   eventable: z.boolean(),
   notifiable: z.boolean(),
   message_template: z.string(),
@@ -43,6 +45,8 @@ export const CreateTaskTemplateComponent = () => {
       description: "",
       priority: "medium",
       estimated_duration: 60,
+      estimated_cost: undefined,
+      cost_currency: "",
       eventable: true,
       notifiable: true,
       message_template: "",
@@ -67,6 +71,8 @@ export const CreateTaskTemplateComponent = () => {
       description: data.description,
       priority: data.priority, // This will now correctly pass the selected priority
       estimated_duration: data.estimated_duration,
+      estimated_cost: data.estimated_cost || undefined,
+      cost_currency: data.cost_currency || undefined,
       eventable: data.eventable,
       notifiable: data.notifiable,
       message_template: data.message_template,
@@ -393,6 +399,47 @@ export const CreateTaskTemplateComponent = () => {
                   </Form.Item>
                 )}
               />
+
+              <div className="grid grid-cols-2 gap-3">
+                <Form.Field
+                  control={form.control}
+                  name="estimated_cost"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <Form.Label>Estimated Cost</Form.Label>
+                      <Form.Control>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="e.g. 200"
+                          autoComplete="off"
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                        />
+                      </Form.Control>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
+                <Form.Field
+                  control={form.control}
+                  name="cost_currency"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <Form.Label>Cost Currency</Form.Label>
+                      <Form.Control>
+                        <Input
+                          placeholder="e.g. inr"
+                          autoComplete="off"
+                          {...field}
+                        />
+                      </Form.Control>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
+              </div>
 
               <Form.Field
                 control={form.control}

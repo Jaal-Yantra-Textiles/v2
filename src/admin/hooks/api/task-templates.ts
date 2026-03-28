@@ -21,6 +21,8 @@ export interface AdminTaskTemplate {
   description?: string;
   priority: "low" | "medium" | "high";
   estimated_duration: number;
+  estimated_cost?: number | null;
+  cost_currency?: string | null;
   required_fields: Record<string, RequiredField>;
   eventable: boolean;
   notifiable: boolean;
@@ -37,6 +39,8 @@ export interface CreateAdminTaskTemplatePayload {
   description?: string;
   priority?: "low" | "medium" | "high";
   estimated_duration?: number;
+  estimated_cost?: number;
+  cost_currency?: string;
   required_fields?: Record<string, RequiredField>;
   eventable?: boolean;
   notifiable?: boolean;

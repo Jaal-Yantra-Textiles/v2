@@ -1,5 +1,4 @@
 import React from "react"
-import { TriangleRightMini } from "@medusajs/icons"
 import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import { useMemo } from "react"
 import { Link, useParams } from "react-router-dom"
@@ -344,6 +343,19 @@ export const DesignDetail = () => {
               })}
             />
           )}
+          {(design as any)?.estimated_cost && (
+            <SectionRow
+              title="Estimated cost"
+              value={
+                <Text size="small" weight="plus">
+                  {(design as any).cost_currency
+                    ? `${(design as any).cost_currency.toUpperCase()} ${(design as any).estimated_cost}`
+                    : String((design as any).estimated_cost)
+                  }
+                </Text>
+              }
+            />
+          )}
         </Container>
 
         {/* Description */}
@@ -428,6 +440,12 @@ export const DesignDetail = () => {
           </Container>
         ) : null}
 
+        {/* Production & Material Usage — highest priority for partners */}
+        {design && <DesignProductionSection design={design} />}
+
+        {design && <DesignConsumptionLogsSection design={design} />}
+
+        {/* Inventory Items */}
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
             <Heading level="h2">Inventory Items</Heading>
@@ -441,42 +459,21 @@ export const DesignDetail = () => {
             </div>
           ) : (
             <div className="txt-small flex flex-col gap-2 px-2 pt-2 pb-2">
-              {inventoryItemRows.map((row) => {
-                const link = `/inventory/${row.id}`
-
-                const Inner = (
-                  <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-1 flex-col overflow-hidden">
-                        <span className="text-ui-fg-base font-medium truncate">
-                          {row.label}
-                        </span>
-                        <span className="text-ui-fg-subtle truncate">{row.id}</span>
-                      </div>
-                      <div className="size-7 flex items-center justify-center">
-                        <TriangleRightMini className="text-ui-fg-muted rtl:rotate-180" />
-                      </div>
-                    </div>
+              {inventoryItemRows.map((row) => (
+                <div
+                  key={row.id}
+                  className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2"
+                >
+                  <div className="flex flex-1 flex-col overflow-hidden">
+                    <span className="text-ui-fg-base font-medium truncate">
+                      {row.label}
+                    </span>
                   </div>
-                )
-
-                return (
-                  <Link
-                    to={link}
-                    key={row.id}
-                    className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
-                  >
-                    {Inner}
-                  </Link>
-                )
-              })}
+                </div>
+              ))}
             </div>
           )}
         </Container>
-
-        {design && <DesignProductionSection design={design} />}
-
-        {design && <DesignConsumptionLogsSection design={design} />}
 
         <Container className="divide-y p-0">
           <div className="px-6 py-4">

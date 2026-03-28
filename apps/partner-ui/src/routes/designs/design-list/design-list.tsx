@@ -201,17 +201,9 @@ export const DesignList = () => {
     () => [
       columnHelper.accessor("name", {
         header: () => "Name",
-        cell: ({ getValue, row }) => {
-          const priority = (row.original as any)?.priority
-          return (
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{getValue() || "-"}</span>
-              {priority === "urgent" && (
-                <Badge size="2xsmall" color="red">urgent</Badge>
-              )}
-            </div>
-          )
-        },
+        cell: ({ getValue }) => (
+          <span className="font-medium">{getValue() || "-"}</span>
+        ),
       }),
       columnHelper.accessor((row) => row?.partner_info?.partner_status, {
         id: "next_action",
@@ -341,11 +333,15 @@ export const DesignList = () => {
         <div className="flex items-center justify-between px-6 py-4">
           <div>
             <Heading>Designs</Heading>
-            {!partnerStatusFilter && (
-              <span className="text-ui-fg-subtle text-xs">
-                Showing active designs. Use filters to see completed or cancelled.
-              </span>
-            )}
+            <span className="text-ui-fg-subtle text-xs">
+              {partnerStatusFilter || statusFilter
+                ? `Filtered: ${[
+                    partnerStatusFilter ? `work status = ${partnerStatusFilter.replace(/_/g, " ")}` : "",
+                    statusFilter ? `design status = ${statusFilter.replace(/_/g, " ")}` : "",
+                  ].filter(Boolean).join(", ")}`
+                : "Showing active designs. Use filters to see completed or cancelled."
+              }
+            </span>
           </div>
         </div>
         <_DataTable

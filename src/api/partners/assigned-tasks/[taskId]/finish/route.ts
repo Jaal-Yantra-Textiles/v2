@@ -126,21 +126,31 @@ export async function POST(
             metadata.workflow_config = workflowConfig;
         }
 
-        // Update task status to completed and update steps
-        const taskService = req.scope.resolve<TaskService>(TASKS_MODULE);
-        await taskService.updateTasks({
-            id: taskId,
-            status: "completed" as any,
-            metadata: metadata,
-            completed_at: new Date()
-        });
+        // Parse optional cost data from body
+        const body = req.body as {
+            actual_cost?: number
+            cost_type?: "per_unit" | "total"
+            cost_currency?: string
+        } | undefined
 
-        // Fetch updated task
+        // Update steps metadata first (non-workflow update)
+        const taskService = req.scope.resolve<TaskService>(TASKS_MODULE);
+        if (Object.keys(metadata).length > 0) {
+            await taskService.updateTasks({
+                id: taskId,
+                metadata: metadata,
+            });
+        }
+
+        // Update task via workflow (status + cost in one write)
         const { result, errors } = await updateTaskWorkflow(req.scope).run({
             input: {
                 id: taskId,
                 update: {
-                    status: Status.completed
+                    status: Status.completed,
+                    ...(body?.actual_cost != null && body.actual_cost > 0 ? { actual_cost: body.actual_cost } : {}),
+                    ...(body?.cost_type ? { cost_type: body.cost_type } : {}),
+                    ...(body?.cost_currency ? { cost_currency: body.cost_currency } : {}),
                 }
             }
         });
@@ -150,20 +160,18 @@ export async function POST(
             throw errors;
         }
 
-        /**
-         * Signal the workflow step for task completion
-         * This will only succeed if there's an active workflow waiting
-         * If no workflow exists, it will fail silently (caught error)
-         */
-        await setStepSuccessWorkflow(req.scope).run({
-            input: {
-                stepId: 'await-task-finish',
-                updatedTask: result[0]
-            }
-        }).catch((error) => {
-            // Don't throw - task is already updated
-            // This is expected for standalone tasks without workflows
-        });
+        // Signal the workflow step only if the task has a transaction_id
+        const updatedTask = result[0]
+        if (updatedTask?.transaction_id) {
+            await setStepSuccessWorkflow(req.scope).run({
+                input: {
+                    stepId: 'await-task-finish',
+                    updatedTask,
+                }
+            }).catch(() => {
+                // Expected if the workflow already completed or was cancelled
+            });
+        }
 
         res.status(200).json({ 
             task: result[0],

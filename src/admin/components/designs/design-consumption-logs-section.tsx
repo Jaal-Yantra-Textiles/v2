@@ -10,6 +10,7 @@ import {
   Text,
   Textarea,
   toast,
+  usePrompt,
 } from "@medusajs/ui"
 import { Plus, CheckCircleSolid, ArrowPath } from "@medusajs/icons"
 import {
@@ -52,12 +53,13 @@ const typeBadgeColor = (type: string) => {
 }
 
 export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSectionProps) => {
+  const prompt = usePrompt()
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState<string>("")
 
   const { data: logsData, isLoading } = useDesignConsumptionLogs(
     design.id,
-    filter ? { is_committed: filter } : undefined
+    filter ? { is_committed: filter === "true" ? "true" : "false" } : undefined
   )
   const { data: inventoryData } = useDesignInventory(design.id)
   const { mutateAsync: logConsumption, isPending: isLogging } = useLogConsumption(design.id)
@@ -70,13 +72,20 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   // Form state
   const [formInventoryId, setFormInventoryId] = useState("")
   const [formQuantity, setFormQuantity] = useState("")
+  const [formUnitCost, setFormUnitCost] = useState("")
   const [formUnit, setFormUnit] = useState("Meter")
-  const [formType, setFormType] = useState("sample")
+  // Smart default: use "production" for designs in production stages, "sample" for earlier stages
+  const defaultType = ["Approved", "Commerce_Ready", "Completed"].includes(design.status as string)
+    ? "production"
+    : "sample"
+  const [formType, setFormType] = useState(defaultType)
+  const isDesignTerminal = ["Completed", "Cancelled", "Rejected"].includes(design.status as string)
   const [formNotes, setFormNotes] = useState("")
 
   const resetForm = () => {
     setFormInventoryId("")
     setFormQuantity("")
+    setFormUnitCost("")
     setFormUnit("Meter")
     setFormType("sample")
     setFormNotes("")
@@ -92,6 +101,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
       await logConsumption({
         inventoryItemId: formInventoryId,
         quantity: parseFloat(formQuantity),
+        unitCost: formUnitCost ? parseFloat(formUnitCost) : undefined,
         unitOfMeasure: formUnit,
         consumptionType: formType as "sample" | "production" | "wastage",
         notes: formNotes || undefined,
@@ -104,6 +114,13 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   }
 
   const handleCommitAll = async () => {
+    const confirmed = await prompt({
+      title: "Commit all consumption logs?",
+      description: `This will deduct inventory for ${uncommittedCount} uncommitted log(s). This action adjusts stock levels and cannot be undone.`,
+      confirmText: "Commit All",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
     try {
       await commitConsumption({ commitAll: true })
       toast.success("All consumption logs committed — inventory adjusted")
@@ -132,7 +149,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <div>
-          <Heading level="h2">Consumption Logs</Heading>
+          <Heading level="h2">Material Usage</Heading>
           <Text className="text-ui-fg-subtle" size="small">
             Track raw material usage during sampling
           </Text>
@@ -149,14 +166,20 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
               Commit {uncommittedCount}
             </Button>
           )}
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={() => setShowForm(!showForm)}
-          >
-            <Plus className="mr-1.5" />
-            Log
-          </Button>
+          {isDesignTerminal ? (
+            <Text size="xsmall" className="text-ui-fg-muted">
+              Design is {design.status?.toString().toLowerCase()}
+            </Text>
+          ) : (
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={() => setShowForm(!showForm)}
+            >
+              <Plus className="mr-1.5" />
+              Log
+            </Button>
+          )}
         </div>
       </div>
 
@@ -196,6 +219,19 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                 placeholder="0.00"
                 value={formQuantity}
                 onChange={(e) => setFormQuantity(e.target.value)}
+              />
+            </div>
+            <div>
+              <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+                Cost per unit
+              </Text>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Optional"
+                value={formUnitCost}
+                onChange={(e) => setFormUnitCost(e.target.value)}
               />
             </div>
             <div>
@@ -293,6 +329,8 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                     <div className="flex items-center gap-2">
                       <Text size="small" weight="plus">
                         {log.quantity} {log.unit_of_measure}
+                        {log.unit_cost ? ` @ ${log.unit_cost}/unit` : ""}
+                        {log.unit_cost && log.quantity ? ` = ${Math.round(log.quantity * log.unit_cost * 100) / 100}` : ""}
                       </Text>
                       <Badge size="2xsmall" color={typeBadgeColor(log.consumption_type)}>
                         {log.consumption_type}

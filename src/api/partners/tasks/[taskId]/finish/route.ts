@@ -60,32 +60,55 @@ export async function POST(
 ) {
 
     const taskId = req.params.taskId
-    
+    const body = req.body as {
+        actual_cost?: number
+        cost_type?: "per_unit" | "total"
+        cost_currency?: string
+        notes?: string
+    } | undefined
+
+    const update: Record<string, any> = {
+        status: Status.completed,
+    }
+
+    // Accept cost data from the partner
+    if (body?.actual_cost != null && body.actual_cost > 0) {
+        update.actual_cost = body.actual_cost
+    }
+    if (body?.cost_type) {
+        update.cost_type = body.cost_type
+    }
+    if (body?.cost_currency) {
+        update.cost_currency = body.cost_currency
+    }
+
     const { result, errors } = await updateTaskWorkflow(req.scope).run({
         input: {
             id: taskId,
-            update:{
-                status: Status.completed
-            }
+            update,
         }
     })
 
-    // Partner will submit the bill also alonside , either pre-agreed
-    // or through the task form
-    
-    if (errors && errors.length > 0) {    
+    if (errors && errors.length > 0) {
         console.warn("Error reported at", errors);
         throw errors;
     }
 
-    const setStepSuccess = await setStepSuccessWorkflow(req.scope).run({
-        input: {
-            stepId: 'await-task-finish',
-            updatedTask: result[0]
-        }
-    })
-    
-    res.status(200).json({ 
+    // Signal the workflow step only if the task has a transaction_id
+    // (meaning it was created as part of a long-running workflow)
+    const updatedTask = result[0]
+    if (updatedTask?.transaction_id) {
+        await setStepSuccessWorkflow(req.scope).run({
+            input: {
+                stepId: 'await-task-finish',
+                updatedTask,
+            }
+        }).catch(() => {
+            // Expected if the workflow already completed or was cancelled
+        })
+    }
+
+    res.status(200).json({
         task: result[0],
     })
 

@@ -20,6 +20,8 @@ const taskTemplateSchema = z.object({
     })
   ]).optional(),
   estimated_duration: z.number().min(0),
+  estimated_cost: z.number().min(0).optional(),
+  cost_currency: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]),
   eventable: z.boolean(),
   notifiable: z.boolean(),
@@ -50,19 +52,14 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
   const { mutateAsync, isPending } = useUpdateTaskTemplate(template.id!);
 
   const handleSubmit = async (data: TaskTemplateFormData) => {
-    // Debug the received category data
-    console.log('Category data received:', data.category);
-    console.log('Category type:', typeof data.category);
-    if (typeof data.category === 'object') {
-      console.log('Category object keys:', Object.keys(data.category || {}));
-    }
-    
     // Create request payload
     const payload: any = {
       name: data.name,
       description: data.description,
       priority: data.priority,
       estimated_duration: data.estimated_duration,
+      estimated_cost: data.estimated_cost || undefined,
+      cost_currency: data.cost_currency || undefined,
       eventable: data.eventable,
       notifiable: data.notifiable,
       message_template: data.message_template,
@@ -129,22 +126,13 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
         categories,
         defaultValue: template.category?.name || "",
         onSelect: (category: any) => {
-          console.log('Field onSelect called with:', category);
-          // Always return the category object with id and name
-          // This allows us to distinguish between new and existing categories
           if (category?.id) {
-            const result = { id: category.id, name: category.name, isExisting: true };
-            console.log('Field onSelect returning object:', result);
-            return result;
+            return { id: category.id, name: category.name, isExisting: true };
           }
-          console.log('Field onSelect returning string:', category?.name || "");
           return category?.name || "";
         },
         onValueChange: (value: string) => {
-          console.log('Field onValueChange called with:', value);
           setSearchQuery(value);
-          // Return a simple string value for new categories
-          console.log('Field onValueChange returning:', value);
           return value;
         },
       },
@@ -162,6 +150,18 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
       type: "number",
       label: t("fields.estimatedDuration"),
       required: true,
+      gridCols: 1,
+    },
+    {
+      name: "estimated_cost",
+      type: "number",
+      label: "Estimated Cost",
+      gridCols: 1,
+    },
+    {
+      name: "cost_currency",
+      type: "text",
+      label: "Cost Currency",
       gridCols: 1,
     },
     {
@@ -193,6 +193,8 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
           { id: template.category.id, name: template.category.name, isExisting: true } : 
           template.category?.name || "",
         estimated_duration: template.estimated_duration || 0,
+        estimated_cost: template.estimated_cost || undefined,
+        cost_currency: template.cost_currency || "",
         priority: template.priority || "medium",
         eventable: template.eventable || false,
         notifiable: template.notifiable || false,

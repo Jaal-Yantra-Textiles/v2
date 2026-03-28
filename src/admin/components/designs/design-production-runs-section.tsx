@@ -1,5 +1,6 @@
 import { Container, Heading, Skeleton, Text, Badge, Button, toast } from "@medusajs/ui"
-import { Link } from "react-router-dom"
+import { Plus } from "@medusajs/icons"
+import { Link, useNavigate } from "react-router-dom"
 
 import { AdminDesign } from "../../hooks/api/designs"
 import { useProductionRuns, useCancelProductionRun } from "../../hooks/api/production-runs"
@@ -18,6 +19,12 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
 
   const runs = production_runs || []
 
+  // Build partner name map from design.partners for display
+  const partnerNameMap: Record<string, string> = {}
+  for (const p of ((design as any)?.partners || []) as any[]) {
+    if (p?.id && p?.name) partnerNameMap[p.id] = p.name
+  }
+
   const isInReview = design.status === "Technical_Review"
 
   return (
@@ -29,6 +36,12 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
             Runs created for this design
           </Text>
         </div>
+        <Link to="production-run">
+          <Button variant="secondary" size="small">
+            <Plus className="mr-1" />
+            New Run
+          </Button>
+        </Link>
       </div>
 
       {/* Review banner */}
@@ -62,7 +75,7 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
             </div>
           ) : (
             runs.map((run: any) => (
-              <ProductionRunRow key={String(run.id)} run={run} />
+              <ProductionRunRow key={String(run.id)} run={run} partnerNameMap={partnerNameMap} />
             ))
           )}
         </div>
@@ -71,7 +84,7 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
   )
 }
 
-const ProductionRunRow = ({ run }: { run: any }) => {
+const ProductionRunRow = ({ run, partnerNameMap = {} }: { run: any; partnerNameMap?: Record<string, string> }) => {
   const id = String(run.id)
   const status = String(run.status || "-")
   const partnerId = run.partner_id ? String(run.partner_id) : "-"
@@ -109,7 +122,9 @@ const ProductionRunRow = ({ run }: { run: any }) => {
                 {run.run_type === "sample" ? "Sample" : "Production"} Run
               </span>
               <span className="text-ui-fg-subtle text-xs truncate">
-                {partnerId !== "-" ? `Partner: ${partnerId}` : "No partner assigned"}
+                {partnerId !== "-"
+                  ? `Partner: ${partnerNameMap[partnerId] || partnerId}`
+                  : "No partner assigned"}
                 {quantity !== "-" ? ` · Qty: ${quantity}` : ""}
               </span>
             </div>

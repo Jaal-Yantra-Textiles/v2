@@ -12,6 +12,8 @@ type CreateTaskTemplateInput = {
   description?: string;
   priority?: 'low'| 'medium' | 'high' | undefined;
   estimated_duration?: number;
+  estimated_cost?: number;
+  cost_currency?: string;
   required_fields?: Record<string, any>;
   eventable?: boolean;
   notifiable?: boolean;

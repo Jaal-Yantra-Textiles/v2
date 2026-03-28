@@ -17,6 +17,8 @@ type UpdateTaskTemplateInput = {
     description?: string;
     category?: string;
     estimated_duration?: number;
+    estimated_cost?: number;
+    cost_currency?: string;
     priority?: 'low' | 'medium' | 'high';
     required_fields?: Record<string, any>;
     eventable?: boolean;

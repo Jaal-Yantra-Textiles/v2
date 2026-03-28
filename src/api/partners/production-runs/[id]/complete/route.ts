@@ -140,7 +140,7 @@ export async function POST(
             quantity: c.quantity,
             unit_cost: c.unit_cost,
             unit_of_measure: c.unit_of_measure,
-            consumption_type: c.consumption_type || "production",
+            consumption_type: c.consumption_type || ((run as any).run_type === "sample" ? "sample" : "production"),
             consumed_by: "partner",
             location_id: c.location_id || defaultLocationId,
             notes: c.notes,

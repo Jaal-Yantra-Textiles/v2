@@ -93,12 +93,51 @@ export default async function sampleRunCompletedHandler({
     })
   }
 
-  // Use partner's cost estimate if provided, otherwise fall back to 30% overhead
+  // ── Aggregate task service costs ──
+  // Tasks linked to this production run may have actual_cost set by the partner
+  let serviceCost = 0
+  const serviceCostItems: any[] = []
+
+  try {
+    const taskService = container.resolve("tasks") as any
+    // Find tasks linked to this production run via metadata
+    const [tasks] = await taskService.listAndCountTasks(
+      { metadata: { production_run_id: runId } },
+      { take: 100 }
+    )
+    for (const task of (tasks || [])) {
+      const taskCost = Number(task.actual_cost) || Number(task.estimated_cost) || 0
+      if (taskCost > 0) {
+        serviceCost += taskCost
+        serviceCostItems.push({
+          task_id: task.id,
+          title: task.title,
+          estimated_cost: Number(task.estimated_cost) || 0,
+          actual_cost: Number(task.actual_cost) || 0,
+          cost_used: taskCost,
+          cost_source: task.actual_cost ? "actual" : "estimated",
+        })
+      }
+    }
+  } catch {
+    // Non-fatal — tasks may not exist or metadata filter may not work
+  }
+
+  // Use partner's cost estimate if provided, otherwise fall back to service costs + overhead
   const partnerEstimate = Number(run.partner_cost_estimate) || 0
-  const productionCost = partnerEstimate > 0
-    ? partnerEstimate
-    : materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)
-  const costSource = partnerEstimate > 0 ? "partner_estimate" : "overhead_percent"
+  let productionCost: number
+  let costSource: string
+  if (partnerEstimate > 0) {
+    productionCost = partnerEstimate
+    costSource = "partner_estimate"
+  } else if (serviceCost > 0) {
+    productionCost = serviceCost
+    costSource = "task_costs"
+  } else {
+    productionCost = materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)
+    costSource = "overhead_percent"
+  }
+
   const totalEstimate = Math.round((materialCost + productionCost) * 100) / 100
 
   try {
@@ -109,6 +148,8 @@ export default async function sampleRunCompletedHandler({
       production_cost: Math.round(productionCost * 100) / 100,
       cost_breakdown: {
         items,
+        service_costs: serviceCostItems.length > 0 ? serviceCostItems : undefined,
+        service_cost_total: serviceCost > 0 ? Math.round(serviceCost * 100) / 100 : undefined,
         production_cost_source: costSource,
         production_overhead_percent: costSource === "overhead_percent" ? DEFAULT_PRODUCTION_OVERHEAD_PERCENT : undefined,
         partner_cost_estimate: partnerEstimate > 0 ? partnerEstimate : undefined,
@@ -118,7 +159,7 @@ export default async function sampleRunCompletedHandler({
       },
     })
     console.log(
-      `[sample-run-completed] Design ${designId}: material=${materialCost}, production=${productionCost}, total=${totalEstimate}`
+      `[sample-run-completed] Design ${designId}: material=${materialCost}, service=${serviceCost}, production=${productionCost}, total=${totalEstimate}`
     )
   } catch (e: any) {
     console.error(`[sample-run-completed] Failed to update design ${designId}:`, e.message)

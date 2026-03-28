@@ -1,4 +1,4 @@
-import { PencilSquare, Trash, Newspaper, BookOpen, Link, DocumentText } from "@medusajs/icons";
+import { PencilSquare, Trash, Newspaper, BookOpen, Link, DocumentText, ArrowPath } from "@medusajs/icons";
 import {
   Container,
   Heading,
@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
 import { AdminDesign } from "../../hooks/api/designs";
 import { useDeleteDesign } from "../../hooks/api/designs";
+import { sdk } from "../../lib/client";
 
 
 const designStatusColor = (status: string) => {
@@ -55,6 +56,19 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
   const prompt = usePrompt();
   const navigate = useNavigate();
   const { mutateAsync } = useDeleteDesign(design.id);
+
+  const handleRecalculateCost = async () => {
+    try {
+      const res = await sdk.client.fetch<any>(
+        `/admin/designs/${design.id}/recalculate-cost`,
+        { method: "POST" }
+      )
+      toast.success(res.message || "Cost recalculated")
+      navigate(0) // reload to show updated cost
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to recalculate cost")
+    }
+  }
 
   const handleDelete = async () => {
     const res = await prompt({
@@ -108,6 +122,11 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
                     label: "Create Production Run",
                     icon: <Newspaper />,
                     to: "production-run",
+                  },
+                  {
+                    label: "Recalculate Cost",
+                    icon: <ArrowPath />,
+                    onClick: handleRecalculateCost,
                   },
                 ],
               },
@@ -247,20 +266,70 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
               {t("Target Date")}
             </Text>
             <Text size="small" leading="compact">
-              {new Date(design.target_completion_date).toLocaleString() || "-"}
+              {design.target_completion_date
+                ? new Date(design.target_completion_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                : "-"
+              }
             </Text>
           </div>
 
 
-          {/* Estimated Cost */}
+          {/* Cost Summary */}
           <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
             <Text size="small" leading="compact" weight="plus">
               Estimated Cost
             </Text>
-            <Text size="small" leading="compact">
-              {design.estimated_cost ? `$${design.estimated_cost}` : "-"}
+            <Text size="small" leading="compact" weight="plus">
+              {design.estimated_cost
+                ? `${(design as any).cost_currency ? (design as any).cost_currency.toUpperCase() + " " : ""}${design.estimated_cost}`
+                : "-"
+              }
             </Text>
           </div>
+          {(design.material_cost || design.production_cost) && (
+            <>
+              <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-2">
+                <Text size="xsmall" leading="compact" className="pl-4">
+                  Material cost
+                </Text>
+                <Text size="xsmall" leading="compact">
+                  {design.material_cost ?? "-"}
+                </Text>
+              </div>
+              <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-2">
+                <Text size="xsmall" leading="compact" className="pl-4">
+                  Production cost
+                </Text>
+                <Text size="xsmall" leading="compact">
+                  {design.production_cost ?? "-"}
+                </Text>
+              </div>
+              {(design as any).cost_breakdown?.service_cost_total > 0 && (
+                <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-2">
+                  <Text size="xsmall" leading="compact" className="pl-4">
+                    Service costs (tasks)
+                  </Text>
+                  <Text size="xsmall" leading="compact">
+                    {(design as any).cost_breakdown.service_cost_total}
+                  </Text>
+                </div>
+              )}
+              {(design as any).cost_breakdown?.production_cost_source && (
+                <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-2">
+                  <Text size="xsmall" leading="compact" className="pl-4">
+                    Source
+                  </Text>
+                  <Text size="xsmall" leading="compact" className="text-ui-fg-muted">
+                    {(design as any).cost_breakdown.production_cost_source.replace(/_/g, " ")}
+                    {(design as any).cost_breakdown.calculated_at
+                      ? ` · ${new Date((design as any).cost_breakdown.calculated_at).toLocaleDateString()}`
+                      : ""
+                    }
+                  </Text>
+                </div>
+              )}
+            </>
+          )}
       
 
           {/* Created At */}

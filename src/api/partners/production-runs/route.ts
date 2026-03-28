@@ -121,7 +121,19 @@ export async function GET(
 
   const { data: runs, metadata } = await query.graph({
     entity: "production_runs",
-    fields: ["*", "tasks.*"],
+    fields: [
+      "id", "status", "run_type", "quantity", "role",
+      "design_id", "partner_id", "parent_run_id",
+      "product_id", "variant_id", "order_id", "order_line_item_id",
+      "accepted_at", "started_at", "finished_at", "completed_at",
+      "cancelled_at", "cancelled_reason",
+      "finish_notes", "completion_notes",
+      "partner_cost_estimate", "cost_type",
+      "produced_quantity", "rejected_quantity", "rejection_reason", "rejection_notes",
+      "depends_on_run_ids", "metadata",
+      "created_at", "updated_at",
+      "tasks.*",
+    ],
     filters,
     pagination: { skip: offset, take: limit },
   })

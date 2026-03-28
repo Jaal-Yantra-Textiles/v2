@@ -105,6 +105,7 @@ export function computeCostBreakdown(input: {
   if (adminEstimate != null && adminEstimate > 0 && materialCost > 0) {
     productionCost = Math.max(0, adminEstimate - materialCost);
     productionPercent = (productionCost / materialCost) * 100;
+    productionIsEstimated = false; // admin set a concrete estimate
   } else if (adminEstimate != null && adminEstimate > 0 && materialCost === 0) {
     const materialShare = adminEstimate / (1 + DEFAULT_PRODUCTION_PERCENT / 100);
     productionCost = adminEstimate - materialShare;
@@ -167,6 +168,9 @@ const getDesignWithInventoryStep = createStep(
         "name",
         "design_type",
         "estimated_cost",
+        "material_cost",
+        "production_cost",
+        "cost_breakdown",
         "tags",
         "inventory_items.*",
         // Pull component links with the sub-design's cost
@@ -387,9 +391,43 @@ const calculateTotalCostStep = createStep(
     hasExactMaterialCosts: boolean;
     similarDesigns: Array<{ id: string; name: string; estimated_cost: number }>;
   }) => {
+    const design = input.design;
+
+    // If a sample run has already calculated costs, use the stored breakdown
+    // This is more accurate than re-estimating from scratch
+    const costBreakdown = design.cost_breakdown as any;
+    if (
+      costBreakdown?.source === "sample_consumption" &&
+      design.material_cost != null &&
+      design.production_cost != null
+    ) {
+      const materialCost = Number(design.material_cost) || 0;
+      const productionCost = Number(design.production_cost) || 0;
+      const serviceCostTotal = Number(costBreakdown.service_cost_total) || 0;
+      const totalEstimated = Number(design.estimated_cost) || (materialCost + productionCost);
+
+      return new StepResponse({
+        design_id: design.id,
+        material_cost: round2(materialCost),
+        production_cost: round2(productionCost),
+        total_estimated: round2(totalEstimated),
+        confidence: "exact" as ConfidenceLevel,
+        breakdown: {
+          materials: costBreakdown.items || input.materials,
+          production_percent: materialCost > 0
+            ? Math.round((productionCost / materialCost) * 100)
+            : 0,
+          service_costs: costBreakdown.service_costs,
+          service_cost_total: serviceCostTotal > 0 ? round2(serviceCostTotal) : undefined,
+          source: "sample_consumption",
+        },
+      } as EstimateCostOutput);
+    }
+
+    // No sample data — estimate from scratch
     const result = computeCostBreakdown({
-      designId: input.design.id,
-      adminEstimate: input.design.estimated_cost ? Number(input.design.estimated_cost) : null,
+      designId: design.id,
+      adminEstimate: design.estimated_cost ? Number(design.estimated_cost) : null,
       materials: input.materials,
       hasExactMaterialCosts: input.hasExactMaterialCosts,
       similarDesigns: input.similarDesigns,

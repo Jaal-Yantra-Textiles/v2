@@ -23,6 +23,12 @@ const Task = model.define("task",  {
     assigned_to: model.text().nullable(), 
     assigned_by: model.text().nullable(), 
     
+    // Cost tracking
+    estimated_cost: model.float().nullable(),
+    actual_cost: model.float().nullable(),
+    cost_currency: model.text().nullable(),
+    cost_type: model.enum(["per_unit", "total"]).default("total").nullable(),
+
     metadata: model.json().nullable(),
     completed_at: model.dateTime().nullable(),
      

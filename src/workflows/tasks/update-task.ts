@@ -20,6 +20,10 @@ type UpdateTaskStepInput = {
     assignee_id?: string;
     category_id?: string;
     template_id?: string;
+    estimated_cost?: number;
+    actual_cost?: number;
+    cost_currency?: string;
+    cost_type?: "per_unit" | "total";
     metadata?: Record<string, any>;
   };
 };

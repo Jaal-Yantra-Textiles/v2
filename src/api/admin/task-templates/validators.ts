@@ -12,6 +12,8 @@ export const taskTemplateSchema = z.object({
   description: z.string(),
   category: z.string().optional(),
   estimated_duration: z.number().optional(),
+  estimated_cost: z.number().min(0).optional(),
+  cost_currency: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
   required_fields: z.record(z.any()).optional(),
   eventable: z.boolean().optional(),

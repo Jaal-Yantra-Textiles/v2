@@ -112,11 +112,12 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   }
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-US", {
+    return new Date(dateStr).toLocaleString("en-US", {
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      timeZoneName: "short",
     })
   }
 
@@ -151,9 +152,14 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
             Log
           </Button>
         ) : (
-          partnerStatus && partnerStatus !== "incoming" && partnerStatus !== "assigned" && partnerStatus !== "in_progress" && (
+          partnerStatus && !canLog && (
             <Text size="xsmall" className="text-ui-fg-muted">
-              Logging available when work is in progress
+              {partnerStatus === "awaiting_review" || partnerStatus === "finished"
+                ? "Logging closed — run is awaiting review"
+                : partnerStatus === "completed"
+                ? "Logging closed — run completed"
+                : "Logging not available"
+              }
             </Text>
           )
         )}
@@ -288,6 +294,9 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                         {log.quantity} {log.unit_of_measure}
                         {(log as any).unit_cost ? ` @ ${(log as any).unit_cost}/unit` : ""}
                       </Text>
+                      {log.unit_of_measure === "Piece" && (
+                        <Badge size="2xsmall" color="purple">accessory</Badge>
+                      )}
                       <Badge size="2xsmall" color={typeBadgeColor(log.consumption_type)}>
                         {log.consumption_type}
                       </Badge>
@@ -297,9 +306,16 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                         <Badge size="2xsmall" color="grey">pending</Badge>
                       )}
                     </div>
-                    <Text size="xsmall" className="text-ui-fg-subtle">
-                      {getInventoryLabel(log.inventory_item_id)}
-                    </Text>
+                    <div className="flex items-center gap-2">
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        {getInventoryLabel(log.inventory_item_id)}
+                      </Text>
+                      {(log as any).unit_cost && log.quantity ? (
+                        <Text size="xsmall" className="text-ui-fg-muted">
+                          = {Math.round(log.quantity * (log as any).unit_cost * 100) / 100}
+                        </Text>
+                      ) : null}
+                    </div>
                     {log.notes && (
                       <Text size="xsmall" className="text-ui-fg-muted">
                         {log.notes}
@@ -315,6 +331,22 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* Total material cost summary */}
+      {logs.length > 0 && logs.some((l: any) => l.unit_cost && l.quantity) && (
+        <div className="flex items-center justify-between px-6 py-3 bg-ui-bg-subtle rounded-b-xl">
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
+            Total material cost
+          </Text>
+          <Text size="xsmall" weight="plus">
+            {Math.round(
+              logs.reduce((sum: number, l: any) =>
+                sum + (Number(l.unit_cost || 0) * Number(l.quantity || 0)), 0
+              ) * 100
+            ) / 100}
+          </Text>
         </div>
       )}
     </Container>

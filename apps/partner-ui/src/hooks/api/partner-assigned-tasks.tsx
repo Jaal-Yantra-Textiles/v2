@@ -23,6 +23,10 @@ export type PartnerAssignedTask = Record<string, any> & {
   description?: string
   priority?: string
   status?: string
+  estimated_cost?: number | null
+  actual_cost?: number | null
+  cost_currency?: string | null
+  cost_type?: "per_unit" | "total" | null
   created_at?: string
   updated_at?: string
   completed_at?: string
@@ -301,15 +305,21 @@ export const useAcceptPartnerAssignedTask = (
   })
 }
 
+export type FinishTaskPayload = {
+  actual_cost?: number
+  cost_type?: "per_unit" | "total"
+  cost_currency?: string
+}
+
 export const useFinishPartnerAssignedTask = (
   taskId: string,
-  options?: UseMutationOptions<PartnerAssignedTaskResponse, FetchError, void>
+  options?: UseMutationOptions<PartnerAssignedTaskResponse, FetchError, FinishTaskPayload | void>
 ) => {
   return useMutation({
-    mutationFn: async () =>
+    mutationFn: async (payload?: FinishTaskPayload) =>
       sdk.client.fetch<PartnerAssignedTaskResponse>(
         `/partners/assigned-tasks/${taskId}/finish`,
-        { method: "POST" }
+        { method: "POST", body: payload || {} }
       ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({

@@ -142,6 +142,47 @@
           "nullable": true,
           "mappedType": "text"
         },
+        "estimated_cost": {
+          "name": "estimated_cost",
+          "type": "real",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "float"
+        },
+        "actual_cost": {
+          "name": "actual_cost",
+          "type": "real",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "float"
+        },
+        "cost_currency": {
+          "name": "cost_currency",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "cost_type": {
+          "name": "cost_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "default": "'total'",
+          "enumItems": [
+            "per_unit",
+            "total"
+          ],
+          "mappedType": "enum"
+        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -213,7 +254,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_parent_task_id\" ON \"task\" (parent_task_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_parent_task_id\" ON \"task\" (\"parent_task_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_task_deleted_at",
@@ -222,7 +263,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_deleted_at\" ON \"task\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_deleted_at\" ON \"task\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "task_pkey",
@@ -334,7 +375,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_category_deleted_at\" ON \"task_category\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_category_deleted_at\" ON \"task_category\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "task_category_pkey",
@@ -447,7 +488,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_outgoing_task_id\" ON \"task_dependency\" (outgoing_task_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_outgoing_task_id\" ON \"task_dependency\" (\"outgoing_task_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_task_dependency_incoming_task_id",
@@ -456,7 +497,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_incoming_task_id\" ON \"task_dependency\" (incoming_task_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_incoming_task_id\" ON \"task_dependency\" (\"incoming_task_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_task_dependency_deleted_at",
@@ -465,7 +506,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_deleted_at\" ON \"task_dependency\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_dependency_deleted_at\" ON \"task_dependency\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "task_dependency_pkey",
@@ -580,6 +621,24 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "estimated_cost": {
+          "name": "estimated_cost",
+          "type": "real",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "float"
+        },
+        "cost_currency": {
+          "name": "cost_currency",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "eventable": {
           "name": "eventable",
           "type": "boolean",
@@ -661,7 +720,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_template_category_id\" ON \"task_template\" (category_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_template_category_id\" ON \"task_template\" (\"category_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_task_template_deleted_at",
@@ -670,7 +729,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_template_deleted_at\" ON \"task_template\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_task_template_deleted_at\" ON \"task_template\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "task_template_pkey",

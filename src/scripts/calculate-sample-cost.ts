@@ -75,13 +75,16 @@ export default async function calculateSampleCost({ container, args }: ExecArgs)
         }
       } catch { /* non-fatal */ }
 
+      const taskService = container.resolve("tasks") as any
       await calculateCostForDesign(
         dId,
         consumptionLogService,
         inventoryService,
         designService,
+        taskService,
         query,
-        partnerCostEstimate
+        partnerCostEstimate,
+        sampleRuns?.[0]?.id
       )
     } catch (e: any) {
       console.error(`Failed to calculate cost for design ${dId}:`, e.message)
@@ -96,8 +99,10 @@ async function calculateCostForDesign(
   consumptionLogService: any,
   inventoryService: any,
   designService: any,
+  taskService: any,
   query: any,
-  partnerCostEstimate: number
+  partnerCostEstimate: number,
+  productionRunId?: string
 ) {
   const [logs] = await consumptionLogService.listAndCountConsumptionLogs(
     { design_id: designId, is_committed: true },
@@ -166,19 +171,57 @@ async function calculateCostForDesign(
     })
   }
 
-  // Use partner cost estimate if provided, otherwise fall back to overhead %
-  const productionCost = partnerCostEstimate > 0
-    ? partnerCostEstimate
-    : materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)
-  const costSource = partnerCostEstimate > 0 ? "partner_estimate" : "overhead_percent"
+  // Aggregate task service costs
+  let serviceCost = 0
+  const serviceCostItems: any[] = []
+  if (productionRunId) {
+    try {
+      const [tasks] = await taskService.listAndCountTasks(
+        { metadata: { production_run_id: productionRunId } },
+        { take: 100 }
+      )
+      for (const task of (tasks || [])) {
+        const taskCost = Number(task.actual_cost) || Number(task.estimated_cost) || 0
+        if (taskCost > 0) {
+          serviceCost += taskCost
+          serviceCostItems.push({
+            task_id: task.id,
+            title: task.title,
+            estimated_cost: Number(task.estimated_cost) || 0,
+            actual_cost: Number(task.actual_cost) || 0,
+            cost_used: taskCost,
+            cost_source: task.actual_cost ? "actual" : "estimated",
+          })
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  // Use partner cost estimate if provided, then task costs, then overhead %
+  let productionCost: number
+  let costSource: string
+  if (partnerCostEstimate > 0) {
+    productionCost = partnerCostEstimate
+    costSource = "partner_estimate"
+  } else if (serviceCost > 0) {
+    productionCost = serviceCost
+    costSource = "task_costs"
+  } else {
+    productionCost = materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)
+    costSource = "overhead_percent"
+  }
   const totalEstimate = Math.round((materialCost + productionCost) * 100) / 100
 
   console.log(`  Design ${designId}:`)
   console.log(`    Material cost: ${materialCost}`)
+  console.log(`    Service cost (tasks): ${serviceCost}`)
   console.log(`    Production cost (${costSource}): ${productionCost}`)
   console.log(`    Total estimate: ${totalEstimate}`)
   for (const item of breakdown) {
     console.log(`      ${item.title}: ${item.quantity} × ${item.unit_cost} = ${item.line_total}`)
+  }
+  for (const svc of serviceCostItems) {
+    console.log(`      [task] ${svc.title}: ${svc.cost_used} (${svc.cost_source})`)
   }
 
   await designService.updateDesigns({
@@ -188,6 +231,8 @@ async function calculateCostForDesign(
     production_cost: Math.round(productionCost * 100) / 100,
     cost_breakdown: {
       items: breakdown,
+      service_costs: serviceCostItems.length > 0 ? serviceCostItems : undefined,
+      service_cost_total: serviceCost > 0 ? Math.round(serviceCost * 100) / 100 : undefined,
       production_cost_source: costSource,
       production_overhead_percent: costSource === "overhead_percent" ? DEFAULT_PRODUCTION_OVERHEAD_PERCENT : undefined,
       partner_cost_estimate: partnerCostEstimate > 0 ? partnerCostEstimate : undefined,

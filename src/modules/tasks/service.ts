@@ -33,6 +33,9 @@ class TaskService extends MedusaService({
                 priority: template.priority || taskData.priority,
                 eventable: template.eventable ?? taskData.eventable,
                 notifiable: template.notifiable ?? taskData.notifiable,
+                // Inherit cost from template
+                estimated_cost: (template as any).estimated_cost ?? taskData.estimated_cost ?? null,
+                cost_currency: (template as any).cost_currency ?? taskData.cost_currency ?? null,
                 parent_task_id: parent_task_id,
                 dependency_type: dependency_type,
                 start_date: taskData.start_date,

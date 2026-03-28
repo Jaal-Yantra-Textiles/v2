@@ -1,4 +1,5 @@
 import {
+  Alert,
   Badge,
   Button,
   Checkbox,
@@ -49,6 +50,10 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
     limit: 50,
   })
 
+  // Fetch consumption logs once at section level, pass count down to cards
+  const { logs: allConsumptionLogs = [], count: totalConsumptionCount = 0 } =
+    usePartnerConsumptionLogs(design.id)
+
   if (isPending) {
     return (
       <Container className="divide-y p-0">
@@ -63,19 +68,37 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
   }
 
   if (!production_runs.length) {
-    return null
+    return (
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4">
+          <Heading level="h2">Production</Heading>
+        </div>
+        <div className="px-6 py-4">
+          <Text size="small" className="text-ui-fg-subtle">
+            No production runs assigned yet. You'll see them here once the admin sends work your way.
+          </Text>
+        </div>
+      </Container>
+    )
   }
 
   return (
     <>
       {production_runs.map((run: any) => (
-        <ProductionRunCard key={String(run.id)} run={run} design={design} />
+        <ProductionRunCard key={String(run.id)} run={run} design={design} consumptionLogs={allConsumptionLogs} consumptionCount={totalConsumptionCount} />
       ))}
     </>
   )
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+/** Format a cost value with currency code */
+function formatCost(value: number | null | undefined, currency?: string | null): string {
+  if (value == null) return "-"
+  const code = (currency || "").toUpperCase()
+  return code ? `${code} ${value}` : String(value)
+}
 
 function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return "-"
@@ -310,7 +333,17 @@ const InfoBanner = ({
 
 // ── Production Run Card ─────────────────────────────────────────────
 
-const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign }) => {
+const ProductionRunCard = ({
+  run,
+  design,
+  consumptionLogs = [],
+  consumptionCount = 0,
+}: {
+  run: any
+  design: PartnerDesign
+  consumptionLogs?: any[]
+  consumptionCount?: number
+}) => {
   const runId = String(run.id)
   const status = String(run.status || "")
   const tasks = run.tasks || []
@@ -319,10 +352,6 @@ const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign })
   const [showFinishForm, setShowFinishForm] = useState(false)
   const [showCompleteForm, setShowCompleteForm] = useState(false)
   const [finishNotes, setFinishNotes] = useState("")
-
-  // Fetch consumption logs for material progress
-  const { logs: consumptionLogs = [], count: consumptionCount = 0 } =
-    usePartnerConsumptionLogs(design.id)
 
   const accept = useAcceptPartnerProductionRun(runId, {
     onSuccess: () => toast.success("Run accepted"),
@@ -501,13 +530,16 @@ const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign })
         </div>
       </div>
 
-      {/* Contextual guidance */}
+      {/* Progress stepper */}
+      <ProgressStepper run={run} />
+
+      {/* Contextual guidance — shown between stepper and forms so partner reads it before acting */}
       {guidance && !isCancelled && (
         <InfoBanner title={guidance.title} description={guidance.description} />
       )}
 
-      {/* Sample run emphasis */}
-      {isSample && !isCancelled && !isCompleted && run.started_at && (
+      {/* Sample run emphasis — shown from accept onwards (not just after start) */}
+      {isSample && !isCancelled && !isCompleted && run.accepted_at && (
         <InfoBanner
           title="Sample run — material tracking is essential"
           description="Log all materials used so the design cost can be estimated accurately."
@@ -515,8 +547,34 @@ const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign })
         />
       )}
 
-      {/* Progress stepper */}
-      <ProgressStepper run={run} />
+      {/* Inline tips — stage-specific workflow help */}
+      {!isCancelled && !isCompleted && (
+        <div className="px-6 py-2">
+          {canAccept && (
+            <Alert variant="info" dismissible>
+              Review the design specifications, inventory items, and task list before accepting.
+              Once accepted, you are committing to deliver {run.quantity} piece{run.quantity !== 1 ? "s" : ""}.
+            </Alert>
+          )}
+          {canStart && (
+            <Alert variant="info" dismissible>
+              Before starting, ensure you have the required materials in stock.
+              {isSample ? " Log materials as you go — this data sets the price for future orders." : ""}
+            </Alert>
+          )}
+          {canFinish && consumptionCount === 0 && (
+            <Alert variant="warning" dismissible>
+              No materials have been logged yet. Use the Material Usage section below to record what you've consumed before marking as finished.
+            </Alert>
+          )}
+          {canComplete && (
+            <Alert variant="info" dismissible>
+              Complete the run by entering your output count, production cost, and any final material logs.
+              {isSample ? " Accurate data here directly impacts the design's pricing." : ""}
+            </Alert>
+          )}
+        </div>
+      )}
 
       {/* Finish confirmation form */}
       {showFinishForm && canFinish && (
@@ -609,9 +667,9 @@ const ProductionRunCard = ({ run, design }: { run: any; design: PartnerDesign })
                   Cost ({run.cost_type === "per_unit" ? "per unit" : "total"}):
                 </Text>
                 <Text size="xsmall" weight="plus">
-                  {run.partner_cost_estimate}
+                  {formatCost(run.partner_cost_estimate, (design as any)?.cost_currency)}
                   {run.cost_type === "per_unit" && run.produced_quantity
-                    ? ` × ${run.produced_quantity} = ${Math.round(run.partner_cost_estimate * run.produced_quantity * 100) / 100}`
+                    ? ` × ${run.produced_quantity} = ${formatCost(Math.round(run.partner_cost_estimate * run.produced_quantity * 100) / 100, (design as any)?.cost_currency)}`
                     : ""
                   }
                 </Text>
@@ -868,14 +926,26 @@ const CompleteRunForm = ({
 
   // ── Step 3: Additional materials ──
   const [showMaterialForm, setShowMaterialForm] = useState(false)
-  const [consumptions, setConsumptions] = useState<ConsumptionEntry[]>(
-    inventoryItems.map((item) => ({
-      inventory_item_id: item.id,
+  const [consumptions, setConsumptions] = useState<ConsumptionEntry[]>([])
+
+  const addConsumptionItem = (itemId: string) => {
+    if (consumptions.some((c) => c.inventory_item_id === itemId)) return
+    setConsumptions((prev) => [...prev, {
+      inventory_item_id: itemId,
       quantity: "",
       unit_cost: "",
       unit_of_measure: "Meter",
       notes: "",
-    }))
+    }])
+  }
+
+  const removeConsumptionItem = (idx: number) => {
+    setConsumptions((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  // Items not yet added to the form
+  const availableItems = inventoryItems.filter(
+    (item: any) => !consumptions.some((c) => c.inventory_item_id === item.id)
   )
 
   // ── Step 4: Notes ──
@@ -1111,10 +1181,13 @@ const CompleteRunForm = ({
         {costValue > 0 && produced > 0 && (
           <div className="flex items-center gap-3 mt-3 pt-3 border-t border-ui-border-base">
             <Text size="xsmall" className="text-ui-fg-muted">
-              {costType === "per_unit"
-                ? `${costValue} × ${produced} pieces = ${totalCost} total`
-                : `${totalCost} total · ${perUnitCost} per piece`
-              }
+              {(() => {
+                const cur = ((design as any)?.cost_currency || "").toUpperCase()
+                const prefix = cur ? `${cur} ` : ""
+                return costType === "per_unit"
+                  ? `${prefix}${costValue} × ${produced} pieces = ${prefix}${totalCost} total`
+                  : `${prefix}${totalCost} total · ${prefix}${perUnitCost} per piece`
+              })()}
             </Text>
           </div>
         )}
@@ -1148,24 +1221,20 @@ const CompleteRunForm = ({
           </Text>
         )}
 
-        {inventoryItems.length > 0 && !showMaterialForm && (
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={() => setShowMaterialForm(true)}
-          >
-            {existingConsumptionCount > 0 ? "Log additional materials" : "Log materials"}
-          </Button>
-        )}
-
-        {showMaterialForm && inventoryItems.length > 0 && (
+        {/* Added items */}
+        {consumptions.length > 0 && (
           <div className="flex flex-col gap-3 mt-3">
             {consumptions.map((entry, idx) => {
               const item = inventoryItems.find((i: any) => i.id === entry.inventory_item_id)
               const label = item?.title || item?.sku || entry.inventory_item_id
               return (
                 <div key={entry.inventory_item_id} className="rounded-lg border border-ui-border-base p-3">
-                  <Text size="xsmall" weight="plus" className="mb-2">{label}</Text>
+                  <div className="flex items-center justify-between mb-2">
+                    <Text size="xsmall" weight="plus">{label}</Text>
+                    <Button variant="transparent" size="small" onClick={() => removeConsumptionItem(idx)}>
+                      Remove
+                    </Button>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                     <div>
                       <Text size="xsmall" className="text-ui-fg-subtle mb-1">Qty</Text>
@@ -1214,6 +1283,24 @@ const CompleteRunForm = ({
             })}
           </div>
         )}
+
+        {/* Add item selector */}
+        {availableItems.length > 0 && (
+          <div className="mt-3">
+            <Select onValueChange={(v) => { addConsumptionItem(v); setShowMaterialForm(true) }}>
+              <Select.Trigger>
+                <Select.Value placeholder="Add an inventory item..." />
+              </Select.Trigger>
+              <Select.Content>
+                {availableItems.map((item: any) => (
+                  <Select.Item key={item.id} value={item.id}>
+                    {item.title || item.sku || item.id}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* ── Step 4: Notes ── */}
@@ -1251,8 +1338,14 @@ const InlineTaskCard = ({ task }: { task: any }) => {
   const isCompleted = status === "completed"
   const subtasks = task.subtasks || []
 
+  const [showCostInput, setShowCostInput] = useState(false)
+  const [actualCost, setActualCost] = useState("")
+
   const acceptTask = useAcceptPartnerAssignedTask(taskId)
   const finishTask = useFinishPartnerAssignedTask(taskId)
+
+  const estimatedCost = task.estimated_cost ? Number(task.estimated_cost) : null
+  const completedCost = task.actual_cost ? Number(task.actual_cost) : null
 
   const handleAccept = async () => {
     try {
@@ -1263,10 +1356,35 @@ const InlineTaskCard = ({ task }: { task: any }) => {
     }
   }
 
-  const handleFinish = async () => {
+  const handleFinishClick = () => {
+    // If task has an estimated cost, show cost input before finishing
+    if (estimatedCost || estimatedCost === 0) {
+      setShowCostInput(true)
+      setActualCost(estimatedCost ? String(estimatedCost) : "")
+    } else {
+      setShowCostInput(true)
+      setActualCost("")
+    }
+  }
+
+  const handleFinishConfirm = async () => {
+    try {
+      const cost = actualCost ? parseFloat(actualCost) : undefined
+      await finishTask.mutateAsync(
+        cost && cost > 0 ? { actual_cost: cost } : undefined
+      )
+      toast.success(`Task "${task.title}" finished`)
+      setShowCostInput(false)
+    } catch (e) {
+      toast.error(extractErrorMessage(e))
+    }
+  }
+
+  const handleFinishSkip = async () => {
     try {
       await finishTask.mutateAsync()
       toast.success(`Task "${task.title}" finished`)
+      setShowCostInput(false)
     } catch (e) {
       toast.error(extractErrorMessage(e))
     }
@@ -1289,6 +1407,21 @@ const InlineTaskCard = ({ task }: { task: any }) => {
               {String(task.description)}
             </Text>
           )}
+          {/* Show cost info */}
+          {(estimatedCost || completedCost) && (
+            <div className="flex items-center gap-2 mt-1">
+              {estimatedCost != null && (
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  Est: {estimatedCost}
+                </Text>
+              )}
+              {completedCost != null && (
+                <Text size="xsmall" weight="plus">
+                  Actual: {completedCost}
+                </Text>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-x-2">
           {canAccept && (
@@ -1296,14 +1429,46 @@ const InlineTaskCard = ({ task }: { task: any }) => {
               Accept
             </Button>
           )}
-          {canFinish && (
-            <Button size="small" isLoading={finishTask.isPending} onClick={handleFinish}>
+          {canFinish && !showCostInput && (
+            <Button size="small" isLoading={finishTask.isPending} onClick={handleFinishClick}>
               Finish
             </Button>
           )}
           {isCompleted && <Checkbox checked disabled className="mt-0.5" />}
         </div>
       </div>
+
+      {/* Cost input when finishing */}
+      {showCostInput && canFinish && (
+        <div className="mt-3 pt-3 border-t border-ui-border-base">
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+            Your cost for this work (optional)
+          </Text>
+          {estimatedCost != null && (
+            <Text size="xsmall" className="text-ui-fg-muted mb-2">
+              Estimated: {estimatedCost}
+            </Text>
+          )}
+          <div className="flex items-end gap-2">
+            <div className="max-w-[160px]">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={estimatedCost ? String(estimatedCost) : "0.00"}
+                value={actualCost}
+                onChange={(e) => setActualCost(e.target.value)}
+              />
+            </div>
+            <Button size="small" variant="secondary" onClick={handleFinishSkip} isLoading={finishTask.isPending}>
+              Skip
+            </Button>
+            <Button size="small" onClick={handleFinishConfirm} isLoading={finishTask.isPending}>
+              Finish
+            </Button>
+          </div>
+        </div>
+      )}
 
       {subtasks.length > 0 && (
         <div className="mt-3 border-t pt-3">

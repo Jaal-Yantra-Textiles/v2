@@ -5,7 +5,7 @@ import { useState } from "react"
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { productionRunLoader } from "./loader"
-import { useCancelProductionRun, useUpdateProductionRun } from "../../../hooks/api/production-runs"
+import { useCancelProductionRun, useProductionRun, useUpdateProductionRun } from "../../../hooks/api/production-runs"
 import { productionRunStatusColor as statusColor } from "../../../lib/status-colors"
 
 const formatStatus = (s: string) => s.replace(/_/g, " ")
@@ -15,24 +15,43 @@ const ProductionRunDetailPage = () => {
   const navigate = useNavigate()
   const initialData = useLoaderData() as Awaited<{ production_run: any; tasks: any[] }>
 
-  const run = initialData?.production_run
-  const tasks = initialData?.tasks || []
+  // Use the hook for live data, with loader data as initialData
+  const { data: liveData } = useProductionRun(id || "", undefined, {
+    initialData: initialData as any,
+    enabled: !!id,
+  })
+
+  const run = liveData?.production_run || initialData?.production_run
+  const tasks = liveData?.tasks || initialData?.tasks || []
   const cancelRun = useCancelProductionRun(id || "")
   const updateRun = useUpdateProductionRun(id || "")
 
   const canCancel = run?.status && !["completed", "cancelled"].includes(run.status)
-  const canEdit = run && !run.accepted_at && !run.started_at && run.status !== "completed" && run.status !== "cancelled"
+  // Allow editing before partner starts. After start, allow with "(override)" label.
+  const canEdit = run && run.status !== "completed" && run.status !== "cancelled"
+  const isOverride = run && (!!run.accepted_at || !!run.started_at)
+  // Cost can be edited by admin at any time (corrections)
+  const canEditCost = run && run.status !== "cancelled"
 
   const [editQuantity, setEditQuantity] = useState<string>("")
   const [editRole, setEditRole] = useState<string>("")
   const [editRunType, setEditRunType] = useState<string>("")
   const [isEditing, setIsEditing] = useState(false)
+  const [isEditingCost, setIsEditingCost] = useState(false)
+  const [editCost, setEditCost] = useState<string>("")
+  const [editCostType, setEditCostType] = useState<string>("total")
 
   const startEditing = () => {
     setEditQuantity(String(run?.quantity ?? ""))
     setEditRole(run?.role || "")
     setEditRunType(run?.run_type || "production")
     setIsEditing(true)
+  }
+
+  const startEditingCost = () => {
+    setEditCost(run?.partner_cost_estimate ? String(run.partner_cost_estimate) : "")
+    setEditCostType(run?.cost_type || "total")
+    setIsEditingCost(true)
   }
 
   const handleSave = async () => {
@@ -57,6 +76,29 @@ const ProductionRunDetailPage = () => {
       navigate(0)
     } catch (e: any) {
       toast.error(e?.message || "Failed to update")
+    }
+  }
+
+  const handleSaveCost = async () => {
+    const updates: Record<string, any> = {}
+    const costVal = editCost ? Number(editCost) : undefined
+    if (costVal != null && costVal !== run?.partner_cost_estimate) {
+      updates.partner_cost_estimate = costVal
+    }
+    if (editCostType !== (run?.cost_type || "total")) {
+      updates.cost_type = editCostType
+    }
+    if (Object.keys(updates).length === 0) {
+      setIsEditingCost(false)
+      return
+    }
+    try {
+      await updateRun.mutateAsync(updates)
+      toast.success("Cost updated")
+      setIsEditingCost(false)
+      navigate(0)
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update cost")
     }
   }
 
@@ -89,7 +131,7 @@ const ProductionRunDetailPage = () => {
               <Text size="small" className="text-ui-fg-subtle">
                 {run.design_id ? (
                   <Link to={`/designs/${run.design_id}`} className="text-ui-fg-interactive hover:underline">
-                    Design: {run.design_id}
+                    {run.snapshot?.design?.name || run.design_id}
                   </Link>
                 ) : "No design linked"}
               </Text>
@@ -141,7 +183,7 @@ const ProductionRunDetailPage = () => {
                     <Text size="small" className="text-ui-fg-subtle">Partner</Text>
                     {run.partner_id ? (
                       <Link to={`/partners/${run.partner_id}`} className="text-ui-fg-interactive hover:underline">
-                        <Text>{run.partner_id}</Text>
+                        <Text>{run.snapshot?.provenance?.partner_name || run.partner_id}</Text>
                       </Link>
                     ) : <Text>-</Text>}
                   </div>
@@ -190,20 +232,54 @@ const ProductionRunDetailPage = () => {
                       <Text size="small" className="mt-1">{run.completion_notes}</Text>
                     </div>
                   )}
-                  {run.partner_cost_estimate && (
-                    <div>
+                  {/* Partner Cost — editable by admin */}
+                  <div className="col-span-2">
+                    <div className="flex items-center justify-between">
                       <Text size="small" className="text-ui-fg-subtle">
                         Partner Cost {run.cost_type === "per_unit" ? "(per unit)" : "(total)"}
                       </Text>
+                      {canEditCost && !isEditingCost && (
+                        <Button size="small" variant="transparent" onClick={startEditingCost}>
+                          {run.partner_cost_estimate ? "Edit" : "Set cost"}
+                        </Button>
+                      )}
+                    </div>
+                    {isEditingCost ? (
+                      <div className="flex items-end gap-2 mt-1">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="Cost"
+                          value={editCost}
+                          onChange={(e) => setEditCost(e.target.value)}
+                          className="max-w-[150px]"
+                        />
+                        <Select value={editCostType} onValueChange={setEditCostType}>
+                          <Select.Trigger className="max-w-[120px]">
+                            <Select.Value />
+                          </Select.Trigger>
+                          <Select.Content>
+                            <Select.Item value="total">Total</Select.Item>
+                            <Select.Item value="per_unit">Per unit</Select.Item>
+                          </Select.Content>
+                        </Select>
+                        <Button size="small" variant="secondary" onClick={() => setIsEditingCost(false)}>Cancel</Button>
+                        <Button size="small" onClick={handleSaveCost} isLoading={updateRun.isPending}>Save</Button>
+                      </div>
+                    ) : (
                       <Text>
-                        {run.partner_cost_estimate}
-                        {run.cost_type === "per_unit" && run.produced_quantity
-                          ? ` × ${run.produced_quantity} = ${Math.round(run.partner_cost_estimate * run.produced_quantity * 100) / 100}`
-                          : ""
+                        {run.partner_cost_estimate
+                          ? `${run.partner_cost_estimate}${
+                              run.cost_type === "per_unit" && run.produced_quantity
+                                ? ` × ${run.produced_quantity} = ${Math.round(run.partner_cost_estimate * run.produced_quantity * 100) / 100}`
+                                : ""
+                            }`
+                          : "-"
                         }
                       </Text>
-                    </div>
-                  )}
+                    )}
+                  </div>
                   {run.produced_quantity != null && (
                     <div className="col-span-2">
                       <Text size="small" className="text-ui-fg-subtle">Output / Yield</Text>
@@ -261,7 +337,7 @@ const ProductionRunDetailPage = () => {
                       </>
                     ) : (
                       <Button size="small" variant="secondary" onClick={startEditing}>
-                        Edit Details
+                        {isOverride ? "Edit (Override)" : "Edit Details"}
                       </Button>
                     )}
                   </div>
@@ -273,23 +349,60 @@ const ProductionRunDetailPage = () => {
                   <Text size="small" className="text-ui-fg-subtle">No tasks</Text>
                 ) : (
                   <div className="flex flex-col gap-y-2">
-                    {tasks.map((t: any) => (
-                      <div key={String(t.id)} className="rounded-md border px-3 py-2">
-                        <div className="flex items-center justify-between gap-x-2">
-                          <Text weight="plus" size="small">
-                            {String(t.title || t.name || t.id)}
-                          </Text>
-                          <Badge color={statusColor(String(t.status || ""))}>
-                            {String(t.status || "-")}
-                          </Badge>
+                    {tasks.map((t: any) => {
+                      const estCost = t.estimated_cost ? Number(t.estimated_cost) : null
+                      const actCost = t.actual_cost ? Number(t.actual_cost) : null
+                      return (
+                        <div key={String(t.id)} className="rounded-md border px-3 py-2">
+                          <div className="flex items-center justify-between gap-x-2">
+                            <Text weight="plus" size="small">
+                              {String(t.title || t.name || t.id)}
+                            </Text>
+                            <div className="flex items-center gap-2">
+                              {(estCost != null || actCost != null) && (
+                                <Text size="xsmall" className="text-ui-fg-muted">
+                                  {actCost != null ? `Cost: ${actCost}` : estCost != null ? `Est: ${estCost}` : ""}
+                                  {actCost != null && estCost != null && actCost !== estCost && (
+                                    <span className={actCost > estCost ? " text-ui-fg-error" : " text-ui-fg-interactive"}>
+                                      {" "}({actCost > estCost ? "+" : ""}{Math.round((actCost - estCost) * 100) / 100})
+                                    </span>
+                                  )}
+                                </Text>
+                              )}
+                              <Badge color={statusColor(String(t.status || ""))}>
+                                {String(t.status || "-")}
+                              </Badge>
+                            </div>
+                          </div>
+                          {t.description && (
+                            <Text size="small" className="text-ui-fg-subtle">
+                              {String(t.description)}
+                            </Text>
+                          )}
                         </div>
-                        {t.description && (
-                          <Text size="small" className="text-ui-fg-subtle">
-                            {String(t.description)}
-                          </Text>
-                        )}
-                      </div>
-                    ))}
+                      )
+                    })}
+                    {/* Task cost summary */}
+                    {tasks.some((t: any) => t.actual_cost || t.estimated_cost) && (() => {
+                      const actualCount = tasks.filter((t: any) => t.actual_cost).length
+                      const estimatedCount = tasks.filter((t: any) => !t.actual_cost && t.estimated_cost).length
+                      const total = tasks.reduce((sum: number, t: any) => sum + (Number(t.actual_cost) || Number(t.estimated_cost) || 0), 0)
+                      return (
+                        <div className="flex items-center justify-between rounded-md bg-ui-bg-subtle px-3 py-2 mt-1">
+                          <div>
+                            <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
+                              Total task costs
+                            </Text>
+                            <Text size="xsmall" className="text-ui-fg-muted">
+                              {actualCount > 0 && `${actualCount} actual`}
+                              {actualCount > 0 && estimatedCount > 0 && " + "}
+                              {estimatedCount > 0 && `${estimatedCount} estimated`}
+                            </Text>
+                          </div>
+                          <Text size="xsmall" weight="plus">{total}</Text>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
               </Tabs.Content>
@@ -316,11 +429,11 @@ const ProductionRunDetailPage = () => {
           <div className="px-6 py-4 grid grid-cols-1 gap-3">
             <div>
               <Text size="small" className="text-ui-fg-subtle">Created</Text>
-              <Text>{String(run.created_at || "-")}</Text>
+              <Text size="small">{run.created_at ? new Date(run.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}</Text>
             </div>
             <div>
               <Text size="small" className="text-ui-fg-subtle">Updated</Text>
-              <Text>{String(run.updated_at || "-")}</Text>
+              <Text size="small">{run.updated_at ? new Date(run.updated_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}</Text>
             </div>
           </div>
         </Container>
