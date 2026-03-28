@@ -1,0 +1,138 @@
+import { Modules } from "@medusajs/framework/utils"
+import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
+import { SOCIAL_PROVIDER_MODULE } from "../modules/social-provider"
+import type SocialProviderService from "../modules/social-provider/service"
+import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
+import type ProductionRunService from "../modules/production_runs/service"
+
+/**
+ * Sends WhatsApp notifications to partners when production runs are assigned
+ * or when admin-initiated events occur that need partner attention.
+ */
+export default async function whatsappPartnerNotificationHandler({
+  event,
+  container,
+}: SubscriberArgs<{
+  id: string
+  production_run_id?: string
+  partner_id?: string
+  design_id?: string
+  status?: string
+  action?: string
+  notes?: string
+}>) {
+  const data = event.data
+  if (!data) return
+
+  // Check if WhatsApp is configured
+  if (!process.env.WHATSAPP_PHONE_NUMBER_ID || !process.env.WHATSAPP_ACCESS_TOKEN) {
+    return // WhatsApp not configured, skip silently
+  }
+
+  const runId = data.production_run_id || data.id
+  if (!runId) return
+
+  const action = data.action || event.name?.split(".").pop() || "unknown"
+
+  try {
+    const socialProvider = container.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
+    const whatsapp = socialProvider.getWhatsApp()
+
+    // Resolve the production run to get partner_id
+    const productionRunService: ProductionRunService = container.resolve(PRODUCTION_RUNS_MODULE)
+    const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
+    if (!run) return
+
+    const partnerId = data.partner_id || run.partner_id
+    if (!partnerId) return
+
+    // Find partner admin phone numbers
+    const phones = await getPartnerPhones(container, partnerId)
+    if (phones.length === 0) return
+
+    // Get design name for context
+    const designName = await getDesignName(container, run.design_id)
+
+    // Send appropriate notification based on action
+    for (const phone of phones) {
+      try {
+        switch (action) {
+          case "sent_to_partner":
+            await whatsapp.sendProductionRunAssignment(phone, {
+              designName,
+              runId: run.id,
+              runType: run.run_type || "production",
+              quantity: run.quantity,
+              notes: data.notes,
+              webUrl: buildPartnerWebUrl(run.id),
+            })
+            break
+
+          case "cancelled":
+            await whatsapp.sendTextMessage(
+              phone,
+              `❌ *Production Run Cancelled*\n\n` +
+              `*Run:* ${run.id}\n` +
+              `*Design:* ${designName}\n` +
+              (data.notes ? `*Reason:* ${data.notes}\n` : "") +
+              `\nThis run has been cancelled by the admin.`
+            )
+            break
+
+          // Other events (accepted, started, finished, completed) are triggered
+          // by the partner themselves via WhatsApp, so we don't echo them back.
+          // The admin feed notifications handle admin-side visibility.
+        }
+      } catch (e: any) {
+        console.error(
+          `[whatsapp-partner-notifications] Failed to send to ${phone}:`,
+          e.message
+        )
+      }
+    }
+  } catch (e: any) {
+    console.error("[whatsapp-partner-notifications] Handler error:", e.message)
+  }
+}
+
+async function getPartnerPhones(container: any, partnerId: string): Promise<string[]> {
+  try {
+    const query = container.resolve("query") as any
+    const { data: partners } = await query.graph({
+      entity: "partners",
+      fields: ["admins.phone", "admins.is_active"],
+      filters: { id: partnerId },
+    })
+
+    const admins = partners?.[0]?.admins || []
+    return admins
+      .filter((a: any) => a.is_active && a.phone)
+      .map((a: any) => a.phone)
+  } catch {
+    return []
+  }
+}
+
+async function getDesignName(container: any, designId: string | null): Promise<string> {
+  if (!designId) return "Unknown Design"
+  try {
+    const designService = container.resolve("design") as any
+    const design = await designService.retrieveDesign(designId)
+    return design?.name || design?.title || designId
+  } catch {
+    return designId
+  }
+}
+
+function buildPartnerWebUrl(runId: string): string {
+  const baseUrl = process.env.PARTNER_PORTAL_URL || process.env.MEDUSA_BACKEND_URL || ""
+  if (!baseUrl) return ""
+  return `${baseUrl}/production-runs/${runId}`
+}
+
+export const config: SubscriberConfig = {
+  event: [
+    "production_run.sent_to_partner",
+    "production_run.cancelled",
+  ],
+}

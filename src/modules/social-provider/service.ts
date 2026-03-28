@@ -5,6 +5,7 @@ import InstagramService from "./instagram-service"
 import FacebookService from "./facebook-service"
 import LinkedInService from "./linkedin-service"
 import ContentPublishingService from "./content-publishing-service"
+import WhatsAppService from "./whatsapp-service"
 import { OAuth2Token } from "./types"
 
 
@@ -16,7 +17,7 @@ export interface BaseSocialProviderService {
 }
 
 // InstagramService uses Facebook tokens, so it doesn't implement OAuth interface
-type SocialProvider = BaseSocialProviderService | ContentPublishingService | InstagramService
+type SocialProvider = BaseSocialProviderService | ContentPublishingService | InstagramService | WhatsAppService
 
 /**
  * SocialProviderService – runtime delegator to concrete provider SDK wrappers
@@ -52,6 +53,9 @@ class SocialProviderService extends MedusaService({}) {
         case "content-publishing":
           this.cache_[key] = new ContentPublishingService()
           break
+        case "whatsapp":
+          this.cache_[key] = new WhatsAppService()
+          break
         default:
           throw new Error(`Unsupported provider: ${name}`)
       }
@@ -64,6 +68,13 @@ class SocialProviderService extends MedusaService({}) {
    */
   getContentPublisher(): ContentPublishingService {
     return this.getProvider<ContentPublishingService>("content-publishing")
+  }
+
+  /**
+   * Get the WhatsApp service
+   */
+  getWhatsApp(): WhatsAppService {
+    return this.getProvider<WhatsAppService>("whatsapp")
   }
 
   /* Convenience wrappers removed; callers use provider directly */

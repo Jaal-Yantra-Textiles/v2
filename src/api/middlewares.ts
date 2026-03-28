@@ -337,6 +337,17 @@ export default defineMiddlewares({
       bodyParser: false, // Disable default JSON body parser for this route
     },
     {
+      matcher: "/webhooks/social/whatsapp",
+      method: "GET",
+      middlewares: [], // Meta verification endpoint
+    },
+    {
+      matcher: "/webhooks/social/whatsapp",
+      method: "POST",
+      middlewares: [],
+      bodyParser: false, // Need raw body for HMAC signature verification
+    },
+    {
       matcher: "/webhooks/inbound-email/resend",
       method: "POST",
       middlewares: [],
