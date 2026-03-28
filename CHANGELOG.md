@@ -1,3 +1,10 @@
+## [12.1.13](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.12...v12.1.13) (2026-03-28)
+
+
+### Bug Fixes
+
+* **api:** API Changes (complete endpoint) ([a7ac81c](https://github.com/Jaal-Yantra-Textiles/v2/commit/a7ac81ca6feb5f6713ae56c15a8958b73440a062))
+
 ## [12.1.12](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.11...v12.1.12) (2026-03-28)
 
 
