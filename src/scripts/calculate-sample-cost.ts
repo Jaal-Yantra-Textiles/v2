@@ -65,6 +65,7 @@ export default async function calculateSampleCost({ container, args }: ExecArgs)
     try {
       // Find the latest completed sample run for this design to get partner_cost_estimate
       let partnerCostEstimate = 0
+      let sampleRuns: any[] = []
       try {
         const [sampleRuns] = await productionRunService.listAndCountProductionRuns(
           { design_id: dId, run_type: "sample", status: "completed" },
@@ -74,7 +75,7 @@ export default async function calculateSampleCost({ container, args }: ExecArgs)
           partnerCostEstimate = Number(sampleRuns[0].partner_cost_estimate)
         }
       } catch { /* non-fatal */ }
-
+      
       const taskService = container.resolve("tasks") as any
       await calculateCostForDesign(
         dId,

@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
 import { AdminDesign } from "../../hooks/api/designs";
 import { useDeleteDesign } from "../../hooks/api/designs";
-import { sdk } from "../../lib/client";
+import { sdk } from "../../lib/config";
 
 
 const designStatusColor = (status: string) => {
