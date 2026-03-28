@@ -1,3 +1,10 @@
+## [12.1.12](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.11...v12.1.12) (2026-03-28)
+
+
+### Bug Fixes
+
+* **api:** Complete endpoint now accepts unit_cost per consumption item ([a73156b](https://github.com/Jaal-Yantra-Textiles/v2/commit/a73156b94da0a007deeb6f1e684df078937f7908))
+
 ## [12.1.11](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.10...v12.1.11) (2026-03-26)
 
 
