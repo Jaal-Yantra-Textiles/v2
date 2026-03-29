@@ -35,13 +35,19 @@ export default async function sampleRunCompletedHandler({
   const inventoryService = container.resolve(Modules.INVENTORY) as any
   const designService = container.resolve("design") as any
 
-  const [logs] = await consumptionLogService.listAndCountConsumptionLogs(
+  const [allDesignLogs] = await consumptionLogService.listAndCountConsumptionLogs(
     { design_id: designId, is_committed: true },
     { take: 500 }
   )
 
+  // Scope to logs from this specific run to avoid inflating costs
+  // when multiple runs exist for the same design
+  const logs = allDesignLogs.filter(
+    (log: any) => log.metadata?.production_run_id === runId
+  )
+
   if (!logs.length) {
-    console.log(`[sample-run-completed] Design ${designId}: no committed logs — skipping`)
+    console.log(`[sample-run-completed] Design ${designId} / Run ${runId}: no committed logs for this run — skipping`)
     return
   }
 

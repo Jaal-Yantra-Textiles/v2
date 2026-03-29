@@ -13,6 +13,10 @@ const Partner = model.define("partner", {
         .default('pending'),
     is_verified: model.boolean().default(false),
 
+    // WhatsApp notifications
+    whatsapp_number: model.text().nullable(),
+    whatsapp_verified: model.boolean().default(false),
+
     // Storefront
     storefront_domain: model.text().nullable(),
     website_id: model.text().nullable(),

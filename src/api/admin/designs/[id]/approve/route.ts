@@ -2,7 +2,8 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
+import type { IEventBusModuleService } from "@medusajs/types";
 import updateDesignWorkflow from "../../../../../workflows/designs/update-design";
 import { createProductFromDesignWorkflow } from "../../../../../workflows/designs/create-product-from-design";
 import designCustomerLink from "../../../../../links/design-customer-link";
@@ -53,7 +54,7 @@ export async function POST(
 
     // Transition design status to Approved
     const { result: updatedDesign, errors: updateErrors } =
-      await updateDesignWorkflow.run({
+      await updateDesignWorkflow(req.scope).run({
         input: {
           id: designId,
           status: "Approved",
@@ -87,6 +88,21 @@ export async function POST(
         errors: productErrors,
       });
       return;
+    }
+
+    // Emit design.approved so partners can be notified
+    try {
+      const eventBus = req.scope.resolve(Modules.EVENT_BUS) as IEventBusModuleService;
+      await eventBus.emit({
+        name: "design.approved",
+        data: {
+          design_id: designId,
+          product_id: productResult.product_id,
+          variant_id: productResult.variant_id,
+        },
+      });
+    } catch {
+      // Non-fatal — approval succeeded, notification is best-effort
     }
 
     res.status(200).json({

@@ -196,47 +196,19 @@ export const ProductionRunDetail = () => {
 
         {/* Complete form */}
         {showCompleteForm && canComplete && (
-          <Container className="p-0">
-            <div className="px-6 py-4 bg-ui-bg-subtle">
-              <Heading level="h3" className="mb-3">Complete Production Run</Heading>
-
-              {pendingTasks.length > 0 && (
-                <div className="mb-3 rounded-md border p-3 bg-ui-bg-base">
-                  <Text size="small" weight="plus" className="text-ui-fg-on-color-disabled mb-1">
-                    {pendingTasks.length} pending task(s) will be marked as done
-                  </Text>
-                  {pendingTasks.map((t: any) => (
-                    <Text key={t.id} size="xsmall" className="text-ui-fg-subtle">
-                      • {t.title || t.id}
-                    </Text>
-                  ))}
-                </div>
-              )}
-
-              <Text size="small" className="text-ui-fg-subtle mb-3">
-                Are you sure you want to complete this run? This action cannot be undone.
-              </Text>
-
-              <div className="flex justify-end gap-x-2">
-                <Button variant="secondary" size="small" onClick={() => setShowCompleteForm(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  size="small"
-                  isLoading={complete.isPending}
-                  onClick={async () => {
-                    try {
-                      await complete.mutateAsync()
-                    } catch (e) {
-                      toast.error(extractErrorMessage(e))
-                    }
-                  }}
-                >
-                  Confirm & Complete
-                </Button>
-              </div>
-            </div>
-          </Container>
+          <CompleteRunInlineForm
+            run={production_run}
+            pendingTasks={pendingTasks}
+            isPending={complete.isPending}
+            onCancel={() => setShowCompleteForm(false)}
+            onConfirm={async (body) => {
+              try {
+                await complete.mutateAsync(body)
+              } catch (e) {
+                toast.error(extractErrorMessage(e))
+              }
+            }}
+          />
         )}
 
         <Container className="divide-y p-0">
@@ -401,6 +373,90 @@ const TaskCard = ({ task }: { task: any }) => {
         </div>
       )}
     </div>
+  )
+}
+
+const CompleteRunInlineForm = ({
+  run,
+  pendingTasks,
+  isPending,
+  onCancel,
+  onConfirm,
+}: {
+  run: any
+  pendingTasks: any[]
+  isPending: boolean
+  onCancel: () => void
+  onConfirm: (body: Record<string, any>) => void
+}) => {
+  const runQuantity = Number(run?.quantity) || 1
+  const [producedQty, setProducedQty] = useState(String(runQuantity))
+  const [notes, setNotes] = useState("")
+
+  return (
+    <Container className="p-0">
+      <div className="px-6 py-4 bg-ui-bg-subtle">
+        <Heading level="h3" className="mb-3">Complete Production Run</Heading>
+
+        {pendingTasks.length > 0 && (
+          <div className="mb-3 rounded-md border p-3 bg-ui-bg-base">
+            <Text size="small" weight="plus" className="text-ui-fg-on-color-disabled mb-1">
+              {pendingTasks.length} pending task(s) will be marked as done
+            </Text>
+            {pendingTasks.map((t: any) => (
+              <Text key={t.id} size="xsmall" className="text-ui-fg-subtle">
+                • {t.title || t.id}
+              </Text>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-y-3 mb-3">
+          <div>
+            <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+              Produced Quantity
+            </Text>
+            <Input
+              type="number"
+              size="small"
+              min={0}
+              value={producedQty}
+              onChange={(e) => setProducedQty(e.target.value)}
+            />
+          </div>
+          <div>
+            <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+              Notes (optional)
+            </Text>
+            <Input
+              size="small"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any completion notes..."
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-x-2">
+          <Button variant="secondary" size="small" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            size="small"
+            isLoading={isPending}
+            onClick={() => {
+              const body: Record<string, any> = {
+                produced_quantity: Number(producedQty) || runQuantity,
+              }
+              if (notes.trim()) body.notes = notes.trim()
+              onConfirm(body)
+            }}
+          >
+            Confirm & Complete
+          </Button>
+        </div>
+      </div>
+    </Container>
   )
 }
 

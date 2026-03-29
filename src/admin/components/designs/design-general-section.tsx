@@ -11,9 +11,10 @@ import {
 } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { ActionMenu } from "../common/action-menu";
 import { AdminDesign } from "../../hooks/api/designs";
-import { useDeleteDesign } from "../../hooks/api/designs";
+import { useDeleteDesign, designQueryKeys } from "../../hooks/api/designs";
 import { sdk } from "../../lib/config";
 
 
@@ -55,6 +56,7 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
   const { t } = useTranslation();
   const prompt = usePrompt();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { mutateAsync } = useDeleteDesign(design.id);
 
   const handleRecalculateCost = async () => {
@@ -64,7 +66,7 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
         { method: "POST" }
       )
       toast.success(res.message || "Cost recalculated")
-      navigate(0) // reload to show updated cost
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(design.id) })
     } catch (e: any) {
       toast.error(e?.message || "Failed to recalculate cost")
     }

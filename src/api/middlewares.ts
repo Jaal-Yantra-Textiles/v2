@@ -95,7 +95,7 @@ import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/t
 import { createStoreSchema } from "./admin/stores/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
-import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
+import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema, ConnectWhatsAppSchema } from "./admin/social-platforms/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
 import { StoreTryOnReqSchema } from "./store/ai/tryon/validators";
 import { AccessFeeConfirmSchema } from "./store/ai/accessfee/validators";
@@ -363,10 +363,25 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [],
     },
+    // WhatsApp deep-link auth — no partner auth required (token IS the auth)
+    // Must be before the /partners* catch-all
+    {
+      matcher: "/partners/wa-auth",
+      method: "GET",
+      middlewares: [],
+    },
     {
       matcher: "/partners*",
       middlewares: [
         createCorsPartnerMiddleware(),
+      ],
+    },
+    {
+      matcher: "/partners/whatsapp-verify",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
       ],
     },
     {
@@ -2823,6 +2838,12 @@ export default defineMiddlewares({
       matcher: "/admin/social-platforms",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(SocialPlatformSchema))],
+    },
+
+    {
+      matcher: "/admin/social-platforms/whatsapp/connect",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(ConnectWhatsAppSchema))],
     },
 
     {

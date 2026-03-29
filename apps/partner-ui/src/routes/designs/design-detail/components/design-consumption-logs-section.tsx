@@ -74,9 +74,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   const [formQuantity, setFormQuantity] = useState("")
   const [formUnitCost, setFormUnitCost] = useState("")
   const [formUnit, setFormUnit] = useState("Meter")
-  const [formType, setFormType] = useState(
-    partnerStatus === "in_progress" ? "production" : "sample"
-  )
+  const [formType, setFormType] = useState("production")
   const [formNotes, setFormNotes] = useState("")
 
   const resetForm = () => {
@@ -84,7 +82,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
     setFormQuantity("")
     setFormUnitCost("")
     setFormUnit("Meter")
-    setFormType(partnerStatus === "in_progress" ? "production" : "sample")
+    setFormType("production")
     setFormNotes("")
     setShowForm(false)
   }

@@ -150,11 +150,11 @@ export async function GET(
   const { data } = await query.graph({
     entity: "production_runs",
     fields: ["*", "tasks.*"],
-    filters: { partner_id: partnerId },
-    pagination: { skip: 0, take: 200 },
+    filters: { id, partner_id: partnerId },
+    pagination: { skip: 0, take: 1 },
   })
 
-  const node = (data || []).find((r: any) => r?.id === id) || run
+  const node = (data || [])[0] || run
 
   return res.status(200).json({
     production_run: node,

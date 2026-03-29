@@ -7,6 +7,7 @@ import LinkedInService from "./linkedin-service"
 import ContentPublishingService from "./content-publishing-service"
 import WhatsAppService from "./whatsapp-service"
 import { OAuth2Token } from "./types"
+import type { MedusaContainer } from "@medusajs/framework/types"
 
 
 export interface BaseSocialProviderService {
@@ -71,10 +72,14 @@ class SocialProviderService extends MedusaService({}) {
   }
 
   /**
-   * Get the WhatsApp service
+   * Get the WhatsApp service.
+   * Pass the app-level container (req.scope / container) to enable
+   * loading credentials from SocialPlatform in the database.
    */
-  getWhatsApp(): WhatsAppService {
-    return this.getProvider<WhatsAppService>("whatsapp")
+  getWhatsApp(appContainer?: MedusaContainer): WhatsAppService {
+    const wa = this.getProvider<WhatsAppService>("whatsapp")
+    if (appContainer) wa.setAppContainer(appContainer)
+    return wa
   }
 
   /* Convenience wrappers removed; callers use provider directly */

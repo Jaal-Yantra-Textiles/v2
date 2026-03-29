@@ -185,6 +185,7 @@ export const useFinishPartnerProductionRun = (
       queryClient.refetchQueries({ queryKey: partnerProductionRunsQueryKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
       queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
+      queryClient.invalidateQueries({ queryKey: ["partner-consumption-logs"] })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
@@ -217,6 +218,7 @@ export const useCompletePartnerProductionRun = (
       })
       queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
       queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
+      queryClient.invalidateQueries({ queryKey: ["partner-consumption-logs"] })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

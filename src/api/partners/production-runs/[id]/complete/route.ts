@@ -1,7 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
-
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { signalLifecycleStepSuccessWorkflow } from "../../../../../workflows/production-runs/production-run-steps"
@@ -182,18 +181,29 @@ export async function POST(
     normalizedCostEstimate = Math.round(partnerCostEstimate * effectiveProduced * 100) / 100
   }
 
-  // Mark run as completed with proper columns
-  await productionRunService.updateProductionRuns({
-    id: run.id,
-    status: "completed" as any,
-    completed_at: new Date(),
-    ...(producedQuantity != null ? { produced_quantity: producedQuantity } : {}),
-    ...(rejectedQuantity != null ? { rejected_quantity: rejectedQuantity } : {}),
-    ...(rejectionReason ? { rejection_reason: rejectionReason } : {}),
-    ...(rejectionNotes ? { rejection_notes: rejectionNotes } : {}),
-    ...(normalizedCostEstimate ? { partner_cost_estimate: normalizedCostEstimate } : {}),
-    ...(costType ? { cost_type: costType } : {}),
-    ...(completionNotes ? { completion_notes: completionNotes } : {}),
+  // Acquire lock to prevent race with the task-completion subscriber
+  const lockingService = req.scope.resolve(Modules.LOCKING) as any
+  const lockKey = `production-run-complete:${run.id}`
+
+  await lockingService.execute(lockKey, async () => {
+    // Re-check status inside the lock
+    const freshRun = await productionRunService.retrieveProductionRun(run.id).catch(() => null) as any
+    if (freshRun && freshRun.status === "completed") {
+      return // Already completed by task subscriber — skip
+    }
+
+    await productionRunService.updateProductionRuns({
+      id: run.id,
+      status: "completed" as any,
+      completed_at: new Date(),
+      ...(producedQuantity != null ? { produced_quantity: producedQuantity } : {}),
+      ...(rejectedQuantity != null ? { rejected_quantity: rejectedQuantity } : {}),
+      ...(rejectionReason ? { rejection_reason: rejectionReason } : {}),
+      ...(rejectionNotes ? { rejection_notes: rejectionNotes } : {}),
+      ...(normalizedCostEstimate ? { partner_cost_estimate: normalizedCostEstimate } : {}),
+      ...(costType ? { cost_type: costType } : {}),
+      ...(completionNotes ? { completion_notes: completionNotes } : {}),
+    })
   })
 
   // Update design: store cost estimate (always use normalized total)

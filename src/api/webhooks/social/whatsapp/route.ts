@@ -16,11 +16,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const challenge = req.query["hub.challenge"]
 
   const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-  const whatsapp = socialProvider.getWhatsApp()
-  const verifyToken = whatsapp.getWebhookVerifyToken()
+  const whatsapp = socialProvider.getWhatsApp(req.scope)
+  const verifyToken = await whatsapp.getWebhookVerifyToken()
 
   if (!verifyToken) {
-    console.error("[whatsapp-webhook] WHATSAPP_WEBHOOK_VERIFY_TOKEN not configured")
+    console.error("[whatsapp-webhook] Webhook verify token not configured (env or SocialPlatform)")
     return res.status(500).send("Webhook verification token not configured")
   }
 
@@ -41,8 +41,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-  const whatsapp = socialProvider.getWhatsApp()
-  const appSecret = whatsapp.getAppSecret()
+  const whatsapp = socialProvider.getWhatsApp(req.scope)
+  const appSecret = await whatsapp.getAppSecret()
 
   if (!appSecret) {
     console.error("[whatsapp-webhook] App secret not configured")

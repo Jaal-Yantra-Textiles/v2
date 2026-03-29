@@ -50,7 +50,7 @@ export default async function productionRunTaskUpdatedHandler({
 
     const { data: runs } = await query.graph({
       entity: "production_runs",
-      fields: ["id", "status", "parent_run_id", "design_id", "tasks.*"],
+      fields: ["id", "status", "parent_run_id", "design_id", "partner_id", "run_type", "tasks.*"],
       filters: { id: String(productionRunId) },
       pagination: { skip: 0, take: 1 },
     })
@@ -83,37 +83,58 @@ export default async function productionRunTaskUpdatedHandler({
       return
     }
 
-    // Re-check status before writing to guard against race conditions
-    // when multiple tasks complete simultaneously
-    const freshRun = await productionRunService
-      .retrieveProductionRun(String(productionRunId))
-      .catch(() => null)
+    // Use locking to prevent race conditions when multiple tasks complete
+    // simultaneously or when the partner /complete route fires at the same time
+    const lockingService = container.resolve(Modules.LOCKING) as any
+    const lockKey = `production-run-complete:${String(productionRunId)}`
 
-    if (!freshRun || ["completed", "cancelled"].includes(String((freshRun as any).status))) {
-      return
-    }
+    await lockingService.execute(lockKey, async () => {
+      // Re-check status inside the lock to guard against concurrent writes
+      const freshRun = await productionRunService
+        .retrieveProductionRun(String(productionRunId))
+        .catch(() => null)
 
-    await productionRunService.updateProductionRuns({
-      id: String(productionRunId),
-      status: "completed" as any,
+      if (!freshRun || ["completed", "cancelled"].includes(String((freshRun as any).status))) {
+        return
+      }
+
+      await productionRunService.updateProductionRuns({
+        id: String(productionRunId),
+        status: "completed" as any,
+        completed_at: new Date(),
+      })
     })
 
-    // Emit design.production_completed for customer notifications
+    // Emit production_run.completed so downstream subscribers fire
+    // (e.g. sample-run-completed for cost calculation)
+    const eventBus = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
     try {
       const designId = (node as any)?.design_id ?? (run as any)?.design_id
-      if (designId) {
-        const eventBus = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
-        await eventBus.emit({
-          name: "design.production_completed",
+      await eventBus.emit([
+        {
+          name: "production_run.completed",
           data: {
-            design_id: String(designId),
+            id: String(productionRunId),
             production_run_id: String(productionRunId),
+            partner_id: (node as any)?.partner_id ?? (run as any)?.partner_id ?? null,
+            action: "completed",
           },
-        })
-      }
+        },
+        ...(designId
+          ? [
+              {
+                name: "design.production_completed",
+                data: {
+                  design_id: String(designId),
+                  production_run_id: String(productionRunId),
+                },
+              },
+            ]
+          : []),
+      ])
     } catch (e: any) {
       logger.warn(
-        `[tasks.task.updated] Failed to emit design.production_completed: ${e?.message || String(e)}`
+        `[tasks.task.updated] Failed to emit completion events: ${e?.message || String(e)}`
       )
     }
 
@@ -171,38 +192,44 @@ export default async function productionRunTaskUpdatedHandler({
       )
     }
 
-    const children = await productionRunService.listProductionRuns({
-      parent_run_id: String(parentRunId),
-    } as any)
+    // Cascade: mark parent completed if all children are done
+    const parentLockKey = `production-run-complete:${String(parentRunId)}`
 
-    if (!children?.length) {
-      return
-    }
+    await lockingService.execute(parentLockKey, async () => {
+      const children = await productionRunService.listProductionRuns({
+        parent_run_id: String(parentRunId),
+      } as any)
 
-    const allChildrenCompleted = (children || []).every(
-      (c: any) => String(c?.status || "") === "completed"
-    )
+      if (!children?.length) {
+        return
+      }
 
-    if (!allChildrenCompleted) {
-      return
-    }
+      const allChildrenCompleted = (children || []).every(
+        (c: any) => String(c?.status || "") === "completed"
+      )
 
-    const parent = await productionRunService
-      .retrieveProductionRun(String(parentRunId))
-      .catch(() => null)
+      if (!allChildrenCompleted) {
+        return
+      }
 
-    if (!parent) {
-      return
-    }
+      const parent = await productionRunService
+        .retrieveProductionRun(String(parentRunId))
+        .catch(() => null)
 
-    const parentStatus = String((parent as any).status)
-    if (["completed", "cancelled"].includes(parentStatus)) {
-      return
-    }
+      if (!parent) {
+        return
+      }
 
-    await productionRunService.updateProductionRuns({
-      id: String(parentRunId),
-      status: "completed" as any,
+      const parentStatus = String((parent as any).status)
+      if (["completed", "cancelled"].includes(parentStatus)) {
+        return
+      }
+
+      await productionRunService.updateProductionRuns({
+        id: String(parentRunId),
+        status: "completed" as any,
+        completed_at: new Date(),
+      })
     })
   } catch (e: any) {
     logger.warn(

@@ -76,3 +76,12 @@ export const listSocialPlatformsQuerySchema = z.object({
 export type ListSocialPlatformsQuery = z.infer<typeof listSocialPlatformsQuerySchema>;
 
 export type UpdateSocialPlatform = z.infer<typeof UpdateSocialPlatformSchema>;
+
+export const ConnectWhatsAppSchema = z.object({
+  access_token: z.string().min(1, "Access token is required"),
+  phone_number_id: z.string().min(1, "Phone number ID is required"),
+  webhook_verify_token: z.string().optional(),
+  app_secret: z.string().optional(),
+});
+
+export type ConnectWhatsApp = z.infer<typeof ConnectWhatsAppSchema>;

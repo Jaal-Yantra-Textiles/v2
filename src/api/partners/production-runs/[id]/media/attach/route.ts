@@ -45,6 +45,13 @@ export async function POST(
     )
   }
 
+  if (["completed", "cancelled"].includes(String((run as any).status))) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Cannot attach media to a ${(run as any).status} production run`
+    )
+  }
+
   const designId = (run as any).design_id
   if (!designId) {
     throw new MedusaError(

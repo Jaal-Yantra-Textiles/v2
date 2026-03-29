@@ -4,6 +4,7 @@ import { SOCIAL_PROVIDER_MODULE } from "../modules/social-provider"
 import type SocialProviderService from "../modules/social-provider/service"
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
+import { generatePartnerDeeplink } from "../modules/social-provider/whatsapp-deeplink"
 
 /**
  * Sends WhatsApp notifications to partners when production runs are assigned
@@ -36,7 +37,7 @@ export default async function whatsappPartnerNotificationHandler({
 
   try {
     const socialProvider = container.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-    const whatsapp = socialProvider.getWhatsApp()
+    const whatsapp = socialProvider.getWhatsApp(container)
 
     // Resolve the production run to get partner_id
     const productionRunService: ProductionRunService = container.resolve(PRODUCTION_RUNS_MODULE)
@@ -64,7 +65,7 @@ export default async function whatsappPartnerNotificationHandler({
               runType: run.run_type || "production",
               quantity: run.quantity,
               notes: data.notes,
-              webUrl: buildPartnerWebUrl(run.id),
+              webUrl: buildPartnerWebUrl(run.id, partnerId),
             })
             break
 
@@ -100,11 +101,19 @@ async function getPartnerPhones(container: any, partnerId: string): Promise<stri
     const query = container.resolve("query") as any
     const { data: partners } = await query.graph({
       entity: "partners",
-      fields: ["admins.phone", "admins.is_active"],
+      fields: ["whatsapp_number", "whatsapp_verified", "admins.phone", "admins.is_active"],
       filters: { id: partnerId },
     })
 
-    const admins = partners?.[0]?.admins || []
+    const partner = partners?.[0]
+    if (!partner) return []
+
+    // Priority: dedicated whatsapp_number (if verified), then admin phones
+    if (partner.whatsapp_number && partner.whatsapp_verified) {
+      return [partner.whatsapp_number]
+    }
+
+    const admins = partner.admins || []
     return admins
       .filter((a: any) => a.is_active && a.phone)
       .map((a: any) => a.phone)
@@ -124,10 +133,15 @@ async function getDesignName(container: any, designId: string | null): Promise<s
   }
 }
 
-function buildPartnerWebUrl(runId: string): string {
+function buildPartnerWebUrl(runId: string, partnerId: string): string {
   const baseUrl = process.env.PARTNER_PORTAL_URL || process.env.MEDUSA_BACKEND_URL || ""
   if (!baseUrl) return ""
-  return `${baseUrl}/production-runs/${runId}`
+
+  const { url } = generatePartnerDeeplink(
+    { partner_id: partnerId, run_id: runId, type: "production_run" },
+    baseUrl
+  )
+  return url
 }
 
 export const config: SubscriberConfig = {

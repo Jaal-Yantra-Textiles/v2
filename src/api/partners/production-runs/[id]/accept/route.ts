@@ -105,5 +105,7 @@ export async function POST(
     }])
   } catch { /* non-fatal */ }
 
-  return res.status(200).json({ result })
+  // Normalize response shape to match other action routes
+  const production_run = (result as any)?.child || (result as any)?.production_run || result
+  return res.status(200).json({ production_run })
 }
