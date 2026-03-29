@@ -1,3 +1,17 @@
+# [12.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.2.0...v12.3.0) (2026-03-29)
+
+
+### Bug Fixes
+
+* **api:** Fixed the api to re-run production runs ([db4f3a0](https://github.com/Jaal-Yantra-Textiles/v2/commit/db4f3a041ff5134a066d53835f4f113a2e27bfb8))
+* **api:** Fixed the partner and production run API ([6be8464](https://github.com/Jaal-Yantra-Textiles/v2/commit/6be8464ddacf87385de04119ca51098ef1358290))
+
+
+### Features
+
+* **whatsapp:** Add partner WhatsApp number, deep-link auth, and OTP verification ([702f523](https://github.com/Jaal-Yantra-Textiles/v2/commit/702f5237605ae707c737351aa3480ca2151bff11))
+* **whatsapp:** Connect WhatsApp service to SocialPlatform for encrypted DB credentials ([974564c](https://github.com/Jaal-Yantra-Textiles/v2/commit/974564c1c9e387b4c2ca2d0ddd816f4db6b76b1b))
+
 # [12.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.1.14...v12.2.0) (2026-03-28)
 
 
