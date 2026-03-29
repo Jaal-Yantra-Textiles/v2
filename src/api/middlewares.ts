@@ -363,16 +363,18 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [],
     },
+    // WhatsApp deep-link auth — no partner auth required (token IS the auth)
+    // Must be before the /partners* catch-all
+    {
+      matcher: "/partners/wa-auth",
+      method: "GET",
+      middlewares: [],
+    },
     {
       matcher: "/partners*",
       middlewares: [
         createCorsPartnerMiddleware(),
       ],
-    },
-    {
-      matcher: "/partners/wa-auth",
-      method: "GET",
-      middlewares: [createCorsPartnerMiddleware()], // No auth — token is the auth
     },
     {
       matcher: "/partners/whatsapp-verify",

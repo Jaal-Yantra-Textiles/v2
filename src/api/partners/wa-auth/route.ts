@@ -1,6 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { verifyPartnerDeeplink } from "../../../modules/social-provider/whatsapp-deeplink"
+import { PARTNER_MODULE } from "../../../modules/partner"
 
 /**
  * GET /partners/wa-auth?wa_token=<jwt>
@@ -29,14 +30,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   // Verify the partner still exists
-  const query = req.scope.resolve("query") as any
-  const { data: partners } = await query.graph({
-    entity: "partners",
-    fields: ["id", "name", "status"],
-    filters: { id: payload.partnerId },
-  })
-
-  const partner = partners?.[0]
+  const partnerService = req.scope.resolve(PARTNER_MODULE) as any
+  const partner = await partnerService.retrievePartner(payload.partnerId).catch(() => null) as any
   if (!partner || partner.status === "inactive") {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
