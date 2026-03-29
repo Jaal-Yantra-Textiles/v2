@@ -30,6 +30,13 @@ export async function POST(
     )
   }
 
+  if (["completed", "cancelled"].includes(String((run as any).status))) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Cannot upload media to a ${(run as any).status} production run`
+    )
+  }
+
   const rawFiles = Array.isArray((req as any).files)
     ? (req as any).files
     : (req as any).file

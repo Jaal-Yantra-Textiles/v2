@@ -159,102 +159,92 @@ export const GET = async (
     return res.status(404).json({ error: "Design not found for this partner" })
   }
 
-  // Determine if the design was sent via workflow tasks by checking known titles
-  const tasks = (linkData.design?.tasks || []) as Array<{
-    title?: string
-    status?: string
-    updated_at?: string | Date | null
-    metadata?: Record<string, unknown> | null
-  }>
-  const isPartnerWorkflowTask = (t: any) =>
-    !!t && [
-      "partner-design-start",
-      "partner-design-redo",
-      "partner-design-finish",
-      "partner-design-completed",
-    ].includes(t.title)
-  const wfTasks = tasks.filter(isPartnerWorkflowTask)
-  const hasWorkflowTasks = wfTasks.length > 0
-
   // Use admin single-design workflow to fetch the full design shape
   const { result: workflowDesign } = await listSingleDesignsWorkflow(req.scope).run({
     input: { id: designId, fields: ["*"] },
   })
 
-  // Helper to find completed tasks by title
-  const findCompleted = (title: string) => wfTasks.find((t) => t.title === title && t.status === "completed")
-
-  const startTask = findCompleted("partner-design-start")
-  const redoTask = findCompleted("partner-design-redo")
-  const finishTask = findCompleted("partner-design-finish")
-  const completedTask = findCompleted("partner-design-completed")
-
-  // Check if assignment was cancelled
   const designMeta = (workflowDesign as any)?.metadata || (linkData.design as any)?.metadata || {}
   const wasCancelled = !!designMeta.partner_assignment_cancelled_at
 
-  // Prefer metadata from the design node (authoritative), then infer from tasks
-  let partner_status: "incoming" | "assigned" | "in_progress" | "finished" | "completed" | "cancelled" =
-    wasCancelled ? "cancelled" : (designMeta.partner_status || (hasWorkflowTasks ? "assigned" : "incoming"))
-  let partner_phase: "redo" | null = designMeta.partner_phase || null
-  let partner_started_at: string | null = ((workflowDesign as any)?.metadata?.partner_started_at as any) || ((linkData.design as any)?.metadata?.partner_started_at as any) || null
-  let partner_finished_at: string | null = ((workflowDesign as any)?.metadata?.partner_finished_at as any) || ((linkData.design as any)?.metadata?.partner_finished_at as any) || null
-  let partner_completed_at: string | null = ((workflowDesign as any)?.metadata?.partner_completed_at as any) || ((linkData.design as any)?.metadata?.partner_completed_at as any) || null
+  // Primary source: production runs (the single system post-v1 migration)
+  let partner_status: "incoming" | "assigned" | "in_progress" | "awaiting_review" | "finished" | "completed" | "cancelled" =
+    wasCancelled ? "cancelled" : "incoming"
+  let partner_phase: "redo" | null = null
+  let partner_started_at: string | null = null
+  let partner_finished_at: string | null = null
+  let partner_completed_at: string | null = null
+  let resolvedFromRun = false
 
-  if ((!partner_status || partner_status === "incoming" || partner_status === "assigned") && hasWorkflowTasks) {
-    if (completedTask) {
+  const { data: runs } = await query.graph({
+    entity: "production_runs",
+    filters: {
+      design_id: designId,
+      partner_id: partner.id,
+      status: { $nin: ["cancelled"] },
+    },
+    fields: ["id", "status", "accepted_at", "started_at", "finished_at", "completed_at"],
+    pagination: { skip: 0, take: 1 },
+  })
+  const activeRun = runs?.[0]
+  if (activeRun && !wasCancelled) {
+    resolvedFromRun = true
+    const runStatus = String(activeRun.status)
+    if (runStatus === "completed") {
       partner_status = "completed"
-      partner_completed_at = partner_completed_at || (completedTask.updated_at ? String(completedTask.updated_at) : null)
-    } else if (redoTask) {
-      // Prefer redo state whenever redo task is completed, regardless of timestamp ordering vs finish
-      partner_status = "in_progress"
-      partner_phase = "redo"
-    } else if (finishTask) {
-      partner_status = "finished"
-      partner_finished_at = partner_finished_at || (finishTask.updated_at ? String(finishTask.updated_at) : null)
-    } else if (startTask) {
-      partner_status = "in_progress"
-      partner_started_at = partner_started_at || (startTask.updated_at ? String(startTask.updated_at) : null)
+      partner_completed_at = activeRun.completed_at ? String(activeRun.completed_at) : null
+    } else if (runStatus === "in_progress") {
+      if (activeRun.finished_at) {
+        partner_status = "awaiting_review"
+      } else if (activeRun.started_at) {
+        partner_status = "in_progress"
+      } else {
+        partner_status = "assigned"
+      }
+    } else if (runStatus === "sent_to_partner") {
+      partner_status = "assigned"
     }
+    if (activeRun.accepted_at) partner_started_at = String(activeRun.accepted_at)
+    if (activeRun.started_at) partner_started_at = String(activeRun.started_at)
+    if (activeRun.finished_at) partner_finished_at = String(activeRun.finished_at)
   }
 
-  // Override with production run status if a run exists for this partner
-  try {
-    const { data: runs } = await query.graph({
-      entity: "production_runs",
-      filters: {
-        design_id: designId,
-        partner_id: partner.id,
-        status: { $nin: ["cancelled"] },
-      },
-      fields: ["id", "status", "accepted_at", "started_at", "finished_at", "completed_at"],
-      pagination: { skip: 0, take: 1 },
-    })
-    const activeRun = runs?.[0]
-    if (activeRun) {
-      const runStatus = String(activeRun.status)
-      if (runStatus === "sent_to_partner") {
-        partner_status = "assigned"
-      } else if (runStatus === "in_progress") {
-        if (activeRun.finished_at) {
-          partner_status = "awaiting_review" as any
-          partner_finished_at = partner_finished_at || String(activeRun.finished_at)
-        } else if (activeRun.started_at) {
-          partner_status = "in_progress"
-          partner_started_at = partner_started_at || String(activeRun.started_at)
-        } else {
-          partner_status = "assigned"
-        }
-      } else if (runStatus === "completed") {
+  // Legacy fallback: v1 workflow tasks (only for in-flight v1 designs without a production run)
+  if (!resolvedFromRun && !wasCancelled) {
+    const tasks = (linkData.design?.tasks || []) as Array<{
+      title?: string
+      status?: string
+      updated_at?: string | Date | null
+    }>
+    const v1TaskTitles = [
+      "partner-design-start",
+      "partner-design-redo",
+      "partner-design-finish",
+      "partner-design-completed",
+    ]
+    const wfTasks = tasks.filter((t) => !!t && v1TaskTitles.includes(t.title!))
+    if (wfTasks.length > 0) {
+      const findCompleted = (title: string) => wfTasks.find((t) => t.title === title && t.status === "completed")
+      const startTask = findCompleted("partner-design-start")
+      const redoTask = findCompleted("partner-design-redo")
+      const finishTask = findCompleted("partner-design-finish")
+      const completedTask = findCompleted("partner-design-completed")
+
+      partner_status = "assigned"
+      if (completedTask) {
         partner_status = "completed"
-        partner_completed_at = partner_completed_at || String(activeRun.completed_at)
-      }
-      if (activeRun.finished_at) {
-        partner_finished_at = partner_finished_at || String(activeRun.finished_at)
+        partner_completed_at = completedTask.updated_at ? String(completedTask.updated_at) : null
+      } else if (redoTask) {
+        partner_status = "in_progress"
+        partner_phase = "redo"
+      } else if (finishTask) {
+        partner_status = "finished"
+        partner_finished_at = finishTask.updated_at ? String(finishTask.updated_at) : null
+      } else if (startTask) {
+        partner_status = "in_progress"
+        partner_started_at = startTask.updated_at ? String(startTask.updated_at) : null
       }
     }
-  } catch {
-    // Non-fatal
   }
 
   const partner_info = {
@@ -264,7 +254,6 @@ export const GET = async (
     partner_started_at,
     partner_finished_at,
     partner_completed_at,
-    workflow_tasks_count: wfTasks.length,
   }
 
   // Fetch linked inventory items (with raw_materials and stock_locations) for partner UI consumption list

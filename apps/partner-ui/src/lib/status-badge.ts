@@ -33,7 +33,12 @@ export const getStatusBadgeColor = (
     case "awaiting review":
     case "technical_review":
     case "under_review":
+    case "sent_to_partner":
       return "blue"
+
+    case "approved":
+    case "commerce_ready":
+      return "green"
 
     case "failed":
     case "canceled":

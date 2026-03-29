@@ -223,11 +223,14 @@ const ProgressStepper = ({ run }: { run: any }) => {
   const status = String(run.status || "")
   if (status === "cancelled") return null
 
+  // Determine step from timestamps first, fall back to status field
+  // (handles cases where status was set via task-completion subscriber without lifecycle timestamps)
   let currentIdx = 0
-  if (run.completed_at) currentIdx = 4
+  if (run.completed_at || status === "completed") currentIdx = 4
   else if (run.finished_at) currentIdx = 3
-  else if (run.started_at) currentIdx = 2
+  else if (run.started_at || status === "in_progress") currentIdx = 2
   else if (run.accepted_at) currentIdx = 1
+  else if (status === "sent_to_partner") currentIdx = 0
 
   return (
     <div className="flex items-center gap-1 px-6 py-3">

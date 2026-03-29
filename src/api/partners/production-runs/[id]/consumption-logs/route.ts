@@ -102,8 +102,18 @@ export const GET = async (
   }
 
   const designId = (run as any).design_id
+  if (!designId) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Production run has no design linked"
+    )
+  }
+
   const query = req.query as Record<string, any>
 
+  // Fetch all logs for this design (no pagination at workflow level)
+  // then post-filter to this run. This avoids the pagination + post-filter
+  // interaction bug where page boundaries could hide matching logs.
   const { result, errors } = await listConsumptionLogsWorkflow(req.scope).run({
     input: {
       design_id: designId,
@@ -116,8 +126,8 @@ export const GET = async (
         consumed_by: query.consumed_by,
         inventory_item_id: query.inventory_item_id,
       },
-      limit: query.limit ? parseInt(query.limit, 10) : undefined,
-      offset: query.offset ? parseInt(query.offset, 10) : undefined,
+      limit: 500,
+      offset: 0,
     },
   })
 
@@ -128,5 +138,21 @@ export const GET = async (
     )
   }
 
-  res.status(200).json(result)
+  // Scope to this production run — logs carry production_run_id in metadata
+  const allLogs = (result as any)?.logs || []
+  const scopedLogs = allLogs.filter(
+    (log: any) => log.metadata?.production_run_id === id
+  )
+
+  // Apply pagination on the run-scoped result
+  const limit = query.limit ? parseInt(query.limit, 10) : 50
+  const offset = query.offset ? parseInt(query.offset, 10) : 0
+  const paginatedLogs = scopedLogs.slice(offset, offset + limit)
+
+  res.status(200).json({
+    logs: paginatedLogs,
+    count: scopedLogs.length,
+    limit,
+    offset,
+  })
 }
