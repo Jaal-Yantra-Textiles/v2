@@ -176,6 +176,9 @@ export const GET = async (
   let partner_completed_at: string | null = null
   let resolvedFromRun = false
 
+  // Fetch all non-cancelled runs for this design+partner, then pick the most
+  // relevant one. Priority: active runs (in_progress, sent_to_partner) over completed.
+  // This handles the case where a second run is created after the first completes.
   const { data: runs } = await query.graph({
     entity: "production_runs",
     filters: {
@@ -184,9 +187,14 @@ export const GET = async (
       status: { $nin: ["cancelled"] },
     },
     fields: ["id", "status", "accepted_at", "started_at", "finished_at", "completed_at"],
-    pagination: { skip: 0, take: 1 },
+    pagination: { skip: 0, take: 10 },
   })
-  const activeRun = runs?.[0]
+  const allRuns = (runs || []) as any[]
+  // Prefer an active run over a completed one
+  const activeRun =
+    allRuns.find((r) => ["in_progress", "sent_to_partner", "approved", "pending_review"].includes(String(r.status))) ||
+    allRuns.find((r) => String(r.status) === "completed") ||
+    allRuns[0] || null
   if (activeRun && !wasCancelled) {
     resolvedFromRun = true
     const runStatus = String(activeRun.status)
