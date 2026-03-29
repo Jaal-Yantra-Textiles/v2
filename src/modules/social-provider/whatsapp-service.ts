@@ -1,7 +1,19 @@
 import { MedusaError } from "@medusajs/utils"
+import type { MedusaContainer } from "@medusajs/framework/types"
+import { SOCIALS_MODULE } from "../socials"
+import { ENCRYPTION_MODULE } from "../encryption"
+import type EncryptionService from "../encryption/service"
+import type { EncryptedData } from "../encryption"
 
 const GRAPH_API_VERSION = "v21.0"
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`
+
+export interface WhatsAppConfig {
+  phoneNumberId: string
+  accessToken: string
+  webhookVerifyToken: string
+  appSecret: string
+}
 
 export interface WhatsAppMessageResponse {
   messaging_product: string
@@ -30,23 +42,113 @@ export interface WhatsAppInteractiveMessage {
 }
 
 export default class WhatsAppService {
-  private readonly phoneNumberId: string
-  private readonly accessToken: string
-  private readonly webhookVerifyToken: string
-  private readonly appSecret: string
+  private phoneNumberId: string
+  private accessToken: string
+  private webhookVerifyToken: string
+  private appSecret: string
+  private appContainer_?: MedusaContainer
+  private platformLoaded_ = false
 
   constructor() {
+    // Start with env vars as defaults
     this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || ""
     this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN || ""
     this.webhookVerifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || ""
     this.appSecret = process.env.WHATSAPP_APP_SECRET || process.env.FACEBOOK_CLIENT_SECRET || ""
   }
 
-  getWebhookVerifyToken(): string {
+  /**
+   * Set the app-level Medusa container (NOT the module container).
+   * Required for loading config from SocialPlatform in the database.
+   * Callers pass req.scope (routes) or container (subscribers/steps).
+   */
+  setAppContainer(container: MedusaContainer): void {
+    this.appContainer_ = container
+  }
+
+  /**
+   * Load WhatsApp config from SocialPlatform (database).
+   * Overwrites env-var defaults if a WhatsApp platform record exists.
+   */
+  private async loadFromPlatform(): Promise<void> {
+    if (this.platformLoaded_ || !this.appContainer_) return
+    this.platformLoaded_ = true
+
+    try {
+      const socialsService = this.appContainer_.resolve(SOCIALS_MODULE) as any
+      const allComm = await socialsService.listSocialPlatforms(
+        { category: "communication", status: "active" }
+      )
+
+      const list = Array.isArray(allComm) ? allComm : [allComm]
+      const platform = list.find(
+        (p: any) => p?.api_config?.provider === "whatsapp" || p?.name === "WhatsApp"
+      )
+      if (!platform) return
+
+      const apiConfig = platform.api_config as Record<string, any> | null
+      if (!apiConfig) return
+
+      const encryptionService = this.appContainer_.resolve(ENCRYPTION_MODULE) as EncryptionService
+
+      // Decrypt access token
+      if (apiConfig.access_token_encrypted) {
+        try {
+          this.accessToken = encryptionService.decrypt(apiConfig.access_token_encrypted as EncryptedData)
+        } catch {
+          if (apiConfig.access_token) this.accessToken = apiConfig.access_token
+        }
+      } else if (apiConfig.access_token) {
+        this.accessToken = apiConfig.access_token
+      }
+
+      // Decrypt app secret
+      if (apiConfig.app_secret_encrypted) {
+        try {
+          this.appSecret = encryptionService.decrypt(apiConfig.app_secret_encrypted as EncryptedData)
+        } catch {
+          if (apiConfig.app_secret) this.appSecret = apiConfig.app_secret
+        }
+      } else if (apiConfig.app_secret) {
+        this.appSecret = apiConfig.app_secret
+      }
+
+      // Decrypt webhook verify token
+      if (apiConfig.webhook_verify_token_encrypted) {
+        try {
+          this.webhookVerifyToken = encryptionService.decrypt(apiConfig.webhook_verify_token_encrypted as EncryptedData)
+        } catch {
+          if (apiConfig.webhook_verify_token) this.webhookVerifyToken = apiConfig.webhook_verify_token
+        }
+      } else if (apiConfig.webhook_verify_token) {
+        this.webhookVerifyToken = apiConfig.webhook_verify_token
+      }
+
+      // Phone number ID is not sensitive — stored as plaintext
+      if (apiConfig.phone_number_id) {
+        this.phoneNumberId = apiConfig.phone_number_id
+      }
+    } catch (err) {
+      console.warn("[WhatsApp] Failed to load config from SocialPlatform, using env vars:", (err as Error).message)
+    }
+  }
+
+  /**
+   * Ensure config is loaded from DB before use
+   */
+  private async ensureConfig(): Promise<void> {
+    if (!this.platformLoaded_) {
+      await this.loadFromPlatform()
+    }
+  }
+
+  async getWebhookVerifyToken(): Promise<string> {
+    await this.ensureConfig()
     return this.webhookVerifyToken
   }
 
-  getAppSecret(): string {
+  async getAppSecret(): Promise<string> {
+    await this.ensureConfig()
     return this.appSecret
   }
 
@@ -270,10 +372,12 @@ export default class WhatsAppService {
   }
 
   private async sendRequest(payload: any): Promise<WhatsAppMessageResponse> {
+    await this.ensureConfig()
+
     if (!this.phoneNumberId || !this.accessToken) {
       throw new MedusaError(
         MedusaError.Types.INVALID_ARGUMENT,
-        "WhatsApp: WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN are required"
+        "WhatsApp: phone_number_id and access_token are required. Configure via SocialPlatform or env vars."
       )
     }
 

@@ -95,7 +95,7 @@ import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/t
 import { createStoreSchema } from "./admin/stores/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
-import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema } from "./admin/social-platforms/validators";
+import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema, ConnectWhatsAppSchema } from "./admin/social-platforms/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
 import { StoreTryOnReqSchema } from "./store/ai/tryon/validators";
 import { AccessFeeConfirmSchema } from "./store/ai/accessfee/validators";
@@ -2838,6 +2838,12 @@ export default defineMiddlewares({
       matcher: "/admin/social-platforms",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(SocialPlatformSchema))],
+    },
+
+    {
+      matcher: "/admin/social-platforms/whatsapp/connect",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(ConnectWhatsAppSchema))],
     },
 
     {

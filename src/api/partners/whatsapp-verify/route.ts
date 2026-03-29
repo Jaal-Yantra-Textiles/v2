@@ -58,7 +58,7 @@ export const POST = async (
   // Send OTP via WhatsApp
   try {
     const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-    const whatsapp = socialProvider.getWhatsApp()
+    const whatsapp = socialProvider.getWhatsApp(req.scope)
 
     await whatsapp.sendTextMessage(
       normalized,
@@ -125,7 +125,7 @@ async function verifyOtp(
   // Send confirmation via WhatsApp
   try {
     const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-    const whatsapp = socialProvider.getWhatsApp()
+    const whatsapp = socialProvider.getWhatsApp(req.scope)
 
     await whatsapp.sendTextMessage(
       stored.phone,

@@ -37,7 +37,7 @@ export default async function whatsappPartnerNotificationHandler({
 
   try {
     const socialProvider = container.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-    const whatsapp = socialProvider.getWhatsApp()
+    const whatsapp = socialProvider.getWhatsApp(container)
 
     // Resolve the production run to get partner_id
     const productionRunService: ProductionRunService = container.resolve(PRODUCTION_RUNS_MODULE)

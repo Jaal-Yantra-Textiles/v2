@@ -95,7 +95,7 @@ export async function handleIncomingMessage(
   scope: any,
   message: IncomingMessage
 ): Promise<HandlerResult> {
-  const whatsapp = (scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService).getWhatsApp()
+  const whatsapp = (scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService).getWhatsApp(scope)
 
   // Mark message as read
   await whatsapp.markAsRead(message.messageId)
