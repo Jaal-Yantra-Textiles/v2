@@ -251,6 +251,79 @@ setupSharedTestSuite(() => {
         expect(lineItem.unit_price).toBe(overridePrice);
         expect(lineItem.metadata?.original_currency).toBeUndefined();
       });
+
+      it("should not convert when override_currency matches cart currency", async () => {
+        const { api } = getSharedTestEnv();
+        const designId = await createLinkedDesign("override-inr-to-inr");
+        const overridePrice = 7300;
+
+        // override_currency=inr, cart currency=inr → no conversion
+        const response = await safePost(
+          api,
+          `/admin/customers/${customerId}/design-order`,
+          {
+            design_ids: [designId],
+            currency_code: "inr",
+            price_overrides: { [designId]: overridePrice },
+            override_currency: "inr",
+          },
+          adminHeaders
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data.cart.currency_code).toBe("inr");
+
+        const cartService = getSharedTestEnv()
+          .getContainer()
+          .resolve(Modules.CART) as any;
+        const lineItems = await cartService.listLineItems({
+          cart_id: response.data.cart.id,
+        });
+
+        const lineItem = lineItems[0];
+        // Price should remain unchanged — INR in, INR cart
+        expect(lineItem.unit_price).toBe(overridePrice);
+        expect(lineItem.metadata?.original_currency).toBeUndefined();
+      });
+
+      it("should convert override_currency to different cart currency", async () => {
+        const { api } = getSharedTestEnv();
+        const designId = await createLinkedDesign("override-inr-to-eur");
+        const overridePrice = 7300;
+
+        // override_currency=inr, cart currency=storeDefault (eur) → should convert INR→EUR
+        // We use storeDefaultCurrency as target because otherCurrency is "inr" (same as override)
+        const targetCurrency = storeDefaultCurrency === "inr" ? "eur" : storeDefaultCurrency;
+
+        const response = await safePost(
+          api,
+          `/admin/customers/${customerId}/design-order`,
+          {
+            design_ids: [designId],
+            currency_code: targetCurrency,
+            price_overrides: { [designId]: overridePrice },
+            override_currency: "inr",
+          },
+          adminHeaders
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data.cart.currency_code).toBe(targetCurrency);
+
+        const cartService = getSharedTestEnv()
+          .getContainer()
+          .resolve(Modules.CART) as any;
+        const lineItems = await cartService.listLineItems({
+          cart_id: response.data.cart.id,
+        });
+
+        const lineItem = lineItems[0];
+        // Price should be converted from INR → EUR (different currencies)
+        expect(lineItem.unit_price).toBeGreaterThan(0);
+        expect(lineItem.unit_price).not.toBe(overridePrice);
+        expect(lineItem.metadata?.original_currency).toBe("inr");
+        expect(lineItem.metadata?.original_amount).toBe(overridePrice);
+      });
     });
 
     describe("POST /store/custom/designs/:id/checkout (store checkout)", () => {
@@ -368,6 +441,141 @@ setupSharedTestSuite(() => {
         expect(adminPrice).toBeGreaterThan(0);
         expect(adminPrice).not.toBe(5000);
         expect(storeRes.data.price).toBeGreaterThan(0);
+      });
+    });
+
+    describe("Store cart API returns correct data for design-order carts", () => {
+      it("should return INR cart with correct prices via store cart API", async () => {
+        const { api } = getSharedTestEnv();
+        const designId = await createLinkedDesign("store-cart-inr");
+        const overridePrice = 7300;
+
+        // Create a design order with INR overrides, INR cart
+        const orderRes = await safePost(
+          api,
+          `/admin/customers/${customerId}/design-order`,
+          {
+            design_ids: [designId],
+            currency_code: "inr",
+            price_overrides: { [designId]: overridePrice },
+            override_currency: "inr",
+          },
+          adminHeaders
+        );
+
+        expect(orderRes.status).toBe(200);
+        const cartId = orderRes.data.cart.id;
+
+        // Fetch cart via store API (as customer with publishable key)
+        const cartRes = await api.get(`/store/carts/${cartId}`, customerHeaders);
+
+        expect(cartRes.status).toBe(200);
+        const cart = cartRes.data.cart;
+
+        // Cart should be in INR
+        expect(cart.currency_code).toBe("inr");
+
+        // Line items should have the correct INR price (no conversion)
+        expect(cart.items).toBeDefined();
+        expect(cart.items.length).toBe(1);
+
+        const lineItem = cart.items[0];
+        expect(lineItem.unit_price).toBe(overridePrice);
+        expect(lineItem.title).toBeDefined();
+        expect(lineItem.metadata?.design_id).toBe(designId);
+        expect(lineItem.metadata?.cost_confidence).toBe("manual");
+        // No original_currency since no conversion happened
+        expect(lineItem.metadata?.original_currency).toBeUndefined();
+      });
+
+      it("should return EUR cart with converted prices via store cart API", async () => {
+        const { api } = getSharedTestEnv();
+        const designId = await createLinkedDesign("store-cart-eur");
+        const overridePrice = 7300;
+
+        // Create a design order with INR overrides, EUR cart
+        const orderRes = await safePost(
+          api,
+          `/admin/customers/${customerId}/design-order`,
+          {
+            design_ids: [designId],
+            currency_code: "eur",
+            price_overrides: { [designId]: overridePrice },
+            override_currency: "inr",
+          },
+          adminHeaders
+        );
+
+        expect(orderRes.status).toBe(200);
+        const cartId = orderRes.data.cart.id;
+
+        // Fetch cart via store API
+        const cartRes = await api.get(`/store/carts/${cartId}`, customerHeaders);
+
+        expect(cartRes.status).toBe(200);
+        const cart = cartRes.data.cart;
+
+        // Cart should be in EUR
+        expect(cart.currency_code).toBe("eur");
+
+        // Line items should have converted price (INR→EUR)
+        expect(cart.items).toBeDefined();
+        expect(cart.items.length).toBe(1);
+
+        const lineItem = cart.items[0];
+        // Price should be converted from INR to EUR (much smaller number)
+        expect(lineItem.unit_price).toBeGreaterThan(0);
+        expect(lineItem.unit_price).not.toBe(overridePrice);
+        // EUR price of ₹7300 should be roughly €60-90 (depends on exchange rate)
+        expect(lineItem.unit_price).toBeLessThan(overridePrice);
+
+        // Metadata should track the original INR amount
+        expect(lineItem.metadata?.design_id).toBe(designId);
+        expect(lineItem.metadata?.original_currency).toBe("inr");
+        expect(lineItem.metadata?.original_amount).toBe(overridePrice);
+      });
+
+      it("should return multi-design INR cart with all items via store cart API", async () => {
+        const { api } = getSharedTestEnv();
+        const designId1 = await createLinkedDesign("store-multi-1");
+        const designId2 = await createLinkedDesign("store-multi-2");
+
+        // Create a design order with multiple designs, INR overrides, INR cart
+        const orderRes = await safePost(
+          api,
+          `/admin/customers/${customerId}/design-order`,
+          {
+            design_ids: [designId1, designId2],
+            currency_code: "inr",
+            price_overrides: {
+              [designId1]: 7300,
+              [designId2]: 7180,
+            },
+            override_currency: "inr",
+          },
+          adminHeaders
+        );
+
+        expect(orderRes.status).toBe(200);
+        const cartId = orderRes.data.cart.id;
+
+        // Fetch cart via store API
+        const cartRes = await api.get(`/store/carts/${cartId}`, customerHeaders);
+
+        expect(cartRes.status).toBe(200);
+        const cart = cartRes.data.cart;
+
+        expect(cart.currency_code).toBe("inr");
+        expect(cart.items).toBeDefined();
+        expect(cart.items.length).toBe(2);
+
+        // Both items should have correct INR prices
+        const prices = cart.items.map((i: any) => i.unit_price).sort();
+        expect(prices).toEqual([7180, 7300]);
+
+        // Both items should have design metadata
+        const designIds = cart.items.map((i: any) => i.metadata?.design_id).sort();
+        expect(designIds).toEqual([designId1, designId2].sort());
       });
     });
   });

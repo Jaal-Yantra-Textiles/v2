@@ -11,22 +11,35 @@ import {
 import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
 
-export type DesignOrderItem = {
+export type DesignOrderLineItem = {
   design: {
     id: string;
     name: string;
     status: string;
+    estimated_cost?: number;
   };
+  line_item_id: string;
+  price: number;
+  metadata: Record<string, any> | null;
+  added_at: string;
+};
+
+export type DesignOrderItem = {
+  cart_id: string;
+  cart: {
+    id: string;
+    currency_code: string;
+    metadata: Record<string, any> | null;
+    created_at: string;
+    completed_at: string | null;
+  } | null;
   customer: {
     id: string;
     email: string;
     first_name: string;
     last_name: string;
   } | null;
-  line_item_id: string;
-  cart_id: string;
-  price: number;
-  added_at: string;
+  items: DesignOrderLineItem[];
   order: {
     id: string;
     display_id: number;
@@ -38,6 +51,46 @@ export type DesignOrderItem = {
     created_at: string;
     canceled_at: string | null;
   } | null;
+  created_at: string | null;
+  total_price: number;
+};
+
+/** Single design-order detail (returned by GET /admin/designs/orders/:lineItemId) */
+export type DesignOrderDetail = {
+  design: {
+    id: string;
+    name: string;
+    status: string;
+    description?: string;
+    thumbnail_url?: string;
+    estimated_cost?: number;
+    design_type?: string;
+  };
+  customer: {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+  } | null;
+  line_item_id: string;
+  cart_id: string;
+  title: string | null;
+  price: number;
+  quantity: number;
+  added_at: string;
+  metadata: Record<string, any> | null;
+  order: {
+    id: string;
+    display_id: number;
+    status: string;
+    payment_status: string;
+    fulfillment_status: string;
+    total: number;
+    currency_code: string;
+    created_at: string;
+    canceled_at: string | null;
+  } | null;
+  checkout_url: string | null;
 };
 
 export type DesignOrdersQuery = {
@@ -94,9 +147,9 @@ export const useDesignOrder = (
   lineItemId: string,
   options?: Omit<
     UseQueryOptions<
-      { design_order: DesignOrderItem },
+      { design_order: DesignOrderDetail },
       FetchError,
-      { design_order: DesignOrderItem },
+      { design_order: DesignOrderDetail },
       QueryKey
     >,
     "queryFn" | "queryKey"
@@ -104,7 +157,7 @@ export const useDesignOrder = (
 ) => {
   const { data, ...rest } = useQuery({
     queryFn: async () =>
-      sdk.client.fetch<{ design_order: DesignOrderItem }>(
+      sdk.client.fetch<{ design_order: DesignOrderDetail }>(
         `/admin/designs/orders/${lineItemId}`,
         { method: "GET" }
       ),

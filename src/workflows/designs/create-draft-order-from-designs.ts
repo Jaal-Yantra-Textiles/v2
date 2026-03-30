@@ -18,6 +18,8 @@ type CreateDraftOrderFromDesignsInput = {
   design_ids: string[]
   currency_code?: string
   price_overrides?: Record<string, number>
+  /** Currency of price_overrides (e.g. "inr"). Defaults to store default. */
+  override_currency?: string
 }
 
 type DesignEstimate = {
@@ -25,6 +27,8 @@ type DesignEstimate = {
   name: string
   unit_price: number
   confidence: string
+  /** Currency this estimate is denominated in (set by estimate step) */
+  source_currency?: string
   original_price?: number
   original_currency?: string
 }
@@ -34,7 +38,11 @@ type DesignEstimate = {
 const estimateDesignCostsStep = createStep(
   "estimate-design-costs-step",
   async (
-    input: { design_ids: string[]; price_overrides?: Record<string, number> },
+    input: {
+      design_ids: string[]
+      price_overrides?: Record<string, number>
+      override_currency?: string
+    },
     { container }
   ) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
@@ -60,6 +68,8 @@ const estimateDesignCostsStep = createStep(
           name: design.name,
           unit_price: overrides[design_id],
           confidence: "manual",
+          // Tag with the override currency so the conversion step knows
+          source_currency: input.override_currency?.toLowerCase(),
         })
       } else {
         const { result: costEstimate } = await estimateDesignCostWorkflow(
@@ -71,6 +81,7 @@ const estimateDesignCostsStep = createStep(
           name: design.name,
           unit_price: costEstimate.total_estimated,
           confidence: costEstimate.confidence,
+          // Estimation results are in store default currency (no tag = use store default)
         })
       }
     }
@@ -83,6 +94,10 @@ const estimateDesignCostsStep = createStep(
 //
 // Fetches live exchange rates from the Frankfurter API (ECB data, free, no key).
 // Rates update once per business day. Results are cached in-memory for 1 hour.
+//
+// Handles two source currencies:
+//   - Estimated prices: assumed to be in store default currency
+//   - Manual overrides: in override_currency (if provided), else store default
 
 type FrankfurterResponse = {
   base: string
@@ -154,8 +169,17 @@ const convertEstimateCurrencyStep = createStep(
       "inr"
     ).toLowerCase()
 
-    // If target matches the store default, no conversion needed
-    if (targetCurrency === defaultCurrency) {
+    // Collect unique source currencies we need rates for
+    const sourceCurrencies = new Set<string>()
+    for (const est of input.estimates) {
+      const src = est.source_currency || defaultCurrency
+      if (src !== targetCurrency) {
+        sourceCurrencies.add(src)
+      }
+    }
+
+    // If no conversion needed for any estimate, return as-is
+    if (sourceCurrencies.size === 0) {
       return new StepResponse({
         estimates: input.estimates,
         exchange_rate: 1,
@@ -164,19 +188,33 @@ const convertEstimateCurrencyStep = createStep(
       })
     }
 
-    // Fetch live exchange rate from store default → target currency
-    const rate = await fetchExchangeRate(defaultCurrency, targetCurrency)
+    // Fetch exchange rates for each unique source currency → target
+    const rates: Record<string, number> = {}
+    for (const src of sourceCurrencies) {
+      rates[src] = await fetchExchangeRate(src, targetCurrency)
+    }
 
-    const converted: DesignEstimate[] = input.estimates.map((est) => ({
-      ...est,
-      original_price: est.unit_price,
-      original_currency: defaultCurrency,
-      unit_price: applyRate(est.unit_price, rate),
-    }))
+    const converted: DesignEstimate[] = input.estimates.map((est) => {
+      const srcCurrency = est.source_currency || defaultCurrency
+      const rate = rates[srcCurrency] ?? 1
+
+      if (rate === 1 && srcCurrency === targetCurrency) {
+        // No conversion needed for this estimate
+        return { ...est, source_currency: undefined }
+      }
+
+      return {
+        ...est,
+        original_price: est.unit_price,
+        original_currency: srcCurrency,
+        unit_price: applyRate(est.unit_price, rate),
+        source_currency: undefined,
+      }
+    })
 
     return new StepResponse({
       estimates: converted,
-      exchange_rate: rate,
+      exchange_rate: Object.values(rates)[0] ?? 1,
       base_currency: defaultCurrency,
       target_currency: targetCurrency,
     })
@@ -341,9 +379,10 @@ export const createDraftOrderFromDesignsWorkflow = createWorkflow(
     const estimatesResult = estimateDesignCostsStep({
       design_ids: input.design_ids,
       price_overrides: input.price_overrides,
+      override_currency: input.override_currency,
     })
 
-    // Convert prices from store default currency to target currency
+    // Convert prices from source currency to target currency
     const convertedResult = convertEstimateCurrencyStep({
       estimates: estimatesResult.estimates as unknown as DesignEstimate[],
       target_currency: input.currency_code as unknown as string,

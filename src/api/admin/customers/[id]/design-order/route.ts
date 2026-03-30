@@ -5,6 +5,8 @@ type CreateDesignOrderBody = {
   design_ids: string[]
   currency_code?: string
   price_overrides?: Record<string, number>
+  /** Currency of price_overrides (e.g. "inr"). Defaults to store default. */
+  override_currency?: string
 }
 
 export const POST = async (
@@ -12,7 +14,7 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   const { id: customer_id } = req.params
-  const { design_ids, currency_code, price_overrides } = req.validatedBody as CreateDesignOrderBody
+  const { design_ids, currency_code, price_overrides, override_currency } = req.validatedBody as CreateDesignOrderBody
 
   const { result: cart } = await createDraftOrderFromDesignsWorkflow(
     req.scope
@@ -22,6 +24,7 @@ export const POST = async (
       design_ids,
       currency_code,
       price_overrides,
+      override_currency,
     },
   })
 
