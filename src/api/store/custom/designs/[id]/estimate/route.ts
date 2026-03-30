@@ -5,6 +5,10 @@ import {
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { estimateDesignCostWorkflow } from "../../../../../../workflows/designs/estimate-design-cost";
 import designCustomerLink from "../../../../../../links/design-customer-link";
+import {
+  fetchExchangeRate,
+  applyRate,
+} from "../../../../../../workflows/designs/create-draft-order-from-designs";
 
 /**
  * GET /store/custom/designs/:id/estimate
@@ -16,6 +20,8 @@ import designCustomerLink from "../../../../../../links/design-customer-link";
  *
  * Query parameters:
  * - inventory_item_ids: Comma-separated list of inventory item IDs to override the default linked items
+ * - currency_code: Target currency for the estimate (e.g. "eur"). If provided, costs are
+ *   converted from the store default currency. If omitted, costs are in the store default.
  *
  * Confidence levels:
  * - "exact"       All materials priced from real order history
@@ -59,13 +65,38 @@ export async function GET(
     throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "Failed to estimate design cost");
   }
 
+  // Determine the store's default currency (estimates are in this currency)
+  const { data: stores } = await (query as any).graph({
+    entity: "store",
+    filters: {},
+    fields: ["supported_currencies.currency_code", "supported_currencies.is_default"],
+  });
+  const storeCurrency = (
+    stores?.[0]?.supported_currencies?.find((sc: any) => sc.is_default)?.currency_code ||
+    "eur"
+  ).toLowerCase();
+
+  // Optional: convert to the requested currency
+  const targetCurrency = ((req.query.currency_code as string) || "").toLowerCase() || storeCurrency;
+  let materialCost = result.material_cost;
+  let productionCost = result.production_cost;
+  let totalEstimated = result.total_estimated;
+
+  if (targetCurrency !== storeCurrency) {
+    const rate = await fetchExchangeRate(storeCurrency, targetCurrency);
+    materialCost = applyRate(materialCost, rate);
+    productionCost = applyRate(productionCost, rate);
+    totalEstimated = applyRate(totalEstimated, rate);
+  }
+
   res.status(200).json({
     costs: {
-      material_cost: result.material_cost,
-      production_cost: result.production_cost,
-      total_estimated: result.total_estimated,
+      material_cost: materialCost,
+      production_cost: productionCost,
+      total_estimated: totalEstimated,
       confidence: result.confidence,
     },
+    currency_code: targetCurrency,
     breakdown: result.breakdown,
     similar_designs: result.similar_designs,
   });
