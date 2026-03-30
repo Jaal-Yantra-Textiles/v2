@@ -1,3 +1,11 @@
+## [12.3.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.3.0...v12.3.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* **api:** Sort all runs for the design by created_at DESC (newest first) ([b6670c4](https://github.com/Jaal-Yantra-Textiles/v2/commit/b6670c4a0898352e5c7296f72f95fb0048ade173))
+* UI Fix at the partner UI ([2c123a5](https://github.com/Jaal-Yantra-Textiles/v2/commit/2c123a54cf894f73a9e5bc6da3e2c6f1f1aad36b))
+
 # [12.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.2.0...v12.3.0) (2026-03-29)
 
 
