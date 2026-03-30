@@ -15,6 +15,7 @@ import {
   checkoutDesign,
   CostEstimate,
 } from "@lib/data/designs"
+import { getRegion } from "@lib/data/regions"
 
 type DesignCheckoutModalProps = {
   isOpen: boolean
@@ -44,11 +45,17 @@ export function DesignCheckoutModal({
   const [success, setSuccess] = useState(false)
 
   // Fetch estimate when modal opens — only if material and partner are set
+  // Resolves the customer's region currency so estimates display in local currency
   useEffect(() => {
     if (isOpen && designId && !estimate && !missingSetup) {
       setIsLoadingEstimate(true)
       setError(null)
-      getDesignEstimate(designId)
+
+      getRegion(countryCode)
+        .then((region) => {
+          const currencyCode = region?.currency_code
+          return getDesignEstimate(designId, currencyCode ? { currency_code: currencyCode } : undefined)
+        })
         .then((data) => {
           setEstimate(data)
         })
@@ -60,7 +67,7 @@ export function DesignCheckoutModal({
           setIsLoadingEstimate(false)
         })
     }
-  }, [isOpen, designId, estimate, missingSetup])
+  }, [isOpen, designId, estimate, missingSetup, countryCode])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -99,10 +106,12 @@ export function DesignCheckoutModal({
 
   if (!isOpen) return null
 
+  const estimateCurrency = estimate?.currency_code?.toUpperCase() || "INR"
   const formatPrice = (amount: number) => {
-    return new Intl.NumberFormat("en-IN", {
+    const locale = estimateCurrency === "INR" ? "en-IN" : estimateCurrency === "EUR" ? "de-DE" : "en-US"
+    return new Intl.NumberFormat(locale, {
       style: "currency",
-      currency: "INR",
+      currency: estimateCurrency,
     }).format(amount)
   }
 

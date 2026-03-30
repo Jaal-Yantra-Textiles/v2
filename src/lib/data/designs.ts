@@ -243,6 +243,7 @@ export type CostEstimate = {
     total_estimated: number
     confidence: "exact" | "estimated" | "guesstimate"
   }
+  currency_code: string
   breakdown: {
     materials: Array<{
       inventory_item_id: string
@@ -269,13 +270,20 @@ export type CheckoutDesignResponse = {
 }
 
 /**
- * Gets cost estimate for a design
+ * Gets cost estimate for a design.
+ * Pass currency_code to get the estimate converted to the customer's local currency.
  */
 export const getDesignEstimate = async (
-  designId: string
+  designId: string,
+  options?: { currency_code?: string }
 ): Promise<CostEstimate> => {
   const headers = {
     ...(await getAuthHeaders()),
+  }
+
+  const query: Record<string, string> = {}
+  if (options?.currency_code) {
+    query.currency_code = options.currency_code
   }
 
   try {
@@ -284,6 +292,7 @@ export const getDesignEstimate = async (
       {
         method: "GET",
         headers,
+        query,
       }
     )
 
