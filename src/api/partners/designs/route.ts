@@ -230,7 +230,11 @@ export async function GET(
     }
 
     // Override with production run status if a run exists for this partner + design
-    const activeRun = partnerRuns.find((r: any) => r.design_id === design.id)
+    // Prefer the most recent non-terminal (not completed) run; fall back to most recent overall
+    const runsForDesign = partnerRuns
+      .filter((r: any) => r.design_id === design.id)
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    const activeRun = runsForDesign.find((r: any) => !["completed", "cancelled"].includes(r.status)) || runsForDesign[0]
     if (activeRun) {
       const runStatus = String(activeRun.status)
       if (runStatus === "sent_to_partner") {
