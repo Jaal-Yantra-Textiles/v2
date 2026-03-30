@@ -79,7 +79,8 @@ export function DesignCheckoutModal({
 
     try {
       // Checkout adds the custom line item directly to the cart
-      const result = await checkoutDesign(designId, { currency_code: "usd" })
+      // Currency is determined by the cart's region — no need to pass it explicitly
+      const result = await checkoutDesign(designId)
 
       if (!result.line_item_id) {
         throw new Error("Checkout did not return a line item")
@@ -99,10 +100,10 @@ export function DesignCheckoutModal({
   if (!isOpen) return null
 
   const formatPrice = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-IN", {
       style: "currency",
-      currency: "USD",
-    }).format(amount / 100)
+      currency: "INR",
+    }).format(amount)
   }
 
   const getConfidenceColor = (confidence: string) => {
