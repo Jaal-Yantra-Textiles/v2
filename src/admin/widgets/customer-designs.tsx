@@ -266,10 +266,11 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
     previewOrder({ design_ids: selectedIds })
   }
 
-  const handleConfirmOrder = (priceOverrides: Record<string, number>) => {
+  const handleConfirmOrder = (priceOverrides: Record<string, number>, overrideCurrency?: string) => {
     createDesignOrder({
       design_ids: previewDesignIds,
       price_overrides: Object.keys(priceOverrides).length > 0 ? priceOverrides : undefined,
+      override_currency: overrideCurrency,
     })
   }
 

@@ -7,6 +7,7 @@ import {
   Badge,
   Input,
   Label,
+  Select,
 } from "@medusajs/ui"
 import type { DesignEstimatePreview } from "../../hooks/api/designs"
 
@@ -33,13 +34,21 @@ type EditableEstimate = {
   unitPrice: string
 }
 
+const CURRENCY_OPTIONS = [
+  { value: "inr", label: "INR (₹)" },
+  { value: "eur", label: "EUR (€)" },
+  { value: "usd", label: "USD ($)" },
+  { value: "gbp", label: "GBP (£)" },
+  { value: "aud", label: "AUD (A$)" },
+]
+
 type DesignOrderPreviewDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   estimates: DesignEstimatePreview[]
   currencyCode: string
   total: number
-  onConfirm: (priceOverrides: Record<string, number>) => void
+  onConfirm: (priceOverrides: Record<string, number>, overrideCurrency?: string) => void
   isConfirming: boolean
 }
 
@@ -53,6 +62,7 @@ export const DesignOrderPreviewDrawer = ({
   isConfirming,
 }: DesignOrderPreviewDrawerProps) => {
   const [edited, setEdited] = useState<Record<string, EditableEstimate>>({})
+  const [overrideCurrency, setOverrideCurrency] = useState<string>("inr")
 
   // Initialize from estimates — prices are stored as-is (not in cents)
   useEffect(() => {
@@ -109,7 +119,7 @@ export const DesignOrderPreviewDrawer = ({
   }, [edited, estimates])
 
   const handleConfirm = () => {
-    onConfirm(priceOverrides)
+    onConfirm(priceOverrides, hasChanges ? overrideCurrency : undefined)
   }
 
   return (
@@ -123,6 +133,27 @@ export const DesignOrderPreviewDrawer = ({
         </Drawer.Header>
 
         <Drawer.Body className="overflow-y-auto">
+          {hasChanges && (
+            <div className="mb-4 p-3 rounded-lg border border-ui-border-base bg-ui-bg-subtle">
+              <Label size="xsmall" className="mb-1.5">Prices entered in</Label>
+              <Select size="small" value={overrideCurrency} onValueChange={setOverrideCurrency}>
+                <Select.Trigger>
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content>
+                  {CURRENCY_OPTIONS.map((opt) => (
+                    <Select.Item key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+              <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+                The system will convert to the cart currency if different.
+              </Text>
+            </div>
+          )}
+
           <div className="space-y-4">
             {estimates.map((est) => {
               const entry = edited[est.design_id]

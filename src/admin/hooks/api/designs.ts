@@ -703,6 +703,8 @@ export interface CreateDesignOrderPayload {
   design_ids: string[]
   currency_code?: string
   price_overrides?: Record<string, number>
+  /** Currency of price_overrides (e.g. "inr"). Defaults to store default. */
+  override_currency?: string
 }
 
 export interface CreateDesignOrderResponse {

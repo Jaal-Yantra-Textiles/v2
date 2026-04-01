@@ -13,8 +13,9 @@ import designOrderLink from "../../../../links/design-order-link";
 /**
  * GET /admin/designs/orders
  *
- * Returns all designs that have been added to carts (as custom line items),
- * joined with their order details if the cart was completed into an order.
+ * Returns design orders grouped by cart. Designs that share the same cart
+ * are returned as a single design order with multiple items, reflecting that
+ * they were created together via the draft-order-from-designs workflow.
  */
 export async function GET(
   req: AuthenticatedMedusaRequest,
@@ -90,19 +91,23 @@ export async function GET(
       lineItemById[li.id] = li;
     }
 
-    // 4. Resolve customers from carts for designs without a direct customer link
+    // 4. Resolve cart details and customers
     const cartIds = [...new Set(
       (cartLineItems as any[]).map((li: any) => li.cart_id).filter(Boolean)
     )] as string[];
 
+    const cartById: Record<string, any> = {};
     const customerByCartId: Record<string, any> = {};
     if (cartIds.length > 0) {
       try {
         const { data: carts } = await query.graph({
           entity: "cart",
           filters: { id: cartIds },
-          fields: ["id", "customer_id"],
+          fields: ["id", "customer_id", "currency_code", "metadata", "created_at", "completed_at"],
         });
+        for (const cart of carts || []) {
+          cartById[cart.id] = cart;
+        }
         const customerIds = [...new Set(
           (carts || []).map((c: any) => c.customer_id).filter(Boolean)
         )];
@@ -125,55 +130,77 @@ export async function GET(
       } catch {}
     }
 
-    // 5. Build combined rows — one row per design → line item link
-    const allRows = (linkRows as any[]).map((linkRow) => {
+    // 5. Group by cart_id — designs in the same cart form a single design order
+    const ordersByCartId = new Map<string, {
+      cart_id: string;
+      cart: any;
+      customer: any;
+      items: any[];
+      order: any;
+      created_at: string | null;
+      total_price: number;
+    }>();
+
+    for (const linkRow of linkRows as any[]) {
       const design = designById[linkRow.design_id];
       const lineItem = lineItemById[linkRow.line_item_id];
       const order = orderByDesignId[linkRow.design_id] || null;
+      const cartId = lineItem?.cart_id ?? "unknown";
 
-      // Try design-customer link first, fall back to cart's customer
       const customer = customerByDesignId[linkRow.design_id]
         || (lineItem?.cart_id ? customerByCartId[lineItem.cart_id] : null)
         || null;
 
-      return {
-        design: design
-          ? { id: design.id, name: design.name, status: design.status }
-          : { id: linkRow.design_id, name: "Unknown", status: "" },
-        customer: customer
-          ? {
-              id: customer.id,
-              email: customer.email,
-              first_name: customer.first_name,
-              last_name: customer.last_name,
-            }
-          : null,
-        line_item_id: linkRow.line_item_id,
-        cart_id: lineItem?.cart_id ?? null,
-        price: lineItem?.unit_price ?? 0,
-        added_at: lineItem?.created_at ?? null,
-        order: order
-          ? {
-              id: order.id,
-              display_id: order.display_id,
-              status: order.status,
-              total: order.total,
-              currency_code: order.currency_code,
-              created_at: order.created_at,
-            }
-          : null,
-      };
-    });
+      if (!ordersByCartId.has(cartId)) {
+        const cart = cartById[cartId] || null;
+        ordersByCartId.set(cartId, {
+          cart_id: cartId,
+          cart: cart
+            ? {
+                id: cart.id,
+                currency_code: cart.currency_code,
+                metadata: cart.metadata,
+                created_at: cart.created_at,
+                completed_at: cart.completed_at,
+              }
+            : null,
+          customer,
+          items: [],
+          order,
+          created_at: lineItem?.created_at ?? null,
+          total_price: 0,
+        });
+      }
 
-    // 5. Sort newest first, then paginate
-    allRows.sort((a, b) => {
-      const ta = a.added_at ? new Date(a.added_at).getTime() : 0;
-      const tb = b.added_at ? new Date(b.added_at).getTime() : 0;
+      const group = ordersByCartId.get(cartId)!;
+
+      group.items.push({
+        design: design
+          ? { id: design.id, name: design.name, status: design.status, estimated_cost: design.estimated_cost }
+          : { id: linkRow.design_id, name: "Unknown", status: "" },
+        line_item_id: linkRow.line_item_id,
+        price: lineItem?.unit_price ?? 0,
+        metadata: lineItem?.metadata ?? null,
+        added_at: lineItem?.created_at ?? null,
+      });
+
+      group.total_price += lineItem?.unit_price ?? 0;
+
+      // Use the first available order or customer across items in the group
+      if (!group.order && order) group.order = order;
+      if (!group.customer && customer) group.customer = customer;
+    }
+
+    // 6. Convert to array, sort newest first, then paginate
+    const allOrders = Array.from(ordersByCartId.values());
+    allOrders.sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
       return tb - ta;
     });
 
-    const total = allRows.length;
-    const rows = allRows.slice(offset, offset + limit);
+    const total = allOrders.length;
+    const rows = allOrders.slice(offset, offset + limit);
 
     res.status(200).json({ design_orders: rows, count: total, offset, limit });
   } catch (error) {

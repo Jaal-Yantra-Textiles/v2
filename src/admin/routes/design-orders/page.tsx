@@ -22,6 +22,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import debounce from "lodash/debounce";
 import {
   DesignOrderItem,
+  DesignOrderLineItem,
   DesignOrdersQuery,
   useDesignOrders,
   useApproveDesign,
@@ -104,23 +105,25 @@ const formatCurrency = (amount: number, currencyCode = "inr") => {
 
 const DesignOrderActions = ({ row }: { row: DesignOrderItem }) => {
   const prompt = usePrompt();
+  const firstDesign = row.items[0]?.design;
   const { mutateAsync: approve, isPending: isApproving } = useApproveDesign(
-    row.design.id
+    firstDesign?.id ?? ""
   );
   const { mutateAsync: cancelOrder, isPending: isCanceling } =
     useCancelDesignOrder(row.order?.id ?? "");
 
   const handleApprove = async () => {
+    const designNames = row.items.map((i) => i.design.name).join(", ");
     const confirmed = await prompt({
-      title: "Approve design?",
-      description: `This will create a product and variant for "${row.design.name}" and mark it as Approved.`,
+      title: "Approve designs?",
+      description: `This will create products and variants for: ${designNames}`,
       confirmText: "Approve",
       cancelText: "Cancel",
     });
     if (!confirmed) return;
 
     await approve(undefined, {
-      onSuccess: () => toast.success(`"${row.design.name}" approved`),
+      onSuccess: () => toast.success(`Designs approved`),
       onError: (e) => toast.error(e.message),
     });
   };
@@ -141,7 +144,7 @@ const DesignOrderActions = ({ row }: { row: DesignOrderItem }) => {
     });
   };
 
-  const isApproved = row.design.status === "Approved";
+  const allApproved = row.items.every((i) => i.design.status === "Approved");
   const hasOrder = !!row.order;
   const isCanceled = !!row.order?.canceled_at;
 
@@ -152,10 +155,10 @@ const DesignOrderActions = ({ row }: { row: DesignOrderItem }) => {
         actions: [
           {
             icon: <CheckCircleSolid />,
-            label: "Approve design",
-            disabled: isApproved || isApproving,
-            disabledTooltip: isApproved
-              ? "Already approved"
+            label: "Approve designs",
+            disabled: allApproved || isApproving,
+            disabledTooltip: allApproved
+              ? "All approved"
               : isApproving
               ? "Approving..."
               : undefined,
@@ -187,20 +190,33 @@ const columnHelper = createColumnHelper<DesignOrderItem>();
 const useColumns = () =>
   useMemo(
     () => [
-      columnHelper.accessor("design.name", {
-        header: "Design",
-        cell: ({ getValue, row }) => (
-          <div>
-            <span className="font-medium">{getValue()}</span>
-            <div className="mt-0.5">
-              <Badge
-                color={getDesignStatusColor(row.original.design.status)}
-                size="2xsmall"
-              >
-                {row.original.design.status.replace(/_/g, " ")}
-              </Badge>
+      columnHelper.accessor("items", {
+        header: "Designs",
+        cell: ({ getValue }) => {
+          const items = getValue();
+          return (
+            <div className="flex flex-col gap-y-1">
+              {items.map((item: DesignOrderLineItem) => (
+                <div key={item.line_item_id}>
+                  <span className="font-medium">{item.design.name}</span>
+                  <Badge
+                    className="ml-1.5"
+                    color={getDesignStatusColor(item.design.status)}
+                    size="2xsmall"
+                  >
+                    {item.design.status.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+              ))}
             </div>
-          </div>
+          );
+        },
+      }),
+      columnHelper.display({
+        id: "design_count",
+        header: "Items",
+        cell: ({ row }) => (
+          <span>{row.original.items.length}</span>
         ),
       }),
       columnHelper.accessor("customer", {
@@ -249,17 +265,17 @@ const useColumns = () =>
           );
         },
       }),
-      columnHelper.accessor("price", {
-        header: "Price",
+      columnHelper.accessor("total_price", {
+        header: "Total",
         cell: ({ getValue, row }) => {
           const price = getValue();
-          const currency = row.original.order?.currency_code ?? "usd";
+          const currency = row.original.cart?.currency_code ?? row.original.order?.currency_code ?? "inr";
           if (!price) return <span className="text-ui-fg-muted">—</span>;
           return <span>{formatCurrency(price, currency)}</span>;
         },
       }),
-      columnHelper.accessor("added_at", {
-        header: "Added",
+      columnHelper.accessor("created_at", {
+        header: "Created",
         cell: ({ getValue }) => {
           const date = getValue();
           if (!date) return "—";
@@ -317,7 +333,7 @@ const DesignOrdersPage = () => {
     if (!q) return design_orders;
     return design_orders.filter(
       (row) =>
-        row.design.name.toLowerCase().includes(q) ||
+        row.items.some((item) => item.design.name.toLowerCase().includes(q)) ||
         row.customer?.email?.toLowerCase().includes(q) ||
         row.customer?.first_name?.toLowerCase().includes(q) ||
         row.customer?.last_name?.toLowerCase().includes(q) ||
@@ -344,8 +360,8 @@ const DesignOrdersPage = () => {
   const table = useDataTable({
     columns,
     data: filteredRows,
-    getRowId: (row) => row.line_item_id,
-    onRowClick: (_, row) => navigate(`/design-orders/${row.original.line_item_id}`),
+    getRowId: (row) => row.cart_id,
+    onRowClick: (_, row) => navigate(`/design-orders/${row.original.items[0]?.line_item_id}`),
     rowCount: count ?? 0,
     isLoading,
     filters,
