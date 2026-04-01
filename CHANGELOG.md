@@ -1,3 +1,16 @@
+# [12.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.3.1...v12.4.0) (2026-04-01)
+
+
+### Bug Fixes
+
+* **admin:** Add override_currency support to design order UI ([c965e5a](https://github.com/Jaal-Yantra-Textiles/v2/commit/c965e5ac669250f06d91ed5469df2ffb125ad8e8))
+* **api:** Add override_currency to design-order workflow and group design orders by cart ([ab44c9f](https://github.com/Jaal-Yantra-Textiles/v2/commit/ab44c9fd43557a80b7230213f997286192d6abd4))
+
+
+### Features
+
+* **api:** Add currency_code param to design estimate endpoint ([36d2557](https://github.com/Jaal-Yantra-Textiles/v2/commit/36d25577c1ea4a9fa9e0c254744b634d6793782e))
+
 ## [12.3.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.3.0...v12.3.1) (2026-03-30)
 
 
