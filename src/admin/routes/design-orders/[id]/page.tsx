@@ -171,49 +171,72 @@ const DesignOrderHeaderSection = ({ designOrder }: { designOrder: any }) => {
   )
 }
 
-// ─── Line Item Section ──────────────────────────────────────────────────────
+// ─── Line Items Section ─────────────────────────────────────────────────────
+
+const LineItemRow = ({ title, price, currencyCode, confidence }: {
+  title: string
+  price: number
+  currencyCode: string
+  confidence?: string
+}) => (
+  <div className="flex items-center justify-between px-6 py-3">
+    <div className="flex items-center gap-x-2">
+      <Text size="small" weight="plus">{title}</Text>
+      {confidence && (
+        <Badge
+          size="2xsmall"
+          color={
+            confidence === "exact" ? "green" :
+            confidence === "estimated" ? "orange" :
+            confidence === "manual" ? "blue" : "red"
+          }
+        >
+          {confidence}
+        </Badge>
+      )}
+    </div>
+    <Text size="small" weight="plus">{formatCurrency(price, currencyCode)}</Text>
+  </div>
+)
 
 const LineItemSection = ({ designOrder }: { designOrder: any }) => {
   const currencyCode = designOrder.order?.currency_code || "inr"
+  const siblings = designOrder.sibling_items || []
+  const totalPrice = designOrder.total_price ?? designOrder.price
 
   return (
     <Container className="divide-y p-0">
-      <div className="px-6 py-4">
-        <Heading level="h2">Line Item</Heading>
+      <div className="flex items-center justify-between px-6 py-4">
+        <Heading level="h2">Items</Heading>
+        <Badge size="2xsmall" color="grey">{1 + siblings.length}</Badge>
       </div>
-      <div className="grid grid-cols-2 gap-4 px-6 py-4">
-        <div>
-          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Title</Text>
-          <Text size="small" weight="plus">{designOrder.title || designOrder.design.name}</Text>
+      <LineItemRow
+        title={designOrder.title || designOrder.design.name}
+        price={designOrder.price}
+        currencyCode={currencyCode}
+        confidence={designOrder.metadata?.cost_confidence}
+      />
+      {siblings.map((item: any) => (
+        <LineItemRow
+          key={item.line_item_id}
+          title={item.design.name}
+          price={item.price}
+          currencyCode={currencyCode}
+          confidence={item.metadata?.cost_confidence}
+        />
+      ))}
+      {siblings.length > 0 && (
+        <div className="flex items-center justify-between px-6 py-3 bg-ui-bg-subtle">
+          <Text size="small" weight="plus">Total</Text>
+          <Text size="small" weight="plus">{formatCurrency(totalPrice, currencyCode)}</Text>
         </div>
-        <div>
-          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Unit Price</Text>
-          <Text size="small" weight="plus">{formatCurrency(designOrder.price, currencyCode)}</Text>
-        </div>
-        <div>
-          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Quantity</Text>
-          <Text size="small">{designOrder.quantity}</Text>
-        </div>
+      )}
+      <div className="grid grid-cols-2 gap-4 px-6 py-3">
         <div>
           <Text size="xsmall" className="text-ui-fg-subtle mb-1">Added</Text>
           <Text size="small">{designOrder.added_at ? formatDate(designOrder.added_at) : "—"}</Text>
         </div>
       </div>
-      {designOrder.metadata?.cost_confidence && (
-        <div className="px-6 py-3">
-          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Cost Confidence</Text>
-          <Badge
-            size="2xsmall"
-            color={
-              designOrder.metadata.cost_confidence === "exact" ? "green" :
-              designOrder.metadata.cost_confidence === "estimated" ? "orange" :
-              designOrder.metadata.cost_confidence === "manual" ? "blue" : "red"
-            }
-          >
-            {designOrder.metadata.cost_confidence}
-          </Badge>
-        </div>
-      )}
     </Container>
   )
 }

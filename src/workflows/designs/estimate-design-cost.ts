@@ -191,12 +191,13 @@ const getDesignWithInventoryStep = createStep(
     const design = designs[0];
 
     // Resolve inventory item IDs: explicit override → linked items
-    let inventoryItemIds = input.inventory_item_ids;
-    if (!inventoryItemIds || inventoryItemIds.length === 0) {
-      inventoryItemIds = (design.inventory_items || []).map((item: any) => item.id);
-    }
+    let inventoryItemIds = input.inventory_item_ids
+      ? [...input.inventory_item_ids]
+      : (design.inventory_items || []).map((item: any) => item.id);
 
-    // Build planned-quantity map from design-inventory link
+    // Build quantity map: start with planned quantities, then override
+    // with actual consumed quantities from committed consumption logs.
+    // Actual usage from production always trumps planned estimates.
     const plannedQuantityMap: Record<string, number> = {};
     try {
       const { data: designInventoryLinks } = await query.graph({
@@ -211,6 +212,38 @@ const getDesignWithInventoryStep = createStep(
       }
     } catch {
       // Link table may not exist yet — fall back to quantity 1 per item
+    }
+
+    // Override with actual consumption from committed logs
+    try {
+      const consumptionLogService = container.resolve("consumption_log") as any;
+      const [committedLogs] = await consumptionLogService.listAndCountConsumptionLogs(
+        { design_id: input.design_id, is_committed: true },
+        { take: 500 }
+      );
+      if (committedLogs?.length) {
+        // Sum consumed quantity per inventory item across all committed logs
+        const actualQuantityMap: Record<string, number> = {};
+        for (const log of committedLogs) {
+          if (!log.inventory_item_id) continue;
+          actualQuantityMap[log.inventory_item_id] =
+            (actualQuantityMap[log.inventory_item_id] || 0) + Number(log.quantity);
+        }
+        // Override planned with actual where we have consumption data
+        for (const [itemId, qty] of Object.entries(actualQuantityMap)) {
+          if (qty > 0) {
+            plannedQuantityMap[itemId] = qty;
+          }
+        }
+        // Also add any consumed items not in the planned list
+        for (const itemId of Object.keys(actualQuantityMap)) {
+          if (!inventoryItemIds.includes(itemId) && actualQuantityMap[itemId] > 0) {
+            inventoryItemIds.push(itemId);
+          }
+        }
+      }
+    } catch {
+      // Non-fatal — consumption log module may not be available
     }
 
     // Collect component designs with their costs
