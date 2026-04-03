@@ -25,9 +25,9 @@ const Item = ({ item, currencyCode }: ItemProps) => {
           className="txt-medium-plus text-ui-fg-base"
           data-testid="product-name"
         >
-          {item.product_title}
+          {item.product_title || item.title}
         </Text>
-        <LineItemOptions variant={item.variant} data-testid="product-variant" />
+        {item.variant && <LineItemOptions variant={item.variant} data-testid="product-variant" />}
       </Table.Cell>
 
       <Table.Cell className="!pr-0">

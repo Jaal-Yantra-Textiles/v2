@@ -67,9 +67,9 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
           className="txt-medium-plus text-ui-fg-base"
           data-testid="product-title"
         >
-          {item.product_title}
+          {item.product_title || item.title}
         </Text>
-        <LineItemOptions variant={item.variant} data-testid="product-variant" />
+        {item.variant && <LineItemOptions variant={item.variant} data-testid="product-variant" />}
       </Table.Cell>
 
       {type === "full" && (
