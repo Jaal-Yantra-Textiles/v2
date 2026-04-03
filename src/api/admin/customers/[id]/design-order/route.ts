@@ -52,7 +52,7 @@ export const POST = async (
   })
 
   const storeUrl = process.env.STORE_URL || "https://cicilabel.com"
-  const checkoutUrl = `${storeUrl}/api/cart/${cart.id}/checkout`
+  const checkoutUrl = `${storeUrl}/checkout/cart/${cart.id}`
 
   res.json({
     cart,

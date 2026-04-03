@@ -124,7 +124,7 @@ export async function GET(
       cart_ids: cartIds,
       checkout_status: entry?.status || "pending",
       checkout_url: isPending && cartIds.length > 0
-        ? `${storeUrl}/api/cart/${cartIds[0]}/checkout`
+        ? `${storeUrl}/checkout/cart/${cartIds[0]}`
         : null,
     }
   })
