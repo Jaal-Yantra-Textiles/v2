@@ -110,20 +110,46 @@ const DesignRow = ({
   )
 }
 
-const OrderedDesignRow = ({ design }: { design: any }) => {
-  const isPending = design.checkout_status === "pending"
-  const checkoutUrl = design.checkout_url
+/** Groups ordered designs by cart_id so designs in the same cart show as one row */
+const useGroupedOrderedDesigns = (orderedDesigns: any[]) =>
+  useMemo(() => {
+    const groups = new Map<string, { designs: any[]; checkoutUrl: string | null; status: "pending" | "completed"; orderIds: string[] }>()
+    for (const design of orderedDesigns) {
+      const cartId = design.cart_ids?.[0] || design.id
+      if (!groups.has(cartId)) {
+        groups.set(cartId, {
+          designs: [],
+          checkoutUrl: design.checkout_url || null,
+          status: design.checkout_status || "pending",
+          orderIds: [],
+        })
+      }
+      const group = groups.get(cartId)!
+      group.designs.push(design)
+      for (const oid of design.order_ids || []) {
+        if (!group.orderIds.includes(oid)) group.orderIds.push(oid)
+      }
+      if (design.checkout_status === "completed") group.status = "completed"
+    }
+    return Array.from(groups.values())
+  }, [orderedDesigns])
+
+const OrderedDesignGroup = ({ group }: { group: { designs: any[]; checkoutUrl: string | null; status: string; orderIds: string[] } }) => {
+  const isPending = group.status === "pending"
+  const checkoutUrl = group.checkoutUrl
+  const first = group.designs[0]
+  const rest = group.designs.slice(1)
 
   const actionGroups = [
     {
       actions: [
-        {
-          label: "View Design",
+        ...group.designs.map((d: any) => ({
+          label: `View ${d.name}`,
           icon: <PencilSquare />,
-          to: `/designs/${design.id}`,
-        },
-        ...(design.order_ids || []).map((orderId: string, i: number) => ({
-          label: design.order_ids.length === 1 ? "View Order" : `View Order ${i + 1}`,
+          to: `/designs/${d.id}`,
+        })),
+        ...group.orderIds.map((orderId: string, i: number) => ({
+          label: group.orderIds.length === 1 ? "View Order" : `View Order ${i + 1}`,
           icon: <ShoppingBag />,
           to: `/orders/${orderId}`,
         })),
@@ -147,13 +173,15 @@ const OrderedDesignRow = ({ design }: { design: any }) => {
     <div className="px-6 py-3">
       <div className="flex items-center justify-between">
         <div className="flex flex-col min-w-0 flex-1">
-          <Text size="small" weight="plus" className="truncate">{design.name}</Text>
-          <div className="flex items-center gap-x-2 mt-1">
-            {design.status && (
-              <StatusBadge color={designStatusColor(design.status)}>
-                {design.status}
-              </StatusBadge>
+          <div className="flex items-center gap-x-1.5">
+            <Text size="small" weight="plus" className="truncate">{first.name}</Text>
+            {rest.length > 0 && (
+              <Badge size="2xsmall" color="grey">
+                +{rest.length} more
+              </Badge>
             )}
+          </div>
+          <div className="flex items-center gap-x-2 mt-1">
             <Badge size="2xsmall" color={isPending ? "orange" : "green"}>
               {isPending ? "Pending Checkout" : "Ordered"}
             </Badge>
@@ -182,6 +210,30 @@ const OrderedDesignRow = ({ design }: { design: any }) => {
         </Text>
       )}
     </div>
+  )
+}
+
+const OrderedDesignsSection = ({ orderedDesigns }: { orderedDesigns: any[] }) => {
+  const groups = useGroupedOrderedDesigns(orderedDesigns)
+
+  return (
+    <>
+      <div className="px-6 py-3 bg-ui-bg-subtle">
+        <div className="flex items-center gap-x-3">
+          <Text size="small" weight="plus" className="text-ui-fg-subtle">
+            Sent to Checkout
+          </Text>
+          <Badge size="2xsmall" color="grey">
+            {groups.length}
+          </Badge>
+        </div>
+      </div>
+      <div className="divide-y">
+        {groups.map((group, i) => (
+          <OrderedDesignGroup key={group.designs[0]?.id || i} group={group} />
+        ))}
+      </div>
+    </>
   )
 }
 
@@ -344,23 +396,7 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
 
         {/* Sent to Checkout section */}
         {!isLoadingOrdered && orderedDesigns.length > 0 && (
-          <>
-            <div className="px-6 py-3 bg-ui-bg-subtle">
-              <div className="flex items-center gap-x-3">
-                <Text size="small" weight="plus" className="text-ui-fg-subtle">
-                  Sent to Checkout
-                </Text>
-                <Badge size="2xsmall" color="grey">
-                  {orderedDesigns.length}
-                </Badge>
-              </div>
-            </div>
-            <div className="divide-y">
-              {orderedDesigns.map((design: any) => (
-                <OrderedDesignRow key={design.id} design={design} />
-              ))}
-            </div>
-          </>
+          <OrderedDesignsSection orderedDesigns={orderedDesigns} />
         )}
       </Container>
 

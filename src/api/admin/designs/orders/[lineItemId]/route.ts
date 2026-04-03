@@ -108,7 +108,65 @@ export async function GET(
       }
     }
 
-    // 5. Build checkout URL for pending items
+    // 5. Find all sibling items in the same cart (other designs in this order)
+    const siblingItems: Array<{
+      design: { id: string; name: string; status: string; estimated_cost?: number };
+      line_item_id: string;
+      price: number;
+      metadata: any;
+    }> = []
+
+    if (lineItem?.cart_id) {
+      try {
+        // Get all line items in this cart
+        const cartLineItems = await cartService.listLineItems(
+          { cart_id: lineItem.cart_id },
+          { select: ["id", "cart_id", "title", "unit_price", "metadata"] }
+        )
+        // Get design links for all line items in the cart
+        const allCartLineItemIds = (cartLineItems || []).map((li: any) => li.id)
+        if (allCartLineItemIds.length > 1) {
+          const { data: siblingLinks } = await query.graph({
+            entity: designLineItemLink.entryPoint,
+            filters: { line_item_id: allCartLineItemIds },
+            fields: ["design_id", "line_item_id"],
+          })
+          const siblingDesignIds = [...new Set(
+            (siblingLinks || [])
+              .filter((l: any) => l.line_item_id !== lineItemId)
+              .map((l: any) => l.design_id)
+          )] as string[]
+
+          if (siblingDesignIds.length > 0) {
+            const { data: siblingDesigns } = await query.graph({
+              entity: "design",
+              filters: { id: siblingDesignIds },
+              fields: ["id", "name", "status", "estimated_cost"],
+            })
+            const siblingDesignById: Record<string, any> = {}
+            for (const d of siblingDesigns || []) siblingDesignById[d.id] = d
+
+            for (const link of siblingLinks || []) {
+              if (link.line_item_id === lineItemId) continue
+              const d = siblingDesignById[link.design_id]
+              const li = (cartLineItems || []).find((i: any) => i.id === link.line_item_id)
+              if (d) {
+                siblingItems.push({
+                  design: { id: d.id, name: d.name, status: d.status, estimated_cost: d.estimated_cost },
+                  line_item_id: link.line_item_id,
+                  price: li?.unit_price ?? 0,
+                  metadata: li?.metadata ?? null,
+                })
+              }
+            }
+          }
+        }
+      } catch {
+        // Non-fatal — sibling resolution is best-effort
+      }
+    }
+
+    // 6. Build checkout URL for pending items
     const storeUrl = process.env.STORE_URL || "https://cicilabel.com"
     const checkoutUrl = !order && lineItem?.cart_id
       ? `${storeUrl}/checkout/cart/${lineItem.cart_id}`
@@ -129,6 +187,8 @@ export async function GET(
         quantity: lineItem?.quantity ?? 1,
         added_at: lineItem?.created_at ?? null,
         metadata: lineItem?.metadata ?? null,
+        sibling_items: siblingItems,
+        total_price: (lineItem?.unit_price ?? 0) + siblingItems.reduce((s, i) => s + i.price, 0),
         order: order
           ? { id: order.id, display_id: order.display_id, status: order.status, total: order.total, currency_code: order.currency_code, created_at: order.created_at }
           : null,

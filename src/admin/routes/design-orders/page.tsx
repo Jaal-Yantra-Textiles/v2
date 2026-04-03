@@ -11,6 +11,7 @@ import {
   toast,
   usePrompt,
   TooltipProvider,
+  Tooltip,
 } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -194,30 +195,30 @@ const useColumns = () =>
         header: "Designs",
         cell: ({ getValue }) => {
           const items = getValue();
+          if (!items.length) return <span className="text-ui-fg-muted">—</span>;
+          const first = items[0];
+          const rest = items.slice(1);
           return (
-            <div className="flex flex-col gap-y-1">
-              {items.map((item: DesignOrderLineItem) => (
-                <div key={item.line_item_id}>
-                  <span className="font-medium">{item.design.name}</span>
-                  <Badge
-                    className="ml-1.5"
-                    color={getDesignStatusColor(item.design.status)}
-                    size="2xsmall"
-                  >
-                    {item.design.status.replace(/_/g, " ")}
+            <div className="flex items-center gap-x-1.5">
+              <span className="font-medium">{first.design.name}</span>
+              <Badge
+                color={getDesignStatusColor(first.design.status)}
+                size="2xsmall"
+              >
+                {first.design.status.replace(/_/g, " ")}
+              </Badge>
+              {rest.length > 0 && (
+                <Tooltip
+                  content={rest.map((item: DesignOrderLineItem) => item.design.name).join(", ")}
+                >
+                  <Badge size="2xsmall" color="grey" className="cursor-default">
+                    +{rest.length} more
                   </Badge>
-                </div>
-              ))}
+                </Tooltip>
+              )}
             </div>
           );
         },
-      }),
-      columnHelper.display({
-        id: "design_count",
-        header: "Items",
-        cell: ({ row }) => (
-          <span>{row.original.items.length}</span>
-        ),
       }),
       columnHelper.accessor("customer", {
         header: "Customer",
