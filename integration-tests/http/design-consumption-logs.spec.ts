@@ -302,7 +302,7 @@ setupSharedTestSuite(() => {
     // ─── Commit Workflow ─────────────────────────────────────────────
 
     describe("POST /admin/designs/:id/consumption-logs/commit", () => {
-      it("should commit specific logs and adjust inventory", async () => {
+      it("should commit specific logs and mark them committed (no inventory adjustment)", async () => {
         // Log two sample consumptions
         const log1Res = await api.post(
           `/admin/designs/${designId}/consumption-logs`,
@@ -351,7 +351,7 @@ setupSharedTestSuite(() => {
         expect(committedLog.is_committed).toBe(true)
         expect(uncommittedLog.is_committed).toBe(false)
 
-        // Verify inventory was adjusted (silk was 100, consumed 5 → 95)
+        // Verify inventory is UNTOUCHED (partners don't maintain stock levels)
         const container = getContainer()
         const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
         const { data: levels } = await query.graph({
@@ -361,10 +361,10 @@ setupSharedTestSuite(() => {
         })
         dbg("inventory_levels_after_commit", levels)
         const level = levels[0]
-        expect(Number(level.stocked_quantity)).toBe(95)
+        expect(Number(level.stocked_quantity)).toBe(100)
       })
 
-      it("should commit all uncommitted logs with commitAll", async () => {
+      it("should commit all uncommitted logs with commitAll (no inventory adjustment)", async () => {
         // Create multiple logs
         await api.post(
           `/admin/designs/${designId}/consumption-logs`,
@@ -393,7 +393,7 @@ setupSharedTestSuite(() => {
         )
         expect(logsRes.data.logs).toHaveLength(0)
 
-        // Verify inventory adjusted: silk 100-3=97, lining 50-2=48
+        // Verify inventory is UNTOUCHED (no adjustment on commit)
         const container = getContainer()
         const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -402,14 +402,14 @@ setupSharedTestSuite(() => {
           fields: ["stocked_quantity"],
           filters: { inventory_item_id: inventoryItemId, location_id: stockLocationId },
         })
-        expect(Number(silkLevels[0].stocked_quantity)).toBe(97)
+        expect(Number(silkLevels[0].stocked_quantity)).toBe(100)
 
         const { data: liningLevels } = await query.graph({
           entity: "inventory_level",
           fields: ["stocked_quantity"],
           filters: { inventory_item_id: inventoryItemId2, location_id: stockLocationId },
         })
-        expect(Number(liningLevels[0].stocked_quantity)).toBe(48)
+        expect(Number(liningLevels[0].stocked_quantity)).toBe(50)
       })
 
       it("should fail when no uncommitted logs exist", async () => {
@@ -571,7 +571,7 @@ setupSharedTestSuite(() => {
         dbg("partner.logs.list", res.data.logs)
       })
 
-      it("should allow admin to commit partner-logged consumption", async () => {
+      it("should allow admin to commit partner-logged consumption (no inventory adjustment)", async () => {
         // Partner logs consumption
         const logRes = await api.post(
           `/partners/designs/${designId}/consumption-logs`,
@@ -598,7 +598,7 @@ setupSharedTestSuite(() => {
         expect(logsRes.data.logs[0].id).toBe(logId)
         expect(logsRes.data.logs[0].is_committed).toBe(true)
 
-        // Verify inventory deducted: silk was 100, consumed 4 → 96
+        // Verify inventory is UNTOUCHED (partners don't maintain stock levels)
         const container = getContainer()
         const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
         const { data: levels } = await query.graph({
@@ -606,7 +606,7 @@ setupSharedTestSuite(() => {
           fields: ["stocked_quantity"],
           filters: { inventory_item_id: inventoryItemId, location_id: stockLocationId },
         })
-        expect(Number(levels[0].stocked_quantity)).toBe(96)
+        expect(Number(levels[0].stocked_quantity)).toBe(100)
       })
     })
 
@@ -702,7 +702,7 @@ setupSharedTestSuite(() => {
         }
       })
 
-      it("should track sample consumption incrementally without touching inventory, then commit to deduct", async () => {
+      it("should track sample consumption incrementally and commit without adjusting inventory", async () => {
         const container = getContainer()
         const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -842,23 +842,22 @@ setupSharedTestSuite(() => {
         )
         expect(committedRes.data.logs.length).toBe(4)
 
-        // ── Step 6: Verify inventory was adjusted correctly ──
-        // Silk: 100 - 3 (day1) - 0.5 (wastage) - 1 (admin QC) = 95.5
-        // Lining: 50 - 1.5 (day2) = 48.5
+        // ── Step 6: Verify inventory is UNTOUCHED after commit ──
+        // Partners don't maintain stock levels — commit only records data
 
         const { data: silkLevelsAfter } = await query.graph({
           entity: "inventory_level",
           fields: ["stocked_quantity"],
           filters: { inventory_item_id: inventoryItemId, location_id: stockLocationId },
         })
-        expect(Number(silkLevelsAfter[0].stocked_quantity)).toBe(95.5)
+        expect(Number(silkLevelsAfter[0].stocked_quantity)).toBe(100)
 
         const { data: liningLevelsAfter } = await query.graph({
           entity: "inventory_level",
           fields: ["stocked_quantity"],
           filters: { inventory_item_id: inventoryItemId2, location_id: stockLocationId },
         })
-        expect(Number(liningLevelsAfter[0].stocked_quantity)).toBe(48.5)
+        expect(Number(liningLevelsAfter[0].stocked_quantity)).toBe(50)
 
         dbg("inventory.after_commit", {
           silk: Number(silkLevelsAfter[0].stocked_quantity),

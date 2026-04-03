@@ -799,6 +799,7 @@ export interface LogConsumptionPayload {
   inventoryItemId: string;
   rawMaterialId?: string;
   quantity: number;
+  unitCost?: number;
   unitOfMeasure?: string;
   consumptionType?: "sample" | "production" | "wastage";
   notes?: string;

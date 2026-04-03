@@ -7,17 +7,14 @@ import {
   transform,
 } from "@medusajs/framework/workflows-sdk"
 import { MedusaError } from "@medusajs/utils"
-import { IInventoryService } from "@medusajs/framework/types"
 import { CONSUMPTION_LOG_MODULE } from "../../modules/consumption_log"
 import ConsumptionLogService from "../../modules/consumption_log/service"
-import { DESIGN_MODULE } from "../../modules/designs"
-import DesignService from "../../modules/designs/service"
+import { RAW_MATERIAL_MODULE } from "../../modules/raw_material"
 
 export type CommitConsumptionInput = {
   design_id: string
   log_ids?: string[]
   commit_all?: boolean
-  default_location_id?: string
 }
 
 const fetchUncommittedLogsStep = createStep(
@@ -49,65 +46,94 @@ const fetchUncommittedLogsStep = createStep(
   }
 )
 
-const adjustInventoryFromLogsStep = createStep(
-  "commit-consumption-adjust-inventory",
-  async (
-    input: { logs: any[]; default_location_id?: string },
-    { container }
-  ) => {
-    const inventoryService: IInventoryService = container.resolve(Modules.INVENTORY)
-    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+/**
+ * Propagate unit_cost from committed consumption logs to raw materials.
+ * For each inventory item consumed, look up the linked raw material and
+ * update its unit_cost. This ensures the estimate workflow can pick up
+ * partner-provided costs when calculating design estimates.
+ *
+ * Partners don't maintain stock levels in the system — they only report
+ * consumption. Inventory adjustment is intentionally NOT done here;
+ * partner inventory tracking is a future feature.
+ */
+const propagateCostsStep = createStep(
+  "commit-consumption-propagate-costs",
+  async (input: { logs: any[] }, { container }) => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const rawMaterialService = container.resolve(RAW_MATERIAL_MODULE) as any
 
-    const adjustments: Array<{
-      inventoryItemId: string
-      locationId: string
-      adjustment: number
+    // Track old values for compensation
+    const oldValues: Array<{
+      raw_material_id: string
+      old_unit_cost: number | null
     }> = []
 
+    // Group logs by inventory_item_id, keep only the latest (by consumed_at)
+    const latestByItem = new Map<string, any>()
     for (const log of input.logs) {
-      let locationId = log.location_id || input.default_location_id
+      if (!log.unit_cost || Number(log.unit_cost) <= 0) continue
+      const existing = latestByItem.get(log.inventory_item_id)
+      if (
+        !existing ||
+        new Date(log.consumed_at) > new Date(existing.consumed_at)
+      ) {
+        latestByItem.set(log.inventory_item_id, log)
+      }
+    }
 
-      if (!locationId) {
-        // Try to resolve from inventory item's location levels
-        const { data } = await query.graph({
-          entity: "inventory_items",
-          fields: ["location_levels.location_id"],
-          filters: { id: log.inventory_item_id },
-        })
+    for (const [inventoryItemId, log] of latestByItem) {
+      const unitCost = Number(log.unit_cost)
 
-        const levels = data?.[0]?.location_levels || []
-        locationId = levels[0]?.location_id
-
-        if (!locationId) {
-          throw new MedusaError(
-            MedusaError.Types.INVALID_DATA,
-            `No stock location found for inventory item ${log.inventory_item_id}. Provide location_id on the log or in the commit request.`
-          )
+      // Resolve raw material ID: from the log directly, or via inventory-raw material link
+      let rawMaterialId = log.raw_material_id
+      if (!rawMaterialId) {
+        try {
+          const { data: rmLinks } = await query.graph({
+            entity: "inventory_item_raw_materials",
+            filters: { inventory_item_id: inventoryItemId },
+            fields: ["raw_materials.id"],
+          })
+          rawMaterialId = rmLinks?.[0]?.raw_materials?.id
+        } catch {
+          // Link may not exist
         }
       }
 
-      adjustments.push({
-        inventoryItemId: log.inventory_item_id,
-        locationId,
-        adjustment: -Math.abs(log.quantity),
-      })
+      if (!rawMaterialId) continue
+
+      // Update raw material unit_cost
+      try {
+        const rm = await rawMaterialService.retrieveRawMaterial(rawMaterialId)
+        const oldCost = rm.unit_cost != null ? Number(rm.unit_cost) : null
+
+        await rawMaterialService.updateRawMaterials({
+          id: rawMaterialId,
+          unit_cost: unitCost,
+        })
+
+        oldValues.push({
+          raw_material_id: rawMaterialId,
+          old_unit_cost: oldCost,
+        })
+      } catch (e: any) {
+        console.warn(`[propagate-costs] Failed to update raw material ${rawMaterialId}:`, e?.message)
+      }
     }
 
-    if (adjustments.length) {
-      await inventoryService.adjustInventory(adjustments)
-    }
-
-    return new StepResponse(adjustments, adjustments)
+    return new StepResponse(oldValues, oldValues)
   },
-  async (adjustments, { container }) => {
-    if (!adjustments?.length) return
-    // Rollback: reverse the adjustments
-    const inventoryService: IInventoryService = container.resolve(Modules.INVENTORY)
-    const reversals = adjustments.map((adj) => ({
-      ...adj,
-      adjustment: -adj.adjustment,
-    }))
-    await inventoryService.adjustInventory(reversals)
+  async (oldValues, { container }) => {
+    if (!oldValues?.length) return
+    const rawMaterialService = container.resolve(RAW_MATERIAL_MODULE) as any
+
+    for (const entry of oldValues) {
+      try {
+        await rawMaterialService.updateRawMaterials({
+          id: entry.raw_material_id,
+          unit_cost: entry.old_unit_cost,
+        })
+      } catch {}
+    }
   }
 )
 
@@ -156,16 +182,13 @@ export const commitConsumptionWorkflow = createWorkflow(
       logs.map((l: any) => l.id)
     ) as unknown as string[]
 
-    const adjustments = adjustInventoryFromLogsStep({
-      logs,
-      default_location_id: input.default_location_id,
-    })
-
     const committed = markLogsCommittedStep({ log_ids: logIds })
+
+    const costUpdates = propagateCostsStep({ logs })
 
     return new WorkflowResponse({
       committed_count: transform({ logIds }, ({ logIds }) => logIds.length),
-      adjustments,
+      cost_updates: costUpdates,
       logs: committed,
     })
   }

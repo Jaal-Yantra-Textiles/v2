@@ -13,7 +13,6 @@ export const POST = async (
       design_id: designId,
       log_ids: req.validatedBody.logIds,
       commit_all: req.validatedBody.commitAll,
-      default_location_id: req.validatedBody.defaultLocationId,
     },
   })
 
