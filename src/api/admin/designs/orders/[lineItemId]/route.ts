@@ -181,7 +181,7 @@ export async function GET(
     // 6. Build checkout URL for pending items
     const storeUrl = process.env.STORE_URL || "https://cicilabel.com"
     const checkoutUrl = !order && lineItem?.cart_id
-      ? `${storeUrl}/checkout/cart/${lineItem.cart_id}`
+      ? `${storeUrl}/api/cart/${lineItem.cart_id}/checkout`
       : null
 
     res.status(200).json({
