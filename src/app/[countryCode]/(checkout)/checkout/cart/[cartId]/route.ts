@@ -7,6 +7,8 @@ export async function GET(
 ) {
   const { countryCode, cartId } = await params
 
+  console.log(`[Cart Checkout Route] HIT — countryCode=${countryCode}, cartId=${cartId}, url=${request.url}`)
+
   const cookieStore = await cookies()
   cookieStore.set("_medusa_cart_id", cartId, {
     maxAge: 60 * 60 * 24 * 7,
@@ -16,7 +18,10 @@ export async function GET(
     path: "/",
   })
 
+  const redirectTo = `/${countryCode}/checkout?step=address`
+  console.log(`[Cart Checkout Route] → Redirecting to ${redirectTo}`)
+
   return NextResponse.redirect(
-    new URL(`/${countryCode}/checkout?step=address`, request.url)
+    new URL(redirectTo, request.url)
   )
 }
