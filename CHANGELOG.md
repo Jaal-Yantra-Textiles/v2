@@ -1,3 +1,10 @@
+## [12.4.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.0...v12.4.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **api:** That's the fix -- 3 small changes: ([355b3fa](https://github.com/Jaal-Yantra-Textiles/v2/commit/355b3faa0f4d724257b9b05e8c53e6c881b5830c))
+
 # [12.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.3.1...v12.4.0) (2026-04-01)
 
 
