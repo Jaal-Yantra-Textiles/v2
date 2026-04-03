@@ -1,3 +1,11 @@
+## [12.4.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.1...v12.4.2) (2026-04-03)
+
+
+### Bug Fixes
+
+* **admin:** Add currency_code to design order detail and use cart currency for pending orders ([abab409](https://github.com/Jaal-Yantra-Textiles/v2/commit/abab40949996632cf61b3bcfd46b767a5f915c81))
+* **api:** Fixed the workflow ([e1a5066](https://github.com/Jaal-Yantra-Textiles/v2/commit/e1a5066e51f72c98f5c76c1952500fd96b0ad762))
+
 ## [12.4.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.0...v12.4.1) (2026-04-03)
 
 
