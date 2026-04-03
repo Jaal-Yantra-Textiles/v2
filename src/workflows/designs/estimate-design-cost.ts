@@ -16,7 +16,7 @@ export type MaterialCostItem = {
   name: string;
   cost: number;
   quantity: number;
-  cost_source: "order_history" | "unit_cost" | "component_design" | "estimated";
+  cost_source: "order_history" | "unit_cost" | "component_design" | "consumption_log" | "estimated";
 };
 
 type EstimateCostInput = {
@@ -127,7 +127,8 @@ export function computeCostBreakdown(input: {
     (m) =>
       m.cost_source === "order_history" ||
       m.cost_source === "unit_cost" ||
-      m.cost_source === "component_design"
+      m.cost_source === "component_design" ||
+      m.cost_source === "consumption_log"
   );
 
   let confidence: ConfidenceLevel;
@@ -242,6 +243,7 @@ const getMaterialCostsStep = createStep(
   "get-material-costs-step",
   async (
     input: {
+      design_id: string;
       inventoryItemIds: string[];
       plannedQuantityMap: Record<string, number>;
       componentItems: Array<{
@@ -254,6 +256,7 @@ const getMaterialCostsStep = createStep(
     { container }
   ) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any;
+    const consumptionLogService = container.resolve("consumption_log") as any;
     const materials: MaterialCostItem[] = [];
     let allExact = true;
 
@@ -303,8 +306,49 @@ const getMaterialCostsStep = createStep(
           cost_source = "unit_cost";
           allExact = false;
         } else {
-          cost = 0;
-          cost_source = "estimated";
+          // Fallback chain: raw material unit_cost → consumption logs → estimated (0)
+          let resolvedCost = 0;
+          let resolvedSource: MaterialCostItem["cost_source"] = "estimated";
+
+          // Check linked raw material's unit_cost
+          try {
+            const { data: rmLinks } = await query.graph({
+              entity: "inventory_item_raw_materials",
+              filters: { inventory_item_id: item.id },
+              fields: ["raw_materials.unit_cost"],
+            });
+            const rmCost = Number(rmLinks?.[0]?.raw_materials?.unit_cost) || 0;
+            if (rmCost > 0) {
+              resolvedCost = rmCost;
+              resolvedSource = "unit_cost";
+            }
+          } catch {
+            // Link may not exist
+          }
+
+          // If still no cost, check committed consumption logs for this design + item
+          if (resolvedCost <= 0) {
+            try {
+              const [logs] = await consumptionLogService.listAndCountConsumptionLogs(
+                {
+                  design_id: input.design_id,
+                  inventory_item_id: item.id,
+                  is_committed: true,
+                },
+                { take: 1, order: { consumed_at: "DESC" } }
+              );
+              const latestLog = logs?.[0];
+              if (latestLog?.unit_cost && Number(latestLog.unit_cost) > 0) {
+                resolvedCost = Number(latestLog.unit_cost);
+                resolvedSource = "consumption_log";
+              }
+            } catch {
+              // Non-fatal
+            }
+          }
+
+          cost = resolvedCost;
+          cost_source = resolvedSource;
           allExact = false;
         }
 
@@ -444,6 +488,7 @@ export const estimateDesignCostWorkflow = createWorkflow(
     const designResult = getDesignWithInventoryStep(input);
 
     const materialsResult = getMaterialCostsStep({
+      design_id: input.design_id,
       inventoryItemIds: designResult.inventoryItemIds as unknown as string[],
       plannedQuantityMap: designResult.plannedQuantityMap as unknown as Record<string, number>,
       componentItems: designResult.componentItems as unknown as Array<{

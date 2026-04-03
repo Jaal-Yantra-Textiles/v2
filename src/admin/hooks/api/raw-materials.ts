@@ -10,6 +10,8 @@ export interface RawMaterialData {
   description: string
   composition: string
   unit_of_measure?: "Meter" | "Yard" | "Kilogram" | "Gram" | "Piece" | "Roll" | "Other"
+  unit_cost?: number
+  cost_currency?: string
   minimum_order_quantity?: number
   lead_time_days?: number
   color?: string
@@ -56,6 +58,8 @@ export interface RawMaterial {
   composition: string
   specifications: any | null
   unit_of_measure: "Meter" | "Yard" | "Kilogram" | "Gram" | "Piece" | "Roll" | "Other"
+  unit_cost: number | null
+  cost_currency: string | null
   minimum_order_quantity: number
   lead_time_days: number
   color: string
