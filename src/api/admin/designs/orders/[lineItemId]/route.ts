@@ -70,20 +70,32 @@ export async function GET(
       console.warn("[design-order detail] Failed to fetch line item:", e)
     }
 
-    // 4. If no customer from design link, try the cart or order customer
+    // 4. Fetch cart details for currency and customer fallback
+    let cartCurrencyCode: string | null = null
+    if (lineItem?.cart_id) {
+      try {
+        const { data: carts } = await query.graph({
+          entity: "cart",
+          filters: { id: lineItem.cart_id },
+          fields: ["customer_id", "currency_code"],
+        })
+        const cart = carts?.[0]
+        cartCurrencyCode = cart?.currency_code || null
+        if (!customer && cart?.customer_id) {
+          try {
+            const { data: customers } = await query.graph({
+              entity: "customer",
+              filters: { id: cart.customer_id },
+              fields: ["id", "email", "first_name", "last_name"],
+            })
+            customer = customers?.[0] || null
+          } catch {}
+        }
+      } catch {}
+    }
+
     if (!customer) {
       let customerId: string | null = null
-
-      if (lineItem?.cart_id) {
-        try {
-          const { data: carts } = await query.graph({
-            entity: "cart",
-            filters: { id: lineItem.cart_id },
-            fields: ["customer_id"],
-          })
-          customerId = carts?.[0]?.customer_id || null
-        } catch {}
-      }
 
       if (!customerId && order) {
         try {
@@ -187,6 +199,7 @@ export async function GET(
         quantity: lineItem?.quantity ?? 1,
         added_at: lineItem?.created_at ?? null,
         metadata: lineItem?.metadata ?? null,
+        currency_code: order?.currency_code || cartCurrencyCode || "inr",
         sibling_items: siblingItems,
         total_price: (lineItem?.unit_price ?? 0) + siblingItems.reduce((s, i) => s + i.price, 0),
         order: order

@@ -200,7 +200,7 @@ const LineItemRow = ({ title, price, currencyCode, confidence }: {
 )
 
 const LineItemSection = ({ designOrder }: { designOrder: any }) => {
-  const currencyCode = designOrder.order?.currency_code || "inr"
+  const currencyCode = designOrder.currency_code || designOrder.order?.currency_code || "inr"
   const siblings = designOrder.sibling_items || []
   const totalPrice = designOrder.total_price ?? designOrder.price
 
