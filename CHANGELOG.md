@@ -1,3 +1,15 @@
+## [12.4.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.2...v12.4.3) (2026-04-03)
+
+
+### Bug Fixes
+
+* **api:** Change checkout URL to /api/cart/:id/checkout pattern ([e7e040b](https://github.com/Jaal-Yantra-Textiles/v2/commit/e7e040ba867cfeb230e850058d4550db5ee18948))
+
+
+### Reverts
+
+* Restore /checkout/cart/:id URL pattern ([e16ca7b](https://github.com/Jaal-Yantra-Textiles/v2/commit/e16ca7b02550749df8c901b6142e5e0471f68446))
+
 ## [12.4.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.1...v12.4.2) (2026-04-03)
 
 
