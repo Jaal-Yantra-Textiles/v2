@@ -142,7 +142,7 @@ export async function middleware(request: NextRequest) {
   console.log(`[Middleware] countryCode=${countryCode}, regionMapSize=${regionMap?.size}, hasCacheId=${!!cacheIdCookie}`)
 
   const urlHasCountryCode =
-    countryCode && request.nextUrl.pathname.split("/")[1].includes(countryCode)
+    countryCode && request.nextUrl.pathname.split("/")[1] === countryCode
 
   console.log(`[Middleware] urlHasCountryCode=${urlHasCountryCode}, firstSegment=${pathname.split("/")[1]}`)
 
