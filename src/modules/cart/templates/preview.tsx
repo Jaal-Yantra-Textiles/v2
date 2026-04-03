@@ -13,12 +13,12 @@ type ItemsTemplateProps = {
 
 const ItemsPreviewTemplate = ({ cart }: ItemsTemplateProps) => {
   const items = cart.items
-  const hasOverflow = items && items.length > 4
+  const hasOverflow = items && items.length > 5
 
   return (
     <div
       className={clx({
-        "pl-[1px] overflow-y-auto overflow-x-hidden max-h-[420px]":
+        "pl-[1px] overflow-y-auto overflow-x-hidden max-h-[520px]":
           hasOverflow,
       })}
     >
