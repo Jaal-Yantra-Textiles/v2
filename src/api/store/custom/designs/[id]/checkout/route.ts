@@ -107,6 +107,7 @@ export async function POST(
       title: designName,
       unit_price: convertedEstimate,
       is_custom_price: true,
+      requires_shipping: false,
       quantity: 1,
       metadata: {
         design_id: designId,
