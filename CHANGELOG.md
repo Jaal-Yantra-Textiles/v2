@@ -1,3 +1,11 @@
+## [12.4.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.3...v12.4.4) (2026-04-05)
+
+
+### Bug Fixes
+
+* **workflows:** Fixed the cart order place. ([0203567](https://github.com/Jaal-Yantra-Textiles/v2/commit/020356724a1f6ac8807ca493844a42457f7f66b5))
+* **api:** Fixed the require shipping part ([583fbe4](https://github.com/Jaal-Yantra-Textiles/v2/commit/583fbe44201cf245b103af88bce44d078fa4a782))
+
 ## [12.4.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.2...v12.4.3) (2026-04-03)
 
 
