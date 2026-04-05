@@ -220,6 +220,130 @@ export async function POST(
     }
   }
 
+  // Stock finished goods at partner's location based on produced_quantity
+  const goodQuantity = (producedQuantity ?? (run as any).quantity ?? 0) - (rejectedQuantity ?? 0)
+  if (goodQuantity > 0) {
+    try {
+      const designId = (run as any).design_id
+      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+      const inventoryService = req.scope.resolve(Modules.INVENTORY) as any
+
+      // Resolve the design's variant → inventory item
+      const { data: designVariants } = await query.graph({
+        entity: "design_product_variant",
+        filters: { design_id: designId },
+        fields: ["product_variant_id"],
+      })
+
+      const variantId = designVariants?.[0]?.product_variant_id
+      if (variantId) {
+        // Find inventory item linked to this variant
+        const { data: variantInventory } = await query.graph({
+          entity: "product_variant_inventory_item",
+          filters: { variant_id: variantId },
+          fields: ["inventory_item_id"],
+        })
+
+        const inventoryItemId = variantInventory?.[0]?.inventory_item_id
+        if (inventoryItemId) {
+          // Resolve partner's stock location (same logic as consumption)
+          let partnerLocationId: string | undefined
+          try {
+            const { data: partners } = await query.graph({
+              entity: "partners",
+              fields: ["stores.default_sales_channel_id"],
+              filters: { id: partnerId },
+            })
+            const scId = partners?.[0]?.stores?.[0]?.default_sales_channel_id
+            if (scId) {
+              const { data: channels } = await query.graph({
+                entity: "sales_channels",
+                fields: ["stock_locations.id"],
+                filters: { id: scId },
+              })
+              partnerLocationId = channels?.[0]?.stock_locations?.[0]?.id
+            }
+          } catch {
+            // Non-fatal
+          }
+
+          if (partnerLocationId) {
+            // Check if inventory level exists at this location
+            const [existingLevel] = await inventoryService.listInventoryLevels({
+              inventory_item_id: inventoryItemId,
+              location_id: partnerLocationId,
+            })
+
+            if (existingLevel) {
+              // Add to existing stock
+              await inventoryService.updateInventoryLevels(existingLevel.id, {
+                stocked_quantity: (existingLevel.stocked_quantity || 0) + goodQuantity,
+              })
+            } else {
+              // Create new inventory level at partner's location
+              await inventoryService.createInventoryLevels({
+                inventory_item_id: inventoryItemId,
+                location_id: partnerLocationId,
+                stocked_quantity: goodQuantity,
+              })
+            }
+
+            // Create inventory reservation for the order (if linked)
+            // This enables standard Medusa fulfillment from the admin
+            const orderId = (run as any).order_id
+            const orderLineItemId = (run as any).order_line_item_id
+
+            if (orderId) {
+              try {
+                // Find the order line item to reserve against
+                // Either use the explicit order_line_item_id or find it via design metadata
+                let lineItemId = orderLineItemId
+                if (!lineItemId) {
+                  const { data: orders } = await query.graph({
+                    entity: "order",
+                    filters: { id: orderId },
+                    fields: ["items.*"],
+                  })
+                  const items = orders?.[0]?.items || []
+                  const designItem = items.find(
+                    (i: any) => i.metadata?.design_id === designId && i.variant_id === variantId
+                  )
+                  lineItemId = designItem?.id
+                }
+
+                if (lineItemId) {
+                  await inventoryService.createReservationItems({
+                    inventory_item_id: inventoryItemId,
+                    location_id: partnerLocationId,
+                    quantity: Math.min(goodQuantity, (run as any).quantity || goodQuantity),
+                    line_item_id: lineItemId,
+                    description: `Reserved for order ${orderId} from production run ${id}`,
+                    metadata: {
+                      production_run_id: id,
+                      order_id: orderId,
+                    },
+                  })
+                }
+              } catch (reserveErr: any) {
+                console.error(
+                  `[production-run-complete] Failed to create reservation for run ${id}:`,
+                  reserveErr.message
+                )
+                // Non-fatal — stock was added, reservation is best-effort
+              }
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error(
+        `[production-run-complete] Failed to stock inventory for run ${id}:`,
+        e.message
+      )
+      // Non-fatal — run is already marked completed
+    }
+  }
+
   // Emit event for subscribers (e.g. sample cost calculation)
   try {
     const eventService = req.scope.resolve(Modules.EVENT_BUS) as any
