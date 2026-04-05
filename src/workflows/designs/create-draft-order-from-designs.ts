@@ -303,6 +303,7 @@ const createDesignCartStep = createStep(
         title: est.name,
         unit_price: est.unit_price,
         is_custom_price: true,
+        requires_shipping: false,
         quantity: 1,
         metadata: {
           design_id: est.design_id,
