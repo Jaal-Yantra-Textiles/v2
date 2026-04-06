@@ -1,3 +1,10 @@
+# [12.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.4...v12.5.0) (2026-04-06)
+
+
+### Features
+
+* **api:** Design end to end integration test with cart creation ([84448e2](https://github.com/Jaal-Yantra-Textiles/v2/commit/84448e212d80d8f51def24aebd6b665bc0c68444))
+
 ## [12.4.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.3...v12.4.4) (2026-04-05)
 
 
