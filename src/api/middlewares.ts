@@ -143,6 +143,7 @@ import {
 } from "./partners/[id]/payments/validators";
 import { sendDesignToPartnerSchema } from "./admin/designs/[id]/send-to-partner/validators";
 import { AdminCreateDesignProductionRunSchema } from "./admin/designs/[id]/production-runs/validators";
+import { AdminRecreateProductionRunSchema } from "./admin/designs/recreate-production-run/validators";
 import { listDesignsQuerySchema } from "./partners/designs/validators";
 import { listProductionRunsQuerySchema } from "./partners/production-runs/validators";
 import { PartnerDesignInventorySchema } from "./partners/designs/[designId]/inventory/validators";
@@ -3114,6 +3115,13 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         validateAndTransformBody(wrapSchema(AdminCreateDesignProductionRunSchema)),
+      ],
+    },
+    {
+      matcher: "/admin/designs/recreate-production-run",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminRecreateProductionRunSchema)),
       ],
     },
     // Design components (bundling)

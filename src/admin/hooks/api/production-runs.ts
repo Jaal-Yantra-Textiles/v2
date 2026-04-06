@@ -268,3 +268,47 @@ export const useUpdateProductionRun = (
     ...options,
   })
 }
+
+export type AdminRecreateProductionRunPayload = {
+  designs: Array<{
+    design_id: string
+    quantity: number
+    notes?: string
+  }>
+  partner_id: string
+  run_type?: "production" | "sample"
+  notes?: string
+  metadata?: Record<string, any>
+}
+
+export type AdminRecreateProductionRunResponse = {
+  production_run: AdminProductionRun
+  children: AdminProductionRun[]
+}
+
+export const useRecreateProductionRun = (
+  options?: UseMutationOptions<
+    AdminRecreateProductionRunResponse,
+    FetchError,
+    AdminRecreateProductionRunPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminRecreateProductionRunPayload) =>
+      sdk.client.fetch<AdminRecreateProductionRunResponse>(
+        `/admin/designs/recreate-production-run`,
+        {
+          method: "POST",
+          body: payload,
+        }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}

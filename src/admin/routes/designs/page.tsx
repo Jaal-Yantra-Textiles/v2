@@ -16,8 +16,13 @@ import {
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { ToolsSolid, PencilSquare, Eye } from "@medusajs/icons";
+import { ToolsSolid, PencilSquare, Eye, ArrowPath } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
+import { RecreateForProductionDrawer } from "../../components/designs/recreate-for-production-drawer";
+import { BulkLinkPartnerDrawer } from "../../components/designs/bulk-link-partner-drawer";
+import { BulkUpdateStatusDrawer } from "../../components/designs/bulk-update-status-drawer";
+import { BulkAssignTagsDrawer } from "../../components/designs/bulk-assign-tags-drawer";
+import { BulkDeleteDialog } from "../../components/designs/bulk-delete-dialog";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
 import { AdminDesign, useDesigns } from "../../hooks/api/designs";
@@ -29,14 +34,56 @@ import { SaveViewDialog } from "../../components/views/save-view-dialog";
 import { useViewConfigurationActions } from "../../hooks/use-view-configurations";
 import type { ViewConfiguration } from "../../hooks/api/views";
 import { usePartners } from "../../hooks/api/partners";
-// BatchSendToPartnerDrawer removed — v1 send-to-partner deprecated in favor of production runs
-
 const columnHelper = createDataTableColumnHelper<AdminDesign>();
 
 const commandHelper = createDataTableCommandHelper();
 
-const useCommands = () => {
-  return [];
+const useCommands = (callbacks: {
+  onProductionRun: () => void
+  onRecreate: () => void
+  onEdit: () => void
+  onLinkPartner: () => void
+  onAssignTags: () => void
+  onUpdateStatus: () => void
+  onDelete: () => void
+}) => {
+  return [
+    commandHelper.command({
+      label: "Run Production Run",
+      shortcut: "p",
+      action: callbacks.onProductionRun,
+    }),
+    commandHelper.command({
+      label: "Re-Create for Production",
+      shortcut: "r",
+      action: callbacks.onRecreate,
+    }),
+    commandHelper.command({
+      label: "Edit Design",
+      shortcut: "e",
+      action: callbacks.onEdit,
+    }),
+    commandHelper.command({
+      label: "Link to Partner",
+      shortcut: "l",
+      action: callbacks.onLinkPartner,
+    }),
+    commandHelper.command({
+      label: "Assign Tags",
+      shortcut: "t",
+      action: callbacks.onAssignTags,
+    }),
+    commandHelper.command({
+      label: "Update Status",
+      shortcut: "s",
+      action: callbacks.onUpdateStatus,
+    }),
+    commandHelper.command({
+      label: "Delete",
+      shortcut: "d",
+      action: callbacks.onDelete,
+    }),
+  ];
 };
 
 export const useColumns = () => {
@@ -99,6 +146,11 @@ const DesignsPage = () => {
   const [tableUiResetKey, setTableUiResetKey] = useState(0);
 
   const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({});
+  const [isRecreateDrawerOpen, setIsRecreateDrawerOpen] = useState(false);
+  const [isLinkPartnerOpen, setIsLinkPartnerOpen] = useState(false);
+  const [isUpdateStatusOpen, setIsUpdateStatusOpen] = useState(false);
+  const [isAssignTagsOpen, setIsAssignTagsOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const {
     listViews,
@@ -489,7 +541,23 @@ const DesignsPage = () => {
     </div>
   ) : null;
 
-  const commands = useCommands();
+  const commands = useCommands({
+    onProductionRun: () => {
+      if (selectedDesignIds.length === 1) {
+        navigate(`/designs/${selectedDesignIds[0]}/production-run`)
+      }
+    },
+    onRecreate: () => setIsRecreateDrawerOpen(true),
+    onEdit: () => {
+      if (selectedDesignIds.length === 1) {
+        navigate(`/designs/${selectedDesignIds[0]}/edit`)
+      }
+    },
+    onLinkPartner: () => setIsLinkPartnerOpen(true),
+    onAssignTags: () => setIsAssignTagsOpen(true),
+    onUpdateStatus: () => setIsUpdateStatusOpen(true),
+    onDelete: () => setIsDeleteDialogOpen(true),
+  });
 
   const selectedDesignIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
   const selectedDesigns = useMemo(
@@ -609,6 +677,40 @@ const DesignsPage = () => {
       />
     )}
 
+    {selectedDesigns.length > 0 && (
+      <>
+        <RecreateForProductionDrawer
+          open={isRecreateDrawerOpen}
+          onOpenChange={setIsRecreateDrawerOpen}
+          selectedDesigns={selectedDesigns}
+          onComplete={clearSelection}
+        />
+        <BulkLinkPartnerDrawer
+          open={isLinkPartnerOpen}
+          onOpenChange={setIsLinkPartnerOpen}
+          selectedDesigns={selectedDesigns}
+          onComplete={clearSelection}
+        />
+        <BulkUpdateStatusDrawer
+          open={isUpdateStatusOpen}
+          onOpenChange={setIsUpdateStatusOpen}
+          selectedDesigns={selectedDesigns}
+          onComplete={clearSelection}
+        />
+        <BulkAssignTagsDrawer
+          open={isAssignTagsOpen}
+          onOpenChange={setIsAssignTagsOpen}
+          selectedDesigns={selectedDesigns}
+          onComplete={clearSelection}
+        />
+        <BulkDeleteDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          selectedDesigns={selectedDesigns}
+          onComplete={clearSelection}
+        />
+      </>
+    )}
     </div>
   );
 };
