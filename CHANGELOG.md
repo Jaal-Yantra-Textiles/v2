@@ -1,3 +1,10 @@
+## [12.5.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.0...v12.5.1) (2026-04-06)
+
+
+### Bug Fixes
+
+* **api:** Fixed the command bar ([7dc5e6a](https://github.com/Jaal-Yantra-Textiles/v2/commit/7dc5e6a387abc3e6c7b632386f42bf6f6fd87802))
+
 # [12.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.4.4...v12.5.0) (2026-04-06)
 
 
