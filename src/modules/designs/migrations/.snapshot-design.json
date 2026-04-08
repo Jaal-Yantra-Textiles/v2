@@ -75,7 +75,8 @@
             "Approved",
             "Rejected",
             "On_Hold",
-            "Commerce_Ready"
+            "Commerce_Ready",
+            "Superseded"
           ],
           "mappedType": "enum"
         },
@@ -227,6 +228,34 @@
           "primary": false,
           "nullable": true,
           "mappedType": "json"
+        },
+        "revised_from_id": {
+          "name": "revised_from_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "revision_number": {
+          "name": "revision_number",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "1",
+          "mappedType": "integer"
+        },
+        "revision_notes": {
+          "name": "revision_notes",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
         },
         "metadata": {
           "name": "metadata",

@@ -6,7 +6,9 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { INTERNAL_PAYMENTS_MODULE } from "../../../../modules/internal_payments"
+import { PAYMENT_REPORTS_MODULE } from "../../../../modules/payment_reports"
 import InternalPaymentService from "../../../../modules/internal_payments/service"
+import Payment_reportsService from "../../../../modules/payment_reports/service"
 import { ReportingQuery } from "../validators"
 
 function aggregate(payments: any[]) {
@@ -76,6 +78,38 @@ export const GET = async (req: MedusaRequest<ReportingQuery>, res: MedusaRespons
   // Paginated payment list for this response
   const payments = filtered.slice(offset, offset + limit)
 
+  // Reconciliation summary
+  let reconciliation_summary = null
+  const includeReconciliation = (req.query as any).include_reconciliation
+  if (includeReconciliation === "true" || includeReconciliation === "1") {
+    const reportsService: Payment_reportsService = req.scope.resolve(PAYMENT_REPORTS_MODULE)
+    const [allRecon] = await reportsService.listAndCountPaymentReconciliations(
+      {},
+      { take: 10000 }
+    )
+
+    let total_expected = 0
+    let total_actual = 0
+    let total_discrepancy = 0
+    const by_status: Record<string, number> = {}
+
+    for (const r of allRecon as any[]) {
+      total_expected += Number(r.expected_amount ?? 0)
+      total_actual += Number(r.actual_amount ?? 0)
+      total_discrepancy += Number(r.discrepancy ?? 0)
+      const s = r.status ?? "Unknown"
+      by_status[s] = (by_status[s] ?? 0) + 1
+    }
+
+    reconciliation_summary = {
+      total_expected,
+      total_actual,
+      total_discrepancy,
+      record_count: allRecon.length,
+      by_status,
+    }
+  }
+
   res.status(200).json({
     ...totals,
     payments,
@@ -84,5 +118,6 @@ export const GET = async (req: MedusaRequest<ReportingQuery>, res: MedusaRespons
     limit,
     period_start: period_start ?? null,
     period_end: period_end ?? null,
+    reconciliation_summary,
   })
 }

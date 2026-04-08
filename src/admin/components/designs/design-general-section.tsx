@@ -1,4 +1,4 @@
-import { PencilSquare, Trash, Newspaper, BookOpen, Link, DocumentText, ArrowPath } from "@medusajs/icons";
+import { PencilSquare, Trash, Newspaper, BookOpen, Link as LinkIcon, DocumentText, ArrowPath, ClockSolid, ArrowUturnLeft } from "@medusajs/icons";
 import {
   Container,
   Heading,
@@ -10,12 +10,20 @@ import {
   Tooltip,
 } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionMenu } from "../common/action-menu";
 import { AdminDesign } from "../../hooks/api/designs";
 import { useDeleteDesign, designQueryKeys } from "../../hooks/api/designs";
 import { sdk } from "../../lib/config";
+
+const REVISABLE_STATUSES = [
+  "Approved",
+  "Commerce_Ready",
+  "In_Development",
+  "Sample_Production",
+  "Technical_Review",
+];
 
 
 const designStatusColor = (status: string) => {
@@ -130,10 +138,24 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
                     icon: <ArrowPath />,
                     onClick: handleRecalculateCost,
                   },
+                  ...(REVISABLE_STATUSES.includes(design.status as string)
+                    ? [
+                        {
+                          label: "Revise Design",
+                          icon: <ArrowUturnLeft />,
+                          to: "revise",
+                        },
+                      ]
+                    : []),
                 ],
               },
               {
                 actions: [
+                  {
+                    label: "Revision History",
+                    icon: <ClockSolid />,
+                    to: "revisions",
+                  },
                   {
                     label: 'Edit Note',
                     icon: <Newspaper />,
@@ -190,6 +212,46 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
           </StatusBadge>
           </div>
 
+          {/* Superseded banner */}
+          {design.status === "Superseded" && (
+            <div className="bg-ui-bg-subtle px-6 py-3 flex items-center gap-x-2">
+              <ArrowUturnLeft className="text-ui-fg-muted w-4 h-4" />
+              <Text size="small" className="text-ui-fg-muted">
+                This design has been superseded by a newer revision.
+              </Text>
+            </div>
+          )}
+
+          {/* Revision lineage */}
+          {design.revised_from_id && (
+            <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+              <Text size="small" leading="compact" weight="plus">
+                Revised From
+              </Text>
+              <Link
+                to={`/designs/${design.revised_from_id}`}
+                className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover text-sm"
+              >
+                View original (v{(design.revision_number || 2) - 1})
+              </Link>
+            </div>
+          )}
+          {(design.revision_number || 1) > 1 && (
+            <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+              <Text size="small" leading="compact" weight="plus">
+                Revision
+              </Text>
+              <div className="flex items-center gap-x-2">
+                <Badge color="blue">v{design.revision_number}</Badge>
+                {design.revision_notes && (
+                  <Text size="small" className="text-ui-fg-muted truncate max-w-[200px]">
+                    {design.revision_notes}
+                  </Text>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Design Type */}
           <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
             <Text size="small" leading="compact" weight="plus">
@@ -244,7 +306,7 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
                           className="mr-2 mb-1 cursor-pointer inline-flex items-center gap-1"
                           onClick={() => window.open(fullUrl, '_blank')}
                         >
-                          <Link className="w-3 h-3 inline-flex" />
+                          <LinkIcon className="w-3 h-3 inline-flex" />
                           <span className="truncate max-w-[120px]">{displayUrl}</span>
                         </Badge>
                       </div>

@@ -130,6 +130,20 @@ import {
   ListPaymentReportsQuerySchema,
   UpdatePaymentReportSchema,
 } from "./admin/payment_reports/validators";
+import {
+  CreatePaymentSubmissionSchema,
+  ListPaymentSubmissionsQuerySchema,
+} from "./partners/payment-submissions/validators";
+import {
+  AdminListPaymentSubmissionsQuerySchema,
+  AdminReviewPaymentSubmissionSchema,
+} from "./admin/payment-submissions/validators";
+import {
+  ListReconciliationsQuerySchema,
+  CreateReconciliationSchema,
+  UpdateReconciliationSchema,
+  SettleReconciliationSchema,
+} from "./admin/payment_reports/reconciliation/validators";
 import { AdminRagSearchQuery } from "./admin/ai/rag/search/validators";
 import { AdminAiChatResolveReq, AdminAiChatResolveQuery } from "./admin/ai/chat/resolve/validators";
 import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
@@ -142,6 +156,7 @@ import {
   CreatePaymentMethodForPartnerSchema as PartnerCreatePaymentMethodForPartnerSchema,
 } from "./partners/[id]/payments/validators";
 import { sendDesignToPartnerSchema } from "./admin/designs/[id]/send-to-partner/validators";
+import { ReviseDesignSchema } from "./admin/designs/[id]/revise/validators";
 import { AdminCreateDesignProductionRunSchema } from "./admin/designs/[id]/production-runs/validators";
 import { AdminRecreateProductionRunSchema } from "./admin/designs/recreate-production-run/validators";
 import { listDesignsQuerySchema } from "./partners/designs/validators";
@@ -2031,6 +2046,83 @@ export default defineMiddlewares({
       middlewares: [],
     },
 
+    // ── Payment Reconciliation ──────────────────────────────────────────────
+    {
+      matcher: "/admin/payment_reports/reconciliation/:id/settle",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SettleReconciliationSchema))],
+    },
+    {
+      matcher: "/admin/payment_reports/reconciliation/:id",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/payment_reports/reconciliation/:id",
+      method: "PATCH",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateReconciliationSchema))],
+    },
+    {
+      matcher: "/admin/payment_reports/reconciliation",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListReconciliationsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/payment_reports/reconciliation",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateReconciliationSchema))],
+    },
+
+    // ── Payment Submissions (Admin) ─────────────────────────────────────────
+    {
+      matcher: "/admin/payment-submissions/:id/review",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminReviewPaymentSubmissionSchema))],
+    },
+    {
+      matcher: "/admin/payment-submissions/:id",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/payment-submissions",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminListPaymentSubmissionsQuerySchema), {})],
+    },
+
+    // ── Payment Submissions (Partner) ───────────────────────────────────────
+    {
+      matcher: "/partners/payment-submissions/:submissionId/documents",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        maybeMulterArray("files"),
+      ],
+    },
+    {
+      matcher: "/partners/payment-submissions/:submissionId",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/payment-submissions",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(wrapSchema(ListPaymentSubmissionsQuerySchema), {}),
+      ],
+    },
+    {
+      matcher: "/partners/payment-submissions",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(CreatePaymentSubmissionSchema)),
+      ],
+    },
+
     // Payment and its methods
     {
       matcher: "/admin/persons",
@@ -3147,6 +3239,17 @@ export default defineMiddlewares({
     },
     {
       matcher: "/admin/designs/:id/used-in",
+      method: "GET",
+      middlewares: [],
+    },
+    // Design revisions
+    {
+      matcher: "/admin/designs/:id/revise",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(ReviseDesignSchema))],
+    },
+    {
+      matcher: "/admin/designs/:id/revisions",
       method: "GET",
       middlewares: [],
     },

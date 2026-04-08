@@ -360,6 +360,9 @@ module.exports = defineConfig({
     resolve: "./src/modules/payment_reports",
   },
   {
+    resolve: "./src/modules/payment_submissions",
+  },
+  {
     resolve: "./src/modules/email-provider-manager",
   },
 ],

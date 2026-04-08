@@ -7,9 +7,7 @@ import { DesignMediaSection } from "../../../components/designs/design-media-sec
 import { DesignMediaFolderSection } from "../../../components/designs/design-media-folder-section";
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
 import { DesignConsumptionLogsSection } from "../../../components/designs/design-consumption-logs-section";
-import { DesignSizesSection } from "../../../components/designs/design-sizes-section";
-import { DesignTagsSection } from "../../../components/designs/design-tags-section";
-import { DesignColorPaletteSection } from "../../../components/designs/design-color-palette-section";
+import { DesignAttributesSection } from "../../../components/designs/design-attributes-section";
 import { DesignProductionRunsSection } from "../../../components/designs/design-production-runs-section";
 import { DesignComponentsSection } from "../../../components/designs/design-components-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
@@ -35,6 +33,9 @@ const DesignDetailPage = () => {
       "partners.*",
       "colors.*",
       "size_sets.*",
+      "revised_from_id",
+      "revision_number",
+      "revision_notes",
     ],
   }, {
     // This ensures fresh data is fetched when returning from other pages
@@ -73,11 +74,9 @@ const DesignDetailPage = () => {
           <DesignPartnerSection design={design} />
           <DesignInventorySection design={design} />
           <DesignConsumptionLogsSection design={design} />
-          <DesignSizesSection design={design} />
-          <DesignTagsSection design={design} />
-          <DesignColorPaletteSection design={design} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
+          <DesignAttributesSection design={design} />
           <DesignMediaFolderSection design={design} />
           <DesignMediaSection design={design} />
           <DesignComponentsSection design={design} />

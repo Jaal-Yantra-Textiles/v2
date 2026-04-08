@@ -93,6 +93,36 @@ export function getPartnerRouteMap(): RouteObject[] {
               ],
             },
             {
+              path: "/payment-submissions",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Payment Submissions",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () =>
+                    import(
+                      "../../routes/payment-submissions/payment-submission-list/payment-submission-list"
+                    ),
+                },
+                {
+                  path: "create",
+                  lazy: () =>
+                    import(
+                      "../../routes/payment-submissions/payment-submission-create/payment-submission-create"
+                    ),
+                },
+                {
+                  path: ":id",
+                  lazy: () =>
+                    import(
+                      "../../routes/payment-submissions/payment-submission-detail/payment-submission-detail"
+                    ),
+                },
+              ],
+            },
+            {
               path: "/inventory-orders",
               errorElement: <ErrorBoundary />,
               handle: {

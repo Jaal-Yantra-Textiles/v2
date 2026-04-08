@@ -24,7 +24,8 @@ const Design = model.define("design", {
     "Approved",
     "Rejected",
     "On_Hold",
-    "Commerce_Ready"
+    "Commerce_Ready",
+    "Superseded"
   ]).default("Conceptual"),
   priority: model.enum([
     "Low",
@@ -50,6 +51,9 @@ const Design = model.define("design", {
   cost_currency: model.text().nullable(), // e.g. "inr"
   designer_notes: model.text().nullable(),
   feedback_history: model.json().nullable(), // Track feedback and changes
+  revised_from_id: model.text().nullable(),
+  revision_number: model.number().default(1),
+  revision_notes: model.text().nullable(),
   metadata: model.json().nullable(),
   media_files: model.json().nullable(),
   moodboard: model.json().nullable(),

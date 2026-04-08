@@ -54,8 +54,11 @@ export interface AdminDesign {
   description?: string;
   inspiration_sources?: string[];
   design_type?: "Original" | "Derivative" | "Custom" | "Collaboration";
-  status?: "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold";
+  status?: "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold" | "Commerce_Ready" | "Superseded";
   priority?: "Low" | "Medium" | "High" | "Urgent";
+  revised_from_id?: string | null;
+  revision_number?: number;
+  revision_notes?: string | null;
   target_completion_date: string | Date;
   design_files?: string[];
   thumbnail_url?: string;
@@ -512,6 +515,88 @@ export const useCreateDesignLLM = (
     },
     ...options,
   });
+};
+
+// ─── Design Revisions ──────────────────────────────────────────────────────
+
+export interface ReviseDesignPayload {
+  revision_notes: string;
+  overrides?: {
+    name?: string;
+    priority?: string;
+    designer_notes?: string;
+    description?: string;
+    tags?: string[];
+    target_completion_date?: string;
+  };
+}
+
+export interface ReviseDesignResponse {
+  design: AdminDesign;
+  message: string;
+}
+
+export interface DesignRevisionsResponse {
+  design_id: string;
+  root_design_id: string;
+  current_revision: number;
+  lineage: Array<{
+    id: string;
+    name: string;
+    status: string;
+    revision_number: number;
+    revision_notes: string | null;
+    revised_from_id: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+}
+
+export const useReviseDesign = (
+  id: string,
+  options?: UseMutationOptions<
+    ReviseDesignResponse,
+    FetchError,
+    ReviseDesignPayload
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ReviseDesignPayload) =>
+      sdk.client.fetch<ReviseDesignResponse>(`/admin/designs/${id}/revise`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};
+
+export const useDesignRevisions = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<
+      DesignRevisionsResponse,
+      FetchError,
+      DesignRevisionsResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: designQueryKeys.detail(id, ["revisions"]),
+    queryFn: async () =>
+      sdk.client.fetch<DesignRevisionsResponse>(`/admin/designs/${id}/revisions`, {
+        method: "GET",
+      }),
+    ...options,
+  });
+  return { ...data, ...rest };
 };
 
 // ─── Design Components (bundling) ───────────────────────────────────────────

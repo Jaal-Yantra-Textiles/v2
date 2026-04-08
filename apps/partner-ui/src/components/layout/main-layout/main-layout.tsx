@@ -191,6 +191,7 @@ const MANUFACTURER_ROUTES: Omit<INavItem, "pathname">[] = [
       { label: "Tasks", to: "/tasks" },
     ],
   },
+  { icon: <CurrencyDollar />, label: "Payment Submissions", to: "/payment-submissions" },
   { icon: <BuildingStorefront />, label: "Inventory Orders", to: "/inventory-orders" },
   {
     icon: <Tag />,

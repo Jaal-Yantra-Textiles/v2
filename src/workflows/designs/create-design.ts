@@ -17,7 +17,7 @@ import type { Link } from "@medusajs/modules-sdk";
 import type { IEventBusModuleService } from "@medusajs/types";
 
 type DesignType = "Original" | "Derivative" | "Custom" | "Collaboration";
-type DesignStatus = "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold" | "Commerce_Ready";
+type DesignStatus = "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold" | "Commerce_Ready" | "Superseded";
 type PriorityLevel = "Low" | "Medium" | "High" | "Urgent";
 
 type CreateDesignStepInput = {

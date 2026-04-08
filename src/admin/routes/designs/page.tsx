@@ -46,6 +46,7 @@ const useCommands = (callbacks: {
   onAssignTags: () => void
   onUpdateStatus: () => void
   onDelete: () => void
+  onRevise: () => void
 }) => {
   return [
     commandHelper.command({
@@ -82,6 +83,11 @@ const useCommands = (callbacks: {
       label: "Delete",
       shortcut: "d",
       action: callbacks.onDelete,
+    }),
+    commandHelper.command({
+      label: "Revise Design",
+      shortcut: "v",
+      action: callbacks.onRevise,
     }),
   ];
 };
@@ -557,6 +563,11 @@ const DesignsPage = () => {
     onAssignTags: () => setIsAssignTagsOpen(true),
     onUpdateStatus: () => setIsUpdateStatusOpen(true),
     onDelete: () => setIsDeleteDialogOpen(true),
+    onRevise: () => {
+      if (selectedDesignIds.length === 1) {
+        navigate(`/designs/${selectedDesignIds[0]}/revise`)
+      }
+    },
   });
 
   const selectedDesignIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);

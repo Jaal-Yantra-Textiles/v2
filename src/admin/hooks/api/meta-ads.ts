@@ -401,7 +401,7 @@ export const useMetaAdsOverview = (params?: {
         query,
       })
     },
-    enabled: !!params?.platform_id && !!params?.ad_account_id,
+    enabled: !!params?.platform_id && !!params?.ad_account_id && (params?.level === "account" || params?.level === undefined || !!params?.object_id),
   })
 }
 
