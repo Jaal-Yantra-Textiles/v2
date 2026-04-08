@@ -1,3 +1,12 @@
+## [12.5.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.2...v12.5.3) (2026-04-08)
+
+
+### Bug Fixes
+
+* **workflows:** Fixed the any type definition ([2bcba3b](https://github.com/Jaal-Yantra-Textiles/v2/commit/2bcba3b9f66c44e183694009ec35114ce65d486d))
+* **api:** Fixed the type issues at the build ([5c0ad03](https://github.com/Jaal-Yantra-Textiles/v2/commit/5c0ad03843d91315a54da052f7147151b49b64d0))
+* **api:** i enjoy stability ([a154eb8](https://github.com/Jaal-Yantra-Textiles/v2/commit/a154eb8d1ed61edfed738828147de1552f1e3d21))
+
 ## [12.5.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.1...v12.5.2) (2026-04-08)
 
 
