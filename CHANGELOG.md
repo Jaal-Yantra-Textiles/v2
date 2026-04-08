@@ -1,3 +1,11 @@
+## [12.5.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.1...v12.5.2) (2026-04-08)
+
+
+### Bug Fixes
+
+* **api:** Fixe the api and ui adming for the revised designe ([a631ccc](https://github.com/Jaal-Yantra-Textiles/v2/commit/a631cccfbc52108453521de84221206820383304))
+* **CI:** Fixed the build issue ([51a1354](https://github.com/Jaal-Yantra-Textiles/v2/commit/51a1354e0cb8c96c2912c5e512cfdeb1fae06deb))
+
 ## [12.5.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.0...v12.5.1) (2026-04-06)
 
 
