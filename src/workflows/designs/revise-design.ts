@@ -115,7 +115,7 @@ const REVISABLE_STATUSES = [
 const getOriginalDesignStep = createStep(
   "get-original-design-step",
   async (input: { design_id: string }, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     const { data: [design] } = await query.graph({
       entity: "design",

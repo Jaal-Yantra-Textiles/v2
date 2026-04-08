@@ -58,7 +58,7 @@ const validateDesignsForSubmissionStep = createStep(
     input: { partner_id: string; design_ids: string[] },
     { container }
   ) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     // 1. Fetch all designs
     const { data: designs } = await query.graph({
