@@ -372,5 +372,8 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/consumption_log",
     },
+    {
+    resolve: "./src/modules/payment_submissions",
+  },
 ],
 });
