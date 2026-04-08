@@ -1717,6 +1717,13 @@
         "type": "object",
         "required": false,
         "placeholder": "{}"
+      },
+      {
+        "name": "override_currency",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.override_currency }}",
+        "description": "Currency of price_overrides (e.g. \"inr\"). Defaults to store default."
       }
     ],
     "source": "custom_ts",
@@ -1902,6 +1909,30 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/designs/promote-design-to-product.ts"
+  },
+  "revise-design": {
+    "fields": [
+      {
+        "name": "design_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.design_id }}"
+      },
+      {
+        "name": "revision_notes",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.revision_notes }}"
+      },
+      {
+        "name": "overrides",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/designs/revise-design.ts"
   },
   "update-design-task": {
     "fields": [
@@ -4035,6 +4066,96 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/payment_reports/update-payment_report.ts"
   },
+  "create-payment-submission": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "design_ids",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.design_ids }}"
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      },
+      {
+        "name": "documents",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.documents }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_submissions/create-payment-submission.ts"
+  },
+  "review-payment-submission": {
+    "fields": [
+      {
+        "name": "submission_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.submission_id }}"
+      },
+      {
+        "name": "action",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.action }}"
+      },
+      {
+        "name": "reviewed_by",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.reviewed_by }}"
+      },
+      {
+        "name": "rejection_reason",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.rejection_reason }}"
+      },
+      {
+        "name": "amount_override",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      },
+      {
+        "name": "payment_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.payment_type }}"
+      },
+      {
+        "name": "paid_to_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.paid_to_id }}"
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_submissions/review-payment-submission.ts"
+  },
   "create-person-type": {
     "fields": [
       {
@@ -4574,6 +4695,42 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/production-run-steps 2.ts"
+  },
+  "recreate-production-run": {
+    "fields": [
+      {
+        "name": "designs",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.designs }}"
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "run_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.run_type }}"
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/recreate-production-run.ts"
   },
   "send-production-run-to-production": {
     "fields": [

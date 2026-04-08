@@ -338,7 +338,7 @@ export const reviewPaymentSubmissionWorkflow = createWorkflow(
     when(isApproval, (val) => val).then(() =>
       linkSubmissionToPaymentStep({
         submission_id: input.submission_id,
-        payment_id: payment.id,
+        payment_id: payment!.id,
       })
     )
 
@@ -348,7 +348,7 @@ export const reviewPaymentSubmissionWorkflow = createWorkflow(
         partner_id: submission.partner_id,
         expected_amount: submission.total_amount,
         actual_amount: paymentAmount,
-        payment_id: payment.id,
+        payment_id: payment!.id,
       })
     )
 

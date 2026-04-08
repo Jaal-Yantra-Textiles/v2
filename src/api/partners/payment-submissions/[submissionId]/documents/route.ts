@@ -122,7 +122,7 @@ export const POST = async (
 
   await service.updatePaymentSubmissions({
     id: submissionId,
-    documents: allDocs,
+    documents: allDocs as any,
   })
 
   return res.status(200).json({ files: results, documents: allDocs })

@@ -79,7 +79,7 @@ export const GET = async (req: MedusaRequest<ReportingQuery>, res: MedusaRespons
   const payments = filtered.slice(offset, offset + limit)
 
   // Reconciliation summary
-  let reconciliation_summary = null
+  let reconciliation_summary: any = null
   const includeReconciliation = (req.query as any).include_reconciliation
   if (includeReconciliation === "true" || includeReconciliation === "1") {
     const reportsService: Payment_reportsService = req.scope.resolve(PAYMENT_REPORTS_MODULE)

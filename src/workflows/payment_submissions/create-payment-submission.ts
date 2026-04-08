@@ -164,7 +164,7 @@ const createSubmissionRecordStep = createStep(
       currency: "inr",
       submitted_at: new Date(),
       notes: input.notes || null,
-      documents: input.documents || null,
+      documents: (input.documents || null) as any,
       metadata: input.metadata || null,
     })
 
