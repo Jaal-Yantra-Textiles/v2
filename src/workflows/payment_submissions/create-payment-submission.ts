@@ -30,7 +30,25 @@ type ValidatedDesign = {
   id: string
   name: string
   estimated_cost: number
-  cost_breakdown: any
+  cost_breakdown: Record<string, unknown> | null
+}
+
+type DesignGraphResult = {
+  id: string
+  name: string
+  status: string
+  estimated_cost: number | null
+  cost_breakdown: Record<string, unknown> | null
+}
+
+type DesignPartnerLinkResult = {
+  design_id: string
+  partner_id: string
+}
+
+type SubmissionDesignLinkResult = {
+  design_id: string
+  payment_submission?: { status: string } | null
 }
 
 // Step 1: Validate all designs for submission eligibility
@@ -49,8 +67,10 @@ const validateDesignsForSubmissionStep = createStep(
       filters: { id: input.design_ids },
     })
 
-    if (!designs || designs.length !== input.design_ids.length) {
-      const found = new Set((designs || []).map((d: any) => d.id))
+    const typedDesigns = designs as unknown as DesignGraphResult[]
+
+    if (!typedDesigns || typedDesigns.length !== input.design_ids.length) {
+      const found = new Set((typedDesigns || []).map((d) => d.id))
       const missing = input.design_ids.filter((id) => !found.has(id))
       throw new MedusaError(
         MedusaError.Types.NOT_FOUND,
@@ -60,24 +80,24 @@ const validateDesignsForSubmissionStep = createStep(
 
     // 2. Validate status — must be Commerce_Ready or Approved
     const ELIGIBLE_STATUSES = ["Commerce_Ready", "Approved"]
-    const ineligible = designs.filter(
-      (d: any) => !ELIGIBLE_STATUSES.includes(d.status)
+    const ineligible = typedDesigns.filter(
+      (d) => !ELIGIBLE_STATUSES.includes(d.status)
     )
     if (ineligible.length) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Designs not eligible for payment (status must be Approved or Commerce_Ready): ${ineligible.map((d: any) => `${d.name || d.id} (${d.status})`).join(", ")}`
+        `Designs not eligible for payment (status must be Approved or Commerce_Ready): ${ineligible.map((d) => `${d.name || d.id} (${d.status})`).join(", ")}`
       )
     }
 
     // 3. Validate all designs have estimated_cost
-    const noCost = designs.filter(
-      (d: any) => d.estimated_cost === null || d.estimated_cost === undefined
+    const noCost = typedDesigns.filter(
+      (d) => d.estimated_cost === null || d.estimated_cost === undefined
     )
     if (noCost.length) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Designs missing estimated cost: ${noCost.map((d: any) => d.name || d.id).join(", ")}`
+        `Designs missing estimated cost: ${noCost.map((d) => d.name || d.id).join(", ")}`
       )
     }
 
@@ -91,8 +111,9 @@ const validateDesignsForSubmissionStep = createStep(
       },
     })
 
+    const typedLinkResults = linkResults as unknown as DesignPartnerLinkResult[]
     const linkedDesignIds = new Set(
-      (linkResults || []).map((r: any) => r.design_id)
+      (typedLinkResults || []).map((r) => r.design_id)
     )
     const notOwned = input.design_ids.filter((id) => !linkedDesignIds.has(id))
     if (notOwned.length) {
@@ -109,14 +130,15 @@ const validateDesignsForSubmissionStep = createStep(
       filters: { design_id: input.design_ids },
     })
 
-    const activeSubmissionDesigns = (existingLinks || []).filter((link: any) => {
+    const typedExistingLinks = existingLinks as unknown as SubmissionDesignLinkResult[]
+    const activeSubmissionDesigns = (typedExistingLinks || []).filter((link) => {
       const status = link.payment_submission?.status
       return status === "Pending" || status === "Under_Review"
     })
 
     if (activeSubmissionDesigns.length) {
       const ids = [
-        ...new Set(activeSubmissionDesigns.map((l: any) => l.design_id)),
+        ...new Set(activeSubmissionDesigns.map((l) => l.design_id)),
       ]
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
@@ -124,7 +146,7 @@ const validateDesignsForSubmissionStep = createStep(
       )
     }
 
-    const validated: ValidatedDesign[] = designs.map((d: any) => ({
+    const validated: ValidatedDesign[] = typedDesigns.map((d) => ({
       id: d.id,
       name: d.name,
       estimated_cost: Number(d.estimated_cost),
@@ -157,6 +179,8 @@ const createSubmissionRecordStep = createStep(
       0
     )
 
+    // documents is typed as json() (Record<string, unknown>) in the model
+    // but we store an array of document objects — cast at the service boundary
     const submission = await service.createPaymentSubmissions({
       partner_id: input.partner_id,
       status: "Pending",
@@ -164,7 +188,7 @@ const createSubmissionRecordStep = createStep(
       currency: "inr",
       submitted_at: new Date(),
       notes: input.notes || null,
-      documents: (input.documents || null) as any,
+      documents: (input.documents || null) as Record<string, unknown> | null,
       metadata: input.metadata || null,
     })
 

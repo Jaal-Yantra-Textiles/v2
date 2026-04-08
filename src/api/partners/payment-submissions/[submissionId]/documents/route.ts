@@ -120,9 +120,11 @@ export const POST = async (
   const existingDocs = (submission as any).documents || []
   const allDocs = [...existingDocs, ...results]
 
+  // documents is typed as json() (Record<string, unknown>) in the model
+  // but we store an array of document objects — cast at the service boundary
   await service.updatePaymentSubmissions({
     id: submissionId,
-    documents: allDocs as any,
+    documents: allDocs as unknown as Record<string, unknown>,
   })
 
   return res.status(200).json({ files: results, documents: allDocs })
