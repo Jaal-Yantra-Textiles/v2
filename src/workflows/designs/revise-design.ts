@@ -293,7 +293,7 @@ export const reviseDesignWorkflow = createWorkflow(
 
     supersedeOriginalStep({ design_id: input.design_id })
 
-    const partnerIds = transform({ original }, (data) => {
+    const partnerIds = transform({ original } as Record<string, any>, (data: any) => {
       return (data.original.partners || []).map((p: any) => p.id)
     })
 
