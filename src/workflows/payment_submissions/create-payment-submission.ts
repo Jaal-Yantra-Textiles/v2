@@ -206,6 +206,7 @@ const createSubmissionRecordStep = createStep(
     return new StepResponse(submission, submission.id)
   },
   async (submissionId: string, { container }) => {
+    if (!submissionId) return
     const service: PaymentSubmissionsService = container.resolve(
       PAYMENT_SUBMISSIONS_MODULE
     )

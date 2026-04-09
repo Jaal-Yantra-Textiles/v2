@@ -4,8 +4,8 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
-import { AGREEMENTS_MODULE } from "../../modules/agreements";
-import AgreementResponseService from "../../modules/agreements/service";
+import { AGREEMENT_RESPONSE_MODULE } from "../../modules/agreement-responses";
+import AgreementResponseService from "../../modules/agreement-responses/service";
 
 export type DeleteAgreementResponseStepInput = {
   id: string;
@@ -14,7 +14,7 @@ export type DeleteAgreementResponseStepInput = {
 export const deleteAgreementResponseStep = createStep(
   "delete-agreement-response-step",
   async (input: DeleteAgreementResponseStepInput, { container }) => {
-    const service: AgreementResponseService = container.resolve(AGREEMENTS_MODULE);
+    const service: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
     const original = await service.retrieveAgreementResponse(input.id);
 
     await service.deleteAgreementResponses(input.id);
@@ -22,7 +22,7 @@ export const deleteAgreementResponseStep = createStep(
     return new StepResponse({ success: true }, original);
   },
   async (original: any, { container }) => {
-    const service: AgreementResponseService = container.resolve(AGREEMENTS_MODULE);
+    const service: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
     await service.createAgreementResponses(original);
   }
 );

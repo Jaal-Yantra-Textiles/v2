@@ -1,7 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
-import { AGREEMENTS_MODULE } from "../../../modules/agreements";
+import { AGREEMENT_RESPONSE_MODULE } from "../../../modules/agreement-responses";
 import { randomBytes } from "crypto";
-import AgreementsService from "../../../modules/agreements/service";
+import AgreementResponseService from "../../../modules/agreement-responses/service";
 
 export const createAgreementResponseStep = createStep(
   "create-agreement-response",
@@ -13,12 +13,12 @@ export const createAgreementResponseStep = createStep(
     },
     { container }
   ) => {
-    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementResponseService: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
 
     // Generate a secure access token for web access
     const accessToken = randomBytes(32).toString('hex');
 
-    const agreementResponse = await agreementsService.createAgreementResponses({
+    const agreementResponse = await agreementResponseService.createAgreementResponses({
       agreement_id: input.agreement_id,
       email_sent_to: input.email_sent_to,
       sent_at: new Date(),
@@ -36,7 +36,7 @@ export const createAgreementResponseStep = createStep(
   },
   async (agreementResponseId: string, { container }) => {
     // Rollback: delete the created agreement response
-    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
-    await agreementsService.softDeleteAgreementResponses(agreementResponseId);
+    const agreementResponseService: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
+    await agreementResponseService.softDeleteAgreementResponses(agreementResponseId);
   }
 );

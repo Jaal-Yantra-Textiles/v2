@@ -4,8 +4,8 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
-import { AGREEMENTS_MODULE } from "../../modules/agreements";
-import AgreementResponseService from "../../modules/agreements/service";
+import { AGREEMENT_RESPONSE_MODULE } from "../../modules/agreement-responses";
+import AgreementResponseService from "../../modules/agreement-responses/service";
 
 export type ListAgreementResponseStepInput = {
   filters?: Record<string, any>;
@@ -20,7 +20,7 @@ export type ListAgreementResponseStepInput = {
 export const listAgreementResponseStep = createStep(
   "list-agreement-response-step",
   async (input: ListAgreementResponseStepInput, { container }) => {
-    const service: AgreementResponseService = container.resolve(AGREEMENTS_MODULE);
+    const service: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
     const results = await service.listAndCountAgreementResponses(
       input.filters,
       input.config

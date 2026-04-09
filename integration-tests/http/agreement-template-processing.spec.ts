@@ -104,7 +104,7 @@ setupSharedTestSuite(() => {
           template_key: "agreement-notification",
           status: "active",
           valid_from: new Date("2025-01-01"),
-          valid_until: new Date("2025-12-31"),
+          valid_until: new Date("2027-12-31"),
           from_email: "agreements@jaalyantra.com"
         };
 
@@ -409,7 +409,7 @@ setupSharedTestSuite(() => {
           sendAgreementPayload,
           headers
         );
-      
+
         expect(sendResponse.status).toBe(200);
         expect(sendResponse.data).toMatchObject({
           message: "Agreement sent successfully",
@@ -418,7 +418,7 @@ setupSharedTestSuite(() => {
         });
 
         const agreementResponseId = sendResponse.data.agreement_response.id;
-        
+
         // Step 5: Verify that the person-agreement link was created
         const personAgreementsResponse = await api.get(
           `/admin/persons/${personId}/agreements`,

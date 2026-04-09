@@ -13,7 +13,7 @@ export const sendNotificationEmailStep = createStep(
   { name: "send-notification-email", store: true },
   async (input: SendNotificationEmailInput & { templateData?: ProcessedEmailTemplateData | null }, { container }) => {
     const notificationService = container.resolve(Modules.NOTIFICATION) as INotificationModuleService
-  
+
     // Prepare the data to send to the notification service
     const notificationData = {
       ...input.data,
@@ -25,8 +25,8 @@ export const sendNotificationEmailStep = createStep(
         _template_processed: input.templateData.processed,
       })
     }
-    
-    
+
+
     const result = await notificationService.createNotifications({
       to: input.to,
       channel: "email",

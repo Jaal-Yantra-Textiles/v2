@@ -135,19 +135,23 @@ export const GET = async (
       can_respond
     });
 
-  } catch (error) {
-    if (error instanceof MedusaError) {
-      const statusMap = {
-        [MedusaError.Types.NOT_FOUND]: 404,
-        [MedusaError.Types.UNAUTHORIZED]: 403,
-        [MedusaError.Types.NOT_ALLOWED]: 410,
-        [MedusaError.Types.DB_ERROR]: 500,
-      };
-      
-      const status = statusMap[error.type] || 500;
-      
-      return res.status(status).json({
-        error: error.type,
+  } catch (error: any) {
+    const statusMap: Record<string, number> = {
+      [MedusaError.Types.NOT_FOUND]: 404,
+      [MedusaError.Types.UNAUTHORIZED]: 403,
+      [MedusaError.Types.NOT_ALLOWED]: 410,
+      [MedusaError.Types.INVALID_DATA]: 400,
+      [MedusaError.Types.DB_ERROR]: 500,
+    };
+
+    // Handle both direct MedusaError instances and workflow-serialized errors
+    const errorType = error instanceof MedusaError
+      ? error.type
+      : error?.__isMedusaError ? error.type : null;
+
+    if (errorType && statusMap[errorType]) {
+      return res.status(statusMap[errorType]).json({
+        error: errorType,
         message: error.message
       });
     }

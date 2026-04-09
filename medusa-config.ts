@@ -127,29 +127,20 @@ module.exports = defineConfig({
     //   },
     // },
 
-    // {
-    //   resolve: "@medusajs/medusa/notification",
-    //   options: {
-    //     providers: [
-    //       {
-    //         resolve: "./src/modules/resend",
-    //         id: "resend",
-    //         options: {
-    //           channels: ["email"],
-    //           api_key: process.env.RESEND_API_KEY,
-    //           from: process.env.RESEND_FROM_EMAIL,
-    //         },
-    //       },
-    //       {
-    //         resolve: "@medusajs/medusa/notification-local",
-    //         id: "local",
-    //         options: {
-    //           channels: ["feed"],
-    //         },
-    //       },
-    //     ],
-    //   },
-    // }, 
+    {
+      resolve: "@medusajs/medusa/notification",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/notification-local",
+            id: "local",
+            options: {
+              channels: ["feed", "email"],
+            },
+          },
+        ],
+      },
+    }, 
     // {
     //   resolve: "@medusajs/medusa/caching",
     //   options: {
@@ -299,6 +290,9 @@ module.exports = defineConfig({
   },
   {
     resolve: "./src/modules/agreements",
+  },
+  {
+    resolve: "./src/modules/agreement-responses",
   },
   {
     resolve: "./src/modules/media",

@@ -1,6 +1,8 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+import { AGREEMENT_RESPONSE_MODULE } from "../../../modules/agreement-responses";
 import { AGREEMENTS_MODULE } from "../../../modules/agreements";
+import AgreementResponseService from "../../../modules/agreement-responses/service";
 import AgreementsService from "../../../modules/agreements/service";
 import PersonAgreementResponseLink from "../../../links/person-agreement-responses";
 import { RemoteQueryFunction } from "@medusajs/types";
@@ -16,13 +18,12 @@ export const fetchAgreementResponseStep = createStep(
     },
     { container }
   ) => {
+    const agreementResponseService: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
     const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Query;
 
-    // retrieveAgreementResponse throws MedusaError.NOT_FOUND if the record doesn't exist
-    const agreementResponse = await agreementsService.retrieveAgreementResponse(input.response_id, {
-      relations: ["agreement"],
-    });
+    // Retrieve the agreement response (no ORM relations - separate module now)
+    const agreementResponse = await agreementResponseService.retrieveAgreementResponse(input.response_id);
 
     if (agreementResponse.access_token !== input.access_token) {
       throw new MedusaError(
@@ -31,7 +32,17 @@ export const fetchAgreementResponseStep = createStep(
       );
     }
 
-    const agreement = agreementResponse.agreement;
+    // Fetch the agreement separately using the agreement_id field
+    const [agreement] = await agreementsService.listAgreements(
+      { id: [agreementResponse.agreement_id] }
+    );
+
+    if (!agreement) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Agreement ${agreementResponse.agreement_id} not found`
+      );
+    }
 
     if (agreement.valid_until && new Date() > new Date(agreement.valid_until)) {
       throw new MedusaError(
@@ -40,7 +51,7 @@ export const fetchAgreementResponseStep = createStep(
       );
     }
 
-    // Resolve person through the response link (not the agreement link)
+    // Resolve person through the response link
     const { data: linkedData } = await query.graph({
       entity: PersonAgreementResponseLink.entryPoint,
       fields: ["person.*"],

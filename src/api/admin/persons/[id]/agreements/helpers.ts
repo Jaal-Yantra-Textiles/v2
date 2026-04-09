@@ -1,4 +1,6 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import PersonAgreementLink from "../../../../../links/person-agreements";
+import PersonAgreementResponseLink from "../../../../../links/person-agreement-responses";
 
 export const refetchPersonWithAgreements = async (
   personId: string,
@@ -6,23 +8,37 @@ export const refetchPersonWithAgreements = async (
   fields?: string[]
 ) => {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY);
-  
-  const defaultFields = [
-    "id",
-    "first_name", 
-    "last_name",
-    "email",
-    "agreements.*",
-    "agreements.responses.*"
-  ];
 
-  const { data } = await query.graph({
+  // Get person info
+  const { data: persons } = await query.graph({
     entity: "person",
-    fields: fields || defaultFields,
+    fields: ["id", "first_name", "last_name", "email"],
     filters: { id: personId },
   });
 
-  return data?.[0];
+  if (!persons?.[0]) return null;
+
+  const person = persons[0];
+
+  // Get linked agreements via link entry point
+  const { data: agreementLinks } = await query.graph({
+    entity: PersonAgreementLink.entryPoint,
+    fields: ["agreement_id", "agreement.*"],
+    filters: { person_id: personId },
+  });
+
+  const agreements = (agreementLinks || []).map((l: any) => l.agreement).filter(Boolean);
+
+  // Get linked responses via link entry point
+  const { data: responseLinks } = await query.graph({
+    entity: PersonAgreementResponseLink.entryPoint,
+    fields: ["agreement_response_id", "agreement_response.*"],
+    filters: { person_id: personId },
+  });
+
+  const responses = (responseLinks || []).map((l: any) => l.agreement_response).filter(Boolean);
+
+  return { ...person, agreements, agreement_responses: responses };
 };
 
 export const refetchPersonAgreement = async (
@@ -32,12 +48,10 @@ export const refetchPersonAgreement = async (
   fields?: string[]
 ) => {
   const person = await refetchPersonWithAgreements(personId, scope, fields);
-  
-  if (!person) {
-    return null;
-  }
 
-  const agreement = person.agreements?.find(a => a.id === agreementId);
-  
+  if (!person) return null;
+
+  const agreement = person.agreements?.find((a: any) => a.id === agreementId);
+
   return agreement ? { person, agreement } : null;
 };

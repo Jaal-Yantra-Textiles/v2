@@ -1,5 +1,4 @@
 import { model } from "@medusajs/framework/utils";
-import AgreementResponse from "./agreement-response";
 
 const Agreement = model.define("agreement", {
   id: model.id().primaryKey(),
@@ -27,8 +26,6 @@ const Agreement = model.define("agreement", {
   
   // Metadata for additional data
   metadata: model.json().nullable(),
-
-  responses: model.hasMany(() => AgreementResponse, { mappedBy: "agreement" }),
 });
 
 export default Agreement;

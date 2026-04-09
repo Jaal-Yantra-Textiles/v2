@@ -1,7 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { AGREEMENTS_MODULE } from "../../../../../modules/agreements";
+import { AGREEMENT_RESPONSE_MODULE } from "../../../../../modules/agreement-responses";
 import { WebAgreementResponseSchema } from "../../validators";
 import AgreementsService from "../../../../../modules/agreements/service";
+import AgreementResponseService from "../../../../../modules/agreement-responses/service";
 
 // POST /web/agreement/:id/respond - Submit agreement response (agree/disagree)
 export const POST = async (
@@ -15,12 +17,11 @@ export const POST = async (
     const validatedData = WebAgreementResponseSchema.parse(req.body);
     const { token, agreed, response_notes, response_ip, response_user_agent } = validatedData;
 
+    const agreementResponseService: AgreementResponseService = req.scope.resolve(AGREEMENT_RESPONSE_MODULE);
     const agreementsService: AgreementsService = req.scope.resolve(AGREEMENTS_MODULE);
 
-    // First, find the agreement response by ID and validate the token
-    const agreementResponse = await agreementsService.retrieveAgreementResponse(id, {
-      relations: ["agreement"]
-    });
+    // Find the agreement response by ID
+    const agreementResponse = await agreementResponseService.retrieveAgreementResponse(id);
 
     if (!agreementResponse) {
       return res.status(404).json({
@@ -45,8 +46,19 @@ export const POST = async (
       });
     }
 
+    // Fetch the agreement separately (no ORM relation)
+    const [agreement] = await agreementsService.listAgreements(
+      { id: [agreementResponse.agreement_id] }
+    );
+
+    if (!agreement) {
+      return res.status(404).json({
+        error: "Agreement not found",
+        message: "The associated agreement does not exist"
+      });
+    }
+
     // Check if agreement has expired
-    const agreement = agreementResponse.agreement;
     if (agreement.valid_until && new Date() > new Date(agreement.valid_until)) {
       return res.status(410).json({
         error: "Agreement expired",
@@ -55,7 +67,7 @@ export const POST = async (
     }
 
     // Update the agreement response
-    const updatedResponses = await agreementsService.updateAgreementResponses({
+    const updatedResponses = await agreementResponseService.updateAgreementResponses({
       selector: { id },
       data: {
         status: agreed ? "agreed" : "disagreed",
@@ -66,8 +78,8 @@ export const POST = async (
         response_user_agent: response_user_agent || null,
       }
     });
-    
-    const updatedResponse = updatedResponses[0]; // Get the first (and only) updated response
+
+    const updatedResponse = updatedResponses[0];
 
     // Update agreement statistics
     if (agreed) {

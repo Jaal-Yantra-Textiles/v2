@@ -1,6 +1,6 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
-import { AGREEMENTS_MODULE } from "../../../modules/agreements";
-import AgreementsService from "../../../modules/agreements/service";
+import { AGREEMENT_RESPONSE_MODULE } from "../../../modules/agreement-responses";
+import AgreementResponseService from "../../../modules/agreement-responses/service";
 
 export const updateAgreementResponseStep = createStep(
   "update-agreement-response",
@@ -17,10 +17,9 @@ export const updateAgreementResponseStep = createStep(
     },
     { container }
   ) => {
-    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementResponseService: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
 
-    // retrieveAgreementResponse throws MedusaError.NOT_FOUND if the record doesn't exist
-    const existingResponse = await agreementsService.retrieveAgreementResponse(input.response_id);
+    const existingResponse = await agreementResponseService.retrieveAgreementResponse(input.response_id);
 
     const updateData: Record<string, any> = {};
     let shouldUpdate = false;
@@ -49,7 +48,7 @@ export const updateAgreementResponseStep = createStep(
       });
     }
 
-    const updatedResponses = await agreementsService.updateAgreementResponses({
+    const updatedResponses = await agreementResponseService.updateAgreementResponses({
       selector: { id: input.response_id },
       data: updateData,
     });
@@ -62,9 +61,9 @@ export const updateAgreementResponseStep = createStep(
   async (compensationData: { response_id: string; previous_status: string } | undefined, { container }) => {
     if (!compensationData) return;
 
-    const agreementsService: AgreementsService = container.resolve(AGREEMENTS_MODULE);
+    const agreementResponseService: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
 
-    await agreementsService.updateAgreementResponses({
+    await agreementResponseService.updateAgreementResponses({
       selector: { id: compensationData.response_id },
       data: {
         status: compensationData.previous_status as any,

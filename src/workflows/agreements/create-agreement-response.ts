@@ -4,8 +4,8 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
-import { AGREEMENTS_MODULE } from "../../modules/agreements";
-import AgreementsService from "../../modules/agreements/service";
+import { AGREEMENT_RESPONSE_MODULE } from "../../modules/agreement-responses";
+import AgreementResponseService from "../../modules/agreement-responses/service";
 
 export type CreateAgreementResponseStepInput = {
   agreement_id: string;
@@ -27,12 +27,12 @@ export type CreateAgreementResponseStepInput = {
 export const createAgreementResponseStep = createStep(
   "create-agreement-response-step",
   async (input: CreateAgreementResponseStepInput, { container }) => {
-    const service: AgreementsService = container.resolve(AGREEMENTS_MODULE);
+    const service: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
     const created = await service.createAgreementResponses(input);
     return new StepResponse(created, created.id);
   },
   async (id: string, { container }) => {
-    const service: AgreementsService = container.resolve(AGREEMENTS_MODULE);
+    const service: AgreementResponseService = container.resolve(AGREEMENT_RESPONSE_MODULE);
     await service.softDeleteAgreementResponses(id);
   }
 );
