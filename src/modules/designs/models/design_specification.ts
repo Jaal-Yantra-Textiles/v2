@@ -3,7 +3,7 @@ import Design from "./design";
 
 const DesignSpecification = model.define("design_specifications", {
   id: model.id().primaryKey(),
-  title: model.text(),
+  title: model.text().translatable(),
   category: model.enum([
     "Measurements",
     "Materials",
@@ -13,10 +13,10 @@ const DesignSpecification = model.define("design_specifications", {
     "Quality",
     "Other"
   ]),
-  details: model.text(),
+  details: model.text().translatable(),
   measurements: model.json().nullable(), // For storing size-specific measurements
   materials_required: model.json().nullable(), // List of required materials
-  special_instructions: model.text().nullable(),
+  special_instructions: model.text().translatable().nullable(),
   attachments: model.json().nullable(), // URLs to specification documents
   version: model.text(), // For tracking specification versions
   status: model.enum([
@@ -26,7 +26,7 @@ const DesignSpecification = model.define("design_specifications", {
     "Rejected",
     "Needs_Revision"
   ]).default("Draft"),
-  reviewer_notes: model.text().nullable(),
+  reviewer_notes: model.text().translatable().nullable(),
   metadata: model.json().nullable(),
   
   // Relationship with Design

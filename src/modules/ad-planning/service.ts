@@ -219,18 +219,40 @@ class AdPlanningService extends MedusaService({
     },
     customerData: Record<string, any>
   ): boolean {
+    // Coerce strings to numbers for numeric comparison operators.
+    // The segment rule form stores numeric inputs as strings (e.g. "300"),
+    // which breaks JavaScript comparisons like `5 >= "300"` (string vs number
+    // → lexicographic comparison: returns false).
+    const toNumber = (v: any): number | null => {
+      if (v === null || v === undefined || v === "") return null;
+      const n = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
     const evaluateRule = (rule: { field: string; operator: string; value: any }): boolean => {
       const fieldValue = customerData[rule.field];
 
       switch (rule.operator) {
-        case ">=":
-          return fieldValue !== undefined && fieldValue >= rule.value;
-        case "<=":
-          return fieldValue !== undefined && fieldValue <= rule.value;
-        case ">":
-          return fieldValue !== undefined && fieldValue > rule.value;
-        case "<":
-          return fieldValue !== undefined && fieldValue < rule.value;
+        case ">=": {
+          const a = toNumber(fieldValue);
+          const b = toNumber(rule.value);
+          return a !== null && b !== null && a >= b;
+        }
+        case "<=": {
+          const a = toNumber(fieldValue);
+          const b = toNumber(rule.value);
+          return a !== null && b !== null && a <= b;
+        }
+        case ">": {
+          const a = toNumber(fieldValue);
+          const b = toNumber(rule.value);
+          return a !== null && b !== null && a > b;
+        }
+        case "<": {
+          const a = toNumber(fieldValue);
+          const b = toNumber(rule.value);
+          return a !== null && b !== null && a < b;
+        }
         case "==":
           // eslint-disable-next-line eqeqeq
           return fieldValue == rule.value;
@@ -255,8 +277,14 @@ class AdPlanningService extends MedusaService({
         }
         case "between": {
           if (fieldValue === undefined) return false;
-          const [min, max] = Array.isArray(rule.value) ? rule.value : [rule.value[0], rule.value[1]];
-          return fieldValue >= min && fieldValue <= max;
+          const [rawMin, rawMax] = Array.isArray(rule.value)
+            ? rule.value
+            : [rule.value[0], rule.value[1]];
+          const a = toNumber(fieldValue);
+          const min = toNumber(rawMin);
+          const max = toNumber(rawMax);
+          if (a === null || min === null || max === null) return false;
+          return a >= min && a <= max;
         }
         case "within_last_days": {
           if (!fieldValue) return false;

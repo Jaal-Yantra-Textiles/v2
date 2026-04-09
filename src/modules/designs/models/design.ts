@@ -6,8 +6,8 @@ import DesignComponent from "./design_component";
 
 const Design = model.define("design", {
   id: model.id().primaryKey(),
-  name: model.text().searchable(),
-  description: model.text(),
+  name: model.text().searchable().translatable(),
+  description: model.text().translatable(),
   inspiration_sources: model.json().nullable(), // Array of inspiration URLs or references
   design_type: model.enum([
     "Original",
@@ -49,11 +49,11 @@ const Design = model.define("design", {
   production_cost: model.bigNumber().nullable(),
   cost_breakdown: model.json().nullable(), // Structured: { items: [{ inventory_item_id, title, quantity, unit_cost, line_total, cost_source }], calculated_at, source }
   cost_currency: model.text().nullable(), // e.g. "inr"
-  designer_notes: model.text().nullable(),
+  designer_notes: model.text().translatable().nullable(),
   feedback_history: model.json().nullable(), // Track feedback and changes
   revised_from_id: model.text().nullable(),
   revision_number: model.number().default(1),
-  revision_notes: model.text().nullable(),
+  revision_notes: model.text().translatable().nullable(),
   metadata: model.json().nullable(),
   media_files: model.json().nullable(),
   moodboard: model.json().nullable(),

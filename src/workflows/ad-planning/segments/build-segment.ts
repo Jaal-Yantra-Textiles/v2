@@ -146,6 +146,32 @@ const fetchCustomersStep = createStep(
         customer_since_days = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
       }
 
+      // Purchase/order aggregates (used in multiple fields below, including UI aliases)
+      // Only count purchases with a real, non-zero revenue value so AOV isn't diluted
+      // by €0 draft/test orders or conversions missing their value.
+      const paidPurchases = purchases.filter(
+        (c: any) => Number(c.conversion_value) > 0
+      );
+      const totalRevenue = paidPurchases.reduce(
+        (sum: number, c: any) => sum + Number(c.conversion_value),
+        0
+      );
+      const latestPurchaseAt = purchases
+        .slice()
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.converted_at).getTime() - new Date(a.converted_at).getTime()
+        )[0]?.converted_at ?? null;
+      const medusaOrderCount = medusaCustomer
+        ? (orderCountByCustomerId.get(medusaCustomer.id) ?? 0)
+        : 0;
+      // total_orders reports the "real" lifetime order count for filtering.
+      const orderCount = medusaOrderCount || purchases.length;
+      // AOV uses only orders that actually produced revenue — prevents €0 drafts
+      // from collapsing the denominator. Falls back to orderCount if conversions
+      // aren't fully populated yet.
+      const paidOrderCount = paidPurchases.length || orderCount;
+
       return {
         person_id: person.id,
         email: person.email,
@@ -159,11 +185,24 @@ const fetchCustomersStep = createStep(
 
         // Purchase / conversion metrics
         total_purchases: purchases.length,
-        total_revenue: purchases.reduce((sum: number, c: any) => sum + (Number(c.conversion_value) || 0), 0),
-        last_purchase_date: purchases.sort(
-          (a: any, b: any) => new Date(b.converted_at).getTime() - new Date(a.converted_at).getTime()
-        )[0]?.converted_at ?? null,
+        total_revenue: totalRevenue,
+        last_purchase_date: latestPurchaseAt,
         total_conversions: personConversions.length,
+        // `total_orders` maps to the Medusa customer's actual order count
+        // (falls back to ad-planning purchase conversions if the person isn't linked
+        // to a Medusa customer).
+        total_orders: orderCount,
+        // Aliases matching the segment UI field picker labels
+        total_spent: totalRevenue,
+        avg_order_value: paidOrderCount > 0 ? totalRevenue / paidOrderCount : 0,
+        days_since_last_order: latestPurchaseAt
+          ? Math.floor(
+              (now.getTime() - new Date(latestPurchaseAt).getTime()) /
+                (1000 * 60 * 60 * 24)
+            )
+          : null,
+        // Alias: `clv` matches the UI field label; backend uses `clv_score` internally
+        clv: personScores.find((s: any) => s.score_type === "clv")?.score_value ?? null,
 
         // Demographic — from Person
         date_of_birth: person.date_of_birth ?? null,
@@ -181,9 +220,7 @@ const fetchCustomersStep = createStep(
         has_account: medusaCustomer?.has_account ?? false,
         customer_since_days,
         customer_created_at: medusaCustomer?.created_at ?? null,
-        customer_order_count: medusaCustomer
-          ? (orderCountByCustomerId.get(medusaCustomer.id) ?? 0)
-          : 0,
+        customer_order_count: medusaOrderCount,
       };
     });
 

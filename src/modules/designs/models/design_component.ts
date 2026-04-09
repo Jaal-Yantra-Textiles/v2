@@ -4,8 +4,8 @@ import Design from "./design"
 const DesignComponent = model.define("design_component", {
   id: model.id().primaryKey(),
   quantity: model.number().default(1),
-  role: model.text().nullable(),   // e.g. "embroidery", "lining", "trim", "main_fabric"
-  notes: model.text().nullable(),
+  role: model.text().translatable().nullable(),   // e.g. "embroidery", "lining", "trim", "main_fabric"
+  notes: model.text().translatable().nullable(),
   order: model.number().default(0), // display order within parent bundle
   metadata: model.json().nullable(),
   // Two foreign keys to Design (self-referential)

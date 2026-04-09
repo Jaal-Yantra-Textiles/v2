@@ -48,7 +48,7 @@ export const GET = async (
     filters: {
       status: "published",
     },
-  })
+  }, { locale: req.locale })
 
   // Filter out products that belong to this partner's sales channel
   const discoverable = (allProducts || []).filter((p: any) => {

@@ -2,15 +2,15 @@ import { model } from "@medusajs/framework/utils";
 
 const TaskCategory = model.define("task_category", {
     id: model.id().primaryKey(),
-    name: model.text().searchable(),
-    description: model.text().nullable(),
+    name: model.text().searchable().translatable(),
+    description: model.text().translatable().nullable(),
     metadata: model.json().nullable(),
 });
 
 const TaskTemplate = model.define("task_template", {
     id: model.id().primaryKey(),
-    name: model.text().searchable(),
-    description: model.text(),
+    name: model.text().searchable().translatable(),
+    description: model.text().translatable(),
     
     category: model.belongsTo(() => TaskCategory).nullable(),
     estimated_duration: model.number().nullable(), // in minutes
@@ -26,7 +26,7 @@ const TaskTemplate = model.define("task_template", {
     
     eventable: model.boolean().default(false),
     notifiable: model.boolean().default(false),
-    message_template: model.text().nullable(),
+    message_template: model.text().translatable().nullable(),
     
     metadata: model.json().nullable(),
 });

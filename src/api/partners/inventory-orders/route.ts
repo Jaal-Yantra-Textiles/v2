@@ -172,18 +172,18 @@ export async function GET(
         const { data: orders, metadata } = await query.graph({
             entity: InventoryOrderPartnerLink.entryPoint,
             fields: [
-                "inventory_orders.*", 
-                "inventory_orders.orderlines.*", 
+                "inventory_orders.*",
+                "inventory_orders.orderlines.*",
                 "inventory_orders.stock_locations.*",
                 "inventory_orders.tasks.*",
-                "partner.*", 
+                "partner.*",
               ],
             filters,
             pagination: {
                 skip: offset,
                 take: limit
             }
-        });
+        }, { locale: req.locale });
         
         // Apply status filtering at application level (cannot be done in query due to MedusaJS limitation)
         // This is a workaround for now, we shall look into a better solution in the future

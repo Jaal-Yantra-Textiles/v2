@@ -9,6 +9,7 @@ import { Container, Heading, Text, Button, Badge } from "@medusajs/ui"
 import { Link, Outlet } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { sdk } from "../../lib/config"
+import { useCurrencyFormatter } from "../../hooks/api/currency"
 
 const KPICard = ({
   title,
@@ -116,6 +117,9 @@ const AdPlanningDashboard = () => {
     },
   })
 
+  // Currency formatter — conversion values are already in store currency
+  const { formatCurrency } = useCurrencyFormatter()
+
   // Derived KPIs
   const totalConversions = conversionStats?.total_conversions || 0
   const totalRevenue = conversionStats?.total_value || 0
@@ -166,7 +170,7 @@ const AdPlanningDashboard = () => {
           />
           <KPICard
             title="Revenue"
-            value={totalRevenue > 0 ? `₹${(totalRevenue / 100).toLocaleString()}` : "₹0"}
+            value={formatCurrency(totalRevenue, { convert: false })}
             color="text-ui-fg-positive"
           />
           <KPICard

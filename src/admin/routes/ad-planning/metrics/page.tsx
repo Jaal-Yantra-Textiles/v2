@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { sdk } from "../../../lib/config"
 import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
+import { useCurrencyFormatter } from "../../../hooks/api/currency"
 
 // --- Reusable Components ---
 
@@ -220,7 +221,7 @@ const MetricsModal = () => {
   const totalAttributions = attrSummary?.totals?.total_sessions || 0
   const attrConversionRate = attrSummary?.totals?.resolution_rate || 0
 
-  // Meta Ads derived
+  // Meta Ads derived — spend is in the Meta account currency (INR for this store)
   const totalSpend = campaignTotals?.spend || 0
   const totalImpressions = campaignTotals?.impressions || 0
   const totalClicks = campaignTotals?.clicks || 0
@@ -228,9 +229,15 @@ const MetricsModal = () => {
   const avgCTR = campaignTotals?.ctr || 0
   const avgCPC = campaignTotals?.cpc || 0
 
-  // ROAS (Return on Ad Spend)
-  const revenueInCurrency = totalRevenue / 100
-  const roas = totalSpend > 0 ? revenueInCurrency / totalSpend : 0
+  // Currency formatter — converts Meta ad spend (INR) to store default (EUR)
+  // Conversions are already stored in the store currency, so they bypass conversion.
+  const { formatCurrency, rate: metaToStoreRate } = useCurrencyFormatter("INR")
+
+  // ROAS (Return on Ad Spend) — compute in the store currency
+  // Convert spend to store currency before comparing to revenue
+  const totalSpendInStoreCurrency = totalSpend * metaToStoreRate
+  const roas =
+    totalSpendInStoreCurrency > 0 ? totalRevenue / totalSpendInStoreCurrency : 0
 
   // Social posts derived
   const posts = socialPostsData?.socialPosts || []
@@ -287,12 +294,12 @@ const MetricsModal = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <MetricCard
               title="Ad Spend"
-              value={`₹${totalSpend.toLocaleString()}`}
+              value={formatCurrency(totalSpend)}
               className="text-ui-fg-error"
             />
             <MetricCard
               title="Total Revenue"
-              value={`₹${(totalRevenue / 100).toLocaleString()}`}
+              value={formatCurrency(totalRevenue, { convert: false })}
               className="text-ui-fg-positive"
             />
             <MetricCard
@@ -327,7 +334,7 @@ const MetricsModal = () => {
                     Spend
                   </Text>
                   <Text size="large" weight="plus" className="mt-1">
-                    ₹{totalSpend.toLocaleString()}
+                    {formatCurrency(totalSpend)}
                   </Text>
                 </div>
                 <div className="p-3 bg-ui-bg-subtle rounded-lg text-center">
@@ -402,7 +409,7 @@ const MetricsModal = () => {
                               leading="compact"
                               className="text-ui-fg-subtle"
                             >
-                              ₹{(c.spend || 0).toLocaleString()} spent
+                              {formatCurrency(c.spend || 0)} spent
                               · {(c.clicks || 0).toLocaleString()} clicks
                               · {(c.leads || 0).toLocaleString()} leads
                             </Text>
@@ -916,7 +923,7 @@ const MetricsModal = () => {
                       Avg CLV
                     </Text>
                     <Text size="large" weight="plus" className="mt-1">
-                      ₹{(tierStats?.avg_clv || 0).toLocaleString()}
+                      {formatCurrency(tierStats?.avg_clv || 0, { convert: false })}
                     </Text>
                   </div>
                   <div className="p-3 bg-ui-bg-subtle rounded-lg">

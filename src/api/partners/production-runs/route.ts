@@ -136,7 +136,7 @@ export async function GET(
     ],
     filters,
     pagination: { skip: offset, take: limit },
-  })
+  }, { locale: req.locale })
 
   const list = runs || []
 

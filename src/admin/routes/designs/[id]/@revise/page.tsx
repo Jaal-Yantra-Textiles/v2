@@ -1,11 +1,25 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "@medusajs/framework/zod";
-import { Button, Heading, Input, Label, Select, Textarea, toast } from "@medusajs/ui";
+import {
+  Button,
+  Heading,
+  Input,
+  Select,
+  Text,
+  Textarea,
+  toast,
+} from "@medusajs/ui";
 import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer";
 import { useRouteModal } from "../../../../components/modal/use-route-modal";
-import { useDesign, useReviseDesign, AdminDesign } from "../../../../hooks/api/designs";
+import { Form } from "../../../../components/common/form";
+import { KeyboundForm } from "../../../../components/utilitites/key-bound-form";
+import {
+  useDesign,
+  useReviseDesign,
+  AdminDesign,
+} from "../../../../hooks/api/designs";
 
 const reviseSchema = z.object({
   revision_notes: z.string().min(1, "Revision notes are required"),
@@ -16,8 +30,14 @@ const reviseSchema = z.object({
 
 type ReviseFormValues = z.infer<typeof reviseSchema>;
 
+const PRIORITY_OPTIONS = [
+  { value: "Low", label: "Low" },
+  { value: "Medium", label: "Medium" },
+  { value: "High", label: "High" },
+  { value: "Urgent", label: "Urgent" },
+];
+
 const ReviseDesignForm = ({ design }: { design: AdminDesign }) => {
-  const navigate = useNavigate();
   const { handleSuccess } = useRouteModal();
   const { mutateAsync: revise, isPending } = useReviseDesign(design.id);
 
@@ -31,7 +51,7 @@ const ReviseDesignForm = ({ design }: { design: AdminDesign }) => {
     },
   });
 
-  const onSubmit = async (data: ReviseFormValues) => {
+  const handleSubmit = form.handleSubmit(async (data) => {
     const overrides: Record<string, any> = {};
     if (data.name) overrides.name = data.name;
     if (data.priority) overrides.priority = data.priority;
@@ -43,102 +63,130 @@ const ReviseDesignForm = ({ design }: { design: AdminDesign }) => {
         overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
       });
       toast.success("Design revised successfully");
-      handleSuccess();
-      navigate(`/designs/${result.design.id}`, { replace: true });
+      handleSuccess(`/designs/${result.design.id}`);
     } catch (err: any) {
       toast.error(err?.message || "Failed to revise design");
     }
-  };
+  });
 
   return (
-    <form
-      onSubmit={form.handleSubmit(onSubmit)}
-      className="flex flex-col gap-y-6 p-6"
-    >
-      <div className="bg-ui-bg-subtle rounded-lg p-4 mb-2">
-        <p className="text-ui-fg-subtle text-sm">
-          This will create a new design based on{" "}
-          <span className="font-medium text-ui-fg-base">{design.name}</span>{" "}
-          and mark the original as superseded. All partner links, colors, sizes,
-          and specifications will be copied to the new revision.
-        </p>
-      </div>
+    <RouteDrawer.Form form={form}>
+      <KeyboundForm
+        onSubmit={handleSubmit}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
+        <RouteDrawer.Body className="flex flex-1 flex-col gap-y-8 overflow-y-auto">
+          <div className="bg-ui-bg-subtle rounded-lg p-4">
+            <Text size="small" className="text-ui-fg-subtle">
+              This will create a new design based on{" "}
+              <span className="font-medium text-ui-fg-base">
+                {design.name}
+              </span>{" "}
+              and mark the original as superseded. All partner links, colors,
+              sizes, and specifications will be copied to the new revision.
+            </Text>
+          </div>
 
-      <div className="flex flex-col gap-y-2">
-        <Label htmlFor="revision_notes" className="font-medium">
-          What changed? *
-        </Label>
-        <Textarea
-          id="revision_notes"
-          placeholder="Describe what needs to change in this revision..."
-          {...form.register("revision_notes")}
-          className="min-h-[100px]"
-        />
-        {form.formState.errors.revision_notes && (
-          <p className="text-ui-fg-error text-sm">
-            {form.formState.errors.revision_notes.message}
-          </p>
-        )}
-      </div>
+          <Form.Field
+            control={form.control}
+            name="revision_notes"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>What changed?</Form.Label>
+                <Form.Control>
+                  <Textarea
+                    {...field}
+                    placeholder="Describe what needs to change in this revision..."
+                    className="min-h-[100px]"
+                  />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
 
-      <div className="border-t border-ui-border-base pt-4">
-        <p className="text-ui-fg-subtle text-sm mb-4">
-          Optionally override fields on the new revision:
-        </p>
+          <div className="border-t border-ui-border-base pt-4 flex flex-col gap-y-4">
+            <Text size="small" className="text-ui-fg-subtle">
+              Optionally override fields on the new revision:
+            </Text>
 
-        <div className="flex flex-col gap-y-4">
-          <div className="flex flex-col gap-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              placeholder={design.name}
-              {...form.register("name")}
+            <Form.Field
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <Form.Item>
+                  <Form.Label>Name</Form.Label>
+                  <Form.Control>
+                    <Input {...field} placeholder={design.name} />
+                  </Form.Control>
+                  <Form.ErrorMessage />
+                </Form.Item>
+              )}
+            />
+
+            <Form.Field
+              control={form.control}
+              name="priority"
+              render={({ field }) => (
+                <Form.Item>
+                  <Form.Label>Priority</Form.Label>
+                  <Form.Control>
+                    <Select
+                      value={field.value || ""}
+                      onValueChange={field.onChange}
+                    >
+                      <Select.Trigger>
+                        <Select.Value
+                          placeholder={design.priority || "Select priority"}
+                        />
+                      </Select.Trigger>
+                      <Select.Content>
+                        {PRIORITY_OPTIONS.map((opt) => (
+                          <Select.Item key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select>
+                  </Form.Control>
+                  <Form.ErrorMessage />
+                </Form.Item>
+              )}
+            />
+
+            <Form.Field
+              control={form.control}
+              name="designer_notes"
+              render={({ field }) => (
+                <Form.Item>
+                  <Form.Label>Designer Notes</Form.Label>
+                  <Form.Control>
+                    <Textarea
+                      {...field}
+                      placeholder="Additional notes for the revised design..."
+                    />
+                  </Form.Control>
+                  <Form.ErrorMessage />
+                </Form.Item>
+              )}
             />
           </div>
+        </RouteDrawer.Body>
 
-          <div className="flex flex-col gap-y-2">
-            <Label htmlFor="priority">Priority</Label>
-            <Select
-              value={form.watch("priority") || ""}
-              onValueChange={(val) =>
-                form.setValue("priority", val as any)
-              }
-            >
-              <Select.Trigger>
-                <Select.Value placeholder={design.priority || "Select priority"} />
-              </Select.Trigger>
-              <Select.Content>
-                {["Low", "Medium", "High", "Urgent"].map((p) => (
-                  <Select.Item key={p} value={p}>
-                    {p}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
+        <RouteDrawer.Footer>
+          <div className="flex items-center justify-end gap-x-2">
+            <RouteDrawer.Close asChild>
+              <Button size="small" variant="secondary">
+                Cancel
+              </Button>
+            </RouteDrawer.Close>
+            <Button size="small" type="submit" isLoading={isPending}>
+              Create Revision
+            </Button>
           </div>
-
-          <div className="flex flex-col gap-y-2">
-            <Label htmlFor="designer_notes">Designer Notes</Label>
-            <Textarea
-              id="designer_notes"
-              placeholder="Additional notes for the revised design..."
-              {...form.register("designer_notes")}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-x-2 pt-4">
-        <RouteDrawer.Close asChild>
-          <Button variant="secondary" type="button">
-            Cancel
-          </Button>
-        </RouteDrawer.Close>
-        <Button type="submit" isLoading={isPending}>
-          Create Revision
-        </Button>
-      </div>
-    </form>
+        </RouteDrawer.Footer>
+      </KeyboundForm>
+    </RouteDrawer.Form>
   );
 };
 
@@ -153,9 +201,7 @@ export default function ReviseDesignPage() {
       <RouteDrawer.Header>
         <Heading>Revise Design</Heading>
       </RouteDrawer.Header>
-      <RouteDrawer.Body>
-        <ReviseDesignForm design={design} />
-      </RouteDrawer.Body>
+      <ReviseDesignForm design={design} />
     </RouteDrawer>
   );
 }

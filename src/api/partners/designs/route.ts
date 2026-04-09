@@ -139,7 +139,7 @@ export async function GET(
     ],
     filters,
     pagination: { skip: offset, take: limit },
-  })
+  }, { locale: req.locale })
 
   // Include all linked designs for this partner.
   // We'll compute assignment status based on presence of partner workflow tasks (by known titles).
@@ -162,7 +162,7 @@ export async function GET(
       },
       fields: ["id", "design_id", "status", "accepted_at", "started_at", "finished_at", "completed_at"],
       pagination: { skip: 0, take: 200 },
-    })
+    }, { locale: req.locale })
     partnerRuns = runs || []
   } catch {
     // Non-fatal

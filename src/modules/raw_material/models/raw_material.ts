@@ -3,9 +3,9 @@ import MaterialType from "./material_type";
 
 const RawMaterial = model.define("raw_materials", {
   id: model.id().primaryKey(),
-  name: model.text().searchable(),
-  description: model.text(),
-  composition: model.text(), // e.g., "100% Cotton", "80% Polyester 20% Cotton"
+  name: model.text().searchable().translatable(),
+  description: model.text().translatable(),
+  composition: model.text().translatable(), // e.g., "100% Cotton", "80% Polyester 20% Cotton"
   specifications: model.json().nullable(), // Technical specifications
   unit_of_measure: model.enum([
     "Meter",
@@ -25,8 +25,8 @@ const RawMaterial = model.define("raw_materials", {
   weight: model.text().nullable(), // Weight per unit
   grade: model.text().nullable(),
   certification: model.json().nullable(), // Any certifications the material has
-  usage_guidelines: model.text().nullable(),
-  storage_requirements: model.text().nullable(),
+  usage_guidelines: model.text().translatable().nullable(),
+  storage_requirements: model.text().translatable().nullable(),
   status: model.enum([
     "Active",
     "Discontinued",

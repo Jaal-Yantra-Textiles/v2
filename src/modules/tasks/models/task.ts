@@ -4,8 +4,8 @@ import { TaskDependency } from "./task-dependency";
 
 const Task = model.define("task",  {
     id: model.id().primaryKey(),
-    title: model.text().searchable(),
-    description: model.text().nullable(),
+    title: model.text().searchable().translatable(),
+    description: model.text().translatable().nullable(),
     
     start_date: model.dateTime(),
     end_date: model.dateTime().nullable(),
@@ -18,7 +18,7 @@ const Task = model.define("task",  {
     transaction_id: model.text().nullable(),
     eventable: model.boolean().default(false),
     notifiable: model.boolean().default(false),
-    message: model.text().nullable(),
+    message: model.text().translatable().nullable(),
     
     assigned_to: model.text().nullable(), 
     assigned_by: model.text().nullable(), 

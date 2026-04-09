@@ -19,6 +19,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useState, useMemo } from "react"
 import { Link } from "react-router-dom"
 import { sdk } from "../../../lib/config"
+import { useCurrencyFormatter } from "../../../hooks/api/currency"
 
 interface Conversion {
   id: string
@@ -75,6 +76,8 @@ const ConversionsPage = () => {
     },
   })
 
+  const { formatCurrency } = useCurrencyFormatter()
+
   const columns = useMemo(() => [
     columnHelper.accessor("conversion_type", {
       header: "Type",
@@ -95,13 +98,13 @@ const ConversionsPage = () => {
     }),
     columnHelper.accessor("conversion_value", {
       header: "Value",
-      cell: ({ getValue, row }) => {
+      cell: ({ getValue }) => {
         const value = getValue()
-        const currency = row.original.currency
         if (!value) return <Text className="text-ui-fg-muted">-</Text>
+        // Conversion values are already in store currency (from order.total)
         return (
           <Text size="small" leading="compact" weight="plus">
-            {currency === "INR" ? "₹" : currency} {value.toLocaleString()}
+            {formatCurrency(value, { convert: false })}
           </Text>
         )
       },
@@ -214,7 +217,7 @@ const ConversionsPage = () => {
         <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
           <Text size="xsmall" className="text-ui-fg-subtle">Total Value</Text>
           <Text size="xlarge" weight="plus" className="mt-1 text-ui-fg-positive">
-            ₹{totalValue.toLocaleString()}
+            {formatCurrency(totalValue, { convert: false })}
           </Text>
         </div>
         <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
@@ -224,7 +227,9 @@ const ConversionsPage = () => {
         <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-lg p-4">
           <Text size="xsmall" className="text-ui-fg-subtle">Avg Value</Text>
           <Text size="xlarge" weight="plus" className="mt-1">
-            {totalConversions > 0 ? `₹${Math.round(totalValue / totalConversions).toLocaleString()}` : "-"}
+            {totalConversions > 0
+              ? formatCurrency(totalValue / totalConversions, { convert: false })
+              : "-"}
           </Text>
         </div>
       </div>

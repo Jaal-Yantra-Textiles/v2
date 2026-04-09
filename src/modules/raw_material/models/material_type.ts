@@ -2,8 +2,8 @@ import { model } from "@medusajs/framework/utils";
 
 const MaterialType = model.define("material_types", {
   id: model.id().primaryKey(),
-  name: model.text().searchable(),
-  description: model.text().nullable(),
+  name: model.text().searchable().translatable(),
+  description: model.text().translatable().nullable(),
   category: model.enum([
     "Fiber",
     "Yarn",

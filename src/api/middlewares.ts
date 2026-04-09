@@ -4,6 +4,7 @@ import {
   validateAndTransformBody,
   validateAndTransformQuery,
   authenticate,
+  applyLocale,
   MedusaRequest,
   MedusaResponse,
   MedusaNextFunction,
@@ -391,6 +392,12 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
       ],
+    },
+    // Apply locale resolution for partner GET routes (reads x-medusa-locale header or ?locale= param)
+    {
+      matcher: "/partners*",
+      method: "GET",
+      middlewares: [applyLocale],
     },
     {
       matcher: "/partners/whatsapp-verify",

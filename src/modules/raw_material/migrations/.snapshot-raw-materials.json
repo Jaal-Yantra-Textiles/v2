@@ -11,8 +11,15 @@
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
-          "primary": false,
+          "primary": true,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "name": {
@@ -22,6 +29,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "description": {
@@ -31,6 +45,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "category": {
@@ -40,7 +61,12 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
           "default": "'Other'",
+          "comment": null,
           "enumItems": [
             "Fiber",
             "Yarn",
@@ -60,6 +86,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "metadata": {
@@ -69,6 +102,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "created_at": {
@@ -78,8 +118,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
           "default": "now()",
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "updated_at": {
@@ -89,8 +134,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
           "default": "now()",
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "deleted_at": {
@@ -100,7 +150,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         }
       },
@@ -138,8 +194,15 @@
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
-          "primary": false,
+          "primary": true,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "name": {
@@ -149,6 +212,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "description": {
@@ -158,6 +228,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "composition": {
@@ -167,6 +244,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "specifications": {
@@ -176,6 +260,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "unit_of_measure": {
@@ -185,7 +276,12 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
           "default": "'Other'",
+          "comment": null,
           "enumItems": [
             "Meter",
             "Yard",
@@ -204,6 +300,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "float"
         },
         "cost_currency": {
@@ -213,6 +316,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "minimum_order_quantity": {
@@ -222,6 +332,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "integer"
         },
         "lead_time_days": {
@@ -231,6 +348,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "integer"
         },
         "color": {
@@ -240,6 +364,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "width": {
@@ -249,6 +380,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "weight": {
@@ -258,6 +396,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "grade": {
@@ -267,6 +412,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "certification": {
@@ -276,6 +428,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "usage_guidelines": {
@@ -285,6 +444,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "storage_requirements": {
@@ -294,6 +460,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "status": {
@@ -303,7 +476,12 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
           "default": "'Active'",
+          "comment": null,
           "enumItems": [
             "Active",
             "Discontinued",
@@ -319,6 +497,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "media": {
@@ -328,6 +513,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "material_type_id": {
@@ -337,6 +529,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "created_at": {
@@ -346,8 +545,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
           "default": "now()",
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "updated_at": {
@@ -357,8 +561,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
           "default": "now()",
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "deleted_at": {
@@ -368,7 +577,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         }
       },

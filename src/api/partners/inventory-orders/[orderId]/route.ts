@@ -167,9 +167,9 @@ export async function GET(
     const { data: orders } = await query.graph({
         entity: "inventory_orders",
         fields: [
-            "*", 
-            "orderlines.*", 
-            "stock_locations.*", 
+            "*",
+            "orderlines.*",
+            "stock_locations.*",
             "partner.*",
             "tasks.*",
             "orderlines.inventory_items.*",
@@ -179,7 +179,7 @@ export async function GET(
         filters: {
             id: orderId
         }
-    });
+    }, { locale: req.locale });
 
     
     if (!orders || orders.length === 0) {

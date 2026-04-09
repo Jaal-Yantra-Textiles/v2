@@ -33,17 +33,17 @@ const ProductionRun = model.define("production_runs", {
   finished_at: model.dateTime().nullable(),
   completed_at: model.dateTime().nullable(),
   cancelled_at: model.dateTime().nullable(),
-  cancelled_reason: model.text().nullable(),
+  cancelled_reason: model.text().translatable().nullable(),
 
   // Stage notes (captured at each milestone by partner)
-  finish_notes: model.text().nullable(),
-  completion_notes: model.text().nullable(),
+  finish_notes: model.text().translatable().nullable(),
+  completion_notes: model.text().translatable().nullable(),
 
   // Output / yield (captured at completion by partner)
   produced_quantity: model.float().nullable(),
   rejected_quantity: model.float().nullable(),
-  rejection_reason: model.text().nullable(),
-  rejection_notes: model.text().nullable(),
+  rejection_reason: model.text().translatable().nullable(),
+  rejection_notes: model.text().translatable().nullable(),
 
   // Cost
   partner_cost_estimate: model.float().nullable(),

@@ -8,364 +8,344 @@ import {
   Heading,
 } from "@medusajs/ui";
 import { XMarkMini, Plus } from "@medusajs/icons";
-import { RouteFocusModal } from "../modal/route-focus-modal";
+import { RouteDrawer } from "../modal/route-drawer/route-drawer";
 import { SketchPicker } from "react-color";
-import { useUpdateDesign } from "../../hooks/api/designs";
-import { useParams } from "react-router-dom";
+import { useUpdateDesign, AdminDesign } from "../../hooks/api/designs";
 import { useRouteModal } from "../modal/use-route-modal";
-import { convertColorPaletteToColors } from "../../../workflows/designs/helpers/size-set-utils";
 
-// Define ColorPalette interface
-interface ColorPalette {
-  code: string;
+interface ColorEntry {
   name: string;
+  hex_code: string;
+  usage_notes?: string;
+  order?: number;
 }
 
-// Helper function to determine if text should be white or black based on background color
 const getContrastColor = (hexColor: string) => {
   try {
-    // Remove the # if present
-    hexColor = hexColor.replace(/^#/, '');
-    
-    // Parse the hex values
+    hexColor = hexColor.replace(/^#/, "");
     let r, g, b;
     if (hexColor.length === 3) {
-      // For shorthand hex (#RGB)
       r = parseInt(hexColor.charAt(0) + hexColor.charAt(0), 16);
       g = parseInt(hexColor.charAt(1) + hexColor.charAt(1), 16);
       b = parseInt(hexColor.charAt(2) + hexColor.charAt(2), 16);
     } else {
-      // For full hex (#RRGGBB)
       r = parseInt(hexColor.substring(0, 2), 16);
       g = parseInt(hexColor.substring(2, 4), 16);
       b = parseInt(hexColor.substring(4, 6), 16);
     }
-    
-    // Calculate luminance - standard formula for perceived brightness
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.5 ? '#000000' : '#FFFFFF';
-  } catch (e) {
-    return '#000000'; // Default to black if there's an error
+    return luminance > 0.5 ? "#000000" : "#FFFFFF";
+  } catch {
+    return "#000000";
   }
 };
 
+const getInitialColors = (design: AdminDesign): ColorEntry[] => {
+  if (design.colors?.length) {
+    return design.colors.map((c, i) => ({
+      name: c.name,
+      hex_code: c.hex_code,
+      usage_notes: c.usage_notes ?? undefined,
+      order: c.order ?? i,
+    }));
+  }
+  if (design.color_palette?.length) {
+    return design.color_palette.map((c, i) => ({
+      name: c.name,
+      hex_code: c.code,
+      order: i,
+    }));
+  }
+  return [];
+};
 
-
-// Custom component for color palette editor with helper UI
-export const ColorPaletteEditor = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
-  // Get design ID from URL params
-  const { id } = useParams();
-  const { mutateAsync: updateDesign, isPending: isSaving } = useUpdateDesign(id!);
+export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
+  const { mutateAsync: updateDesign, isPending: isSaving } = useUpdateDesign(
+    design.id
+  );
   const { handleSuccess } = useRouteModal();
-  
-  const [colorPalette, setColorPalette] = useState<ColorPalette[]>(() => {
-    try {
-      return JSON.parse(value || '[]');
-    } catch (e) {
-      return [];
-    }
+
+  const [colors, setColors] = useState<ColorEntry[]>(() =>
+    getInitialColors(design)
+  );
+
+  const [newColor, setNewColor] = useState<{ hex_code: string; name: string }>({
+    hex_code: "#5048E5",
+    name: "",
   });
-  
-  const [newColor, setNewColor] = useState<ColorPalette>({
-    code: '#5048E5', // A nice purple as default
-    name: '',
-  });
-  
-  // State for color picker visibility
+
   const [showColorPicker, setShowColorPicker] = useState(false);
   const colorPickerRef = useRef<HTMLDivElement>(null);
-  
-  // Handle color change from the color picker
+  const [selectedColorIndex, setSelectedColorIndex] = useState<number | null>(
+    null
+  );
+
   const handleColorChange = (color: any) => {
-    setNewColor({ ...newColor, code: color.hex });
-    // Close the color picker after a short delay to give visual feedback
-    setTimeout(() => {
-      setShowColorPicker(false);
-    }, 300);
+    setNewColor({ ...newColor, hex_code: color.hex });
+    setTimeout(() => setShowColorPicker(false), 300);
   };
-  
-  const [selectedColorIndex, setSelectedColorIndex] = useState<number | null>(null);
-  
-  // Update the form value whenever colorPalette changes
-  const updateFormValue = (updatedPalette: ColorPalette[]) => {
-    setColorPalette(updatedPalette);
-    onChange(JSON.stringify(updatedPalette, null, 2));
-  };
-  
-  // Close color picker when clicking outside
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
+      if (
+        colorPickerRef.current &&
+        !colorPickerRef.current.contains(event.target as Node)
+      ) {
         setShowColorPicker(false);
       }
     };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Handle adding a new color
   const handleAddColor = () => {
-    // Validate color code format
-    if (!/^#([A-Fa-f0-9]{3}){1,2}$/.test(newColor.code)) {
-      toast.error("Invalid hex color code. Must start with # followed by 3 or 6 hex digits.");
+    if (!/^#([A-Fa-f0-9]{3}){1,2}$/.test(newColor.hex_code)) {
+      toast.error(
+        "Invalid hex color code. Must start with # followed by 3 or 6 hex digits."
+      );
       return;
     }
-    
-    // Validate color name
     if (!newColor.name.trim()) {
       toast.error("Color name is required");
       return;
     }
-    
-    // Check if color code already exists
-    if (colorPalette.some(color => color.code.toLowerCase() === newColor.code.toLowerCase())) {
-      toast.error("This color code already exists in the palette");
-      return;
-    }
-    
+
     if (selectedColorIndex !== null) {
-      // Update existing color
-      const updatedPalette = [...colorPalette];
-      updatedPalette[selectedColorIndex] = { ...newColor };
-      updateFormValue(updatedPalette);
+      const updated = [...colors];
+      updated[selectedColorIndex] = {
+        ...updated[selectedColorIndex],
+        name: newColor.name,
+        hex_code: newColor.hex_code,
+      };
+      setColors(updated);
       setSelectedColorIndex(null);
     } else {
-      // Add new color
-      updateFormValue([...colorPalette, { ...newColor }]);
+      if (
+        colors.some(
+          (c) => c.hex_code.toLowerCase() === newColor.hex_code.toLowerCase()
+        )
+      ) {
+        toast.error("This color code already exists in the palette");
+        return;
+      }
+      setColors([
+        ...colors,
+        { name: newColor.name, hex_code: newColor.hex_code, order: colors.length },
+      ]);
     }
-    
-    // Reset input fields
-    setNewColor({ code: '#000000', name: '' });
+
+    setNewColor({ hex_code: "#000000", name: "" });
   };
-  
-  // Handle editing a color
+
   const handleEditColor = (index: number) => {
-    setNewColor({ ...colorPalette[index] });
+    setNewColor({
+      name: colors[index].name,
+      hex_code: colors[index].hex_code,
+    });
     setSelectedColorIndex(index);
   };
-  
-  // Handle removing a color
+
   const handleRemoveColor = (index: number) => {
-    const updatedPalette = [...colorPalette];
-    updatedPalette.splice(index, 1);
-    updateFormValue(updatedPalette);
-    
-    // If the removed color was selected, reset the form
+    setColors(colors.filter((_, i) => i !== index));
     if (selectedColorIndex === index) {
-      setNewColor({ code: '#000000', name: '' });
+      setNewColor({ hex_code: "#000000", name: "" });
       setSelectedColorIndex(null);
     }
   };
-  
-  
+
+  const handleSave = async () => {
+    try {
+      await updateDesign({
+        colors: colors.map((c, i) => ({
+          name: c.name,
+          hex_code: c.hex_code,
+          usage_notes: c.usage_notes,
+          order: i,
+        })),
+      });
+      toast.success(`Color palette saved with ${colors.length} colors`);
+      handleSuccess();
+    } catch (error) {
+      toast.error("Failed to save color palette");
+      console.error(error);
+    }
+  };
+
   return (
-    <RouteFocusModal>
-      <RouteFocusModal.Header>
-        <div className="flex items-center justify-between w-full">
-          <Heading className="text-xl">Edit Color Palette</Heading>
-        </div>
-      </RouteFocusModal.Header>
-      
-      <div className="flex flex-col md:flex-row h-full">
-        {/* Sidebar: Current Palette */}
-        <div className="w-full md:w-72 lg:w-80 bg-ui-bg-subtle md:min-h-[calc(100vh-120px)]">
-          <div className="px-6 py-5 flex items-center justify-between">
-            <Heading className="text-base">Current Palette</Heading>
-            <Badge className="px-2 py-0.5 text-xs">
-              {colorPalette.length}
-            </Badge>
-          </div>
-          
-          {colorPalette.length > 0 ? (
-            <div className="px-4 space-y-2 max-h-[calc(100vh-180px)] overflow-y-auto">
-              {colorPalette.map((color, index) => (
-                <div 
+    <>
+      <RouteDrawer.Body className="flex flex-1 flex-col gap-y-6 overflow-y-auto">
+        {/* Current palette */}
+        {colors.length > 0 && (
+          <div className="flex flex-col gap-y-2">
+            <div className="flex items-center justify-between">
+              <Text size="small" weight="plus">
+                Current Palette
+              </Text>
+              <Badge size="2xsmall">{colors.length}</Badge>
+            </div>
+            <div className="flex flex-col gap-y-1">
+              {colors.map((color, index) => (
+                <div
                   key={`color-${index}`}
-                  className={`relative group flex items-center p-3 rounded-lg hover:bg-white transition-all cursor-pointer ${selectedColorIndex === index ? 'bg-white shadow-sm' : ''}`}
+                  className={`group flex items-center gap-x-3 rounded-md p-2 cursor-pointer transition-colors ${
+                    selectedColorIndex === index
+                      ? "bg-ui-bg-base-pressed"
+                      : "hover:bg-ui-bg-base-hover"
+                  }`}
                   onClick={() => handleEditColor(index)}
                 >
-                  {/* Color Swatch */}
-                  <div 
-                    className="w-10 h-10 rounded-md flex-shrink-0"
-                    style={{ backgroundColor: color.code }}
+                  <div
+                    className="w-8 h-8 rounded-md border border-ui-border-base flex-shrink-0"
+                    style={{ backgroundColor: color.hex_code }}
                   />
-                  
-                  {/* Color Info */}
-                  <div className="ml-3 flex-1 min-w-0">
-                    <Text className="font-medium text-sm truncate">{color.name}</Text>
-                    <Text className="text-ui-fg-subtle text-xs font-mono">{color.code.toUpperCase()}</Text>
+                  <div className="flex-1 min-w-0">
+                    <Text size="small" weight="plus" className="truncate">
+                      {color.name}
+                    </Text>
+                    <Text size="xsmall" className="text-ui-fg-subtle font-mono">
+                      {color.hex_code.toUpperCase()}
+                    </Text>
                   </div>
-                  
-                  {/* Delete Button */}
                   <Button
                     variant="transparent"
                     size="small"
-                    className="p-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+                    className="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleRemoveColor(index);
                     }}
                     type="button"
                   >
-                    <XMarkMini className="w-4 h-4 text-ui-fg-subtle hover:text-ui-fg-base" />
+                    <XMarkMini className="w-4 h-4 text-ui-fg-subtle" />
                   </Button>
                 </div>
               ))}
-              <div className="h-4"></div> {/* Bottom spacing */}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Text className="text-ui-fg-subtle text-sm mb-4">No colors yet</Text>
-              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-3">
-                <Plus className="w-6 h-6 text-ui-fg-subtle" />
-              </div>
-              <Text className="text-ui-fg-subtle text-xs">Add your first color</Text>
-            </div>
-          )}
-        </div>
-        
-        {/* Main Content: Color Editor */}
-        <div className="flex-1 p-8">
-          <div className="max-w-2xl mx-auto">
-            <Heading className="text-xl mb-8">
-              {selectedColorIndex !== null ? "Edit Color" : "Add New Color"}
-            </Heading>
-            
-            <div 
-              className="space-y-6 p-6 rounded-xl transition-all duration-300"
-              style={{
-                backgroundColor: `${newColor.code}10`, // 10% opacity version of the color
-                boxShadow: `0 4px 20px ${newColor.code}20` // 20% opacity shadow of the color
-              }}
-            >
-              {/* Color Preview and Picker */}
-              <div className="flex flex-col sm:flex-row gap-6 items-start">
-                <div className="relative">
-                  <div 
-                    className="w-36 h-36 rounded-lg cursor-pointer flex items-center justify-center transition-all hover:scale-105 shadow-lg"
-                    style={{ 
-                      backgroundColor: newColor.code,
-                      color: getContrastColor(newColor.code),
-                      boxShadow: `0 10px 25px ${newColor.code}40` // 40% opacity shadow of the color
-                    }}
-                    onClick={() => setShowColorPicker(!showColorPicker)}
-                  >
-                    <Text className="font-medium" style={{ color: getContrastColor(newColor.code) }}>
-                      {showColorPicker ? 'Close' : 'Pick Color'}
-                    </Text>
-                  </div>
-                  
-                  {/* React Color Picker */}
-                  {showColorPicker && (
-                    <div 
-                      ref={colorPickerRef}
-                      className="absolute z-10 mt-2 shadow-lg"
-                    >
-                      <SketchPicker
-                        color={newColor.code}
-                        onChange={handleColorChange}
-                        disableAlpha={true}
-                        presetColors={[
-                          '#F44336', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5',
-                          '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50',
-                          '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800',
-                          '#FF5722', '#795548', '#9E9E9E', '#607D8B', '#000000',
-                          '#FFFFFF'
-                        ]}
-                      />
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex-1 space-y-4">
-                  {/* Color Code Input */}
-                  <div>
-                    <Text className="font-medium mb-2">Color Code (Hex)</Text>
-                    <Input
-                      placeholder="#000000"
-                      value={newColor.code}
-                      onChange={(e) => setNewColor({ ...newColor, code: e.target.value })}
-                    />
-                  </div>
-                  
-                  {/* Color Name Input */}
-                  <div>
-                    <Text className="font-medium mb-2">Color Name</Text>
-                    <Input
-                      placeholder="e.g. Royal Purple"
-                      value={newColor.name}
-                      onChange={(e) => setNewColor({ ...newColor, name: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-            
-            </div>
-            
-            <div className="flex justify-end gap-x-3 pt-6 mt-2">
-              {selectedColorIndex !== null && (
-                <Button
-                  variant="secondary"
-                  type="button"
-                  onClick={() => {
-                    setNewColor({ code: '#5048E5', name: '' });
-                    setSelectedColorIndex(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-              )}
-              <Button
-                variant="primary"
-                type="button"
-                onClick={handleAddColor}
-              >
-                {selectedColorIndex !== null ? "Update Color" : "Add Color"}
-              </Button>
             </div>
           </div>
-        </div>
-        </div>
-        <RouteFocusModal.Footer>
-          <div className="flex justify-end w-full">
-            {colorPalette.length > 0 && (
-              <Button 
-                variant="primary" 
-                onClick={async () => {
-                  try {
-                    // Update the form value
-                    onChange(JSON.stringify(colorPalette, null, 2));
-                    
-                    // Call the API to update the design
-                    await updateDesign({
-                      color_palette: colorPalette,
-                      colors: convertColorPaletteToColors(colorPalette),
-                    });
-                    
-                    toast.success(`Color palette saved with ${colorPalette.length} colors`);
-                    handleSuccess();
-                  } catch (error) {
-                    toast.error("Failed to save color palette");
-                    console.error(error);
-                  }
+        )}
+
+        {colors.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-ui-bg-subtle flex items-center justify-center mb-3">
+              <Plus className="w-5 h-5 text-ui-fg-subtle" />
+            </div>
+            <Text size="small" className="text-ui-fg-subtle">
+              No colors yet. Add your first color below.
+            </Text>
+          </div>
+        )}
+
+        {/* Add / Edit color form */}
+        <div className="border-t border-ui-border-base pt-4 flex flex-col gap-y-4">
+          <Text size="small" weight="plus">
+            {selectedColorIndex !== null ? "Edit Color" : "Add New Color"}
+          </Text>
+
+          {/* Color preview + picker */}
+          <div className="flex items-start gap-x-4">
+            <div className="relative">
+              <div
+                className="w-16 h-16 rounded-lg cursor-pointer border border-ui-border-base flex items-center justify-center transition-transform hover:scale-105"
+                style={{
+                  backgroundColor: newColor.hex_code,
+                  color: getContrastColor(newColor.hex_code),
                 }}
-                size="base"
-                className="px-6"
-                isLoading={isSaving}
+                onClick={() => setShowColorPicker(!showColorPicker)}
               >
-                Save
+                <Text
+                  size="xsmall"
+                  style={{ color: getContrastColor(newColor.hex_code) }}
+                >
+                  {showColorPicker ? "Close" : "Pick"}
+                </Text>
+              </div>
+
+              {showColorPicker && (
+                <div
+                  ref={colorPickerRef}
+                  className="absolute z-10 mt-2 shadow-lg"
+                >
+                  <SketchPicker
+                    color={newColor.hex_code}
+                    onChange={handleColorChange}
+                    disableAlpha={true}
+                    presetColors={[
+                      "#F44336", "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
+                      "#2196F3", "#03A9F4", "#00BCD4", "#009688", "#4CAF50",
+                      "#8BC34A", "#CDDC39", "#FFEB3B", "#FFC107", "#FF9800",
+                      "#FF5722", "#795548", "#9E9E9E", "#607D8B", "#000000",
+                      "#FFFFFF",
+                    ]}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 flex flex-col gap-y-3">
+              <Input
+                size="small"
+                placeholder="#000000"
+                value={newColor.hex_code}
+                onChange={(e) =>
+                  setNewColor({ ...newColor, hex_code: e.target.value })
+                }
+              />
+              <Input
+                size="small"
+                placeholder="Color name, e.g. Royal Purple"
+                value={newColor.name}
+                onChange={(e) =>
+                  setNewColor({ ...newColor, name: e.target.value })
+                }
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-x-2">
+            {selectedColorIndex !== null && (
+              <Button
+                size="small"
+                variant="secondary"
+                type="button"
+                onClick={() => {
+                  setNewColor({ hex_code: "#5048E5", name: "" });
+                  setSelectedColorIndex(null);
+                }}
+              >
+                Cancel
               </Button>
             )}
+            <Button
+              size="small"
+              variant="secondary"
+              type="button"
+              onClick={handleAddColor}
+            >
+              {selectedColorIndex !== null ? "Update Color" : "Add Color"}
+            </Button>
           </div>
-        </RouteFocusModal.Footer>
-      
-    </RouteFocusModal>
+        </div>
+      </RouteDrawer.Body>
+
+      <RouteDrawer.Footer>
+        <div className="flex items-center justify-end gap-x-2">
+          <RouteDrawer.Close asChild>
+            <Button size="small" variant="secondary">
+              Cancel
+            </Button>
+          </RouteDrawer.Close>
+          <Button
+            size="small"
+            type="button"
+            onClick={handleSave}
+            isLoading={isSaving}
+          >
+            Save
+          </Button>
+        </div>
+      </RouteDrawer.Footer>
+    </>
   );
 };
 
-
 export default ColorPaletteEditor;
-

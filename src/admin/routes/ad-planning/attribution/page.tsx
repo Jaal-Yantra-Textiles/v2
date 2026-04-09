@@ -134,12 +134,19 @@ const columns = [
   }),
   columnHelper.accessor("campaign_spend", {
     header: "Ad Spend",
-    cell: ({ getValue }) => {
+    cell: ({ getValue, row }) => {
       const spend = getValue()
       if (!spend) return <Text className="text-ui-fg-muted">-</Text>
+      // Meta Ads spend is stored in account currency (e.g. INR).
+      // Show as-is with the campaign's own currency symbol.
+      const currency = (row.original as any).campaign_currency || "INR"
       return (
         <Text size="small" leading="compact">
-          ₹{spend.toLocaleString()}
+          {new Intl.NumberFormat(undefined, {
+            style: "currency",
+            currency: currency.toUpperCase(),
+            minimumFractionDigits: 2,
+          }).format(spend)}
         </Text>
       )
     },

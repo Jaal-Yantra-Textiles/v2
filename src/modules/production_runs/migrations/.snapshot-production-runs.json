@@ -11,8 +11,15 @@
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
-          "primary": false,
+          "primary": true,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "status": {
@@ -22,7 +29,12 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
           "default": "'pending_review'",
+          "comment": null,
           "enumItems": [
             "draft",
             "pending_review",
@@ -41,7 +53,12 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
           "default": "'production'",
+          "comment": null,
           "enumItems": [
             "production",
             "sample"
@@ -55,7 +72,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
           "default": "1",
+          "comment": null,
+          "enumItems": [],
           "mappedType": "float"
         },
         "parent_run_id": {
@@ -65,6 +88,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "role": {
@@ -74,6 +104,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "design_id": {
@@ -83,6 +120,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "partner_id": {
@@ -92,6 +136,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "product_id": {
@@ -101,6 +152,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "variant_id": {
@@ -110,6 +168,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "order_id": {
@@ -119,6 +184,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "order_line_item_id": {
@@ -128,6 +200,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "accepted_at": {
@@ -137,7 +216,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "started_at": {
@@ -147,7 +232,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "finished_at": {
@@ -157,7 +248,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "completed_at": {
@@ -167,7 +264,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "cancelled_at": {
@@ -177,7 +280,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "cancelled_reason": {
@@ -187,6 +296,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "finish_notes": {
@@ -196,6 +312,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "completion_notes": {
@@ -205,6 +328,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "produced_quantity": {
@@ -214,6 +344,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "float"
         },
         "rejected_quantity": {
@@ -223,6 +360,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "float"
         },
         "rejection_reason": {
@@ -232,6 +376,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "rejection_notes": {
@@ -241,6 +392,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "text"
         },
         "partner_cost_estimate": {
@@ -250,6 +408,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "float"
         },
         "cost_type": {
@@ -259,7 +424,12 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
           "default": "'total'",
+          "comment": null,
           "enumItems": [
             "per_unit",
             "total"
@@ -273,7 +443,12 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
           "default": "'idle'",
+          "comment": null,
           "enumItems": [
             "idle",
             "awaiting_templates",
@@ -288,7 +463,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "dispatch_completed_at": {
@@ -298,7 +479,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "dispatch_template_names": {
@@ -308,6 +495,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "snapshot": {
@@ -317,6 +511,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "captured_at": {
@@ -326,7 +527,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "depends_on_run_ids": {
@@ -336,6 +543,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "metadata": {
@@ -345,6 +559,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "json"
         },
         "created_at": {
@@ -354,8 +575,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
           "default": "now()",
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "updated_at": {
@@ -365,8 +591,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
           "default": "now()",
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         },
         "deleted_at": {
@@ -376,7 +607,13 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
+          "unique": false,
           "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
           "mappedType": "datetime"
         }
       },

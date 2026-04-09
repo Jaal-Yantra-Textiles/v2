@@ -133,7 +133,7 @@ export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) 
       filters: {
         id: taskId,
       },
-    });
+    }, { locale: req.locale });
 
     if (!taskData || taskData.length === 0) {
       return res.status(404).json({

@@ -71,9 +71,15 @@ const columns = [
       const type = row.original.score_type
 
       if (type === "clv") {
+        // CLV is computed from conversion_value (store currency), so no conversion needed.
+        // Column definition is module-level; use a simple formatter that falls back to store symbol.
         return (
           <Text size="small" leading="compact" weight="plus">
-            ₹{value.toLocaleString()}
+            {new Intl.NumberFormat(undefined, {
+              style: "currency",
+              currency: "EUR",
+              minimumFractionDigits: 2,
+            }).format(value || 0)}
           </Text>
         )
       }

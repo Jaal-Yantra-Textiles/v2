@@ -56,10 +56,16 @@ export const updateDesignStep = createStep(
       ...designFields
     } = input;
 
-    const normalizedSizeSets =
-      size_sets?.length ? size_sets : convertCustomSizesToSizeSets(custom_sizes);
-    const normalizedColors =
-      colors?.length ? colors : convertColorPaletteToColors(color_palette);
+    // Only process colors/size_sets when explicitly provided in the request
+    const colorsProvided = "colors" in input || "color_palette" in input;
+    const sizeSetsProvided = "size_sets" in input || "custom_sizes" in input;
+
+    const normalizedSizeSets = sizeSetsProvided
+      ? (size_sets?.length ? size_sets : convertCustomSizesToSizeSets(custom_sizes))
+      : undefined;
+    const normalizedColors = colorsProvided
+      ? (colors?.length ? colors : convertColorPaletteToColors(color_palette))
+      : undefined;
 
     const updateData = Object.entries(designFields).reduce<Record<string, any>>(
       (acc, [key, value]) => {
@@ -90,8 +96,8 @@ export const updateDesignStep = createStep(
         ...updateData,
       },
     });
-    // Upsert structured colors if provided
-    if (normalizedColors) {
+    // Upsert structured colors only when explicitly provided in the request
+    if (colorsProvided && normalizedColors) {
       // Delete existing colors for this design
       const existing = await designService.listDesignColors({ design_id: id });
       if (existing.length) {
@@ -107,8 +113,8 @@ export const updateDesignStep = createStep(
         );
       }
     }
-    // Upsert structured size sets if provided
-    if (normalizedSizeSets) {
+    // Upsert structured size sets only when explicitly provided in the request
+    if (sizeSetsProvided && normalizedSizeSets) {
       const existing = await designService.listDesignSizeSets({ design_id: id });
       if (existing.length) {
         await designService.deleteDesignSizeSets(existing.map((s) => s.id));

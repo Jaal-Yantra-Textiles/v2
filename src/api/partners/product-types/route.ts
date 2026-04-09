@@ -42,7 +42,7 @@ export const GET = async (
   const { data: types } = await query.graph({
     entity: "product_types",
     fields: ["*"],
-  })
+  }, { locale: req.locale })
 
   res.json({
     product_types: types || [],

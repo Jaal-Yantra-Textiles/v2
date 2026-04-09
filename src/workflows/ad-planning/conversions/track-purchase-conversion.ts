@@ -13,7 +13,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { AD_PLANNING_MODULE } from "../../../modules/ad-planning";
 import type AdPlanningService from "../../../modules/ad-planning/service";
-import { Modules } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { PERSON_MODULE } from "../../../modules/person";
 
 type TrackPurchaseConversionInput = {
@@ -31,10 +31,24 @@ type TrackPurchaseConversionInput = {
 const fetchOrderStep = createStep(
   "fetch-order",
   async (input: { order_id: string }, { container }) => {
-    const orderService = container.resolve(Modules.ORDER) as any;
+    const query = container.resolve(ContainerRegistrationKeys.QUERY);
 
-    const order = await orderService.retrieveOrder(input.order_id, {
-      relations: ["items", "shipping_address"],
+    // Use query.graph so computed totals (from order_summary) are populated.
+    // orderService.retrieveOrder() does NOT populate `total` — it only returns raw entity fields.
+    const { data: [order] } = await query.graph({
+      entity: "order",
+      fields: [
+        "id",
+        "total",
+        "subtotal",
+        "tax_total",
+        "shipping_total",
+        "currency_code",
+        "customer_id",
+        "email",
+        "items.*",
+      ],
+      filters: { id: input.order_id },
     });
 
     if (!order) {
@@ -43,11 +57,11 @@ const fetchOrderStep = createStep(
 
     return new StepResponse({
       id: order.id,
-      total: order.total,
+      total: Number(order.total) || 0,
       currency: order.currency_code,
       customer_id: order.customer_id,
       email: order.email,
-      items: order.items?.map((item: any) => ({
+      items: (order.items as any[])?.map((item: any) => ({
         product_id: item.product_id,
         variant_id: item.variant_id,
         quantity: item.quantity,
