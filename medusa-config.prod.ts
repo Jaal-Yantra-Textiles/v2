@@ -375,5 +375,8 @@ module.exports = defineConfig({
     {
     resolve: "./src/modules/payment_submissions",
   },
+   {
+    resolve: "./src/modules/agreement-responses",
+  },
 ],
 });
