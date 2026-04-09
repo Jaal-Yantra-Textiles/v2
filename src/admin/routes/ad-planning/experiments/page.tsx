@@ -286,7 +286,7 @@ const ExperimentsPage = () => {
               </Select>
               <Button size="small" onClick={() => setCreateOpen(true)}>
                 <Plus className="mr-2" />
-                Create Experiment
+                Create
               </Button>
             </div>
           </DataTable.Toolbar>

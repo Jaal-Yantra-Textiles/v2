@@ -301,7 +301,7 @@ const AttributionPage = () => {
                 isLoading={bulkResolve.isPending}
               >
                 <ArrowPath className="mr-2" />
-                Resolve Attributions
+                Resolve
               </Button>
             </div>
           </DataTable.Toolbar>

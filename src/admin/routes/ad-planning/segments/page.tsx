@@ -297,7 +297,7 @@ const SegmentsPage = () => {
               </Select>
               <Button size="small" onClick={() => setCreateOpen(true)}>
                 <Plus className="mr-2" />
-                Create Segment
+                Create
               </Button>
             </div>
           </DataTable.Toolbar>
