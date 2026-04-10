@@ -1,3 +1,11 @@
+## [12.5.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.3...v12.5.4) (2026-04-10)
+
+
+### Bug Fixes
+
+* **api:** Fixed the ad-planning segmentation ([81be013](https://github.com/Jaal-Yantra-Textiles/v2/commit/81be013529b1203791a4b83cf544d838451753b5))
+* **workflows:** Fixed the query.graph of type any ([664a76d](https://github.com/Jaal-Yantra-Textiles/v2/commit/664a76d8baa29afbaaa12f5a965ff4c9adf51b3a))
+
 ## [12.5.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.2...v12.5.3) (2026-04-08)
 
 
