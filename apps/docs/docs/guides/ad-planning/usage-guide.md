@@ -8,7 +8,7 @@ sidebar_position: 1
 
 **Date**: 2026-03-25
 **Status**: Production Ready
-**Last Updated**: 2026-03-25 — Major bug fixes, automation improvements, and UI enhancements
+**Last Updated**: 2026-04-10 — April audit: 30+ bug fixes across attribution, A/B testing, scoring, segments, and performance. See [April Changelog](/implementation/ad-planning/changelog-april-2026) for details.
 
 A comprehensive guide to using the Ad Planning & Attribution module in the JYT Commerce admin dashboard. This module connects your Meta ad campaigns, social content, lead pipeline, and customer data into a unified planning and analytics system.
 
@@ -364,11 +364,27 @@ Click **Create Segment** to open the creation modal:
    - Rules are combined with AND/OR logic
 4. Click **Create** to save
 
+### Available Fields
+
+| Field | What it measures |
+|---|---|
+| Total Orders | Count of Medusa orders for this customer |
+| Total Spent | Sum of purchase conversion values (EUR) |
+| Avg Order Value | Total spent / paid orders (excludes €0 drafts) |
+| Days Since Last Order | Days since most recent purchase |
+| Engagement Score | 0-100 activity-weighted score |
+| Customer Lifetime Value | Predicted CLV from purchase history |
+| Churn Risk Score | 0-100 (higher = more at-risk) |
+
+:::info
+Numeric values like "300" are entered as strings in the UI but are automatically coerced to numbers for comparison. All operators (`>=`, `<=`, `>`, `<`, `between`) work correctly with both numeric and string inputs.
+:::
+
 Example rules:
 ```
-Field: "total_orders"  Operator: "greater_than"  Value: "5"
+Field: "avg_order_value"  Operator: ">="  Value: "250"
 AND
-Field: "last_order_date"  Operator: "within_days"  Value: "30"
+Field: "days_since_last_order"  Operator: "<="  Value: "90"
 ```
 
 ### Segment Detail Page
@@ -406,21 +422,32 @@ View computed customer scores including CLV, engagement, churn risk, and NPS.
 
 | Score | Range | Display | Description |
 |-------|-------|---------|-------------|
-| **CLV** (Customer Lifetime Value) | ₹0+ | Currency | Predicted lifetime revenue from this customer |
+| **CLV** (Customer Lifetime Value) | €0+ | Currency (store default) | Predicted lifetime revenue from this customer |
 | **Engagement** | 0-100 | Numeric | How actively the customer interacts |
 | **Churn Risk** | 0-100% | Percentage | Probability of customer leaving. Red > 70%, Yellow > 40%, Green < 40% |
 | **NPS** | -100 to 100 | Numeric | Net Promoter Score |
 
+### Columns
+
+The scores table displays:
+
+| Column | Source |
+|---|---|
+| **Customer** | Person name + email (joined from Person module and Medusa Customer). Falls back to truncated ID if no person record exists. |
+| **Score Type** | CLV / Engagement / Churn Risk / NPS with color-coded badges |
+| **Score** | The numeric value, formatted as currency for CLV |
+| **Tier** | Computed server-side (platinum/gold/silver/bronze for CLV; high/medium/low for others) |
+| **Percentile** | "Top X%" rank within the population of the same score type. Requires at least 2 customers. |
+| **Calculated** | When the score was last computed |
+
 ### Tiers
 
-Customers are grouped into tiers based on their scores:
-
-| Tier | Badge | Description |
-|------|-------|-------------|
-| Platinum | Green | Top-tier customers |
-| Gold | Blue | High-value customers |
-| Silver | Orange | Mid-tier customers |
-| Bronze | Grey | Entry-level customers |
+| Tier | CLV Threshold | Engagement/NPS | Churn Risk |
+|------|---|---|---|
+| Platinum / High | ≥ €50,000 | ≥ 75 | ≥ 70 |
+| Gold / Medium | ≥ €20,000 | ≥ 40 | ≥ 40 |
+| Silver / Low | ≥ €5,000 | < 40 | < 40 |
+| Bronze | < €5,000 | — | — |
 
 ### Filtering
 

@@ -4,6 +4,16 @@ services:
     runtime: static
     buildCommand: pnpm run vercel-build
     staticPublishPath: dist
+    buildFilter:
+      paths:
+        - apps/partner-ui/**
+      ignoredPaths:
+        - apps/docs/**
+        - apps/storefront/**
+        - apps/storefront-starter/**
+        - apps/media-gallery/**
+        - src/**
+        - .github/**
     routes:
       - type: rewrite
         source: /*
