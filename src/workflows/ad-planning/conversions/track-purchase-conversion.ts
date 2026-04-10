@@ -31,7 +31,7 @@ type TrackPurchaseConversionInput = {
 const fetchOrderStep = createStep(
   "fetch-order",
   async (input: { order_id: string }, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY);
 
     // Use query.graph so computed totals (from order_summary) are populated.
     // orderService.retrieveOrder() does NOT populate `total` — it only returns raw entity fields.
