@@ -1,3 +1,10 @@
+## [12.5.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.4...v12.5.5) (2026-04-10)
+
+
+### Bug Fixes
+
+* **api:** Ad planning fix ([3ac5557](https://github.com/Jaal-Yantra-Textiles/v2/commit/3ac555715a4d4007d05b3013d89bb148be350bb0))
+
 ## [12.5.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.3...v12.5.4) (2026-04-10)
 
 
