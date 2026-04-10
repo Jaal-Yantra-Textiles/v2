@@ -12,6 +12,7 @@ import {
 import WhatsAppService from "./whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "./index"
 import type SocialProviderService from "./service"
+import { MESSAGING_MODULE } from "../messaging"
 
 interface IncomingMessage {
   from: string // WhatsApp phone number
@@ -112,6 +113,11 @@ export async function handleIncomingMessage(
     })
     return { handled: true, error: "unregistered_phone" }
   }
+
+  // Persist inbound message
+  await persistInboundMessage(scope, message, partner.partnerId, partner.adminName).catch((e: any) => {
+    console.warn("[whatsapp-handler] Failed to persist inbound message:", e.message)
+  })
 
   // Determine action from button reply or text
   let action = ""
@@ -551,4 +557,64 @@ async function emitEvent(scope: any, name: string, data: Record<string, any>): P
  */
 function phoneMatches(a: string, b: string): boolean {
   return a === b || a.endsWith(b) || b.endsWith(a)
+}
+
+/**
+ * Persist an inbound WhatsApp message to the messaging module.
+ * Resolves or creates a conversation for the partner+phone pair.
+ */
+async function persistInboundMessage(
+  scope: any,
+  message: IncomingMessage,
+  partnerId: string,
+  senderName: string
+): Promise<void> {
+  const messagingService = scope.resolve(MESSAGING_MODULE) as any
+
+  // Find or create conversation for this partner+phone
+  const [existing] = await messagingService.listMessagingConversations(
+    { partner_id: partnerId, phone_number: message.from },
+    { take: 1 }
+  )
+
+  let conversationId: string
+  if (existing) {
+    conversationId = existing.id
+  } else {
+    const conv = await messagingService.createMessagingConversations({
+      partner_id: partnerId,
+      phone_number: message.from,
+      title: senderName,
+      status: "active",
+    })
+    conversationId = conv.id
+  }
+
+  // Determine message type
+  let messageType = "text"
+  if (message.type === "interactive") messageType = "interactive"
+  else if (["image", "video", "document", "audio"].includes(message.type)) messageType = "media"
+
+  const content = message.text
+    || message.buttonReplyTitle
+    || `[${message.type}]`
+
+  await messagingService.createMessagingMessages({
+    conversation_id: conversationId,
+    direction: "inbound",
+    sender_name: senderName,
+    content,
+    message_type: messageType as any,
+    wa_message_id: message.messageId,
+    status: "delivered",
+    media_url: message.mediaUrl || null,
+    media_mime_type: message.mediaMimeType || null,
+  })
+
+  // Update conversation timestamp and bump unread count
+  await messagingService.updateMessagingConversations({
+    id: conversationId,
+    last_message_at: new Date(),
+    unread_count: (existing?.unread_count || 0) + 1,
+  })
 }

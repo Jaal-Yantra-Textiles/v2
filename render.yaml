@@ -2,18 +2,16 @@ services:
   - type: web
     name: partner-ui
     runtime: static
+    rootDir: apps/partner-ui
     buildCommand: pnpm run vercel-build
     staticPublishPath: dist
     buildFilter:
       paths:
         - apps/partner-ui/**
       ignoredPaths:
-        - apps/docs/**
-        - apps/storefront/**
-        - apps/storefront-starter/**
-        - apps/media-gallery/**
-        - src/**
-        - .github/**
+        - "**/*.test.ts"
+        - "**/*.test.tsx"
+        - "**/*.md"
     routes:
       - type: rewrite
         source: /*

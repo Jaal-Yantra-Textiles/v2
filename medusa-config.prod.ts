@@ -378,5 +378,8 @@ module.exports = defineConfig({
    {
     resolve: "./src/modules/agreement-responses",
   },
+  {
+    resolve: "./src/modules/messaging",
+  },
 ],
 });

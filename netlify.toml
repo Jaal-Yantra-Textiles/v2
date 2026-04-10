@@ -1,8 +1,0 @@
-# Settings for the 'partner' Next.js site
-[build]
-  # This tells Netlify to run the build command from within the 'src/partner' directory
-  base = "src/partner"
-  # The command to build your Next.js site
-  command = "next build"
-  # The directory where Next.js outputs the built site
-  publish = ".next"

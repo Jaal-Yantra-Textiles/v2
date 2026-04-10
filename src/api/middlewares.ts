@@ -147,6 +147,7 @@ import {
 } from "./admin/payment_reports/reconciliation/validators";
 import { AdminRagSearchQuery } from "./admin/ai/rag/search/validators";
 import { AdminAiChatResolveReq, AdminAiChatResolveQuery } from "./admin/ai/chat/resolve/validators";
+import { ListConversationsQuerySchema, ListMessagesQuerySchema, SendMessageSchema, CreateConversationSchema } from "./admin/messaging/validators";
 import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
@@ -4207,6 +4208,37 @@ export default defineMiddlewares({
       matcher: "/admin/orders/:id/design",
       method: "GET",
       middlewares: [authenticate("user", ["session", "bearer"])],
+    },
+    // Admin Messaging routes
+    {
+      matcher: "/admin/messaging",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListConversationsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/messaging",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateConversationSchema))],
+    },
+    {
+      matcher: "/admin/messaging/:conversationId",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListMessagesQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/messaging/:conversationId",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SendMessageSchema))],
+    },
+    {
+      matcher: "/admin/messaging/:conversationId/archive",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/messaging/:conversationId/delete",
+      method: "DELETE",
+      middlewares: [],
     },
   ],
   errorHandler: ((

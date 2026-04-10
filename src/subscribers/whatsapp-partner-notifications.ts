@@ -5,6 +5,7 @@ import type SocialProviderService from "../modules/social-provider/service"
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
 import { generatePartnerDeeplink } from "../modules/social-provider/whatsapp-deeplink"
+import { MESSAGING_MODULE } from "../modules/messaging"
 
 /**
  * Sends WhatsApp notifications to partners when production runs are assigned
@@ -57,9 +58,13 @@ export default async function whatsappPartnerNotificationHandler({
     // Send appropriate notification based on action
     for (const phone of phones) {
       try {
+        let waResponse: any = null
+        let messageContent = ""
+
         switch (action) {
           case "sent_to_partner":
-            await whatsapp.sendProductionRunAssignment(phone, {
+            messageContent = `New Production Run Assigned — ${designName} (${run.id})`
+            waResponse = await whatsapp.sendProductionRunAssignment(phone, {
               designName,
               runId: run.id,
               runType: run.run_type || "production",
@@ -70,7 +75,8 @@ export default async function whatsappPartnerNotificationHandler({
             break
 
           case "cancelled":
-            await whatsapp.sendTextMessage(
+            messageContent = `Production Run Cancelled — ${designName} (${run.id})`
+            waResponse = await whatsapp.sendTextMessage(
               phone,
               `❌ *Production Run Cancelled*\n\n` +
               `*Run:* ${run.id}\n` +
@@ -83,6 +89,15 @@ export default async function whatsappPartnerNotificationHandler({
           // Other events (accepted, started, finished, completed) are triggered
           // by the partner themselves via WhatsApp, so we don't echo them back.
           // The admin feed notifications handle admin-side visibility.
+        }
+
+        // Persist outbound notification as a message
+        if (messageContent) {
+          try {
+            await persistOutboundNotification(container, partnerId, phone, messageContent, waResponse, run.id)
+          } catch (e: any) {
+            console.warn("[whatsapp-partner-notifications] Failed to persist message:", e.message)
+          }
         }
       } catch (e: any) {
         console.error(
@@ -131,6 +146,54 @@ async function getDesignName(container: any, designId: string | null): Promise<s
   } catch {
     return designId
   }
+}
+
+async function persistOutboundNotification(
+  container: any,
+  partnerId: string,
+  phone: string,
+  content: string,
+  waResponse: any,
+  runId: string
+): Promise<void> {
+  const messagingService = container.resolve(MESSAGING_MODULE) as any
+
+  // Find or create conversation
+  const [existing] = await messagingService.listMessagingConversations(
+    { partner_id: partnerId, phone_number: phone },
+    { take: 1 }
+  )
+
+  let conversationId: string
+  if (existing) {
+    conversationId = existing.id
+  } else {
+    const conv = await messagingService.createMessagingConversations({
+      partner_id: partnerId,
+      phone_number: phone,
+      status: "active",
+    })
+    conversationId = conv.id
+  }
+
+  const waMessageId = waResponse?.messages?.[0]?.id || null
+
+  await messagingService.createMessagingMessages({
+    conversation_id: conversationId,
+    direction: "outbound",
+    sender_name: "System",
+    content,
+    message_type: "template",
+    wa_message_id: waMessageId,
+    status: waMessageId ? "sent" : "pending",
+    context_type: "production_run",
+    context_id: runId,
+  })
+
+  await messagingService.updateMessagingConversations({
+    id: conversationId,
+    last_message_at: new Date(),
+  })
 }
 
 function buildPartnerWebUrl(runId: string, partnerId: string): string {

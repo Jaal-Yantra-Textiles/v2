@@ -111,6 +111,24 @@ async function processWhatsAppWebhook(
             status: status.status,
             recipientId: status.recipient_id,
           })
+
+          // Update persisted message status
+          try {
+            const { MESSAGING_MODULE } = await import("../../../../modules/messaging")
+            const messagingService = scope.resolve(MESSAGING_MODULE) as any
+            const [existing] = await messagingService.listMessagingMessages(
+              { wa_message_id: status.id },
+              { take: 1 }
+            )
+            if (existing) {
+              await messagingService.updateMessagingMessages({
+                id: existing.id,
+                status: status.status as any,
+              })
+            }
+          } catch (e: any) {
+            console.warn("[whatsapp-webhook] Failed to update message status:", e.message)
+          }
         }
         continue
       }
