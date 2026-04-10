@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"
 import type SocialProviderService from "../../../../modules/social-provider/service"
 import { handleIncomingMessage } from "../../../../modules/social-provider/whatsapp-message-handler"
+import  { MESSAGING_MODULE } from "../../../../modules/messaging"
 
 /**
  * GET /webhooks/social/whatsapp
@@ -114,7 +115,7 @@ async function processWhatsAppWebhook(
 
           // Update persisted message status
           try {
-            const { MESSAGING_MODULE } = await import("../../../../modules/messaging")
+           
             const messagingService = scope.resolve(MESSAGING_MODULE) as any
             const [existing] = await messagingService.listMessagingMessages(
               { wa_message_id: status.id },
