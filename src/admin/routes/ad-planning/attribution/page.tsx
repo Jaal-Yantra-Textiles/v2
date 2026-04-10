@@ -300,7 +300,6 @@ const AttributionPage = () => {
                 onClick={() => bulkResolve.mutate()}
                 isLoading={bulkResolve.isPending}
               >
-                <ArrowPath className="mr-2" />
                 Resolve
               </Button>
             </div>

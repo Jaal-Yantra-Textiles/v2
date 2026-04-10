@@ -40,7 +40,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     if (params.to_date) filters.occurred_at.$lte = new Date(params.to_date);
   }
 
-  const journeys = await adPlanningService.listCustomerJourneys(filters);
+  // Cap rows loaded into memory for funnel aggregation
+  const FUNNEL_MAX_ROWS = 50000;
+  const journeys = await adPlanningService.listCustomerJourneys(filters, {
+    take: FUNNEL_MAX_ROWS,
+    order: { occurred_at: "DESC" },
+  });
 
   // Group by unique identity (person_id or visitor_id) and find their stages
   const entityStages: Record<string, Set<string>> = {};

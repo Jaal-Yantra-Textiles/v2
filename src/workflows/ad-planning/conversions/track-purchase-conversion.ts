@@ -138,30 +138,59 @@ const findAttributionStep = createStep(
       }
     }
 
-    // Try customer/person based (last-touch attribution)
-    if (input.person_id || input.customer_id) {
-      const personAttr = await adPlanningService.listCampaignAttributions({
-        is_resolved: true,
-      });
+    // Try customer/person based (last-touch attribution).
+    //
+    // CRITICAL: CampaignAttribution has no person_id column — only visitor_id.
+    // Previously this code fetched ALL resolved attributions system-wide and
+    // assigned the most recent one to the current order, leaking attribution
+    // across unrelated customers.
+    //
+    // Correct approach: look up visitor_ids that belong to this person via
+    // their historical Conversion records (which link person_id → visitor_id),
+    // then scope the attribution query to only those visitor_ids.
+    if (input.person_id) {
+      // Find all visitor_ids historically associated with this person.
+      const personConversions = await adPlanningService.listConversions(
+        { person_id: input.person_id },
+        { take: 100 }
+      );
 
-      // Find most recent attribution for this person/visitor
-      const sorted = personAttr
-        .filter((a: any) => a.visitor_id)
-        .sort((a: any, b: any) =>
-          new Date(b.attributed_at).getTime() - new Date(a.attributed_at).getTime()
+      const visitorIds = Array.from(
+        new Set(
+          personConversions
+            .map((c: any) => c.visitor_id)
+            .filter((v: string) => !!v)
+        )
+      );
+
+      if (visitorIds.length > 0) {
+        const personAttr = await adPlanningService.listCampaignAttributions(
+          {
+            is_resolved: true,
+            visitor_id: visitorIds,
+          },
+          { take: 50 }
         );
 
-      if (sorted.length > 0) {
-        return new StepResponse({
-          ad_campaign_id: sorted[0].ad_campaign_id,
-          ad_set_id: sorted[0].ad_set_id,
-          ad_id: sorted[0].ad_id,
-          platform: sorted[0].platform,
-          utm_source: sorted[0].utm_source,
-          utm_medium: sorted[0].utm_medium,
-          utm_campaign: sorted[0].utm_campaign,
-          attribution_method: "last_touch",
-        });
+        // Find most recent attribution belonging to this person's visitors
+        const sorted = personAttr.sort(
+          (a: any, b: any) =>
+            new Date(b.attributed_at).getTime() -
+            new Date(a.attributed_at).getTime()
+        );
+
+        if (sorted.length > 0) {
+          return new StepResponse({
+            ad_campaign_id: sorted[0].ad_campaign_id,
+            ad_set_id: sorted[0].ad_set_id,
+            ad_id: sorted[0].ad_id,
+            platform: sorted[0].platform,
+            utm_source: sorted[0].utm_source,
+            utm_medium: sorted[0].utm_medium,
+            utm_campaign: sorted[0].utm_campaign,
+            attribution_method: "last_touch",
+          });
+        }
       }
     }
 
@@ -201,7 +230,7 @@ const createPurchaseConversionStep = createStep(
         ad_campaign_id: string | null;
         ad_set_id: string | null;
         ad_id: string | null;
-        platform: "meta" | "google" | "generic";
+        platform: "meta" | "google" | "generic" | "direct";
         utm_source?: string | null;
         utm_medium?: string | null;
         utm_campaign?: string | null;
@@ -230,7 +259,11 @@ const createPurchaseConversionStep = createStep(
         analytics_session_id: input.session_id,
         website_id: input.website_id,
         conversion_value: input.order.total,
-        currency: input.order.currency?.toUpperCase() || "INR",
+        // Prefer the order's currency (populated from Medusa order_summary).
+        // Fall back to null so no garbage "INR" label leaks onto EUR/USD
+        // stores — the UI and aggregation layer handle null by using the
+        // store default.
+        currency: input.order.currency?.toUpperCase() || null,
         order_id: input.order.id,
         person_id: input.person_id,
         utm_source: input.attribution.utm_source,
@@ -559,11 +592,17 @@ const recalculateChurnRiskAfterPurchaseStep = createStep(
         engagementDecline = earlierAvg > 0 ? ((earlierAvg - recentAvg) / earlierAvg) * 100 : 0;
       }
 
-      // Negative sentiment ratio
+      // Negative sentiment ratio — count both "negative" and "very_negative"
+      // (with the latter weighted 1.5× to give the strongest signal more weight).
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const recentSentiments = sentiments.filter((s: any) => new Date(s.analyzed_at) >= thirtyDaysAgo);
+      const negWeight = recentSentiments.reduce((acc: number, s: any) => {
+        if (s.sentiment_label === "very_negative") return acc + 1.5;
+        if (s.sentiment_label === "negative") return acc + 1;
+        return acc;
+      }, 0);
       const negRatio = recentSentiments.length > 0
-        ? recentSentiments.filter((s: any) => s.sentiment_label === "negative").length / recentSentiments.length
+        ? Math.min(1, negWeight / recentSentiments.length)
         : 0;
 
       // Weighted risk score (weights must sum to 1.0)

@@ -85,17 +85,23 @@ const gatherActivityDataStep = createStep(
       engagementDecline = earlierAvg > 0 ? ((earlierAvg - recentAvg) / earlierAvg) * 100 : 0;
     }
 
-    // Calculate negative sentiment ratio (last 30 days)
+    // Calculate negative sentiment ratio (last 30 days).
+    // Both "negative" and "very_negative" count as negative signals.
+    // A "very_negative" entry counts 1.5× to give the strongest signal
+    // proportionally more weight in the churn calculation.
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const recentSentiments = sentiments.filter(
       (s: any) => new Date(s.analyzed_at) >= thirtyDaysAgo
     );
-    const negativeSentiments = recentSentiments.filter(
-      (s: any) => s.sentiment_label === "negative"
-    );
-    const negativeSentimentRatio = recentSentiments.length > 0
-      ? negativeSentiments.length / recentSentiments.length
-      : 0;
+    const negativeWeight = recentSentiments.reduce((acc: number, s: any) => {
+      if (s.sentiment_label === "very_negative") return acc + 1.5;
+      if (s.sentiment_label === "negative") return acc + 1;
+      return acc;
+    }, 0);
+    const negativeSentimentRatio =
+      recentSentiments.length > 0
+        ? Math.min(1, negativeWeight / recentSentiments.length)
+        : 0;
 
     return new StepResponse({
       days_since_last_activity: daysSinceLastActivity,

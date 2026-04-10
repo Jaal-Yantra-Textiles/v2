@@ -10,7 +10,7 @@ import { AD_PLANNING_MODULE } from "../../../../modules/ad-planning";
 const ListAttributionSchema = z.object({
   website_id: z.string().optional(),
   ad_campaign_id: z.string().optional(),
-  platform: z.enum(["meta", "google", "generic"]).optional(),
+  platform: z.enum(["meta", "google", "generic", "direct"]).optional(),
   is_resolved: z.coerce.boolean().optional(),
   utm_campaign: z.string().optional(),
   from_date: z.string().optional(),
@@ -65,7 +65,9 @@ const CreateAttributionSchema = z.object({
   ad_campaign_id: z.string().optional(),
   ad_set_id: z.string().optional(),
   ad_id: z.string().optional(),
-  platform: z.enum(["meta", "google", "generic"]).default("meta"),
+  platform: z
+    .enum(["meta", "google", "generic", "direct"])
+    .default("direct"),
   utm_source: z.string().optional(),
   utm_medium: z.string().optional(),
   utm_campaign: z.string().optional(),

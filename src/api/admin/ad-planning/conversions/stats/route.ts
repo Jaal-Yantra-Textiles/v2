@@ -7,6 +7,11 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { z } from "@medusajs/framework/zod";
 import { AD_PLANNING_MODULE } from "../../../../../modules/ad-planning";
 
+// Hard cap on the number of rows aggregated per stats request. Prevents
+// unbounded memory growth on very active stores. Increase if richer
+// aggregation is needed, or move aggregation to the database layer.
+const STATS_MAX_ROWS = 50000;
+
 const StatsQuerySchema = z.object({
   website_id: z.string().optional(),
   ad_campaign_id: z.string().optional(),
@@ -41,8 +46,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     $lte: toDate,
   };
 
-  // Get all conversions in range
-  const conversions = await adPlanningService.listConversions(filters);
+  // Get all conversions in range, capped at STATS_MAX_ROWS
+  const conversions = await adPlanningService.listConversions(filters, {
+    take: STATS_MAX_ROWS,
+    order: { converted_at: "DESC" },
+  });
 
   // Calculate totals
   const totals = {

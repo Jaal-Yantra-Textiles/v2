@@ -202,9 +202,10 @@ const ConversionsPage = () => {
     { value: "time_on_site", label: "Time on Site" },
   ]
 
-  const totalValue = stats?.total_value || 0
-  const totalConversions = stats?.total_conversions || 0
-  const purchaseCount = stats?.by_type?.purchase || 0
+  // API returns { totals: { total_value, total_conversions, by_type, ... }, time_series }
+  const totalValue = stats?.totals?.total_value || 0
+  const totalConversions = stats?.totals?.total_conversions || 0
+  const purchaseCount = stats?.totals?.by_type?.purchase || 0
 
   return (
     <div className="flex flex-col gap-y-3">

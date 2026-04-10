@@ -188,9 +188,10 @@ const MetricsModal = () => {
   })
 
   // Derived values
-  const totalConversions = conversionStats?.total_conversions || 0
-  const totalRevenue = conversionStats?.total_value || 0
-  const conversionRate = conversionStats?.conversion_rate || 0
+  // API returns { totals: { total_conversions, total_value, by_type, by_platform }, time_series }
+  const totalConversions = conversionStats?.totals?.total_conversions || 0
+  const totalRevenue = conversionStats?.totals?.total_value || 0
+  const conversionRate = conversionStats?.totals?.conversion_rate || 0
 
   const activeExperiments =
     experimentsData?.experiments?.filter((e: any) => e.status === "running")
@@ -716,7 +717,7 @@ const MetricsModal = () => {
                   </Text>
                   <Text size="large" weight="plus" className="mt-1">
                     {(
-                      conversionStats?.by_type?.purchase || 0
+                      conversionStats?.totals?.by_type?.purchase || 0
                     ).toLocaleString()}
                   </Text>
                 </div>
@@ -726,7 +727,7 @@ const MetricsModal = () => {
                   </Text>
                   <Text size="large" weight="plus" className="mt-1">
                     {(
-                      conversionStats?.by_type?.lead_form_submission || 0
+                      conversionStats?.totals?.by_type?.lead_form_submission || 0
                     ).toLocaleString()}
                   </Text>
                 </div>
@@ -736,7 +737,7 @@ const MetricsModal = () => {
                   </Text>
                   <Text size="large" weight="plus" className="mt-1">
                     {(
-                      conversionStats?.by_type?.add_to_cart || 0
+                      conversionStats?.totals?.by_type?.add_to_cart || 0
                     ).toLocaleString()}
                   </Text>
                 </div>
@@ -746,7 +747,7 @@ const MetricsModal = () => {
                   </Text>
                   <Text size="large" weight="plus" className="mt-1">
                     {(
-                      conversionStats?.by_type?.begin_checkout || 0
+                      conversionStats?.totals?.by_type?.begin_checkout || 0
                     ).toLocaleString()}
                   </Text>
                 </div>

@@ -28,27 +28,31 @@ const normalizeRatingStep = createStep(
   "normalize-rating",
   async (input: { rating: number; scale?: "5" | "10" }) => {
     let npsValue: number;
+    let category: "promoter" | "passive" | "detractor";
 
     if (input.scale === "5") {
-      // Convert 1-5 to 0-10 using full range mapping
-      // 1 → 0, 2 → 2.5, 3 → 5, 4 → 7.5, 5 → 10
-      npsValue = Math.round((input.rating - 1) * 2.5);
+      // Standard 5-point NPS classification:
+      //   5        → promoter
+      //   4        → passive
+      //   1, 2, 3  → detractor
+      //
+      // We categorise from the raw 5-point rating directly so that ratings
+      // are never mis-bucketed by rounding through the 0-10 scale. The
+      // stored `nps_value` is still normalised to 0-10 via (rating - 1) * 2.5
+      // for consistent aggregation with 10-point data, but the category
+      // comes from the 5-point input.
+      const rating = Math.max(1, Math.min(5, Math.round(input.rating)));
+      npsValue = (rating - 1) * 2.5;
+      if (rating >= 5) category = "promoter";
+      else if (rating === 4) category = "passive";
+      else category = "detractor";
     } else {
-      // Explicit 10-point scale or default: use as-is
-      npsValue = Math.round(input.rating);
-    }
-
-    // Clamp to valid range
-    npsValue = Math.max(0, Math.min(10, npsValue));
-
-    // Determine category
-    let category: "promoter" | "passive" | "detractor";
-    if (npsValue >= 9) {
-      category = "promoter";
-    } else if (npsValue >= 7) {
-      category = "passive";
-    } else {
-      category = "detractor";
+      // Explicit 10-point scale or default: use as-is with standard NPS
+      // category thresholds (9-10 promoter, 7-8 passive, 0-6 detractor).
+      npsValue = Math.max(0, Math.min(10, Math.round(input.rating)));
+      if (npsValue >= 9) category = "promoter";
+      else if (npsValue >= 7) category = "passive";
+      else category = "detractor";
     }
 
     return new StepResponse({ nps_value: npsValue, category });

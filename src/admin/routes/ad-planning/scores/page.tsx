@@ -26,6 +26,9 @@ interface CustomerScore {
   score_value: number
   tier: string | null
   percentile: number | null
+  display_name: string | null
+  person: { id: string; first_name: string | null; last_name: string | null; email: string | null } | null
+  customer: { id: string; first_name: string | null; last_name: string | null; email: string | null } | null
   factors: any
   calculated_at: string
 }
@@ -33,13 +36,35 @@ interface CustomerScore {
 const columnHelper = createDataTableColumnHelper<CustomerScore>()
 
 const columns = [
-  columnHelper.accessor("person_id", {
+  columnHelper.display({
+    id: "customer",
     header: "Customer",
-    cell: ({ getValue }) => (
-      <Text size="small" leading="compact" className="font-mono">
-        {getValue().slice(0, 12)}...
-      </Text>
-    ),
+    cell: ({ row }) => {
+      const { display_name, person, customer, person_id } = row.original
+      const name = display_name
+      const email = person?.email || customer?.email
+
+      if (!name && !email) {
+        return (
+          <Text size="small" leading="compact" className="text-ui-fg-muted font-mono">
+            {person_id.slice(0, 12)}...
+          </Text>
+        )
+      }
+
+      return (
+        <div className="flex flex-col">
+          <Text size="small" leading="compact" weight="plus">
+            {name || email}
+          </Text>
+          {name && email && (
+            <Text size="xsmall" leading="compact" className="text-ui-fg-subtle">
+              {email}
+            </Text>
+          )}
+        </div>
+      )
+    },
   }),
   columnHelper.accessor("score_type", {
     header: "Score Type",
@@ -126,10 +151,18 @@ const columns = [
     header: "Percentile",
     cell: ({ getValue }) => {
       const percentile = getValue()
-      if (percentile === null) return <Text className="text-ui-fg-muted">-</Text>
+      // Guard against null, undefined, and NaN (insufficient data or missing field)
+      if (
+        percentile === null ||
+        percentile === undefined ||
+        Number.isNaN(Number(percentile))
+      ) {
+        return <Text className="text-ui-fg-muted">-</Text>
+      }
+      const topPercent = Math.max(0, 100 - Number(percentile))
       return (
         <Text size="small" leading="compact" className="text-ui-fg-subtle">
-          Top {(100 - percentile).toFixed(0)}%
+          Top {topPercent.toFixed(0)}%
         </Text>
       )
     },

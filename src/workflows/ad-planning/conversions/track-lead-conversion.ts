@@ -42,6 +42,8 @@ const findLeadAttributionStep = createStep(
     input: {
       session_id?: string;
       visitor_id?: string;
+      utm_source?: string;
+      utm_medium?: string;
       utm_campaign?: string;
     },
     { container }
@@ -92,14 +94,35 @@ const findLeadAttributionStep = createStep(
       }
     }
 
-    // Determine platform from UTM source if no attribution found
+    // Determine platform from UTM source if no attribution found.
+    // Inspect `utm_source` (the traffic source) first, then fall back to
+    // `utm_campaign` for legacy data that stuffs the source into the
+    // campaign name. Previously this only checked `utm_campaign`, which
+    // almost never contains the word "facebook" / "google", so every
+    // lead conversion was silently tagged `generic`.
     let platform: "meta" | "google" | "generic" = "generic";
-    if (input.utm_campaign) {
-      const utmLower = input.utm_campaign.toLowerCase();
-      if (utmLower.includes("facebook") || utmLower.includes("instagram") || utmLower.includes("meta")) {
+    const sourceHints = [input.utm_source, input.utm_campaign]
+      .filter((v): v is string => !!v)
+      .map((v) => v.toLowerCase());
+
+    for (const hint of sourceHints) {
+      if (
+        hint.includes("facebook") ||
+        hint.includes("instagram") ||
+        hint.includes("meta") ||
+        hint === "fb" ||
+        hint === "ig"
+      ) {
         platform = "meta";
-      } else if (utmLower.includes("google") || utmLower.includes("gclid")) {
+        break;
+      }
+      if (
+        hint.includes("google") ||
+        hint.includes("gclid") ||
+        hint === "adwords"
+      ) {
         platform = "google";
+        break;
       }
     }
 
@@ -108,8 +131,8 @@ const findLeadAttributionStep = createStep(
       ad_set_id: null,
       ad_id: null,
       platform,
-      utm_source: null,
-      utm_medium: null,
+      utm_source: input.utm_source ?? null,
+      utm_medium: input.utm_medium ?? null,
       utm_campaign: input.utm_campaign ?? null,
     });
   }
@@ -168,7 +191,7 @@ const createLeadConversionStep = createStep(
         ad_campaign_id: string | null;
         ad_set_id: string | null;
         ad_id: string | null;
-        platform: "meta" | "google" | "generic";
+        platform: "meta" | "google" | "generic" | "direct";
         utm_source?: string | null;
         utm_medium?: string | null;
         utm_campaign?: string | null;
@@ -190,7 +213,9 @@ const createLeadConversionStep = createStep(
         analytics_session_id: input.leadData.session_id,
         website_id: input.leadData.website_id,
         conversion_value: input.lead_value,
-        currency: "INR",
+        // Leads have no intrinsic currency — store default is applied at
+        // display time. Previously hardcoded "INR" regardless of store.
+        currency: null,
         person_id: input.leadData.person_id,
         lead_id: input.leadData.lead_id,
         utm_source: input.leadData.utm_source || input.attribution.utm_source,
@@ -317,6 +342,8 @@ export const trackLeadConversionWorkflow = createWorkflow(
     const attribution = findLeadAttributionStep({
       session_id: input.session_id,
       visitor_id: input.visitor_id,
+      utm_source: input.utm_source,
+      utm_medium: input.utm_medium,
       utm_campaign: input.utm_campaign,
     });
 

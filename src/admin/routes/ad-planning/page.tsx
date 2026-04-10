@@ -120,9 +120,9 @@ const AdPlanningDashboard = () => {
   // Currency formatter — conversion values are already in store currency
   const { formatCurrency } = useCurrencyFormatter()
 
-  // Derived KPIs
-  const totalConversions = conversionStats?.total_conversions || 0
-  const totalRevenue = conversionStats?.total_value || 0
+  // API returns { totals: { total_conversions, total_value, ... }, time_series }
+  const totalConversions = conversionStats?.totals?.total_conversions || 0
+  const totalRevenue = conversionStats?.totals?.total_value || 0
   const activeSegments = segmentsData?.segments?.filter((s: any) => s.is_active).length || 0
   const totalMembers = segmentsData?.segments?.reduce(
     (acc: number, s: any) => acc + (s.customer_count || 0), 0

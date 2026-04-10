@@ -38,15 +38,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (params.ad_campaign_id) filters.ad_campaign_id = params.ad_campaign_id;
   if (params.status) filters.status = params.status;
 
-  const forecasts = await adPlanningService.listBudgetForecasts(filters, {
-    skip: params.offset,
-    take: params.limit,
-    order: { created_at: "DESC" },
-  });
+  // Use listAndCount so `count` is the true total, not the page size.
+  const [forecasts, totalCount] =
+    await adPlanningService.listAndCountBudgetForecasts(filters, {
+      skip: params.offset,
+      take: params.limit,
+      order: { created_at: "DESC" },
+    });
 
   res.json({
     forecasts,
-    count: forecasts.length,
+    count: totalCount,
     offset: params.offset,
     limit: params.limit,
   });
@@ -136,10 +138,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       predicted_conversions: totalPredictedConversions,
       predicted_revenue: totalPredictedRevenue,
       predicted_roas: totalPredictedSpend > 0 ? totalPredictedRevenue / totalPredictedSpend : 0,
-      confidence_intervals: {
-        spend: { low: totalPredictedSpend * (1 - (1 - confidenceLevel)), high: totalPredictedSpend * (1 + (1 - confidenceLevel)) },
-        conversions: { low: Math.floor(totalPredictedConversions * confidenceLevel), high: Math.ceil(totalPredictedConversions * (2 - confidenceLevel)) },
-      },
+      confidence_intervals: (() => {
+        // Half-width of the interval = (1 - confidenceLevel). Lower confidence
+        // → wider interval. The previous formula `(1 - (1 - confidenceLevel))`
+        // simplified to `confidenceLevel`, giving the inverted behaviour.
+        const margin = 1 - confidenceLevel;
+        return {
+          spend: {
+            low: totalPredictedSpend * (1 - margin),
+            high: totalPredictedSpend * (1 + margin),
+          },
+          conversions: {
+            low: Math.floor(totalPredictedConversions * (1 - margin)),
+            high: Math.ceil(totalPredictedConversions * (1 + margin)),
+          },
+        };
+      })(),
       metadata: {
         forecast_period_start: new Date().toISOString(),
         forecast_period_end: new Date(Date.now() + data.forecast_days * 24 * 60 * 60 * 1000).toISOString(),

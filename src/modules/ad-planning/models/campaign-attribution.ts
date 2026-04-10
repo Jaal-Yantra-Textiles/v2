@@ -19,7 +19,9 @@ const CampaignAttribution = model.define("CampaignAttribution", {
   ad_campaign_id: model.text().nullable(), // Links to AdCampaign
   ad_set_id: model.text().nullable(), // Links to AdSet
   ad_id: model.text().nullable(), // Links to Ad
-  platform: model.enum(["meta", "google", "generic"]).default("meta"),
+  platform: model
+    .enum(["meta", "google", "generic", "direct"])
+    .default("direct"),
 
   // UTM data (raw)
   utm_source: model.text().nullable(),

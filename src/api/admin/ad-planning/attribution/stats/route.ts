@@ -35,7 +35,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     $lte: toDate,
   };
 
-  const attributions = await adPlanningService.listCampaignAttributions(filters);
+  // Cap rows loaded into memory for aggregation
+  const STATS_MAX_ROWS = 50000;
+  const attributions = await adPlanningService.listCampaignAttributions(
+    filters,
+    { take: STATS_MAX_ROWS, order: { attributed_at: "DESC" } }
+  );
 
   // Calculate stats
   const totalSessions = attributions.length;

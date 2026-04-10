@@ -25,15 +25,26 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     );
   }
 
-  // Get member count
-  const members = await adPlanningService.listSegmentMembers({
-    segment: { id },
-  });
+  // Use the stored customer_count maintained by buildSegmentWorkflow instead
+  // of loading every member row into memory just to count them. Falls back
+  // to an efficient count query if customer_count isn't populated yet.
+  let memberCount = Number(segment.customer_count) || 0;
+  if (memberCount === 0) {
+    try {
+      const [, count] = await adPlanningService.listAndCountSegmentMembers(
+        { segment: { id } },
+        { take: 1 }
+      );
+      memberCount = count || 0;
+    } catch {
+      // Non-fatal
+    }
+  }
 
   res.json({
     segment: {
       ...segment,
-      member_count: members.length,
+      member_count: memberCount,
     },
   });
 };

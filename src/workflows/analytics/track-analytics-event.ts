@@ -195,8 +195,19 @@ const updateSessionStep = createStep(
           pageviews: session.pageviews + 1,
           last_activity_at: input.timestamp,
           is_bounce: false, // More than one pageview
+          // Backfill UTM fields only if they're not already set on the session
+          // (first-touch attribution — preserves the original campaign source).
+          ...(!(session as any).utm_campaign && input.utm_campaign
+            ? {
+                utm_source: input.utm_source || null,
+                utm_medium: input.utm_medium || null,
+                utm_campaign: input.utm_campaign,
+                utm_term: input.utm_term || null,
+                utm_content: input.utm_content || null,
+              }
+            : {}),
         });
-        
+
         return new StepResponse({ session: updated, created: false });
       } else {
         // Create new session
@@ -215,11 +226,18 @@ const updateSessionStep = createStep(
           device_type,
           browser,
           os,
+          // Capture UTM parameters from the first pageview so the ad-planning
+          // attribution workflow can link this session to a campaign.
+          utm_source: input.utm_source || null,
+          utm_medium: input.utm_medium || null,
+          utm_campaign: input.utm_campaign || null,
+          utm_term: input.utm_term || null,
+          utm_content: input.utm_content || null,
           started_at: input.timestamp,
           ended_at: null,
           last_activity_at: input.timestamp,
         });
-        
+
         return new StepResponse({ session, created: true }, session.id);
       }
     } catch (error) {

@@ -9,7 +9,9 @@ import { AD_PLANNING_MODULE } from "../../../../modules/ad-planning";
 
 const ListExperimentsQuerySchema = z.object({
   status: z.enum(["draft", "running", "paused", "completed"]).optional(),
-  ad_campaign_id: z.string().optional(),
+  experiment_type: z
+    .enum(["ad_creative", "landing_page", "audience", "budget", "bidding"])
+    .optional(),
   website_id: z.string().optional(),
   limit: z.coerce.number().default(50),
   offset: z.coerce.number().default(0),
@@ -42,22 +44,27 @@ const CreateExperimentSchema = z.object({
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const params = ListExperimentsQuerySchema.parse(req.query);
-  const adPlanningService = req.scope.resolve(AD_PLANNING_MODULE);
+  const adPlanningService: any = req.scope.resolve(AD_PLANNING_MODULE);
 
+  // ABExperiment has no `ad_campaign_id` column — removed that filter.
+  // Valid filterable fields: status, experiment_type, website_id.
   const filters: Record<string, any> = {};
   if (params.status) filters.status = params.status;
-  if (params.ad_campaign_id) filters.ad_campaign_id = params.ad_campaign_id;
+  if (params.experiment_type) filters.experiment_type = params.experiment_type;
   if (params.website_id) filters.website_id = params.website_id;
 
-  const experiments = await adPlanningService.listABExperiments(filters, {
-    skip: params.offset,
-    take: params.limit,
-    order: { created_at: "DESC" },
-  });
+  // Use listAndCount so the `count` field reflects the TOTAL, not just the
+  // current page size.
+  const [experiments, totalCount] =
+    await adPlanningService.listAndCountABExperiments(filters, {
+      skip: params.offset,
+      take: params.limit,
+      order: { created_at: "DESC" },
+    });
 
   res.json({
     experiments,
-    count: experiments.length,
+    count: totalCount,
     offset: params.offset,
     limit: params.limit,
   });

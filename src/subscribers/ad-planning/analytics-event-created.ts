@@ -113,22 +113,35 @@ export default async function analyticsEventCreatedHandler({
     });
 
     console.log(`[AdPlanning] Conversion tracked for event: ${eventName}`);
+
+    // Auto-resolve attribution if session has UTM campaign data.
+    // Nested inside the outer try/catch so that a failure here doesn't
+    // crash the subscriber, but benign duplicate errors (the unique index
+    // on analytics_session_id) are swallowed without log noise.
+    if (analyticsEvent.utm_campaign && analyticsEvent.session_id) {
+      try {
+        await resolveSessionAttributionWorkflow(container).run({
+          input: {
+            session_id: analyticsEvent.session_id,
+            website_id: analyticsEvent.website_id,
+          },
+        });
+      } catch (err: any) {
+        const message = err?.message || String(err);
+        const isDuplicate =
+          message.includes("duplicate") ||
+          message.includes("unique") ||
+          message.includes("already exists");
+        if (!isDuplicate) {
+          console.error(
+            "[AdPlanning] Attribution resolution failed:",
+            message
+          );
+        }
+      }
+    }
   } catch (error) {
     console.error("[AdPlanning] Failed to process analytics event:", error);
-  }
-
-  // Auto-resolve attribution if session has UTM campaign data
-  if (data.utm_campaign && data.session_id) {
-    try {
-      await resolveSessionAttributionWorkflow(container).run({
-        input: {
-          session_id: data.session_id,
-          website_id: data.website_id,
-        },
-      });
-    } catch {
-      // Attribution resolution is non-critical — don't log noise for duplicates
-    }
   }
 }
 

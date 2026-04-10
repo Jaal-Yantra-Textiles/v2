@@ -24,7 +24,15 @@ const AnalyticsSession = model.define("analytics_session", {
   device_type: model.text().nullable(),
   browser: model.text().nullable(),
   os: model.text().nullable(),
-  
+
+  // UTM parameters — captured on first pageview and used by the ad-planning
+  // attribution workflow to link the session to a campaign.
+  utm_source: model.text().nullable(),
+  utm_medium: model.text().nullable(),
+  utm_campaign: model.text().nullable(),
+  utm_term: model.text().nullable(),
+  utm_content: model.text().nullable(),
+
   // Timestamps
   started_at: model.dateTime(),
   ended_at: model.dateTime().nullable(),
@@ -43,6 +51,9 @@ const AnalyticsSession = model.define("analytics_session", {
   },
   {
     on: ["website_id", "is_bounce"],
+  },
+  {
+    on: ["utm_campaign"],
   },
 ]);
 

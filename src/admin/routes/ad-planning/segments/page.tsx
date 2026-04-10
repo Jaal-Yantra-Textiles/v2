@@ -296,7 +296,6 @@ const SegmentsPage = () => {
                 </Select.Content>
               </Select>
               <Button size="small" onClick={() => setCreateOpen(true)}>
-                <Plus className="mr-2" />
                 Create
               </Button>
             </div>

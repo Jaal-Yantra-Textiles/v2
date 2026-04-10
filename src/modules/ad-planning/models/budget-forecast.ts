@@ -51,8 +51,12 @@ const BudgetForecast = model.define("BudgetForecast", {
 })
 .indexes([
   {
+    // Unique so re-running the forecast job for the same campaign/date is
+    // idempotent — prevents duplicate rows from inflating accuracy metrics
+    // and MAPE calculations.
     on: ["ad_campaign_id", "forecast_date"],
-    name: "idx_forecast_campaign_date",
+    unique: true,
+    name: "idx_forecast_campaign_date_unique",
   },
   {
     on: ["ad_account_id", "forecast_date"],

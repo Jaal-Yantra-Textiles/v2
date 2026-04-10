@@ -97,7 +97,7 @@ const createConversionStep = createStep(
         ad_campaign_id: string | null;
         ad_set_id: string | null;
         ad_id: string | null;
-        platform: "meta" | "google" | "generic";
+        platform: "meta" | "google" | "generic" | "direct";
       };
     },
     { container }
@@ -116,7 +116,7 @@ const createConversionStep = createStep(
         session_id: input.conversionData.session_id,
         website_id: input.conversionData.website_id,
         conversion_value: input.conversionData.conversion_value,
-        currency: input.conversionData.currency || "INR",
+        currency: input.conversionData.currency || null,
         order_id: input.conversionData.order_id,
         person_id: input.conversionData.person_id,
         utm_source: input.conversionData.utm_source,

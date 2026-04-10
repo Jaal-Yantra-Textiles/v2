@@ -23,10 +23,23 @@ export function calculateZScore(
 }
 
 /**
- * Calculate p-value from z-score (two-tailed)
+ * Calculate p-value from z-score (two-tailed).
+ *
+ * Uses the Abramowitz & Stegun erf approximation (7.1.26) and derives the
+ * two-tailed p-value as:
+ *
+ *     p = 2 * (1 - Φ(|z|)) = 1 - erf(|z| / √2)
+ *
+ * This formulation is symmetric in z (same result for z and -z), which is
+ * the correct behaviour for a two-tailed test. The previous implementation
+ * used `sign * y` inside the CDF which produced p > 1 for negative z-scores,
+ * causing every "treatment outperforms control" experiment to be flagged
+ * non-significant.
  */
 export function calculatePValue(zScore: number): number {
-  // Standard normal CDF approximation
+  if (!Number.isFinite(zScore)) return 1;
+
+  // Abramowitz & Stegun 7.1.26 erf approximation (max error 1.5e-7)
   const a1 = 0.254829592;
   const a2 = -0.284496736;
   const a3 = 1.421413741;
@@ -34,14 +47,16 @@ export function calculatePValue(zScore: number): number {
   const a5 = 1.061405429;
   const p = 0.3275911;
 
-  const sign = zScore < 0 ? -1 : 1;
   const z = Math.abs(zScore) / Math.sqrt(2);
 
   const t = 1.0 / (1.0 + p * z);
-  const y = 1.0 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-z * z);
+  const erf =
+    1.0 -
+    ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-z * z);
 
-  // Two-tailed p-value
-  return 2 * (1 - 0.5 * (1.0 + sign * y));
+  // Two-tailed p-value: p = 1 - erf(|z|/√2)
+  // Clamp to [0, 1] to guard against tiny numerical overshoot in the approximation.
+  return Math.max(0, Math.min(1, 1 - erf));
 }
 
 /**

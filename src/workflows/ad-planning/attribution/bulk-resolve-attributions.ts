@@ -64,13 +64,33 @@ const fetchUnresolvedSessionsStep = createStep(
       console.warn("[BulkResolve] Could not fetch analytics sessions, continuing with empty set");
     }
 
-    // Get ALL existing attribution session IDs (both resolved and unresolved)
-    let existingSessionIds = new Set<string>();
-    try {
-      const existingAttributions = await adPlanningService.listCampaignAttributions({});
-      existingSessionIds = new Set(existingAttributions.map((a: any) => a.analytics_session_id));
-    } catch (error) {
-      console.warn("[BulkResolve] Could not fetch existing attributions");
+    // Get existing attribution session IDs for the candidate sessions only.
+    // Previously this fetched ALL CampaignAttribution rows with no
+    // pagination; beyond the default take limit, records would be missed
+    // from the exclusion set and duplicate attributions would be written
+    // (failing the unique index on analytics_session_id).
+    //
+    // Scoping the IN filter to just the candidate session IDs bounds the
+    // query to at most `sessions.length` rows, avoiding the default-limit
+    // truncation entirely.
+    const existingSessionIds = new Set<string>();
+    if (sessions.length > 0) {
+      try {
+        const candidateIds = sessions.map((s: any) => s.session_id);
+        const existingAttributions =
+          await adPlanningService.listCampaignAttributions(
+            { analytics_session_id: candidateIds },
+            { take: candidateIds.length }
+          );
+        for (const a of existingAttributions) {
+          existingSessionIds.add(a.analytics_session_id);
+        }
+      } catch (error) {
+        console.warn(
+          "[BulkResolve] Could not fetch existing attributions:",
+          (error as Error)?.message || error
+        );
+      }
     }
 
     // Filter out sessions that already have attribution records

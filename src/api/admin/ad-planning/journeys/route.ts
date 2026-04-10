@@ -59,15 +59,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     if (params.to_date) filters.occurred_at.$lte = new Date(params.to_date);
   }
 
-  const journeys = await adPlanningService.listCustomerJourneys(filters, {
-    skip: params.offset,
-    take: params.limit,
-    order: { occurred_at: "DESC" },
-  });
+  // Use listAndCount so `count` is the true total, not the page size.
+  const [journeys, totalCount] =
+    await adPlanningService.listAndCountCustomerJourneys(filters, {
+      skip: params.offset,
+      take: params.limit,
+      order: { occurred_at: "DESC" },
+    });
 
   res.json({
     journeys,
-    count: journeys.length,
+    count: totalCount,
     offset: params.offset,
     limit: params.limit,
   });

@@ -19,10 +19,15 @@ const DashboardQuerySchema = z.object({
  * Get dashboard overview
  * @route GET /admin/ad-planning/dashboard
  */
+// Maximum rows to load into memory for aggregation on a single dashboard
+// request. Stops unbounded list calls from OOMing the process when the date
+// window contains hundreds of thousands of rows.
+const DASHBOARD_MAX_ROWS = 10000;
+
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const params = DashboardQuerySchema.parse(req.query);
-  const adPlanningService = req.scope.resolve(AD_PLANNING_MODULE);
-  const socialsService = req.scope.resolve(SOCIALS_MODULE);
+  const adPlanningService: any = req.scope.resolve(AD_PLANNING_MODULE);
+  const socialsService: any = req.scope.resolve(SOCIALS_MODULE);
 
   const fromDate = params.from_date
     ? new Date(params.from_date)
@@ -45,7 +50,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   };
   if (params.website_id) attributionFilters.website_id = params.website_id;
 
-  // Fetch data in parallel
+  // Fetch data in parallel — every list call has an explicit take limit so
+  // the dashboard can never load an unbounded number of rows into memory.
   const [
     conversions,
     attributions,
@@ -53,12 +59,27 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     activeExperiments,
     campaigns,
   ] = await Promise.all([
-    adPlanningService.listConversions(conversionFilters),
-    adPlanningService.listCampaignAttributions(attributionFilters),
-    adPlanningService.listCustomerSegments({ is_active: true }),
-    adPlanningService.listABExperiments({ status: "running" }),
+    adPlanningService.listConversions(conversionFilters, {
+      take: DASHBOARD_MAX_ROWS,
+      order: { converted_at: "DESC" },
+    }),
+    adPlanningService.listCampaignAttributions(attributionFilters, {
+      take: DASHBOARD_MAX_ROWS,
+      order: { attributed_at: "DESC" },
+    }),
+    adPlanningService.listCustomerSegments(
+      { is_active: true },
+      { take: 200 }
+    ),
+    adPlanningService.listABExperiments(
+      { status: "running" },
+      { take: 100 }
+    ),
     params.ad_account_id
-      ? socialsService.listAdCampaigns({ ad_account: { id: params.ad_account_id } })
+      ? socialsService.listAdCampaigns(
+          { ad_account: { id: params.ad_account_id } },
+          { take: 500, relations: ["ad_account"] }
+        )
       : [],
   ]);
 

@@ -47,7 +47,10 @@ const Conversion = model.define("Conversion", {
 
   // Value tracking
   conversion_value: model.bigNumber().nullable(), // Monetary value
-  currency: model.text().default("INR"),
+  // Currency is nullable so the caller must explicitly pass it. Previously
+  // this defaulted to "INR" regardless of store locale, silently tagging
+  // every EUR/USD/GBP conversion as INR.
+  currency: model.text().nullable(),
 
   // Order linkage (for purchase conversions)
   order_id: model.text().nullable(),
