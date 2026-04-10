@@ -1,3 +1,15 @@
+# [12.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.5...v12.6.0) (2026-04-10)
+
+
+### Bug Fixes
+
+* **api:** Schema and routes ([3eed434](https://github.com/Jaal-Yantra-Textiles/v2/commit/3eed434f628a0e9fc6f68db825afd61e33872312))
+
+
+### Features
+
+* **api:** Whatsapp standard messaging app ([06fddc9](https://github.com/Jaal-Yantra-Textiles/v2/commit/06fddc9c991973e0e1337c1a261615f71d5f72b9))
+
 ## [12.5.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.4...v12.5.5) (2026-04-10)
 
 
