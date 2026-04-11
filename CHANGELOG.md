@@ -1,3 +1,10 @@
+# [12.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.6.0...v12.7.0) (2026-04-11)
+
+
+### Features
+
+* **api:** Added partner ui and design related API improvments ([0e81055](https://github.com/Jaal-Yantra-Textiles/v2/commit/0e8105554bfbd612499f3e1d69e9116d70f1e933))
+
 # [12.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.5.5...v12.6.0) (2026-04-10)
 
 
