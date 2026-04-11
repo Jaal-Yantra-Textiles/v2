@@ -134,6 +134,7 @@ const createRunMilestoneHook = (action: string) => {
     id: string,
     options?: UseMutationOptions<any, FetchError, void>
   ) => {
+    const { onSuccess, ...restOptions } = options || {}
     return useMutation({
       mutationFn: async () =>
         await sdk.client.fetch<any>(
@@ -157,9 +158,9 @@ const createRunMilestoneHook = (action: string) => {
         // Also refresh tasks and design data so the UI updates everywhere
         queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
         queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
-        options?.onSuccess?.(data, variables, context)
+        onSuccess?.(data, variables, context)
       },
-      ...options,
+      ...restOptions,
     })
   }
 }
@@ -172,6 +173,7 @@ export const useFinishPartnerProductionRun = (
   id: string,
   options?: UseMutationOptions<any, FetchError, any>
 ) => {
+  const { onSuccess, ...restOptions } = options || {}
   return useMutation({
     mutationFn: async (body?: any) =>
       await sdk.client.fetch<any>(
@@ -186,9 +188,9 @@ export const useFinishPartnerProductionRun = (
       queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
       queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
       queryClient.invalidateQueries({ queryKey: ["partner-consumption-logs"] })
-      options?.onSuccess?.(data, variables, context)
+      onSuccess?.(data, variables, context)
     },
-    ...options,
+    ...restOptions,
   })
 }
 
@@ -197,6 +199,7 @@ export const useCompletePartnerProductionRun = (
   id: string,
   options?: UseMutationOptions<any, FetchError, any>
 ) => {
+  const { onSuccess, ...restOptions } = options || {}
   return useMutation({
     mutationFn: async (body?: any) =>
       await sdk.client.fetch<any>(
@@ -219,8 +222,8 @@ export const useCompletePartnerProductionRun = (
       queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
       queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
       queryClient.invalidateQueries({ queryKey: ["partner-consumption-logs"] })
-      options?.onSuccess?.(data, variables, context)
+      onSuccess?.(data, variables, context)
     },
-    ...options,
+    ...restOptions,
   })
 }

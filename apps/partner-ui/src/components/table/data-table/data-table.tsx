@@ -56,8 +56,9 @@ export const _DataTable = <TData,>({
     Object.values(queryObject).filter((v) => Boolean(v)).length === 0
   const noResults = !isLoading && count === 0 && !noQuery
   const noRecords = !isLoading && count === 0 && noQuery
+  const hasQueryBar = !!search || !!filters?.length || !!orderBy?.length
 
-  if (noRecords) {
+  if (noRecords && !hasQueryBar) {
     return (
       <NoRecords
         className={clx({
@@ -80,17 +81,26 @@ export const _DataTable = <TData,>({
         filters={filters}
         prefix={prefix}
       />
-      <DataTableRoot
-        table={table}
-        count={count}
-        columns={columns}
-        pagination
-        navigateTo={navigateTo}
-        commands={commands}
-        noResults={noResults}
-        noHeader={noHeader}
-        layout={layout}
-      />
+      {noRecords ? (
+        <NoRecords
+          className={clx({
+            "flex h-full flex-col overflow-hidden": layout === "fill",
+          })}
+          {...noRecordsProps}
+        />
+      ) : (
+        <DataTableRoot
+          table={table}
+          count={count}
+          columns={columns}
+          pagination
+          navigateTo={navigateTo}
+          commands={commands}
+          noResults={noResults}
+          noHeader={noHeader}
+          layout={layout}
+        />
+      )}
     </div>
   )
 }

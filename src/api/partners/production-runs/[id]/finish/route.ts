@@ -69,9 +69,9 @@ export async function POST(
     try {
       const designService = req.scope.resolve("design") as any
       const design = await designService.retrieveDesign((run as any).design_id)
-      // Only transition if design is in a development state
-      const devStatuses = ["In_Development", "Sample_Production", "Revision"]
-      if (devStatuses.includes(design.status)) {
+      // Transition to Technical_Review unless already past that point
+      const skipStatuses = ["Technical_Review", "Approved", "Commerce_Ready", "Rejected", "Superseded"]
+      if (!skipStatuses.includes(design.status)) {
         await designService.updateDesigns({
           id: (run as any).design_id,
           status: "Technical_Review",

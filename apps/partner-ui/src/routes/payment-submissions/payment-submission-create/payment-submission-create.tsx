@@ -6,6 +6,7 @@ import {
   Checkbox,
   Container,
   Heading,
+  Input,
   Text,
   Textarea,
   toast,
@@ -20,9 +21,13 @@ import { useCreatePartnerPaymentSubmission } from "../../../hooks/api/partner-pa
 
 const ELIGIBLE_STATUSES = ["Commerce_Ready", "Approved"]
 
+const getDesignCost = (d: any): number =>
+  Number(d.estimated_cost || d.production_cost || 0)
+
 export const PaymentSubmissionCreate = () => {
   const navigate = useNavigate()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [costOverrides, setCostOverrides] = useState<Record<string, number>>({})
   const [notes, setNotes] = useState("")
 
   // Fetch all partner designs — filter eligible ones client-side
@@ -35,8 +40,7 @@ export const PaymentSubmissionCreate = () => {
     () =>
       designs.filter(
         (d: PartnerDesign) =>
-          ELIGIBLE_STATUSES.includes(d.status || "") &&
-          d.estimated_cost != null
+          ELIGIBLE_STATUSES.includes(d.status || "")
       ),
     [designs]
   )
@@ -64,13 +68,34 @@ export const PaymentSubmissionCreate = () => {
     }
   }, [eligibleDesigns, selectedIds.size])
 
+  const getEffectiveCost = useCallback(
+    (design: any): number => {
+      if (costOverrides[design.id] != null) return costOverrides[design.id]
+      return getDesignCost(design)
+    },
+    [costOverrides]
+  )
+
   const totalAmount = useMemo(
     () =>
       eligibleDesigns
         .filter((d: any) => selectedIds.has(d.id))
-        .reduce((sum: number, d: any) => sum + Number(d.estimated_cost || 0), 0),
-    [eligibleDesigns, selectedIds]
+        .reduce((sum: number, d: any) => sum + getEffectiveCost(d), 0),
+    [eligibleDesigns, selectedIds, getEffectiveCost]
   )
+
+  const handleCostChange = (designId: string, value: string) => {
+    const num = parseFloat(value)
+    if (value === "" || isNaN(num)) {
+      setCostOverrides((prev) => {
+        const next = { ...prev }
+        delete next[designId]
+        return next
+      })
+    } else {
+      setCostOverrides((prev) => ({ ...prev, [designId]: num }))
+    }
+  }
 
   const handleSubmit = async () => {
     if (selectedIds.size === 0) {
@@ -78,10 +103,24 @@ export const PaymentSubmissionCreate = () => {
       return
     }
 
+    // Validate all selected designs have a cost > 0
+    const invalidDesigns = eligibleDesigns.filter(
+      (d: any) => selectedIds.has(d.id) && getEffectiveCost(d) <= 0
+    )
+    if (invalidDesigns.length) {
+      toast.error(
+        `Enter a cost for: ${invalidDesigns.map((d: any) => d.name || d.id).join(", ")}`
+      )
+      return
+    }
+
     try {
       await createSubmission({
         design_ids: Array.from(selectedIds),
         notes: notes || undefined,
+        metadata: Object.keys(costOverrides).length
+          ? { cost_overrides: costOverrides }
+          : undefined,
       })
       toast.success("Payment submission created successfully")
       navigate("/payment-submissions")
@@ -161,40 +200,45 @@ export const PaymentSubmissionCreate = () => {
             <Container className="p-8">
               <Text className="text-ui-fg-subtle text-center">
                 No eligible designs found. Designs must be in Approved or
-                Commerce Ready status with an estimated cost to be submitted
-                for payment.
+                Commerce Ready status to be submitted for payment.
               </Text>
             </Container>
           ) : (
             <div className="flex flex-col gap-y-2">
               {eligibleDesigns.map((design: any) => {
                 const isSelected = selectedIds.has(design.id)
+                const defaultCost = getDesignCost(design)
+                const effectiveCost = getEffectiveCost(design)
+
                 return (
                   <Container
                     key={design.id}
-                    className={`cursor-pointer p-4 transition ${
+                    className={`p-4 transition ${
                       isSelected
                         ? "ring-2 ring-ui-border-interactive"
-                        : "hover:bg-ui-bg-subtle"
+                        : ""
                     }`}
-                    onClick={() => toggleDesign(design.id)}
                   >
                     <div className="flex items-center gap-3">
-                      <Checkbox checked={isSelected} />
-                      <div className="flex-1 min-w-0">
+                      <div
+                        className="cursor-pointer"
+                        onClick={() => toggleDesign(design.id)}
+                      >
+                        <Checkbox checked={isSelected} />
+                      </div>
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => toggleDesign(design.id)}
+                      >
                         <div className="flex items-center gap-2">
                           <Text weight="plus" className="truncate">
                             {design.name || "Unnamed design"}
                           </Text>
-                          <Badge color="grey">{design.status}</Badge>
+                          <Badge color="grey" size="2xsmall">
+                            {design.status?.replace(/_/g, " ")}
+                          </Badge>
                         </div>
                         <div className="flex items-center gap-4 mt-1">
-                          <Text size="small" className="text-ui-fg-subtle">
-                            Cost: INR{" "}
-                            {Number(
-                              design.estimated_cost || 0
-                            ).toLocaleString()}
-                          </Text>
                           {design.design_type && (
                             <Text
                               size="small"
@@ -211,10 +255,42 @@ export const PaymentSubmissionCreate = () => {
                           </Text>
                         </div>
                       </div>
-                      <Text className="font-semibold whitespace-nowrap">
-                        INR{" "}
-                        {Number(design.estimated_cost || 0).toLocaleString()}
-                      </Text>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <Text
+                            size="xsmall"
+                            className="text-ui-fg-muted whitespace-nowrap"
+                          >
+                            INR
+                          </Text>
+                          <Input
+                            type="number"
+                            size="small"
+                            className="w-28 text-right"
+                            placeholder={defaultCost ? String(defaultCost) : "0"}
+                            value={
+                              costOverrides[design.id] != null
+                                ? String(costOverrides[design.id])
+                                : defaultCost
+                                  ? String(defaultCost)
+                                  : ""
+                            }
+                            onChange={(e) =>
+                              handleCostChange(design.id, e.target.value)
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        {defaultCost > 0 &&
+                          effectiveCost !== defaultCost && (
+                            <Text
+                              size="xsmall"
+                              className="text-ui-fg-muted"
+                            >
+                              was {defaultCost.toLocaleString()}
+                            </Text>
+                          )}
+                      </div>
                     </div>
                   </Container>
                 )

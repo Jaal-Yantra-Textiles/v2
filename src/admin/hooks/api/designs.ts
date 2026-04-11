@@ -262,6 +262,32 @@ export const useDeleteDesign = (
   });
 };
 
+export interface ApproveDesignResponse {
+  design: AdminDesign;
+  product_id?: string;
+  variant_id?: string;
+}
+
+export const useApproveDesign = (
+  designId: string,
+  options?: UseMutationOptions<ApproveDesignResponse, FetchError, void>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<ApproveDesignResponse>(
+        `/admin/designs/${designId}/approve`,
+        { method: "POST", body: {} }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+};
+
 export interface PlannedInventoryItemPayload {
   inventoryId: string;
   plannedQuantity?: number;

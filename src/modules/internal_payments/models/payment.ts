@@ -20,7 +20,7 @@ const Payment = model.define("internal_payments", {
   metadata: model.json().nullable(),
   
   // Relationship with PaymentDetails
-  paid_to: model.belongsTo(() => PaymentDetails, { mappedBy: "payments" }),
+  paid_to: model.belongsTo(() => PaymentDetails, { mappedBy: "payments" }).nullable(),
 });
 
 export default Payment;

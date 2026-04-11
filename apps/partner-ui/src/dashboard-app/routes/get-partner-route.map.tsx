@@ -93,6 +93,33 @@ export function getPartnerRouteMap(): RouteObject[] {
               ],
             },
             {
+              path: "/shared-folders",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Shared Folders",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () =>
+                    import(
+                      "../../routes/shared-folders/shared-folder-list/shared-folder-list"
+                    ),
+                },
+                {
+                  path: ":id",
+                  handle: {
+                    breadcrumb: (match?: UIMatch) =>
+                      match?.params?.id || "Folder",
+                  },
+                  lazy: () =>
+                    import(
+                      "../../routes/shared-folders/shared-folder-detail/shared-folder-detail"
+                    ),
+                },
+              ],
+            },
+            {
               path: "/payment-submissions",
               errorElement: <ErrorBoundary />,
               handle: {

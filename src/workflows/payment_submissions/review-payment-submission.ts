@@ -19,6 +19,7 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import PaymentSubmissionsService from "../../modules/payment_submissions/service"
 import InternalPaymentService from "../../modules/internal_payments/service"
 import Payment_reportsService from "../../modules/payment_reports/service"
+import PartnerPaymentMethodsLink from "../../links/partner-payment-methods-link"
 
 export type ReviewPaymentSubmissionInput = {
   submission_id: string
@@ -144,15 +145,34 @@ const createPaymentOnApprovalStep = createStep(
       INTERNAL_PAYMENTS_MODULE
     )
 
+    // Resolve paid_to_id: use provided value or auto-fetch partner's default payment method
+    let resolvedPaidToId = input.paid_to_id
+    if (!resolvedPaidToId && input.partner_id) {
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+      const { data: linkData } = await query.graph({
+        entity: PartnerPaymentMethodsLink.entryPoint,
+        fields: ["internal_payment_details_id"],
+        filters: { partner_id: input.partner_id },
+      })
+      const methods = (linkData || []) as any[]
+      if (methods.length > 0) {
+        resolvedPaidToId = methods[0].internal_payment_details_id
+      }
+    }
+
+    if (!resolvedPaidToId) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Cannot approve payment: partner has no payment method configured. Ask the partner to add their bank/wallet details first."
+      )
+    }
+
     const paymentData: Record<string, any> = {
       amount: input.amount,
       status: "Pending",
       payment_type: input.payment_type,
       payment_date: new Date(),
-    }
-
-    if (input.paid_to_id) {
-      paymentData.paid_to_id = input.paid_to_id
+      paid_to_id: resolvedPaidToId,
     }
 
     const payment = await paymentService.createPayments(paymentData)

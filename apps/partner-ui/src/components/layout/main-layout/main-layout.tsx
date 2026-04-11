@@ -4,6 +4,7 @@ import {
   CurrencyDollar,
   DocumentSeries,
   EllipsisHorizontal,
+  FolderOpen,
   MagnifyingGlass,
   OpenRectArrowOut,
   PencilSquare,
@@ -193,6 +194,7 @@ const MANUFACTURER_ROUTES: Omit<INavItem, "pathname">[] = [
   },
   { icon: <CurrencyDollar />, label: "Payment Submissions", to: "/payment-submissions" },
   { icon: <BuildingStorefront />, label: "Inventory Orders", to: "/inventory-orders" },
+  { icon: <FolderOpen />, label: "Shared Folders", to: "/shared-folders" },
   {
     icon: <Tag />,
     label: "Products",
@@ -219,6 +221,7 @@ const MANUFACTURER_ROUTES: Omit<INavItem, "pathname">[] = [
 
 const SELLER_ROUTES: Omit<INavItem, "pathname">[] = [
   { icon: <MagnifyingGlass />, label: "Home", to: "/" },
+  { icon: <FolderOpen />, label: "Shared Folders", to: "/shared-folders" },
   {
     icon: <Tag />,
     label: "Products",

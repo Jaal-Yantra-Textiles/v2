@@ -3379,6 +3379,32 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
+    // Partner shared folders endpoints
+    {
+      matcher: "/partners/shared-folders",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/shared-folders/:folderId",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/shared-folders/:folderId/upload",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/shared-folders/:folderId/media/:mediaId",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/shared-folders/:folderId/media/:mediaId/comments",
+      method: ["GET", "POST"],
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
     // Partner customer endpoints
     {
       matcher: "/partners/customers",

@@ -2,6 +2,7 @@ import { model } from "@medusajs/framework/utils";
 import Folder from "./folder";
 import AlbumMedia from "./album-media";
 import Album from "./album";
+import MediaComment from "./media-comment";
 
 const MediaFile = model.define("media_file", {
   id: model.id().primaryKey(),
@@ -49,6 +50,9 @@ const MediaFile = model.define("media_file", {
   }),
   albums_as_cover: model.hasMany(() => Album, {
     mappedBy: "cover_media",
+  }),
+  comments: model.hasMany(() => MediaComment, {
+    mappedBy: "media_file",
   }),
 });
 

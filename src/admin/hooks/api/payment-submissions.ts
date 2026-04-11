@@ -287,3 +287,48 @@ export const useSettleReconciliation = (
     ...options,
   })
 }
+
+// ─── Partner Payment Methods (for review drawer) ──────────────────────────
+
+export interface PartnerPaymentMethod {
+  id: string
+  type: "bank_account" | "cash_account" | "digital_wallet"
+  account_name: string
+  account_number?: string | null
+  bank_name?: string | null
+  ifsc_code?: string | null
+  wallet_id?: string | null
+}
+
+const PARTNER_PAYMENT_METHODS_QUERY_KEY = "partner_payment_methods" as const
+export const partnerPaymentMethodsQueryKeys = queryKeysFactory(PARTNER_PAYMENT_METHODS_QUERY_KEY)
+
+export const usePartnerPaymentMethods = (
+  partnerId: string,
+  options?: Omit<
+    UseQueryOptions<
+      { paymentMethods: PartnerPaymentMethod[]; count: number },
+      FetchError,
+      { paymentMethods: PartnerPaymentMethod[]; count: number },
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<{ paymentMethods: PartnerPaymentMethod[]; count: number }>(
+        `/admin/payments/partners/${partnerId}/methods`,
+        { method: "GET" }
+      ),
+    queryKey: partnerPaymentMethodsQueryKeys.detail(partnerId),
+    enabled: !!partnerId,
+    ...options,
+  })
+
+  return {
+    paymentMethods: data?.paymentMethods || [],
+    count: data?.count || 0,
+    ...rest,
+  }
+}

@@ -63,7 +63,7 @@ const validateDesignsForSubmissionStep = createStep(
     // 1. Fetch all designs
     const { data: designs } = await query.graph({
       entity: "designs",
-      fields: ["id", "name", "status", "estimated_cost", "cost_breakdown"],
+      fields: ["id", "name", "status", "estimated_cost", "production_cost", "cost_breakdown"],
       filters: { id: input.design_ids },
     })
 
@@ -90,14 +90,16 @@ const validateDesignsForSubmissionStep = createStep(
       )
     }
 
-    // 3. Validate all designs have estimated_cost
+    // 3. Validate all designs have a cost (estimated_cost or production_cost)
     const noCost = typedDesigns.filter(
-      (d) => d.estimated_cost === null || d.estimated_cost === undefined
+      (d) =>
+        (d.estimated_cost === null || d.estimated_cost === undefined) &&
+        ((d as any).production_cost === null || (d as any).production_cost === undefined)
     )
     if (noCost.length) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Designs missing estimated cost: ${noCost.map((d) => d.name || d.id).join(", ")}`
+        `Designs missing cost: ${noCost.map((d) => d.name || d.id).join(", ")}`
       )
     }
 
@@ -149,7 +151,7 @@ const validateDesignsForSubmissionStep = createStep(
     const validated: ValidatedDesign[] = typedDesigns.map((d) => ({
       id: d.id,
       name: d.name,
-      estimated_cost: Number(d.estimated_cost),
+      estimated_cost: Number(d.estimated_cost || (d as any).production_cost || 0),
       cost_breakdown: d.cost_breakdown,
     }))
 

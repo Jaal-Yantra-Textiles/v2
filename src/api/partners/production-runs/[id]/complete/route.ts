@@ -7,6 +7,7 @@ import { signalLifecycleStepSuccessWorkflow } from "../../../../../workflows/pro
 import { awaitRunCompleteStepId } from "../../../../../workflows/production-runs/run-production-run-lifecycle"
 import { logConsumptionWorkflow } from "../../../../../workflows/consumption-logs/log-consumption"
 import { commitConsumptionWorkflow } from "../../../../../workflows/consumption-logs/commit-consumption"
+import { TASKS_MODULE } from "../../../../../modules/tasks"
 
 const REJECTION_REASONS = [
   "stitching_defect",
@@ -204,17 +205,56 @@ export async function POST(
       ...(costType ? { cost_type: costType } : {}),
       ...(completionNotes ? { completion_notes: completionNotes } : {}),
     })
+
+    // Mark all pending/in-progress tasks as completed
+    try {
+      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: runData } = await query.graph({
+        entity: "production_runs",
+        fields: ["id", "tasks.id", "tasks.status", "tasks.title"],
+        filters: { id: run.id },
+      })
+
+      const linkedTasks = ((runData?.[0] as any)?.tasks || []) as any[]
+      const pendingTasks = linkedTasks.filter(
+        (t: any) =>
+          t?.id &&
+          !["completed", "cancelled"].includes(String(t.status || ""))
+      )
+
+      if (pendingTasks.length) {
+        const taskService = req.scope.resolve(TASKS_MODULE) as any
+        for (const t of pendingTasks) {
+          await taskService.updateTasks({
+            id: t.id,
+            status: "completed",
+          })
+        }
+      }
+    } catch {
+      // Non-fatal — tasks may already be completed
+    }
   })
 
   // Update design: store cost estimate (always use normalized total)
-  // Design status is NOT auto-changed — admin reviews and approves explicitly
-  if (normalizedCostEstimate && (run as any).design_id) {
+  // Update design costs — set production_cost and backfill estimated_cost if missing
+  if ((run as any).design_id) {
     try {
       const designService = req.scope.resolve("design") as any
-      await designService.updateDesigns({
-        id: (run as any).design_id,
-        production_cost: normalizedCostEstimate,
-      })
+      const design = await designService.retrieveDesign((run as any).design_id)
+      const costValue = normalizedCostEstimate || (run as any).partner_cost_estimate || 0
+
+      if (costValue > 0) {
+        const updatePayload: Record<string, any> = {
+          id: (run as any).design_id,
+          production_cost: costValue,
+        }
+        // Backfill estimated_cost if it's not already set
+        if (design.estimated_cost == null) {
+          updatePayload.estimated_cost = costValue
+        }
+        await designService.updateDesigns(updatePayload)
+      }
     } catch {
       // Non-fatal
     }

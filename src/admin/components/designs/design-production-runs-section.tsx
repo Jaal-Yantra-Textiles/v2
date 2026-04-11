@@ -1,8 +1,8 @@
-import { Container, Heading, Skeleton, Text, Badge, Button, toast } from "@medusajs/ui"
+import { Container, Heading, Skeleton, Text, Badge, Button, toast, usePrompt } from "@medusajs/ui"
 import { Plus } from "@medusajs/icons"
 import { Link, useNavigate } from "react-router-dom"
 
-import { AdminDesign } from "../../hooks/api/designs"
+import { AdminDesign, useApproveDesign } from "../../hooks/api/designs"
 import { useProductionRuns, useCancelProductionRun } from "../../hooks/api/production-runs"
 import { productionRunStatusColor as statusColor } from "../../lib/status-colors"
 
@@ -26,6 +26,27 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
   }
 
   const isInReview = design.status === "Technical_Review"
+  const prompt = usePrompt()
+  const approveMutation = useApproveDesign(design.id)
+
+  const handleApprove = async () => {
+    const confirmed = await prompt({
+      title: "Approve Design",
+      description: `Approve "${design.name || "this design"}"? This will set the status to Approved and create the product listing.`,
+      confirmText: "Approve",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+
+    await approveMutation.mutateAsync(undefined, {
+      onSuccess: (data) => {
+        toast.success(`Design approved${data.product_id ? " and product created" : ""}`)
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to approve design")
+      },
+    })
+  }
 
   return (
     <Container className="p-0">
@@ -56,11 +77,13 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
                 Partner has marked work as finished. Review the notes below and approve when ready.
               </Text>
             </div>
-            <Link to="edit">
-              <Button size="small">
-                Approve Design
-              </Button>
-            </Link>
+            <Button
+              size="small"
+              onClick={handleApprove}
+              isLoading={approveMutation.isPending}
+            >
+              Approve Design
+            </Button>
           </div>
         </div>
       )}

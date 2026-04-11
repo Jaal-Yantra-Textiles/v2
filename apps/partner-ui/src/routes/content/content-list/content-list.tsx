@@ -189,63 +189,52 @@ export const ContentList = () => {
 
   const isLoading = storesLoading || statusLoading
 
-  // No store
-  if (!isLoading && !hasStore) {
-    return (
-      <div className="flex flex-col gap-y-3">
-        <Container className="p-8 text-center">
-          <Heading level="h1" className="mb-2">Content</Heading>
-          <Text className="text-ui-fg-subtle mb-6">
-            Create a store first to manage your storefront content.
-          </Text>
-          <Button onClick={() => navigate("/create-store")}>Create Store</Button>
-        </Container>
-      </div>
-    )
-  }
+  // Determine the no-records message based on store/storefront state
+  const noStoreReady = !isLoading && !hasStore
+  const notProvisioned = !isLoading && hasStore && !statusLoading && !isProvisioned
+  const noWebsite = !isLoading && hasStore && isProvisioned && !websiteLoading && !website
 
-  // Not provisioned
-  if (!isLoading && !statusLoading && !isProvisioned) {
-    return (
-      <div className="flex flex-col gap-y-3">
-        <Container className="p-8 text-center">
-          <Heading level="h1" className="mb-2">Content</Heading>
-          <Text className="text-ui-fg-subtle mb-6">
-            Enable your storefront to start managing pages.
-          </Text>
-          <Button onClick={() => navigate("/settings/store")}>Enable Storefront</Button>
-        </Container>
-      </div>
-    )
-  }
-
-  // Provisioned but no website
-  if (!isLoading && !websiteLoading && !website) {
-    return (
-      <div className="flex flex-col gap-y-3">
-        <Container className="p-8 text-center">
-          <Heading level="h1" className="mb-2">Content</Heading>
-          <Text className="text-ui-fg-subtle mb-4">
-            Your storefront is live at{" "}
-            <span className="font-medium text-ui-fg-base">{storefrontDomain}</span>
-          </Text>
-          <Text className="text-ui-fg-subtle mb-6">
-            Create your default pages (Terms & Conditions, Privacy Policy, Contact) to get started.
-          </Text>
-          <Button onClick={handleCreatePages} disabled={isCreating}>
-            <PlusMini className="mr-1.5" />
-            {isCreating ? "Creating..." : "Create Pages"}
-          </Button>
-        </Container>
-      </div>
-    )
-  }
+  const noRecordsConfig = noStoreReady
+    ? {
+        title: "No store created",
+        message:
+          "Create a store first to manage your storefront content.",
+      }
+    : notProvisioned
+      ? {
+          title: "Storefront not enabled",
+          message:
+            "Enable your storefront in store settings to start managing pages.",
+        }
+      : noWebsite
+        ? {
+            title: "No pages yet",
+            message:
+              "Create your default pages to get started with your storefront content.",
+          }
+        : { message: "No pages found" }
 
   if (isError) {
     throw error
   }
 
-  // Pages table
+  // Action button for the header area
+  const headerAction = noWebsite ? (
+    <Button size="small" onClick={handleCreatePages} disabled={isCreating}>
+      <PlusMini className="mr-1.5" />
+      {isCreating ? "Creating..." : "Create Pages"}
+    </Button>
+  ) : noStoreReady ? (
+    <Button size="small" onClick={() => navigate("/create-store")}>
+      Create Store
+    </Button>
+  ) : notProvisioned ? (
+    <Button size="small" onClick={() => navigate("/settings/store")}>
+      Enable Storefront
+    </Button>
+  ) : null
+
+  // Always render the same table layout
   return (
     <SingleColumnPage
       widgets={{ before: [], after: [] }}
@@ -259,6 +248,7 @@ export const ContentList = () => {
               <Text size="small" className="text-ui-fg-subtle">{storefrontDomain}</Text>
             )}
           </div>
+          {headerAction && <div>{headerAction}</div>}
         </div>
         <_DataTable
           columns={columns}
@@ -266,7 +256,7 @@ export const ContentList = () => {
           pagination
           navigateTo={(row) => `/content/${row.original.id}`}
           count={filteredData.length}
-          isLoading={pagesLoading || websiteLoading}
+          isLoading={storesLoading || (hasStore && statusLoading) || (isProvisioned && websiteLoading) || (!!website && pagesLoading)}
           pageSize={PAGE_SIZE}
           filters={filters}
           orderBy={[
@@ -276,9 +266,7 @@ export const ContentList = () => {
           ]}
           search
           queryObject={raw}
-          noRecords={{
-            message: "No pages found",
-          }}
+          noRecords={noRecordsConfig}
         />
       </Container>
     </SingleColumnPage>
