@@ -560,6 +560,32 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // Partner Person Types
+    {
+      matcher: "/partners/person-types",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/person-types",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Available person types listing for partners
+    {
+      matcher: "/partners/persontypes",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     {
       matcher: "/partners/currencies",
       method: "GET",
@@ -2488,6 +2514,15 @@ export default defineMiddlewares({
       matcher: "/admin/partners/:id/tasks/:taskId/assign",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostPartnerTaskAssignReq))],
+    },
+    // Admin partner person types
+    {
+      matcher: "/admin/partners/:id/person-types",
+      method: "GET",
+    },
+    {
+      matcher: "/admin/partners/:id/person-types",
+      method: "POST",
     },
     {
       matcher: "/admin/persons/partner",

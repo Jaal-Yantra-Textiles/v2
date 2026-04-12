@@ -1,5 +1,6 @@
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { useExtension } from "../../../providers/extension-provider"
+import { RequiresStore } from "../../../components/common/requires-store/requires-store"
 import { RegionListTable } from "./components/region-list-table"
 
 export const RegionList = () => {
@@ -12,7 +13,9 @@ export const RegionList = () => {
         after: getWidgets("region.list.after"),
       }}
     >
-      <RegionListTable />
+      <RequiresStore>
+        <RegionListTable />
+      </RequiresStore>
     </SingleColumnPage>
   )
 }

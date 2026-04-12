@@ -3,7 +3,10 @@ import { ChatBubbleLeftRight, Trash } from "@medusajs/icons"
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useUpdatePartner, useDeletePartner } from "../../hooks/api/partners-admin"
+import { usePersonTypes } from "../../hooks/api/persontype"
 import { ActionMenu } from "../common/action-menu"
+import { sdk } from "../../lib/config"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 export type AdminPartner = {
   id: string
@@ -12,20 +15,45 @@ export type AdminPartner = {
   logo?: string | null
   status: "active" | "inactive" | "pending"
   is_verified: boolean
+  workspace_type?: "seller" | "manufacturer" | "individual"
   metadata?: Record<string, any> | null
 }
 
 export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) => {
   const prompt = usePrompt()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [name, setName] = useState(partner.name)
   const [handle, setHandle] = useState(partner.handle)
   const [logo, setLogo] = useState(partner.logo || "")
   const [status, setStatus] = useState<"active" | "inactive" | "pending">(partner.status)
   const [isVerified, setIsVerified] = useState<boolean>(!!partner.is_verified)
+  const [workspaceType, setWorkspaceType] = useState<"seller" | "manufacturer" | "individual">(
+    partner.workspace_type || "manufacturer"
+  )
 
   const { mutateAsync: updatePartner, isPending } = useUpdatePartner()
   const { mutateAsync: deletePartner } = useDeletePartner(partner.id)
+
+  // Person types for individual workspace type
+  const { personTypes: allPersonTypes } = usePersonTypes({ limit: 100 })
+  const { data: linkedPersonTypesData } = useQuery({
+    queryKey: ["partner-person-types", partner.id],
+    queryFn: () =>
+      sdk.client.fetch<{ person_types: any[]; count: number }>(
+        `/admin/partners/${partner.id}/person-types`
+      ),
+    enabled: workspaceType === "individual",
+  })
+  const linkedPersonTypes = linkedPersonTypesData?.person_types || []
+  const [selectedPersonTypeIds, setSelectedPersonTypeIds] = useState<string[]>([])
+  const [personTypesDirty, setPersonTypesDirty] = useState(false)
+
+  useEffect(() => {
+    const ids = linkedPersonTypes.map((pt: any) => pt.id)
+    setSelectedPersonTypeIds(ids)
+    setPersonTypesDirty(false)
+  }, [linkedPersonTypesData])
 
   const handleDelete = async () => {
     const res = await prompt({
@@ -55,7 +83,8 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
     setLogo(partner.logo || "")
     setStatus(partner.status)
     setIsVerified(!!partner.is_verified)
-  }, [partner.id, partner.name, partner.handle, partner.logo, partner.status, partner.is_verified])
+    setWorkspaceType(partner.workspace_type || "manufacturer")
+  }, [partner.id, partner.name, partner.handle, partner.logo, partner.status, partner.is_verified, partner.workspace_type])
 
   const isDirty = useMemo(() => {
     const norm = (v: string | null | undefined) => (v || "").trim()
@@ -64,17 +93,42 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
       norm(handle) !== norm(partner.handle) ||
       norm(logo) !== norm(partner.logo) ||
       status !== partner.status ||
-      Boolean(isVerified) !== Boolean(partner.is_verified)
+      Boolean(isVerified) !== Boolean(partner.is_verified) ||
+      workspaceType !== (partner.workspace_type || "manufacturer")
     )
-  }, [name, handle, logo, status, isVerified, partner.name, partner.handle, partner.logo, partner.status, partner.is_verified])
+  }, [name, handle, logo, status, isVerified, workspaceType, partner.name, partner.handle, partner.logo, partner.status, partner.is_verified, partner.workspace_type])
 
   const onSave = async () => {
     try {
-      await updatePartner({ id: partner.id, data: { name, handle, logo: logo || null, status, is_verified: isVerified } })
+      await updatePartner({
+        id: partner.id,
+        data: { name, handle, logo: logo || null, status, is_verified: isVerified, workspace_type: workspaceType },
+      })
       toast.success("Partner updated", { description: "Your changes have been saved." })
     } catch (e: any) {
       toast.error("Update failed", { description: e?.message || "Could not update partner" })
     }
+  }
+
+  const onSavePersonTypes = async () => {
+    try {
+      await sdk.client.fetch(`/admin/partners/${partner.id}/person-types`, {
+        method: "POST",
+        body: { person_type_ids: selectedPersonTypeIds },
+      })
+      queryClient.invalidateQueries({ queryKey: ["partner-person-types", partner.id] })
+      setPersonTypesDirty(false)
+      toast.success("Person types updated")
+    } catch (e: any) {
+      toast.error("Failed to update person types", { description: e?.message })
+    }
+  }
+
+  const togglePersonType = (id: string) => {
+    setSelectedPersonTypeIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+    setPersonTypesDirty(true)
   }
 
   return (
@@ -143,6 +197,19 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
             <Switch checked={isVerified} onCheckedChange={setIsVerified} />
             <Label size="small">Verified</Label>
           </div>
+          <div>
+            <Label size="small">Workspace Type</Label>
+            <Select value={workspaceType} onValueChange={(v: string) => setWorkspaceType(v as any)}>
+              <Select.Trigger>
+                <Select.Value placeholder="Select workspace type" />
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="seller">Seller</Select.Item>
+                <Select.Item value="manufacturer">Manufacturer</Select.Item>
+                <Select.Item value="individual">Individual</Select.Item>
+              </Select.Content>
+            </Select>
+          </div>
         </div>
 
         <div className="flex justify-end">
@@ -151,6 +218,43 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
           </Button>
         </div>
       </div>
+
+      {workspaceType === "individual" && (
+        <div className="px-6 py-4 space-y-3">
+          <div>
+            <Heading level="h2" className="text-base">Person Types</Heading>
+            <Text size="small" className="text-ui-fg-subtle">
+              Select the roles this individual performs
+            </Text>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(allPersonTypes || []).map((pt: any) => {
+              const isSelected = selectedPersonTypeIds.includes(pt.id)
+              return (
+                <button
+                  key={pt.id}
+                  type="button"
+                  onClick={() => togglePersonType(pt.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-all ${
+                    isSelected
+                      ? "border-ui-border-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                      : "border-ui-border-base hover:shadow-elevation-card-hover"
+                  }`}
+                >
+                  {pt.name}
+                </button>
+              )
+            })}
+          </div>
+          {personTypesDirty && (
+            <div className="flex justify-end">
+              <Button size="small" onClick={onSavePersonTypes} variant="primary">
+                Save Person Types
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </Container>
   )
 }

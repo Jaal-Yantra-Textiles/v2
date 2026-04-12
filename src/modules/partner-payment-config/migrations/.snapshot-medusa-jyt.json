@@ -15277,7 +15277,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "unique": false,
           "length": null,
           "precision": null,
@@ -15401,7 +15401,7 @@
             "id"
           ],
           "updateRule": "cascade",
-          "deleteRule": "no action"
+          "deleteRule": "set null"
         }
       },
       "nativeEnums": {
@@ -27608,6 +27608,26 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "boolean"
+        },
+        "workspace_type": {
+          "name": "workspace_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "'manufacturer'",
+          "comment": null,
+          "enumItems": [
+            "seller",
+            "manufacturer",
+            "individual"
+          ],
+          "mappedType": "enum"
         }
       },
       "name": "partner",
@@ -48029,13 +48049,13 @@
       "checks": [
         {
           "name": "CK_tax_region_country_top_level",
-          "columnName": "province_code",
+          "columnName": "parent_id",
           "definition": "CHECK (((parent_id IS NULL) OR (province_code IS NOT NULL)))",
           "expression": "(parent_id IS NULL) OR (province_code IS NOT NULL)"
         },
         {
           "name": "CK_tax_region_provider_top_level",
-          "columnName": "parent_id",
+          "columnName": "provider_id",
           "definition": "CHECK (((parent_id IS NULL) OR (provider_id IS NULL)))",
           "expression": "(parent_id IS NULL) OR (provider_id IS NULL)"
         }
@@ -49756,7 +49776,7 @@
           "length": null,
           "precision": null,
           "scale": null,
-          "default": "'01KNR94204K5C08AQW5BEAAQAK'",
+          "default": "'01KNZZ4PVZP70TWJ3B22M4W5EC'",
           "comment": null,
           "enumItems": [],
           "mappedType": "text"

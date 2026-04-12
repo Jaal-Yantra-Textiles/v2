@@ -11,6 +11,7 @@ import { DataTable } from "../../../components/data-table"
 import { SidebarLink } from "../../../components/common/sidebar-link/sidebar-link"
 import { TwoColumnPage } from "../../../components/layout/pages"
 import { useExtension } from "../../../providers/extension-provider"
+import { RequiresStore } from "../../../components/common/requires-store/requires-store"
 import { keepPreviousData } from "@tanstack/react-query"
 
 const PAGE_SIZE = 20
@@ -58,6 +59,7 @@ export function LocationList() {
       showJSON
     >
       <TwoColumnPage.Main>
+        <RequiresStore>
         <Container className="flex flex-col divide-y p-0">
           <DataTable
             data={stockLocations}
@@ -90,6 +92,7 @@ export function LocationList() {
             layout="fill"
           />
         </Container>
+        </RequiresStore>
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <LinksSection />

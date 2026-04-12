@@ -179,7 +179,7 @@ const Header = () => {
   )
 }
 
-type UseType = "seller" | "manufacturer"
+type WorkspaceType = "seller" | "manufacturer" | "individual"
 
 const MANUFACTURER_ROUTES: Omit<INavItem, "pathname">[] = [
   { icon: <MagnifyingGlass />, label: "Home", to: "/" },
@@ -246,9 +246,19 @@ const SELLER_ROUTES: Omit<INavItem, "pathname">[] = [
   },
 ]
 
-const useCoreRoutes = (useType?: UseType): Omit<INavItem, "pathname">[] => {
-  if (useType === "seller") {
+const INDIVIDUAL_ROUTES: Omit<INavItem, "pathname">[] = [
+  { icon: <MagnifyingGlass />, label: "Home", to: "/" },
+  { icon: <TimelineVertical />, label: "Tasks", to: "/tasks" },
+  { icon: <FolderOpen />, label: "Shared Folders", to: "/shared-folders" },
+  { icon: <CurrencyDollar />, label: "Payment Submissions", to: "/payment-submissions" },
+]
+
+const useCoreRoutes = (workspaceType?: WorkspaceType): Omit<INavItem, "pathname">[] => {
+  if (workspaceType === "seller") {
     return SELLER_ROUTES
+  }
+  if (workspaceType === "individual") {
+    return INDIVIDUAL_ROUTES
   }
   return MANUFACTURER_ROUTES
 }
@@ -281,8 +291,12 @@ const Searchbar = () => {
 
 const CoreRouteSection = () => {
   const { user } = useMe()
-  const useType = (user?.partner?.metadata as any)?.use_type as UseType | undefined
-  const coreRoutes = useCoreRoutes(useType)
+  // Read workspace_type from the proper field, falling back to metadata.use_type for legacy partners
+  const workspaceType = (
+    (user?.partner as any)?.workspace_type ||
+    (user?.partner?.metadata as any)?.use_type
+  ) as WorkspaceType | undefined
+  const coreRoutes = useCoreRoutes(workspaceType)
 
   return (
     <nav className="flex flex-col gap-y-1 py-3">

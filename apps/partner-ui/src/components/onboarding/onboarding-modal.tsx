@@ -47,8 +47,18 @@ const BUSINESS_TYPES = [
   { value: "designer", label: "Designer / Creator" },
   { value: "wholesaler", label: "Wholesaler / Distributor" },
   { value: "artisan", label: "Artisan / Craftsperson" },
+  { value: "individual", label: "Individual (Model, Freelancer, etc.)" },
   { value: "other", label: "Other" },
 ]
+
+/**
+ * Maps a business type selection to the corresponding workspace_type enum value.
+ */
+const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manufacturer" | "individual" => {
+  if (businessType === "seller") return "seller"
+  if (businessType === "individual") return "individual"
+  return "manufacturer"
+}
 
 const STEPS = ["about", "logo", "people"] as const
 type Step = (typeof STEPS)[number]
@@ -207,11 +217,12 @@ export const OnboardingModal = ({
     setError(null)
 
     try {
-      // Save to partner metadata via API
+      // Save to partner via API
+      const updateBody: Record<string, any> = {}
       const metadataUpdate: Record<string, any> = {}
+
       if (aboutYou.business_type) {
-        metadataUpdate.use_type =
-          aboutYou.business_type === "seller" ? "seller" : "manufacturer"
+        updateBody.workspace_type = mapBusinessTypeToWorkspaceType(aboutYou.business_type)
       }
       if (aboutYou.business_name)
         metadataUpdate.business_name = aboutYou.business_name
@@ -221,10 +232,14 @@ export const OnboardingModal = ({
       if (aboutYou.phone) metadataUpdate.contact_phone = aboutYou.phone
 
       if (Object.keys(metadataUpdate).length > 0) {
+        updateBody.metadata = metadataUpdate
+      }
+
+      if (Object.keys(updateBody).length > 0) {
         try {
           await sdk.client.fetch("/partners/update", {
             method: "PUT",
-            body: { metadata: metadataUpdate },
+            body: updateBody,
           })
           queryClient.invalidateQueries({ queryKey: ["users", "me"] })
         } catch {

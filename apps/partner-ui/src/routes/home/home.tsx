@@ -10,6 +10,7 @@ import {
   Plus,
   ShoppingBag,
   TruckFast,
+  Users,
 } from "@medusajs/icons"
 import { Link } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
@@ -75,7 +76,10 @@ export const Home = () => {
 
   const verified = Boolean(partner?.is_verified)
   const onboardingDone = Boolean(onboardingStatus.completed || onboardingStatus.skipped)
-  const currentUseType = (partner?.metadata as any)?.use_type as string | undefined
+  const currentWorkspaceType = (
+    (partner as any)?.workspace_type ||
+    (partner?.metadata as any)?.use_type
+  ) as string | undefined
 
   return (
     <div className="flex flex-col gap-y-3">
@@ -102,7 +106,7 @@ export const Home = () => {
           onboardingDone={onboardingDone}
           hasStore={hasStore}
           storesPending={storesPending}
-          currentUseType={currentUseType}
+          currentWorkspaceType={currentWorkspaceType}
           onOpenOnboarding={() => navigate("/onboarding")}
         />
         <QuickSettingsCard hasStore={hasStore} storeId={store?.id} />
@@ -125,7 +129,7 @@ const GettingStartedCard = ({
   onboardingDone,
   hasStore,
   storesPending,
-  currentUseType,
+  currentWorkspaceType,
   onOpenOnboarding,
 }: {
   partnerId?: string
@@ -134,24 +138,24 @@ const GettingStartedCard = ({
   onboardingDone: boolean
   hasStore: boolean
   storesPending: boolean
-  currentUseType?: string
+  currentWorkspaceType?: string
   onOpenOnboarding: () => void
 }) => {
-  const [savingUseType, setSavingUseType] = useState(false)
+  const [savingWorkspaceType, setSavingWorkspaceType] = useState(false)
 
-  const handleUseTypeChange = async (useType: string) => {
-    if (useType === currentUseType) return
-    setSavingUseType(true)
+  const handleWorkspaceTypeChange = async (workspaceType: string) => {
+    if (workspaceType === currentWorkspaceType) return
+    setSavingWorkspaceType(true)
     try {
       await sdk.client.fetch("/partners/update", {
         method: "PUT",
-        body: { metadata: { ...((partner?.metadata as any) || {}), use_type: useType } },
+        body: { workspace_type: workspaceType },
       })
       queryClient.invalidateQueries({ queryKey: ["users", "me"] })
     } catch (e) {
-      console.error("Failed to update use type", e)
+      console.error("Failed to update workspace type", e)
     } finally {
-      setSavingUseType(false)
+      setSavingWorkspaceType(false)
     }
   }
 
@@ -164,7 +168,7 @@ const GettingStartedCard = ({
 
   const completedSteps = [
     onboardingDone,
-    !!currentUseType,
+    !!currentWorkspaceType,
     verified,
     hasStore,
   ].filter(Boolean).length
@@ -203,13 +207,17 @@ const GettingStartedCard = ({
         />
 
         <div className="flex items-start gap-3 p-4">
-          <Checkbox checked={!!currentUseType} disabled className="mt-0.5" />
+          <Checkbox checked={!!currentWorkspaceType} disabled className="mt-0.5" />
           <div className="min-w-0 flex-1">
             <Text size="small" weight="plus">Choose workspace type</Text>
-            {currentUseType ? (
+            {currentWorkspaceType ? (
               <div className="flex items-center gap-2 mt-0.5">
                 <Text size="xsmall" className="text-ui-fg-subtle">
-                  {currentUseType === "seller" ? "Seller" : "Manufacturer"}
+                  {currentWorkspaceType === "seller"
+                    ? "Seller"
+                    : currentWorkspaceType === "individual"
+                      ? "Individual"
+                      : "Manufacturer"}
                 </Text>
                 <Link to="/settings/onboarding" className="text-ui-fg-interactive">
                   <Text size="xsmall">Change</Text>
@@ -219,8 +227,8 @@ const GettingStartedCard = ({
               <div className="mt-1.5 flex gap-2">
                 <button
                   type="button"
-                  disabled={savingUseType}
-                  onClick={() => handleUseTypeChange("seller")}
+                  disabled={savingWorkspaceType}
+                  onClick={() => handleWorkspaceTypeChange("seller")}
                   className="flex items-center gap-1.5 rounded-md border border-ui-border-base px-2.5 py-1.5 text-xs hover:shadow-elevation-card-hover outline-none focus-visible:shadow-borders-focus"
                 >
                   <BuildingStorefront className="h-3.5 w-3.5 text-ui-fg-subtle" />
@@ -228,12 +236,21 @@ const GettingStartedCard = ({
                 </button>
                 <button
                   type="button"
-                  disabled={savingUseType}
-                  onClick={() => handleUseTypeChange("manufacturer")}
+                  disabled={savingWorkspaceType}
+                  onClick={() => handleWorkspaceTypeChange("manufacturer")}
                   className="flex items-center gap-1.5 rounded-md border border-ui-border-base px-2.5 py-1.5 text-xs hover:shadow-elevation-card-hover outline-none focus-visible:shadow-borders-focus"
                 >
                   <PencilSquare className="h-3.5 w-3.5 text-ui-fg-subtle" />
                   Manufacturer
+                </button>
+                <button
+                  type="button"
+                  disabled={savingWorkspaceType}
+                  onClick={() => handleWorkspaceTypeChange("individual")}
+                  className="flex items-center gap-1.5 rounded-md border border-ui-border-base px-2.5 py-1.5 text-xs hover:shadow-elevation-card-hover outline-none focus-visible:shadow-borders-focus"
+                >
+                  <Users className="h-3.5 w-3.5 text-ui-fg-subtle" />
+                  Individual
                 </button>
               </div>
             )}

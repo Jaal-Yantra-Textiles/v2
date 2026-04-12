@@ -7,6 +7,7 @@ export const PostPartnerSchema = z.object({
     logo: z.string().url().optional(),
     status: z.enum(["active", "inactive", "pending"]).optional().default("pending"),
     is_verified: z.boolean().optional().default(false),
+    workspace_type: z.enum(["seller", "manufacturer", "individual"]).optional().default("manufacturer"),
   }),
   admin: z.object({
     email: z.string().email(),

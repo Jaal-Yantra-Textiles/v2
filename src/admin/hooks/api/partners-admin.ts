@@ -19,6 +19,7 @@ export interface AdminPartner {
   logo?: string | null
   status: "active" | "inactive" | "pending"
   is_verified: boolean
+  workspace_type?: "seller" | "manufacturer" | "individual"
   metadata?: Record<string, any> | null
   created_at: string
   updated_at: string

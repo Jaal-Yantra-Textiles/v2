@@ -2,6 +2,7 @@ import { SalesChannelListTable } from "./components/sales-channel-list-table"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { useExtension } from "../../../providers/extension-provider"
+import { RequiresStore } from "../../../components/common/requires-store/requires-store"
 
 export const SalesChannelList = () => {
   const { getWidgets } = useExtension()
@@ -14,7 +15,9 @@ export const SalesChannelList = () => {
       }}
       hasOutlet
     >
-      <SalesChannelListTable />
+      <RequiresStore>
+        <SalesChannelListTable />
+      </RequiresStore>
     </SingleColumnPage>
   )
 }

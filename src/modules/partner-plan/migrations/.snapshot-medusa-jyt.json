@@ -10854,7 +10854,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "unique": false,
           "length": null,
           "precision": null,
@@ -10978,7 +10978,7 @@
             "id"
           ],
           "updateRule": "cascade",
-          "deleteRule": "no action"
+          "deleteRule": "set null"
         }
       },
       "nativeEnums": {
@@ -21590,6 +21590,26 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "boolean"
+        },
+        "workspace_type": {
+          "name": "workspace_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "'manufacturer'",
+          "comment": null,
+          "enumItems": [
+            "seller",
+            "manufacturer",
+            "individual"
+          ],
+          "mappedType": "enum"
         }
       },
       "name": "partner",
@@ -42308,7 +42328,7 @@
           "length": null,
           "precision": null,
           "scale": null,
-          "default": "'01KNR94204K5C08AQW5BEAAQAK'",
+          "default": "'01KNZZ4PVZP70TWJ3B22M4W5EC'",
           "comment": null,
           "enumItems": [],
           "mappedType": "text"

@@ -1,17 +1,19 @@
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "@medusajs/framework/zod"
-import { Button, Heading, Input, Select, Switch, Text, toast } from "@medusajs/ui"
+import { Badge, Button, Checkbox, Heading, Input, Select, Switch, Text, toast } from "@medusajs/ui"
 
 import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
 import { KeyboundForm } from "../../../components/utilitites/key-bound-form"
 import { useRouteModal } from "../../../components/modal/use-route-modal"
 import { Form } from "../../../components/common/form"
 import { useCreatePartnerWithAdmin } from "../../../hooks/api/partners-admin"
+import { usePersonTypes } from "../../../hooks/api/persontype"
 
 // Use literal tuples to avoid TS enum widening issues with z.enum
 const ROLE_ENUM = ["owner", "admin", "manager"] as const
 const STATUS_ENUM = ["active", "inactive", "pending"] as const
+const WORKSPACE_TYPE_ENUM = ["seller", "manufacturer", "individual"] as const
 
 const partnerAdminSchema = z.object({
   partner: z.object({
@@ -26,6 +28,7 @@ const partnerAdminSchema = z.object({
     status: z.enum(STATUS_ENUM).default("pending"),
     // Mark optional with default to align resolver inferred type
     is_verified: z.boolean().optional().default(false),
+    workspace_type: z.enum(WORKSPACE_TYPE_ENUM).default("manufacturer"),
   }),
   admin: z.object({
     email: z.string().email("Invalid email"),
@@ -34,6 +37,8 @@ const partnerAdminSchema = z.object({
     phone: z.string().optional(),
     role: z.enum(ROLE_ENUM).default("owner"),
   }),
+  // Person type IDs to link after creation (only for individual workspace type)
+  person_type_ids: z.array(z.string()).optional().default([]),
   // Optional: allow passing auth identity if already created
   auth_identity_id: z.string().optional(),
 })
@@ -47,6 +52,7 @@ const CreatePartnerComponent = () => {
         logo: "",
         status: "pending",
         is_verified: false,
+        workspace_type: "manufacturer",
       },
       admin: {
         email: "",
@@ -55,6 +61,7 @@ const CreatePartnerComponent = () => {
         phone: "",
         role: "owner",
       },
+      person_type_ids: [] as string[],
       auth_identity_id: undefined,
     },
     resolver: zodResolver(partnerAdminSchema),
@@ -63,6 +70,9 @@ const CreatePartnerComponent = () => {
 
   const { handleSuccess } = useRouteModal()
   const { mutateAsync, isPending } = useCreatePartnerWithAdmin()
+
+  const workspaceType = useWatch({ control: form.control, name: "partner.workspace_type" })
+  const { personTypes } = usePersonTypes({ limit: 100 })
 
   const onSubmit = form.handleSubmit(async (data) => {
     try {
@@ -74,6 +84,7 @@ const CreatePartnerComponent = () => {
           logo: validated.partner.logo,
           status: validated.partner.status,
           is_verified: validated.partner.is_verified,
+          workspace_type: validated.partner.workspace_type,
         },
         admin: {
           email: validated.admin.email,
@@ -86,7 +97,23 @@ const CreatePartnerComponent = () => {
       }
 
       await mutateAsync(payload, {
-        onSuccess: ({ partner }) => {
+        onSuccess: async ({ partner }) => {
+          // Link person types if workspace_type is individual
+          if (
+            validated.partner.workspace_type === "individual" &&
+            validated.person_type_ids &&
+            validated.person_type_ids.length > 0
+          ) {
+            try {
+              const { sdk } = await import("../../../lib/config")
+              await sdk.client.fetch(`/admin/partners/${partner.id}/person-types`, {
+                method: "POST",
+                body: { person_type_ids: validated.person_type_ids },
+              })
+            } catch (e) {
+              console.error("Failed to link person types", e)
+            }
+          }
           toast.success(`Partner ${partner.name} created`)
           handleSuccess(`/partners/${partner.id}`)
         },
@@ -200,7 +227,69 @@ const CreatePartnerComponent = () => {
                   </Form.Item>
                 )}
               />
+
+              <Form.Field
+                control={form.control}
+                name="partner.workspace_type"
+                render={({ field }) => (
+                  <Form.Item>
+                    <Form.Label>{"Workspace Type"}</Form.Label>
+                    <Form.Control>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <Select.Trigger>
+                          <Select.Value placeholder="Select workspace type" />
+                        </Select.Trigger>
+                        <Select.Content>
+                          <Select.Item value="seller">Seller</Select.Item>
+                          <Select.Item value="manufacturer">Manufacturer</Select.Item>
+                          <Select.Item value="individual">Individual</Select.Item>
+                        </Select.Content>
+                      </Select>
+                    </Form.Control>
+                    <Form.ErrorMessage />
+                  </Form.Item>
+                )}
+              />
             </div>
+
+            {workspaceType === "individual" && personTypes && personTypes.length > 0 && (
+              <div>
+                <Heading level="h2" className="text-lg md:text-xl">{"Person Types"}</Heading>
+                <Text size="small" className="text-ui-fg-subtle mt-1">
+                  {"Select the roles this individual performs"}
+                </Text>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {personTypes.map((pt: any) => {
+                    const selectedIds = form.watch("person_type_ids") || []
+                    const isSelected = selectedIds.includes(pt.id)
+                    return (
+                      <button
+                        key={pt.id}
+                        type="button"
+                        onClick={() => {
+                          const current = form.getValues("person_type_ids") || []
+                          if (current.includes(pt.id)) {
+                            form.setValue(
+                              "person_type_ids",
+                              current.filter((id: string) => id !== pt.id)
+                            )
+                          } else {
+                            form.setValue("person_type_ids", [...current, pt.id])
+                          }
+                        }}
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-all ${
+                          isSelected
+                            ? "border-ui-border-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                            : "border-ui-border-base hover:shadow-elevation-card-hover"
+                        }`}
+                      >
+                        {pt.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div>
               <Heading level="h2" className="text-lg md:text-xl">{"Admin Details"}</Heading>

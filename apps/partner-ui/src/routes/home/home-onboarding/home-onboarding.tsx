@@ -47,8 +47,15 @@ const BUSINESS_TYPES = [
   { value: "designer", label: "Designer / Creator" },
   { value: "wholesaler", label: "Wholesaler / Distributor" },
   { value: "artisan", label: "Artisan / Craftsperson" },
+  { value: "individual", label: "Individual (Model, Freelancer, etc.)" },
   { value: "other", label: "Other" },
 ]
+
+const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manufacturer" | "individual" => {
+  if (businessType === "seller") return "seller"
+  if (businessType === "individual") return "individual"
+  return "manufacturer"
+}
 
 const STEPS = ["about", "logo", "people"] as const
 type Step = (typeof STEPS)[number]
@@ -66,14 +73,14 @@ function getStepStatus(
   step: Step,
   currentStep: Step,
   aboutYou: AboutYou,
-  logo: File | null
+  hasLogo: boolean
 ): "not-started" | "in-progress" | "completed" {
   const currentIdx = STEPS.indexOf(currentStep)
   const stepIdx = STEPS.indexOf(step)
   if (step === currentStep) return "in-progress"
   if (stepIdx > currentIdx) return "not-started"
   if (step === "about") return aboutYou.business_name.trim() ? "completed" : "in-progress"
-  if (step === "logo") return logo ? "completed" : "in-progress"
+  if (step === "logo") return hasLogo ? "completed" : "in-progress"
   return "not-started"
 }
 
@@ -85,9 +92,20 @@ export const HomeOnboarding = () => {
   )
 }
 
+/**
+ * Maps a workspace_type back to the closest business_type option for the dropdown.
+ */
+const mapWorkspaceTypeToBusinessType = (workspaceType?: string): string => {
+  if (workspaceType === "seller") return "seller"
+  if (workspaceType === "individual") return "individual"
+  if (workspaceType === "manufacturer") return "manufacturer"
+  return ""
+}
+
 const OnboardingForm = () => {
   const { user } = useMe()
   const partnerId = user?.partner_id
+  const partner = user?.partner
   const { handleSuccess } = useRouteModal()
 
   const storageKey = useMemo(
@@ -95,18 +113,50 @@ const OnboardingForm = () => {
     [partnerId]
   )
 
+  // Hydrate initial state from partner metadata (server) + localStorage
+  const savedState = useMemo(() => {
+    if (!storageKey) return null
+    try {
+      const raw = localStorage.getItem(storageKey)
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  }, [storageKey])
+
+  const metadata = (partner?.metadata || {}) as Record<string, any>
+  const workspaceType = (partner as any)?.workspace_type as string | undefined
+
   const [currentStep, setCurrentStep] = useState<Step>("about")
-  const [aboutYou, setAboutYou] = useState<AboutYou>({
-    business_name: "",
-    business_type: "",
-    description: "",
-    website: "",
-    phone: "",
-  })
+  const [aboutYou, setAboutYou] = useState<AboutYou>(() => ({
+    business_name:
+      savedState?.about?.business_name ||
+      metadata.business_name ||
+      partner?.name ||
+      "",
+    business_type:
+      savedState?.about?.business_type ||
+      mapWorkspaceTypeToBusinessType(workspaceType || metadata.use_type) ||
+      "",
+    description:
+      savedState?.about?.description ||
+      metadata.business_description ||
+      "",
+    website:
+      savedState?.about?.website ||
+      metadata.website ||
+      "",
+    phone:
+      savedState?.about?.phone ||
+      metadata.contact_phone ||
+      "",
+  }))
   const [logo, setLogo] = useState<File | null>(null)
-  const [people, setPeople] = useState<Person[]>([
-    { first_name: "", last_name: "", email: "" },
-  ])
+  const [people, setPeople] = useState<Person[]>(() => {
+    const saved = savedState?.people as Person[] | undefined
+    if (saved && saved.length > 0) return saved
+    return [{ first_name: "", last_name: "", email: "" }]
+  })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success] = useState(false)
@@ -201,10 +251,11 @@ const OnboardingForm = () => {
     setError(null)
 
     try {
+      const updateBody: Record<string, any> = {}
       const metadataUpdate: Record<string, any> = {}
+
       if (aboutYou.business_type) {
-        metadataUpdate.use_type =
-          aboutYou.business_type === "seller" ? "seller" : "manufacturer"
+        updateBody.workspace_type = mapBusinessTypeToWorkspaceType(aboutYou.business_type)
       }
       if (aboutYou.business_name) metadataUpdate.business_name = aboutYou.business_name
       if (aboutYou.description) metadataUpdate.business_description = aboutYou.description
@@ -212,10 +263,14 @@ const OnboardingForm = () => {
       if (aboutYou.phone) metadataUpdate.contact_phone = aboutYou.phone
 
       if (Object.keys(metadataUpdate).length > 0) {
+        updateBody.metadata = metadataUpdate
+      }
+
+      if (Object.keys(updateBody).length > 0) {
         try {
           await sdk.client.fetch("/partners/update", {
             method: "PUT",
-            body: { metadata: metadataUpdate },
+            body: updateBody,
           })
           queryClient.invalidateQueries({ queryKey: ["users", "me"] })
         } catch {
@@ -274,7 +329,7 @@ const OnboardingForm = () => {
                 <ProgressTabs.Trigger
                   key={step}
                   value={step}
-                  status={getStepStatus(step, currentStep, aboutYou, logo)}
+                  status={getStepStatus(step, currentStep, aboutYou, !!logo || !!partner?.logo)}
                   className="w-full max-w-[200px]"
                 >
                   {STEP_LABELS[step]}
@@ -402,6 +457,20 @@ const OnboardingForm = () => {
                         </div>
                         <Text size="small" className="text-ui-fg-base font-medium">
                           {logo.name}
+                        </Text>
+                        <Text size="xsmall" className="text-ui-fg-muted">
+                          Click to change
+                        </Text>
+                      </div>
+                    ) : partner?.logo ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <img
+                          src={partner.logo}
+                          alt="Current logo"
+                          className="h-16 w-16 rounded-lg border object-cover"
+                        />
+                        <Text size="small" className="text-ui-fg-base font-medium">
+                          Current logo
                         </Text>
                         <Text size="xsmall" className="text-ui-fg-muted">
                           Click to change

@@ -13,6 +13,10 @@ const Partner = model.define("partner", {
         .default('pending'),
     is_verified: model.boolean().default(false),
 
+    // Workspace type — controls sidebar navigation and available features
+    workspace_type: model.enum(['seller', 'manufacturer', 'individual'])
+        .default('manufacturer'),
+
     // WhatsApp notifications
     whatsapp_number: model.text().nullable(),
     whatsapp_verified: model.boolean().default(false),

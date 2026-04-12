@@ -1,7 +1,7 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
 import path from "path";
 
-loadEnv("production", process.cwd());
+loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
 module.exports = defineConfig({
   projectConfig: {
@@ -140,7 +140,7 @@ module.exports = defineConfig({
           },
         ],
       },
-    }, 
+    },
     // {
     //   resolve: "@medusajs/medusa/caching",
     //   options: {
@@ -177,35 +177,35 @@ module.exports = defineConfig({
     //     ],
     //   },
     // },
-    {
-      resolve: "@medusajs/medusa/payment",
-      options: {
-        providers: [
-          {
-            resolve: "@medusajs/medusa/payment-stripe",
-            id: "stripe",
-            options: {
-              apiKey: process.env.STRIPE_API_KEY,
-              webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
-            },
-          },
-          ...(process.env.PAYU_MERCHANT_KEY
-            ? [
-                {
-                  resolve: "./src/modules/payu-payment",
-                  id: "payu",
-                  options: {
-                    merchant_key: process.env.PAYU_MERCHANT_KEY,
-                    merchant_salt: process.env.PAYU_MERCHANT_SALT,
-                    mode: process.env.PAYU_MODE || "test",
-                    auto_capture: true,
-                  },
-                },
-              ]
-            : []),
-        ],
-      },
-    },
+    // {
+    //   resolve: "@medusajs/medusa/payment",
+    //   options: {
+    //     providers: [
+    //       {
+    //         resolve: "@medusajs/medusa/payment-stripe",
+    //         id: "stripe",
+    //         options: {
+    //           apiKey: process.env.STRIPE_API_KEY,
+    //           webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    //         },
+    //       },
+    //       ...(process.env.PAYU_MERCHANT_KEY
+    //         ? [
+    //             {
+    //               resolve: "./src/modules/payu-payment",
+    //               id: "payu",
+    //               options: {
+    //                 merchant_key: process.env.PAYU_MERCHANT_KEY,
+    //                 merchant_salt: process.env.PAYU_MERCHANT_SALT,
+    //                 mode: process.env.PAYU_MODE || "test",
+    //                 auto_capture: true,
+    //               },
+    //             },
+    //           ]
+    //         : []),
+    //     ],
+    //   },
+    // },
     // {
     //   resolve: "@medusajs/medusa/fulfillment",
     //   options: {
@@ -300,8 +300,6 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/fullfilled_orders",
   },
-  // Disabled locally — requires Redis event bus for onApplicationStart.
-  // Enabled in medusa-config.prod.ts where Redis is available.
   {
     resolve: "@medusajs/index",
   },
@@ -341,7 +339,7 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/spec_store",
   },
-   {
+    {
       resolve: "@medusajs/medusa/translation",
     },
     {

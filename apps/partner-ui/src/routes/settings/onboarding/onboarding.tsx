@@ -1,4 +1,4 @@
-import { BuildingStorefront, PencilSquare } from "@medusajs/icons"
+import { BuildingStorefront, PencilSquare, Users } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Text, clx } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
@@ -8,10 +8,10 @@ import { useMe } from "../../../hooks/api/users"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
 
-type UseType = "seller" | "manufacturer"
+type WorkspaceType = "seller" | "manufacturer" | "individual"
 
-const USE_TYPE_OPTIONS: {
-  value: UseType
+const WORKSPACE_TYPE_OPTIONS: {
+  value: WorkspaceType
   title: string
   description: string
   icon: React.ReactNode
@@ -30,30 +30,39 @@ const USE_TYPE_OPTIONS: {
       "Design and manufacture textiles. See Designs, Inventory Orders, Production Runs, Tasks, and more.",
     icon: <PencilSquare className="h-6 w-6" />,
   },
+  {
+    value: "individual",
+    title: "Individual",
+    description:
+      "Work on assigned tasks. See Tasks, Shared Folders, and Payment Submissions.",
+    icon: <Users className="h-6 w-6" />,
+  },
 ]
 
 export const SettingsOnboarding = () => {
   const { user } = useMe()
   const partnerId = user?.partner_id
-  const currentUseType = (user?.partner?.metadata as any)?.use_type as UseType | undefined
+  const currentWorkspaceType = (
+    (user?.partner as any)?.workspace_type ||
+    (user?.partner?.metadata as any)?.use_type
+  ) as WorkspaceType | undefined
 
-  const [savingUseType, setSavingUseType] = useState(false)
+  const [savingWorkspaceType, setSavingWorkspaceType] = useState(false)
 
-  const handleUseTypeChange = async (useType: UseType) => {
-    if (useType === currentUseType) return
+  const handleWorkspaceTypeChange = async (workspaceType: WorkspaceType) => {
+    if (workspaceType === currentWorkspaceType) return
 
-    setSavingUseType(true)
+    setSavingWorkspaceType(true)
     try {
-      const existingMetadata = (user?.partner?.metadata as Record<string, any>) || {}
       await sdk.client.fetch("/partners/update", {
         method: "PUT",
-        body: { metadata: { ...existingMetadata, use_type: useType } },
+        body: { workspace_type: workspaceType },
       })
       queryClient.invalidateQueries({ queryKey: ["users", "me"] })
     } catch (e) {
-      console.error("Failed to update use type", e)
+      console.error("Failed to update workspace type", e)
     } finally {
-      setSavingUseType(false)
+      setSavingWorkspaceType(false)
     }
   }
 
@@ -86,18 +95,18 @@ export const SettingsOnboarding = () => {
           </Text>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 px-6 py-4 sm:grid-cols-2">
-          {USE_TYPE_OPTIONS.map((opt) => (
+        <div className="grid grid-cols-1 gap-4 px-6 py-4 sm:grid-cols-3">
+          {WORKSPACE_TYPE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
-              disabled={savingUseType}
-              onClick={() => handleUseTypeChange(opt.value)}
+              disabled={savingWorkspaceType}
+              onClick={() => handleWorkspaceTypeChange(opt.value)}
               className={clx(
                 "bg-ui-bg-base border rounded-lg p-4 text-left transition-all",
                 "hover:shadow-elevation-card-hover",
                 "focus-visible:shadow-borders-focus outline-none",
-                currentUseType === opt.value
+                currentWorkspaceType === opt.value
                   ? "border-ui-border-interactive shadow-elevation-card-rest"
                   : "border-ui-border-base"
               )}
@@ -107,7 +116,7 @@ export const SettingsOnboarding = () => {
                 <Text size="small" weight="plus">
                   {opt.title}
                 </Text>
-                {currentUseType === opt.value && (
+                {currentWorkspaceType === opt.value && (
                   <Badge size="2xsmall" color="green">Active</Badge>
                 )}
               </div>

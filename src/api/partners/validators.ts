@@ -6,6 +6,7 @@ export const partnerSchema = z.object({
     logo: z.string().optional(),
     status: z.enum(['active', 'inactive', 'pending']).optional(),
     is_verified: z.boolean().optional(),
+    workspace_type: z.enum(['seller', 'manufacturer', 'individual']).optional(),
     whatsapp_number: z.string().optional(),
     admin: z.object({
         email: z.string(),
@@ -22,6 +23,7 @@ export const partnerUpdateSchema = z.object({
     logo: z.string().nullable().optional(),
     status: z.enum(['active', 'inactive', 'pending']).optional(),
     is_verified: z.boolean().optional(),
+    workspace_type: z.enum(['seller', 'manufacturer', 'individual']).optional(),
     whatsapp_number: z.string().nullable().optional(),
     metadata: z.record(z.any()).nullable().optional(),
 })
