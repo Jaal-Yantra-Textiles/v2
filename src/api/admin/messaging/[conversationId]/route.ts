@@ -146,11 +146,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     metadata: body.media_filename ? { filename: body.media_filename } : null,
   })
 
-  // Update conversation
-  await messagingService.updateMessagingConversations({
-    id: conversationId,
-    last_message_at: new Date(),
-  })
+  // Auto-grant consent when admin sends a message (admin-initiated)
+  const existingMeta = conversation.metadata as Record<string, any> | null
+  if (!existingMeta?.consent_given) {
+    await messagingService.updateMessagingConversations({
+      id: conversationId,
+      last_message_at: new Date(),
+      metadata: {
+        ...(existingMeta || {}),
+        consent_given: true,
+        consent_given_at: new Date().toISOString(),
+        consent_source: "admin_initiated",
+        onboarded: true,
+      },
+    })
+  } else {
+    // Update conversation timestamp
+    await messagingService.updateMessagingConversations({
+      id: conversationId,
+      last_message_at: new Date(),
+    })
+  }
 
   res.json({ message })
 }

@@ -114,11 +114,14 @@ export async function handleIncomingMessage(
     return { handled: true, error: "unregistered_phone" }
   }
 
-  // Persist inbound message and get the conversation ID for outbound tracking
-  const conversationId = await persistInboundMessage(scope, message, partner.partnerId, partner.adminName).catch((e: any) => {
+  // Persist inbound message and get the conversation for outbound tracking + state checks
+  const conversation = await persistInboundMessage(scope, message, partner.partnerId, partner.adminName).catch((e: any) => {
     console.warn("[whatsapp-handler] Failed to persist inbound message:", e.message)
-    return null as string | null
+    return null as { id: string; metadata: Record<string, any> | null; isNew: boolean } | null
   })
+
+  const conversationId = conversation?.id || null
+  const conversationMeta = conversation?.metadata || {}
 
   // Helper to persist outbound replies in the same conversation
   const originalSend = whatsapp.sendTextMessage.bind(whatsapp)
@@ -131,6 +134,38 @@ export async function handleIncomingMessage(
     }
     return result
   }
+
+  // --- First interaction: send welcome + consent request ---
+  const consentGiven = conversationMeta.consent_given === true
+
+  // Handle consent button replies
+  if (message.type === "interactive" && message.buttonReplyId) {
+    if (message.buttonReplyId === "consent_agree") {
+      await updateConversationMetadata(scope, conversationId, {
+        ...conversationMeta,
+        consent_given: true,
+        consent_given_at: new Date().toISOString(),
+        onboarded: true,
+      })
+      await sendWelcomeCommands(scope, whatsapp, message.from, partner.partnerId, partner.adminName)
+      return { handled: true, action: "consent_agreed" }
+    }
+    if (message.buttonReplyId === "consent_decline") {
+      await whatsapp.sendTextMessage(
+        message.from,
+        `We understand. You can still use the web portal to manage your production runs.\n\nIf you change your mind, just send us a message anytime.`
+      )
+      return { handled: true, action: "consent_declined" }
+    }
+  }
+
+  // If consent not yet given, send the consent prompt
+  if (!consentGiven) {
+    await sendConsentRequest(whatsapp, message.from, partner.adminName)
+    return { handled: true, action: "consent_requested" }
+  }
+
+  // --- Normal message processing (consent already given) ---
 
   // Determine action from button reply or text
   let action = ""
@@ -149,15 +184,18 @@ export async function handleIncomingMessage(
     // Media without context — ask which run
     await whatsapp.sendTextMessage(
       message.from,
-      `📸 Media received! To attach it to a production run, please reply:\n\`media <run_id>\`\n\nThen send the media again.`
+      `Media received! To attach it to a production run, please reply:\n\`media <run_id>\`\n\nThen send the media again.`
     )
     return { handled: true, action: "media_hint" }
   }
 
   if (!action) {
-    // Show help / list runs
-    await sendHelpMessage(scope, whatsapp, message.from, partner.partnerId, partner.adminName)
-    return { handled: true, action: "help" }
+    // Short nudge — partner is already onboarded, no need for full help dump
+    await whatsapp.sendTextMessage(
+      message.from,
+      `I didn't catch that. Reply *runs* to see your active production runs, or *help* for all commands.`
+    )
+    return { handled: true, action: "nudge" }
   }
 
   // Execute action
@@ -205,8 +243,12 @@ function parseTextCommand(text: string): { action: string; runId: string; extra?
   const lower = trimmed.toLowerCase()
 
   // Check for simple keywords
-  if (lower === "help" || lower === "hi" || lower === "hello" || lower === "menu") {
+  if (lower === "help" || lower === "menu") {
     return { action: "help", runId: "" }
+  }
+  // Greetings — treated as no specific action (nudge will handle)
+  if (lower === "hi" || lower === "hello" || lower === "hey") {
+    return { action: "", runId: "" }
   }
   if (lower === "runs" || lower === "list" || lower === "my runs") {
     return { action: "runs", runId: "" }
@@ -498,6 +540,74 @@ async function handleListRuns(
   return { handled: true, action: "list" }
 }
 
+/**
+ * Send consent request on first interaction — partner must agree before we process commands.
+ */
+async function sendConsentRequest(
+  whatsapp: WhatsAppService,
+  phone: string,
+  adminName: string
+): Promise<void> {
+  await whatsapp.sendInteractiveMessage(phone, {
+    type: "button",
+    body: {
+      text:
+        `Hi ${adminName}! Welcome to JYT Commerce on WhatsApp.\n\n` +
+        `Before we get started, please note that this conversation ` +
+        `will be recorded for quality assurance and order management purposes.\n\n` +
+        `Do you agree to continue?`,
+    },
+    footer: { text: "You can manage runs from the web portal at any time." },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: "consent_agree", title: "I Agree" } },
+        { type: "reply", reply: { id: "consent_decline", title: "No Thanks" } },
+      ],
+    },
+  })
+}
+
+/**
+ * After consent, send a one-time welcome with available commands.
+ */
+async function sendWelcomeCommands(
+  scope: any,
+  whatsapp: WhatsAppService,
+  phone: string,
+  partnerId: string,
+  adminName: string
+): Promise<void> {
+  const query = scope.resolve("query") as any
+  const { data: runs } = await query.graph({
+    entity: "production_runs",
+    fields: ["id"],
+    filters: {
+      partner_id: partnerId,
+      status: { $in: ["sent_to_partner", "in_progress"] },
+    },
+    pagination: { skip: 0, take: 1 },
+  })
+
+  const activeCount = runs?.length || 0
+
+  await whatsapp.sendTextMessage(
+    phone,
+    `Great, you're all set ${adminName}!\n\n` +
+    `Here's what you can do:\n` +
+    `• *runs* — List your active production runs${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
+    `• *accept <run_id>* — Accept an assigned run\n` +
+    `• *start <run_id>* — Start working on a run\n` +
+    `• *finish <run_id>* — Mark a run as finished\n` +
+    `• *complete <run_id> <qty>* — Complete with produced quantity\n` +
+    `• *status <run_id>* — View run details\n` +
+    `• *help* — Show this message\n\n` +
+    `_Or tap buttons in messages to take quick actions._`
+  )
+}
+
+/**
+ * Show help when partner explicitly asks for it (already onboarded).
+ */
 async function sendHelpMessage(
   scope: any,
   whatsapp: WhatsAppService,
@@ -520,7 +630,6 @@ async function sendHelpMessage(
 
   await whatsapp.sendTextMessage(
     phone,
-    `👋 Hi ${adminName}!\n\n` +
     `*Available Commands:*\n` +
     `• *runs* — List your active production runs${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
     `• *accept <run_id>* — Accept an assigned run\n` +
@@ -531,6 +640,26 @@ async function sendHelpMessage(
     `• *help* — Show this message\n\n` +
     `_Or tap buttons in messages to take quick actions._`
   )
+}
+
+/**
+ * Update conversation metadata (consent state, onboarding, etc.)
+ */
+async function updateConversationMetadata(
+  scope: any,
+  conversationId: string | null,
+  metadata: Record<string, any>
+): Promise<void> {
+  if (!conversationId) return
+  try {
+    const messagingService = scope.resolve(MESSAGING_MODULE) as any
+    await messagingService.updateMessagingConversations({
+      id: conversationId,
+      metadata,
+    })
+  } catch (e: any) {
+    console.warn("[whatsapp-handler] Failed to update conversation metadata:", e.message)
+  }
 }
 
 // Helpers
@@ -575,13 +704,14 @@ function phoneMatches(a: string, b: string): boolean {
 /**
  * Persist an inbound WhatsApp message to the messaging module.
  * Resolves or creates a conversation for the partner+phone pair.
+ * Returns conversation info including metadata for consent/onboarding checks.
  */
 async function persistInboundMessage(
   scope: any,
   message: IncomingMessage,
   partnerId: string,
   senderName: string
-): Promise<string> {
+): Promise<{ id: string; metadata: Record<string, any> | null; isNew: boolean }> {
   const messagingService = scope.resolve(MESSAGING_MODULE) as any
 
   // Normalize incoming phone: digits only
@@ -601,8 +731,12 @@ async function persistInboundMessage(
   })
 
   let conversationId: string
+  let metadata: Record<string, any> | null = null
+  let isNew = false
+
   if (existing) {
     conversationId = existing.id
+    metadata = existing.metadata || null
     // Reactivate if archived
     if (existing.status === "archived") {
       await messagingService.updateMessagingConversations({
@@ -618,6 +752,7 @@ async function persistInboundMessage(
       status: "active",
     })
     conversationId = conv.id
+    isNew = true
   }
 
   // Determine message type
@@ -648,7 +783,7 @@ async function persistInboundMessage(
     unread_count: (existing?.unread_count || 0) + 1,
   })
 
-  return conversationId
+  return { id: conversationId, metadata, isNew }
 }
 
 /**

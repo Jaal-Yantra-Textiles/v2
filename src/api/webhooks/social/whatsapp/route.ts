@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"
 import type SocialProviderService from "../../../../modules/social-provider/service"
 import { handleIncomingMessage } from "../../../../modules/social-provider/whatsapp-message-handler"
+import { resolveAdminByPhone, handleAdminMessage } from "../../../../modules/social-provider/whatsapp-admin-handler"
 import  { MESSAGING_MODULE } from "../../../../modules/messaging"
 
 /**
@@ -56,20 +57,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(401).send("Unauthorized")
   }
 
-  // Use the already-parsed body from Express/Medusa middleware.
-  // Re-serialize to validate the HMAC signature against the canonical JSON.
-  // Note: If raw body middleware is configured, (req as any).rawBody would be preferred.
-  const rawBody = (req as any).rawBody
-    ? (req as any).rawBody.toString("utf8")
-    : JSON.stringify(req.body)
+  // Medusa's bodyParser: { preserveRawBody: true } gives us:
+  // - req.rawBody: Buffer of exact bytes received (for HMAC)
+  // - req.body: parsed JSON object (for processing)
+  // Meta signs the exact wire bytes — we must HMAC those, not re-serialized JSON.
+  const rawBody = (req as any).rawBody as Buffer | undefined
 
-  // Validate HMAC
+  if (!rawBody || !rawBody.length) {
+    console.error("[whatsapp-webhook] No raw body available for signature verification")
+    return res.status(400).send("Empty body")
+  }
+
+  // Validate HMAC-SHA256 signature using timing-safe comparison
   const expectedSignature = crypto
     .createHmac("sha256", appSecret)
-    .update(rawBody, "utf8")
+    .update(rawBody)
     .digest("hex")
 
-  if (`sha256=${expectedSignature}` !== signature) {
+  const expected = `sha256=${expectedSignature}`
+  if (
+    signature.length !== expected.length ||
+    !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+  ) {
     console.error("[whatsapp-webhook] Invalid signature")
     return res.status(401).send("Unauthorized")
   }
@@ -141,9 +150,17 @@ async function processWhatsAppWebhook(
 
         try {
           const incomingMessage = parseWebhookMessage(msg)
-          if (incomingMessage) {
+          if (!incomingMessage) continue
+
+          // Check if sender is an admin user first
+          const admin = await resolveAdminByPhone(scope, incomingMessage.from)
+          if (admin) {
+            const result = await handleAdminMessage(scope, incomingMessage, admin)
+            console.log("[whatsapp-webhook] Admin handled:", result)
+          } else {
+            // Fall back to partner handler
             const result = await handleIncomingMessage(scope, incomingMessage)
-            console.log("[whatsapp-webhook] Handled:", result)
+            console.log("[whatsapp-webhook] Partner handled:", result)
           }
         } catch (error: any) {
           console.error("[whatsapp-webhook] Failed to handle message:", error.message)

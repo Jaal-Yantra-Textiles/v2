@@ -158,20 +158,49 @@ async function persistOutboundNotification(
 ): Promise<void> {
   const messagingService = container.resolve(MESSAGING_MODULE) as any
 
-  // Find or create conversation
-  const [existing] = await messagingService.listMessagingConversations(
-    { partner_id: partnerId, phone_number: phone },
-    { take: 1 }
+  // Normalize phone for matching (WhatsApp sends digits-only, we may store with "+")
+  const phoneDigits = phone.replace(/[^0-9]/g, "")
+
+  // Find existing conversation by partner + phone (handle format differences)
+  const [allConversations] = await messagingService.listAndCountMessagingConversations(
+    { partner_id: partnerId },
+    { take: 50 }
   )
+
+  const existing = (allConversations || []).find((conv: any) => {
+    const convDigits = (conv.phone_number || "").replace(/[^0-9]/g, "")
+    return convDigits === phoneDigits || convDigits.endsWith(phoneDigits) || phoneDigits.endsWith(convDigits)
+  })
 
   let conversationId: string
   if (existing) {
     conversationId = existing.id
+    // Admin-initiated message: auto-grant consent if not already set
+    const meta = existing.metadata as Record<string, any> | null
+    if (!meta?.consent_given) {
+      await messagingService.updateMessagingConversations({
+        id: existing.id,
+        metadata: {
+          ...(meta || {}),
+          consent_given: true,
+          consent_given_at: new Date().toISOString(),
+          consent_source: "admin_initiated",
+          onboarded: true,
+        },
+      })
+    }
   } else {
+    // New conversation initiated by admin — consent is implicit
     const conv = await messagingService.createMessagingConversations({
       partner_id: partnerId,
       phone_number: phone,
       status: "active",
+      metadata: {
+        consent_given: true,
+        consent_given_at: new Date().toISOString(),
+        consent_source: "admin_initiated",
+        onboarded: true,
+      },
     })
     conversationId = conv.id
   }

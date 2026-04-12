@@ -126,6 +126,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     title,
     status: "active",
     unread_count: 0,
+    metadata: {
+      consent_given: true,
+      consent_given_at: new Date().toISOString(),
+      consent_source: "admin_initiated",
+      onboarded: true,
+    },
   })
 
   res.status(201).json({ conversation })

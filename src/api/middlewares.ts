@@ -363,7 +363,7 @@ export default defineMiddlewares({
       matcher: "/webhooks/social/whatsapp",
       method: "POST",
       middlewares: [],
-      bodyParser: false, // Need raw body for HMAC signature verification
+      bodyParser: { preserveRawBody: true }, // req.rawBody = Buffer for HMAC, req.body = parsed JSON
     },
     {
       matcher: "/webhooks/inbound-email/resend",
