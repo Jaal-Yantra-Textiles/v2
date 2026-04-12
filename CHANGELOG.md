@@ -1,3 +1,15 @@
+# [12.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.7.0...v12.8.0) (2026-04-12)
+
+
+### Bug Fixes
+
+* **workflows:** Workflow type query fix ([4bc650f](https://github.com/Jaal-Yantra-Textiles/v2/commit/4bc650f17978d6e291ad82c0ecaa6fd621f4a7a0))
+
+
+### Features
+
+* **api:** We made the partner onboarding better ([b4bdbdc](https://github.com/Jaal-Yantra-Textiles/v2/commit/b4bdbdce8e2ae5d8a66bac7d0b76d072d263a6f2))
+
 # [12.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.6.0...v12.7.0) (2026-04-11)
 
 
