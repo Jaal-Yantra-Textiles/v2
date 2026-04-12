@@ -1,3 +1,16 @@
+# [12.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.8.0...v12.9.0) (2026-04-12)
+
+
+### Bug Fixes
+
+* **api:** Medusa body parser ([bb62ce5](https://github.com/Jaal-Yantra-Textiles/v2/commit/bb62ce5cb3ad6b797451d1fb3bcf89089e160076))
+* **admin:** Whatsapp feature for the external platform ([caaffa2](https://github.com/Jaal-Yantra-Textiles/v2/commit/caaffa28698192064161cf1a9f2420fd48689b8b))
+
+
+### Features
+
+* **api:** Whatsapp verify feature ([2a05b5f](https://github.com/Jaal-Yantra-Textiles/v2/commit/2a05b5f2b10e18f7bf56c71d3b00eab6c6084992))
+
 # [12.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.7.0...v12.8.0) (2026-04-12)
 
 
