@@ -16,6 +16,8 @@ export type AdminPartner = {
   status: "active" | "inactive" | "pending"
   is_verified: boolean
   workspace_type?: "seller" | "manufacturer" | "individual"
+  whatsapp_number?: string | null
+  whatsapp_verified?: boolean
   metadata?: Record<string, any> | null
 }
 
@@ -255,6 +257,118 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
           )}
         </div>
       )}
+
+      <WhatsAppVerificationSection partner={partner} />
     </Container>
+  )
+}
+
+// ─── WhatsApp Verification Section ──────────────────────────────────────────
+
+const WhatsAppVerificationSection = ({ partner }: { partner: AdminPartner }) => {
+  const queryClient = useQueryClient()
+  const [phone, setPhone] = useState(partner.whatsapp_number || "")
+  const [notify, setNotify] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const isVerified = !!partner.whatsapp_verified && !!partner.whatsapp_number
+
+  const handleVerify = async () => {
+    const normalized = phone.replace(/[^0-9]/g, "")
+    if (normalized.length < 10) {
+      toast.error("Enter a valid phone number with country code")
+      return
+    }
+
+    setSaving(true)
+    try {
+      await sdk.client.fetch(`/admin/partners/${partner.id}/whatsapp-verify`, {
+        method: "POST",
+        body: { phone: normalized, notify },
+      })
+      queryClient.invalidateQueries({ queryKey: ["partner"] })
+      toast.success("WhatsApp number verified", {
+        description: notify ? `Notification sent to ${normalized}` : undefined,
+      })
+    } catch (e: any) {
+      toast.error("Verification failed", { description: e?.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemove = async () => {
+    setSaving(true)
+    try {
+      await sdk.client.fetch(`/admin/partners/${partner.id}/whatsapp-verify`, {
+        method: "DELETE",
+      })
+      setPhone("")
+      queryClient.invalidateQueries({ queryKey: ["partner"] })
+      toast.success("WhatsApp verification removed")
+    } catch (e: any) {
+      toast.error("Failed to remove", { description: e?.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="px-6 py-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <Heading level="h2" className="text-base">WhatsApp</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Verify a WhatsApp number for this partner to receive notifications
+          </Text>
+        </div>
+        {isVerified && (
+          <Badge color="green" size="2xsmall">Verified</Badge>
+        )}
+      </div>
+
+      {isVerified ? (
+        <div className="flex items-center justify-between rounded-lg border border-ui-border-base bg-ui-bg-subtle px-4 py-3">
+          <div>
+            <Text size="small" weight="plus">{partner.whatsapp_number}</Text>
+            <Text size="xsmall" className="text-ui-fg-muted">Verified WhatsApp number</Text>
+          </div>
+          <Button
+            size="small"
+            variant="danger"
+            onClick={handleRemove}
+            disabled={saving}
+          >
+            Remove
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <Label size="small">Phone Number</Label>
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. 919667554245 (with country code, no +)"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={notify} onCheckedChange={setNotify} />
+            <Label size="small">Send verification notification to partner</Label>
+          </div>
+          <div className="flex justify-end">
+            <Button
+              size="small"
+              variant="primary"
+              onClick={handleVerify}
+              disabled={saving || !phone.trim()}
+              isLoading={saving}
+            >
+              Verify Number
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

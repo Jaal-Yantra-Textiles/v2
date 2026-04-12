@@ -20,6 +20,8 @@ export interface AdminPartner {
   status: "active" | "inactive" | "pending"
   is_verified: boolean
   workspace_type?: "seller" | "manufacturer" | "individual"
+  whatsapp_number?: string | null
+  whatsapp_verified?: boolean
   metadata?: Record<string, any> | null
   created_at: string
   updated_at: string

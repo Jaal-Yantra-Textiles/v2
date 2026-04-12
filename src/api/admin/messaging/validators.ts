@@ -14,10 +14,11 @@ export const ListMessagesQuerySchema = z.object({
 
 export const SendMessageSchema = z.object({
   content: z.string().min(1),
-  context_type: z.enum(["production_run", "inventory_item"]).optional(),
+  context_type: z.enum(["production_run", "inventory_item", "design"]).optional(),
   context_id: z.string().optional(),
   media_url: z.string().optional(),
   media_mime_type: z.string().optional(),
+  media_filename: z.string().optional(),
 })
 
 export const CreateConversationSchema = z.object({

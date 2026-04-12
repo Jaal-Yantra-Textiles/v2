@@ -99,6 +99,7 @@ export const useSendMessage = (conversationId: string) => {
       context_id?: string
       media_url?: string
       media_mime_type?: string
+      media_filename?: string
     }) =>
       sdk.client.fetch<{ message: Message }>(`/admin/messaging/${conversationId}`, {
         method: "POST",

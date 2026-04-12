@@ -103,7 +103,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
   const whatsapp = socialProvider.getWhatsApp(req.scope)
 
-  const waResponse = await whatsapp.sendTextMessage(conversation.phone_number, messageText)
+  let waResponse: any
+  if (messageType === "media" && body.media_url) {
+    // Send media first, then text caption separately if content differs
+    waResponse = await whatsapp.sendMediaMessage(
+      conversation.phone_number,
+      body.media_url,
+      body.media_mime_type,
+      body.content,
+      body.media_filename
+    )
+  } else {
+    waResponse = await whatsapp.sendTextMessage(conversation.phone_number, messageText)
+  }
   const waMessageId = waResponse?.messages?.[0]?.id || null
 
   // Get admin user name
@@ -131,6 +143,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     context_snapshot: contextSnapshot,
     media_url: body.media_url || null,
     media_mime_type: body.media_mime_type || null,
+    metadata: body.media_filename ? { filename: body.media_filename } : null,
   })
 
   // Update conversation

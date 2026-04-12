@@ -56,15 +56,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(401).send("Unauthorized")
   }
 
-  // Read raw body for signature validation
-  let rawBody = ""
-  await new Promise<void>((resolve, reject) => {
-    req.on("data", (chunk) => {
-      rawBody += chunk.toString("utf8")
-    })
-    req.on("end", () => resolve())
-    req.on("error", (err) => reject(err))
-  })
+  // Use the already-parsed body from Express/Medusa middleware.
+  // Re-serialize to validate the HMAC signature against the canonical JSON.
+  // Note: If raw body middleware is configured, (req as any).rawBody would be preferred.
+  const rawBody = (req as any).rawBody
+    ? (req as any).rawBody.toString("utf8")
+    : JSON.stringify(req.body)
 
   // Validate HMAC
   const expectedSignature = crypto
@@ -77,7 +74,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(401).send("Unauthorized")
   }
 
-  const body = JSON.parse(rawBody) as WhatsAppWebhookPayload
+  const body = req.body as WhatsAppWebhookPayload
 
   // Return 200 immediately (Meta requires response within 20 seconds)
   res.status(200).send("EVENT_RECEIVED")
@@ -219,6 +216,14 @@ function parseWebhookMessage(msg: any): {
         mediaId: msg.document?.id,
         mediaMimeType: msg.document?.mime_type,
         text: msg.document?.caption,
+      }
+
+    case "audio":
+      return {
+        ...base,
+        type: "audio",
+        mediaId: msg.audio?.id,
+        mediaMimeType: msg.audio?.mime_type,
       }
 
     default:

@@ -114,10 +114,23 @@ export async function handleIncomingMessage(
     return { handled: true, error: "unregistered_phone" }
   }
 
-  // Persist inbound message
-  await persistInboundMessage(scope, message, partner.partnerId, partner.adminName).catch((e: any) => {
+  // Persist inbound message and get the conversation ID for outbound tracking
+  const conversationId = await persistInboundMessage(scope, message, partner.partnerId, partner.adminName).catch((e: any) => {
     console.warn("[whatsapp-handler] Failed to persist inbound message:", e.message)
+    return null as string | null
   })
+
+  // Helper to persist outbound replies in the same conversation
+  const originalSend = whatsapp.sendTextMessage.bind(whatsapp)
+  whatsapp.sendTextMessage = async (to: string, text: string) => {
+    const result = await originalSend(to, text)
+    if (conversationId) {
+      await persistOutboundMessage(scope, conversationId, text, result?.messages?.[0]?.id).catch((e: any) => {
+        console.warn("[whatsapp-handler] Failed to persist outbound message:", e.message)
+      })
+    }
+    return result
+  }
 
   // Determine action from button reply or text
   let action = ""
@@ -568,18 +581,35 @@ async function persistInboundMessage(
   message: IncomingMessage,
   partnerId: string,
   senderName: string
-): Promise<void> {
+): Promise<string> {
   const messagingService = scope.resolve(MESSAGING_MODULE) as any
 
-  // Find or create conversation for this partner+phone
-  const [existing] = await messagingService.listMessagingConversations(
-    { partner_id: partnerId, phone_number: message.from },
-    { take: 1 }
+  // Normalize incoming phone: digits only
+  const incomingDigits = message.from.replace(/[^0-9]/g, "")
+
+  // Find existing conversation for this partner by matching phone numbers
+  // WhatsApp sends digits-only (393933806825), but conversations may store
+  // with "+" prefix (+393933806825) or other formatting
+  const [allConversations] = await messagingService.listAndCountMessagingConversations(
+    { partner_id: partnerId },
+    { take: 50 }
   )
+
+  const existing = (allConversations || []).find((conv: any) => {
+    const convDigits = (conv.phone_number || "").replace(/[^0-9]/g, "")
+    return phoneMatches(convDigits, incomingDigits)
+  })
 
   let conversationId: string
   if (existing) {
     conversationId = existing.id
+    // Reactivate if archived
+    if (existing.status === "archived") {
+      await messagingService.updateMessagingConversations({
+        id: existing.id,
+        status: "active",
+      })
+    }
   } else {
     const conv = await messagingService.createMessagingConversations({
       partner_id: partnerId,
@@ -616,5 +646,34 @@ async function persistInboundMessage(
     id: conversationId,
     last_message_at: new Date(),
     unread_count: (existing?.unread_count || 0) + 1,
+  })
+
+  return conversationId
+}
+
+/**
+ * Persist an outbound WhatsApp message (bot reply) to the messaging module.
+ */
+async function persistOutboundMessage(
+  scope: any,
+  conversationId: string,
+  content: string,
+  waMessageId?: string
+): Promise<void> {
+  const messagingService = scope.resolve(MESSAGING_MODULE) as any
+
+  await messagingService.createMessagingMessages({
+    conversation_id: conversationId,
+    direction: "outbound",
+    sender_name: "JYT Bot",
+    content,
+    message_type: "text",
+    wa_message_id: waMessageId || null,
+    status: "sent",
+  })
+
+  await messagingService.updateMessagingConversations({
+    id: conversationId,
+    last_message_at: new Date(),
   })
 }

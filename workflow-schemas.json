@@ -3814,6 +3814,24 @@
     "source": "inferred",
     "sourceFile": "src/workflows/meta-ads/fetch-overview/index.ts"
   },
+  "associate-partner-person-types": {
+    "fields": [
+      {
+        "name": "partnerId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.partnerId }}"
+      },
+      {
+        "name": "personTypeIds",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.personTypeIds }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner/associate-partner-person-types.ts"
+  },
   "create-partner-admin": {
     "fields": [
       {
@@ -4694,7 +4712,7 @@
       }
     ],
     "source": "custom_ts",
-    "sourceFile": "src/workflows/production-runs/production-run-steps 2.ts"
+    "sourceFile": "src/workflows/production-runs/production-run-steps.ts"
   },
   "recreate-production-run": {
     "fields": [

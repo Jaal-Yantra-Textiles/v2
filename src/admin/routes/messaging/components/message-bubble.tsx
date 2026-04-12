@@ -17,6 +17,61 @@ function statusIcon(status: string): string {
   }
 }
 
+function isImageMime(mime?: string | null): boolean {
+  return !!mime && mime.startsWith("image/")
+}
+
+function isVideoMime(mime?: string | null): boolean {
+  return !!mime && mime.startsWith("video/")
+}
+
+const MediaPreview = ({ message }: { message: Message }) => {
+  if (!message.media_url) return null
+
+  const filename = (message.metadata as any)?.filename || message.media_url.split("/").pop() || "file"
+  const isOutbound = message.direction === "outbound"
+
+  if (isImageMime(message.media_mime_type)) {
+    return (
+      <a href={message.media_url} target="_blank" rel="noopener noreferrer" className="block mb-1">
+        <img
+          src={message.media_url}
+          alt={filename}
+          className="max-w-full rounded-md max-h-48 object-cover"
+        />
+      </a>
+    )
+  }
+
+  if (isVideoMime(message.media_mime_type)) {
+    return (
+      <video
+        src={message.media_url}
+        controls
+        className="max-w-full rounded-md max-h-48"
+      />
+    )
+  }
+
+  // Document / other file
+  return (
+    <a
+      href={message.media_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={clx(
+        "flex items-center gap-2 rounded-md border px-3 py-2 mb-1 text-xs transition-colors",
+        isOutbound
+          ? "border-white/20 hover:bg-white/10"
+          : "border-ui-border-base hover:bg-ui-bg-base-hover"
+      )}
+    >
+      <span>📄</span>
+      <span className="truncate">{filename}</span>
+    </a>
+  )
+}
+
 export const MessageBubble = ({ message }: { message: Message }) => {
   const isOutbound = message.direction === "outbound"
 
@@ -45,7 +100,11 @@ export const MessageBubble = ({ message }: { message: Message }) => {
           </div>
         )}
 
-        <div className="whitespace-pre-wrap break-words">{message.content}</div>
+        <MediaPreview message={message} />
+
+        {message.content && (
+          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+        )}
 
         <div className={clx("flex items-center gap-1 justify-end mt-1", isOutbound ? "text-ui-fg-on-color/60" : "text-ui-fg-muted")}>
           <span className="text-[10px]">{formatTime(message.created_at)}</span>

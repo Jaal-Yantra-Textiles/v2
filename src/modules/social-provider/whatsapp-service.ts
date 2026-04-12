@@ -359,6 +359,80 @@ export default class WhatsAppService {
   }
 
   /**
+   * Send an image message via URL
+   */
+  async sendImageMessage(
+    to: string,
+    imageUrl: string,
+    caption?: string
+  ): Promise<WhatsAppMessageResponse> {
+    return this.sendRequest({
+      messaging_product: "whatsapp",
+      to,
+      type: "image",
+      image: { link: imageUrl, ...(caption ? { caption } : {}) },
+    })
+  }
+
+  /**
+   * Send a document message via URL
+   */
+  async sendDocumentMessage(
+    to: string,
+    documentUrl: string,
+    caption?: string,
+    filename?: string
+  ): Promise<WhatsAppMessageResponse> {
+    return this.sendRequest({
+      messaging_product: "whatsapp",
+      to,
+      type: "document",
+      document: {
+        link: documentUrl,
+        ...(caption ? { caption } : {}),
+        ...(filename ? { filename } : {}),
+      },
+    })
+  }
+
+  /**
+   * Send a video message via URL
+   */
+  async sendVideoMessage(
+    to: string,
+    videoUrl: string,
+    caption?: string
+  ): Promise<WhatsAppMessageResponse> {
+    return this.sendRequest({
+      messaging_product: "whatsapp",
+      to,
+      type: "video",
+      video: { link: videoUrl, ...(caption ? { caption } : {}) },
+    })
+  }
+
+  /**
+   * Send media based on MIME type — auto-detects image/document/video
+   */
+  async sendMediaMessage(
+    to: string,
+    mediaUrl: string,
+    mimeType?: string,
+    caption?: string,
+    filename?: string
+  ): Promise<WhatsAppMessageResponse> {
+    const mime = (mimeType || "").toLowerCase()
+    if (mime.startsWith("image/")) {
+      return this.sendImageMessage(to, mediaUrl, caption)
+    }
+    if (mime.startsWith("video/")) {
+      return this.sendVideoMessage(to, mediaUrl, caption)
+    }
+    // Default to document for PDFs, spreadsheets, and everything else
+    return this.sendDocumentMessage(to, mediaUrl, caption, filename)
+  }
+
+  /**
    * Mark a message as read
    */
   async markAsRead(messageId: string): Promise<void> {

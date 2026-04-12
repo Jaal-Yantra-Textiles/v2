@@ -51,6 +51,31 @@ export async function buildContextSnapshot(
       return { snapshot, formattedText: lines.join("\n") }
     }
 
+    case "design": {
+      const designService = container.resolve("design") as any
+      const design = await designService.retrieveDesign(contextId).catch(() => null)
+      if (!design) throw new Error(`Design ${contextId} not found`)
+
+      const snapshot = {
+        id: design.id,
+        name: design.name || design.title,
+        status: design.status,
+        fabric_type: design.fabric_type,
+        color: design.color,
+        thumbnail: design.thumbnail,
+      }
+
+      const lines = [
+        `🎨 *Design*`,
+        `*Name:* ${design.name || design.title || "N/A"}`,
+        `*Status:* ${design.status}`,
+      ]
+      if (design.fabric_type) lines.push(`*Fabric:* ${design.fabric_type}`)
+      if (design.color) lines.push(`*Color:* ${design.color}`)
+
+      return { snapshot, formattedText: lines.join("\n") }
+    }
+
     case "inventory_item": {
       const { data: items } = await query.graph({
         entity: "inventory_items",

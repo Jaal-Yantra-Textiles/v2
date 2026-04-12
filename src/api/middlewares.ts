@@ -2524,6 +2524,15 @@ export default defineMiddlewares({
       matcher: "/admin/partners/:id/person-types",
       method: "POST",
     },
+    // Admin partner WhatsApp verification
+    {
+      matcher: "/admin/partners/:id/whatsapp-verify",
+      method: "POST",
+    },
+    {
+      matcher: "/admin/partners/:id/whatsapp-verify",
+      method: "DELETE",
+    },
     {
       matcher: "/admin/persons/partner",
       method: "GET",
