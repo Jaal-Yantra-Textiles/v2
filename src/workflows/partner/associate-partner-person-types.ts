@@ -21,7 +21,7 @@ const associatePartnerPersonTypesStep = createStep(
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
     // Dismiss existing links first so this is an idempotent "set" operation
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data: existing } = await query.graph({
       entity: "partners",
       fields: ["person_types.id"],
