@@ -8,7 +8,7 @@ import { useCreateSocialPlatform } from "../../hooks/api/social-platforms" // Ad
 import { KeyboundForm } from "../utilitites/key-bound-form"
 import { Form } from "../common/form"
 import { useRouteModal } from "../modal/use-route-modal"
-import { EmailProviderFields } from "./email-provider-fields"
+import { CategoryProviderFields, hasProviderFields } from "./category-provider-fields"
 
 const CreateSocialPlatformSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -17,17 +17,57 @@ const CreateSocialPlatformSchema = z.object({
   category: z.enum(["social", "payment", "shipping", "email", "sms", "analytics", "crm", "storage", "communication", "authentication", "other"]).optional(),
   auth_type: z.enum(["oauth2", "oauth1", "api_key", "bearer", "basic"]).optional(),
   status: z.enum(["active", "inactive", "error", "pending"]).optional(),
-  // Email provider fields
-  provider_type: z.enum(["imap", "resend"]).optional(),
+  // Provider type (shared across categories)
+  provider_type: z.string().optional(),
+  // Email fields
   host: z.string().optional(),
   port: z.coerce.number().optional(),
   username: z.string().optional(),
   password: z.string().optional(),
   tls: z.boolean().optional(),
   mailbox: z.string().optional(),
-  api_key: z.string().optional(),
-  webhook_signing_secret: z.string().optional(),
   inbound_domain: z.string().optional(),
+  // Communication (WhatsApp) fields
+  phone_number_id: z.string().optional(),
+  access_token: z.string().optional(),
+  webhook_verify_token: z.string().optional(),
+  app_secret: z.string().optional(),
+  // SMS fields
+  account_sid: z.string().optional(),
+  auth_token: z.string().optional(),
+  from_number: z.string().optional(),
+  messaging_service_sid: z.string().optional(),
+  originator: z.string().optional(),
+  // Payment fields
+  secret_key: z.string().optional(),
+  publishable_key: z.string().optional(),
+  webhook_secret: z.string().optional(),
+  client_id: z.string().optional(),
+  client_secret: z.string().optional(),
+  mode: z.string().optional(),
+  // Shipping fields
+  account_number: z.string().optional(),
+  // Analytics fields
+  tracking_id: z.string().optional(),
+  project_token: z.string().optional(),
+  // Storage fields
+  access_key_id: z.string().optional(),
+  secret_access_key: z.string().optional(),
+  bucket: z.string().optional(),
+  region: z.string().optional(),
+  endpoint: z.string().optional(),
+  cloud_name: z.string().optional(),
+  project_id: z.string().optional(),
+  // CRM fields
+  instance_url: z.string().optional(),
+  portal_id: z.string().optional(),
+  // Auth fields
+  domain: z.string().optional(),
+  audience: z.string().optional(),
+  // Shared
+  api_key: z.string().optional(),
+  api_secret: z.string().optional(),
+  webhook_signing_secret: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.category === "email") {
     if (!data.provider_type) {
@@ -43,9 +83,163 @@ const CreateSocialPlatformSchema = z.object({
       if (!data.webhook_signing_secret) ctx.addIssue({ code: "custom", path: ["webhook_signing_secret"], message: "Webhook signing secret is required" })
     }
   }
+  if (data.category === "communication" && data.provider_type === "whatsapp") {
+    if (!data.phone_number_id) ctx.addIssue({ code: "custom", path: ["phone_number_id"], message: "Phone Number ID is required" })
+    if (!data.access_token) ctx.addIssue({ code: "custom", path: ["access_token"], message: "Access Token is required" })
+  }
 })
 
 type CreateSocialPlatformForm = z.infer<typeof CreateSocialPlatformSchema>
+
+/** Build api_config from form data based on category */
+function buildApiConfig(category: string, data: Record<string, any>): Record<string, any> {
+  const config: Record<string, any> = { provider: data.provider_type }
+
+  switch (category) {
+    case "email":
+      if (data.provider_type === "imap") {
+        Object.assign(config, {
+          host: data.host,
+          port: data.port || 993,
+          user: data.username,
+          password: data.password,
+          tls: data.tls !== false,
+          mailbox: data.mailbox || "INBOX",
+        })
+      } else {
+        Object.assign(config, {
+          api_key: data.api_key,
+          webhook_signing_secret: data.webhook_signing_secret,
+          inbound_domain: data.inbound_domain,
+        })
+      }
+      break
+
+    case "communication":
+      Object.assign(config, {
+        phone_number_id: data.phone_number_id,
+        access_token: data.access_token,
+        app_secret: data.app_secret,
+        webhook_verify_token: data.webhook_verify_token,
+      })
+      break
+
+    case "sms":
+      if (data.provider_type === "twilio") {
+        Object.assign(config, {
+          account_sid: data.account_sid,
+          auth_token: data.auth_token,
+          from_number: data.from_number,
+          messaging_service_sid: data.messaging_service_sid,
+        })
+      } else {
+        Object.assign(config, {
+          api_key: data.api_key,
+          originator: data.originator,
+        })
+      }
+      break
+
+    case "payment":
+      Object.assign(config, {
+        mode: data.mode || "test",
+        api_key: data.api_key,
+        secret_key: data.secret_key,
+        publishable_key: data.publishable_key,
+        webhook_secret: data.webhook_secret,
+        client_id: data.client_id,
+        client_secret: data.client_secret,
+      })
+      break
+
+    case "shipping":
+      Object.assign(config, {
+        mode: data.mode || "test",
+        api_key: data.api_key,
+        api_secret: data.api_secret,
+        account_number: data.account_number,
+      })
+      break
+
+    case "analytics":
+      Object.assign(config, {
+        tracking_id: data.tracking_id,
+        api_key: data.api_key,
+        api_secret: data.api_secret,
+        project_token: data.project_token,
+        host: data.host,
+      })
+      break
+
+    case "storage":
+      Object.assign(config, {
+        access_key_id: data.access_key_id,
+        secret_access_key: data.secret_access_key,
+        bucket: data.bucket,
+        region: data.region,
+        endpoint: data.endpoint,
+        cloud_name: data.cloud_name,
+        api_key: data.api_key,
+        api_secret: data.api_secret,
+        project_id: data.project_id,
+      })
+      break
+
+    case "crm":
+      Object.assign(config, {
+        api_key: data.api_key,
+        client_id: data.client_id,
+        client_secret: data.client_secret,
+        instance_url: data.instance_url,
+        portal_id: data.portal_id,
+      })
+      break
+
+    case "authentication":
+      Object.assign(config, {
+        domain: data.domain,
+        client_id: data.client_id,
+        client_secret: data.client_secret,
+        audience: data.audience,
+        secret_key: data.secret_key,
+        publishable_key: data.publishable_key,
+        project_id: data.project_id,
+        api_key: data.api_key,
+      })
+      break
+  }
+
+  // Remove undefined/empty values
+  return Object.fromEntries(
+    Object.entries(config).filter(([_, v]) => v !== undefined && v !== "")
+  )
+}
+
+/** Infer auth_type from category and provider */
+function inferAuthType(category: string, providerType?: string): string {
+  switch (category) {
+    case "email":
+      return providerType === "resend" ? "api_key" : "basic"
+    case "communication":
+      return "bearer"
+    case "sms":
+      return providerType === "twilio" ? "basic" : "api_key"
+    case "payment":
+      return "api_key"
+    case "shipping":
+      return "api_key"
+    case "analytics":
+      return "api_key"
+    case "storage":
+      return "api_key"
+    case "crm":
+      return providerType === "hubspot" ? "api_key" : "oauth2"
+    case "authentication":
+      return "oauth2"
+    default:
+      return "api_key"
+  }
+}
 
 export const CreateSocialPlatformComponent = () => {
   const { handleSuccess } = useRouteModal();
@@ -72,8 +266,8 @@ export const CreateSocialPlatformComponent = () => {
   })
 
   const { mutateAsync, isPending } = useCreateSocialPlatform()
-  const selectedCategory = form.watch("category")
-  const isEmail = selectedCategory === "email"
+  const selectedCategory = form.watch("category") || ""
+  const hasCategoryFields = hasProviderFields(selectedCategory)
 
   const onSubmit = form.handleSubmit(async (data) => {
     try {
@@ -84,24 +278,10 @@ export const CreateSocialPlatformComponent = () => {
         status: data.status,
       }
 
-      if (isEmail) {
-        const apiConfig: Record<string, any> = {
-          provider: data.provider_type,
-        }
-        if (data.provider_type === "imap") {
-          apiConfig.host = data.host
-          apiConfig.port = data.port || 993
-          apiConfig.user = data.username
-          apiConfig.password = data.password
-          apiConfig.tls = data.tls !== false
-          apiConfig.mailbox = data.mailbox || "INBOX"
-        } else {
-          apiConfig.api_key = data.api_key
-          apiConfig.webhook_signing_secret = data.webhook_signing_secret
-          apiConfig.inbound_domain = data.inbound_domain
-        }
-        payload.auth_type = data.provider_type === "resend" ? "api_key" : "basic"
+      if (hasCategoryFields) {
+        const apiConfig = buildApiConfig(data.category || "", data)
         payload.api_config = apiConfig
+        payload.auth_type = inferAuthType(data.category || "", data.provider_type)
         payload.metadata = { provider: data.provider_type }
         payload.status = "active"
       } else {
@@ -160,7 +340,7 @@ export const CreateSocialPlatformComponent = () => {
                   <Form.Item>
                     <Form.Label>Name</Form.Label>
                     <Form.Control>
-                      <Input {...field} placeholder={isEmail ? "e.g. Production IMAP, Resend Inbound" : "e.g. Facebook, Instagram"} />
+                      <Input {...field} placeholder="e.g. WhatsApp Business, Stripe, Facebook" />
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>
@@ -212,8 +392,9 @@ export const CreateSocialPlatformComponent = () => {
                 )}
               />
 
-              {isEmail ? (
-                <EmailProviderFields
+              {hasCategoryFields ? (
+                <CategoryProviderFields
+                  category={selectedCategory}
                   control={form.control}
                   watch={form.watch}
                 />
