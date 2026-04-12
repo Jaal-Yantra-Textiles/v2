@@ -1,18 +1,18 @@
 import { MedusaError } from "@medusajs/utils"
-import { PRODUCTION_RUNS_MODULE } from "../production_runs"
-import type ProductionRunService from "../production_runs/service"
-import { PARTNER_MODULE } from "../partner"
-import { acceptProductionRunWorkflow } from "../../workflows/production-runs/accept-production-run"
-import { signalLifecycleStepSuccessWorkflow } from "../../workflows/production-runs/production-run-steps"
+import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
+import type ProductionRunService from "../../modules/production_runs/service"
+import { PARTNER_MODULE } from "../../modules/partner"
+import { acceptProductionRunWorkflow } from "../production-runs/accept-production-run"
+import { signalLifecycleStepSuccessWorkflow } from "../production-runs/production-run-steps"
 import {
   awaitRunStartStepId,
   awaitRunFinishStepId,
   awaitRunCompleteStepId,
-} from "../../workflows/production-runs/run-production-run-lifecycle"
-import WhatsAppService from "./whatsapp-service"
-import { SOCIAL_PROVIDER_MODULE } from "./index"
-import type SocialProviderService from "./service"
-import { MESSAGING_MODULE } from "../messaging"
+} from "../production-runs/run-production-run-lifecycle"
+import WhatsAppService from "../../modules/social-provider/whatsapp-service"
+import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
+import type SocialProviderService from "../../modules/social-provider/service"
+import { MESSAGING_MODULE } from "../../modules/messaging"
 
 interface IncomingMessage {
   from: string // WhatsApp phone number

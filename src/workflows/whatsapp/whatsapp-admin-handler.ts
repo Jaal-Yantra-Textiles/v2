@@ -1,8 +1,12 @@
 import { Modules } from "@medusajs/framework/utils"
-import WhatsAppService from "./whatsapp-service"
-import { SOCIAL_PROVIDER_MODULE } from "./index"
-import type SocialProviderService from "./service"
-import { PRODUCTION_RUNS_MODULE } from "../production_runs"
+import WhatsAppService from "../../modules/social-provider/whatsapp-service"
+import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
+import type SocialProviderService from "../../modules/social-provider/service"
+import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
+import { createPartnerAdminWithRegistrationWorkflow } from "../partner/create-partner-admin"
+import { approveProductionRunWorkflow } from "../production-runs/approve-production-run"
+import { sendProductionRunToProductionWorkflow } from "../production-runs/send-production-run-to-production"
+import { reviewPaymentSubmissionWorkflow } from "../payment_submissions/review-payment-submission"
 
 interface IncomingMessage {
   from: string
@@ -391,10 +395,6 @@ async function handleCreatePartner(
   const handle = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
 
   try {
-    const { createPartnerAdminWithRegistrationWorkflow } = await import(
-      "../../workflows/partner/create-partner-admin"
-    )
-
     const { result } = await createPartnerAdminWithRegistrationWorkflow(scope).run({
       input: {
         partner: { name, handle },
@@ -407,7 +407,7 @@ async function handleCreatePartner(
       },
     })
 
-    const partnerId = result?.partner?.id || result?.id || "unknown"
+    const partnerId = (result as any)?.partnerWithAdmin?.createdPartner?.id || "unknown"
 
     await whatsapp.sendTextMessage(
       phone,
@@ -539,10 +539,6 @@ async function handleApproveRun(
     return { handled: true, action: "approve_run", error: "missing_id" }
   }
 
-  const { approveProductionRunWorkflow } = await import(
-    "../../workflows/production-runs/approve-production-run"
-  )
-
   await approveProductionRunWorkflow(scope).run({
     input: { production_run_id: runId },
   })
@@ -632,10 +628,6 @@ async function handleSendRun(
 
   const templateNames = (run.metadata?.dispatch_template_names as string[]) || []
 
-  const { sendProductionRunToProductionWorkflow } = await import(
-    "../../workflows/production-runs/send-production-run-to-production"
-  )
-
   await sendProductionRunToProductionWorkflow(scope).run({
     input: { production_run_id: runId, template_names: templateNames },
   })
@@ -705,10 +697,6 @@ async function handleReviewPayment(
     await whatsapp.sendTextMessage(phone, `Usage: \`${decision} payment <submission_id>${decision === "reject" ? " <reason>" : ""}\``)
     return { handled: true, action: `${decision}_payment`, error: "missing_id" }
   }
-
-  const { reviewPaymentSubmissionWorkflow } = await import(
-    "../../workflows/payment_submissions/review-payment-submission"
-  )
 
   await reviewPaymentSubmissionWorkflow(scope).run({
     input: {

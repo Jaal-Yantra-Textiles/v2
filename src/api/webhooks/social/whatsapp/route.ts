@@ -2,8 +2,8 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import crypto from "crypto"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"
 import type SocialProviderService from "../../../../modules/social-provider/service"
-import { handleIncomingMessage } from "../../../../modules/social-provider/whatsapp-message-handler"
-import { resolveAdminByPhone, handleAdminMessage } from "../../../../modules/social-provider/whatsapp-admin-handler"
+import { handleIncomingMessage } from "../../../../workflows/whatsapp/whatsapp-message-handler"
+import { resolveAdminByPhone, handleAdminMessage } from "../../../../workflows/whatsapp/whatsapp-admin-handler"
 import  { MESSAGING_MODULE } from "../../../../modules/messaging"
 
 /**
