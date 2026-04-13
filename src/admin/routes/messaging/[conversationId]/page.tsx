@@ -1,16 +1,24 @@
 import { useParams } from "react-router-dom"
-import { Button, FocusModal, Heading, Input, Select, Text, Badge, toast } from "@medusajs/ui"
+import {
+  Button, Heading, Text, Badge, toast,
+  DataTable, useDataTable, createDataTableFilterHelper, createDataTableCommandHelper,
+  CommandBar,
+  type DataTablePaginationState, type DataTableFilteringState,
+} from "@medusajs/ui"
+import { PencilSquare } from "@medusajs/icons"
 import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
+import { StackedFocusModal } from "../../../components/modal/stacked-modal/stacked-focused-modal"
 import { useConversationMessages, useSendMessage } from "../../../hooks/api/messaging"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { MessageBubble } from "../components/message-bubble"
 import { MessageInput, type SendPayload, type ReplyTo } from "../components/message-input"
 import type { Message } from "../../../hooks/api/messaging"
+import { type AdminDesign, useDesigns } from "../../../hooks/api/designs"
+import { createColumnHelper } from "@tanstack/react-table"
 
 const ConversationThreadModal = () => {
   const { conversationId } = useParams<{ conversationId: string }>()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [contextModal, setContextModal] = useState(false)
   const [replyTo, setReplyTo] = useState<ReplyTo | null>(null)
 
   const { conversation, messages = [], isPending } = useConversationMessages(
@@ -49,20 +57,21 @@ const ConversationThreadModal = () => {
     )
   }
 
-  const handleSendContext = (contextType: string, contextId: string, label: string) => {
-    setContextModal(false)
-    sendMutation.mutate(
-      {
-        content: `Sharing: ${label}`,
-        context_type: contextType,
-        context_id: contextId,
-      },
-      {
-        onError: (err: any) => {
-          toast.error(err?.message || "Failed to send")
+  const handleSendDesigns = (designs: AdminDesign[]) => {
+    for (const design of designs) {
+      sendMutation.mutate(
+        {
+          content: `Sharing: ${design.name || design.id} (${design.status})`,
+          context_type: "design",
+          context_id: design.id,
         },
-      }
-    )
+        {
+          onError: (err: any) => {
+            toast.error(err?.message || `Failed to send ${design.name}`)
+          },
+        }
+      )
+    }
   }
 
   return (
@@ -103,27 +112,19 @@ const ConversationThreadModal = () => {
               )}
             </div>
 
-            {/* Input */}
+            {/* Input + Share Designs */}
             <div className="shrink-0">
               <MessageInput
                 onSend={handleSend}
                 isSending={sendMutation.isPending}
-                onAttachContext={() => setContextModal(true)}
                 replyTo={replyTo}
                 onCancelReply={() => setReplyTo(null)}
               />
             </div>
+            <ShareDesignsStacked onSend={handleSendDesigns} />
           </div>
         )}
       </RouteFocusModal.Body>
-
-      {/* Context picker modal */}
-      <ContextPickerModal
-        open={contextModal}
-        onClose={() => setContextModal(false)}
-        onSelect={handleSendContext}
-        partnerId={conversation?.partner_id}
-      />
     </RouteFocusModal>
   )
 }
@@ -134,133 +135,197 @@ export const handle = {
   breadcrumb: () => "Thread",
 }
 
-// ─── Context Picker Modal ────────────────────────────────────────────────────
+// ─── Share Designs (Stacked Modal + DataTable + CommandBar) ─────────────────
 
-const ContextPickerModal = ({
-  open,
-  onClose,
-  onSelect,
-  partnerId,
-}: {
-  open: boolean
-  onClose: () => void
-  onSelect: (contextType: string, contextId: string, label: string) => void
-  partnerId?: string
-}) => {
-  const [contextType, setContextType] = useState<string>("design")
-  const [contextId, setContextId] = useState("")
-  const [items, setItems] = useState<{ id: string; label: string }[]>([])
-  const [loading, setLoading] = useState(false)
+const designFilterHelper = createDataTableFilterHelper<AdminDesign>()
 
-  const loadItems = async (type: string) => {
-    setLoading(true)
-    setItems([])
-    setContextId("")
-    try {
-      const { sdk } = await import("../../../lib/config.js")
-      if (type === "design") {
-        const resp: any = await sdk.client.fetch("/admin/designs", {
-          method: "GET",
-          query: { limit: 50, fields: "id,name,status" },
-        })
-        setItems((resp.designs || []).map((d: any) => ({
-          id: d.id,
-          label: `${d.name || d.id} (${d.status})`,
-        })))
-      } else if (type === "production_run") {
-        const resp: any = await sdk.client.fetch("/admin/production-runs", {
-          method: "GET",
-          query: { limit: 50 },
-        })
-        const runs = resp.production_runs || resp.data || []
-        setItems(runs.map((r: any) => ({
-          id: r.id,
-          label: `${r.id} - ${r.status}`,
-        })))
+const designFilters = [
+  designFilterHelper.accessor("status", {
+    type: "select",
+    label: "Status",
+    options: [
+      { label: "Conceptual", value: "Conceptual" },
+      { label: "In Development", value: "In_Development" },
+      { label: "Technical Review", value: "Technical_Review" },
+      { label: "Sample Production", value: "Sample_Production" },
+      { label: "Approved", value: "Approved" },
+      { label: "Commerce Ready", value: "Commerce_Ready" },
+      { label: "Revision", value: "Revision" },
+      { label: "Rejected", value: "Rejected" },
+    ],
+  }),
+  designFilterHelper.accessor("design_type", {
+    type: "select",
+    label: "Type",
+    options: [
+      { label: "Fabric", value: "Fabric" },
+      { label: "Pattern", value: "Pattern" },
+      { label: "Garment", value: "Garment" },
+      { label: "Accessory", value: "Accessory" },
+    ],
+  }),
+  designFilterHelper.accessor("priority", {
+    type: "select",
+    label: "Priority",
+    options: [
+      { label: "High", value: "High" },
+      { label: "Medium", value: "Medium" },
+      { label: "Low", value: "Low" },
+    ],
+  }),
+]
+
+const designColumnHelper = createColumnHelper<AdminDesign>()
+
+const designColumns = [
+  designColumnHelper.accessor("name", {
+    header: "Name",
+    cell: ({ getValue, row }) => (
+      <div>
+        <div className="font-medium">{getValue() || row.original.id}</div>
+      </div>
+    ),
+  }),
+  designColumnHelper.accessor("status", {
+    header: "Status",
+    cell: ({ getValue }) => {
+      const s = getValue()
+      if (!s) return null
+      const colors: Record<string, "green" | "orange" | "blue" | "grey" | "red"> = {
+        Approved: "green", Commerce_Ready: "green", In_Development: "orange",
+        Technical_Review: "blue", Sample_Production: "blue", Conceptual: "grey",
+        Revision: "orange", Rejected: "red", On_Hold: "grey", Superseded: "grey",
       }
-    } catch (e: any) {
-      console.error("Failed to load items:", e.message)
-    } finally {
-      setLoading(false)
+      return <Badge color={colors[s] || "grey"} size="2xsmall">{s.replace(/_/g, " ")}</Badge>
+    },
+  }),
+  designColumnHelper.accessor("design_type", {
+    header: "Type",
+    cell: ({ getValue }) => {
+      const t = getValue()
+      return t ? <Text size="xsmall" className="text-ui-fg-muted">{t}</Text> : null
+    },
+  }),
+  designColumnHelper.accessor("priority", {
+    header: "Priority",
+    cell: ({ getValue }) => {
+      const p = getValue()
+      if (!p) return null
+      const c: Record<string, "red" | "orange" | "green" | "grey"> = { High: "red", Medium: "orange", Low: "green" }
+      return <Badge color={c[p] || "grey"} size="2xsmall">{p}</Badge>
+    },
+  }),
+]
+
+const ShareDesignsStacked = ({ onSend }: { onSend: (designs: AdminDesign[]) => void }) => {
+  const [pagination, setPagination] = useState<DataTablePaginationState>({ pageIndex: 0, pageSize: 10 })
+  const [search, setSearch] = useState("")
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }, [])
+
+  const serverFilters = useMemo(() => {
+    const f: Record<string, any> = {}
+    if (filtering["status"]) f.status = filtering["status"]
+    if (filtering["design_type"]) f.design_type = filtering["design_type"]
+    if (filtering["priority"]) f.priority = filtering["priority"]
+    return f
+  }, [filtering])
+
+  const { designs, count = 0, isLoading } = useDesigns({
+    limit: pagination.pageSize,
+    offset: pagination.pageIndex * pagination.pageSize,
+    q: search || undefined,
+    ...serverFilters,
+  })
+
+  const data = useMemo(() => (designs || []) as AdminDesign[], [designs])
+
+  const selectedCount = Object.keys(rowSelection).filter((k) => rowSelection[k]).length
+
+  const sendSelected = async () => {
+    const selectedDesigns = data.filter((d) => rowSelection[d.id])
+    if (selectedDesigns.length > 0) {
+      onSend(selectedDesigns)
+      setRowSelection({})
     }
   }
 
-  useEffect(() => {
-    if (open) loadItems(contextType)
-  }, [open, contextType])
-
-  const selectedItem = items.find((i) => i.id === contextId)
+  const table = useDataTable({
+    columns: designColumns,
+    data,
+    getRowId: (row) => row.id,
+    rowCount: count,
+    isLoading,
+    filters: designFilters,
+    rowSelection: {
+      state: rowSelection,
+      onRowSelectionChange: setRowSelection,
+    },
+    pagination: {
+      state: pagination,
+      onPaginationChange: setPagination,
+    },
+    search: {
+      state: search,
+      onSearchChange: handleSearchChange,
+    },
+    filtering: {
+      state: filtering,
+      onFilteringChange: (next) => {
+        setFiltering(next)
+        setPagination((p) => ({ ...p, pageIndex: 0 }))
+      },
+    },
+  })
 
   return (
-    <FocusModal open={open} onOpenChange={(o) => !o && onClose()}>
-      <FocusModal.Content>
-        <FocusModal.Header>
-          <FocusModal.Title>Share with Partner</FocusModal.Title>
-        </FocusModal.Header>
-        <FocusModal.Body className="p-6 space-y-4">
-          <div>
-            <Text size="small" className="mb-1 font-medium block">Type</Text>
-            <Select
-              value={contextType}
-              onValueChange={(v) => {
-                setContextType(v)
-                loadItems(v)
-              }}
-            >
-              <Select.Trigger>
-                <Select.Value />
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Item value="design">Design</Select.Item>
-                <Select.Item value="production_run">Production Run</Select.Item>
-              </Select.Content>
-            </Select>
-          </div>
-
-          <div>
-            <Text size="small" className="mb-1 font-medium block">
-              Select {contextType === "design" ? "Design" : "Production Run"}
-            </Text>
-            {loading ? (
-              <Text size="small" className="text-ui-fg-muted">Loading...</Text>
-            ) : items.length === 0 ? (
-              <Text size="small" className="text-ui-fg-muted">No items found</Text>
-            ) : (
-              <Select value={contextId} onValueChange={setContextId}>
-                <Select.Trigger>
-                  <Select.Value placeholder="Select..." />
-                </Select.Trigger>
-                <Select.Content>
-                  {items.map((item) => (
-                    <Select.Item key={item.id} value={item.id}>
-                      {item.label}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-            )}
-          </div>
-        </FocusModal.Body>
-        <FocusModal.Footer>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="small" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="small"
-              disabled={!contextId}
-              onClick={() => {
-                if (contextId && selectedItem) {
-                  onSelect(contextType, contextId, selectedItem.label)
-                }
-              }}
-            >
-              Send
-            </Button>
-          </div>
-        </FocusModal.Footer>
-      </FocusModal.Content>
-    </FocusModal>
+    <StackedFocusModal id="share-designs-modal">
+      <StackedFocusModal.Trigger asChild>
+        <Button variant="secondary" size="small" className="mx-6 mb-3">
+          <PencilSquare className="mr-1.5" />
+          Share Designs
+        </Button>
+      </StackedFocusModal.Trigger>
+      <StackedFocusModal.Content className="flex flex-col overflow-hidden">
+        <StackedFocusModal.Header>
+          <StackedFocusModal.Title>Share Designs with Partner</StackedFocusModal.Title>
+        </StackedFocusModal.Header>
+        <StackedFocusModal.Body className="flex flex-col overflow-hidden p-0">
+          <DataTable instance={table}>
+            <DataTable.Toolbar className="flex justify-between items-center px-6 py-4">
+              <Heading level="h2">Designs</Heading>
+              <div className="flex items-center gap-x-2">
+                <DataTable.Search placeholder="Search designs..." />
+                <DataTable.FilterMenu tooltip="Filter designs" />
+              </div>
+            </DataTable.Toolbar>
+            <DataTable.Table />
+            <DataTable.Pagination />
+          </DataTable>
+          <CommandBar open={selectedCount > 0}>
+            <CommandBar.Bar>
+              <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
+              <CommandBar.Seperator />
+              <CommandBar.Command
+                action={sendSelected}
+                label={`Send to Partner`}
+                shortcut="s"
+              />
+              <CommandBar.Seperator />
+              <CommandBar.Command
+                action={async () => setRowSelection({})}
+                label="Clear"
+                shortcut="esc"
+              />
+            </CommandBar.Bar>
+          </CommandBar>
+        </StackedFocusModal.Body>
+      </StackedFocusModal.Content>
+    </StackedFocusModal>
   )
 }
