@@ -1,3 +1,11 @@
+## [12.9.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.1...v12.9.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* **scripts:** Build script can now check the build on backend ([7d3c219](https://github.com/Jaal-Yantra-Textiles/v2/commit/7d3c219a2da8799a39dd5148e9d736cd4a679304))
+* **api:** Fixed the ts errors ([a7ad6b5](https://github.com/Jaal-Yantra-Textiles/v2/commit/a7ad6b50b09ee03842a0adc215f5b933820d11a1))
+
 ## [12.9.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.0...v12.9.1) (2026-04-13)
 
 
