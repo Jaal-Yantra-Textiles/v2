@@ -1,3 +1,10 @@
+## [12.9.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.0...v12.9.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* **api:** Fixed whatsapp handler to behave nicel ([96fa7ad](https://github.com/Jaal-Yantra-Textiles/v2/commit/96fa7ad148af13b5d5fe7e92cf416a3ea045904f))
+
 # [12.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.8.0...v12.9.0) (2026-04-12)
 
 
