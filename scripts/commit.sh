@@ -12,6 +12,7 @@ NC='\033[0m' # No Color
 # Configuration
 SKIP_SECRETS=false
 SKIP_LINT=false
+SKIP_BUILD=false
 SHOW_DIFF=false
 EMOJI_MODE=false
 
@@ -24,6 +25,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-lint)
             SKIP_LINT=true
+            shift
+            ;;
+        --skip-build)
+            SKIP_BUILD=true
             shift
             ;;
         --diff)
@@ -40,6 +45,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --skip-secrets  Skip secret scanning"
             echo "  --skip-lint     Skip linting"
+            echo "  --skip-build    Skip build check"
             echo "  --diff          Show diff before committing"
             echo "  --emoji         Add emoji to commit messages"
             echo "  --help          Show this help message"
@@ -100,6 +106,37 @@ if [ "$SKIP_LINT" = false ]; then
             echo -e "${YELLOW}ESLint not found. Skipping linting.${NC}"
         fi
     fi
+fi
+
+# 4. Build check
+if [ "$SKIP_BUILD" = false ]; then
+    echo -e "\n${BLUE}Running build check...${NC}"
+
+    # Type-check only (fast) — catches TS errors without full medusa build
+    npx tsc --noEmit 2>&1 | grep -E "^src/" > /tmp/build-errors.txt 2>&1
+    BUILD_EXIT=$?
+    ERROR_COUNT=$(wc -l < /tmp/build-errors.txt | tr -d ' ')
+
+    if [ "$ERROR_COUNT" -gt 0 ]; then
+        echo -e "${RED}Build check found $ERROR_COUNT error(s):${NC}"
+        # Show first 15 errors
+        head -15 /tmp/build-errors.txt
+        if [ "$ERROR_COUNT" -gt 15 ]; then
+            echo -e "${YELLOW}  ... and $((ERROR_COUNT - 15)) more${NC}"
+        fi
+        echo -e "\n${YELLOW}Continue with commit anyway? (y/N)${NC}"
+        read -n 1 continue_build
+        echo
+
+        if [[ ! $continue_build =~ ^[Yy]$ ]]; then
+            echo -e "${RED}Commit aborted. Fix build errors first.${NC}"
+            rm -f /tmp/build-errors.txt
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}Build check passed!${NC}"
+    fi
+    rm -f /tmp/build-errors.txt
 fi
 
 # --- Interactive Commit Builder ---
