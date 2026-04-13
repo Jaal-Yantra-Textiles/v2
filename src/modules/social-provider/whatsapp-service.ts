@@ -455,7 +455,8 @@ export default class WhatsAppService {
       if (!resp.ok) return null
 
       const data = await resp.json() as { url?: string; mime_type?: string; file_size?: number }
-      return data?.url ? data : null
+      if (!data?.url) return null
+      return { url: data.url, mime_type: data.mime_type, file_size: data.file_size }
     } catch {
       return null
     }

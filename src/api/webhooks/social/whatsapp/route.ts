@@ -207,7 +207,7 @@ async function processWhatsAppWebhook(
   }
 }
 
-function parseWebhookMessage(msg: any): {
+interface ParsedWhatsAppMessage {
   from: string
   messageId: string
   type: "text" | "interactive" | "image" | "document" | "video" | "audio"
@@ -218,25 +218,21 @@ function parseWebhookMessage(msg: any): {
   mediaUrl?: string
   mediaMimeType?: string
   replyToWaMessageId?: string
-} | null {
-  const base: Record<string, any> = {
-    from: msg.from,
-    messageId: msg.id,
-  }
+}
 
-  // WhatsApp includes context.id when user replies to a specific message
-  if (msg.context?.id) {
-    base.replyToWaMessageId = msg.context.id
-  }
+function parseWebhookMessage(msg: any): ParsedWhatsAppMessage | null {
+  const from: string = msg.from
+  const messageId: string = msg.id
+  const replyToWaMessageId: string | undefined = msg.context?.id || undefined
 
   switch (msg.type) {
     case "text":
-      return { ...base, type: "text", text: msg.text?.body } as any
+      return { from, messageId, replyToWaMessageId, type: "text", text: msg.text?.body }
 
     case "interactive":
       if (msg.interactive?.type === "button_reply") {
         return {
-          ...base,
+          from, messageId, replyToWaMessageId,
           type: "interactive",
           buttonReplyId: msg.interactive.button_reply?.id,
           buttonReplyTitle: msg.interactive.button_reply?.title,
@@ -244,7 +240,7 @@ function parseWebhookMessage(msg: any): {
       }
       if (msg.interactive?.type === "list_reply") {
         return {
-          ...base,
+          from, messageId, replyToWaMessageId,
           type: "interactive",
           buttonReplyId: msg.interactive.list_reply?.id,
           buttonReplyTitle: msg.interactive.list_reply?.title,
@@ -254,7 +250,7 @@ function parseWebhookMessage(msg: any): {
 
     case "image":
       return {
-        ...base,
+        from, messageId, replyToWaMessageId,
         type: "image",
         mediaId: msg.image?.id,
         mediaMimeType: msg.image?.mime_type,
@@ -263,7 +259,7 @@ function parseWebhookMessage(msg: any): {
 
     case "video":
       return {
-        ...base,
+        from, messageId, replyToWaMessageId,
         type: "video",
         mediaId: msg.video?.id,
         mediaMimeType: msg.video?.mime_type,
@@ -272,7 +268,7 @@ function parseWebhookMessage(msg: any): {
 
     case "document":
       return {
-        ...base,
+        from, messageId, replyToWaMessageId,
         type: "document",
         mediaId: msg.document?.id,
         mediaMimeType: msg.document?.mime_type,
@@ -281,7 +277,7 @@ function parseWebhookMessage(msg: any): {
 
     case "audio":
       return {
-        ...base,
+        from, messageId, replyToWaMessageId,
         type: "audio",
         mediaId: msg.audio?.id,
         mediaMimeType: msg.audio?.mime_type,
