@@ -1,6 +1,6 @@
 {
   "name": "jyt-commerce-api",
-  "version": "12.9.2",
+  "version": "12.9.3",
   "private": true,
   "workspaces": [
     "apps/partner-ui",

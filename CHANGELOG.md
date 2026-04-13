@@ -1,3 +1,11 @@
+## [12.9.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.2...v12.9.3) (2026-04-13)
+
+
+### Bug Fixes
+
+* **admin:** UI changes on the messages ([15cb00a](https://github.com/Jaal-Yantra-Textiles/v2/commit/15cb00acb5e9862e636654910252ca9abeee938b))
+* **api:** Whats app business verification fixed ([32b2cb7](https://github.com/Jaal-Yantra-Textiles/v2/commit/32b2cb7f276eba218a1abbdb567b5dedf8e93eae))
+
 ## [12.9.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.1...v12.9.2) (2026-04-13)
 
 
