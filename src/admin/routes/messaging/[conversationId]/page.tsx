@@ -1,8 +1,8 @@
 import { useParams } from "react-router-dom"
 import {
   Button, Heading, Text, Badge, toast,
-  DataTable, useDataTable, createDataTableFilterHelper, createDataTableCommandHelper,
-  CommandBar,
+  DataTable, useDataTable,
+  createDataTableFilterHelper, createDataTableColumnHelper, createDataTableCommandHelper,
   type DataTablePaginationState, type DataTableFilteringState,
 } from "@medusajs/ui"
 import { PencilSquare } from "@medusajs/icons"
@@ -14,7 +14,6 @@ import { MessageBubble } from "../components/message-bubble"
 import { MessageInput, type SendPayload, type ReplyTo } from "../components/message-input"
 import type { Message } from "../../../hooks/api/messaging"
 import { type AdminDesign, useDesigns } from "../../../hooks/api/designs"
-import { createColumnHelper } from "@tanstack/react-table"
 
 const ConversationThreadModal = () => {
   const { conversationId } = useParams<{ conversationId: string }>()
@@ -137,7 +136,9 @@ export const handle = {
 
 // ─── Share Designs (Stacked Modal + DataTable + CommandBar) ─────────────────
 
+const designColumnHelper = createDataTableColumnHelper<AdminDesign>()
 const designFilterHelper = createDataTableFilterHelper<AdminDesign>()
+const designCommandHelper = createDataTableCommandHelper()
 
 const designFilters = [
   designFilterHelper.accessor("status", {
@@ -175,16 +176,11 @@ const designFilters = [
   }),
 ]
 
-const designColumnHelper = createColumnHelper<AdminDesign>()
-
 const designColumns = [
+  designColumnHelper.select(),
   designColumnHelper.accessor("name", {
     header: "Name",
-    cell: ({ getValue, row }) => (
-      <div>
-        <div className="font-medium">{getValue() || row.original.id}</div>
-      </div>
-    ),
+    cell: ({ getValue }) => <div className="font-medium">{getValue()}</div>,
   }),
   designColumnHelper.accessor("status", {
     header: "Status",
@@ -203,7 +199,7 @@ const designColumns = [
     header: "Type",
     cell: ({ getValue }) => {
       const t = getValue()
-      return t ? <Text size="xsmall" className="text-ui-fg-muted">{t}</Text> : null
+      return t ? <Badge size="2xsmall">{t}</Badge> : null
     },
   }),
   designColumnHelper.accessor("priority", {
@@ -245,15 +241,21 @@ const ShareDesignsStacked = ({ onSend }: { onSend: (designs: AdminDesign[]) => v
 
   const data = useMemo(() => (designs || []) as AdminDesign[], [designs])
 
-  const selectedCount = Object.keys(rowSelection).filter((k) => rowSelection[k]).length
-
-  const sendSelected = async () => {
-    const selectedDesigns = data.filter((d) => rowSelection[d.id])
+  const sendSelected = useCallback(async (selection: Record<string, boolean>) => {
+    const selectedDesigns = data.filter((d) => selection[d.id])
     if (selectedDesigns.length > 0) {
       onSend(selectedDesigns)
       setRowSelection({})
     }
-  }
+  }, [data, onSend])
+
+  const commands = useMemo(() => [
+    designCommandHelper.command({
+      label: "Send to Partner",
+      shortcut: "s",
+      action: sendSelected,
+    }),
+  ], [sendSelected])
 
   const table = useDataTable({
     columns: designColumns,
@@ -262,6 +264,7 @@ const ShareDesignsStacked = ({ onSend }: { onSend: (designs: AdminDesign[]) => v
     rowCount: count,
     isLoading,
     filters: designFilters,
+    commands,
     rowSelection: {
       state: rowSelection,
       onRowSelectionChange: setRowSelection,
@@ -306,24 +309,8 @@ const ShareDesignsStacked = ({ onSend }: { onSend: (designs: AdminDesign[]) => v
             </DataTable.Toolbar>
             <DataTable.Table />
             <DataTable.Pagination />
+            <DataTable.CommandBar selectedLabel={(count) => `${count} selected`} />
           </DataTable>
-          <CommandBar open={selectedCount > 0}>
-            <CommandBar.Bar>
-              <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
-              <CommandBar.Seperator />
-              <CommandBar.Command
-                action={sendSelected}
-                label={`Send to Partner`}
-                shortcut="s"
-              />
-              <CommandBar.Seperator />
-              <CommandBar.Command
-                action={async () => setRowSelection({})}
-                label="Clear"
-                shortcut="esc"
-              />
-            </CommandBar.Bar>
-          </CommandBar>
         </StackedFocusModal.Body>
       </StackedFocusModal.Content>
     </StackedFocusModal>
