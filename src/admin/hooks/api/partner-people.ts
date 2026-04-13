@@ -77,10 +77,10 @@ export const useLinkPeopleToPartner = (
         }
       )
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerPeopleQueryKeys.detail(partnerId) })
       queryClient.invalidateQueries({ queryKey: partnersQueryKeys.detail(partnerId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -106,10 +106,10 @@ export const useUnlinkPeopleFromPartner = (
         }
       )
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerPeopleQueryKeys.detail(partnerId) })
       queryClient.invalidateQueries({ queryKey: partnersQueryKeys.detail(partnerId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })

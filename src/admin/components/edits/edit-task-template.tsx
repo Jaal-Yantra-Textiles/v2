@@ -124,7 +124,7 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
       customComponent: CategorySearch,
       customProps: {
         categories,
-        defaultValue: template.category?.name || "",
+        defaultValue: (typeof template.category === "object" ? template.category?.name : template.category) || "",
         onSelect: (category: any) => {
           if (category?.id) {
             return { id: category.id, name: category.name, isExisting: true };
@@ -189,9 +189,9 @@ export const EditTaskTemplateForm = ({ template }: EditTaskTemplateFormProps) =>
       defaultValues={{
         name: template.name,
         description: template.description,
-        category: template.category?.id ? 
-          { id: template.category.id, name: template.category.name, isExisting: true } : 
-          template.category?.name || "",
+        category: typeof template.category === "object" && template.category?.id ?
+          { id: template.category.id, name: template.category.name, isExisting: true } :
+          (typeof template.category === "object" ? template.category?.name : template.category) || "",
         estimated_duration: template.estimated_duration || 0,
         estimated_cost: template.estimated_cost || undefined,
         cost_currency: template.cost_currency || "",

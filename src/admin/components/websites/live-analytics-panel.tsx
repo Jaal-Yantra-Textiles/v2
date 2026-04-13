@@ -37,6 +37,7 @@ export const LiveAnalyticsPanel = () => {
     if (!websiteId) return;
 
     // Get API base URL from config and remove trailing slash
+// @ts-ignore
     let apiBaseUrl = import.meta.env.VITE_MEDUSA_BACKEND_URL || (import.meta.env.DEV ? "http://localhost:9000" : "");
     apiBaseUrl = apiBaseUrl.replace(/\/$/, ''); // Remove trailing slash
 

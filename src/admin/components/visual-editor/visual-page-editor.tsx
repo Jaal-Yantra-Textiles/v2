@@ -341,6 +341,7 @@ function getPreviewUrl(domain: string | undefined, slug: string): string {
   if (domain) {
     baseUrl = domain.startsWith("http") ? domain : `https://${domain}`
   } else {
+// @ts-ignore
     baseUrl = import.meta.env.VITE_PREVIEW_URL || "http://localhost:3000"
   }
   baseUrl = baseUrl.replace(/\/+$/, "")

@@ -272,7 +272,7 @@ export const TextileExtractionModal = ({
             >
               {isLoading ? (
                 <div className="flex items-center gap-x-2">
-                  <Spinner className="text-ui-fg-on-color" size="small" />
+                  <Spinner className="text-ui-fg-on-color" size="sm" />
                   Processing…
                 </div>
               ) : (

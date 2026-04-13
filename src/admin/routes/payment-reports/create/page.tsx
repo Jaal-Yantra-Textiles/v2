@@ -43,7 +43,7 @@ const CreatePaymentReportForm = () => {
       entity_type: "all",
       entity_id: "",
     },
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
   })
 
   const { handleSuccess } = useRouteModal()

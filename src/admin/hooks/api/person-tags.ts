@@ -57,18 +57,18 @@ export const useAddTagsToPerson = (
 
   return tagHooks.useCreateResource(personId, {
     ...restOptions,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.detail(personId),
       })
       const shaped = toTagResult(data)
       if (shaped) {
-        onSuccess?.(shaped, variables, context)
+        onSuccess?.(shaped, variables, _mutateResult, context)
       }
     },
-    onSettled: (data, error, variables, context) => {
+    onSettled: (data, error, variables, _mutateResult, context) => {
       const shaped = data ? toTagResult(data) : undefined
-      onSettled?.(shaped, error, variables, context)
+      onSettled?.(shaped, error, variables, _mutateResult, context)
     },
   })
 }
@@ -83,18 +83,18 @@ export const useUpdatePersonTags = (
 
   return tagHooks.useUpdateResource(personId, tagId, {
     ...restOptions,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.detail(personId),
       })
       const shaped = toTagResult(data)
       if (shaped) {
-        onSuccess?.(shaped, variables, context)
+        onSuccess?.(shaped, variables, _mutateResult, context)
       }
     },
-    onSettled: (data, error, variables, context) => {
+    onSettled: (data, error, variables, _mutateResult, context) => {
       const shaped = data ? toTagResult(data) : undefined
-      onSettled?.(shaped, error, variables, context)
+      onSettled?.(shaped, error, variables, _mutateResult, context)
     },
   })
 }

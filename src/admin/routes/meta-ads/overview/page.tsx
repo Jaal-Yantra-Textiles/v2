@@ -1088,7 +1088,7 @@ export const handle = {
 }
 
 export async function loader(args: LoaderFunctionArgs) {
-  const { metaAdsOverviewLoader } = await import("./loader")
+  const { metaAdsOverviewLoader } = await import("./loader.js")
   return metaAdsOverviewLoader(args)
 }
 

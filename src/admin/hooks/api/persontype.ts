@@ -118,7 +118,7 @@ export const useCreatePersonType = (
       }
 
       if (options?.onSuccess) {
-        await options.onSuccess(data, variables, context);
+        await (options.onSuccess as any)(data, variables, undefined, context);
       }
     },
     onError: (error) => {
@@ -148,13 +148,13 @@ export const useUpdatePersonType = (
           body: payload,
         },
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: personTypeQueryKeys.lists() });
       queryClient.invalidateQueries({
         queryKey: personTypeQueryKeys.detail(id),
         refetchType: "all",
       });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -216,7 +216,7 @@ export const useDeletePersonType = (
       }
 
       if (options?.onSuccess) {
-        await options.onSuccess(data, variables, context);
+        await (options.onSuccess as any)(data, variables, undefined, context);
       }
     },
     onError: (error) => {
@@ -255,14 +255,14 @@ export const useBatchPersonGroups = (
           body: payload,
         },
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: personTypeQueryKeys.lists(),
       });
       queryClient.invalidateQueries({
         queryKey: personTypeQueryKeys.details(),
       });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });

@@ -1,1 +1,1 @@
-export { default, loader, config, handle } from "./page"
+export { default, loader, handle } from "./page"

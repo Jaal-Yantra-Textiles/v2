@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import { useFileUpload } from "./api/upload";
-import { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
+// @ts-ignore - excalidraw types is ESM only
+import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
 
 // Helper function to convert base64 to Blob
 function base64toBlob(dataURL: string, mime: string): Blob {

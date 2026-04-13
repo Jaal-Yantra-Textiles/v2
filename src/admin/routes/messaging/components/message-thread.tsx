@@ -3,7 +3,7 @@ import { Text, Badge, IconButton, toast } from "@medusajs/ui"
 import { XMark } from "@medusajs/icons"
 import { useConversationMessages, useSendMessage } from "../../../hooks/api/messaging"
 import { MessageBubble } from "./message-bubble"
-import { MessageInput } from "./message-input"
+import { MessageInput, type SendPayload } from "./message-input"
 
 export const MessageThread = ({
   conversationId,
@@ -28,9 +28,9 @@ export const MessageThread = ({
     }
   }, [messages?.length, conversationId])
 
-  const handleSend = (content: string) => {
+  const handleSend = (payload: SendPayload) => {
     sendMutation.mutate(
-      { content },
+      payload,
       {
         onError: (err: any) => {
           toast.error(err?.message || "Failed to send message. Check WhatsApp configuration.")

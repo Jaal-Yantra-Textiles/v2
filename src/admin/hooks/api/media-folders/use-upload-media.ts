@@ -44,14 +44,14 @@ export const useUploadMedia = (
       }
       return data as UploadMediaResponse
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Refresh combined medias page (folders, albums, files)
       queryClient.invalidateQueries({ queryKey: mediasQueryKeys.all })
       // Refresh dictionaries used by Selects (folders, albums)
       queryClient.invalidateQueries({ queryKey: ["media-dictionaries"] })
       // Refresh any generic media folders lists/hooks
       queryClient.invalidateQueries({ queryKey: ["media-folders", "list"] })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })

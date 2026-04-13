@@ -137,7 +137,7 @@ export const useCreateMediaFolder = (
       );
       return response;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: mediaFoldersQueryKeys.all });
       // Refresh dictionaries used by Selects (folders, albums)
       queryClient.invalidateQueries({ queryKey: ["media-dictionaries"] });
@@ -145,7 +145,7 @@ export const useCreateMediaFolder = (
       queryClient.invalidateQueries({ queryKey: ["media-folders", "list"] });
       // Refresh combined medias page (folders, albums, files)
       queryClient.invalidateQueries({ queryKey: mediasQueryKeys.all });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -168,9 +168,9 @@ export const useShareMediaFolder = (
         method: "POST",
       })
     },
-    onSuccess: (data, variables, ctx) => {
+    onSuccess: (data, variables, _mutateResult, ctx) => {
       queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, ctx)
+      options?.onSuccess?.(data, variables, _mutateResult, ctx)
     },
     ...options,
   })
@@ -188,9 +188,9 @@ export const useUnshareMediaFolder = (
         method: "DELETE",
       })
     },
-    onSuccess: (data, variables, ctx) => {
+    onSuccess: (data, variables, _mutateResult, ctx) => {
       queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, ctx)
+      options?.onSuccess?.(data, variables, _mutateResult, ctx)
     },
     ...options,
   })
@@ -215,9 +215,9 @@ export const useDeleteMediaFolder = (
         }
       );
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: mediaFoldersQueryKeys.all });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });

@@ -151,7 +151,7 @@ export const useInventoryItem = (
 }
 
 export const useInventoryItems = (
-  query?: HttpTypes.AdminInventoryItemParams,
+  query?: HttpTypes.AdminInventoryItemsParams,
   options?: Omit<
     UseQueryOptions<
       HttpTypes.AdminInventoryItemListResponse,
@@ -210,7 +210,7 @@ export const useCreateRawMaterial = (
         queryKey: ["raw-materials"],
       })
       
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, undefined, context as any)
     },
   })
 }
@@ -254,7 +254,7 @@ export const useUpdateRawMaterial = (
       queryClient.invalidateQueries({
         queryKey: ["raw-materials", inventoryId, materialId],
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, undefined, context as any)
     },
   })
 }
@@ -386,7 +386,7 @@ export const useSplitInventoryItem = (
       queryClient.invalidateQueries({
         queryKey: inventoryItemsRawMaterialQueryKeys.list(),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, undefined, context as any)
     },
   })
 }

@@ -46,7 +46,7 @@ export const useUploadFolderMedia = (
       const data = (await res.json()) as { result: UploadFolderMediaResponse }
       return data.result;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Refresh combined medias page (folders, albums, files)
       queryClient.invalidateQueries({ queryKey: mediasQueryKeys.all });
       // Refresh dictionaries used by Selects (folders, albums)
@@ -56,7 +56,7 @@ export const useUploadFolderMedia = (
       // Refresh this folder basic detail and composite detail
       queryClient.invalidateQueries({ queryKey: mediaFolderQueryKeys.detail(variables.folderId) });
       queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(variables.folderId) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });

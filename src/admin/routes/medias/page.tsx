@@ -212,7 +212,7 @@ const AllMediaPage = () => {
     }
     if (tab === "files") {
       base.push(
-        filterHelper.accessor("file_type", {
+        filterHelper.accessor("file_type" as any, {
           type: "select",
           label: "File Type",
           options: [

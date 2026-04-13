@@ -52,6 +52,10 @@ export interface AdminInventoryOrder {
   shipping_address?: Record<string, any>;
   stock_locations: StockLocations[];
   order_lines: OrderLine[];
+  is_sample?: boolean;
+  tasks?: any[];
+  partner?: any;
+  metadata?: Record<string, any> | null;
   created_at?: string;
   updated_at?: string;
 }

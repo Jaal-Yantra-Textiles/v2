@@ -222,7 +222,7 @@ const AssignmentsModal = ({
                       acc[cat].push(tpl)
                       return acc
                     }, {} as Record<string, any[]>)
-                  ).map(([categoryName, categoryTemplates]) => {
+                  ).map(([categoryName, categoryTemplates]: [string, any[]]) => {
                     const categoryNames = categoryTemplates.map((t: any) => String(t.name))
                     const selectedNames = assignment.template_names || []
                     const allSelected = categoryNames.every((n: string) => selectedNames.includes(n))

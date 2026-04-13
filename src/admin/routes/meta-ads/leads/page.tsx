@@ -304,7 +304,7 @@ export const handle = {
 }
 
 export async function loader(args: LoaderFunctionArgs) {
-  const { leadsLoader } = await import("./loader")
+  const { leadsLoader } = await import("./loader.js")
   return leadsLoader(args)
 }
 

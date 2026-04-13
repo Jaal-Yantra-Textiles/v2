@@ -362,7 +362,7 @@ const DesignOrdersPage = () => {
     columns,
     data: filteredRows,
     getRowId: (row) => row.cart_id,
-    onRowClick: (_, row) => navigate(`/design-orders/${row.original.items[0]?.line_item_id}`),
+    onRowClick: (_, row) => navigate(`/design-orders/${(row as any).original?.items[0]?.line_item_id ?? row.items[0]?.line_item_id}`),
     rowCount: count ?? 0,
     isLoading,
     filters,

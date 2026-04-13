@@ -52,7 +52,7 @@ export const ByPersonTab = () => {
           <Table.Body>
             {by_person.length === 0 ? (
               <Table.Row>
-                <Table.Cell colSpan={4}>
+                <Table.Cell {...{ colSpan: 4 } as any}>
                   <Text className="text-ui-fg-subtle">No data</Text>
                 </Table.Cell>
               </Table.Row>

@@ -105,9 +105,9 @@ export const useCreatePerson = (
         method: "POST",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -176,11 +176,11 @@ export const useUpdatePersonMetadata = (
           body: { metadata },
         },
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
       // Invalidate all person detail variants (different field expansions)
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -219,11 +219,11 @@ export const useSendAgreementToPerson = (
           body: payload,
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Invalidate all person detail variants and the agreements fetch
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
       queryClient.invalidateQueries({ queryKey: [PERSONS_QUERY_KEY, personId, "agreements"] });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -244,11 +244,11 @@ export const useUpdatePerson = (
         method: "POST",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
       // Invalidate all person detail variants (different field expansions)
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -264,10 +264,10 @@ export const useDeletePerson = (
       sdk.client.fetch<AdminPersonDeleteResponse>(`/admin/persons/${id}`, {
         method: "DELETE",
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Only invalidate the lists query since the detail no longer exists
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -288,12 +288,12 @@ export const useAddAddressToPerson = (
         method: "POST",
         body: addressData,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Invalidate all person detail variants to refresh any expanded sections
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.details(),
       });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -321,11 +321,11 @@ export const useAddPersonTypes = (
           body: payload,
         },
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Invalidate all person detail variants and the persons list
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -349,14 +349,14 @@ export const useBatchPersonGroups = (
           body: payload,
         },
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.lists(),
       });
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.details(),
       });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -414,11 +414,11 @@ export const useConfirmImportPersons = (
       
       return data;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Invalidate the persons list query to refresh the data
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });

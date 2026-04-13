@@ -12,7 +12,7 @@ export const useSocialPlatformTableColumns = () => {
         header: "Name",
         cell: (info) => info.getValue(),
       }),
-      columnHelper.accessor("url", {
+      columnHelper.accessor("base_url", {
         header: "URL",
         cell: (info) => {
           const url = info.getValue()

@@ -105,7 +105,7 @@ const CreatePartnerComponent = () => {
             validated.person_type_ids.length > 0
           ) {
             try {
-              const { sdk } = await import("../../../lib/config")
+              const { sdk } = await import("../../../lib/config.js")
               await sdk.client.fetch(`/admin/partners/${partner.id}/person-types`, {
                 method: "POST",
                 body: { person_type_ids: validated.person_type_ids },

@@ -34,9 +34,11 @@ export const FolderGeneralSection = ({ folder }: FolderGeneralSectionProps) => {
 
   const shareToken = (folder.metadata as Record<string, any> | null)?.share_token as string | undefined;
   const shareBase = useMemo(() => {
+    // @ts-ignore - import.meta.env is valid in Vite admin context
+    const viteEnv = import.meta.env || {};
     const envBase =
-      import.meta.env.VITE_MEDIA_GALLERY_BASE_URL &&
-      (import.meta.env.VITE_MEDIA_GALLERY_BASE_URL as string).replace(/\/$/, "");
+      viteEnv.VITE_MEDIA_GALLERY_BASE_URL &&
+      (viteEnv.VITE_MEDIA_GALLERY_BASE_URL as string).replace(/\/$/, "");
 
     if (envBase) {
       return envBase;

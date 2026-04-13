@@ -157,9 +157,9 @@ const ContextPickerModal = ({
     setItems([])
     setContextId("")
     try {
-      const { sdk } = await import("../../../lib/config")
+      const { sdk } = await import("../../../lib/config.js")
       if (type === "design") {
-        const resp = await sdk.client.fetch<any>("/admin/designs", {
+        const resp: any = await sdk.client.fetch("/admin/designs", {
           method: "GET",
           query: { limit: 50, fields: "id,name,status" },
         })
@@ -168,7 +168,7 @@ const ContextPickerModal = ({
           label: `${d.name || d.id} (${d.status})`,
         })))
       } else if (type === "production_run") {
-        const resp = await sdk.client.fetch<any>("/admin/production-runs", {
+        const resp: any = await sdk.client.fetch("/admin/production-runs", {
           method: "GET",
           query: { limit: 50 },
         })

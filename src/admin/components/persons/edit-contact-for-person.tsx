@@ -6,9 +6,9 @@ import { Select } from "@medusajs/ui";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useRouteModal } from "../modal/use-route-modal";
 import {
-  ContactDetail,
   useUpdatePersonContact,
 } from "../../hooks/api/person-contacts";
+import { ContactDetail } from "../../hooks/api/personandtype";
 
 const EditPersonContactSchema = z.object({
   phone_number: z.string().min(1, "Phone number is required"),

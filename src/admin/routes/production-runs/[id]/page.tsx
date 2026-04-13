@@ -16,7 +16,7 @@ const ProductionRunDetailPage = () => {
   const initialData = useLoaderData() as Awaited<{ production_run: any; tasks: any[] }>
 
   // Use the hook for live data, with loader data as initialData
-  const { data: liveData } = useProductionRun(id || "", undefined, {
+  const liveData = useProductionRun(id || "", undefined, {
     initialData: initialData as any,
     enabled: !!id,
   })

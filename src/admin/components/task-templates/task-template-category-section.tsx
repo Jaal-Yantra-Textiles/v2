@@ -15,16 +15,20 @@ export const TaskTemplateCategorySection = ({ template }: { template: AdminTaskT
     );
   }
 
+  const category = typeof template.category === "string"
+    ? { name: template.category, description: undefined as string | undefined }
+    : template.category as { name?: string; description?: string };
+
   const categoryFields: CommonField[] = [
     {
       label: t("fields.name"),
-      value: template.category.name,
+      value: category.name,
     },
-    ...(template.category.description
+    ...(category.description
       ? [
           {
             label: t("fields.description"),
-            value: template.category.description,
+            value: category.description,
           },
         ]
       : []),

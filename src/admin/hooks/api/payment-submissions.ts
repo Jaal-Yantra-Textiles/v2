@@ -181,11 +181,11 @@ export const useReviewPaymentSubmission = (
         `/admin/payment-submissions/${id}/review`,
         { method: "POST", body: payload }
       ) as Promise<{ payment_submission: PaymentSubmission; payment: any }>,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -242,9 +242,9 @@ export const useCreateReconciliation = (
         `/admin/payment_reports/reconciliation`,
         { method: "POST", body: payload }
       ) as Promise<{ reconciliation: PaymentReconciliation }>,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -260,10 +260,10 @@ export const useUpdateReconciliation = (
         `/admin/payment_reports/reconciliation/${id}`,
         { method: "PATCH", body: data }
       ) as Promise<{ reconciliation: PaymentReconciliation }>,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.detail(variables.id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -279,10 +279,10 @@ export const useSettleReconciliation = (
         `/admin/payment_reports/reconciliation/${id}/settle`,
         { method: "POST", body: data }
       ) as Promise<{ reconciliation: PaymentReconciliation }>,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.detail(variables.id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })

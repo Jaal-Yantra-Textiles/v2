@@ -20,7 +20,7 @@ export const EditInventoryOrderForm = ({ order }: EditInventoryOrderFormProps) =
 
   const { mutateAsync, isPending } = useUpdateInventoryOrder(order.id);
 
-  const fields: FieldConfig<EditInventoryOrderFormData>[] = [
+  const fields: FieldConfig<Partial<EditInventoryOrderFormData>>[] = [
     {
       name: "order_date",
       label: t("fields.orderDate"),

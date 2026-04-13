@@ -67,7 +67,7 @@ export const EditAddressForPersonForm = ({ personId, address }: EditAddressForPe
 
   return (
     <DynamicForm
-      fields={fields}
+      fields={fields as unknown as FieldConfig<FieldValues>[]}
       defaultValues={{
         street: address.street,
         city: address.city,

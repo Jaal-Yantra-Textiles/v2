@@ -28,7 +28,7 @@ export interface AdminTaskTemplate {
   notifiable: boolean;
   message_template: string;
   metadata?: Record<string, any> | null | undefined;
-  category?: string;
+  category?: string | { id: string; name: string };
   category_id?: string;
   created_at?: Date;
   updated_at?: Date;
@@ -134,10 +134,10 @@ export const useCreateTaskTemplate = (
         method: "POST",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: taskTemplateQueryKeys.lists() });
       if (options?.onSuccess) {
-        options.onSuccess(data, variables, context);
+        (options.onSuccess as any)(data, variables, _mutateResult, context);
       }
     },
     ...options,
@@ -159,10 +159,10 @@ export const useUpdateTaskTemplate = (
         method: "PUT",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: taskTemplateQueryKeys.detail(id)});
       if (options?.onSuccess) {
-        options.onSuccess(data, variables, context);
+        (options.onSuccess as any)(data, variables, _mutateResult, context);
       }
     },
     ...options,
@@ -179,10 +179,10 @@ export const useDeleteTaskTemplate = (
       sdk.client.fetch<AdminTaskTemplate>(`/admin/task-templates/${id}`, {
         method: "DELETE",
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: taskTemplateQueryKeys.lists()});
       if (options?.onSuccess) {
-        options.onSuccess(data, variables, context);
+        (options.onSuccess as any)(data, variables, _mutateResult, context);
       }
     },
     ...options,

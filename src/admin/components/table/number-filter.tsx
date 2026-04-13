@@ -249,7 +249,7 @@ const parseDisplayValue = (value: string[] | null | undefined) => {
   let displayValue = "";
 
   if (typeof parsed === "object") {
-    const parts = [];
+    const parts: string[] = [];
     if (parsed.gt) {
       parts.push(`Greater than ${parsed.gt}`);
     }

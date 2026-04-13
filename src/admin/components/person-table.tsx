@@ -61,7 +61,7 @@ export const PersonTable = ({
       {data.length === 0 ? (
         <NoRecords
           className={clx({
-            "flex h-full flex-col overflow-hidden": layout === "fill",
+            "flex h-full flex-col overflow-hidden": (layout as string) === "fill",
           })}
           {...noRecordsProps}
         />

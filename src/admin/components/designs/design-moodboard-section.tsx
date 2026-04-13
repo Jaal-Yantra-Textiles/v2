@@ -1,3 +1,4 @@
+// @ts-ignore - Excalidraw is an ESM module, dynamic import not feasible here
 import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { useState, useCallback } from "react";

@@ -1,4 +1,4 @@
-import { Command } from "../../../hooks/use-command-history"
+import { Command } from "../hooks/use-command-history"
 
 export type DataGridUpdateCommandArgs = {
   prev: any

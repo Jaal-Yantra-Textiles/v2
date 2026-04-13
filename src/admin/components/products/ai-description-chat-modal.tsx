@@ -53,7 +53,7 @@ const AIDescriptionChatModal = ({
     }
 
     // Prepare design context if enabled
-    let designContext = undefined
+    let designContext: Record<string, any> | undefined = undefined
     if (includeDesignInfo && designs.length > 0) {
       const design = designs[0] // Use first design
       designContext = {

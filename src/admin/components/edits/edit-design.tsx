@@ -11,7 +11,7 @@ const designSchema = z.object({
   description: z.string().optional(),
   design_type: z.enum(["Original", "Derivative", "Custom", "Collaboration"]).optional(),
   inspiration_sources: z.string().optional(),
-  status: z.enum(["Conceptual", "In_Development", "Technical_Review", "Sample_Production", "Revision", "Approved", "Rejected", "On_Hold"]).optional(),
+  status: z.enum(["Conceptual", "In_Development", "Technical_Review", "Sample_Production", "Revision", "Approved", "Rejected", "On_Hold", "Commerce_Ready", "Superseded"]).optional(),
   priority: z.enum(["Low", "Medium", "High", "Urgent"]).optional(),
   target_completion_date: z.date().nullable(),
   designer_notes: z.string().optional(),
@@ -37,6 +37,8 @@ const statusOptions = [
   { value: "Approved", label: "Approved" },
   { value: "Rejected", label: "Rejected" },
   { value: "On_Hold", label: "On Hold" },
+  { value: "Commerce_Ready", label: "Commerce Ready" },
+  { value: "Superseded", label: "Superseded" },
 ];
 
 const priorityOptions = [

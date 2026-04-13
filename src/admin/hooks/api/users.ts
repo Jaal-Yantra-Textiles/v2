@@ -65,12 +65,12 @@ export const useAdminSuspendUser = (
       sdk.client.fetch<AdminUser>(`/admin/users/${id}/suspend`, {
         method: "POST",
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.lists() });
       queryClient.invalidateQueries({
         queryKey: usersQueryKeys.detail(id),
       });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });

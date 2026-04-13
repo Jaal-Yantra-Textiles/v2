@@ -80,7 +80,7 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
   const createPages = useCreatePages(websiteId);
 
   const form = useForm<PageFormValues>({
-    resolver: zodResolver(pageSchema),
+    resolver: zodResolver(pageSchema) as any,
     defaultValues: {
       pages: [
         {

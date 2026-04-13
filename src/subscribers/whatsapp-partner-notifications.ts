@@ -113,14 +113,11 @@ export default async function whatsappPartnerNotificationHandler({
 
 async function getPartnerPhones(container: any, partnerId: string): Promise<string[]> {
   try {
-    const query = container.resolve("query") as any
-    const { data: partners } = await query.graph({
-      entity: "partners",
-      fields: ["whatsapp_number", "whatsapp_verified", "admins.phone", "admins.is_active"],
-      filters: { id: partnerId },
-    })
+    const partnerService = container.resolve("partner") as any
 
-    const partner = partners?.[0]
+    const partner = await partnerService.retrievePartner(partnerId, {
+      relations: ["admins"],
+    })
     if (!partner) return []
 
     // Priority: dedicated whatsapp_number (if verified), then admin phones

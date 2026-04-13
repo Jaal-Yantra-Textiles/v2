@@ -45,6 +45,27 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const take = limit || 50
   const messages = sorted.slice(skip, skip + take)
 
+  // Reset unread count when admin views the conversation
+  if (conversation.unread_count > 0) {
+    await messagingService.updateMessagingConversations({
+      id: conversationId,
+      unread_count: 0,
+    }).catch(() => {})
+
+    // Send WhatsApp read receipts for unread inbound messages
+    try {
+      const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
+      const wa = socialProvider.getWhatsApp(req.scope)
+      const unreadInbound = sorted
+        .filter((m: any) => m.direction === "inbound" && m.status !== "read" && m.wa_message_id)
+        .slice(-10) // last 10 unread
+      for (const m of unreadInbound) {
+        wa.markAsRead(m.wa_message_id).catch(() => {})
+        messagingService.updateMessagingMessages({ id: m.id, status: "read" }).catch(() => {})
+      }
+    } catch { /* non-fatal */ }
+  }
+
   res.json({
     conversation: {
       id: conversation.id,
@@ -53,7 +74,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       title: conversation.title,
       phone_number: conversation.phone_number,
       status: conversation.status,
-      unread_count: conversation.unread_count,
+      unread_count: 0,
       last_message_at: conversation.last_message_at,
       metadata: conversation.metadata,
     },
@@ -124,16 +145,72 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const whatsapp = socialProvider.getWhatsApp(req.scope)
 
   let waResponse: any
-  if (messageType === "media" && body.media_url) {
-    waResponse = await whatsapp.sendMediaMessage(
-      conversation.phone_number,
-      body.media_url,
-      body.media_mime_type,
-      body.content,
-      body.media_filename
-    )
-  } else {
-    waResponse = await whatsapp.sendTextMessage(conversation.phone_number, messageText, replyToWaMessageId)
+  let usedTemplate = false
+
+  // Check if this is the first message (no successful outbound messages yet)
+  // If so, use template to initiate the conversation — free-form will fail without a window
+  const conversationWithMsgs = await messagingService.retrieveMessagingConversation(conversationId, {
+    relations: ["messages"],
+  }).catch(() => null)
+  const hasSuccessfulOutbound = (conversationWithMsgs?.messages || []).some(
+    (m: any) => m.direction === "outbound" && m.status !== "failed"
+  )
+  const hasRecentInbound = (conversationWithMsgs?.messages || []).some(
+    (m: any) => m.direction === "inbound" && new Date(m.created_at).getTime() > Date.now() - 24 * 60 * 60 * 1000
+  )
+  const needsTemplate = !hasSuccessfulOutbound && !hasRecentInbound
+
+  if (needsTemplate && messageType !== "media") {
+    // First message — use template to open the conversation window
+    const templateName = process.env.WHATSAPP_INITIATION_TEMPLATE || "jyt_partner_connect"
+    const templateLang = process.env.WHATSAPP_INITIATION_TEMPLATE_LANG || "en"
+
+    let partnerName = conversation.title || "there"
+    try {
+      const q = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+      const { data: partners } = await q.graph({
+        entity: "partners",
+        fields: ["name"],
+        filters: { id: conversation.partner_id },
+      })
+      partnerName = partners?.[0]?.name || partnerName
+    } catch { /* fallback */ }
+
+    try {
+      waResponse = await whatsapp.sendTemplateMessage(
+        conversation.phone_number,
+        templateName,
+        templateLang,
+        [{
+          type: "body",
+          parameters: [{ type: "text", text: partnerName }],
+        }]
+      )
+      usedTemplate = true
+    } catch {
+      // Template failed — still try free-form as fallback
+      waResponse = null
+    }
+  }
+
+  // If template wasn't used (or not needed), send normally
+  if (!usedTemplate) {
+    try {
+      if (messageType === "media" && body.media_url) {
+        waResponse = await whatsapp.sendMediaMessage(
+          conversation.phone_number,
+          body.media_url,
+          body.media_mime_type,
+          body.content,
+          body.media_filename
+        )
+      } else {
+        waResponse = await whatsapp.sendTextMessage(conversation.phone_number, messageText, replyToWaMessageId)
+      }
+    } catch {
+      // Send failed — persist as "failed" so admin sees it
+      waResponse = null
+    }
   }
   const waMessageId = waResponse?.messages?.[0]?.id || null
 

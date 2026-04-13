@@ -212,7 +212,7 @@ const PaymentSubmissionDetailPage = () => {
             <Table.Body>
               {items.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={3}>
+                  <Table.Cell {...{ colSpan: 3 } as any}>
                     <Text className="text-ui-fg-subtle">
                       No items in this submission
                     </Text>

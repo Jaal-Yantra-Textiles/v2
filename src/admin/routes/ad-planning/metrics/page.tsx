@@ -385,9 +385,9 @@ const MetricsModal = () => {
               </div>
 
               {/* Top campaigns */}
-              {topCampaigns?.campaigns?.length > 0 && (
+              {(topCampaigns?.campaigns?.length ?? 0) > 0 && (
                 <div className="divide-y divide-ui-border-base rounded-lg border border-ui-border-base">
-                  {topCampaigns.campaigns
+                  {topCampaigns!.campaigns
                     .sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0))
                     .slice(0, 3)
                     .map((c: any) => (

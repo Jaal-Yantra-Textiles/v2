@@ -1,6 +1,7 @@
 import { Button, Container } from "@medusajs/ui"
 import { usePersons } from "../../hooks/api/persons"
 import { useEffect, useState } from "react"
+// @ts-ignore - react-leaflet is ESM only
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';

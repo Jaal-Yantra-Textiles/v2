@@ -462,7 +462,7 @@ export const handle = {
 }
 
 export async function loader(args: LoaderFunctionArgs) {
-  const { adsCampaignLoader } = await import("./loader")
+  const { adsCampaignLoader } = await import("./loader.js")
   return adsCampaignLoader(args)
 }
 

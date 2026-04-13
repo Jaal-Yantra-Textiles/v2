@@ -260,16 +260,16 @@ export const useCreateFeedback = (
       );
       return res;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
       toast.success("Feedback created successfully");
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    onError: (error, variables, context) => {
+    onError: (error, variables, _mutateResult, context) => {
       toast.error("Failed to create feedback", {
         description: error.message,
       });
-      options?.onError?.(error, variables, context);
+      options?.onError?.(error, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -299,9 +299,9 @@ export const useCreatePartnerFeedback = (
       );
       return res;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -331,9 +331,9 @@ export const useCreateTaskFeedback = (
       );
       return res;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -363,9 +363,9 @@ export const useCreateInventoryOrderFeedback = (
       );
       return res;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -395,17 +395,17 @@ export const useUpdateFeedback = (
       );
       return res;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.detail(id) });
       toast.success("Feedback updated successfully");
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    onError: (error, variables, context) => {
+    onError: (error, variables, _mutateResult, context) => {
       toast.error("Failed to update feedback", {
         description: error.message,
       });
-      options?.onError?.(error, variables, context);
+      options?.onError?.(error, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -426,17 +426,17 @@ export const useDeleteFeedback = (
         method: "DELETE",
       });
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.detail(id) });
       toast.success("Feedback deleted successfully");
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    onError: (error, variables, context) => {
+    onError: (error, variables, _mutateResult, context) => {
       toast.error("Failed to delete feedback", {
         description: error.message,
       });
-      options?.onError?.(error, variables, context);
+      options?.onError?.(error, variables, _mutateResult, context);
     },
     ...options,
   });

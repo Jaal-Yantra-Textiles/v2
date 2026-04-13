@@ -67,7 +67,7 @@ const ExperimentGeneralSection = ({
     }
   }
 
-  const actions = []
+  const actions: { actions: { label: string; icon: JSX.Element; onClick: () => void | Promise<void>; disabled?: boolean }[] }[] = []
 
   if (experiment.status === "draft") {
     actions.push({

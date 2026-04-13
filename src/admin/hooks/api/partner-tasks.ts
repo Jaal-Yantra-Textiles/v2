@@ -88,10 +88,10 @@ export const useCreatePartnerTask = (
           body: payload,
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerTasksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ["partners", partnerId] });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -114,10 +114,10 @@ export const useAssignPartnerTask = (
           method: "POST",
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerTasksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ["partners", partnerId] });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -142,10 +142,10 @@ export const useUpdatePartnerTask = (
           body: payload,
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerTasksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ["partners", partnerId] });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });

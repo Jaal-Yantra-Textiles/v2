@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+// @ts-ignore react-leaflet is ESM-only, Vite handles it at runtime
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';

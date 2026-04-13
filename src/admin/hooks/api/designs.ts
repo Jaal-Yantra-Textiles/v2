@@ -66,6 +66,8 @@ export interface AdminDesign {
   color_palette?: ColorPalette[];
   tags?: string[];
   estimated_cost?: number;
+  material_cost?: number | null;
+  production_cost?: number | null;
   tasks?: any[]; // Array of design tasks
   designer_notes?: string;
   feedback_history?: FeedbackHistory[];
@@ -209,9 +211,9 @@ export const useCreateDesign = (
         method: "POST",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -232,10 +234,10 @@ export const useUpdateDesign = (
         method: "PUT",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -251,12 +253,12 @@ export const useDeleteDesign = (
       sdk.client.fetch<AdminDesign>(`/admin/designs/${id}`, {
         method: "DELETE",
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({
         queryKey: designQueryKeys.detail(id),
       });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -279,10 +281,10 @@ export const useApproveDesign = (
         `/admin/designs/${designId}/approve`,
         { method: "POST", body: {} }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -364,11 +366,11 @@ export const useLinkDesignInventory = (
         method: "POST",
         body: data,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id, ["inventory"]) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -389,11 +391,11 @@ export const useDelinkInventory = (
         method: "POST",
         body: data,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id, ["inventory"]) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -411,10 +413,10 @@ export const useUpdateInventoryLink = (
         method: "PATCH",
         body: data,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId, ["inventory"]) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -435,10 +437,10 @@ export const useLinkDesignToPartner = (
         method: "POST",
         body: data,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -459,10 +461,10 @@ export const useUnlinkDesignFromPartner = (
         `/admin/designs/${designId}/partner`,
         { method: "DELETE", body: data }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -483,10 +485,10 @@ export const useCancelPartnerAssignment = (
         `/admin/designs/${designId}/cancel-partner-assignment`,
         { method: "POST", body: data }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -507,10 +509,10 @@ export const useSendDesignToPartner = (
         method: "POST",
         body: data,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -535,9 +537,9 @@ export const useCreateDesignLLM = (
         method: "POST",
         body: data,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -593,10 +595,10 @@ export const useReviseDesign = (
         method: "POST",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -801,9 +803,9 @@ export const useLinkDesignsToCustomer = (
         `/admin/customers/${customerId}/designs`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
   })
 }
@@ -873,10 +875,10 @@ export const useCreateDesignOrder = (
         `/admin/customers/${customerId}/design-order`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: ["customer-ordered-designs", customerId] })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
   })
 }
@@ -894,6 +896,7 @@ export interface ConsumptionLog {
   is_committed: boolean;
   consumed_by: "admin" | "partner";
   consumed_at: string;
+  unit_cost?: number | null;
   notes?: string | null;
   location_id?: string | null;
   metadata?: Record<string, any> | null;
@@ -962,9 +965,9 @@ export const useLogConsumption = (
         `/admin/designs/${designId}/consumption-logs`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -981,9 +984,9 @@ export const useCommitConsumption = (
         `/admin/designs/${designId}/consumption-logs/commit`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })

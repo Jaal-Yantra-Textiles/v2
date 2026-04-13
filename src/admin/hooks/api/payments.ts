@@ -17,7 +17,7 @@ export const useCreatePaymentAndLink = (
         method: "POST",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Invalidate common views that might reflect payment changes
       queryClient.invalidateQueries({ queryKey: ["persons"] });
       // Ensure partner detail pages refetch (admin partners module)
@@ -45,7 +45,7 @@ export const useCreatePaymentAndLink = (
           queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(oid) });
         });
       }
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -72,11 +72,11 @@ export const useUpdatePayment = (
         method: "POST",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Ensure partner and person detail pages (which render payments) are refreshed
       queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.details() });
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.details() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });

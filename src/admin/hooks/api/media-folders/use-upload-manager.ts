@@ -104,12 +104,12 @@ export const useUploadSingleMedia = (
         throw error
       }
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Refresh media queries
       queryClient.invalidateQueries({ queryKey: mediasQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: ["media-dictionaries"] })
       queryClient.invalidateQueries({ queryKey: ["media-folders", "list"] })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -269,11 +269,11 @@ export const useBatchUploadMedia = (
 
       return results
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: mediasQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: ["media-dictionaries"] })
       queryClient.invalidateQueries({ queryKey: ["media-folders", "list"] })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })

@@ -17,6 +17,7 @@ export const productionRunQueryKeys = queryKeysFactory(PRODUCTION_RUNS_QUERY_KEY
 
 export type AdminCreateDesignProductionRunPayload = {
   quantity?: number
+  run_type?: string
   assignments?: Array<{
     partner_id: string
     role?: string
@@ -62,10 +63,10 @@ export const useCreateDesignProductionRun = (
           body: payload,
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) })
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -166,9 +167,9 @@ export const useSendProductionRunToProduction = (
           },
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -205,11 +206,11 @@ export const useCancelProductionRun = (
         `/admin/production-runs/${runId}/cancel`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -234,10 +235,10 @@ export const useApproveProductionRun = (
           body: payload,
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -259,11 +260,11 @@ export const useUpdateProductionRun = (
         `/admin/production-runs/${runId}`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -304,10 +305,10 @@ export const useRecreateProductionRun = (
           body: payload,
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })

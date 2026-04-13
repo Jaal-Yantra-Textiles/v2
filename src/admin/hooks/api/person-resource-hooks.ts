@@ -147,7 +147,7 @@ export const createPersonResourceHooks = <
             body: payload,
           },
         ),
-      onSuccess: (data, variables, context) => {
+      onSuccess: (data, variables, _mutateResult, context) => {
         queryClient.invalidateQueries({
           queryKey: queryKeys.listScope(personId),
           exact: false,
@@ -165,7 +165,7 @@ export const createPersonResourceHooks = <
           exact: false,
         })
 
-        options?.onSuccess?.(data, variables, context)
+        options?.onSuccess?.(data, variables, _mutateResult, context)
       },
       ...options,
     })
@@ -191,7 +191,7 @@ export const createPersonResourceHooks = <
             body: payload,
           },
         ),
-      onSuccess: (data, variables, context) => {
+      onSuccess: (data, variables, _mutateResult, context) => {
         queryClient.invalidateQueries({
           queryKey: queryKeys.listScope(personId),
           exact: false,
@@ -204,7 +204,7 @@ export const createPersonResourceHooks = <
           queryKey: personsQueryKeys.details(),
           exact: false,
         })
-        options?.onSuccess?.(data, variables, context)
+        options?.onSuccess?.(data, variables, _mutateResult, context)
       },
       ...options,
     })
@@ -226,7 +226,7 @@ export const createPersonResourceHooks = <
           },
         )
       },
-      onSuccess: (data, variables, context) => {
+      onSuccess: (data, variables, _mutateResult, context) => {
         queryClient.invalidateQueries({
           queryKey: queryKeys.listScope(personId),
           exact: false,
@@ -239,7 +239,7 @@ export const createPersonResourceHooks = <
           queryKey: personsQueryKeys.details(),
           exact: false,
         })
-        options?.onSuccess?.(data, variables, context)
+        options?.onSuccess?.(data, variables, _mutateResult, context)
       },
       ...options,
     })
@@ -304,7 +304,7 @@ export const createPersonResourceHooks = <
             resource: resourceKey,
           }),
         )
-        options?.onSuccess?.(data, resourceId, context)
+        ;(options?.onSuccess as any)?.(data, resourceId, undefined, context)
       },
       ...options,
     })

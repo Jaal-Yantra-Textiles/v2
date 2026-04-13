@@ -1,5 +1,7 @@
 export const getStorefrontBaseUrl = (): string => {
+// @ts-ignore
   const envBase = import.meta.env.VITE_STOREFRONT_URL &&
+// @ts-ignore
     (import.meta.env.VITE_STOREFRONT_URL as string).replace(/\/$/, "");
 
   if (envBase) {

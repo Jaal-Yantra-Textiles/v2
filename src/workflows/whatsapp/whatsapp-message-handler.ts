@@ -39,46 +39,95 @@ interface HandlerResult {
  * Resolves a partner by matching the phone number against PartnerAdmin records.
  * Returns { partnerId, adminPhone } or null.
  */
+interface ResolvedPartner {
+  partnerId: string
+  adminName: string
+  adminId?: string
+  isNewVerification?: boolean // true if this admin's WhatsApp was just auto-verified
+}
+
 async function resolvePartnerByPhone(
   scope: any,
   phone: string
-): Promise<{ partnerId: string; adminName: string } | null> {
+): Promise<ResolvedPartner | null> {
   try {
-    // Normalize: strip non-digits
     const normalized = phone.replace(/[^0-9]/g, "")
+    const partnerService = scope.resolve(PARTNER_MODULE) as any
 
-    const { ContainerRegistrationKeys } = await import("@medusajs/framework/utils")
-    const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
-    const { data: partners } = await query.graph({
-      entity: "partners",
-      fields: ["id", "name", "whatsapp_number", "whatsapp_verified", "admins.*"],
-      pagination: { skip: 0, take: 200 },
-    })
+    const [partners] = await partnerService.listAndCountPartners(
+      {},
+      { take: 200, relations: ["admins"] }
+    )
 
-    // Priority 1: Match against partner.whatsapp_number (dedicated notification number)
+    // Priority 1: Match against partner.whatsapp_number (verified)
     for (const partner of partners || []) {
       if (!partner.whatsapp_number || !partner.whatsapp_verified) continue
       const waNormalized = partner.whatsapp_number.replace(/[^0-9]/g, "")
       if (phoneMatches(waNormalized, normalized)) {
-        const firstAdmin = partner.admins?.[0]
+        // Find which admin this phone belongs to
+        const matchedAdmin = (partner.admins || []).find((a: any) => {
+          if (!a.phone) return false
+          return phoneMatches(a.phone.replace(/[^0-9]/g, ""), normalized)
+        })
         return {
           partnerId: partner.id,
-          adminName: firstAdmin
-            ? [firstAdmin.first_name, firstAdmin.last_name].filter(Boolean).join(" ") || partner.name
-            : partner.name || "Partner",
+          adminName: matchedAdmin
+            ? [matchedAdmin.first_name, matchedAdmin.last_name].filter(Boolean).join(" ")
+            : partner.admins?.[0]
+              ? [partner.admins[0].first_name, partner.admins[0].last_name].filter(Boolean).join(" ")
+              : partner.name || "Partner",
+          adminId: matchedAdmin?.id,
         }
       }
     }
 
-    // Priority 2: Fall back to matching admin phone numbers
+    // Priority 2: Match against admin phone numbers (even if partner whatsapp not verified)
+    // This enables multi-admin WhatsApp — any admin with a phone can message in
     for (const partner of partners || []) {
       for (const admin of partner.admins || []) {
-        if (!admin.phone) continue
+        if (!admin.phone || !admin.is_active) continue
         const adminNormalized = admin.phone.replace(/[^0-9]/g, "")
         if (phoneMatches(adminNormalized, normalized)) {
+          const adminName = [admin.first_name, admin.last_name].filter(Boolean).join(" ") || "Partner"
+
+          // Auto-verify: this admin's phone is messaging our business number
+          // Mark their WhatsApp as verified in admin metadata
+          const adminMeta = (admin.metadata as Record<string, any>) || {}
+          let isNewVerification = false
+
+          if (!adminMeta.whatsapp_verified) {
+            try {
+              await partnerService.updatePartnerAdmins({
+                id: admin.id,
+                metadata: {
+                  ...adminMeta,
+                  whatsapp_verified: true,
+                  whatsapp_verified_at: new Date().toISOString(),
+                  whatsapp_verified_phone: phone,
+                },
+              })
+              isNewVerification = true
+            } catch (e: any) {
+              console.warn("[whatsapp-handler] Failed to auto-verify admin:", e.message)
+            }
+          }
+
+          // Also update partner-level whatsapp if not set
+          if (!partner.whatsapp_number || !partner.whatsapp_verified) {
+            try {
+              await partnerService.updatePartners({
+                id: partner.id,
+                whatsapp_number: phone,
+                whatsapp_verified: true,
+              })
+            } catch { /* non-fatal */ }
+          }
+
           return {
             partnerId: partner.id,
-            adminName: [admin.first_name, admin.last_name].filter(Boolean).join(" ") || "Partner",
+            adminName,
+            adminId: admin.id,
+            isNewVerification,
           }
         }
       }
@@ -98,15 +147,15 @@ export async function handleIncomingMessage(
   scope: any,
   message: IncomingMessage
 ): Promise<HandlerResult> {
-  const whatsapp = (scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService).getWhatsApp(scope)
+  const whatsappRaw = (scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService).getWhatsApp(scope)
 
   // Mark message as read
-  await whatsapp.markAsRead(message.messageId)
+  await whatsappRaw.markAsRead(message.messageId)
 
   // Resolve partner
   const partner = await resolvePartnerByPhone(scope, message.from)
   if (!partner) {
-    await whatsapp.sendTextMessage(
+    await whatsappRaw.sendTextMessage(
       message.from,
       "Sorry, your phone number is not registered with any partner account. Please contact the admin."
     ).catch((e: any) => {
@@ -125,15 +174,24 @@ export async function handleIncomingMessage(
   const conversationId = conversation?.id || null
   const conversationMeta = conversation?.metadata || {}
 
-  // Helper to persist outbound replies in the same conversation
-  const originalSend = whatsapp.sendTextMessage.bind(whatsapp)
-  whatsapp.sendTextMessage = async (to: string, text: string) => {
-    const result = await originalSend(to, text)
+  // Create a scoped wrapper that auto-persists outbound bot replies
+  // without mutating the shared WhatsAppService instance
+  const persistSend = (result: any, text: string) => {
     if (conversationId) {
-      await persistOutboundMessage(scope, conversationId, text, result?.messages?.[0]?.id).catch((e: any) => {
+      persistOutboundMessage(scope, conversationId, text, result?.messages?.[0]?.id).catch((e: any) => {
         console.warn("[whatsapp-handler] Failed to persist outbound message:", e.message)
       })
     }
+  }
+  const whatsapp = Object.create(whatsappRaw) as typeof whatsappRaw
+  whatsapp.sendTextMessage = async (to: string, text: string, replyTo?: string) => {
+    const result = await whatsappRaw.sendTextMessage(to, text, replyTo)
+    persistSend(result, text)
+    return result
+  }
+  whatsapp.sendInteractiveMessage = async (to: string, interactive: any) => {
+    const result = await whatsappRaw.sendInteractiveMessage(to, interactive)
+    persistSend(result, interactive?.body?.text || "[interactive]")
     return result
   }
 

@@ -199,7 +199,7 @@ export function TaskTemplateCanvas({
       const nodeId = template.id || `template-${index}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
       // Process category which might be an object
-      let categoryValue = null;
+      let categoryValue: string | null = null;
       if (template.category) {
         if (typeof template.category === 'string') {
           categoryValue = template.category;

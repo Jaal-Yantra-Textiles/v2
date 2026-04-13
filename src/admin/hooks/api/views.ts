@@ -98,10 +98,10 @@ export const useCreateViewConfiguration = (
         method: "POST",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.list(entity) })
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.active(entity) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -128,13 +128,13 @@ export const useUpdateViewConfiguration = (
           body: payload,
         },
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.list(entity) })
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.active(entity) })
       queryClient.invalidateQueries({
         queryKey: viewQueryKeys.detail(entity, variables.id),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -150,10 +150,10 @@ export const useDeleteViewConfiguration = (
       sdk.client.fetch<{ success: boolean }>(`/admin/views/${entity}/configurations/${id}`, {
         method: "DELETE",
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.list(entity) })
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.active(entity) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -172,10 +172,10 @@ export const useSetActiveViewConfiguration = (
           view_configuration_id: viewConfigurationId,
         },
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.list(entity) })
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.active(entity) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })

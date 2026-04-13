@@ -19,7 +19,7 @@ const InventoryOrdersMetadata = () => {
   return (
     <MetadataForm
       metadata={inventoryOrder?.metadata}
-      hook={mutateAsync}
+      hook={mutateAsync as any}
       isPending={isPending}
       isMutating={isMutating}
     />

@@ -164,7 +164,7 @@ export const useCreateDesignTask = (
           body: payload,
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.lists() });
       
       // Also invalidate the design query to ensure design data is refreshed
@@ -173,7 +173,7 @@ export const useCreateDesignTask = (
         queryKey: designQueryKeys.detail(designId)
       });
       
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -199,7 +199,7 @@ export const useUpdateDesignTask = (
           body: payload,
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.detail(taskId) });
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.lists() });
       
@@ -209,7 +209,7 @@ export const useUpdateDesignTask = (
         queryKey: designQueryKeys.detail(designId)
       });
       
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });
@@ -230,9 +230,9 @@ export const useDeleteDesignTask = (
           method: "DELETE",
         }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.lists() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,
   });

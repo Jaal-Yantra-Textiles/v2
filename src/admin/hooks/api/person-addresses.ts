@@ -89,18 +89,18 @@ export const useAddAddressToPerson = (
 
   return addressHooks.useCreateResource(personId, {
     ...restOptions,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.detail(personId),
       })
       const shaped = toAddressResult(data)
       if (shaped) {
-        userOnSuccess?.(shaped, variables, context)
+        ;(userOnSuccess as any)?.(shaped, variables, _mutateResult, context)
       }
     },
-    onSettled: (data, error, variables, context) => {
+    onSettled: (data, error, variables, _mutateResult, context) => {
       const shaped = data ? toAddressResult(data) : undefined
-      userOnSettled?.(shaped, error, variables, context)
+      ;(userOnSettled as any)?.(shaped, error, variables, _mutateResult, context)
     },
   })
 }
@@ -119,19 +119,19 @@ export const useUpdatePersonAddress = (
 
   return addressHooks.useUpdateResource(personId, addressId, {
     ...restOptions,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: personsQueryKeys.detail(personId),
       })
 
       const shaped = toAddressResult(data)
       if (shaped) {
-        userOnSuccess?.(shaped, variables, context)
+        ;(userOnSuccess as any)?.(shaped, variables, _mutateResult, context)
       }
     },
-    onSettled: (data, error, variables, context) => {
+    onSettled: (data, error, variables, _mutateResult, context) => {
       const shaped = data ? toAddressResult(data) : undefined
-      userOnSettled?.(shaped, error, variables, context)
+      ;(userOnSettled as any)?.(shaped, error, variables, _mutateResult, context)
     },
   })
 }
