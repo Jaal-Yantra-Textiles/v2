@@ -19,6 +19,7 @@ export const SendMessageSchema = z.object({
   media_url: z.string().optional(),
   media_mime_type: z.string().optional(),
   media_filename: z.string().optional(),
+  reply_to_id: z.string().optional(),
 })
 
 export const CreateConversationSchema = z.object({

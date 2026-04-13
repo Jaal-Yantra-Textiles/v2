@@ -15,6 +15,8 @@ const Message = model.define("messaging_message", {
     context_snapshot: model.json().nullable(),
     media_url: model.text().nullable(),
     media_mime_type: model.text().nullable(),
+    reply_to_id: model.text().nullable(),
+    reply_to_snapshot: model.json().nullable(),
     metadata: model.json().nullable(),
 })
 

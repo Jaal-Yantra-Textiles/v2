@@ -14,6 +14,15 @@ export type MessageContext = {
   label: string
 }
 
+export type ReplyTo = {
+  id: string
+  content: string
+  sender_name: string | null
+  direction: "inbound" | "outbound"
+  media_url?: string | null
+  media_mime_type?: string | null
+}
+
 export type SendPayload = {
   content: string
   media_url?: string
@@ -21,16 +30,21 @@ export type SendPayload = {
   media_filename?: string
   context_type?: string
   context_id?: string
+  reply_to_id?: string
 }
 
 export const MessageInput = ({
   onSend,
   isSending,
   onAttachContext,
+  replyTo,
+  onCancelReply,
 }: {
   onSend: (payload: SendPayload) => void
   isSending: boolean
   onAttachContext?: () => void
+  replyTo?: ReplyTo | null
+  onCancelReply?: () => void
 }) => {
   const [text, setText] = useState("")
   const [attachment, setAttachment] = useState<MessageAttachment | null>(null)
@@ -49,10 +63,14 @@ export const MessageInput = ({
       payload.media_mime_type = attachment.media_mime_type
       payload.media_filename = attachment.media_filename
     }
+    if (replyTo) {
+      payload.reply_to_id = replyTo.id
+    }
 
     onSend(payload)
     setText("")
     setAttachment(null)
+    onCancelReply?.()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -83,6 +101,27 @@ export const MessageInput = ({
       onSubmit={handleSubmit}
       className="border-t border-ui-border-base bg-ui-bg-base px-6 py-3"
     >
+      {/* Reply preview */}
+      {replyTo && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border-l-2 border-ui-border-interactive bg-ui-bg-subtle px-3 py-2">
+          <div className="flex-1 min-w-0">
+            <Text size="xsmall" className="text-ui-fg-interactive font-medium">
+              {replyTo.sender_name || (replyTo.direction === "inbound" ? "Partner" : "Admin")}
+            </Text>
+            <Text size="xsmall" className="text-ui-fg-muted truncate">
+              {replyTo.content || (replyTo.media_url ? "Media" : "")}
+            </Text>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="text-ui-fg-muted hover:text-ui-fg-base shrink-0"
+          >
+            <XMark className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Attachment preview */}
       {attachment && (
         <div className="mb-2 flex items-center gap-2 rounded-lg border border-ui-border-base bg-ui-bg-subtle px-3 py-2">

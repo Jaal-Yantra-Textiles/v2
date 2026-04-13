@@ -34,6 +34,14 @@ export interface Message {
   context_snapshot: Record<string, any> | null
   media_url: string | null
   media_mime_type: string | null
+  reply_to_id: string | null
+  reply_to_snapshot: {
+    content: string
+    sender_name: string | null
+    direction: "inbound" | "outbound"
+    media_url?: string | null
+    media_mime_type?: string | null
+  } | null
   metadata: Record<string, any> | null
   created_at: string
 }

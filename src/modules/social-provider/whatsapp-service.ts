@@ -154,14 +154,19 @@ export default class WhatsAppService {
 
   /**
    * Send a text message to a WhatsApp number
+   * @param replyToWaMessageId - WhatsApp message ID to reply to (shows quoted message)
    */
-  async sendTextMessage(to: string, text: string): Promise<WhatsAppMessageResponse> {
-    return this.sendRequest({
+  async sendTextMessage(to: string, text: string, replyToWaMessageId?: string): Promise<WhatsAppMessageResponse> {
+    const payload: any = {
       messaging_product: "whatsapp",
       to,
       type: "text",
       text: { preview_url: false, body: text },
-    })
+    }
+    if (replyToWaMessageId) {
+      payload.context = { message_id: replyToWaMessageId }
+    }
+    return this.sendRequest(payload)
   }
 
   /**
@@ -430,6 +435,51 @@ export default class WhatsAppService {
     }
     // Default to document for PDFs, spreadsheets, and everything else
     return this.sendDocumentMessage(to, mediaUrl, caption, filename)
+  }
+
+  /**
+   * Retrieve media URL from Meta's Graph API.
+   * WhatsApp webhooks provide a mediaId — this fetches the actual download URL.
+   * The URL is temporary (valid ~5 min) so download promptly.
+   */
+  async getMediaUrl(mediaId: string): Promise<{ url: string; mime_type?: string; file_size?: number } | null> {
+    await this.ensureConfig()
+
+    if (!this.accessToken) return null
+
+    try {
+      const resp = await fetch(`${GRAPH_API_BASE}/${mediaId}`, {
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+      })
+
+      if (!resp.ok) return null
+
+      const data = await resp.json() as { url?: string; mime_type?: string; file_size?: number }
+      return data?.url ? data : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Download media binary from Meta's temporary URL and return as Buffer.
+   */
+  async downloadMedia(mediaUrl: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+    await this.ensureConfig()
+
+    try {
+      const resp = await fetch(mediaUrl, {
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+      })
+
+      if (!resp.ok) return null
+
+      const contentType = resp.headers.get("content-type") || "application/octet-stream"
+      const arrayBuffer = await resp.arrayBuffer()
+      return { buffer: Buffer.from(arrayBuffer), contentType }
+    } catch {
+      return null
+    }
   }
 
   /**

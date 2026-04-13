@@ -13,6 +13,7 @@ import WhatsAppService from "../../modules/social-provider/whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
+import { downloadAndSaveWhatsAppMedia } from "./whatsapp-media-helper"
 
 interface IncomingMessage {
   from: string // WhatsApp phone number
@@ -24,6 +25,7 @@ interface IncomingMessage {
   mediaId?: string
   mediaUrl?: string
   mediaMimeType?: string
+  replyToWaMessageId?: string
 }
 
 interface HandlerResult {
@@ -181,21 +183,47 @@ export async function handleIncomingMessage(
     action = parsed.action
     runId = parsed.runId
   } else if (message.type === "image" || message.type === "video" || message.type === "document") {
-    // Media without context — ask which run
-    await whatsapp.sendTextMessage(
-      message.from,
-      `Media received! To attach it to a production run, please reply:\n\`media <run_id>\`\n\nThen send the media again.`
-    )
-    return { handled: true, action: "media_hint" }
+    // Save media to partner's media folder — no forced command flow
+    if (message.mediaId) {
+      try {
+        const saved = await downloadAndSaveWhatsAppMedia(scope, {
+          mediaId: message.mediaId,
+          mediaUrl: message.mediaUrl,
+          mimeType: message.mediaMimeType,
+          partnerId: partner.partnerId,
+          partnerName: partner.adminName,
+          caption: message.text,
+        })
+
+        // Update the persisted message with the permanent media URL
+        if (saved && conversationId) {
+          const messagingService = scope.resolve(MESSAGING_MODULE) as any
+          const [latestMessages] = await messagingService.listAndCountMessagingMessages(
+            { conversation_id: conversationId },
+            { take: 1, order: { created_at: "DESC" } }
+          )
+          const lastMsg = latestMessages?.[0]
+          if (lastMsg?.wa_message_id === message.messageId) {
+            await messagingService.updateMessagingMessages({
+              id: lastMsg.id,
+              media_url: saved.fileUrl,
+              media_mime_type: saved.mimeType,
+              content: message.text || `[${message.type}]`,
+            })
+          }
+        }
+      } catch (e: any) {
+        console.warn("[whatsapp-handler] Failed to save media:", e.message)
+      }
+    }
+    // No bot reply — just acknowledge silently, admin sees it in the inbox
+    return { handled: true, action: "media_saved" }
   }
 
   if (!action) {
-    // Short nudge — partner is already onboarded, no need for full help dump
-    await whatsapp.sendTextMessage(
-      message.from,
-      `I didn't catch that. Reply *runs* to see your active production runs, or *help* for all commands.`
-    )
-    return { handled: true, action: "nudge" }
+    // Casual message — just save to conversation, no bot reply
+    // Admin will see it in the messaging inbox and can respond manually
+    return { handled: true, action: "conversation" }
   }
 
   // Execute action
@@ -760,9 +788,33 @@ async function persistInboundMessage(
   if (message.type === "interactive") messageType = "interactive"
   else if (["image", "video", "document", "audio"].includes(message.type)) messageType = "media"
 
+  // For media messages, use caption if available — don't show "[image]" noise
   const content = message.text
     || message.buttonReplyTitle
-    || `[${message.type}]`
+    || (messageType === "media" ? "" : `[${message.type}]`)
+
+  // Resolve reply-to if this message is a reply to another
+  let replyToId: string | null = null
+  let replyToSnapshot: Record<string, any> | null = null
+
+  if (message.replyToWaMessageId) {
+    try {
+      const [replyMsg] = await messagingService.listMessagingMessages(
+        { wa_message_id: message.replyToWaMessageId },
+        { take: 1 }
+      )
+      if (replyMsg) {
+        replyToId = replyMsg.id
+        replyToSnapshot = {
+          content: replyMsg.content?.substring(0, 200) || "",
+          sender_name: replyMsg.sender_name,
+          direction: replyMsg.direction,
+          media_url: replyMsg.media_url,
+          media_mime_type: replyMsg.media_mime_type,
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
 
   await messagingService.createMessagingMessages({
     conversation_id: conversationId,
@@ -774,6 +826,8 @@ async function persistInboundMessage(
     status: "delivered",
     media_url: message.mediaUrl || null,
     media_mime_type: message.mediaMimeType || null,
+    reply_to_id: replyToId,
+    reply_to_snapshot: replyToSnapshot,
   })
 
   // Update conversation timestamp and bump unread count

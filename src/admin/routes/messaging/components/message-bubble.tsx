@@ -72,11 +72,59 @@ const MediaPreview = ({ message }: { message: Message }) => {
   )
 }
 
-export const MessageBubble = ({ message }: { message: Message }) => {
+const ReplyPreview = ({ snapshot, isOutbound }: { snapshot: Message["reply_to_snapshot"]; isOutbound: boolean }) => {
+  if (!snapshot) return null
+
+  const isReplyFromPartner = snapshot.direction === "inbound"
+
+  return (
+    <div
+      className={clx(
+        "rounded-md px-2.5 py-1.5 mb-1.5 border-l-2 text-xs",
+        isOutbound
+          ? "bg-white/10 border-white/40"
+          : "bg-ui-bg-base border-ui-border-interactive"
+      )}
+    >
+      <div className={clx("font-medium mb-0.5", isOutbound ? "text-ui-fg-on-color/80" : "text-ui-fg-interactive")}>
+        {snapshot.sender_name || (isReplyFromPartner ? "Partner" : "Admin")}
+      </div>
+      {snapshot.media_url && snapshot.media_mime_type?.startsWith("image/") && (
+        <img src={snapshot.media_url} alt="" className="h-8 w-8 rounded object-cover inline-block mr-1" />
+      )}
+      <span className={clx(isOutbound ? "text-ui-fg-on-color/60" : "text-ui-fg-muted")}>
+        {snapshot.content || (snapshot.media_url ? "Media" : "")}
+      </span>
+    </div>
+  )
+}
+
+export const MessageBubble = ({
+  message,
+  onReply,
+}: {
+  message: Message
+  onReply?: (message: Message) => void
+}) => {
   const isOutbound = message.direction === "outbound"
 
   return (
-    <div className={clx("flex w-full mb-2", isOutbound ? "justify-end" : "justify-start")}>
+    <div
+      className={clx("group flex w-full mb-2 items-start gap-1", isOutbound ? "justify-end" : "justify-start")}
+    >
+      {/* Reply button (left side for outbound) */}
+      {isOutbound && onReply && (
+        <button
+          onClick={() => onReply(message)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity mt-2 text-ui-fg-muted hover:text-ui-fg-base"
+          title="Reply"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 scale-x-[-1]">
+            <path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.06.025Z" clipRule="evenodd" />
+          </svg>
+        </button>
+      )}
+
       <div
         className={clx(
           "max-w-[70%] rounded-lg px-3 py-2 text-sm",
@@ -91,6 +139,8 @@ export const MessageBubble = ({ message }: { message: Message }) => {
           </div>
         )}
 
+        <ReplyPreview snapshot={message.reply_to_snapshot} isOutbound={isOutbound} />
+
         {message.context_snapshot && message.context_type && (
           <div className="mb-2">
             <ContextCard
@@ -102,7 +152,7 @@ export const MessageBubble = ({ message }: { message: Message }) => {
 
         <MediaPreview message={message} />
 
-        {message.content && (
+        {message.content && message.content.trim() && (
           <div className="whitespace-pre-wrap break-words">{message.content}</div>
         )}
 
@@ -115,6 +165,19 @@ export const MessageBubble = ({ message }: { message: Message }) => {
           )}
         </div>
       </div>
+
+      {/* Reply button (right side for inbound) */}
+      {!isOutbound && onReply && (
+        <button
+          onClick={() => onReply(message)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity mt-2 text-ui-fg-muted hover:text-ui-fg-base"
+          title="Reply"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.06.025Z" clipRule="evenodd" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }

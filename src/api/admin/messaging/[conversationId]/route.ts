@@ -99,13 +99,32 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     messageType = "media"
   }
 
+  // Resolve reply-to context
+  let replyToSnapshot: Record<string, any> | null = null
+  let replyToWaMessageId: string | undefined
+
+  if (body.reply_to_id) {
+    try {
+      const replyMsg = await messagingService.retrieveMessagingMessage(body.reply_to_id)
+      if (replyMsg) {
+        replyToWaMessageId = replyMsg.wa_message_id || undefined
+        replyToSnapshot = {
+          content: replyMsg.content?.substring(0, 200) || "",
+          sender_name: replyMsg.sender_name,
+          direction: replyMsg.direction,
+          media_url: replyMsg.media_url,
+          media_mime_type: replyMsg.media_mime_type,
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
+
   // Send via WhatsApp
   const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
   const whatsapp = socialProvider.getWhatsApp(req.scope)
 
   let waResponse: any
   if (messageType === "media" && body.media_url) {
-    // Send media first, then text caption separately if content differs
     waResponse = await whatsapp.sendMediaMessage(
       conversation.phone_number,
       body.media_url,
@@ -114,7 +133,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       body.media_filename
     )
   } else {
-    waResponse = await whatsapp.sendTextMessage(conversation.phone_number, messageText)
+    waResponse = await whatsapp.sendTextMessage(conversation.phone_number, messageText, replyToWaMessageId)
   }
   const waMessageId = waResponse?.messages?.[0]?.id || null
 
@@ -143,6 +162,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     context_snapshot: contextSnapshot,
     media_url: body.media_url || null,
     media_mime_type: body.media_mime_type || null,
+    reply_to_id: body.reply_to_id || null,
+    reply_to_snapshot: replyToSnapshot,
     metadata: body.media_filename ? { filename: body.media_filename } : null,
   })
 

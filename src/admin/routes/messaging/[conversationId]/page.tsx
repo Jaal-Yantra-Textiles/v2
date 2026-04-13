@@ -4,12 +4,14 @@ import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
 import { useConversationMessages, useSendMessage } from "../../../hooks/api/messaging"
 import { useEffect, useRef, useState } from "react"
 import { MessageBubble } from "../components/message-bubble"
-import { MessageInput, type SendPayload } from "../components/message-input"
+import { MessageInput, type SendPayload, type ReplyTo } from "../components/message-input"
+import type { Message } from "../../../hooks/api/messaging"
 
 const ConversationThreadModal = () => {
   const { conversationId } = useParams<{ conversationId: string }>()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [contextModal, setContextModal] = useState(false)
+  const [replyTo, setReplyTo] = useState<ReplyTo | null>(null)
 
   const { conversation, messages = [], isPending } = useConversationMessages(
     conversationId!,
@@ -24,6 +26,17 @@ const ConversationThreadModal = () => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages?.length])
+
+  const handleReply = (message: Message) => {
+    setReplyTo({
+      id: message.id,
+      content: message.content,
+      sender_name: message.sender_name,
+      direction: message.direction,
+      media_url: message.media_url,
+      media_mime_type: message.media_mime_type,
+    })
+  }
 
   const handleSend = (payload: SendPayload) => {
     sendMutation.mutate(
@@ -84,7 +97,7 @@ const ConversationThreadModal = () => {
               ) : (
                 <div className="space-y-1 max-w-3xl mx-auto">
                   {messages.map((msg) => (
-                    <MessageBubble key={msg.id} message={msg} />
+                    <MessageBubble key={msg.id} message={msg} onReply={handleReply} />
                   ))}
                 </div>
               )}
@@ -96,6 +109,8 @@ const ConversationThreadModal = () => {
                 onSend={handleSend}
                 isSending={sendMutation.isPending}
                 onAttachContext={() => setContextModal(true)}
+                replyTo={replyTo}
+                onCancelReply={() => setReplyTo(null)}
               />
             </div>
           </div>

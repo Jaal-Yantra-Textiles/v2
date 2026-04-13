@@ -110,28 +110,37 @@ async function processWhatsAppWebhook(
       const value = change.value
       if (!value) continue
 
-      // Handle message status updates (sent, delivered, read)
+      // Handle message status updates (sent → delivered → read)
       if (value.statuses?.length) {
-        for (const status of value.statuses) {
-          console.log("[whatsapp-webhook] Status update:", {
-            messageId: status.id,
-            status: status.status,
-            recipientId: status.recipient_id,
-          })
+        const STATUS_RANK: Record<string, number> = {
+          pending: 0,
+          sent: 1,
+          delivered: 2,
+          read: 3,
+          failed: 4,
+        }
 
-          // Update persisted message status
+        for (const status of value.statuses) {
+          // Update all messages matching this wa_message_id (handles duplicates)
           try {
-           
             const messagingService = scope.resolve(MESSAGING_MODULE) as any
-            const [existing] = await messagingService.listMessagingMessages(
+            const [allMatches] = await messagingService.listAndCountMessagingMessages(
               { wa_message_id: status.id },
-              { take: 1 }
+              { take: 50 }
             )
-            if (existing) {
-              await messagingService.updateMessagingMessages({
-                id: existing.id,
-                status: status.status as any,
-              })
+
+            for (const msg of allMatches || []) {
+              const currentRank = STATUS_RANK[msg.status] ?? 0
+              const newRank = STATUS_RANK[status.status] ?? 0
+
+              // Only progress forward (sent → delivered → read), never downgrade
+              // Exception: "failed" always applies
+              if (newRank > currentRank || status.status === "failed") {
+                await messagingService.updateMessagingMessages({
+                  id: msg.id,
+                  status: status.status as any,
+                })
+              }
             }
           } catch (e: any) {
             console.warn("[whatsapp-webhook] Failed to update message status:", e.message)
@@ -142,6 +151,19 @@ async function processWhatsAppWebhook(
 
       // Handle incoming messages
       for (const msg of value.messages || []) {
+        // Dedup: skip if we've already processed this message ID
+        try {
+          const messagingService = scope.resolve(MESSAGING_MODULE) as any
+          const [alreadyExists] = await messagingService.listMessagingMessages(
+            { wa_message_id: msg.id },
+            { take: 1 }
+          )
+          if (alreadyExists) {
+            console.log("[whatsapp-webhook] Skipping duplicate message:", msg.id)
+            continue
+          }
+        } catch { /* proceed if check fails */ }
+
         console.log("[whatsapp-webhook] Incoming message:", {
           from: msg.from,
           type: msg.type,
@@ -151,6 +173,21 @@ async function processWhatsAppWebhook(
         try {
           const incomingMessage = parseWebhookMessage(msg)
           if (!incomingMessage) continue
+
+          // Resolve media URL from Meta if message has a mediaId
+          if (incomingMessage.mediaId) {
+            try {
+              const socialProvider = scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
+              const wa = socialProvider.getWhatsApp(scope)
+              const media = await wa.getMediaUrl(incomingMessage.mediaId)
+              if (media?.url) {
+                incomingMessage.mediaUrl = media.url
+                if (media.mime_type) incomingMessage.mediaMimeType = media.mime_type
+              }
+            } catch (e: any) {
+              console.warn("[whatsapp-webhook] Failed to resolve media URL:", e.message)
+            }
+          }
 
           // Check if sender is an admin user first
           const admin = await resolveAdminByPhone(scope, incomingMessage.from)
@@ -178,16 +215,23 @@ function parseWebhookMessage(msg: any): {
   buttonReplyId?: string
   buttonReplyTitle?: string
   mediaId?: string
+  mediaUrl?: string
   mediaMimeType?: string
+  replyToWaMessageId?: string
 } | null {
-  const base = {
+  const base: Record<string, any> = {
     from: msg.from,
     messageId: msg.id,
   }
 
+  // WhatsApp includes context.id when user replies to a specific message
+  if (msg.context?.id) {
+    base.replyToWaMessageId = msg.context.id
+  }
+
   switch (msg.type) {
     case "text":
-      return { ...base, type: "text", text: msg.text?.body }
+      return { ...base, type: "text", text: msg.text?.body } as any
 
     case "interactive":
       if (msg.interactive?.type === "button_reply") {
