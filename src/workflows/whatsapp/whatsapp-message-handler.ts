@@ -949,16 +949,28 @@ async function flushQueuedMessages(
 ): Promise<void> {
   const messagingService = scope.resolve(MESSAGING_MODULE) as any
 
-  const [queuedMessages] = await messagingService.listAndCountMessagingMessages(
-    { conversation_id: conversationId, status: "queued" },
+  // Flush both "queued" and "failed" outbound messages — failed messages are from
+  // before the queuing system was deployed, queued are from after
+  let queuedMessages: any[] = []
+  try {
+    const [queued] = await messagingService.listAndCountMessagingMessages(
+      { conversation_id: conversationId, status: "queued", direction: "outbound" },
+      { take: 50, order: { created_at: "ASC" } }
+    )
+    queuedMessages = queued || []
+  } catch { /* queued status may not exist yet */ }
+
+  const [failedMessages] = await messagingService.listAndCountMessagingMessages(
+    { conversation_id: conversationId, status: "failed", direction: "outbound", message_type: "text" },
     { take: 50, order: { created_at: "ASC" } }
   )
 
-  if (!queuedMessages?.length) return
+  const allToSend = [...queuedMessages, ...(failedMessages || [])]
+  if (!allToSend.length) return
 
-  console.log(`[whatsapp-handler] Flushing ${queuedMessages.length} queued message(s) to ${recipientPhone}`)
+  console.log(`[whatsapp-handler] Flushing ${allToSend.length} queued/failed message(s) to ${recipientPhone}`)
 
-  for (const msg of queuedMessages) {
+  for (const msg of allToSend) {
     try {
       let waResponse: any
       if (msg.media_url) {

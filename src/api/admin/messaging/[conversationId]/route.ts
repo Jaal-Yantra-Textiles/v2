@@ -164,8 +164,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!windowOpen) {
     if (!templateAlreadySent) {
       // First contact — send template to initiate conversation
-      const templateName = process.env.WHATSAPP_INITIATION_TEMPLATE || "jyt_partner_connect"
-      const templateLang = process.env.WHATSAPP_INITIATION_TEMPLATE_LANG || "en"
+      // Check SocialPlatform config first, then env vars
+      let templateName = process.env.WHATSAPP_INITIATION_TEMPLATE || "jyt_partner_connect"
+      let templateLang = process.env.WHATSAPP_INITIATION_TEMPLATE_LANG || "en"
+      try {
+        const { getWhatsAppConfig } = await import("../../social-platforms/whatsapp/helpers.js")
+        const waConfig = await getWhatsAppConfig(req.scope)
+        if (waConfig.platformId) {
+          const svc = req.scope.resolve("socials") as any
+          const plat = await svc.retrieveSocialPlatform(waConfig.platformId)
+          const ac = plat?.api_config as Record<string, any>
+          if (ac?.initiation_template) templateName = ac.initiation_template
+          if (ac?.initiation_template_lang) templateLang = ac.initiation_template_lang
+        }
+      } catch { /* use defaults */ }
 
       let partnerName = conversation.title || "there"
       try {

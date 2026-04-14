@@ -2,6 +2,7 @@ import { UIMatch, useParams, useLoaderData, LoaderFunctionArgs } from "react-rou
 import { SingleColumnPage } from "../../../../components/pages/single-column-pages";
 import { useSocialPlatform } from "../../../../hooks/api/social-platforms";
 import { SocialPlatformGeneralSection } from "../../../../components/social-platforms/social-platform-general-section"; // Adjusted path
+import { WhatsAppTemplatesSection } from "../../../../components/social-platforms/whatsapp-templates-section";
 import { SingleColumnPageSkeleton } from "../../../../components/table/skeleton"; // Assuming this path
 import { useTranslation } from "react-i18next";
 import { socialPlatformLoader } from "./loader";
@@ -31,7 +32,10 @@ export default function SocialPlatformDetailPage() {
     data={platform} 
     hasOutlet>
         <SocialPlatformGeneralSection platform={platform} />
-        {/* Future sections can be added here */}
+        {/* WhatsApp-specific sections */}
+        {(platform.category === "communication" && platform.api_config?.provider === "whatsapp") && (
+          <WhatsAppTemplatesSection />
+        )}
     </SingleColumnPage>
   );
 }
