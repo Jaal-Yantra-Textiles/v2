@@ -1,3 +1,16 @@
+# [12.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.4...v12.10.0) (2026-04-14)
+
+
+### Bug Fixes
+
+* **api:** Fixed new api for the whatsapp sycn ([5372907](https://github.com/Jaal-Yantra-Textiles/v2/commit/5372907d2b37256459bc09ce8d9d22400d8e77be))
+* **Migration:** fixed the migration and etc ([aae27c8](https://github.com/Jaal-Yantra-Textiles/v2/commit/aae27c8eb48247fd0ba4f28a12bbb88bc9d69354))
+
+
+### Features
+
+* **api:** We can now intitiate convo on the whatsapp ([90ab538](https://github.com/Jaal-Yantra-Textiles/v2/commit/90ab5383312bc5077fd9ecae90fd9875f7b3949f))
+
 ## [12.9.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.3...v12.9.4) (2026-04-14)
 
 
