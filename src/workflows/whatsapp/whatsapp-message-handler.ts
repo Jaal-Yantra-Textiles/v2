@@ -195,6 +195,18 @@ export async function handleIncomingMessage(
     return result
   }
 
+  // --- Flush queued messages now that partner has responded ---
+  if (conversationId && conversationMeta.awaiting_reply) {
+    flushQueuedMessages(scope, conversationId, whatsappRaw, message.from).catch((e: any) => {
+      console.warn("[whatsapp-handler] Failed to flush queued messages:", e.message)
+    })
+    // Clear awaiting_reply flag
+    await updateConversationMetadata(scope, conversationId, {
+      ...conversationMeta,
+      awaiting_reply: false,
+    }).catch(() => {})
+  }
+
   // --- First interaction: send welcome + consent request ---
   const consentGiven = conversationMeta.consent_given === true
 
@@ -923,4 +935,55 @@ async function persistOutboundMessage(
     id: conversationId,
     last_message_at: new Date(),
   })
+}
+
+/**
+ * Flush queued messages: partner has responded, so the 24hr window is open.
+ * Send all queued outbound messages and update their status.
+ */
+async function flushQueuedMessages(
+  scope: any,
+  conversationId: string,
+  whatsapp: WhatsAppService,
+  recipientPhone: string
+): Promise<void> {
+  const messagingService = scope.resolve(MESSAGING_MODULE) as any
+
+  const [queuedMessages] = await messagingService.listAndCountMessagingMessages(
+    { conversation_id: conversationId, status: "queued" },
+    { take: 50, order: { created_at: "ASC" } }
+  )
+
+  if (!queuedMessages?.length) return
+
+  console.log(`[whatsapp-handler] Flushing ${queuedMessages.length} queued message(s) to ${recipientPhone}`)
+
+  for (const msg of queuedMessages) {
+    try {
+      let waResponse: any
+      if (msg.media_url) {
+        waResponse = await whatsapp.sendMediaMessage(
+          recipientPhone,
+          msg.media_url,
+          msg.media_mime_type,
+          msg.content
+        )
+      } else {
+        waResponse = await whatsapp.sendTextMessage(recipientPhone, msg.content)
+      }
+
+      const waMessageId = waResponse?.messages?.[0]?.id || null
+      await messagingService.updateMessagingMessages({
+        id: msg.id,
+        status: waMessageId ? "sent" : "failed",
+        wa_message_id: waMessageId,
+      })
+    } catch (e: any) {
+      console.warn(`[whatsapp-handler] Failed to flush message ${msg.id}:`, e.message)
+      await messagingService.updateMessagingMessages({
+        id: msg.id,
+        status: "failed",
+      }).catch(() => {})
+    }
+  }
 }

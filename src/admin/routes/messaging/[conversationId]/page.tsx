@@ -19,6 +19,8 @@ const ConversationThreadModal = () => {
   const { conversationId } = useParams<{ conversationId: string }>()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [replyTo, setReplyTo] = useState<ReplyTo | null>(null)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState("")
 
   const { conversation, messages = [], isPending } = useConversationMessages(
     conversationId!,
@@ -89,12 +91,59 @@ const ConversationThreadModal = () => {
           <div className="flex flex-col h-full">
             {/* Conversation info bar */}
             <div className="flex items-center justify-between px-6 py-3 border-b border-ui-border-base bg-ui-bg-base shrink-0">
-              <div>
-                <Heading level="h2">{conversation.partner_name}</Heading>
+              <div className="flex-1 min-w-0">
+                {editingTitle ? (
+                  <form
+                    className="flex items-center gap-2"
+                    onSubmit={async (e) => {
+                      e.preventDefault()
+                      if (!titleDraft.trim()) return
+                      try {
+                        const { sdk: s } = await import("../../../lib/config.js")
+                        await s.client.fetch(`/admin/messaging/${conversationId}/title`, {
+                          method: "POST",
+                          body: { title: titleDraft.trim() },
+                        })
+                        toast.success("Title updated")
+                      } catch { /* ignore */ }
+                      setEditingTitle(false)
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      onBlur={() => setEditingTitle(false)}
+                      onKeyDown={(e) => e.key === "Escape" && setEditingTitle(false)}
+                      className="text-lg font-medium bg-transparent border-b border-ui-border-interactive outline-none w-full"
+                    />
+                  </form>
+                ) : (
+                  <Heading
+                    level="h2"
+                    className="cursor-pointer hover:text-ui-fg-interactive transition-colors"
+                    onClick={() => {
+                      setTitleDraft(conversation.title || conversation.partner_name || "")
+                      setEditingTitle(true)
+                    }}
+                  >
+                    {conversation.title || conversation.partner_name}
+                  </Heading>
+                )}
                 <Text size="xsmall" className="text-ui-fg-muted">{conversation.phone_number}</Text>
               </div>
               <Badge color="green" size="2xsmall">{conversation.status}</Badge>
             </div>
+
+            {/* Awaiting reply banner */}
+            {conversation.metadata?.awaiting_reply && (
+              <div className="flex items-center gap-2 px-6 py-2 bg-ui-bg-highlight border-b border-ui-border-base text-sm text-ui-fg-muted">
+                <span className="inline-block w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+                <Text size="small">
+                  Waiting for partner to reply. Messages are queued and will be sent automatically once they respond.
+                </Text>
+              </div>
+            )}
 
             {/* Messages */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4 bg-ui-bg-subtle">

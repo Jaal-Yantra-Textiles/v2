@@ -146,55 +146,60 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   let waResponse: any
   let usedTemplate = false
+  let isQueued = false
 
-  // Check if this is the first message (no successful outbound messages yet)
-  // If so, use template to initiate the conversation — free-form will fail without a window
+  // Check conversation window state
   const conversationWithMsgs = await messagingService.retrieveMessagingConversation(conversationId, {
     relations: ["messages"],
   }).catch(() => null)
-  const hasSuccessfulOutbound = (conversationWithMsgs?.messages || []).some(
-    (m: any) => m.direction === "outbound" && m.status !== "failed"
-  )
-  const hasRecentInbound = (conversationWithMsgs?.messages || []).some(
+  const allMsgs = conversationWithMsgs?.messages || []
+  const hasRecentInbound = allMsgs.some(
     (m: any) => m.direction === "inbound" && new Date(m.created_at).getTime() > Date.now() - 24 * 60 * 60 * 1000
   )
-  const needsTemplate = !hasSuccessfulOutbound && !hasRecentInbound
+  const templateAlreadySent = allMsgs.some(
+    (m: any) => m.message_type === "template" && m.status !== "failed"
+  )
+  const windowOpen = hasRecentInbound
 
-  if (needsTemplate && messageType !== "media") {
-    // First message — use template to open the conversation window
-    const templateName = process.env.WHATSAPP_INITIATION_TEMPLATE || "jyt_partner_connect"
-    const templateLang = process.env.WHATSAPP_INITIATION_TEMPLATE_LANG || "en"
+  if (!windowOpen) {
+    if (!templateAlreadySent) {
+      // First contact — send template to initiate conversation
+      const templateName = process.env.WHATSAPP_INITIATION_TEMPLATE || "jyt_partner_connect"
+      const templateLang = process.env.WHATSAPP_INITIATION_TEMPLATE_LANG || "en"
 
-    let partnerName = conversation.title || "there"
-    try {
-      const q = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
-      const { data: partners } = await q.graph({
-        entity: "partners",
-        fields: ["name"],
-        filters: { id: conversation.partner_id },
-      })
-      partnerName = partners?.[0]?.name || partnerName
-    } catch { /* fallback */ }
+      let partnerName = conversation.title || "there"
+      try {
+        const q = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+        const { data: partners } = await q.graph({
+          entity: "partners",
+          fields: ["name"],
+          filters: { id: conversation.partner_id },
+        })
+        partnerName = partners?.[0]?.name || partnerName
+      } catch { /* fallback */ }
 
-    try {
-      waResponse = await whatsapp.sendTemplateMessage(
-        conversation.phone_number,
-        templateName,
-        templateLang,
-        [{
-          type: "body",
-          parameters: [{ type: "text", text: partnerName }],
-        }]
-      )
-      usedTemplate = true
-    } catch {
-      // Template failed — still try free-form as fallback
-      waResponse = null
+      try {
+        waResponse = await whatsapp.sendTemplateMessage(
+          conversation.phone_number,
+          templateName,
+          templateLang,
+          [{
+            type: "body",
+            parameters: [{ type: "text", text: partnerName }],
+          }]
+        )
+        usedTemplate = true
+      } catch {
+        waResponse = null
+      }
     }
+
+    // Queue this message — partner hasn't responded yet, free-form won't deliver
+    isQueued = true
   }
 
-  // If template wasn't used (or not needed), send normally
-  if (!usedTemplate) {
+  // If window is open, send normally
+  if (windowOpen) {
     try {
       if (messageType === "media" && body.media_url) {
         waResponse = await whatsapp.sendMediaMessage(
@@ -208,7 +213,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         waResponse = await whatsapp.sendTextMessage(conversation.phone_number, messageText, replyToWaMessageId)
       }
     } catch {
-      // Send failed — persist as "failed" so admin sees it
       waResponse = null
     }
   }
@@ -233,7 +237,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     content: body.content,
     message_type: messageType as any,
     wa_message_id: waMessageId,
-    status: waMessageId ? "sent" : "failed",
+    status: isQueued ? "queued" : (waMessageId ? "sent" : "failed"),
     context_type: body.context_type || null,
     context_id: body.context_id || null,
     context_snapshot: contextSnapshot,
@@ -244,27 +248,31 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     metadata: body.media_filename ? { filename: body.media_filename } : null,
   })
 
-  // Auto-grant consent when admin sends a message (admin-initiated)
-  const existingMeta = conversation.metadata as Record<string, any> | null
-  if (!existingMeta?.consent_given) {
-    await messagingService.updateMessagingConversations({
-      id: conversationId,
-      last_message_at: new Date(),
-      metadata: {
-        ...(existingMeta || {}),
-        consent_given: true,
-        consent_given_at: new Date().toISOString(),
-        consent_source: "admin_initiated",
-        onboarded: true,
-      },
-    })
-  } else {
-    // Update conversation timestamp
-    await messagingService.updateMessagingConversations({
-      id: conversationId,
-      last_message_at: new Date(),
-    })
+  // Update conversation metadata
+  const existingMeta = (conversation.metadata as Record<string, any>) || {}
+  const updatedMeta: Record<string, any> = {
+    ...existingMeta,
+    consent_given: true,
+    consent_given_at: existingMeta.consent_given_at || new Date().toISOString(),
+    consent_source: existingMeta.consent_source || "admin_initiated",
+    onboarded: true,
   }
 
-  res.json({ message })
+  // Track awaiting_reply state when messages are queued
+  if (isQueued && !existingMeta.awaiting_reply) {
+    updatedMeta.awaiting_reply = true
+    updatedMeta.template_sent_at = new Date().toISOString()
+  }
+
+  await messagingService.updateMessagingConversations({
+    id: conversationId,
+    last_message_at: new Date(),
+    metadata: updatedMeta,
+  })
+
+  res.json({
+    message,
+    queued: isQueued,
+    awaiting_reply: isQueued,
+  })
 }

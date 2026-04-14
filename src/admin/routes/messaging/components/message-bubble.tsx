@@ -2,6 +2,98 @@ import { clx } from "@medusajs/ui"
 import type { Message } from "../../../hooks/api/messaging"
 import { ContextCard } from "./context-card"
 
+const URL_REGEX = /(https?:\/\/[^\s]+)/g
+
+/**
+ * Renders message content with URLs as clickable links + preview cards.
+ */
+const RichContent = ({ text, isOutbound }: { text: string; isOutbound: boolean }) => {
+  const parts = text.split(URL_REGEX)
+  const urls = text.match(URL_REGEX) || []
+
+  return (
+    <div>
+      {/* URL preview cards */}
+      {urls.length > 0 && (
+        <div className="flex flex-col gap-1.5 mb-1.5">
+          {urls.map((url, i) => {
+            // Try to extract domain and path for a simple preview
+            let domain = ""
+            let path = ""
+            try {
+              const parsed = new URL(url)
+              domain = parsed.hostname.replace("www.", "")
+              path = parsed.pathname.length > 1 ? parsed.pathname : ""
+            } catch { domain = url }
+
+            const isImage = /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(url)
+
+            return (
+              <a
+                key={i}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={clx(
+                  "block rounded-md overflow-hidden border transition-colors",
+                  isOutbound
+                    ? "border-white/20 hover:border-white/40"
+                    : "border-ui-border-base hover:border-ui-border-strong"
+                )}
+              >
+                {isImage && (
+                  <img src={url} alt="" className="w-full max-h-40 object-cover" />
+                )}
+                <div className={clx(
+                  "px-2.5 py-1.5 text-xs",
+                  isOutbound ? "bg-white/10" : "bg-ui-bg-base"
+                )}>
+                  <div className={clx(
+                    "font-medium truncate",
+                    isOutbound ? "text-ui-fg-on-color" : "text-ui-fg-base"
+                  )}>
+                    {domain}
+                  </div>
+                  {path && (
+                    <div className={clx(
+                      "truncate",
+                      isOutbound ? "text-ui-fg-on-color/60" : "text-ui-fg-muted"
+                    )}>
+                      {path}
+                    </div>
+                  )}
+                </div>
+              </a>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Text with inline links */}
+      <div className="whitespace-pre-wrap break-words">
+        {parts.map((part, i) =>
+          URL_REGEX.test(part) ? (
+            <a
+              key={i}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={clx(
+                "underline break-all",
+                isOutbound ? "text-blue-200 hover:text-blue-100" : "text-ui-fg-interactive hover:underline"
+              )}
+            >
+              {part}
+            </a>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
 function formatTime(dateStr: string): string {
   const d = new Date(dateStr)
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -9,6 +101,7 @@ function formatTime(dateStr: string): string {
 
 function statusIcon(status: string): string {
   switch (status) {
+    case "queued": return "\u23F3"    // hourglass
     case "sent": return "\u2713"
     case "delivered": return "\u2713\u2713"
     case "read": return "\u2713\u2713"
@@ -153,13 +246,18 @@ export const MessageBubble = ({
         <MediaPreview message={message} />
 
         {message.content && message.content.trim() && (
-          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+          <RichContent text={message.content} isOutbound={isOutbound} />
         )}
 
         <div className={clx("flex items-center gap-1 justify-end mt-1", isOutbound ? "text-ui-fg-on-color/60" : "text-ui-fg-muted")}>
           <span className="text-[10px]">{formatTime(message.created_at)}</span>
           {isOutbound && (
-            <span className={clx("text-[10px]", message.status === "read" ? "text-blue-300" : "")}>
+            <span className={clx(
+              "text-[10px]",
+              message.status === "read" ? "text-blue-300" :
+              message.status === "queued" ? "text-orange-300" :
+              message.status === "failed" ? "text-red-300" : ""
+            )}>
               {statusIcon(message.status)}
             </span>
           )}

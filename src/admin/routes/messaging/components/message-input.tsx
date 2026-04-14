@@ -1,11 +1,13 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useCallback } from "react"
 import { Button, DropdownMenu, Text } from "@medusajs/ui"
 import { Photo, PaperClip, PencilSquare, XMark } from "@medusajs/icons"
+import { sdk } from "../../../lib/config"
 
 export type MessageAttachment = {
   media_url: string
   media_mime_type: string
   media_filename?: string
+  preview_url?: string // local blob URL for thumbnail preview
 }
 
 export type MessageContext = {
@@ -69,6 +71,7 @@ export const MessageInput = ({
 
     onSend(payload)
     setText("")
+    if (attachment?.preview_url) URL.revokeObjectURL(attachment.preview_url)
     setAttachment(null)
     onCancelReply?.()
   }
@@ -80,21 +83,56 @@ export const MessageInput = ({
     }
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploading, setUploading] = useState(false)
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Create a temporary URL — in production this should upload to S3/media first
-    const url = URL.createObjectURL(file)
+    // Reset file input immediately
+    if (fileInputRef.current) fileInputRef.current.value = ""
+
+    // Show local preview while uploading
+    const previewUrl = URL.createObjectURL(file)
     setAttachment({
-      media_url: url,
+      media_url: previewUrl,
       media_mime_type: file.type,
       media_filename: file.name,
+      preview_url: previewUrl,
     })
 
-    // Reset file input
-    if (fileInputRef.current) fileInputRef.current.value = ""
-  }
+    // Upload to media module via admin API
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append("files", file)
+
+      const resp: any = await sdk.client.fetch("/admin/uploads", {
+        method: "POST",
+        body: formData,
+      })
+
+      // Extract the uploaded file URL
+      const uploaded = resp?.files?.[0] || resp?.[0]
+      const permanentUrl = uploaded?.url || uploaded?.file_path
+
+      if (permanentUrl) {
+        setAttachment({
+          media_url: permanentUrl,
+          media_mime_type: file.type,
+          media_filename: file.name,
+          preview_url: previewUrl, // keep local preview for display
+        })
+      }
+      // If upload fails, keep the blob URL — the backend will still get the filename
+      // and the send will fail gracefully
+    } catch (err: any) {
+      console.error("File upload failed:", err.message)
+      // Keep the attachment with blob URL so user sees it, but it'll fail on send
+    } finally {
+      setUploading(false)
+    }
+  }, [])
 
   return (
     <form
@@ -124,15 +162,37 @@ export const MessageInput = ({
 
       {/* Attachment preview */}
       {attachment && (
-        <div className="mb-2 flex items-center gap-2 rounded-lg border border-ui-border-base bg-ui-bg-subtle px-3 py-2">
-          <PaperClip className="h-4 w-4 text-ui-fg-muted shrink-0" />
-          <Text size="small" className="text-ui-fg-subtle truncate flex-1">
-            {attachment.media_filename || "Attachment"}
-          </Text>
+        <div className={`mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 ${uploading ? "border-orange-300 bg-orange-50" : "border-ui-border-base bg-ui-bg-subtle"}`}>
+          {/* Thumbnail for images/videos */}
+          {attachment.preview_url && attachment.media_mime_type?.startsWith("image/") ? (
+            <img
+              src={attachment.preview_url}
+              alt=""
+              className="h-10 w-10 rounded object-cover shrink-0"
+            />
+          ) : attachment.preview_url && attachment.media_mime_type?.startsWith("video/") ? (
+            <video
+              src={attachment.preview_url}
+              className="h-10 w-10 rounded object-cover shrink-0"
+            />
+          ) : (
+            <PaperClip className="h-4 w-4 text-ui-fg-muted shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <Text size="small" className="text-ui-fg-base truncate">
+              {attachment.media_filename || "Attachment"}
+            </Text>
+            {uploading && (
+              <Text size="xsmall" className="text-orange-500">Uploading...</Text>
+            )}
+          </div>
           <button
             type="button"
-            onClick={() => setAttachment(null)}
-            className="text-ui-fg-muted hover:text-ui-fg-base"
+            onClick={() => {
+              if (attachment.preview_url) URL.revokeObjectURL(attachment.preview_url)
+              setAttachment(null)
+            }}
+            className="text-ui-fg-muted hover:text-ui-fg-base shrink-0"
           >
             <XMark className="h-4 w-4" />
           </button>
@@ -192,8 +252,8 @@ export const MessageInput = ({
           type="submit"
           variant="primary"
           size="small"
-          disabled={(!text.trim() && !attachment) || isSending}
-          isLoading={isSending}
+          disabled={(!text.trim() && !attachment) || isSending || uploading}
+          isLoading={isSending || uploading}
           className="shrink-0"
         >
           Send

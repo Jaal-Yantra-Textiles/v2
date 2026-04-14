@@ -9,7 +9,7 @@ const Message = model.define("messaging_message", {
     content: model.text(),
     message_type: model.enum(["text", "interactive", "template", "media", "context_card"]).default("text"),
     wa_message_id: model.text().nullable(),
-    status: model.enum(["pending", "sent", "delivered", "read", "failed"]).default("sent"),
+    status: model.enum(["pending", "sent", "delivered", "read", "failed", "queued"]).default("sent"),
     context_type: model.text().nullable(),
     context_id: model.text().nullable(),
     context_snapshot: model.json().nullable(),
