@@ -1,3 +1,10 @@
+## [12.9.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.3...v12.9.4) (2026-04-14)
+
+
+### Bug Fixes
+
+* **admin:** UI fixes ([212cdee](https://github.com/Jaal-Yantra-Textiles/v2/commit/212cdeea383bd1d6ada8343f3a5fdf18a65b3c59))
+
 ## [12.9.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.2...v12.9.3) (2026-04-13)
 
 
