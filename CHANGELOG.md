@@ -1,3 +1,16 @@
+# [12.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.10.0...v12.11.0) (2026-04-15)
+
+
+### Bug Fixes
+
+* **api:** Energy cost seed and templates added ([85e8b4b](https://github.com/Jaal-Yantra-Textiles/v2/commit/85e8b4b57e00e71ddf3ceabefcdb3fa5f4b09fec))
+* **Modules:** Fixed the module resolution ([9ef28aa](https://github.com/Jaal-Yantra-Textiles/v2/commit/9ef28aac6057fe9936dc6408333c1a60ecaee01b))
+
+
+### Features
+
+* **api:** Fixed the integration test and got the energy cost added ([e0ff81d](https://github.com/Jaal-Yantra-Textiles/v2/commit/e0ff81d76e4ec251a4daaf9766a2f8b6979a538a))
+
 # [12.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.9.4...v12.10.0) (2026-04-14)
 
 
