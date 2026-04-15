@@ -381,5 +381,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/messaging",
   },
+  {
+    resolve: "./src/modules/energy_rates",
+  }
 ],
 });
