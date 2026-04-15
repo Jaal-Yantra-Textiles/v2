@@ -417,7 +417,7 @@ async function handleStart(
   await productionRunService.updateProductionRuns({ id: runId, started_at: new Date() })
 
   // Signal lifecycle
-  const transactionId = run.metadata?.lifecycle_transaction_id
+  const transactionId = (run as any).lifecycle_transaction_id
   if (transactionId) {
     await signalLifecycleStepSuccessWorkflow(scope)
       .run({ input: { transaction_id: transactionId, step_id: awaitRunStartStepId } })
@@ -467,7 +467,7 @@ async function handleFinish(
   }
 
   // Signal lifecycle
-  const transactionId = run.metadata?.lifecycle_transaction_id
+  const transactionId = (run as any).lifecycle_transaction_id
   if (transactionId) {
     await signalLifecycleStepSuccessWorkflow(scope)
       .run({ input: { transaction_id: transactionId, step_id: awaitRunFinishStepId } })
@@ -532,7 +532,7 @@ async function handleComplete(
   })
 
   // Signal lifecycle
-  const transactionId = run.metadata?.lifecycle_transaction_id
+  const transactionId = (run as any).lifecycle_transaction_id
   if (transactionId) {
     await signalLifecycleStepSuccessWorkflow(scope)
       .run({ input: { transaction_id: transactionId, step_id: awaitRunCompleteStepId } })

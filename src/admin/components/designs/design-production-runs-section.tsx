@@ -127,9 +127,9 @@ const ProductionRunRow = ({ run, partnerNameMap = {} }: { run: any; partnerNameM
     }
   }
 
-  const finishNotes = run.finish_notes || run.metadata?.finish_notes
-  const completionNotes = run.completion_notes || run.metadata?.completion_notes
-  const partnerCost = run.partner_cost_estimate || run.metadata?.partner_cost_estimate
+  const finishNotes = run.finish_notes
+  const completionNotes = run.completion_notes
+  const partnerCost = run.partner_cost_estimate
   const hasReviewInfo = finishNotes || completionNotes || partnerCost
 
   return (
@@ -153,6 +153,16 @@ const ProductionRunRow = ({ run, partnerNameMap = {} }: { run: any; partnerNameM
             </div>
             <div className="flex items-center gap-2">
               <Badge color={statusColor(status)}>{status.replace(/_/g, " ")}</Badge>
+              {status === "approved" && (
+                <Link
+                  to={`/production-runs/${id}/dispatch`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button size="small" variant="secondary">
+                    Dispatch
+                  </Button>
+                </Link>
+              )}
               {canCancel && (
                 <Button
                   size="small"

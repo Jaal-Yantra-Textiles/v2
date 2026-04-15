@@ -115,6 +115,28 @@ async function calculateCostForDesign(
     return
   }
 
+  // Separate logs by category
+  const materialTypes = ["sample", "production", "wastage"]
+  const energyTypes = ["energy_electricity", "energy_water", "energy_gas"]
+  const materialLogs = logs.filter((l: any) => materialTypes.includes(l.consumption_type))
+  const energyLogs = logs.filter((l: any) => energyTypes.includes(l.consumption_type))
+  const laborLogs = logs.filter((l: any) => l.consumption_type === "labor")
+
+  // Fetch active energy rates for fallback
+  let rateMap = new Map<string, number>()
+  try {
+    const energyRateService = (query as any).__container?.resolve?.("energy_rates") as any
+    if (energyRateService) {
+      const [activeRates] = await energyRateService.listAndCountEnergyRates(
+        { is_active: true },
+        { take: null }
+      )
+      for (const rate of activeRates) {
+        rateMap.set((rate as any).energy_type, Number((rate as any).rate_per_unit))
+      }
+    }
+  } catch {}
+
   let materialCost = 0
   const breakdown: Array<{
     inventory_item_id: string
@@ -125,7 +147,7 @@ async function calculateCostForDesign(
     cost_source: string
   }> = []
 
-  for (const log of logs) {
+  for (const log of materialLogs) {
     let unitCost = Number(log.unit_cost) || 0
     let costSource = "partner_input"
     let title = log.inventory_item_id
@@ -172,15 +194,33 @@ async function calculateCostForDesign(
     })
   }
 
+  // Energy costs
+  let energyCost = 0
+  for (const log of energyLogs) {
+    const qty = Number(log.quantity)
+    let unitCost = Number(log.unit_cost) || rateMap.get(log.consumption_type) || 0
+    energyCost += qty * unitCost
+  }
+
+  // Labor costs
+  let laborCost = 0
+  for (const log of laborLogs) {
+    const qty = Number(log.quantity)
+    let unitCost = Number(log.unit_cost) || rateMap.get("labor") || 0
+    laborCost += qty * unitCost
+  }
+
   // Aggregate task service costs
   let serviceCost = 0
   const serviceCostItems: any[] = []
   if (productionRunId) {
     try {
-      const [tasks] = await taskService.listAndCountTasks(
-        { metadata: { production_run_id: productionRunId } },
-        { take: 100 }
-      )
+      const { data: runWithTasks } = await query.graph({
+        entity: "production_runs",
+        fields: ["id", "tasks.id", "tasks.title", "tasks.actual_cost", "tasks.estimated_cost"],
+        filters: { id: productionRunId },
+      })
+      const tasks = (runWithTasks?.[0] as any)?.tasks || []
       for (const task of (tasks || [])) {
         const taskCost = Number(task.actual_cost) || Number(task.estimated_cost) || 0
         if (taskCost > 0) {
@@ -211,10 +251,12 @@ async function calculateCostForDesign(
     productionCost = materialCost * (DEFAULT_PRODUCTION_OVERHEAD_PERCENT / 100)
     costSource = "overhead_percent"
   }
-  const totalEstimate = Math.round((materialCost + productionCost) * 100) / 100
+  const totalEstimate = Math.round((materialCost + productionCost + energyCost + laborCost) * 100) / 100
 
   console.log(`  Design ${designId}:`)
   console.log(`    Material cost: ${materialCost}`)
+  console.log(`    Energy cost: ${energyCost}`)
+  console.log(`    Labor cost: ${laborCost}`)
   console.log(`    Service cost (tasks): ${serviceCost}`)
   console.log(`    Production cost (${costSource}): ${productionCost}`)
   console.log(`    Total estimate: ${totalEstimate}`)
@@ -232,6 +274,8 @@ async function calculateCostForDesign(
     production_cost: Math.round(productionCost * 100) / 100,
     cost_breakdown: {
       items: breakdown,
+      energy_cost_total: energyCost > 0 ? Math.round(energyCost * 100) / 100 : undefined,
+      labor_cost_total: laborCost > 0 ? Math.round(laborCost * 100) / 100 : undefined,
       service_costs: serviceCostItems.length > 0 ? serviceCostItems : undefined,
       service_cost_total: serviceCost > 0 ? Math.round(serviceCost * 100) / 100 : undefined,
       production_cost_source: costSource,

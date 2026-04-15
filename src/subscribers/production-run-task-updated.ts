@@ -17,14 +17,20 @@ export default async function productionRunTaskUpdatedHandler({
   try {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
 
-    const { data: taskData } = await query.index({
-      entity: "task",
-      fields: ["id", "title", "status", "metadata"],
-      filters: { id: data.id },
-    })
+    // Find the production run linked to this task via the Index Module
+    // (query.graph can't filter by linked module fields — use query.index)
+    let productionRunId: string | undefined
 
-    const task = (taskData || [])[0] as any
-    const productionRunId = task?.metadata?.production_run_id
+    try {
+      const { data: taskData } = await query.index({
+        entity: "task",
+        fields: ["id", "metadata"],
+        filters: { id: data.id },
+      })
+      productionRunId = (taskData || [])[0]?.metadata?.production_run_id
+    } catch {
+      // Index not available — skip
+    }
 
     if (!productionRunId) {
       return
@@ -168,7 +174,7 @@ export default async function productionRunTaskUpdatedHandler({
         if (!allDepsCompleted) continue
 
         // Auto-dispatch: use template_names from metadata if available
-        const templateNames = ((sibling as any).dispatch_template_names ?? (sibling as any)?.metadata?.dispatch_template_names) as string[] | undefined
+        const templateNames = (sibling as any).dispatch_template_names as string[] | undefined
 
         if (templateNames?.length) {
           logger.info(

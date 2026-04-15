@@ -142,6 +142,11 @@ const ProductionRunDetailPage = () => {
                   <Button size="small">Approve</Button>
                 </Link>
               )}
+              {run.status === "approved" && (
+                <Link to="dispatch">
+                  <Button size="small" variant="secondary">Dispatch to Partner</Button>
+                </Link>
+              )}
               {canCancel && (
                 <Button
                   size="small"

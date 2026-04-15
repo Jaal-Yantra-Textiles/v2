@@ -175,6 +175,61 @@ export const useSendProductionRunToProduction = (
   })
 }
 
+// --- Dispatch hooks ---
+
+export type AdminStartDispatchResponse = {
+  transaction_id: string
+}
+
+export const useStartDispatch = (
+  runId: string,
+  options?: UseMutationOptions<AdminStartDispatchResponse, FetchError, void>
+) => {
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<AdminStartDispatchResponse>(
+        `/admin/production-runs/${runId}/start-dispatch`,
+        { method: "POST" }
+      ),
+    ...options,
+  })
+}
+
+export type AdminResumeDispatchPayload = {
+  transaction_id: string
+  template_names: string[]
+}
+
+export type AdminResumeDispatchResponse = {
+  success: boolean
+}
+
+export const useResumeDispatch = (
+  runId: string,
+  options?: UseMutationOptions<
+    AdminResumeDispatchResponse,
+    FetchError,
+    AdminResumeDispatchPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminResumeDispatchPayload) =>
+      sdk.client.fetch<AdminResumeDispatchResponse>(
+        `/admin/production-runs/${runId}/resume-dispatch`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
 export type AdminApproveProductionRunPayload = {
   assignments?: Array<{
     partner_id: string

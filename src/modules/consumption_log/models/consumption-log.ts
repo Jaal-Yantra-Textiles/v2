@@ -4,7 +4,7 @@ const ConsumptionLog = model.define("consumption_log", {
   id: model.id().primaryKey(),
   design_id: model.text(),
   production_run_id: model.text().nullable(),
-  inventory_item_id: model.text(),
+  inventory_item_id: model.text().nullable(),
   raw_material_id: model.text().nullable(),
   quantity: model.float(),
   unit_cost: model.float().nullable(),

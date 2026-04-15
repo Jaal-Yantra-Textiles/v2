@@ -626,7 +626,7 @@ async function handleSendRun(
     return { handled: true, action: "send_run", error: "not_found" }
   }
 
-  const templateNames = (run.metadata?.dispatch_template_names as string[]) || []
+  const templateNames = ((run as any).dispatch_template_names as string[]) || []
 
   await sendProductionRunToProductionWorkflow(scope).run({
     input: { production_run_id: runId, template_names: templateNames },

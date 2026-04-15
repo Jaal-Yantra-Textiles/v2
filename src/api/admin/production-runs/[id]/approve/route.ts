@@ -90,7 +90,7 @@ export const POST = async (
 
   if (!hasOrdering) {
     for (const child of children) {
-      const templateNames = ((child as any)?.dispatch_template_names ?? (child as any)?.metadata?.dispatch_template_names) as string[] | undefined
+      const templateNames = (child as any)?.dispatch_template_names as string[] | undefined
       if (!templateNames?.length) continue
 
       await sendProductionRunToProductionWorkflow(req.scope).run({

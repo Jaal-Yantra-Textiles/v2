@@ -60,6 +60,10 @@ const ProductionRun = model.define("production_runs", {
   snapshot: model.json(),
   captured_at: model.dateTime(),
   depends_on_run_ids: model.json().nullable(),
+
+  // Lifecycle workflow transaction ID — used to signal async steps
+  lifecycle_transaction_id: model.text().nullable(),
+
   metadata: model.json().nullable(),
 })
 

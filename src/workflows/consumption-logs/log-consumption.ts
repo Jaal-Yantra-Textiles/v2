@@ -5,6 +5,7 @@ import {
   StepResponse,
   WorkflowResponse,
   transform,
+  when,
 } from "@medusajs/framework/workflows-sdk"
 import { MedusaError } from "@medusajs/utils"
 import { IInventoryService, LinkDefinition } from "@medusajs/framework/types"
@@ -14,10 +15,13 @@ import { DESIGN_MODULE } from "../../modules/designs"
 import DesignService from "../../modules/designs/service"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 
+// Energy/labor consumption types that don't require an inventory item
+const NON_INVENTORY_TYPES = ["energy_electricity", "energy_water", "energy_gas", "labor"]
+
 export type LogConsumptionInput = {
   design_id: string
   production_run_id?: string
-  inventory_item_id: string
+  inventory_item_id?: string
   raw_material_id?: string
   quantity: number
   unit_cost?: number
@@ -120,6 +124,7 @@ const linkConsumptionLogStep = createStep(
       production_run_id?: string
       inventory_item_id: string
       log_id: string
+      has_inventory?: boolean
     },
     { container }
   ) => {
@@ -130,11 +135,15 @@ const linkConsumptionLogStep = createStep(
         [DESIGN_MODULE]: { design_id: input.design_id },
         [CONSUMPTION_LOG_MODULE]: { consumption_log_id: input.log_id },
       },
-      {
+    ]
+
+    // Only link to inventory if this is a material-type consumption
+    if (input.has_inventory !== false && input.inventory_item_id) {
+      coreLinks.push({
         [Modules.INVENTORY]: { inventory_item_id: input.inventory_item_id },
         [CONSUMPTION_LOG_MODULE]: { consumption_log_id: input.log_id },
-      },
-    ]
+      })
+    }
 
     await remoteLink.create(coreLinks)
 
@@ -174,20 +183,38 @@ export const logConsumptionWorkflow = createWorkflow(
     name: "log-consumption",
     store: true,
   },
-  (input: LogConsumptionInput) => {
+  function (input: LogConsumptionInput) {
     validateDesignStep({ design_id: input.design_id })
-    validateInventoryItemStep({ inventory_item_id: input.inventory_item_id })
+
+    // Only validate inventory item for material types (not energy/labor)
+    const hasInventoryItem = transform({ input }, (data) => ({
+      inventory_item_id: data.input.inventory_item_id || "",
+      has_item: !!data.input.inventory_item_id &&
+        !NON_INVENTORY_TYPES.includes(data.input.consumption_type || ""),
+    }))
+
+    when(hasInventoryItem, (data) => data.has_item).then(() => {
+      validateInventoryItemStep({ inventory_item_id: hasInventoryItem.inventory_item_id })
+    })
 
     const log = createConsumptionLogStep(input)
 
     const logId = transform({ log }, ({ log }) => log.id) as unknown as string
 
-    linkConsumptionLogStep({
-      design_id: input.design_id,
-      production_run_id: input.production_run_id,
-      inventory_item_id: input.inventory_item_id,
-      log_id: logId,
-    })
+    // Build link input — inventory_item_id may be empty for energy/labor
+    const linkInput = transform(
+      { input, logId },
+      (data) => ({
+        design_id: data.input.design_id,
+        production_run_id: data.input.production_run_id,
+        inventory_item_id: data.input.inventory_item_id || "",
+        log_id: data.logId as string,
+        has_inventory: !!data.input.inventory_item_id &&
+          !NON_INVENTORY_TYPES.includes(data.input.consumption_type || ""),
+      })
+    )
+
+    linkConsumptionLogStep(linkInput)
 
     return new WorkflowResponse(log)
   }

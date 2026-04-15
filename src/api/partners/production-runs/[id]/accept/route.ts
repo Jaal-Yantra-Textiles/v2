@@ -57,7 +57,7 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 
 import {
   acceptProductionRunWorkflow,
@@ -97,7 +97,6 @@ export async function POST(
 
   // Emit event for notifications
   try {
-    const { Modules } = await import("@medusajs/framework/utils")
     const eventService = req.scope.resolve(Modules.EVENT_BUS) as any
     await eventService.emit([{
       name: "production_run.accepted",

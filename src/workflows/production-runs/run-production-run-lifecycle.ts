@@ -53,13 +53,9 @@ const validateAndStampRunStep = createStep(
 
     // Store the lifecycle workflow's transaction ID on the run
     // so partner endpoints can signal the correct workflow instance
-    const existingMetadata = ((run as any).metadata || {}) as Record<string, any>
     await productionRunService.updateProductionRuns({
       id: run.id,
-      metadata: {
-        ...existingMetadata,
-        lifecycle_transaction_id: context.transactionId,
-      },
+      lifecycle_transaction_id: context.transactionId,
     })
 
     return new StepResponse(run)

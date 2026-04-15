@@ -2,6 +2,42 @@
 process.env.PRODUCTION_RUN_AWAIT_TIMEOUT_SECONDS = "5"
 // Disable Mastra AI connections in tests — not being tested
 process.env.MASTRA_DISABLED = "true"
+// Suppress noisy logs during tests (migrations, index engine, S3, etc.)
+process.env.LOG_LEVEL = "error"
+
+// Silence console.log/warn noise from framework internals (Index engine, S3, Observability)
+const _origLog = console.log
+const _origWarn = console.warn
+const _origInfo = console.info
+const SUPPRESSED = [
+  "Index engine", "syncing entity", "S3Listing", "LocalFileService",
+  "Locking module", "Local Event Bus", "Observability configuration",
+  "[mastra:", "redisUrl not found", "IDX_user_email", "No link to load",
+  "Using flag MEDUSA_FF", "Migrations generated", "Pending migration",
+  "Running migration", "Migration scripts completed",
+]
+const shouldSuppress = (args) =>
+  args.some((a) => typeof a === "string" && SUPPRESSED.some((s) => a.includes(s)))
+
+console.log = (...args) => {
+  if (shouldSuppress(args)) return
+  // Also suppress winston JSON logs (they start with {"level":)
+  if (typeof args[0] === "string" && args[0].startsWith('{"level":')) {
+    try {
+      const parsed = JSON.parse(args[0])
+      if (parsed.level !== "error") return
+    } catch {}
+  }
+  _origLog.apply(console, args)
+}
+console.warn = (...args) => {
+  if (shouldSuppress(args)) return
+  _origWarn.apply(console, args)
+}
+console.info = (...args) => {
+  if (shouldSuppress(args)) return
+  _origInfo.apply(console, args)
+}
 
 // Replace waitWorkflowExecutions: wait briefly, then force-fail stuck async
 // steps so the workflow engine can reach a terminal state. Uses the Medusa
