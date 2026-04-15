@@ -1,7 +1,7 @@
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 
-jest.setTimeout(90 * 1000)
+jest.setTimeout(120 * 1000)
 
 setupSharedTestSuite(() => {
   describe("Production Runs - Cross-Run Ordering", () => {
@@ -92,26 +92,42 @@ setupSharedTestSuite(() => {
       await createAdminUser(getContainer())
       adminHeaders = await getAuthHeaders(api)
 
-      // Create email template (ignore if exists)
-      try {
-        await api.post(
-          "/admin/email-templates",
-          {
-            name: "Admin Partner Created",
-            template_key: "partner-created-from-admin",
-            subject: "You're invited to set up your partner account at {{partner_name}}",
-            html_content: `<div>Partner {{partner_name}} created. Temp password: {{temp_password}}</div>`,
-            from: "partners@jaalyantra.com",
-            variables: {
-              partner_name: "Partner display name",
-              temp_password: "Temporary password issued to the partner admin",
-            },
-            template_type: "email",
-          },
-          adminHeaders
-        )
-      } catch {
-        // ok
+      // Create email templates (ignore if exists)
+      const emailTemplates = [
+        {
+          name: "Admin Partner Created",
+          template_key: "partner-created-from-admin",
+          subject: "You're invited to set up your partner account at {{partner_name}}",
+          html_content: `<div>Partner {{partner_name}} created. Temp password: {{temp_password}}</div>`,
+          from: "partners@jaalyantra.com",
+          variables: { partner_name: "name", temp_password: "pwd" },
+          template_type: "email",
+        },
+        {
+          name: "Design Production Started",
+          template_key: "design-production-started",
+          subject: "Production started for {{design_name}}",
+          html_content: `<div>Production for {{design_name}} has started.</div>`,
+          from: "designs@jaalyantra.com",
+          variables: { design_name: "name" },
+          template_type: "email",
+        },
+        {
+          name: "Design Production Completed",
+          template_key: "design-production-completed",
+          subject: "Production completed for {{design_name}}",
+          html_content: `<div>Production for {{design_name}} is complete.</div>`,
+          from: "designs@jaalyantra.com",
+          variables: { design_name: "name" },
+          template_type: "email",
+        },
+      ]
+      for (const tpl of emailTemplates) {
+        try {
+          await api.post("/admin/email-templates", tpl, adminHeaders)
+        } catch {
+          // ok
+        }
       }
 
       const unique = Date.now()
@@ -381,14 +397,10 @@ setupSharedTestSuite(() => {
         },
         { timeoutMs: 15_000 }
       )
-    })
+      // --- Independent dispatch (no ordering) ---
 
-    it("should allow independent dispatch when no ordering specified", async () => {
-      const { api } = getSharedTestEnv()
-      const unique = Date.now()
-
-      // 1) Create parent production run
-      const createRunRes = await api
+      // Create a separate parent run without ordering
+      const noOrderRunRes = await api
         .post(
           "/admin/production-runs",
           { design_id: designId, quantity: 10 },
@@ -399,13 +411,13 @@ setupSharedTestSuite(() => {
           throw err
         })
 
-      expect(createRunRes.status).toBe(201)
-      const parentRunId = createRunRes.data.production_run.id
+      expect(noOrderRunRes.status).toBe(201)
+      const noOrderParentId = noOrderRunRes.data.production_run.id
 
-      // 2) Approve WITHOUT order field
-      const approveRes = await api
+      // Approve WITHOUT order field
+      const noOrderApproveRes = await api
         .post(
-          `/admin/production-runs/${parentRunId}/approve`,
+          `/admin/production-runs/${noOrderParentId}/approve`,
           {
             assignments: [
               { partner_id: partnerAId, role: "weaving" },
@@ -415,21 +427,21 @@ setupSharedTestSuite(() => {
           adminHeaders
         )
         .catch((err: any) => {
-          logAxiosErr(`POST /admin/production-runs/${parentRunId}/approve (no-order)`, err)
+          logAxiosErr(`POST /admin/production-runs/${noOrderParentId}/approve (no-order)`, err)
           throw err
         })
 
-      expect(approveRes.status).toBe(200)
-      const children = approveRes.data.result?.children || []
-      expect(children.length).toBe(2)
+      expect(noOrderApproveRes.status).toBe(200)
+      const noOrderChildren = noOrderApproveRes.data.result?.children || []
+      expect(noOrderChildren.length).toBe(2)
 
-      // 3) Verify both have null depends_on_run_ids
-      for (const child of children) {
+      // Verify both have null depends_on_run_ids
+      for (const child of noOrderChildren) {
         expect(child.depends_on_run_ids).toBeNull()
       }
 
-      // 4) Both should be dispatchable (start-dispatch should succeed)
-      for (const child of children) {
+      // Both should be dispatchable (start-dispatch should succeed)
+      for (const child of noOrderChildren) {
         const startRes = await api
           .post(
             `/admin/production-runs/${child.id}/start-dispatch`,

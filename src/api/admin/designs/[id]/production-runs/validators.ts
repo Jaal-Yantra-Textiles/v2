@@ -10,6 +10,7 @@ const ProductionAssignmentSchema = z.object({
 
 export const AdminCreateDesignProductionRunSchema = z.object({
   quantity: z.number().positive().optional(),
+  run_type: z.enum(["production", "sample"]).optional(),
   assignments: z.array(ProductionAssignmentSchema).min(1).optional(),
 })
 

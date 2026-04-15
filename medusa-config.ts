@@ -104,6 +104,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/consumption_log",
     },
+    {
+      resolve: "./src/modules/energy_rates",
+    },
 
     // Production-ready modules
     // {

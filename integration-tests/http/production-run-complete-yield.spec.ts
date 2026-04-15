@@ -14,22 +14,13 @@ setupSharedTestSuite(() => {
       await createAdminUser(container)
       const adminHeaders = await getAuthHeaders(api)
 
-      try {
-        await api.post(
-          "/admin/email-templates",
-          {
-            name: "Admin Partner Created",
-            template_key: "partner-created-from-admin",
-            subject: "Partner account at {{partner_name}}",
-            html_content: `<div>Partner {{partner_name}} created.</div>`,
-            from: "partners@jaalyantra.com",
-            variables: { partner_name: "name", temp_password: "pwd" },
-            template_type: "email",
-          },
-          adminHeaders
-        )
-      } catch {
-        // ok
+      const emailTemplates = [
+        { name: "Admin Partner Created", template_key: "partner-created-from-admin", subject: "Partner account at {{partner_name}}", html_content: "<div>Partner {{partner_name}} created.</div>", from: "partners@jaalyantra.com", variables: { partner_name: "name", temp_password: "pwd" }, template_type: "email" },
+        { name: "Design Production Started", template_key: "design-production-started", subject: "Production started for {{design_name}}", html_content: "<div>Production for {{design_name}} has started.</div>", from: "designs@jaalyantra.com", variables: { design_name: "name" }, template_type: "email" },
+        { name: "Design Production Completed", template_key: "design-production-completed", subject: "Production completed for {{design_name}}", html_content: "<div>Production for {{design_name}} is complete.</div>", from: "designs@jaalyantra.com", variables: { design_name: "name" }, template_type: "email" },
+      ]
+      for (const tpl of emailTemplates) {
+        try { await api.post("/admin/email-templates", tpl, adminHeaders) } catch {}
       }
 
       return { adminHeaders, unique }

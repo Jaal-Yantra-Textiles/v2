@@ -52,6 +52,25 @@ export async function POST(
     started_at: new Date(),
   })
 
+  // Transition design status when production starts
+  if ((run as any).design_id) {
+    try {
+      const designService = req.scope.resolve("design") as any
+      const design = await designService.retrieveDesign((run as any).design_id)
+      // Only transition if design is in a pre-production state
+      const preProductionStatuses = ["Conceptual", "In_Development", "Technical_Review", "Approved", "Revision"]
+      if (preProductionStatuses.includes(design.status)) {
+        const newStatus = (run as any).run_type === "sample" ? "Sample_Production" : "In_Development"
+        await designService.updateDesigns({
+          id: (run as any).design_id,
+          status: newStatus,
+        })
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
   // Signal the lifecycle workflow
   const transactionId = (run as any).metadata?.lifecycle_transaction_id
   if (transactionId) {
@@ -70,6 +89,8 @@ export async function POST(
   const updated = await productionRunService.retrieveProductionRun(id)
 
   // Emit event for notifications
+  // Note: design.production_started is already emitted by send-production-run-to-production workflow
+  // at dispatch time, so we only emit production_run.started here
   try {
     const { Modules } = await import("@medusajs/framework/utils")
     const eventService = req.scope.resolve(Modules.EVENT_BUS) as any

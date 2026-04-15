@@ -23,7 +23,8 @@ import {
 } from "./agents";
 import { textileExtractionAgent } from "./agents/textileExtractionAgent";
 
-const mastraConnectionString = process.env.MASTRA_DATABASE_URL || process.env.DATABASE_URL
+const mastraDisabled = process.env.MASTRA_DISABLED === "true"
+const mastraConnectionString = mastraDisabled ? undefined : (process.env.MASTRA_DATABASE_URL || process.env.DATABASE_URL)
 
 export const mastra = new Mastra({
     agents: {

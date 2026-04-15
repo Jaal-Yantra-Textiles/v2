@@ -173,7 +173,7 @@ const createProductAndVariantStep = createStep(
       const productInput = {
         title: `Custom Design - ${design.name}`,
         description: design.description || `Custom design: ${design.name}`,
-        status: "published" as const,
+        status: "draft" as const,
         is_giftcard: false,
         discountable: true,
         thumbnail: design.thumbnail_url,

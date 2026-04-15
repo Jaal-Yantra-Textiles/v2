@@ -136,6 +136,7 @@ export async function POST(
         const { result } = await logConsumptionWorkflow(req.scope).run({
           input: {
             design_id: designId,
+            production_run_id: id,
             inventory_item_id: c.inventory_item_id,
             quantity: c.quantity,
             unit_cost: c.unit_cost,
@@ -145,7 +146,6 @@ export async function POST(
             location_id: c.location_id || defaultLocationId,
             notes: c.notes,
             metadata: {
-              production_run_id: id,
               logged_at_completion: true,
             },
           },
@@ -236,25 +236,31 @@ export async function POST(
     }
   })
 
-  // Update design: store cost estimate (always use normalized total)
-  // Update design costs — set production_cost and backfill estimated_cost if missing
+  // Update design: store cost estimate and transition to Technical_Review
   if ((run as any).design_id) {
     try {
       const designService = req.scope.resolve("design") as any
       const design = await designService.retrieveDesign((run as any).design_id)
       const costValue = normalizedCostEstimate || (run as any).partner_cost_estimate || 0
 
+      const updatePayload: Record<string, any> = {
+        id: (run as any).design_id,
+      }
+
       if (costValue > 0) {
-        const updatePayload: Record<string, any> = {
-          id: (run as any).design_id,
-          production_cost: costValue,
-        }
-        // Backfill estimated_cost if it's not already set
+        updatePayload.production_cost = costValue
         if (design.estimated_cost == null) {
           updatePayload.estimated_cost = costValue
         }
-        await designService.updateDesigns(updatePayload)
       }
+
+      // Transition to Technical_Review — production is fully complete, ready for admin review
+      const skipStatuses = ["Approved", "Commerce_Ready", "Rejected", "Superseded"]
+      if (!skipStatuses.includes(design.status)) {
+        updatePayload.status = "Technical_Review"
+      }
+
+      await designService.updateDesigns(updatePayload)
     } catch {
       // Non-fatal
     }

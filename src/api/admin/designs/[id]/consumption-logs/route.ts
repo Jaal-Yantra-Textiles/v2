@@ -12,6 +12,7 @@ export const POST = async (
   const { result, errors } = await logConsumptionWorkflow(req.scope).run({
     input: {
       design_id: designId,
+      production_run_id: req.validatedBody.productionRunId,
       inventory_item_id: req.validatedBody.inventoryItemId,
       raw_material_id: req.validatedBody.rawMaterialId,
       quantity: req.validatedBody.quantity,

@@ -12,15 +12,35 @@ import { CONSUMPTION_LOG_MODULE } from "../../modules/consumption_log"
 import ConsumptionLogService from "../../modules/consumption_log/service"
 import { DESIGN_MODULE } from "../../modules/designs"
 import DesignService from "../../modules/designs/service"
+import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 
 export type LogConsumptionInput = {
   design_id: string
+  production_run_id?: string
   inventory_item_id: string
   raw_material_id?: string
   quantity: number
   unit_cost?: number
-  unit_of_measure?: "Meter" | "Yard" | "Kilogram" | "Gram" | "Piece" | "Roll" | "Other"
-  consumption_type?: "sample" | "production" | "wastage"
+  unit_of_measure?:
+    | "Meter"
+    | "Yard"
+    | "Kilogram"
+    | "Gram"
+    | "Piece"
+    | "Roll"
+    | "kWh"
+    | "Liter"
+    | "Cubic_Meter"
+    | "Hour"
+    | "Other"
+  consumption_type?:
+    | "sample"
+    | "production"
+    | "wastage"
+    | "energy_electricity"
+    | "energy_water"
+    | "energy_gas"
+    | "labor"
   consumed_by: "admin" | "partner"
   notes?: string
   location_id?: string
@@ -68,6 +88,7 @@ const createConsumptionLogStep = createStep(
 
     const log = await service.createConsumptionLogs({
       design_id: input.design_id,
+      production_run_id: input.production_run_id || null,
       inventory_item_id: input.inventory_item_id,
       raw_material_id: input.raw_material_id || null,
       quantity: input.quantity,
@@ -94,29 +115,57 @@ const createConsumptionLogStep = createStep(
 const linkConsumptionLogStep = createStep(
   "link-consumption-log-to-design",
   async (
-    input: { design_id: string; inventory_item_id: string; log_id: string },
+    input: {
+      design_id: string
+      production_run_id?: string
+      inventory_item_id: string
+      log_id: string
+    },
     { container }
   ) => {
     const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
 
-    const designLink: LinkDefinition = {
-      [DESIGN_MODULE]: { design_id: input.design_id },
-      [CONSUMPTION_LOG_MODULE]: { consumption_log_id: input.log_id },
+    const coreLinks: LinkDefinition[] = [
+      {
+        [DESIGN_MODULE]: { design_id: input.design_id },
+        [CONSUMPTION_LOG_MODULE]: { consumption_log_id: input.log_id },
+      },
+      {
+        [Modules.INVENTORY]: { inventory_item_id: input.inventory_item_id },
+        [CONSUMPTION_LOG_MODULE]: { consumption_log_id: input.log_id },
+      },
+    ]
+
+    await remoteLink.create(coreLinks)
+
+    // Production run link is created separately so a failure doesn't
+    // break the core design + inventory links
+    let productionRunLink: LinkDefinition | null = null
+    if (input.production_run_id) {
+      productionRunLink = {
+        [PRODUCTION_RUNS_MODULE]: {
+          production_runs_id: input.production_run_id,
+        },
+        [CONSUMPTION_LOG_MODULE]: { consumption_log_id: input.log_id },
+      }
+      try {
+        await remoteLink.create([productionRunLink])
+      } catch {
+        // Link may not be available yet — production_run_id is still
+        // stored on the consumption_log record as a direct field
+        productionRunLink = null
+      }
     }
 
-    const inventoryLink: LinkDefinition = {
-      [Modules.INVENTORY]: { inventory_item_id: input.inventory_item_id },
-      [CONSUMPTION_LOG_MODULE]: { consumption_log_id: input.log_id },
-    }
-
-    await remoteLink.create([designLink, inventoryLink])
-
-    return new StepResponse({ designLink, inventoryLink })
+    return new StepResponse({ coreLinks, productionRunLink })
   },
   async (data, { container }) => {
     if (!data) return
     const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
-    await remoteLink.dismiss([data.designLink, data.inventoryLink])
+    await remoteLink.dismiss(data.coreLinks)
+    if (data.productionRunLink) {
+      await remoteLink.dismiss([data.productionRunLink]).catch(() => {})
+    }
   }
 )
 
@@ -135,6 +184,7 @@ export const logConsumptionWorkflow = createWorkflow(
 
     linkConsumptionLogStep({
       design_id: input.design_id,
+      production_run_id: input.production_run_id,
       inventory_item_id: input.inventory_item_id,
       log_id: logId,
     })

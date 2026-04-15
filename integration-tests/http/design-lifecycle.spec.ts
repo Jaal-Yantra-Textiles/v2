@@ -182,6 +182,7 @@ setupSharedTestSuite(() => {
           adminHeaders
         );
         expect(productRes.status).toBe(200);
+        expect(productRes.data.product.status).toBe("draft");
         expect(productRes.data.product.metadata?.is_custom_design).toBe(true);
         expect(productRes.data.product.metadata?.design_id).toBe(designId);
       });

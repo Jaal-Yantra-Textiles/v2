@@ -43,7 +43,7 @@ export default async function sampleRunCompletedHandler({
   // Scope to logs from this specific run to avoid inflating costs
   // when multiple runs exist for the same design
   const logs = allDesignLogs.filter(
-    (log: any) => log.metadata?.production_run_id === runId
+    (log: any) => log.production_run_id === runId || log.metadata?.production_run_id === runId
   )
 
   if (!logs.length) {

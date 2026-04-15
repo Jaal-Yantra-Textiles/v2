@@ -94,11 +94,16 @@ const markDispatchStartedStep = createStep(
   }
 )
 
+const DISPATCH_TIMEOUT_SECONDS = (() => {
+  const env = Number(process.env.PRODUCTION_RUN_AWAIT_TIMEOUT_SECONDS)
+  return Number.isFinite(env) && env > 0 ? env : 60 * 60 * 1
+})()
+
 export const waitDispatchTemplateSelectionStep = createStep(
   {
     name: waitDispatchTemplateSelectionStepId,
     async: true,
-    timeout: 60 * 60 * 1,
+    timeout: DISPATCH_TIMEOUT_SECONDS,
   },
   async () => {}
 )

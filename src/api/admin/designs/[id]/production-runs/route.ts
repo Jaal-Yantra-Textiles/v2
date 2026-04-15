@@ -212,10 +212,17 @@ export const POST = async (
 
   // For each approved child that has dispatch_template_names in metadata,
   // trigger sendProductionRunToProductionWorkflow to actually create tasks.
+  // If any child has cross-run ordering (depends_on_run_ids), skip auto-dispatch
+  // entirely — the admin controls dispatch sequencing via start-dispatch/resume-dispatch,
+  // and the task subscriber handles cascading dispatch when dependencies complete.
   const children = approved?.children || []
-  for (const child of children) {
-    const templateNames = ((child as any)?.dispatch_template_names ?? (child as any)?.metadata?.dispatch_template_names) as string[] | undefined
-    if (templateNames?.length) {
+  const hasOrdering = children.some((c: any) => c.depends_on_run_ids?.length)
+
+  if (!hasOrdering) {
+    for (const child of children) {
+      const templateNames = ((child as any)?.dispatch_template_names ?? (child as any)?.metadata?.dispatch_template_names) as string[] | undefined
+      if (!templateNames?.length) continue
+
       await sendProductionRunToProductionWorkflow(req.scope).run({
         input: {
           production_run_id: (child as any).id,

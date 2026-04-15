@@ -82,6 +82,7 @@ import {
 import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq } from "./admin/designs/[id]/consumption-logs/validators";
+import { AdminCreateEnergyRateReq, AdminUpdateEnergyRateReq } from "./admin/energy-rates/validators";
 import { partnerSchema, partnerUpdateSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
@@ -2597,6 +2598,19 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/consumption-logs/commit",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostCommitConsumptionReq))],
+    },
+
+    // Energy rates
+
+    {
+      matcher: "/admin/energy-rates",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreateEnergyRateReq))],
+    },
+    {
+      matcher: "/admin/energy-rates/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminUpdateEnergyRateReq))],
     },
 
     //Task on Designs

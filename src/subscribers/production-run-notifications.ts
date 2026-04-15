@@ -40,7 +40,7 @@ export default async function productionRunNotificationHandler({
       break
     case "finished":
       title = "Production Run Finished — Review Required"
-      description = `Partner marked production run ${runId} as finished.${data.notes ? ` Notes: "${data.notes}"` : ""} Design moved to Technical Review.`
+      description = `Partner marked production run ${runId} as finished.${data.notes ? ` Notes: "${data.notes}"` : ""} Design moved to Revision for review.`
       break
     case "completed":
       title = "Production Run Completed"

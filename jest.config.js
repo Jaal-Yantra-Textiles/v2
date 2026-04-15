@@ -17,6 +17,7 @@ module.exports = {
   testEnvironment: "node",
   moduleFileExtensions: ["js", "ts", "tsx", "jsx", "json"],
   modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],
+  forceExit: true,
 };
 
 if (process.env.TEST_TYPE === "integration:http") {

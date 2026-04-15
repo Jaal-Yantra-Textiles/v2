@@ -61,6 +61,53 @@ setupSharedTestSuite(() => {
       return { partnerId, headers: headers2 }
     }
 
+    beforeAll(async () => {
+      const container = getContainer()
+      await createAdminUser(container)
+      const adminHeaders = await getAuthHeaders(api)
+
+      // Create email templates used by workflows (ignore if already exists)
+      const emailTemplates = [
+        {
+          name: "Admin Partner Created",
+          template_key: "partner-created-from-admin",
+          subject: "You're invited to set up your partner account at {{partner_name}}",
+          html_content: `<div>Partner {{partner_name}} created. Temp password: {{temp_password}}</div>`,
+          from: "partners@jaalyantra.com",
+          variables: {
+            partner_name: "Partner display name",
+            temp_password: "Temporary password issued to the partner admin",
+          },
+          template_type: "email",
+        },
+        {
+          name: "Design Production Started",
+          template_key: "design-production-started",
+          subject: "Production started for {{design_name}}",
+          html_content: "<div>Production for {{design_name}} has started.</div>",
+          from: "designs@jaalyantra.com",
+          variables: { design_name: "name" },
+          template_type: "email",
+        },
+        {
+          name: "Design Production Completed",
+          template_key: "design-production-completed",
+          subject: "Production completed for {{design_name}}",
+          html_content: "<div>Production for {{design_name}} is complete.</div>",
+          from: "designs@jaalyantra.com",
+          variables: { design_name: "name" },
+          template_type: "email",
+        },
+      ]
+      for (const tpl of emailTemplates) {
+        try {
+          await api.post("/admin/email-templates", tpl, adminHeaders)
+        } catch (e: any) {
+          // ok
+        }
+      }
+    })
+
     it("should allow partner listing and retrieving own production runs (single flow)", async () => {
       const container = getContainer()
       await createAdminUser(container)

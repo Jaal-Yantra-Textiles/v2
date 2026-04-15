@@ -9,7 +9,8 @@ import { CONSUMPTION_LOG_MODULE } from "../../modules/consumption_log"
 import ConsumptionLogService from "../../modules/consumption_log/service"
 
 export type ListConsumptionLogsInput = {
-  design_id: string
+  design_id?: string
+  production_run_id?: string
   filters?: {
     consumption_type?: string
     is_committed?: boolean
@@ -25,8 +26,13 @@ const listConsumptionLogsStep = createStep(
   async (input: ListConsumptionLogsInput, { container }) => {
     const service: ConsumptionLogService = container.resolve(CONSUMPTION_LOG_MODULE)
 
-    const filters: Record<string, any> = {
-      design_id: input.design_id,
+    const filters: Record<string, any> = {}
+
+    if (input.design_id) {
+      filters.design_id = input.design_id
+    }
+    if (input.production_run_id) {
+      filters.production_run_id = input.production_run_id
     }
 
     if (input.filters?.consumption_type) {

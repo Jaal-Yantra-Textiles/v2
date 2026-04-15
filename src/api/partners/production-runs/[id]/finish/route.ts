@@ -64,17 +64,16 @@ export async function POST(
     ...(notes ? { finish_notes: notes } : {}),
   })
 
-  // Move design to Technical_Review for admin review
+  // Move design to Revision — partner finished, needs admin review
   if ((run as any).design_id) {
     try {
       const designService = req.scope.resolve("design") as any
       const design = await designService.retrieveDesign((run as any).design_id)
-      // Transition to Technical_Review unless already past that point
-      const skipStatuses = ["Technical_Review", "Approved", "Commerce_Ready", "Rejected", "Superseded"]
+      const skipStatuses = ["Approved", "Commerce_Ready", "Rejected", "Superseded"]
       if (!skipStatuses.includes(design.status)) {
         await designService.updateDesigns({
           id: (run as any).design_id,
-          status: "Technical_Review",
+          status: "Revision",
         })
       }
     } catch {

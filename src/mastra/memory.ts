@@ -10,6 +10,11 @@ let memory: any | undefined
 let sharedStorage: any | undefined
 
 try {
+  if (process.env.MASTRA_DISABLED === "true") {
+    // Skip Mastra initialization entirely (e.g. in integration tests)
+    throw new Error("Mastra disabled via MASTRA_DISABLED env var")
+  }
+
   const connectionString =
     process.env.DATABASE_URL ||
     process.env.MEDUSA_DB_URL ||
