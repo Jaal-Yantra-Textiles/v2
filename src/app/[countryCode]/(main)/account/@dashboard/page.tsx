@@ -13,12 +13,15 @@ export const metadata: Metadata = {
 
 export default async function OverviewTemplate() {
   const customer = await retrieveCustomer().catch(() => null)
-  const orders = (await listOrders().catch(() => null)) || null
-  const { designs } = await listDesigns({ limit: 5 }).catch(() => ({ designs: [] }))
 
   if (!customer) {
     notFound()
   }
+
+  const [orders, { designs }] = await Promise.all([
+    listOrders().catch(() => null),
+    listDesigns({ limit: 5 }).catch(() => ({ designs: [] as any[] })),
+  ])
 
   return <Overview customer={customer} orders={orders} designs={designs} />
 }

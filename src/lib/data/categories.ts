@@ -7,10 +7,9 @@ export const listCategories = async (query?: Record<string, any>) => {
     ...(await getCacheOptions("categories")),
   }
 
-  // Use scoped endpoint to only get categories with products in this sales channel
   return sdk.client
-    .fetch<{ product_categories: HttpTypes.StoreProductCategory[] }>(
-      "/store/scoped-categories",
+    .fetch<{ product_categories: HttpTypes.StoreProductCategory[]; count: number }>(
+      "/store/product-categories",
       {
         next,
         cache: "force-cache",
@@ -27,16 +26,14 @@ export const getCategoryByHandle = async (categoryHandle: string[]) => {
   }
 
   return sdk.client
-    .fetch<HttpTypes.StoreProductCategoryListResponse>(
-      `/store/product-categories`,
+    .fetch<{ product_categories: HttpTypes.StoreProductCategory[] }>(
+      "/store/product-categories",
       {
-        query: {
-          fields: "*category_children, *products",
-          handle,
-        },
         next,
         cache: "force-cache",
       }
     )
-    .then(({ product_categories }) => product_categories[0])
+    .then(({ product_categories }) =>
+      product_categories.find((c) => c.handle === handle)
+    )
 }

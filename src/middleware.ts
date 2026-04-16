@@ -162,14 +162,22 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // check if the url is a static asset
-  if (request.nextUrl.pathname.includes(".")) {
+  // check if the url is a static asset (file extension in the last segment only)
+  const lastSegment = request.nextUrl.pathname.split("/").pop() || ""
+  if (lastSegment.includes(".") && /\.\w{1,5}$/.test(lastSegment)) {
     console.log(`[Middleware] → NextResponse.next() (static asset)`)
     return NextResponse.next()
   }
 
-  const redirectPath =
-    request.nextUrl.pathname === "/" ? "" : request.nextUrl.pathname
+  // Strip domain-like first segment (e.g., /jaalyantra.com/pages/about-us → /pages/about-us)
+  const firstSegment = request.nextUrl.pathname.split("/")[1] || ""
+  let cleanedPathname = request.nextUrl.pathname
+  if (firstSegment.includes(".") && !regionMap.has(firstSegment)) {
+    cleanedPathname = "/" + request.nextUrl.pathname.split("/").slice(2).join("/")
+    console.log(`[Middleware] Stripped domain-like segment: ${firstSegment} → ${cleanedPathname}`)
+  }
+
+  const redirectPath = cleanedPathname === "/" ? "" : cleanedPathname
 
   const queryString = request.nextUrl.search ? request.nextUrl.search : ""
 

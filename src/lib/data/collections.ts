@@ -27,16 +27,15 @@ export const listCollections = async (
     ...(await getCacheOptions("collections")),
   }
 
-  // Use scoped endpoint to only get collections with products in this sales channel
   return sdk.client
     .fetch<{ collections: HttpTypes.StoreCollection[]; count: number }>(
-      "/store/scoped-collections",
+      "/store/collections",
       {
         next,
         cache: "force-cache",
       }
     )
-    .then(({ collections }) => ({ collections, count: collections.length }))
+    .then(({ collections, count }) => ({ collections, count }))
 }
 
 export const getCollectionByHandle = async (
@@ -47,10 +46,12 @@ export const getCollectionByHandle = async (
   }
 
   return sdk.client
-    .fetch<HttpTypes.StoreCollectionListResponse>(`/store/collections`, {
-      query: { handle, fields: "*products" },
-      next,
-      cache: "force-cache",
-    })
-    .then(({ collections }) => collections[0])
+    .fetch<{ collections: HttpTypes.StoreCollection[] }>(
+      "/store/collections",
+      {
+        next,
+        cache: "force-cache",
+      }
+    )
+    .then(({ collections }) => collections.find((c) => c.handle === handle)!)
 }

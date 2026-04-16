@@ -5,6 +5,30 @@ import medusaError from "@lib/util/medusa-error"
 import { getAuthHeaders, getCacheOptions } from "./cookies"
 import { HttpTypes } from "@medusajs/types"
 
+const ORDER_FIELDS = [
+  "*payment_collections.payments",
+  "*items",
+  "*items.metadata",
+  "*items.variant",
+  "*items.product",
+  "*items.detail",
+  "*fulfillments",
+  "+fulfillment_status",
+  "+payment_status",
+  "+status",
+  "+cart.id",
+].join(",")
+
+const ORDER_LIST_FIELDS = [
+  "*items",
+  "+items.metadata",
+  "*items.variant",
+  "*items.product",
+  "+fulfillment_status",
+  "+payment_status",
+  "+status",
+].join(",")
+
 export const retrieveOrder = async (id: string) => {
   const headers = {
     ...(await getAuthHeaders()),
@@ -18,15 +42,36 @@ export const retrieveOrder = async (id: string) => {
     .fetch<HttpTypes.StoreOrderResponse>(`/store/orders/${id}`, {
       method: "GET",
       query: {
-        fields:
-          "*payment_collections.payments,*items,*items.metadata,*items.variant,*items.product",
+        fields: ORDER_FIELDS,
       },
       headers,
+      next,
+      //cache: "force-cache",
+    })
+    .then(({ order }) => order)
+    .catch((err) => medusaError(err))
+}
+
+/**
+ * Retrieve an order without authentication (for public order pages).
+ * Uses the order ID only — no auth header needed for basic order info.
+ */
+export const retrievePublicOrder = async (id: string) => {
+  const next = {
+    ...(await getCacheOptions("orders")),
+  }
+
+  return sdk.client
+    .fetch<HttpTypes.StoreOrderResponse>(`/store/orders/${id}`, {
+      method: "GET",
+      query: {
+        fields: ORDER_FIELDS,
+      },
       next,
       cache: "force-cache",
     })
     .then(({ order }) => order)
-    .catch((err) => medusaError(err))
+    .catch(() => null)
 }
 
 export const listOrders = async (
@@ -49,7 +94,7 @@ export const listOrders = async (
         limit,
         offset,
         order: "-created_at",
-        fields: "*items,+items.metadata,*items.variant,*items.product",
+        fields: ORDER_LIST_FIELDS,
         ...filters,
       },
       headers,
@@ -58,6 +103,110 @@ export const listOrders = async (
     })
     .then(({ orders }) => orders)
     .catch((err) => medusaError(err))
+}
+
+// ─── Return types ────────────────────────────────────────────────────────────
+
+export type ReturnReason = {
+  id: string
+  value: string
+  label: string
+  description?: string
+}
+
+export type ReturnRequestItem = {
+  id: string
+  quantity: number
+  reason_id?: string
+  note?: string
+}
+
+export type ReturnRequestInput = {
+  order_id: string
+  items: ReturnRequestItem[]
+  return_shipping: {
+    option_id: string
+    price?: number
+  }
+  note?: string
+}
+
+// ─── Return shipping options ─────────────────────────────────────────────────
+
+export type ReturnShippingOption = {
+  id: string
+  name: string
+  amount: number
+  currency_code?: string
+  calculated_price?: {
+    calculated_amount: number
+    currency_code: string
+  }
+}
+
+/**
+ * Fetches available return shipping options for an order via its linked cart.
+ * Uses GET /store/shipping-options?cart_id=xxx&is_return=true
+ */
+export const listReturnShippingOptions = async (
+  cartId: string
+): Promise<ReturnShippingOption[]> => {
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  const next = {
+    ...(await getCacheOptions("return-shipping")),
+  }
+
+  try {
+    const data = await sdk.client.fetch<
+      HttpTypes.StoreShippingOptionListResponse
+    >(`/store/shipping-options`, {
+      method: "GET",
+      query: {
+        cart_id: cartId,
+        is_return: true,
+      },
+      headers,
+      next,
+      cache: "force-cache",
+    })
+    return (data.shipping_options || []) as unknown as ReturnShippingOption[]
+  } catch {
+    return []
+  }
+}
+
+// ─── Return data functions ───────────────────────────────────────────────────
+
+export const listReturnReasons = async (): Promise<ReturnReason[]> => {
+  try {
+    const data = await sdk.client.fetch<{
+      return_reasons: ReturnReason[]
+    }>(`/store/return-reasons`, {
+      method: "GET",
+      cache: "force-cache",
+    })
+    return data.return_reasons || []
+  } catch {
+    return []
+  }
+}
+
+export const createReturnRequest = async (
+  input: ReturnRequestInput
+): Promise<{ return: any }> => {
+  const headers = {
+    ...(await getAuthHeaders()),
+    "Content-Type": "application/json",
+  }
+
+  return sdk.client.fetch<{ return: any }>(`/store/returns`, {
+    method: "POST",
+    body: input,
+    headers,
+  })
 }
 
 export const createTransferRequest = async (

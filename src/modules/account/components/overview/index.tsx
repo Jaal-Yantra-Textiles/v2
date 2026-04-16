@@ -5,6 +5,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import { convertToLocale } from "@lib/util/money"
 import { HttpTypes } from "@medusajs/types"
 import { Design } from "@lib/data/designs"
+import OrderStatusTimeline from "@modules/order/components/order-status-timeline"
 
 type OverviewProps = {
   customer: HttpTypes.StoreCustomer | null
@@ -61,33 +62,6 @@ const STATUS_BADGE_COLORS: Record<string, string> = {
   Commerce_Ready: "bg-emerald-100 text-emerald-700",
   On_Hold: "bg-gray-200 text-gray-500",
   Rejected: "bg-red-200 text-red-700",
-}
-
-const getOrderTasks = (order: HttpTypes.StoreOrder) => {
-  const tasks: { label: string; done: boolean }[] = []
-  const status = order.status
-
-  tasks.push({ label: "Order placed", done: true })
-
-  if (status === "pending") {
-    tasks.push({ label: "Payment confirmed — processing order", done: false })
-  } else if (status === "processing" || status === "confirmed") {
-    tasks.push({ label: "Payment confirmed", done: true })
-    tasks.push({ label: "Order being processed", done: false })
-    tasks.push({ label: "Shipment pending", done: false })
-  } else if (status === "shipped") {
-    tasks.push({ label: "Payment confirmed", done: true })
-    tasks.push({ label: "Order processed", done: true })
-    tasks.push({ label: "Shipped — track your package", done: false })
-  } else if (status === "delivered" || status === "completed") {
-    tasks.push({ label: "Payment confirmed", done: true })
-    tasks.push({ label: "Order processed", done: true })
-    tasks.push({ label: "Delivered", done: true })
-  } else if (status === "canceled" || status === "cancelled") {
-    tasks.push({ label: "Order cancelled", done: false })
-  }
-
-  return tasks
 }
 
 const Overview = ({ customer, orders, designs }: OverviewProps) => {
@@ -248,7 +222,6 @@ const Overview = ({ customer, orders, designs }: OverviewProps) => {
               >
                 {recentOrders.length > 0 ? (
                   recentOrders.map((order) => {
-                    const tasks = getOrderTasks(order)
                     return (
                       <li
                         key={order.id}
@@ -287,25 +260,7 @@ const Overview = ({ customer, orders, designs }: OverviewProps) => {
                             </div>
                           </LocalizedClientLink>
 
-                          {/* Order task checklist */}
-                          <ul className="flex flex-col gap-y-1 pl-1">
-                            {tasks.map((task, i) => (
-                              <li key={i} className="flex items-center gap-x-2 text-xs">
-                                <span
-                                  className={`flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                                    task.done
-                                      ? "bg-green-100 text-green-600"
-                                      : "bg-blue-100 text-blue-500"
-                                  }`}
-                                >
-                                  {task.done ? "✓" : "→"}
-                                </span>
-                                <span className={task.done ? "text-gray-400 line-through" : "text-gray-700 font-medium"}>
-                                  {task.label}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
+                          <OrderStatusTimeline order={order} variant="compact" />
                         </Container>
                       </li>
                     )

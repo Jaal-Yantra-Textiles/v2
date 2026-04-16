@@ -1,4 +1,4 @@
-import { retrieveOrder } from "@lib/data/orders"
+import { retrieveOrder, listReturnShippingOptions } from "@lib/data/orders"
 import OrderDetailsTemplate from "@modules/order/templates/order-details-template"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
@@ -29,5 +29,16 @@ export default async function OrderDetailPage(props: Props) {
     notFound()
   }
 
-  return <OrderDetailsTemplate order={order} />
+  // Fetch return shipping options via the order's linked cart
+  const cartId = (order as any).cart?.id
+  const returnShippingOptions = cartId
+    ? await listReturnShippingOptions(cartId)
+    : []
+
+  return (
+    <OrderDetailsTemplate
+      order={order}
+      returnShippingOptions={returnShippingOptions}
+    />
+  )
 }

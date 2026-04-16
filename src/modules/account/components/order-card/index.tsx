@@ -5,6 +5,7 @@ import Thumbnail from "@modules/products/components/thumbnail"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { convertToLocale } from "@lib/util/money"
 import { HttpTypes } from "@medusajs/types"
+import OrderStatusTimeline from "@modules/order/components/order-status-timeline"
 
 type OrderCardProps = {
   order: HttpTypes.StoreOrder
@@ -73,7 +74,8 @@ const OrderCard = ({ order }: OrderCardProps) => {
           </div>
         )}
       </div>
-      <div className="flex justify-end">
+      <OrderStatusTimeline order={order} variant="compact" />
+      <div className="flex justify-end mt-4">
         <LocalizedClientLink href={`/account/orders/details/${order.id}`}>
           <Button data-testid="order-details-link" variant="secondary">
             See details
