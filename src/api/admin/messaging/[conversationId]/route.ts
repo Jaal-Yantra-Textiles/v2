@@ -145,88 +145,41 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const whatsapp = socialProvider.getWhatsApp(req.scope)
 
   let waResponse: any
-  let usedTemplate = false
-  let isQueued = false
 
-  // Check conversation window state
+  // Check if the 24-hour messaging window is open (partner messaged within last 24h)
   const conversationWithMsgs = await messagingService.retrieveMessagingConversation(conversationId, {
     relations: ["messages"],
   }).catch(() => null)
   const allMsgs = conversationWithMsgs?.messages || []
-  const hasRecentInbound = allMsgs.some(
+  const windowOpen = allMsgs.some(
     (m: any) => m.direction === "inbound" && new Date(m.created_at).getTime() > Date.now() - 24 * 60 * 60 * 1000
   )
-  const templateAlreadySent = allMsgs.some(
-    (m: any) => m.message_type === "template" && m.status !== "failed"
-  )
-  const windowOpen = hasRecentInbound
 
   if (!windowOpen) {
-    if (!templateAlreadySent) {
-      // First contact — send template to initiate conversation
-      // Check SocialPlatform config first, then env vars
-      let templateName = process.env.WHATSAPP_INITIATION_TEMPLATE || "jyt_partner_connect"
-      let templateLang = process.env.WHATSAPP_INITIATION_TEMPLATE_LANG || "en"
-      try {
-        const { getWhatsAppConfig } = await import("../../social-platforms/whatsapp/helpers.js")
-        const waConfig = await getWhatsAppConfig(req.scope)
-        if (waConfig.platformId) {
-          const svc = req.scope.resolve("socials") as any
-          const plat = await svc.retrieveSocialPlatform(waConfig.platformId)
-          const ac = plat?.api_config as Record<string, any>
-          if (ac?.initiation_template) templateName = ac.initiation_template
-          if (ac?.initiation_template_lang) templateLang = ac.initiation_template_lang
-        }
-      } catch { /* use defaults */ }
-
-      let partnerName = conversation.title || "there"
-      try {
-        const q = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
-        const { data: partners } = await q.graph({
-          entity: "partners",
-          fields: ["name"],
-          filters: { id: conversation.partner_id },
-        })
-        partnerName = partners?.[0]?.name || partnerName
-      } catch { /* fallback */ }
-
-      try {
-        waResponse = await whatsapp.sendTemplateMessage(
-          conversation.phone_number,
-          templateName,
-          templateLang,
-          [{
-            type: "body",
-            parameters: [{ type: "text", text: partnerName }],
-          }]
-        )
-        usedTemplate = true
-      } catch {
-        waResponse = null
-      }
-    }
-
-    // Queue this message — partner hasn't responded yet, free-form won't deliver
-    isQueued = true
+    // 24-hour window is closed — admin cannot send free-form messages.
+    // Only system-triggered templates (production run notifications, reminders) go out.
+    // The partner must message first to reopen the window.
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "The 24-hour messaging window has closed. You can only reply when the partner has sent a message within the last 24 hours. System notifications (production run updates, reminders) will continue to be sent automatically."
+    )
   }
 
-  // If window is open, send normally
-  if (windowOpen) {
-    try {
-      if (messageType === "media" && body.media_url) {
-        waResponse = await whatsapp.sendMediaMessage(
-          conversation.phone_number,
-          body.media_url,
-          body.media_mime_type,
-          body.content,
-          body.media_filename
-        )
-      } else {
-        waResponse = await whatsapp.sendTextMessage(conversation.phone_number, messageText, replyToWaMessageId)
-      }
-    } catch {
-      waResponse = null
+  // Window is open — send the message
+  try {
+    if (messageType === "media" && body.media_url) {
+      waResponse = await whatsapp.sendMediaMessage(
+        conversation.phone_number,
+        body.media_url,
+        body.media_mime_type,
+        body.content,
+        body.media_filename
+      )
+    } else {
+      waResponse = await whatsapp.sendTextMessage(conversation.phone_number, messageText, replyToWaMessageId)
     }
+  } catch {
+    waResponse = null
   }
   const waMessageId = waResponse?.messages?.[0]?.id || null
 
@@ -249,7 +202,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     content: body.content,
     message_type: messageType as any,
     wa_message_id: waMessageId,
-    status: isQueued ? "queued" : (waMessageId ? "sent" : "failed"),
+    status: waMessageId ? "sent" : "failed",
     context_type: body.context_type || null,
     context_id: body.context_id || null,
     context_snapshot: contextSnapshot,
@@ -270,21 +223,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     onboarded: true,
   }
 
-  // Track awaiting_reply state when messages are queued
-  if (isQueued && !existingMeta.awaiting_reply) {
-    updatedMeta.awaiting_reply = true
-    updatedMeta.template_sent_at = new Date().toISOString()
-  }
-
   await messagingService.updateMessagingConversations({
     id: conversationId,
     last_message_at: new Date(),
     metadata: updatedMeta,
   })
 
-  res.json({
-    message,
-    queued: isQueued,
-    awaiting_reply: isQueued,
-  })
+  res.json({ message })
 }

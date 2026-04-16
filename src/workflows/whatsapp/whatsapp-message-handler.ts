@@ -195,18 +195,6 @@ export async function handleIncomingMessage(
     return result
   }
 
-  // --- Flush queued messages now that partner has responded ---
-  if (conversationId && conversationMeta.awaiting_reply) {
-    flushQueuedMessages(scope, conversationId, whatsappRaw, message.from).catch((e: any) => {
-      console.warn("[whatsapp-handler] Failed to flush queued messages:", e.message)
-    })
-    // Clear awaiting_reply flag
-    await updateConversationMetadata(scope, conversationId, {
-      ...conversationMeta,
-      awaiting_reply: false,
-    }).catch(() => {})
-  }
-
   // --- First interaction: send welcome + consent request ---
   const consentGiven = conversationMeta.consent_given === true
 
@@ -217,9 +205,9 @@ export async function handleIncomingMessage(
         ...conversationMeta,
         consent_given: true,
         consent_given_at: new Date().toISOString(),
-        onboarded: true,
       })
-      await sendWelcomeCommands(scope, whatsapp, message.from, partner.partnerId, partner.adminName)
+      // Ask for language preference before onboarding
+      await sendLanguageSelection(whatsapp, message.from)
       return { handled: true, action: "consent_agreed" }
     }
     if (message.buttonReplyId === "consent_decline") {
@@ -229,12 +217,31 @@ export async function handleIncomingMessage(
       )
       return { handled: true, action: "consent_declined" }
     }
+
+    // Handle language selection
+    if (message.buttonReplyId === "lang_hi" || message.buttonReplyId === "lang_en") {
+      const lang = message.buttonReplyId === "lang_hi" ? "hi" : "en"
+      await updateConversationMetadata(scope, conversationId, {
+        ...conversationMeta,
+        consent_given: true,
+        language: lang,
+        onboarded: true,
+      })
+      await sendWelcomeCommands(scope, whatsapp, message.from, partner.partnerId, partner.adminName, lang)
+      return { handled: true, action: `language_selected_${lang}` }
+    }
   }
 
   // If consent not yet given, send the consent prompt
   if (!consentGiven) {
     await sendConsentRequest(whatsapp, message.from, partner.adminName)
     return { handled: true, action: "consent_requested" }
+  }
+
+  // If consent given but language not yet selected, prompt for it
+  if (!conversationMeta.language) {
+    await sendLanguageSelection(whatsapp, message.from)
+    return { handled: true, action: "language_requested" }
   }
 
   // --- Normal message processing (consent already given) ---
@@ -314,7 +321,7 @@ export async function handleIncomingMessage(
       case "list":
         return await handleListRuns(scope, whatsapp, message.from, partner.partnerId)
       case "help":
-        await sendHelpMessage(scope, whatsapp, message.from, partner.partnerId, partner.adminName)
+        await sendHelpMessage(scope, whatsapp, message.from, partner.partnerId, partner.adminName, conversationMeta.language)
         return { handled: true, action: "help" }
       default:
         await whatsapp.sendTextMessage(
@@ -666,14 +673,36 @@ async function sendConsentRequest(
 }
 
 /**
- * After consent, send a one-time welcome with available commands.
+ * Ask the partner to choose their preferred language.
+ */
+async function sendLanguageSelection(
+  whatsapp: WhatsAppService,
+  phone: string
+): Promise<void> {
+  await whatsapp.sendInteractiveMessage(phone, {
+    type: "button",
+    body: {
+      text: `कृपया अपनी भाषा चुनें / Please choose your language:`,
+    },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: "lang_hi", title: "हिंदी" } },
+        { type: "reply", reply: { id: "lang_en", title: "English" } },
+      ],
+    },
+  })
+}
+
+/**
+ * After consent + language selection, send a one-time welcome with available commands.
  */
 async function sendWelcomeCommands(
   scope: any,
   whatsapp: WhatsAppService,
   phone: string,
   partnerId: string,
-  adminName: string
+  adminName: string,
+  lang: string = "en"
 ): Promise<void> {
   const query = scope.resolve("query") as any
   const { data: runs } = await query.graph({
@@ -688,19 +717,35 @@ async function sendWelcomeCommands(
 
   const activeCount = runs?.length || 0
 
-  await whatsapp.sendTextMessage(
-    phone,
-    `Great, you're all set ${adminName}!\n\n` +
-    `Here's what you can do:\n` +
-    `• *runs* — List your active production runs${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
-    `• *accept <run_id>* — Accept an assigned run\n` +
-    `• *start <run_id>* — Start working on a run\n` +
-    `• *finish <run_id>* — Mark a run as finished\n` +
-    `• *complete <run_id> <qty>* — Complete with produced quantity\n` +
-    `• *status <run_id>* — View run details\n` +
-    `• *help* — Show this message\n\n` +
-    `_Or tap buttons in messages to take quick actions._`
-  )
+  if (lang === "hi") {
+    await whatsapp.sendTextMessage(
+      phone,
+      `बहुत अच्छा ${adminName}, आप तैयार हैं!\n\n` +
+      `आप यह कर सकते हैं:\n` +
+      `• *runs* — अपने सक्रिय प्रोडक्शन रन देखें${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
+      `• *accept <run_id>* — असाइन किया गया रन स्वीकार करें\n` +
+      `• *start <run_id>* — रन पर काम शुरू करें\n` +
+      `• *finish <run_id>* — रन को पूरा हुआ चिह्नित करें\n` +
+      `• *complete <run_id> <qty>* — उत्पादित मात्रा के साथ पूरा करें\n` +
+      `• *status <run_id>* — रन विवरण देखें\n` +
+      `• *help* — यह संदेश दिखाएं\n\n` +
+      `_या बटन दबाकर तुरंत कार्रवाई करें।_`
+    )
+  } else {
+    await whatsapp.sendTextMessage(
+      phone,
+      `Great, you're all set ${adminName}!\n\n` +
+      `Here's what you can do:\n` +
+      `• *runs* — List your active production runs${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
+      `• *accept <run_id>* — Accept an assigned run\n` +
+      `• *start <run_id>* — Start working on a run\n` +
+      `• *finish <run_id>* — Mark a run as finished\n` +
+      `• *complete <run_id> <qty>* — Complete with produced quantity\n` +
+      `• *status <run_id>* — View run details\n` +
+      `• *help* — Show this message\n\n` +
+      `_Or tap buttons in messages to take quick actions._`
+    )
+  }
 }
 
 /**
@@ -711,7 +756,8 @@ async function sendHelpMessage(
   whatsapp: WhatsAppService,
   phone: string,
   partnerId: string,
-  adminName: string
+  adminName: string,
+  lang?: string
 ): Promise<void> {
   const query = scope.resolve("query") as any
   const { data: runs } = await query.graph({
@@ -726,18 +772,33 @@ async function sendHelpMessage(
 
   const activeCount = runs?.length || 0
 
-  await whatsapp.sendTextMessage(
-    phone,
-    `*Available Commands:*\n` +
-    `• *runs* — List your active production runs${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
-    `• *accept <run_id>* — Accept an assigned run\n` +
-    `• *start <run_id>* — Start working on a run\n` +
-    `• *finish <run_id>* — Mark a run as finished\n` +
-    `• *complete <run_id> <qty>* — Complete with produced quantity\n` +
-    `• *status <run_id>* — View run details\n` +
-    `• *help* — Show this message\n\n` +
-    `_Or tap buttons in messages to take quick actions._`
-  )
+  if (lang === "hi") {
+    await whatsapp.sendTextMessage(
+      phone,
+      `*उपलब्ध कमांड:*\n` +
+      `• *runs* — अपने सक्रिय प्रोडक्शन रन देखें${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
+      `• *accept <run_id>* — असाइन किया गया रन स्वीकार करें\n` +
+      `• *start <run_id>* — रन पर काम शुरू करें\n` +
+      `• *finish <run_id>* — रन को पूरा हुआ चिह्नित करें\n` +
+      `• *complete <run_id> <qty>* — उत्पादित मात्रा के साथ पूरा करें\n` +
+      `• *status <run_id>* — रन विवरण देखें\n` +
+      `• *help* — यह संदेश दिखाएं\n\n` +
+      `_या बटन दबाकर तुरंत कार्रवाई करें।_`
+    )
+  } else {
+    await whatsapp.sendTextMessage(
+      phone,
+      `*Available Commands:*\n` +
+      `• *runs* — List your active production runs${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
+      `• *accept <run_id>* — Accept an assigned run\n` +
+      `• *start <run_id>* — Start working on a run\n` +
+      `• *finish <run_id>* — Mark a run as finished\n` +
+      `• *complete <run_id> <qty>* — Complete with produced quantity\n` +
+      `• *status <run_id>* — View run details\n` +
+      `• *help* — Show this message\n\n` +
+      `_Or tap buttons in messages to take quick actions._`
+    )
+  }
 }
 
 /**
@@ -937,65 +998,3 @@ async function persistOutboundMessage(
   })
 }
 
-/**
- * Flush queued messages: partner has responded, so the 24hr window is open.
- * Send all queued outbound messages and update their status.
- */
-async function flushQueuedMessages(
-  scope: any,
-  conversationId: string,
-  whatsapp: WhatsAppService,
-  recipientPhone: string
-): Promise<void> {
-  const messagingService = scope.resolve(MESSAGING_MODULE) as any
-
-  // Flush both "queued" and "failed" outbound messages — failed messages are from
-  // before the queuing system was deployed, queued are from after
-  let queuedMessages: any[] = []
-  try {
-    const [queued] = await messagingService.listAndCountMessagingMessages(
-      { conversation_id: conversationId, status: "queued", direction: "outbound" },
-      { take: 50, order: { created_at: "ASC" } }
-    )
-    queuedMessages = queued || []
-  } catch { /* queued status may not exist yet */ }
-
-  const [failedMessages] = await messagingService.listAndCountMessagingMessages(
-    { conversation_id: conversationId, status: "failed", direction: "outbound", message_type: "text" },
-    { take: 50, order: { created_at: "ASC" } }
-  )
-
-  const allToSend = [...queuedMessages, ...(failedMessages || [])]
-  if (!allToSend.length) return
-
-  console.log(`[whatsapp-handler] Flushing ${allToSend.length} queued/failed message(s) to ${recipientPhone}`)
-
-  for (const msg of allToSend) {
-    try {
-      let waResponse: any
-      if (msg.media_url) {
-        waResponse = await whatsapp.sendMediaMessage(
-          recipientPhone,
-          msg.media_url,
-          msg.media_mime_type,
-          msg.content
-        )
-      } else {
-        waResponse = await whatsapp.sendTextMessage(recipientPhone, msg.content)
-      }
-
-      const waMessageId = waResponse?.messages?.[0]?.id || null
-      await messagingService.updateMessagingMessages({
-        id: msg.id,
-        status: waMessageId ? "sent" : "failed",
-        wa_message_id: waMessageId,
-      })
-    } catch (e: any) {
-      console.warn(`[whatsapp-handler] Failed to flush message ${msg.id}:`, e.message)
-      await messagingService.updateMessagingMessages({
-        id: msg.id,
-        status: "failed",
-      }).catch(() => {})
-    }
-  }
-}

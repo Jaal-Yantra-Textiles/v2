@@ -176,6 +176,14 @@ export const config: SubscriberConfig = {
     "agreements.agreement-response.created",
     "agreements.agreement-response.updated",
     
+    // Production Runs
+    "production_run.sent_to_partner",
+    "production_run.accepted",
+    "production_run.started",
+    "production_run.finished",
+    "production_run.completed",
+    "production_run.cancelled",
+
     // Feedback
     "feedback.feedback.created",
     "feedback.feedback.updated",

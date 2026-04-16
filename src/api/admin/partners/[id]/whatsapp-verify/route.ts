@@ -3,20 +3,24 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { PARTNER_MODULE } from "../../../../../modules/partner"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../../modules/social-provider"
 import type SocialProviderService from "../../../../../modules/social-provider/service"
+import { MESSAGING_MODULE } from "../../../../../modules/messaging"
+
+const DEFAULT_TEMPLATE = "jyt_production_run_assigned"
+const DEFAULT_LANG = process.env.WHATSAPP_TEMPLATE_LANG || "hi"
 
 /**
  * POST /admin/partners/:id/whatsapp-verify
  *
- * Admin-side WhatsApp number verification for a partner.
- * Allows admin to set and verify a partner's WhatsApp number directly,
- * bypassing the OTP flow.
+ * "Connect on WhatsApp" — sets the partner's WhatsApp number and sends
+ * a welcome template to initiate the conversation. The partner goes through
+ * consent → language selection → onboarded when they reply.
  *
- * Body: { phone: "393933806825", notify?: boolean }
+ * Body: { phone: "919876543210" }
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id: partnerId } = req.params
   const body = (req as any).validatedBody || req.body
-  const { phone, notify = true } = body as { phone?: string; notify?: boolean }
+  const { phone } = body as { phone?: string }
 
   if (!phone) {
     throw new MedusaError(
@@ -30,7 +34,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (normalized.length < 10) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      "Invalid phone number. Include country code, e.g. 393933806825"
+      "Invalid phone number. Include country code, e.g. 919876543210"
     )
   }
 
@@ -41,41 +45,102 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Partner not found")
   }
 
-  // Update partner with verified WhatsApp number
+  // Update partner with WhatsApp number (verified = true since admin is setting it)
   await partnerService.updatePartners({
     id: partnerId,
     whatsapp_number: normalized,
     whatsapp_verified: true,
   })
 
-  // Optionally notify the partner via WhatsApp
-  if (notify) {
-    try {
-      const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-      const whatsapp = socialProvider.getWhatsApp(req.scope)
+  // Send welcome template to initiate the conversation
+  const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
+  const whatsapp = socialProvider.getWhatsApp(req.scope)
 
-      await whatsapp.sendTextMessage(
-        normalized,
-        `✅ *WhatsApp number verified by admin!*\n\nYour WhatsApp number has been verified for *${partner.name}*.\n\nYou will now receive notifications on this number.\n\nSend *help* to see available commands.`
-      )
-    } catch (e: any) {
-      // Non-fatal — verification succeeded even if notification fails
-      console.warn(`[admin-whatsapp-verify] Failed to notify ${normalized}:`, e.message)
-    }
+  let waMessageId: string | null = null
+  let templateSent = false
+
+  try {
+    const waResponse = await whatsapp.sendTemplateMessage(
+      normalized,
+      DEFAULT_TEMPLATE,
+      DEFAULT_LANG,
+      [{
+        type: "body",
+        parameters: [
+          { type: "text", text: partner.name || "Partner" },
+          { type: "text", text: "JYT Commerce" },
+          { type: "text", text: "0" },
+          { type: "text", text: "Welcome" },
+        ],
+      }]
+    )
+    waMessageId = waResponse?.messages?.[0]?.id || null
+    templateSent = true
+  } catch (e: any) {
+    console.warn(`[admin-whatsapp-connect] Failed to send template to ${normalized}:`, e.message)
+  }
+
+  // Create or find conversation for this partner + phone
+  const messagingService = req.scope.resolve(MESSAGING_MODULE) as any
+  const phoneDigits = normalized.replace(/[^0-9]/g, "")
+
+  const [allConversations] = await messagingService.listAndCountMessagingConversations(
+    { partner_id: partnerId },
+    { take: 50 }
+  )
+
+  const existing = (allConversations || []).find((conv: any) => {
+    const convDigits = (conv.phone_number || "").replace(/[^0-9]/g, "")
+    return convDigits === phoneDigits || convDigits.endsWith(phoneDigits) || phoneDigits.endsWith(convDigits)
+  })
+
+  let conversationId: string
+  if (existing) {
+    conversationId = existing.id
+  } else {
+    const conv = await messagingService.createMessagingConversations({
+      partner_id: partnerId,
+      phone_number: normalized,
+      title: partner.name,
+      status: "active",
+      metadata: {
+        consent_source: "admin_initiated",
+      },
+    })
+    conversationId = conv.id
+  }
+
+  // Persist the outbound template message
+  if (templateSent) {
+    await messagingService.createMessagingMessages({
+      conversation_id: conversationId,
+      direction: "outbound",
+      sender_name: "System",
+      content: `WhatsApp connection initiated for ${partner.name}`,
+      message_type: "template",
+      wa_message_id: waMessageId,
+      status: waMessageId ? "sent" : "failed",
+    })
+
+    await messagingService.updateMessagingConversations({
+      id: conversationId,
+      last_message_at: new Date(),
+    })
   }
 
   return res.json({
     partner_id: partnerId,
     whatsapp_number: normalized,
     whatsapp_verified: true,
-    notified: notify,
+    template_sent: templateSent,
+    conversation_id: conversationId,
   })
 }
 
 /**
  * DELETE /admin/partners/:id/whatsapp-verify
  *
- * Remove WhatsApp verification from a partner.
+ * Disconnect WhatsApp from a partner.
  */
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id: partnerId } = req.params

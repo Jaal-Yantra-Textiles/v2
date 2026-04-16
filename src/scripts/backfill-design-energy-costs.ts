@@ -30,10 +30,20 @@ export default async function backfillDesignEnergyCosts({ container, args }: Exe
   const productionRunService = container.resolve("production_runs") as any
   const energyRateService = container.resolve("energy_rates") as any
 
-  const a = args as any || {}
+  // args is a string[] from medusa exec — parse key=value pairs and flags
+  const rawArgs = (Array.isArray(args) ? args : []) as string[]
+  const a: Record<string, string | boolean> = {}
+  for (const arg of rawArgs) {
+    if (arg.includes("=")) {
+      const [key, ...rest] = arg.split("=")
+      a[key.replace(/^--?/, "")] = rest.join("=")
+    } else {
+      a[arg.replace(/^--?/, "")] = true
+    }
+  }
   const targetDesignId = a.design_id as string | undefined
-  const dryRun = a["dry-run"] !== undefined
-  const force = a.force !== undefined
+  const dryRun = !!a["dry-run"] || !!a["dryRun"] || !!a["dry_run"]
+  const force = !!a.force
 
   if (dryRun) console.log("[DRY RUN] No changes will be written.\n")
 

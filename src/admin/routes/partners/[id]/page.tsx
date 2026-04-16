@@ -11,6 +11,7 @@ import { PartnerFeedbacksSection } from "../../../components/partners/partner-fe
 import { PartnerStorefrontSection } from "../../../components/partners/partner-storefront-section"
 import { PartnerSubscriptionSection } from "../../../components/partners/partner-subscription-section"
 import { PartnerPeopleSection } from "../../../components/partners/partner-people-section"
+import { PartnerWhatsAppSection } from "../../../components/partners/partner-whatsapp-section"
 import type { AdminPartner } from "../../../hooks/api/partners-admin"
 import { partnerLoader } from "./loader"
 
@@ -43,6 +44,12 @@ const PartnerDetailPage = () => {
           <PartnerStorefrontSection partnerId={partner.id} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
+          <PartnerWhatsAppSection
+            partnerId={partner.id}
+            partnerName={partner.name}
+            whatsappNumber={partner.whatsapp_number}
+            whatsappVerified={partner.whatsapp_verified}
+          />
           <PartnerSubscriptionSection partnerId={partner.id} />
           <PartnerPeopleSection partnerId={partner.id} />
           <PartnerAdminsSection partnerId={partner.id} admins={partner.admins || []} />

@@ -1,15 +1,30 @@
-import { Modules } from "@medusajs/framework/utils"
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { SOCIAL_PROVIDER_MODULE } from "../modules/social-provider"
 import type SocialProviderService from "../modules/social-provider/service"
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
-import { generatePartnerDeeplink } from "../modules/social-provider/whatsapp-deeplink"
 import { MESSAGING_MODULE } from "../modules/messaging"
 
 /**
- * Sends WhatsApp notifications to partners when production runs are assigned
- * or when admin-initiated events occur that need partner attention.
+ * Template names and language resolution.
+ * Language is read from conversation metadata (set during partner onboarding).
+ * Falls back to WHATSAPP_TEMPLATE_LANG env var, then "hi" (Hindi).
+ *
+ * Templates must be created and approved in Meta before use:
+ *   - jyt_production_run_assigned (UTILITY): {{1}}=partner, {{2}}=design, {{3}}=quantity, {{4}}=run ID
+ *   - jyt_production_run_cancelled (UTILITY): {{1}}=partner, {{2}}=run ID, {{3}}=design, {{4}}=reason
+ */
+const DEFAULT_LANG = process.env.WHATSAPP_TEMPLATE_LANG || "hi"
+
+const TEMPLATES = {
+  assigned: "jyt_production_run_assigned",
+  cancelled: "jyt_production_run_cancelled",
+} as const
+
+/**
+ * Sends WhatsApp template notifications to partners when production runs
+ * are assigned or cancelled. Uses templates (not free-form) so messages
+ * are delivered regardless of the 24-hour window state.
  */
 export default async function whatsappPartnerNotificationHandler({
   event,
@@ -48,47 +63,58 @@ export default async function whatsappPartnerNotificationHandler({
     const partnerId = data.partner_id || run.partner_id
     if (!partnerId) return
 
-    // Find partner admin phone numbers
-    const phones = await getPartnerPhones(container, partnerId)
+    // Find partner admin phone numbers and name
+    const { phones, partnerName } = await getPartnerInfo(container, partnerId)
     if (phones.length === 0) return
 
     // Get design name for context
     const designName = await getDesignName(container, run.design_id)
 
-    // Send appropriate notification based on action
+    // Send appropriate template based on action
     for (const phone of phones) {
       try {
         let waResponse: any = null
         let messageContent = ""
 
+        // Resolve language from existing conversation metadata, fall back to default
+        const lang = await getPartnerLanguage(container, partnerId, phone) || DEFAULT_LANG
+
         switch (action) {
           case "sent_to_partner":
             messageContent = `New Production Run Assigned — ${designName} (${run.id})`
-            waResponse = await whatsapp.sendProductionRunAssignment(phone, {
-              designName,
-              runId: run.id,
-              runType: run.run_type || "production",
-              quantity: run.quantity,
-              notes: data.notes,
-              webUrl: buildPartnerWebUrl(run.id, partnerId),
-            })
+            waResponse = await whatsapp.sendTemplateMessage(
+              phone,
+              TEMPLATES.assigned,
+              lang,
+              [{
+                type: "body",
+                parameters: [
+                  { type: "text", text: partnerName },
+                  { type: "text", text: designName },
+                  { type: "text", text: String(run.quantity || 0) },
+                  { type: "text", text: run.id },
+                ],
+              }]
+            )
             break
 
           case "cancelled":
             messageContent = `Production Run Cancelled — ${designName} (${run.id})`
-            waResponse = await whatsapp.sendTextMessage(
+            waResponse = await whatsapp.sendTemplateMessage(
               phone,
-              `❌ *Production Run Cancelled*\n\n` +
-              `*Run:* ${run.id}\n` +
-              `*Design:* ${designName}\n` +
-              (data.notes ? `*Reason:* ${data.notes}\n` : "") +
-              `\nThis run has been cancelled by the admin.`
+              TEMPLATES.cancelled,
+              lang,
+              [{
+                type: "body",
+                parameters: [
+                  { type: "text", text: partnerName },
+                  { type: "text", text: run.id },
+                  { type: "text", text: designName },
+                  { type: "text", text: data.notes || "No reason provided" },
+                ],
+              }]
             )
             break
-
-          // Other events (accepted, started, finished, completed) are triggered
-          // by the partner themselves via WhatsApp, so we don't echo them back.
-          // The admin feed notifications handle admin-side visibility.
         }
 
         // Persist outbound notification as a message
@@ -111,26 +137,53 @@ export default async function whatsappPartnerNotificationHandler({
   }
 }
 
-async function getPartnerPhones(container: any, partnerId: string): Promise<string[]> {
+async function getPartnerInfo(
+  container: any,
+  partnerId: string
+): Promise<{ phones: string[]; partnerName: string }> {
   try {
     const partnerService = container.resolve("partner") as any
 
     const partner = await partnerService.retrievePartner(partnerId, {
       relations: ["admins"],
     })
-    if (!partner) return []
+    if (!partner) return { phones: [], partnerName: "Partner" }
+
+    const partnerName = partner.name || "Partner"
 
     // Priority: dedicated whatsapp_number (if verified), then admin phones
     if (partner.whatsapp_number && partner.whatsapp_verified) {
-      return [partner.whatsapp_number]
+      return { phones: [partner.whatsapp_number], partnerName }
     }
 
     const admins = partner.admins || []
-    return admins
+    const phones = admins
       .filter((a: any) => a.is_active && a.phone)
       .map((a: any) => a.phone)
+    return { phones, partnerName }
   } catch {
-    return []
+    return { phones: [], partnerName: "Partner" }
+  }
+}
+
+async function getPartnerLanguage(container: any, partnerId: string, phone: string): Promise<string | null> {
+  try {
+    const messagingService = container.resolve(MESSAGING_MODULE) as any
+    const phoneDigits = phone.replace(/[^0-9]/g, "")
+
+    const [conversations] = await messagingService.listAndCountMessagingConversations(
+      { partner_id: partnerId },
+      { take: 50 }
+    )
+
+    const conv = (conversations || []).find((c: any) => {
+      const convDigits = (c.phone_number || "").replace(/[^0-9]/g, "")
+      return convDigits === phoneDigits || convDigits.endsWith(phoneDigits) || phoneDigits.endsWith(convDigits)
+    })
+
+    return (conv?.metadata as Record<string, any>)?.language || null
+  } catch {
+    return null
   }
 }
 
@@ -172,31 +225,15 @@ async function persistOutboundNotification(
   let conversationId: string
   if (existing) {
     conversationId = existing.id
-    // Admin-initiated message: auto-grant consent if not already set
-    const meta = existing.metadata as Record<string, any> | null
-    if (!meta?.consent_given) {
-      await messagingService.updateMessagingConversations({
-        id: existing.id,
-        metadata: {
-          ...(meta || {}),
-          consent_given: true,
-          consent_given_at: new Date().toISOString(),
-          consent_source: "admin_initiated",
-          onboarded: true,
-        },
-      })
-    }
   } else {
-    // New conversation initiated by admin — consent is implicit
+    // Create conversation — don't set consent or onboarded,
+    // let the actual consent/language flow handle it when the partner replies
     const conv = await messagingService.createMessagingConversations({
       partner_id: partnerId,
       phone_number: phone,
       status: "active",
       metadata: {
-        consent_given: true,
-        consent_given_at: new Date().toISOString(),
-        consent_source: "admin_initiated",
-        onboarded: true,
+        consent_source: "system_notification",
       },
     })
     conversationId = conv.id
@@ -220,17 +257,6 @@ async function persistOutboundNotification(
     id: conversationId,
     last_message_at: new Date(),
   })
-}
-
-function buildPartnerWebUrl(runId: string, partnerId: string): string {
-  const baseUrl = process.env.PARTNER_PORTAL_URL || process.env.MEDUSA_BACKEND_URL || ""
-  if (!baseUrl) return ""
-
-  const { url } = generatePartnerDeeplink(
-    { partner_id: partnerId, run_id: runId, type: "production_run" },
-    baseUrl
-  )
-  return url
 }
 
 export const config: SubscriberConfig = {

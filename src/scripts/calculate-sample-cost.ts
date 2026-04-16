@@ -27,10 +27,20 @@ export default async function calculateSampleCost({ container, args }: ExecArgs)
   const consumptionLogService = container.resolve("consumption_log") as any
   const productionRunService = container.resolve("production_runs") as any
 
-  const a = args as any || {}
+  // args is a string[] from medusa exec — parse key=value pairs and flags
+  const rawArgs = (Array.isArray(args) ? args : []) as string[]
+  const a: Record<string, string | boolean> = {}
+  for (const arg of rawArgs) {
+    if (arg.includes("=")) {
+      const [key, ...rest] = arg.split("=")
+      a[key.replace(/^--?/, "")] = rest.join("=")
+    } else {
+      a[arg.replace(/^--?/, "")] = true
+    }
+  }
   const designId = a.design_id as string | undefined
   const runId = a.production_run_id as string | undefined
-  const allSamples = a["all-samples"] !== undefined
+  const allSamples = !!a["all-samples"] || !!a["allSamples"] || !!a["all_samples"]
 
   // Resolve design IDs to process
   const designIds: string[] = []

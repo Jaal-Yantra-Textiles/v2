@@ -83,7 +83,10 @@ export async function graphApiRequest(
 
   const data = await resp.json()
   if (!resp.ok) {
-    throw new Error(data?.error?.message || `Graph API error ${resp.status}`)
+    const err = data?.error || {}
+    const detail = err.error_user_msg || err.error_user_title || ""
+    const msg = err.message || `Graph API error ${resp.status}`
+    throw new Error(detail ? `${msg} — ${detail}` : msg)
   }
   return data
 }
