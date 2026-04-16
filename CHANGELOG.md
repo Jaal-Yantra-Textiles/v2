@@ -1,3 +1,10 @@
+# [12.12.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.11.1...v12.12.0) (2026-04-16)
+
+
+### Features
+
+* **scripts:** add submodule-aware commit helper ([be4ca72](https://github.com/Jaal-Yantra-Textiles/v2/commit/be4ca720d7a7c60530ff811dac1efb0e21738fc5))
+
 ## [12.11.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.11.0...v12.11.1) (2026-04-16)
 
 
