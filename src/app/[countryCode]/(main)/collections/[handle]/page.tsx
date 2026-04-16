@@ -3,7 +3,10 @@ import { notFound } from "next/navigation"
 
 import { getCollectionByHandle, listCollections } from "@lib/data/collections"
 import { listRegions } from "@lib/data/regions"
-import { buildLocalizedAlternates } from "@lib/util/seo"
+import {
+  buildLocalizedAlternates,
+  getFirstProductImageFor,
+} from "@lib/util/seo"
 import { StoreCollection, StoreRegion } from "@medusajs/types"
 import CollectionTemplate from "@modules/collections/templates"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
@@ -66,9 +69,14 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     `collections/${params.handle}`
   )
 
+  const metaOgImage = (collection as any).metadata?.og_image
   const firstProductImage =
-    (collection as any).metadata?.og_image ||
+    metaOgImage ||
     (collection as any).products?.[0]?.thumbnail ||
+    (await getFirstProductImageFor({
+      countryCode: params.countryCode,
+      collectionId: collection.id,
+    })) ||
     undefined
 
   const ogImages = firstProductImage

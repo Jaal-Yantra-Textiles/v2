@@ -3,7 +3,11 @@ import { notFound } from "next/navigation"
 
 import { getCategoryByHandle, listCategories } from "@lib/data/categories"
 import { listRegions } from "@lib/data/regions"
-import { buildLocalizedAlternates } from "@lib/util/seo"
+import {
+  buildLocalizedAlternates,
+  cleanMetaDescription,
+  getFirstProductImageFor,
+} from "@lib/util/seo"
 import { StoreRegion } from "@medusajs/types"
 import CategoryTemplate from "@modules/categories/templates"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
@@ -49,7 +53,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     const productCategory = await getCategoryByHandle(params.category)
 
     const description = productCategory.description
-      ? productCategory.description.slice(0, 160)
+      ? cleanMetaDescription(productCategory.description)
       : `Shop ${productCategory.name} at Cici Label Store. Handmade, ethically sourced fashion.`
 
     const categoryPath = `categories/${params.category.join("/")}`
@@ -58,12 +62,17 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
       categoryPath
     )
 
-    // Prefer a category banner image if available, otherwise fall back to
-    // the thumbnail of the first product in the category — gives Google
-    // and social previews something richer than a plain text card.
+    // Prefer a category banner image if available, otherwise fetch the
+    // thumbnail of the first product in the category — gives Google and
+    // social previews something richer than a plain text card.
+    const metaOgImage = (productCategory as any).metadata?.og_image
     const firstProductImage =
-      (productCategory as any).metadata?.og_image ||
+      metaOgImage ||
       productCategory.products?.[0]?.thumbnail ||
+      (await getFirstProductImageFor({
+        countryCode: params.countryCode,
+        categoryId: productCategory.id,
+      })) ||
       undefined
 
     const ogImages = firstProductImage

@@ -7,7 +7,10 @@ import PartnerShowcase from "@modules/home/components/partner-showcase"
 import ScrollStage from "@modules/home/components/scroll-stage"
 import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
-import { buildLocalizedAlternates } from "@lib/util/seo"
+import {
+  buildLocalizedAlternates,
+  getFirstProductImageFor,
+} from "@lib/util/seo"
 import { getBaseURL } from "@lib/util/env"
 import { Suspense } from "react"
 
@@ -21,6 +24,13 @@ export async function generateMetadata(props: {
   const description =
     "Cici Label is a slow fashion brand focused on handmade, locally sourced, and ethically produced clothing. Shop handloom and natural-dyed garments."
 
+  // Use the first catalogue product's thumbnail as the homepage OG image
+  // so social shares of the landing page render a rich card rather than a
+  // plain text snippet. Falls back to the static logo.
+  const firstProductImage = await getFirstProductImageFor({ countryCode })
+  const baseUrl = getBaseURL()
+  const ogImage = firstProductImage ?? `${baseUrl}/logo.png`
+
   return {
     title,
     description,
@@ -29,11 +39,13 @@ export async function generateMetadata(props: {
       title,
       description,
       type: "website",
+      images: [{ url: ogImage, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [ogImage],
     },
   }
 }

@@ -70,6 +70,30 @@ const nextConfig = {
         : []),
     ],
   },
+  async redirects() {
+    // Canonicalize on `shop.cicilabel.com`. Both apex and `www.` variants
+    // 301 to the shop host so Google doesn't index duplicate hosts and
+    // link equity consolidates to one origin.
+    //
+    // NOTE: Vercel's project-level domain aliasing can also do this and
+    // is preferred in production (edge-level, cheaper). This `redirects()`
+    // block is a belt-and-suspenders fallback in case the domain config
+    // drifts.
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "cicilabel.com" }],
+        destination: "https://shop.cicilabel.com/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.cicilabel.com" }],
+        destination: "https://shop.cicilabel.com/:path*",
+        permanent: true,
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig

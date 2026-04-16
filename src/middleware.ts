@@ -146,20 +146,22 @@ export async function middleware(request: NextRequest) {
 
   console.log(`[Middleware] urlHasCountryCode=${urlHasCountryCode}, firstSegment=${pathname.split("/")[1]}`)
 
-  // if one of the country codes is in the url and the cache id is set, return next
-  if (urlHasCountryCode && cacheIdCookie) {
-    console.log(`[Middleware] → NextResponse.next() (country code matched, cache id set)`)
-    return NextResponse.next()
-  }
-
-  // if one of the country codes is in the url and the cache id is not set, set the cache id and redirect
-  if (urlHasCountryCode && !cacheIdCookie) {
-    console.log(`[Middleware] → Setting cache id cookie and redirecting to ${redirectUrl}`)
-    response.cookies.set("_medusa_cache_id", cacheId, {
-      maxAge: 60 * 60 * 24,
-    })
-
-    return response
+  // If the URL already has a valid country code, serve the page directly.
+  // Set the cache-id cookie on the SAME response (via NextResponse.next) —
+  // never redirect to the same URL, or clients without persistent cookies
+  // (social preview bots, monitoring agents, some crawlers) get stuck in a
+  // 307 loop.
+  if (urlHasCountryCode) {
+    const next = NextResponse.next()
+    if (!cacheIdCookie) {
+      console.log(`[Middleware] → NextResponse.next() + setting cache id cookie`)
+      next.cookies.set("_medusa_cache_id", cacheId, {
+        maxAge: 60 * 60 * 24,
+      })
+    } else {
+      console.log(`[Middleware] → NextResponse.next() (cache id already set)`)
+    }
+    return next
   }
 
   // check if the url is a static asset (file extension in the last segment only)

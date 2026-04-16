@@ -57,7 +57,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
   const design = product.designs?.[0]
   const designScore = calculateDesignScore(design)
 
-  const jsonLd = buildProductJsonLd(product)
+  const jsonLd = buildProductJsonLd(product, { countryCode })
 
   const breadcrumbLd = buildBreadcrumbJsonLd([
     { name: "Home", path: `/${countryCode}` },

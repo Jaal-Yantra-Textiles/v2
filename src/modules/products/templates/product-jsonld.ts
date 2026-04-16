@@ -1,4 +1,5 @@
 import { HttpTypes } from "@medusajs/types"
+import { getBaseURL } from "@lib/util/env"
 
 type Variant = HttpTypes.StoreProductVariant & {
   calculated_price?: {
@@ -29,8 +30,11 @@ const isVariantInStock = (v: Variant): boolean => {
  * product-actions "Add to cart" button.
  */
 export const buildProductJsonLd = (
-  product: HttpTypes.StoreProduct
+  product: HttpTypes.StoreProduct,
+  opts: { countryCode?: string } = {}
 ): Record<string, unknown> => {
+  const baseUrl = getBaseURL()
+  const countryCode = opts.countryCode
   const variants = ((product.variants ?? []) as Variant[]).filter(
     (v) => !!v.calculated_price
   )
@@ -88,7 +92,12 @@ export const buildProductJsonLd = (
   }
 
   if (product.material) jsonLd.material = product.material
-  if (product.handle) jsonLd.url = `/products/${product.handle}`
+  if (product.handle) {
+    // Google prefers absolute URLs on the Product entity; also scope to
+    // the current country so the URL matches the page's canonical.
+    const pathPrefix = countryCode ? `/${countryCode}` : ""
+    jsonLd.url = `${baseUrl}${pathPrefix}/products/${product.handle}`
+  }
 
   // Use the first variant SKU as the product-level SKU identifier —
   // Google accepts this as a tie-breaker when multiple variants exist.

@@ -2,7 +2,7 @@ import { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { listProducts } from "@lib/data/products"
 import { getRegion, listRegions } from "@lib/data/regions"
-import { buildLocalizedAlternates } from "@lib/util/seo"
+import { buildLocalizedAlternates, cleanMetaDescription } from "@lib/util/seo"
 import ProductTemplate from "@modules/products/templates"
 import { HttpTypes } from "@medusajs/types"
 
@@ -96,7 +96,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   }
 
   const description = product.description
-    ? product.description.slice(0, 160)
+    ? cleanMetaDescription(product.description)
     : `Shop ${product.title} at Cici Label Store. Handmade, ethically sourced fashion.`
 
   const alternates = await buildLocalizedAlternates(
