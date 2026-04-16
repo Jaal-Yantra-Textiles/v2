@@ -1,3 +1,11 @@
+## [12.11.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.11.0...v12.11.1) (2026-04-16)
+
+
+### Bug Fixes
+
+* **api:** Bunch of storefront related changes ([473ad18](https://github.com/Jaal-Yantra-Textiles/v2/commit/473ad1828048dd7c4f40d9568253c619a9119cad))
+* **api:** Fixed certain stuff in the whatsapp business administration ([177ec18](https://github.com/Jaal-Yantra-Textiles/v2/commit/177ec189e487aed0a489a4a02972e390f698aae0))
+
 # [12.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.10.0...v12.11.0) (2026-04-15)
 
 
