@@ -2,10 +2,69 @@ import { MedusaStoreRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getStoreFromPublishableKey } from "../helpers"
 
-export const GET = async (
-  req: MedusaStoreRequest,
-  res: MedusaResponse
-) => {
+/**
+ * GET /store/product-categories
+ *
+ * Replicates the framework's default category list handler with full query
+ * parameter support (handle, q, limit, offset, fields, parent_category_id,
+ * include_ancestors_tree, include_descendants_tree), but scopes results to
+ * categories that belong to the requesting store.
+ *
+ * The applyCategoryFilters middleware (registered in middlewares.ts) injects
+ * is_active: true and is_internal: false before this handler runs.
+ */
+export const GET = async (req: MedusaStoreRequest, res: MedusaResponse) => {
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  // Resolve scoped category IDs
+  const scopedIds = await getScopedCategoryIds(req)
+
+  if (scopedIds !== null && scopedIds.length === 0) {
+    return res.json({ product_categories: [], count: 0, offset: 0, limit: 50 })
+  }
+
+  // Inject scoped IDs into filterable fields
+  const filters: Record<string, any> = { ...(req.filterableFields || {}) }
+  if (scopedIds !== null) {
+    if (filters.id) {
+      const clientIds = Array.isArray(filters.id) ? filters.id : [filters.id]
+      filters.id = clientIds.filter((id: string) => scopedIds.includes(id))
+      if (filters.id.length === 0) {
+        return res.json({ product_categories: [], count: 0, offset: 0, limit: 50 })
+      }
+    } else {
+      filters.id = scopedIds
+    }
+  }
+
+  // Standard Medusa query with full features
+  const { data: product_categories, metadata } = await query.graph(
+    {
+      entity: "product_category",
+      fields: (req as any).queryConfig?.fields || [
+        "id", "name", "description", "handle", "rank",
+        "parent_category_id", "created_at", "updated_at", "metadata",
+        "*parent_category", "*category_children",
+      ],
+      filters,
+      pagination: (req as any).queryConfig?.pagination,
+    },
+    { locale: (req as any).locale }
+  )
+
+  res.json({
+    product_categories,
+    count: metadata?.count ?? product_categories.length,
+    offset: metadata?.skip ?? 0,
+    limit: metadata?.take ?? 50,
+  })
+}
+
+/**
+ * Resolves category IDs visible to the current publishable key.
+ * Returns null if no scoping is needed.
+ */
+async function getScopedCategoryIds(req: MedusaStoreRequest): Promise<string[] | null> {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
   const store = await getStoreFromPublishableKey(
@@ -13,85 +72,50 @@ export const GET = async (
     req.scope
   )
 
-  if (!store) {
-    return res.json({
-      product_categories: [],
-      count: 0,
-    })
-  }
+  if (!store) return null
 
-  // Try store-linked categories first (partner storefronts create these links)
+  // Path 1: Store-linked categories (partner storefronts)
   const { data } = await query.graph({
     entity: "stores",
-    fields: [
-      "product_categories.*",
-      "product_categories.category_children.*",
-      "product_categories.parent_category.*",
-      "product_categories.parent_category.parent_category.*",
-      "product_categories.products.*",
-    ],
+    fields: ["product_categories.id"],
     filters: { id: store.id },
   })
 
-  let categories = (data?.[0] as any)?.product_categories || []
+  const linkedIds = ((data?.[0] as any)?.product_categories || [])
+    .map((c: any) => c.id)
+    .filter(Boolean)
 
-  // Fallback: if no categories are linked to the store, find them via
-  // products in the sales channel (covers the main store where categories
-  // were assigned via admin without explicit store links)
-  if (!categories.length) {
-    const salesChannelIds =
-      (req as any).publishable_key_context?.sales_channel_ids || []
+  if (linkedIds.length) return linkedIds
 
-    if (salesChannelIds.length) {
-      const { data: links } = await query.graph({
-        entity: "product_sales_channel",
-        fields: ["product_id"],
-        filters: { sales_channel_id: salesChannelIds },
-        pagination: { skip: 0, take: 9999 },
-      })
+  // Path 2: Sales-channel product fallback (main store)
+  const salesChannelIds =
+    (req as any).publishable_key_context?.sales_channel_ids || []
 
-      const productIds = (links || []).map((l: any) => l.product_id).filter(Boolean)
+  if (!salesChannelIds.length) return []
 
-      if (productIds.length) {
-        const { data: products } = await query.graph({
-          entity: "product",
-          fields: ["categories.id"],
-          filters: { id: productIds },
-          pagination: { skip: 0, take: 9999 },
-        })
+  const { data: links } = await query.graph({
+    entity: "product_sales_channel",
+    fields: ["product_id"],
+    filters: { sales_channel_id: salesChannelIds },
+    pagination: { skip: 0, take: 9999 },
+  })
 
-        const categoryIds = new Set<string>()
-        for (const p of products || []) {
-          for (const cat of (p as any).categories || []) {
-            if (cat.id) categoryIds.add(cat.id)
-          }
-        }
+  const productIds = (links || []).map((l: any) => l.product_id).filter(Boolean)
+  if (!productIds.length) return []
 
-        if (categoryIds.size) {
-          const { data: fallbackCategories } = await query.graph({
-            entity: "product_category",
-            fields: [
-              "id", "name", "handle", "description",
-              "is_active", "is_internal", "rank", "metadata",
-              "parent_category.id", "parent_category.name", "parent_category.handle",
-              "parent_category.parent_category.id", "parent_category.parent_category.name",
-              "parent_category.parent_category.handle",
-              "category_children.id", "category_children.name", "category_children.handle",
-            ],
-            filters: {
-              id: Array.from(categoryIds),
-              is_active: true,
-              is_internal: false,
-            },
-          })
-          categories = fallbackCategories || []
-        }
-      }
+  const { data: products } = await query.graph({
+    entity: "product",
+    fields: ["categories.id"],
+    filters: { id: productIds },
+    pagination: { skip: 0, take: 9999 },
+  })
+
+  const categoryIds = new Set<string>()
+  for (const p of products || []) {
+    for (const cat of (p as any).categories || []) {
+      if (cat.id) categoryIds.add(cat.id)
     }
   }
 
-  res.json({
-    product_categories: categories,
-    count: categories.length,
-  })
+  return Array.from(categoryIds)
 }

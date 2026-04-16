@@ -336,8 +336,76 @@ const adaptMulter = (multerMiddleware: any) => {
   };
 };
 
+// Category filter middleware — replicates Medusa's applyCategoryFilters
+const applyCategoryFilters = (req: MedusaRequest, _res: MedusaResponse, next: MedusaNextFunction) => {
+  if (!req.filterableFields) {
+    (req as any).filterableFields = {}
+  }
+  req.filterableFields = {
+    ...req.filterableFields,
+    is_active: true,
+    is_internal: false,
+  }
+  next()
+}
+
 export default defineMiddlewares({
   routes: [
+    // ─── Store collection & category validation (replicate framework middleware) ───
+    {
+      matcher: "/store/collections",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(
+          z.object({
+            q: z.string().optional(),
+            id: z.union([z.string(), z.array(z.string())]).optional(),
+            title: z.union([z.string(), z.array(z.string())]).optional(),
+            handle: z.union([z.string(), z.array(z.string())]).optional(),
+            fields: z.string().optional(),
+            offset: z.preprocess(Number, z.number().int().nonnegative()).optional(),
+            limit: z.preprocess(Number, z.number().int().positive()).optional(),
+            order: z.string().optional(),
+          }) as any,
+          {
+            defaults: ["id", "title", "handle", "created_at", "updated_at"],
+            defaultLimit: 10,
+            isList: true,
+          }
+        ),
+      ],
+    },
+    {
+      matcher: "/store/product-categories",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(
+          z.object({
+            q: z.string().optional(),
+            id: z.union([z.string(), z.array(z.string())]).optional(),
+            name: z.union([z.string(), z.array(z.string())]).optional(),
+            handle: z.union([z.string(), z.array(z.string())]).optional(),
+            parent_category_id: z.union([z.string(), z.array(z.string())]).optional(),
+            include_ancestors_tree: z.string().optional(),
+            include_descendants_tree: z.string().optional(),
+            fields: z.string().optional(),
+            offset: z.preprocess(Number, z.number().int().nonnegative()).optional(),
+            limit: z.preprocess(Number, z.number().int().positive()).optional(),
+            order: z.string().optional(),
+          }) as any,
+          {
+            defaults: [
+              "id", "name", "description", "handle", "rank",
+              "parent_category_id", "created_at", "updated_at", "metadata",
+              "*parent_category", "*category_children",
+            ],
+            defaultLimit: 50,
+            isList: true,
+          }
+        ),
+        applyCategoryFilters,
+      ],
+    },
     // CORS middleware for public web routes
     {
       matcher: "/web/*",
