@@ -15,6 +15,8 @@ import SizeGuide from "@modules/products/components/size-guide"
 import { HttpTypes } from "@medusajs/types"
 import { Text } from "@medusajs/ui"
 import { StoreDesign } from "../../../types/product-design"
+import { buildProductJsonLd } from "./product-jsonld"
+import { buildBreadcrumbJsonLd } from "@lib/util/breadcrumb-jsonld"
 
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct & { designs?: StoreDesign[] } // Extend product type to include designs
@@ -55,32 +57,33 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
   const design = product.designs?.[0]
   const designScore = calculateDesignScore(design)
 
-  const lowestPrice = product.variants
-    ?.flatMap((v) => v.calculated_price ? [v.calculated_price] : [])
-    .sort((a: any, b: any) => (a.calculated_amount || 0) - (b.calculated_amount || 0))[0] as any
+  const jsonLd = buildProductJsonLd(product)
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.title,
-    description: product.description || product.subtitle || product.title,
-    image: product.images?.map((i) => i.url) || [],
-    ...(product.material ? { material: product.material } : {}),
-    ...(lowestPrice ? {
-      offers: {
-        "@type": "Offer",
-        priceCurrency: lowestPrice.currency_code?.toUpperCase() || "INR",
-        price: lowestPrice.calculated_amount || 0,
-        availability: "https://schema.org/InStock",
-      },
-    } : {}),
-  }
+  const breadcrumbLd = buildBreadcrumbJsonLd([
+    { name: "Home", path: `/${countryCode}` },
+    ...(product.collection
+      ? [
+          {
+            name: product.collection.title,
+            path: `/${countryCode}/collections/${product.collection.handle}`,
+          },
+        ]
+      : []),
+    {
+      name: product.title || "Product",
+      path: `/${countryCode}/products/${product.handle}`,
+    },
+  ])
 
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
       <div
         className="content-container flex flex-col small:flex-row small:items-start py-12 relative gap-x-12 small:gap-x-24"

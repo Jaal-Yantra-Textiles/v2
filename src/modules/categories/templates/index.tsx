@@ -8,6 +8,7 @@ import { SortOptions } from "@modules/store/components/refinement-list/sort-prod
 import PaginatedProducts from "@modules/store/templates/paginated-products"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { HttpTypes } from "@medusajs/types"
+import { buildBreadcrumbJsonLd } from "@lib/util/breadcrumb-jsonld"
 
 export default function CategoryTemplate({
   category,
@@ -36,11 +37,32 @@ export default function CategoryTemplate({
 
   getParents(category)
 
+  // Breadcrumb chain runs from Home -> parent (oldest -> newest) -> current.
+  // `parents` is ordered child→ancestor, so reverse for the breadcrumb.
+  const breadcrumbLd = buildBreadcrumbJsonLd([
+    { name: "Home", path: `/${countryCode}` },
+    ...parents
+      .slice()
+      .reverse()
+      .map((p) => ({
+        name: p.name,
+        path: `/${countryCode}/categories/${p.handle}`,
+      })),
+    {
+      name: category.name,
+      path: `/${countryCode}/categories/${category.handle}`,
+    },
+  ])
+
   return (
     <div
       className="flex flex-col small:flex-row small:items-start py-6 content-container"
       data-testid="category-container"
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
       <RefinementList sortBy={sort} data-testid="sort-by-container" />
       <div className="w-full">
         <div className="flex flex-row mb-8 text-2xl-semi gap-4">

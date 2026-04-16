@@ -2,6 +2,7 @@ import { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { listProducts } from "@lib/data/products"
 import { getRegion, listRegions } from "@lib/data/regions"
+import { buildLocalizedAlternates } from "@lib/util/seo"
 import ProductTemplate from "@modules/products/templates"
 import { HttpTypes } from "@medusajs/types"
 
@@ -59,18 +60,21 @@ export async function generateStaticParams() {
 function getImagesForVariant(
   product: HttpTypes.StoreProduct,
   selectedVariantId?: string
-) {
+): HttpTypes.StoreProductImage[] {
+  const productImages = product.images ?? []
+
   if (!selectedVariantId || !product.variants) {
-    return product.images
+    return productImages
   }
 
-  const variant = product.variants!.find((v) => v.id === selectedVariantId)
-  if (!variant || !variant.images.length) {
-    return product.images
+  const variant = product.variants.find((v) => v.id === selectedVariantId)
+  const variantImages = variant?.images ?? []
+  if (!variant || variantImages.length === 0) {
+    return productImages
   }
 
-  const imageIdsMap = new Map(variant.images.map((i) => [i.id, true]))
-  return product.images!.filter((i) => imageIdsMap.has(i.id))
+  const imageIdsMap = new Map(variantImages.map((i) => [i.id, true]))
+  return productImages.filter((i) => imageIdsMap.has(i.id))
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
@@ -95,12 +99,15 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     ? product.description.slice(0, 160)
     : `Shop ${product.title} at Cici Label Store. Handmade, ethically sourced fashion.`
 
+  const alternates = await buildLocalizedAlternates(
+    params.countryCode,
+    `products/${params.handle}`
+  )
+
   return {
     title: product.title,
     description,
-    alternates: {
-      canonical: `/${params.countryCode}/products/${params.handle}`,
-    },
+    alternates,
     openGraph: {
       title: product.title,
       description,

@@ -39,9 +39,34 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout(props: { children: React.ReactNode }) {
+  const baseUrl = getBaseURL()
+
+  const organizationLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Cici Label",
+    url: baseUrl,
+    logo: `${baseUrl}/logo.png`,
+  }
+
+  const websiteLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Cici Label Store",
+    url: baseUrl,
+  }
+
   return (
     <html lang="en" data-mode="light" className={`${inter.variable} ${playfair.variable}`}>
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteLd) }}
+        />
         {/* JYT Analytics - shop.cicilabel.com */}
         <script
           src="https://automatic.jaalyantra.com/analytics.min.js"

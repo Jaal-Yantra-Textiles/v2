@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 
 import { getCategoryByHandle, listCategories } from "@lib/data/categories"
 import { listRegions } from "@lib/data/regions"
+import { buildLocalizedAlternates } from "@lib/util/seo"
 import { StoreRegion } from "@medusajs/types"
 import CategoryTemplate from "@modules/categories/templates"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
@@ -51,21 +52,39 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
       ? productCategory.description.slice(0, 160)
       : `Shop ${productCategory.name} at Cici Label Store. Handmade, ethically sourced fashion.`
 
+    const categoryPath = `categories/${params.category.join("/")}`
+    const alternates = await buildLocalizedAlternates(
+      params.countryCode,
+      categoryPath
+    )
+
+    // Prefer a category banner image if available, otherwise fall back to
+    // the thumbnail of the first product in the category — gives Google
+    // and social previews something richer than a plain text card.
+    const firstProductImage =
+      (productCategory as any).metadata?.og_image ||
+      productCategory.products?.[0]?.thumbnail ||
+      undefined
+
+    const ogImages = firstProductImage
+      ? [{ url: firstProductImage, alt: productCategory.name }]
+      : undefined
+
     return {
       title: productCategory.name,
       description,
-      alternates: {
-        canonical: `/${params.countryCode}/categories/${params.category.join("/")}`,
-      },
+      alternates,
       openGraph: {
         title: productCategory.name,
         description,
         type: "website",
+        ...(ogImages ? { images: ogImages } : {}),
       },
       twitter: {
         card: "summary_large_image",
         title: productCategory.name,
         description,
+        ...(firstProductImage ? { images: [firstProductImage] } : {}),
       },
     }
   } catch (error) {

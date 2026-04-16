@@ -7,24 +7,35 @@ import PartnerShowcase from "@modules/home/components/partner-showcase"
 import ScrollStage from "@modules/home/components/scroll-stage"
 import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
+import { buildLocalizedAlternates } from "@lib/util/seo"
+import { getBaseURL } from "@lib/util/env"
 import { Suspense } from "react"
 
-export const metadata: Metadata = {
-  title: "Cici Label - Handmade, Locally Sourced Fashion",
-  description:
-    "Cici Label is a slow fashion brand focused on handmade, locally sourced, and ethically produced clothing. Shop handloom and natural-dyed garments.",
-  openGraph: {
-    title: "Cici Label - Handmade, Locally Sourced Fashion",
-    description:
-      "Slow fashion brand focused on handmade, locally sourced, and ethically produced clothing.",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Cici Label - Handmade, Locally Sourced Fashion",
-    description:
-      "Slow fashion brand focused on handmade, locally sourced, and ethically produced clothing.",
-  },
+export async function generateMetadata(props: {
+  params: Promise<{ countryCode: string }>
+}): Promise<Metadata> {
+  const { countryCode } = await props.params
+  const alternates = await buildLocalizedAlternates(countryCode, "")
+
+  const title = "Cici Label - Handmade, Locally Sourced Fashion"
+  const description =
+    "Cici Label is a slow fashion brand focused on handmade, locally sourced, and ethically produced clothing. Shop handloom and natural-dyed garments."
+
+  return {
+    title,
+    description,
+    alternates,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  }
 }
 
 export default async function Home(props: {

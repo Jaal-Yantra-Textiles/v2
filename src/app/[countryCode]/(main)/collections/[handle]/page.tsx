@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 
 import { getCollectionByHandle, listCollections } from "@lib/data/collections"
 import { listRegions } from "@lib/data/regions"
+import { buildLocalizedAlternates } from "@lib/util/seo"
 import { StoreCollection, StoreRegion } from "@medusajs/types"
 import CollectionTemplate from "@modules/collections/templates"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
@@ -60,21 +61,35 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 
   const description = `Shop the ${collection.title} collection at Cici Label Store. Handmade, ethically sourced fashion.`
 
+  const alternates = await buildLocalizedAlternates(
+    params.countryCode,
+    `collections/${params.handle}`
+  )
+
+  const firstProductImage =
+    (collection as any).metadata?.og_image ||
+    (collection as any).products?.[0]?.thumbnail ||
+    undefined
+
+  const ogImages = firstProductImage
+    ? [{ url: firstProductImage, alt: collection.title }]
+    : undefined
+
   return {
     title: collection.title,
     description,
-    alternates: {
-      canonical: `/${params.countryCode}/collections/${params.handle}`,
-    },
+    alternates,
     openGraph: {
       title: collection.title,
       description,
       type: "website",
+      ...(ogImages ? { images: ogImages } : {}),
     },
     twitter: {
       card: "summary_large_image",
       title: collection.title,
       description,
+      ...(firstProductImage ? { images: [firstProductImage] } : {}),
     },
   } as Metadata
 }
