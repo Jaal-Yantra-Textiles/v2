@@ -58,12 +58,25 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     notFound()
   }
 
-  const metadata = {
-    title: `${collection.title} | Cici Label Store`,
-    description: `${collection.title} collection`,
-  } as Metadata
+  const description = `Shop the ${collection.title} collection at Cici Label Store. Handmade, ethically sourced fashion.`
 
-  return metadata
+  return {
+    title: collection.title,
+    description,
+    alternates: {
+      canonical: `/${params.countryCode}/collections/${params.handle}`,
+    },
+    openGraph: {
+      title: collection.title,
+      description,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: collection.title,
+      description,
+    },
+  } as Metadata
 }
 
 export default async function CollectionPage(props: Props) {

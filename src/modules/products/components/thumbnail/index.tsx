@@ -13,6 +13,7 @@ type ThumbnailProps = {
   size?: "small" | "medium" | "large" | "full" | "square"
   isFeatured?: boolean
   className?: string
+  alt?: string
   "data-testid"?: string
 }
 
@@ -22,6 +23,7 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
   size = "small",
   isFeatured,
   className,
+  alt = "Product image",
   "data-testid": dataTestid,
 }) => {
   const initialImage = thumbnail || images?.[0]?.url
@@ -48,6 +50,7 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
         <ImageOrPlaceholder
           image={initialImage}
           size={size}
+          alt={alt}
           className={clx(
             "absolute inset-0 object-cover object-center transition-all duration-500 ease-in-out transform",
             // Scale up on hover
@@ -61,6 +64,7 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
           <ImageOrPlaceholder
             image={secondaryImage}
             size={size}
+            alt={alt}
             className={clx(
               "absolute inset-0 object-cover object-center transition-all duration-500 ease-in-out transform scale-105 opacity-0",
               // Fade in on hover
@@ -76,8 +80,9 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
 const ImageOrPlaceholder = ({
   image,
   size,
+  alt = "Product image",
   className,
-}: Pick<ThumbnailProps, "size"> & { image?: string, className?: string }) => {
+}: Pick<ThumbnailProps, "size"> & { image?: string; alt?: string; className?: string }) => {
   const [isLoaded, setIsLoaded] = React.useState(false)
 
   return image ? (
@@ -87,10 +92,10 @@ const ImageOrPlaceholder = ({
       )}
       <Image
         src={image}
-        alt="Thumbnail"
+        alt={alt}
         className="object-cover object-center"
         draggable={false}
-        quality={50}
+        quality={75}
         sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
         fill
         onLoad={() => setIsLoaded(true)}

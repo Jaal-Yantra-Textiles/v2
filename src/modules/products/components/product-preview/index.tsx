@@ -36,6 +36,7 @@ export default async function ProductPreview({
           images={product.images}
           size="full"
           isFeatured={isFeatured}
+          alt={product.title}
         />
         <div className="flex flex-col gap-y-1 justify-between">
           <Text className="text-md font-medium text-ui-fg-base group-hover:text-violet-600 transition-colors" data-testid="product-title">

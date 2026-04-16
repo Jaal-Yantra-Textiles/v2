@@ -30,6 +30,10 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
+    minimumCacheTTL: 2592000, // 30 days — reduces Vercel image optimization cache writes
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256],
     remotePatterns: [
       {
         protocol: "http",

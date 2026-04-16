@@ -47,15 +47,25 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   try {
     const productCategory = await getCategoryByHandle(params.category)
 
-    const title = productCategory.name + " | Cici Label Store"
-
-    const description = productCategory.description ?? `${title} category.`
+    const description = productCategory.description
+      ? productCategory.description.slice(0, 160)
+      : `Shop ${productCategory.name} at Cici Label Store. Handmade, ethically sourced fashion.`
 
     return {
-      title: `${title} | Cici Label Store`,
+      title: productCategory.name,
       description,
       alternates: {
-        canonical: `${params.category.join("/")}`,
+        canonical: `/${params.countryCode}/categories/${params.category.join("/")}`,
+      },
+      openGraph: {
+        title: productCategory.name,
+        description,
+        type: "website",
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: productCategory.name,
+        description,
       },
     }
   } catch (error) {

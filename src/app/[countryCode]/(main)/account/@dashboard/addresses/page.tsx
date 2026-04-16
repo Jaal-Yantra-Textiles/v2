@@ -9,6 +9,7 @@ import { retrieveCustomer } from "@lib/data/customer"
 export const metadata: Metadata = {
   title: "Addresses",
   description: "View your addresses",
+  robots: { index: false, follow: false },
 }
 
 export default async function Addresses(props: {

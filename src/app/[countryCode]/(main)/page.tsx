@@ -12,7 +12,19 @@ import { Suspense } from "react"
 export const metadata: Metadata = {
   title: "Cici Label - Handmade, Locally Sourced Fashion",
   description:
-    "Cici Label fashion brand focused on clothing for good , slow and ethical fashion",
+    "Cici Label is a slow fashion brand focused on handmade, locally sourced, and ethically produced clothing. Shop handloom and natural-dyed garments.",
+  openGraph: {
+    title: "Cici Label - Handmade, Locally Sourced Fashion",
+    description:
+      "Slow fashion brand focused on handmade, locally sourced, and ethically produced clothing.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Cici Label - Handmade, Locally Sourced Fashion",
+    description:
+      "Slow fashion brand focused on handmade, locally sourced, and ethically produced clothing.",
+  },
 }
 
 export default async function Home(props: {

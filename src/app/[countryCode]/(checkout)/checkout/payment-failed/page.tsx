@@ -3,6 +3,7 @@ import Link from "next/link"
 
 export const metadata: Metadata = {
   title: "Payment Failed",
+  robots: { index: false, follow: false },
 }
 
 type Props = {

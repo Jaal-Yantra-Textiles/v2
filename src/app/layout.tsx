@@ -18,6 +18,24 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   metadataBase: new URL(getBaseURL()),
+  title: {
+    default: "Cici Label - Handmade, Locally Sourced Fashion",
+    template: "%s | Cici Label Store",
+  },
+  description:
+    "Cici Label is a slow fashion brand focused on handmade, locally sourced, and ethically produced clothing. Shop handloom and natural-dyed garments.",
+  openGraph: {
+    type: "website",
+    siteName: "Cici Label Store",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 }
 
 export default function RootLayout(props: { children: React.ReactNode }) {

@@ -55,8 +55,33 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
   const design = product.designs?.[0]
   const designScore = calculateDesignScore(design)
 
+  const lowestPrice = product.variants
+    ?.flatMap((v) => v.calculated_price ? [v.calculated_price] : [])
+    .sort((a: any, b: any) => (a.calculated_amount || 0) - (b.calculated_amount || 0))[0] as any
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.title,
+    description: product.description || product.subtitle || product.title,
+    image: product.images?.map((i) => i.url) || [],
+    ...(product.material ? { material: product.material } : {}),
+    ...(lowestPrice ? {
+      offers: {
+        "@type": "Offer",
+        priceCurrency: lowestPrice.currency_code?.toUpperCase() || "INR",
+        price: lowestPrice.calculated_amount || 0,
+        availability: "https://schema.org/InStock",
+      },
+    } : {}),
+  }
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div
         className="content-container flex flex-col small:flex-row small:items-start py-12 relative gap-x-12 small:gap-x-24"
         data-testid="product-container"

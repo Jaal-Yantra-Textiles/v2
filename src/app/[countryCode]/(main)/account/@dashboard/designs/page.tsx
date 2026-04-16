@@ -6,6 +6,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 export const metadata: Metadata = {
   title: "My Designs",
   description: "View all your custom designs and their production status.",
+  robots: { index: false, follow: false },
 }
 
 const STATUS_BADGE_COLORS: Record<string, string> = {
