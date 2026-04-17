@@ -240,7 +240,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   # 5. Health-check the server after Railway has had time to pull & boot.
   #
-  #    Requires secret: MEDUSA_BACKEND_URL  (e.g. https://api.example.com)
+  #    Requires repo Variable: MEDUSA_BACKEND_URL  (e.g. https://api.example.com)
   # ─────────────────────────────────────────────────────────────────────────
   health-check-server:
     name: Health Check — Server
