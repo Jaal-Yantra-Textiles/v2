@@ -3,15 +3,23 @@ services:
     name: partner-ui
     runtime: static
     rootDir: apps/partner-ui
-    buildCommand: pnpm run vercel-build
+    buildCommand: pnpm install && pnpm partner-ui:build
     staticPublishPath: dist
+    # Only build when files under apps/partner-ui/ actually change.
+    # Mirrors the Vercel ignoreCommand used for storefront-starter:
+    #   git diff --quiet HEAD^ HEAD -- apps/partner-ui || exit 1
+    # NOTE: buildFilter paths are evaluated relative to the REPO ROOT,
+    # not rootDir. Use both `**/*` (nested files) and `*` (top-level files
+    # like package.json) so nothing is missed.
     buildFilter:
       paths:
-        - apps/partner-ui/**
+        - apps/partner-ui/**/*
+        - apps/partner-ui/*
       ignoredPaths:
-        - "**/*.test.ts"
-        - "**/*.test.tsx"
-        - "**/*.md"
+        - apps/partner-ui/**/*.test.ts
+        - apps/partner-ui/**/*.test.tsx
+        - apps/partner-ui/**/*.md
+        - apps/partner-ui/**/*.stories.tsx
     routes:
       - type: rewrite
         source: /*
