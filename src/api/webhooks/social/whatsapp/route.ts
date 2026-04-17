@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import crypto from "crypto"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"
 import type SocialProviderService from "../../../../modules/social-provider/service"
+import type WhatsAppService from "../../../../modules/social-provider/whatsapp-service"
 import { handleIncomingMessage } from "../../../../workflows/whatsapp/whatsapp-message-handler"
 import { resolveAdminByPhone, handleAdminMessage } from "../../../../workflows/whatsapp/whatsapp-admin-handler"
 import  { MESSAGING_MODULE } from "../../../../modules/messaging"
@@ -11,28 +12,69 @@ import  { MESSAGING_MODULE } from "../../../../modules/messaging"
  *
  * Meta webhook verification endpoint.
  * Meta sends hub.mode, hub.verify_token, and hub.challenge.
+ *
+ * Multi-number: the incoming token is accepted if it matches ANY configured
+ * WhatsApp platform's verify_token, or (fallback) the legacy env-var token.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const mode = req.query["hub.mode"]
   const token = req.query["hub.verify_token"]
   const challenge = req.query["hub.challenge"]
 
-  const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-  const whatsapp = socialProvider.getWhatsApp(req.scope)
-  const verifyToken = await whatsapp.getWebhookVerifyToken()
-
-  if (!verifyToken) {
-    console.error("[whatsapp-webhook] Webhook verify token not configured (env or SocialPlatform)")
-    return res.status(500).send("Webhook verification token not configured")
+  if (mode !== "subscribe" || typeof token !== "string") {
+    return res.status(403).send("Forbidden")
   }
 
-  if (mode === "subscribe" && token === verifyToken) {
-    console.log("[whatsapp-webhook] Verified successfully")
+  const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
+
+  // Try each configured platform. First matching verify_token wins.
+  const matched = await findPlatformMatchingVerifyToken(req.scope, socialProvider, token)
+  if (matched) {
+    console.log("[whatsapp-webhook] Verified via platform:", matched)
     return res.status(200).send(challenge)
   }
 
-  console.error("[whatsapp-webhook] Verification failed:", { mode, token })
+  // Legacy fallback: env-var / default platform. Covers the single-number case.
+  const defaultWa = socialProvider.getWhatsApp(req.scope)
+  const defaultToken = await defaultWa.getWebhookVerifyToken()
+  if (defaultToken && token === defaultToken) {
+    console.log("[whatsapp-webhook] Verified via default platform")
+    return res.status(200).send(challenge)
+  }
+
+  console.error("[whatsapp-webhook] Verification failed: no platform matched token")
   return res.status(403).send("Forbidden")
+}
+
+/**
+ * Iterate configured WhatsApp platforms, bind each one, and compare its
+ * verify_token to the incoming token. Returns the platform id on match.
+ */
+async function findPlatformMatchingVerifyToken(
+  scope: any,
+  socialProvider: SocialProviderService,
+  incomingToken: string
+): Promise<string | null> {
+  const socials = scope.resolve("socials") as any
+  let platforms: Array<any> = []
+  try {
+    platforms = await socials.findWhatsAppPlatforms()
+  } catch {
+    return null
+  }
+
+  for (const p of platforms) {
+    try {
+      const wa = await socialProvider.getWhatsAppForPlatform(scope, p.id)
+      const platformToken = await wa.getWebhookVerifyToken()
+      if (platformToken && incomingToken === platformToken) {
+        return p.id
+      }
+    } catch {
+      // Keep trying other platforms
+    }
+  }
+  return null
 }
 
 /**
@@ -43,13 +85,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-  const whatsapp = socialProvider.getWhatsApp(req.scope)
-  const appSecret = await whatsapp.getAppSecret()
-
-  if (!appSecret) {
-    console.error("[whatsapp-webhook] App secret not configured")
-    return res.status(500).send("Webhook not configured")
-  }
 
   const signature = req.headers["x-hub-signature-256"] as string | undefined
   if (!signature) {
@@ -68,18 +103,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(400).send("Empty body")
   }
 
-  // Validate HMAC-SHA256 signature using timing-safe comparison
-  const expectedSignature = crypto
-    .createHmac("sha256", appSecret)
-    .update(rawBody)
-    .digest("hex")
-
-  const expected = `sha256=${expectedSignature}`
-  if (
-    signature.length !== expected.length ||
-    !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
-  ) {
-    console.error("[whatsapp-webhook] Invalid signature")
+  // Multi-number: try each configured platform's app_secret until one
+  // verifies the signature. In most deployments all numbers share a Meta
+  // app and therefore a single secret — the first attempt succeeds.
+  const verified = await verifySignatureAgainstAllPlatforms(req.scope, socialProvider, signature, rawBody)
+  if (!verified) {
+    console.error("[whatsapp-webhook] Invalid signature — no platform secret matched")
     return res.status(401).send("Unauthorized")
   }
 
@@ -94,6 +123,56 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 }
 
+/**
+ * Try each configured WhatsApp platform's app_secret (and the default /
+ * env-var secret as final fallback) against the inbound signature. Returns
+ * true on first match.
+ */
+async function verifySignatureAgainstAllPlatforms(
+  scope: any,
+  socialProvider: SocialProviderService,
+  incomingSignature: string,
+  rawBody: Buffer
+): Promise<boolean> {
+  const secrets = new Set<string>()
+
+  // Per-platform secrets
+  try {
+    const socials = scope.resolve("socials") as any
+    const platforms: any[] = await socials.findWhatsAppPlatforms()
+    for (const p of platforms) {
+      try {
+        const wa = await socialProvider.getWhatsAppForPlatform(scope, p.id)
+        const s = await wa.getAppSecret()
+        if (s) secrets.add(s)
+      } catch {
+        // Try next platform
+      }
+    }
+  } catch {
+    // No platforms configured — fall through to default
+  }
+
+  // Default / env-var secret (covers single-number legacy path)
+  try {
+    const defaultSecret = await socialProvider.getWhatsApp(scope).getAppSecret()
+    if (defaultSecret) secrets.add(defaultSecret)
+  } catch {
+    // no-op
+  }
+
+  for (const secret of secrets) {
+    const expected = `sha256=${crypto.createHmac("sha256", secret).update(rawBody).digest("hex")}`
+    if (
+      incomingSignature.length === expected.length &&
+      crypto.timingSafeEqual(Buffer.from(incomingSignature), Buffer.from(expected))
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
 async function processWhatsAppWebhook(
   scope: any,
   payload: WhatsAppWebhookPayload
@@ -103,12 +182,39 @@ async function processWhatsAppWebhook(
     return
   }
 
+  const socialProvider = scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
+
   for (const entry of payload.entry || []) {
     for (const change of entry.changes || []) {
       if (change.field !== "messages") continue
 
       const value = change.value
       if (!value) continue
+
+      // Multi-number routing: resolve which WhatsApp platform this delivery
+      // belongs to based on metadata.phone_number_id. Falls back to the
+      // default sender when the platform isn't configured (keeps legacy
+      // behavior and is forgiving of mis-configured inbound numbers).
+      const inboundPhoneNumberId = value.metadata?.phone_number_id
+      let boundWa: WhatsAppService | null = null
+      if (inboundPhoneNumberId) {
+        try {
+          boundWa = await socialProvider.getWhatsAppForInboundPhoneNumberId(
+            scope,
+            inboundPhoneNumberId
+          )
+          if (!boundWa) {
+            console.warn(
+              "[whatsapp-webhook] Inbound phone_number_id not configured as a SocialPlatform:",
+              inboundPhoneNumberId,
+              "— falling back to default sender"
+            )
+          }
+        } catch (e: any) {
+          console.warn("[whatsapp-webhook] Platform resolution failed:", e.message)
+        }
+      }
+      const wa = boundWa ?? socialProvider.getWhatsApp(scope)
 
       // Handle message status updates (sent → delivered → read)
       if (value.statuses?.length) {
@@ -174,11 +280,10 @@ async function processWhatsAppWebhook(
           const incomingMessage = parseWebhookMessage(msg)
           if (!incomingMessage) continue
 
-          // Resolve media URL from Meta if message has a mediaId
+          // Resolve media URL from Meta using the platform this message
+          // arrived on (access tokens are per-number in general).
           if (incomingMessage.mediaId) {
             try {
-              const socialProvider = scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-              const wa = socialProvider.getWhatsApp(scope)
               const media = await wa.getMediaUrl(incomingMessage.mediaId)
               if (media?.url) {
                 incomingMessage.mediaUrl = media.url
@@ -189,14 +294,16 @@ async function processWhatsAppWebhook(
             }
           }
 
-          // Check if sender is an admin user first
+          // Check if sender is an admin user first.
+          // Handlers receive the sender-bound wa so replies go out from the
+          // same number that received the inbound message.
           const admin = await resolveAdminByPhone(scope, incomingMessage.from)
           if (admin) {
-            const result = await handleAdminMessage(scope, incomingMessage, admin)
+            const result = await handleAdminMessage(scope, incomingMessage, admin, wa)
             console.log("[whatsapp-webhook] Admin handled:", result)
           } else {
             // Fall back to partner handler
-            const result = await handleIncomingMessage(scope, incomingMessage)
+            const result = await handleIncomingMessage(scope, incomingMessage, wa)
             console.log("[whatsapp-webhook] Partner handled:", result)
           }
         } catch (error: any) {

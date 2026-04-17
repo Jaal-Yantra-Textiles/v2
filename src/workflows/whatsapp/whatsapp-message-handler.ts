@@ -142,12 +142,19 @@ async function resolvePartnerByPhone(
 
 /**
  * Parse an incoming WhatsApp message and execute the appropriate action.
+ *
+ * @param boundWa - Optional sender-bound WhatsAppService. Passed by the
+ *   webhook once it has resolved the inbound phone_number_id so that replies
+ *   go out from the correct WhatsApp number. Omitting falls back to the
+ *   default sender for backwards compatibility.
  */
 export async function handleIncomingMessage(
   scope: any,
-  message: IncomingMessage
+  message: IncomingMessage,
+  boundWa?: import("../../modules/social-provider/whatsapp-service").default
 ): Promise<HandlerResult> {
-  const whatsappRaw = (scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService).getWhatsApp(scope)
+  const whatsappRaw =
+    boundWa ?? (scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService).getWhatsApp(scope)
 
   // Mark message as read
   await whatsappRaw.markAsRead(message.messageId)
@@ -165,8 +172,17 @@ export async function handleIncomingMessage(
     return { handled: true, error: "unregistered_phone" }
   }
 
-  // Persist inbound message and get the conversation for outbound tracking + state checks
-  const conversation = await persistInboundMessage(scope, message, partner.partnerId, partner.adminName).catch((e: any) => {
+  // Persist inbound message and get the conversation for outbound tracking + state checks.
+  // The sender platform id (when known) is stamped on the conversation so
+  // subsequent replies auto-route through the same WhatsApp number.
+  const senderPlatformId = whatsappRaw.getSenderPlatformId?.() ?? null
+  const conversation = await persistInboundMessage(
+    scope,
+    message,
+    partner.partnerId,
+    partner.adminName,
+    senderPlatformId
+  ).catch((e: any) => {
     console.warn("[whatsapp-handler] Failed to persist inbound message:", e.message)
     return null as { id: string; metadata: Record<string, any> | null; isNew: boolean } | null
   })
@@ -869,7 +885,8 @@ async function persistInboundMessage(
   scope: any,
   message: IncomingMessage,
   partnerId: string,
-  senderName: string
+  senderName: string,
+  senderPlatformId: string | null = null
 ): Promise<{ id: string; metadata: Record<string, any> | null; isNew: boolean }> {
   const messagingService = scope.resolve(MESSAGING_MODULE) as any
 
@@ -896,11 +913,17 @@ async function persistInboundMessage(
   if (existing) {
     conversationId = existing.id
     metadata = existing.metadata || null
-    // Reactivate if archived
-    if (existing.status === "archived") {
+    const needsReactivate = existing.status === "archived"
+    // Stamp the sender platform once, if we know it and the conversation
+    // doesn't already have one. Don't overwrite — an admin may have pinned
+    // a different sender deliberately.
+    const needsSenderStamp =
+      senderPlatformId && !existing.default_sender_platform_id
+    if (needsReactivate || needsSenderStamp) {
       await messagingService.updateMessagingConversations({
         id: existing.id,
-        status: "active",
+        ...(needsReactivate ? { status: "active" } : {}),
+        ...(needsSenderStamp ? { default_sender_platform_id: senderPlatformId } : {}),
       })
     }
   } else {
@@ -909,6 +932,7 @@ async function persistInboundMessage(
       phone_number: message.from,
       title: senderName,
       status: "active",
+      ...(senderPlatformId ? { default_sender_platform_id: senderPlatformId } : {}),
     })
     conversationId = conv.id
     isNew = true

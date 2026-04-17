@@ -13,6 +13,7 @@ import Lead from "./models/Lead";
 import AdInsights from "./models/AdInsights";
 import { MedusaService } from "@medusajs/framework/utils";
 import { extractHashtags, extractMentions } from "./utils/text-extraction";
+import type { WhatsAppPlatformApiConfig } from "./types/whatsapp-platform";
 
 
 class SocialsService extends MedusaService({
@@ -210,6 +211,87 @@ class SocialsService extends MedusaService({
       take: limit,
       order: { last_used_at: "DESC" },
     })
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // WhatsApp platform resolvers (multi-number support)
+  //
+  // A SocialPlatform row with api_config.provider === "whatsapp" represents
+  // one WhatsApp Business phone number. Multiple rows coexist.
+  // ──────────────────────────────────────────────────────────────────────
+
+  /** All active WhatsApp SocialPlatform rows, newest first. */
+  async findWhatsAppPlatforms() {
+    const rows = await this.listSocialPlatforms({
+      category: "communication",
+      status: "active",
+    })
+    return rows.filter((p: any) => {
+      const cfg = p?.api_config as Record<string, any> | null
+      return cfg?.provider === "whatsapp" || p?.name === "WhatsApp"
+    })
+  }
+
+  async findWhatsAppPlatformById(id: string) {
+    if (!id) return null
+    const rows = await this.listSocialPlatforms({ id })
+    const platform = rows?.[0]
+    if (!platform) return null
+    const cfg = platform.api_config as Record<string, any> | null
+    if (cfg?.provider !== "whatsapp" && platform.name !== "WhatsApp") return null
+    return platform
+  }
+
+  async findWhatsAppPlatformByPhoneNumberId(phoneNumberId: string) {
+    if (!phoneNumberId) return null
+    const all = await this.findWhatsAppPlatforms()
+    return (
+      all.find(
+        (p: any) => (p.api_config as WhatsAppPlatformApiConfig | null)?.phone_number_id === phoneNumberId
+      ) ?? null
+    )
+  }
+
+  /**
+   * Default sender: explicit `is_default: true`, else the first configured
+   * WhatsApp platform. Returns null when no WhatsApp platform is configured.
+   */
+  async getDefaultWhatsAppPlatform() {
+    const all = await this.findWhatsAppPlatforms()
+    if (all.length === 0) return null
+    const explicit = all.find(
+      (p: any) => (p.api_config as WhatsAppPlatformApiConfig | null)?.is_default === true
+    )
+    return explicit ?? all[0]
+  }
+
+  /**
+   * Pick a sender whose `country_codes` matches the recipient's E.164 prefix.
+   * Falls back to the default platform when no match is found.
+   *
+   * Matching rule: longest country-code prefix wins. So "+91" beats "+9" for
+   * an Indian number, and "+61" beats "+6" for an Australian number.
+   */
+  async findWhatsAppPlatformForRecipient(e164: string) {
+    const all = await this.findWhatsAppPlatforms()
+    if (all.length === 0) return null
+
+    const normalized = e164.startsWith("+") ? e164 : `+${e164}`
+
+    let best: { platform: any; matchLen: number } | null = null
+    for (const p of all) {
+      const cfg = p.api_config as WhatsAppPlatformApiConfig | null
+      const codes = cfg?.country_codes ?? []
+      for (const code of codes) {
+        const normCode = code.startsWith("+") ? code : `+${code}`
+        if (normalized.startsWith(normCode)) {
+          if (!best || normCode.length > best.matchLen) {
+            best = { platform: p, matchLen: normCode.length }
+          }
+        }
+      }
+    }
+    return best?.platform ?? (await this.getDefaultWhatsAppPlatform())
   }
 }
 

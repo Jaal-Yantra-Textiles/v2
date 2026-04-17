@@ -54,11 +54,29 @@ export interface ConversationsResponse {
 }
 
 export interface ConversationDetailResponse {
-  conversation: Omit<ConversationPreview, "last_message">
+  conversation: Omit<ConversationPreview, "last_message"> & {
+    default_sender_platform_id: string | null
+  }
   messages: Message[]
   count: number
   offset: number
   limit: number
+}
+
+export interface WhatsAppSender {
+  platform_id: string
+  name: string
+  phone_number_id: string
+  label: string | null
+  display_phone_number: string | null
+  verified_name: string | null
+  country_codes: string[]
+  is_default: boolean
+}
+
+export interface WhatsAppSendersResponse {
+  senders: WhatsAppSender[]
+  count: number
 }
 
 const MESSAGING_QUERY_KEY = "admin_messaging" as const
@@ -161,6 +179,48 @@ export const useDeleteConversation = () => {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messagingQueryKeys.lists() })
+    },
+  })
+}
+
+/**
+ * List configured WhatsApp Business numbers available as senders. Populates
+ * the per-conversation sender picker.
+ */
+export const useWhatsAppSenders = (
+  options?: Omit<UseQueryOptions<WhatsAppSendersResponse, FetchError, WhatsAppSendersResponse, QueryKey>, "queryFn" | "queryKey">,
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<WhatsAppSendersResponse>(`/admin/messaging/whatsapp/senders`, {
+        method: "GET",
+      }) as Promise<WhatsAppSendersResponse>,
+    queryKey: [MESSAGING_QUERY_KEY, "whatsapp-senders"],
+    // Senders rarely change — cache for a minute to avoid refetching per
+    // conversation view.
+    staleTime: 60_000,
+    ...options,
+  })
+  return { ...data, ...rest }
+}
+
+/**
+ * Pin (or unpin via null) a WhatsApp sender to a conversation. Subsequent
+ * admin sends on this conversation will go out from the pinned number.
+ */
+export const useUpdateConversationSender = (conversationId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (platformId: string | null) =>
+      sdk.client.fetch<{ ok: boolean; default_sender_platform_id: string | null }>(
+        `/admin/messaging/${conversationId}/sender`,
+        {
+          method: "PATCH",
+          body: { platform_id: platformId },
+        },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: messagingQueryKeys.detail(conversationId) })
     },
   })
 }

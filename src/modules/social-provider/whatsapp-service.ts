@@ -4,6 +4,7 @@ import { SOCIALS_MODULE } from "../socials"
 import { ENCRYPTION_MODULE } from "../encryption"
 import type EncryptionService from "../encryption/service"
 import type { EncryptedData } from "../encryption"
+import type { WhatsAppPlatformApiConfig } from "../socials/types/whatsapp-platform"
 
 const GRAPH_API_VERSION = "v21.0"
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`
@@ -13,6 +14,19 @@ export interface WhatsAppConfig {
   accessToken: string
   webhookVerifyToken: string
   appSecret: string
+}
+
+/**
+ * Sender context for an outgoing WhatsApp message. Used by `withSender()`
+ * to bind a service instance to a specific WhatsApp number when multiple
+ * numbers are configured. `platformId` is the SocialPlatform row id.
+ */
+export interface WhatsAppSender {
+  platformId?: string
+  phoneNumberId: string
+  accessToken: string
+  appSecret?: string
+  webhookVerifyToken?: string
 }
 
 export interface WhatsAppMessageResponse {
@@ -48,6 +62,12 @@ export default class WhatsAppService {
   private appSecret: string
   private appContainer_?: MedusaContainer
   private platformLoaded_ = false
+  /**
+   * SocialPlatform row id for this sender-bound instance. Null for the
+   * default/env-var instance. Used by callers that need to persist the
+   * sender identity (e.g. Conversation.default_sender_platform_id).
+   */
+  private senderPlatformId_: string | null = null
 
   constructor() {
     // Start with env vars as defaults
@@ -150,6 +170,52 @@ export default class WhatsAppService {
   async getAppSecret(): Promise<string> {
     await this.ensureConfig()
     return this.appSecret
+  }
+
+  /**
+   * Resolved sender for this instance — useful for introspection (admin UI,
+   * tests). Loads from SocialPlatform/env if not loaded yet.
+   */
+  async getResolvedSender(): Promise<Pick<WhatsAppSender, "phoneNumberId" | "accessToken" | "appSecret" | "webhookVerifyToken">> {
+    await this.ensureConfig()
+    return {
+      phoneNumberId: this.phoneNumberId,
+      accessToken: this.accessToken,
+      appSecret: this.appSecret,
+      webhookVerifyToken: this.webhookVerifyToken,
+    }
+  }
+
+  /**
+   * Return a new WhatsAppService bound to a specific sender (phone number +
+   * credentials). Use this for multi-number sends. The scoped instance skips
+   * DB lookup entirely and uses the provided credentials.
+   *
+   * Example:
+   *   const wa = provider.getWhatsApp(req.scope).withSender({
+   *     platformId, phoneNumberId, accessToken,
+   *   })
+   *   await wa.sendTextMessage(to, text)
+   */
+  withSender(sender: WhatsAppSender): WhatsAppService {
+    const scoped = new WhatsAppService()
+    scoped.phoneNumberId = sender.phoneNumberId
+    scoped.accessToken = sender.accessToken
+    scoped.appSecret = sender.appSecret ?? this.appSecret
+    scoped.webhookVerifyToken = sender.webhookVerifyToken ?? this.webhookVerifyToken
+    // Explicit sender bypasses DB lookup — credentials are already resolved.
+    scoped.platformLoaded_ = true
+    scoped.appContainer_ = this.appContainer_
+    scoped.senderPlatformId_ = sender.platformId ?? null
+    return scoped
+  }
+
+  /**
+   * Returns the SocialPlatform id this instance is bound to, or null when
+   * the instance is the default/env-var-backed one.
+   */
+  getSenderPlatformId(): string | null {
+    return this.senderPlatformId_
   }
 
   /**

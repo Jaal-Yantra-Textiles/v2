@@ -65,13 +65,20 @@ export async function resolveAdminByPhone(
 
 /**
  * Handle an incoming WhatsApp message from an admin user.
+ *
+ * @param boundWa - Optional sender-bound WhatsAppService. When provided (from
+ *   the webhook after resolving the inbound phone_number_id), replies are
+ *   sent from the same number that received the message. Omitting falls back
+ *   to the default sender for backwards compatibility.
  */
 export async function handleAdminMessage(
   scope: any,
   message: IncomingMessage,
-  admin: ResolvedAdmin
+  admin: ResolvedAdmin,
+  boundWa?: import("../../modules/social-provider/whatsapp-service").default
 ): Promise<AdminHandlerResult> {
-  const whatsapp = (scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService).getWhatsApp(scope)
+  const whatsapp =
+    boundWa ?? (scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService).getWhatsApp(scope)
 
   await whatsapp.markAsRead(message.messageId)
 

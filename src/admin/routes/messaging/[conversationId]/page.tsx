@@ -12,6 +12,7 @@ import { useConversationMessages, useSendMessage } from "../../../hooks/api/mess
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { MessageBubble } from "../components/message-bubble"
 import { MessageInput, type SendPayload, type ReplyTo } from "../components/message-input"
+import { SenderPicker } from "../components/sender-picker"
 import type { Message } from "../../../hooks/api/messaging"
 import { type AdminDesign, useDesigns } from "../../../hooks/api/designs"
 
@@ -132,7 +133,14 @@ const ConversationThreadModal = () => {
                 )}
                 <Text size="xsmall" className="text-ui-fg-muted">{conversation.phone_number}</Text>
               </div>
-              <Badge color="green" size="2xsmall">{conversation.status}</Badge>
+              <div className="flex items-center gap-x-3 shrink-0">
+                <SenderPicker
+                  conversationId={conversationId!}
+                  currentPlatformId={conversation.default_sender_platform_id ?? null}
+                  recipientPhone={conversation.phone_number}
+                />
+                <Badge color="green" size="2xsmall">{conversation.status}</Badge>
+              </div>
             </div>
 
             {/* Awaiting reply banner */}

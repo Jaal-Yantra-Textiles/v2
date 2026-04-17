@@ -76,6 +76,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       status: conversation.status,
       unread_count: 0,
       last_message_at: conversation.last_message_at,
+      default_sender_platform_id: conversation.default_sender_platform_id ?? null,
       metadata: conversation.metadata,
     },
     messages,
@@ -140,9 +141,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     } catch { /* non-fatal */ }
   }
 
-  // Send via WhatsApp
+  // Send via WhatsApp — resolve the sender pinned to this conversation.
+  // Precedence:
+  //   1. Conversation.default_sender_platform_id (explicit pin or inherited
+  //      from the inbound webhook that started the conversation)
+  //   2. Country-code match against conversation.phone_number
+  //   3. Default platform / env-vars
   const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-  const whatsapp = socialProvider.getWhatsApp(req.scope)
+  const whatsapp = await resolveConversationSender(req.scope, socialProvider, conversation)
 
   let waResponse: any
 
@@ -223,11 +229,56 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     onboarded: true,
   }
 
+  // Persist whichever sender actually sent the message so the next admin
+  // reply defaults to the same number (important when the conversation had
+  // no pinned sender yet — e.g. created before multi-number rollout).
+  const sentFromPlatformId = whatsapp.getSenderPlatformId?.() ?? null
+
   await messagingService.updateMessagingConversations({
     id: conversationId,
     last_message_at: new Date(),
     metadata: updatedMeta,
+    ...(sentFromPlatformId && !conversation.default_sender_platform_id
+      ? { default_sender_platform_id: sentFromPlatformId }
+      : {}),
   })
 
   res.json({ message })
+}
+
+/**
+ * Resolve which WhatsAppService to use for sending on this conversation.
+ * Tries pinned sender → country-code match → default platform → env-vars.
+ */
+async function resolveConversationSender(
+  scope: any,
+  socialProvider: SocialProviderService,
+  conversation: any
+) {
+  // 1. Explicit pin
+  if (conversation.default_sender_platform_id) {
+    try {
+      return await socialProvider.getWhatsAppForPlatform(
+        scope,
+        conversation.default_sender_platform_id
+      )
+    } catch (e: any) {
+      console.warn(
+        "[messaging] Pinned sender no longer available, falling back:",
+        e.message
+      )
+    }
+  }
+
+  // 2. Country-code match on the recipient
+  if (conversation.phone_number) {
+    const byCountry = await socialProvider.getWhatsAppForRecipient(
+      scope,
+      conversation.phone_number
+    )
+    if (byCountry) return byCountry
+  }
+
+  // 3. Default / env-var
+  return socialProvider.getWhatsApp(scope)
 }
