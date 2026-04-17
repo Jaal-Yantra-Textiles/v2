@@ -1,3 +1,5 @@
+## [12.14.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.14.0...v12.14.1) (2026-04-17)
+
 # [12.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.13.0...v12.14.0) (2026-04-17)
 
 
