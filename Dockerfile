@@ -42,17 +42,18 @@ RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
 
 WORKDIR /app
 
-# Bring in the compiled server, patches (for patch-package postinstall),
-# and the generated workflow schemas.
+# Bring in the compiled server, the generated workflow schemas, and .npmrc
+# (needed for shamefully-hoist so Medusa's phantom deps resolve at runtime).
+# patches/ is intentionally excluded — the sole patch targets `medusa develop`
+# (dev-only) and is gitignored.
 COPY --from=builder /app/.medusa ./.medusa
-COPY --from=builder /app/patches ./patches
 COPY --from=builder /app/workflow-schemas.json ./workflow-schemas.json
 COPY --from=builder /app/.npmrc ./.npmrc
 
 # Medusa compiles into .medusa/server with its own package.json. Install prod
-# deps there — mirrors the current Railway runtime flow.
+# deps there. --ignore-scripts skips the patch-package postinstall (dev-only).
 WORKDIR /app/.medusa/server
-RUN pnpm install --prod --ignore-workspace
+RUN pnpm install --prod --ignore-workspace --ignore-scripts
 
 EXPOSE 9000
 
