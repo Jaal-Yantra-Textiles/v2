@@ -4099,6 +4099,12 @@
         "placeholder": "{{ $last.design_ids }}"
       },
       {
+        "name": "task_ids",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.task_ids }}"
+      },
+      {
         "name": "notes",
         "type": "string",
         "required": false,
@@ -4630,6 +4636,24 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/approve-production-run.ts"
   },
+  "complete-production-run": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/production-runs/complete-production-run.ts"
+  },
   "create-production-run": {
     "fields": [
       {
@@ -4695,6 +4719,24 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/create-production-run.ts"
+  },
+  "finish-production-run": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/production-runs/finish-production-run.ts"
   },
   "signal-lifecycle-step-success": {
     "fields": [
@@ -4767,6 +4809,24 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/send-production-run-to-production.ts"
+  },
+  "start-production-run": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/production-runs/start-production-run.ts"
   },
   "generate-product-description-from-image": {
     "fields": [
@@ -5616,6 +5676,12 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.storefront_root_dir }}"
+      },
+      {
+        "name": "storefront_ignore_command",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.storefront_ignore_command }}"
       },
       {
         "name": "medusa_backend_url",

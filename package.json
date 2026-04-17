@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "build": "medusa build && pnpm run resolve:aliases && pnpm run build:schemas",
-    "build:schemas": "npx ts-node --skip-project src/scripts/build-workflow-schemas.ts",
+    "build:schemas": "tsx src/scripts/build-workflow-schemas.ts",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "start": "medusa start",
     "dev": "medusa develop",
@@ -210,6 +210,7 @@
     "terser": "^5.44.1",
     "ts-node": "^10.9.2",
     "tsc-alias": "^1.8.16",
+    "tsx": "^4.19.2",
     "typescript": "^5.9.3",
     "vite": "^5.4.14",
     "yalc": "^1.0.0-pre.53"
