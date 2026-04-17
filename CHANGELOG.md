@@ -1,3 +1,10 @@
+# [12.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.13.0...v12.14.0) (2026-04-17)
+
+
+### Features
+
+* **deployment:** add Vercel ignore command support for storefront provisioning ([37fd129](https://github.com/Jaal-Yantra-Textiles/v2/commit/37fd129d5d0c190206a79f6fcf040588b17c008a))
+
 # [12.13.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.12.0...v12.13.0) (2026-04-17)
 
 
