@@ -22,6 +22,10 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  # Opt into Node.js 24 for JS-based actions (actions/checkout, paths-filter,
+  # etc.). Node 20 runtime is deprecated on GHA runners; forced default
+  # 2026-06-02, removed 2026-09-16.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────

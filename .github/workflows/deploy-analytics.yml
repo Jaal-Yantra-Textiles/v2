@@ -11,6 +11,11 @@ on:
       - '.github/workflows/deploy-analytics.yml'
   workflow_dispatch: # Allow manual trigger
 
+env:
+  # Opt into Node.js 24 for JS-based actions. Node 20 runtime is deprecated
+  # on GHA runners; forced default 2026-06-02, removed 2026-09-16.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   deploy-analytics:
     name: Build and Deploy Analytics Script
