@@ -21,8 +21,11 @@ export const partnerPaymentSubmissionsQueryKeys = queryKeysFactory(
 
 export type PaymentSubmissionItem = {
   id: string
-  design_id: string
+  source_type: "design" | "task"
+  design_id: string | null
   design_name: string | null
+  task_id: string | null
+  task_name: string | null
   amount: number
   cost_breakdown: any
   metadata: any
@@ -61,7 +64,8 @@ export type ListPaymentSubmissionsParams = {
 }
 
 export type CreatePaymentSubmissionPayload = {
-  design_ids: string[]
+  design_ids?: string[]
+  task_ids?: string[]
   notes?: string
   documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
   metadata?: Record<string, any>

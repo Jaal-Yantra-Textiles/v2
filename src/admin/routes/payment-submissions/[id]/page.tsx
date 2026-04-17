@@ -59,6 +59,12 @@ const PaymentSubmissionDetailPage = () => {
   const isReviewable =
     submission.status === "Pending" || submission.status === "Under_Review"
   const items: any[] = submission.items || []
+  const designItems = items.filter(
+    (i) => i.source_type === "design" || (!i.source_type && i.design_id)
+  )
+  const taskItems = items.filter(
+    (i) => i.source_type === "task" || (!i.source_type && i.task_id)
+  )
   const documents: any[] = submission.documents || []
 
   return (
@@ -197,29 +203,21 @@ const PaymentSubmissionDetailPage = () => {
         </div>
 
         {/* Design Items Table */}
-        <Container className="p-0">
-          <div className="border-b border-ui-border-base px-4 py-3">
-            <Heading level="h3">Design Items</Heading>
-          </div>
-          <Table>
-            <Table.Header>
-              <Table.Row>
-                <Table.HeaderCell>Design</Table.HeaderCell>
-                <Table.HeaderCell>Design ID</Table.HeaderCell>
-                <Table.HeaderCell>Amount</Table.HeaderCell>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {items.length === 0 ? (
+        {designItems.length > 0 && (
+          <Container className="p-0">
+            <div className="border-b border-ui-border-base px-4 py-3">
+              <Heading level="h3">Design Items</Heading>
+            </div>
+            <Table>
+              <Table.Header>
                 <Table.Row>
-                  <Table.Cell {...{ colSpan: 3 } as any}>
-                    <Text className="text-ui-fg-subtle">
-                      No items in this submission
-                    </Text>
-                  </Table.Cell>
+                  <Table.HeaderCell>Design</Table.HeaderCell>
+                  <Table.HeaderCell>Design ID</Table.HeaderCell>
+                  <Table.HeaderCell>Amount</Table.HeaderCell>
                 </Table.Row>
-              ) : (
-                items.map((item: any) => (
+              </Table.Header>
+              <Table.Body>
+                {designItems.map((item: any) => (
                   <Table.Row key={item.id}>
                     <Table.Cell>
                       {item.design_name || "Unnamed design"}
@@ -233,11 +231,54 @@ const PaymentSubmissionDetailPage = () => {
                       ₹{Number(item.amount).toLocaleString()}
                     </Table.Cell>
                   </Table.Row>
-                ))
-              )}
-            </Table.Body>
-          </Table>
-        </Container>
+                ))}
+              </Table.Body>
+            </Table>
+          </Container>
+        )}
+
+        {/* Task Items Table */}
+        {taskItems.length > 0 && (
+          <Container className="p-0">
+            <div className="border-b border-ui-border-base px-4 py-3">
+              <Heading level="h3">Task Items</Heading>
+            </div>
+            <Table>
+              <Table.Header>
+                <Table.Row>
+                  <Table.HeaderCell>Task</Table.HeaderCell>
+                  <Table.HeaderCell>Task ID</Table.HeaderCell>
+                  <Table.HeaderCell>Amount</Table.HeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {taskItems.map((item: any) => (
+                  <Table.Row key={item.id}>
+                    <Table.Cell>
+                      {item.task_name || "Untitled task"}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="font-mono text-xs">
+                        {item.task_id}
+                      </span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      ₹{Number(item.amount).toLocaleString()}
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table>
+          </Container>
+        )}
+
+        {items.length === 0 && (
+          <Container className="p-6">
+            <Text className="text-ui-fg-subtle text-center">
+              No items in this submission
+            </Text>
+          </Container>
+        )}
 
         {/* Documents */}
         {documents.length > 0 && (

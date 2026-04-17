@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { Container, Badge, DataTable, useDataTable } from "@medusajs/ui"
+import { Link, useNavigate } from "react-router-dom"
+import { Button, Container, Badge, DataTable, useDataTable } from "@medusajs/ui"
 import { createColumnHelper } from "@tanstack/react-table"
 import { keepPreviousData } from "@tanstack/react-query"
 import {
@@ -108,6 +108,9 @@ export const SubmissionsTab = () => {
       <DataTable instance={table}>
         <DataTable.Toolbar className="flex items-center justify-between px-4 py-3">
           <DataTable.Search placeholder="Search submissions..." />
+          <Button size="small" asChild>
+            <Link to="create">New Submission</Link>
+          </Button>
         </DataTable.Toolbar>
         <DataTable.Table />
         <DataTable.Pagination />

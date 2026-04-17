@@ -1,5 +1,6 @@
 import {
   Badge,
+  Button,
   Container,
   Heading,
   Text,
@@ -91,10 +92,19 @@ export const PaymentSubmissionList = () => {
         },
       }),
       columnHelper.accessor("items", {
-        header: "Designs",
+        header: "Items",
         cell: (ctx) => {
           const items = ctx.getValue() || []
-          return items.length
+          const designCount = items.filter(
+            (i) => i.source_type === "design" || (!i.source_type && i.design_id)
+          ).length
+          const taskCount = items.filter(
+            (i) => i.source_type === "task" || (!i.source_type && i.task_id)
+          ).length
+          const parts: string[] = []
+          if (designCount) parts.push(`${designCount} design${designCount !== 1 ? "s" : ""}`)
+          if (taskCount) parts.push(`${taskCount} task${taskCount !== 1 ? "s" : ""}`)
+          return parts.length ? parts.join(" · ") : items.length
         },
       }),
       columnHelper.accessor("submitted_at", {
@@ -137,15 +147,12 @@ export const PaymentSubmissionList = () => {
           <div>
             <Heading>Payment Submissions</Heading>
             <Text className="text-ui-fg-subtle" size="small">
-              Submit completed designs for payment
+              Submit completed designs or tasks for payment
             </Text>
           </div>
-          <Link
-            to="create"
-            className="inline-flex items-center justify-center rounded-md bg-ui-button-neutral text-ui-fg-on-color px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-ui-button-neutral-hover transition"
-          >
-            New Submission
-          </Link>
+          <Button size="small" asChild>
+            <Link to="create">New Submission</Link>
+          </Button>
         </div>
         <_DataTable
           table={table}

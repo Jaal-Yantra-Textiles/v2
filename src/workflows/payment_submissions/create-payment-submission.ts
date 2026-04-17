@@ -13,14 +13,17 @@ import type { Link } from "@medusajs/modules-sdk"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../modules/payment_submissions"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
+import { TASKS_MODULE } from "../../modules/tasks"
 import designPartnersLink from "../../links/design-partners-link"
 import submissionDesignsLink from "../../links/submission-designs-link"
-import submissionPartnerLink from "../../links/submission-partner-link"
+import submissionTasksLink from "../../links/submission-tasks-link"
+import partnerTaskLink from "../../links/partner-task"
 import PaymentSubmissionsService from "../../modules/payment_submissions/service"
 
 export type CreatePaymentSubmissionInput = {
   partner_id: string
   design_ids: string[]
+  task_ids?: string[]
   notes?: string
   documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
   metadata?: Record<string, any>
@@ -33,6 +36,13 @@ type ValidatedDesign = {
   cost_breakdown: Record<string, unknown> | null
 }
 
+type ValidatedTask = {
+  id: string
+  title: string
+  amount: number
+  cost_breakdown: Record<string, unknown> | null
+}
+
 type DesignGraphResult = {
   id: string
   name: string
@@ -41,9 +51,24 @@ type DesignGraphResult = {
   cost_breakdown: Record<string, unknown> | null
 }
 
+type TaskGraphResult = {
+  id: string
+  title: string
+  status: string
+  estimated_cost: number | null
+  actual_cost: number | null
+  cost_currency: string | null
+  cost_type: string | null
+}
+
 type DesignPartnerLinkResult = {
   design_id: string
   partner_id: string
+}
+
+type PartnerTaskLinkResult = {
+  partner_id: string
+  task_id: string
 }
 
 type SubmissionDesignLinkResult = {
@@ -51,14 +76,23 @@ type SubmissionDesignLinkResult = {
   payment_submission?: { status: string } | null
 }
 
-// Step 1: Validate all designs for submission eligibility
+type SubmissionTaskLinkResult = {
+  task_id: string
+  payment_submission?: { status: string } | null
+}
+
+// Step 1a: Validate all designs for submission eligibility
 const validateDesignsForSubmissionStep = createStep(
   "validate-designs-for-submission",
   async (
     input: { partner_id: string; design_ids: string[] },
     { container }
   ) => {
-    const query:any = container.resolve(ContainerRegistrationKeys.QUERY)
+    if (!input.design_ids?.length) {
+      return new StepResponse<ValidatedDesign[]>([])
+    }
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     // 1. Fetch all designs
     const { data: designs } = await query.graph({
@@ -159,13 +193,137 @@ const validateDesignsForSubmissionStep = createStep(
   }
 )
 
-// Step 2: Create the submission record with items
+// Step 1b: Validate all tasks for submission eligibility
+const validateTasksForSubmissionStep = createStep(
+  "validate-tasks-for-submission",
+  async (
+    input: { partner_id: string; task_ids: string[] },
+    { container }
+  ) => {
+    if (!input.task_ids?.length) {
+      return new StepResponse<ValidatedTask[]>([])
+    }
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+
+    // 1. Fetch all tasks
+    const { data: tasks } = await query.graph({
+      entity: "task",
+      fields: [
+        "id",
+        "title",
+        "status",
+        "estimated_cost",
+        "actual_cost",
+        "cost_currency",
+        "cost_type",
+      ],
+      filters: { id: input.task_ids },
+    })
+
+    const typedTasks = tasks as unknown as TaskGraphResult[]
+
+    if (!typedTasks || typedTasks.length !== input.task_ids.length) {
+      const found = new Set((typedTasks || []).map((t) => t.id))
+      const missing = input.task_ids.filter((id) => !found.has(id))
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Tasks not found: ${missing.join(", ")}`
+      )
+    }
+
+    // 2. Only completed tasks can be submitted for payment
+    const ELIGIBLE_STATUSES = ["completed"]
+    const ineligible = typedTasks.filter(
+      (t) => !ELIGIBLE_STATUSES.includes(t.status)
+    )
+    if (ineligible.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Tasks not eligible for payment (status must be completed): ${ineligible.map((t) => `${t.title || t.id} (${t.status})`).join(", ")}`
+      )
+    }
+
+    // 3. Every task must have a cost (prefer actual_cost, fall back to estimated_cost)
+    const noCost = typedTasks.filter(
+      (t) =>
+        (t.actual_cost === null || t.actual_cost === undefined) &&
+        (t.estimated_cost === null || t.estimated_cost === undefined)
+    )
+    if (noCost.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Tasks missing cost: ${noCost.map((t) => t.title || t.id).join(", ")}`
+      )
+    }
+
+    // 4. Tasks must belong to the requesting partner
+    const { data: partnerTasks } = await query.graph({
+      entity: partnerTaskLink.entryPoint,
+      fields: ["partner_id", "task_id"],
+      filters: {
+        partner_id: input.partner_id,
+        task_id: input.task_ids,
+      },
+    })
+    const typedPartnerTasks = partnerTasks as unknown as PartnerTaskLinkResult[]
+    const linkedTaskIds = new Set(
+      (typedPartnerTasks || []).map((r) => r.task_id)
+    )
+    const notOwned = input.task_ids.filter((id) => !linkedTaskIds.has(id))
+    if (notOwned.length) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Tasks not assigned to this partner: ${notOwned.join(", ")}`
+      )
+    }
+
+    // 5. No task can already be in an active submission
+    const { data: existingLinks } = await query.graph({
+      entity: submissionTasksLink.entryPoint,
+      fields: ["task_id", "payment_submission.*"],
+      filters: { task_id: input.task_ids },
+    })
+
+    const typedExistingLinks = existingLinks as unknown as SubmissionTaskLinkResult[]
+    const activeSubmissionTasks = (typedExistingLinks || []).filter((link) => {
+      const status = link.payment_submission?.status
+      return status === "Pending" || status === "Under_Review"
+    })
+    if (activeSubmissionTasks.length) {
+      const ids = [
+        ...new Set(activeSubmissionTasks.map((l) => l.task_id)),
+      ]
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Tasks already in an active payment submission: ${ids.join(", ")}`
+      )
+    }
+
+    const validated: ValidatedTask[] = typedTasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      amount: Number(t.actual_cost ?? t.estimated_cost ?? 0),
+      cost_breakdown: {
+        cost_currency: t.cost_currency,
+        cost_type: t.cost_type,
+        estimated_cost: t.estimated_cost,
+        actual_cost: t.actual_cost,
+      },
+    }))
+
+    return new StepResponse(validated)
+  }
+)
+
+// Step 2: Create the submission record with items (designs and/or tasks)
 const createSubmissionRecordStep = createStep(
   "create-submission-record",
   async (
     input: {
       partner_id: string
       designs: ValidatedDesign[]
+      tasks: ValidatedTask[]
       notes?: string
       documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
       metadata?: Record<string, any>
@@ -176,10 +334,19 @@ const createSubmissionRecordStep = createStep(
       PAYMENT_SUBMISSIONS_MODULE
     )
 
-    const total_amount = input.designs.reduce(
+    const designTotal = input.designs.reduce(
       (sum, d) => sum + d.estimated_cost,
       0
     )
+    const taskTotal = input.tasks.reduce((sum, t) => sum + t.amount, 0)
+    const total_amount = designTotal + taskTotal
+
+    if ((input.designs.length + input.tasks.length) === 0) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "At least one design or task is required"
+      )
+    }
 
     // documents is typed as json() (Record<string, unknown>) in the model
     // but we store an array of document objects — cast at the service boundary
@@ -194,13 +361,30 @@ const createSubmissionRecordStep = createStep(
       metadata: input.metadata || null,
     })
 
-    // Create line items with cost snapshots
+    // Design-sourced line items
     for (const design of input.designs) {
       await service.createPaymentSubmissionItems({
+        source_type: "design",
         design_id: design.id,
         design_name: design.name,
+        task_id: null,
+        task_name: null,
         amount: design.estimated_cost,
         cost_breakdown: design.cost_breakdown || null,
+        submission_id: submission.id,
+      })
+    }
+
+    // Task-sourced line items
+    for (const task of input.tasks) {
+      await service.createPaymentSubmissionItems({
+        source_type: "task",
+        design_id: null,
+        design_name: null,
+        task_id: task.id,
+        task_name: task.title,
+        amount: task.amount,
+        cost_breakdown: task.cost_breakdown || null,
         submission_id: submission.id,
       })
     }
@@ -253,6 +437,10 @@ const linkSubmissionToDesignsStep = createStep(
     input: { submission_id: string; design_ids: string[] },
     { container }
   ) => {
+    if (!input.design_ids?.length) {
+      return new StepResponse<LinkDefinition[]>([], [])
+    }
+
     const remoteLink = container.resolve(
       ContainerRegistrationKeys.LINK
     ) as Link
@@ -264,10 +452,41 @@ const linkSubmissionToDesignsStep = createStep(
       [DESIGN_MODULE]: { design_id },
     }))
 
-    if (links.length) {
-      await remoteLink.create(links)
+    await remoteLink.create(links)
+    return new StepResponse(links, links)
+  },
+  async (rollbackLinks: LinkDefinition[], { container }) => {
+    if (!rollbackLinks?.length) return
+    const remoteLink = container.resolve(
+      ContainerRegistrationKeys.LINK
+    ) as Link
+    await remoteLink.dismiss(rollbackLinks)
+  }
+)
+
+// Step 5: Link submission to each task
+const linkSubmissionToTasksStep = createStep(
+  "link-submission-to-tasks",
+  async (
+    input: { submission_id: string; task_ids: string[] },
+    { container }
+  ) => {
+    if (!input.task_ids?.length) {
+      return new StepResponse<LinkDefinition[]>([], [])
     }
 
+    const remoteLink = container.resolve(
+      ContainerRegistrationKeys.LINK
+    ) as Link
+
+    const links: LinkDefinition[] = input.task_ids.map((task_id) => ({
+      [PAYMENT_SUBMISSIONS_MODULE]: {
+        payment_submission_id: input.submission_id,
+      },
+      [TASKS_MODULE]: { task_id },
+    }))
+
+    await remoteLink.create(links)
     return new StepResponse(links, links)
   },
   async (rollbackLinks: LinkDefinition[], { container }) => {
@@ -285,12 +504,18 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
   (input: CreatePaymentSubmissionInput) => {
     const validatedDesigns = validateDesignsForSubmissionStep({
       partner_id: input.partner_id,
-      design_ids: input.design_ids,
+      design_ids: input.design_ids || [],
+    })
+
+    const validatedTasks = validateTasksForSubmissionStep({
+      partner_id: input.partner_id,
+      task_ids: input.task_ids || [],
     })
 
     const submission = createSubmissionRecordStep({
       partner_id: input.partner_id,
       designs: validatedDesigns,
+      tasks: validatedTasks,
       notes: input.notes,
       documents: input.documents,
       metadata: input.metadata,
@@ -303,7 +528,12 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
 
     linkSubmissionToDesignsStep({
       submission_id: submission.id,
-      design_ids: input.design_ids,
+      design_ids: input.design_ids || [],
+    })
+
+    linkSubmissionToTasksStep({
+      submission_id: submission.id,
+      task_ids: input.task_ids || [],
     })
 
     return new WorkflowResponse({ submission })

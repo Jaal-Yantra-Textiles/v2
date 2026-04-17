@@ -116,6 +116,15 @@ export function getPartnerRouteMap(): RouteObject[] {
                     import(
                       "../../routes/shared-folders/shared-folder-detail/shared-folder-detail"
                     ),
+                  children: [
+                    {
+                      path: "media/:mediaId",
+                      lazy: () =>
+                        import(
+                          "../../routes/shared-folders/shared-folder-media-detail/shared-folder-media-detail"
+                        ),
+                    },
+                  ],
                 },
               ],
             },

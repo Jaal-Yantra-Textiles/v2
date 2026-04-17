@@ -1,4 +1,4 @@
-import { ArrowDownTray, ThumbnailBadge, Trash, TriangleLeftMini, TriangleRightMini } from "@medusajs/icons"
+import { ArrowDownTray, ChatBubble, ThumbnailBadge, Trash, TriangleLeftMini, TriangleRightMini } from "@medusajs/icons"
 import { Button, IconButton, Text, Tooltip, clx } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -6,6 +6,7 @@ import { AdminMediaFolder, MediaFile } from "../../../../../../hooks/api/media-f
 import { useFolderMediaViewContext } from "../folder-media-view/folder-media-view"
 import { RouteFocusModal } from "../../../../../../components/modal/route-focus-modal"
 import { getThumbUrl, isImageUrl } from "../../../../../../lib/media"
+import { MediaCommentsSection } from "../../../../../../components/media/folders/folder-comments-section"
 
 export type FolderMediaGalleryProps = {
   folder: AdminMediaFolder
@@ -13,6 +14,7 @@ export type FolderMediaGalleryProps = {
 
 export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
   const [curr, setCurr] = useState<number>(0)
+  const [commentsOpen, setCommentsOpen] = useState<boolean>(true)
   const { t } = useTranslation()
   const { goToEdit } = useFolderMediaViewContext()
 
@@ -57,10 +59,26 @@ export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
 
   const noMedia = !media.length
 
+  const currentMedia = media[curr]
+
   return (
     <div className="flex size-full flex-col overflow-hidden">
       <RouteFocusModal.Header>
         <div className="flex items-center justify-end gap-x-2">
+          <IconButton
+            size="small"
+            type="button"
+            onClick={() => setCommentsOpen((v) => !v)}
+            disabled={noMedia}
+            variant={commentsOpen ? "primary" : "transparent"}
+          >
+            <ChatBubble />
+            <span className="sr-only">
+              {commentsOpen
+                ? t("media.hideComments", "Hide comments")
+                : t("media.showComments", "Show comments")}
+            </span>
+          </IconButton>
           <IconButton size="small" type="button" onClick={handleDeleteCurrent} disabled={noMedia}>
             <Trash />
             <span className="sr-only">{t("media.deleteImageLabel", "Delete image")}</span>
@@ -74,9 +92,22 @@ export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
           </Button>
         </div>
       </RouteFocusModal.Header>
-      <RouteFocusModal.Body className="flex flex-col overflow-hidden">
-        <Canvas curr={curr} media={media} />
-        <Preview curr={curr} media={media} prev={prev} next={next} goTo={goTo} />
+      <RouteFocusModal.Body className="flex flex-1 overflow-hidden p-0">
+        {/* Left: canvas + thumbnail strip */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Canvas curr={curr} media={media} />
+          <Preview curr={curr} media={media} prev={prev} next={next} goTo={goTo} />
+        </div>
+        {/* Right: comments panel for the current media file */}
+        {commentsOpen && currentMedia?.id && (
+          <div className="border-ui-border-base flex w-full max-w-sm shrink-0 flex-col overflow-y-auto border-l">
+            <MediaCommentsSection
+              key={currentMedia.id}
+              mediaId={currentMedia.id}
+              mediaName={currentMedia.file_name}
+            />
+          </div>
+        )}
       </RouteFocusModal.Body>
     </div>
   )

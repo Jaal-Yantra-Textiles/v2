@@ -1,22 +1,33 @@
 import { z } from "zod"
 
-export const CreatePaymentSubmissionSchema = z.object({
-  design_ids: z
-    .array(z.string().min(1))
-    .min(1, "At least one design is required"),
-  notes: z.string().optional(),
-  documents: z
-    .array(
-      z.object({
-        id: z.string().optional(),
-        url: z.string(),
-        filename: z.string().optional(),
-        mimeType: z.string().optional(),
-      })
-    )
-    .optional(),
-  metadata: z.record(z.any()).optional(),
-})
+/**
+ * Partners can bundle any combination of designs and tasks into a single
+ * submission. At least one item (from either list) is required.
+ */
+export const CreatePaymentSubmissionSchema = z
+  .object({
+    design_ids: z.array(z.string().min(1)).optional().default([]),
+    task_ids: z.array(z.string().min(1)).optional().default([]),
+    notes: z.string().optional(),
+    documents: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          url: z.string(),
+          filename: z.string().optional(),
+          mimeType: z.string().optional(),
+        })
+      )
+      .optional(),
+    metadata: z.record(z.any()).optional(),
+  })
+  .refine(
+    (data) => (data.design_ids?.length || 0) + (data.task_ids?.length || 0) > 0,
+    {
+      message: "At least one design or task is required",
+      path: ["design_ids"],
+    }
+  )
 
 export const ListPaymentSubmissionsQuerySchema = z.object({
   status: z

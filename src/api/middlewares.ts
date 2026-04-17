@@ -139,6 +139,7 @@ import {
 import {
   AdminListPaymentSubmissionsQuerySchema,
   AdminReviewPaymentSubmissionSchema,
+  CreateAdminPaymentSubmissionSchema,
 } from "./admin/payment-submissions/validators";
 import {
   ListReconciliationsQuerySchema,
@@ -2191,6 +2192,11 @@ export default defineMiddlewares({
       matcher: "/admin/payment-submissions",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(AdminListPaymentSubmissionsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/payment-submissions",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateAdminPaymentSubmissionSchema))],
     },
 
     // ── Payment Submissions (Partner) ───────────────────────────────────────

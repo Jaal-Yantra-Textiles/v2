@@ -75,7 +75,8 @@ export const POST = async (
   const { result } = await createPaymentSubmissionWorkflow(req.scope).run({
     input: {
       partner_id: partner.id,
-      design_ids: body.design_ids,
+      design_ids: body.design_ids || [],
+      task_ids: body.task_ids || [],
       notes: body.notes,
       documents: body.documents,
       metadata: body.metadata,

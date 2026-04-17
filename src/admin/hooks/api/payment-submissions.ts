@@ -14,8 +14,11 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 
 export interface PaymentSubmissionItem {
   id: string
-  design_id: string
+  source_type: "design" | "task"
+  design_id: string | null
   design_name: string | null
+  task_id: string | null
+  task_name: string | null
   amount: number
   cost_breakdown: any
   metadata: any
@@ -61,6 +64,15 @@ export interface ReviewPaymentSubmissionPayload {
   payment_type?: "Bank" | "Cash" | "Digital_Wallet"
   paid_to_id?: string
   notes?: string
+}
+
+export interface CreateAdminPaymentSubmissionPayload {
+  partner_id: string
+  design_ids?: string[]
+  task_ids?: string[]
+  notes?: string
+  documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
+  metadata?: Record<string, any>
 }
 
 // ─── Reconciliation Types ───────────────────────────────────────────────────
@@ -185,6 +197,28 @@ export const useReviewPaymentSubmission = (
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export const useCreatePaymentSubmission = (
+  options?: UseMutationOptions<
+    { payment_submission: PaymentSubmission },
+    FetchError,
+    CreateAdminPaymentSubmissionPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: CreateAdminPaymentSubmissionPayload) =>
+      sdk.client.fetch<{ payment_submission: PaymentSubmission }>(
+        `/admin/payment-submissions`,
+        { method: "POST", body: payload }
+      ) as Promise<{ payment_submission: PaymentSubmission }>,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,

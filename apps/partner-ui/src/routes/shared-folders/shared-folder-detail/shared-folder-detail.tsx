@@ -1,22 +1,20 @@
-import { useParams } from "react-router-dom"
+import { Link, Outlet, useParams } from "react-router-dom"
 import {
   Badge,
-  Button,
   Checkbox,
   CommandBar,
   Container,
   Heading,
   Text,
-  Textarea,
   Tooltip,
   clx,
   toast,
 } from "@medusajs/ui"
-import { ArrowDownTray, ChatBubble, ThumbnailBadge } from "@medusajs/icons"
+import { ChatBubble } from "@medusajs/icons"
 import { useCallback, useState } from "react"
-import { Outlet } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
+import { SingleColumnPageSkeleton } from "../../../components/common/skeleton"
 import {
   FileType,
   FileUpload,
@@ -24,10 +22,6 @@ import {
 import {
   usePartnerSharedFolder,
   useRegisterSharedFolderUpload,
-  useSharedFolderMediaComments,
-  useAddSharedFolderComment,
-  type SharedFolderMediaFile,
-  type MediaComment,
 } from "../../../hooks/api/partner-shared-folders"
 import { sdk } from "../../../lib/client/client"
 
@@ -41,10 +35,20 @@ const SUPPORTED_FORMATS = [
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // Videos (multipart presigned upload)
+  "video/quicktime", // .mov
+  "video/mp4",
+  "video/webm",
+  "video/x-matroska",
 ]
 
+// Match the admin media flow: use multipart presigned uploads so large video
+// files (e.g. .mov captures from phones) can be uploaded without a request
+// body size limit. Keep this aligned with the server-side S3 provider config.
+const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024 // 5GB
+
 const SUPPORTED_FORMATS_HINT =
-  "JPEG, PNG, GIF, WebP, HEIC, SVG, PDF, DOC, DOCX. Max 10MB per file."
+  "JPEG, PNG, GIF, WebP, HEIC, SVG, PDF, DOC, DOCX, MOV, MP4, WebM, MKV. Max 5GB per file."
 
 // ── Main Detail Page ──
 
@@ -59,7 +63,6 @@ export const SharedFolderDetail = () => {
 
   const [uploading, setUploading] = useState(false)
   const [selection, setSelection] = useState<Record<string, boolean>>({})
-  const [expandedMediaId, setExpandedMediaId] = useState<string | null>(null)
 
   const registerUpload = useRegisterSharedFolderUpload(id!)
 
@@ -82,12 +85,19 @@ export const SharedFolderDetail = () => {
       if (!files.length || !id) return
 
       setUploading(true)
-      const loading = toast.loading("Uploading files...", {
-        duration: Infinity,
-      })
+      const loading = toast.loading(
+        `Uploading ${files.length} file${files.length > 1 ? "s" : ""}...`,
+        { duration: Infinity }
+      )
+
+      // Max number of parts uploaded in parallel per file. Matches the admin
+      // `use-upload-manager` hook so behaviour is consistent across surfaces.
+      const MAX_PART_CONCURRENCY = 4
 
       try {
-        for (const f of files) {
+        for (let i = 0; i < files.length; i++) {
+          const f = files[i]
+
           // Step 1: Initiate multipart upload
           const initRes = await sdk.client.fetch<{
             uploadId: string
@@ -97,40 +107,79 @@ export const SharedFolderDetail = () => {
             method: "POST",
             body: {
               name: f.file.name,
-              type: f.file.type,
+              type: f.file.type || "application/octet-stream",
               size: f.file.size,
             },
           })
 
-          // Step 2: Get presigned part URLs
           const partSize = initRes.partSize || 8 * 1024 * 1024
-          const totalParts = Math.ceil(f.file.size / partSize)
-          const partNumbers = Array.from(
-            { length: totalParts },
-            (_, i) => i + 1
-          )
-
-          const partsRes = await sdk.client.fetch<{
-            urls: { partNumber: number; url: string }[]
-          }>("/partners/medias/uploads/parts", {
-            method: "POST",
-            body: {
-              uploadId: initRes.uploadId,
-              key: initRes.key,
-              partNumbers,
-            },
-          })
-
-          // Step 3: Upload each part
+          const totalParts = Math.max(1, Math.ceil(f.file.size / partSize))
           const uploadedParts: { PartNumber: number; ETag: string }[] = []
-          for (const { partNumber, url } of partsRes.urls) {
-            const start = (partNumber - 1) * partSize
-            const end = Math.min(start + partSize, f.file.size)
-            const blob = f.file.slice(start, end)
+          let completedParts = 0
 
-            const resp = await fetch(url, { method: "PUT", body: blob })
-            const etag = resp.headers.get("ETag") || ""
-            uploadedParts.push({ PartNumber: partNumber, ETag: etag })
+          // Step 2+3: Fetch presigned URLs in batches and upload parts in
+          // parallel to keep large video uploads responsive.
+          let partNumber = 1
+          while (partNumber <= totalParts) {
+            const batch: number[] = []
+            for (
+              let j = 0;
+              j < MAX_PART_CONCURRENCY && partNumber <= totalParts;
+              j++, partNumber++
+            ) {
+              batch.push(partNumber)
+            }
+
+            const partsRes = await sdk.client.fetch<{
+              urls: { partNumber: number; url: string }[]
+            }>("/partners/medias/uploads/parts", {
+              method: "POST",
+              body: {
+                uploadId: initRes.uploadId,
+                key: initRes.key,
+                partNumbers: batch,
+              },
+            })
+
+            await Promise.all(
+              partsRes.urls.map(async ({ partNumber: pn, url }) => {
+                const start = (pn - 1) * partSize
+                const end = Math.min(start + partSize, f.file.size)
+                const blob = f.file.slice(start, end)
+
+                const resp = await fetch(url, {
+                  method: "PUT",
+                  body: blob,
+                  mode: "cors",
+                  credentials: "omit",
+                })
+
+                if (!resp.ok) {
+                  throw new Error(
+                    `Part ${pn} upload failed for ${f.file.name}`
+                  )
+                }
+
+                // S3 returns the ETag quoted; strip quotes so the complete
+                // call accepts it.
+                const etag = (resp.headers.get("ETag") || "").replace(
+                  /"/g,
+                  ""
+                )
+                uploadedParts.push({ PartNumber: pn, ETag: etag })
+                completedParts++
+
+                const pct = Math.floor(
+                  (completedParts / totalParts) * 100
+                )
+                toast.loading(
+                  `Uploading ${f.file.name} (${pct}%) · ${i + 1}/${
+                    files.length
+                  }`,
+                  { id: loading, duration: Infinity }
+                )
+              })
+            )
           }
 
           // Step 4: Complete multipart upload
@@ -141,9 +190,11 @@ export const SharedFolderDetail = () => {
             body: {
               uploadId: initRes.uploadId,
               key: initRes.key,
-              parts: uploadedParts,
+              parts: uploadedParts.sort(
+                (a, b) => a.PartNumber - b.PartNumber
+              ),
               name: f.file.name,
-              type: f.file.type,
+              type: f.file.type || "application/octet-stream",
               size: f.file.size,
             },
           })
@@ -153,7 +204,7 @@ export const SharedFolderDetail = () => {
             key: completeRes.s3.key,
             url: completeRes.s3.location,
             filename: f.file.name,
-            mimeType: f.file.type,
+            mimeType: f.file.type || "application/octet-stream",
             size: f.file.size,
           })
         }
@@ -172,11 +223,7 @@ export const SharedFolderDetail = () => {
   )
 
   if (isPending || !folder) {
-    return (
-      <div className="flex flex-col gap-y-4 p-4">
-        <Text className="text-ui-fg-subtle">Loading...</Text>
-      </div>
-    )
+    return <SingleColumnPageSkeleton sections={3} />
   }
 
   if (isError) {
@@ -242,6 +289,7 @@ export const SharedFolderDetail = () => {
               }
               hint={SUPPORTED_FORMATS_HINT}
               formats={SUPPORTED_FORMATS}
+              maxFileSize={MAX_FILE_SIZE}
               onUploaded={(uploaded, rejected) => {
                 if (rejected?.length) {
                   const reasons = rejected
@@ -281,11 +329,14 @@ export const SharedFolderDetail = () => {
                 const isImage =
                   media.file_type === "image" ||
                   media.mime_type?.startsWith("image/")
+                const isVideo =
+                  media.file_type === "video" ||
+                  media.mime_type?.startsWith("video/")
 
                 return (
                   <div
                     key={media.id}
-                    className="shadow-elevation-card-rest hover:shadow-elevation-card-hover transition-fg group relative aspect-square size-full cursor-pointer overflow-hidden rounded-[8px]"
+                    className="shadow-elevation-card-rest hover:shadow-elevation-card-hover transition-fg group relative aspect-square size-full overflow-hidden rounded-[8px]"
                   >
                     {/* Selection checkbox */}
                     <div
@@ -302,68 +353,58 @@ export const SharedFolderDetail = () => {
                       />
                     </div>
 
-                    {/* Comment indicator */}
-                    <button
-                      onClick={() =>
-                        setExpandedMediaId(
-                          expandedMediaId === media.id
-                            ? null
-                            : media.id
-                        )
-                      }
-                      className={clx(
-                        "transition-fg invisible absolute left-2 top-2 z-10 opacity-0 group-hover:visible group-hover:opacity-100",
-                        {
-                          "visible opacity-100":
-                            expandedMediaId === media.id,
-                        }
-                      )}
+                    {/* Comment indicator — opens same modal as tile click */}
+                    <Link
+                      to={`media/${media.id}`}
+                      className="transition-fg invisible absolute left-2 top-2 z-10 opacity-0 group-hover:visible group-hover:opacity-100"
                     >
-                      <Tooltip content="Comments">
+                      <Tooltip content="Open & comment">
                         <ChatBubble className="text-white drop-shadow-md" />
                       </Tooltip>
-                    </button>
+                    </Link>
 
-                    {/* Image / File type preview */}
-                    {isImage ? (
-                      <a
-                        href={media.file_path}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
+                    {/* Tile — navigates to the per-media modal route */}
+                    <Link
+                      to={`media/${media.id}`}
+                      className="block size-full cursor-pointer"
+                    >
+                      {isImage ? (
                         <img
                           src={media.file_path}
                           alt={media.original_name}
                           className="size-full object-cover"
                           loading="lazy"
                         />
-                      </a>
-                    ) : (
-                      <a
-                        href={media.file_path}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex size-full items-center justify-center bg-ui-bg-subtle"
-                      >
-                        <div className="flex flex-col items-center gap-y-1 px-2">
-                          <Text
-                            size="xsmall"
-                            weight="plus"
-                            className="text-ui-fg-subtle uppercase"
-                          >
-                            {media.extension ||
-                              media.mime_type?.split("/").pop() ||
-                              media.file_type}
-                          </Text>
-                          <Text
-                            size="xsmall"
-                            className="text-ui-fg-muted truncate max-w-full"
-                          >
-                            {media.original_name}
-                          </Text>
+                      ) : isVideo ? (
+                        <video
+                          src={media.file_path}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="size-full bg-black object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center bg-ui-bg-subtle">
+                          <div className="flex flex-col items-center gap-y-1 px-2">
+                            <Text
+                              size="xsmall"
+                              weight="plus"
+                              className="text-ui-fg-subtle uppercase"
+                            >
+                              {media.extension ||
+                                media.mime_type?.split("/").pop() ||
+                                media.file_type}
+                            </Text>
+                            <Text
+                              size="xsmall"
+                              className="text-ui-fg-muted truncate max-w-full"
+                            >
+                              {media.original_name}
+                            </Text>
+                          </div>
                         </div>
-                      </a>
-                    )}
+                      )}
+                    </Link>
                   </div>
                 )
               })}
@@ -419,154 +460,10 @@ export const SharedFolderDetail = () => {
             </CommandBar.Bar>
           </CommandBar>
         </Container>
-
-        {/* Comments Panel */}
-        {expandedMediaId && (
-          <MediaCommentsPanel
-            folderId={id!}
-            mediaId={expandedMediaId}
-            mediaName={
-              mediaFiles.find((m) => m.id === expandedMediaId)
-                ?.original_name || "File"
-            }
-            onClose={() => setExpandedMediaId(null)}
-          />
-        )}
       </div>
+      {/* Per-media focus modal (comments panel on the right) */}
       <Outlet />
     </SingleColumnPage>
-  )
-}
-
-// ── Comments Panel ──
-
-const MediaCommentsPanel = ({
-  folderId,
-  mediaId,
-  mediaName,
-  onClose,
-}: {
-  folderId: string
-  mediaId: string
-  mediaName: string
-  onClose: () => void
-}) => {
-  const [newComment, setNewComment] = useState("")
-  const { comments, isPending } = useSharedFolderMediaComments(
-    folderId,
-    mediaId
-  )
-  const addComment = useAddSharedFolderComment(folderId, mediaId)
-
-  const handleSubmit = async () => {
-    if (!newComment.trim()) return
-
-    await addComment.mutateAsync(
-      { content: newComment.trim() },
-      {
-        onSuccess: () => {
-          toast.success("Comment added")
-          setNewComment("")
-        },
-        onError: (err) => {
-          toast.error(err.message)
-        },
-      }
-    )
-  }
-
-  return (
-    <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-x-2">
-          <Heading level="h2">Comments</Heading>
-          <Text size="small" className="text-ui-fg-muted">
-            on {mediaName}
-          </Text>
-        </div>
-        <Button variant="secondary" size="small" onClick={onClose}>
-          Close
-        </Button>
-      </div>
-
-      {/* Add comment */}
-      <div className="flex flex-col gap-y-2 px-6 py-4">
-        <Textarea
-          placeholder="Write a comment..."
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          rows={2}
-        />
-        <div className="flex justify-end">
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={handleSubmit}
-            disabled={!newComment.trim()}
-            isLoading={addComment.isPending}
-          >
-            Add Comment
-          </Button>
-        </div>
-      </div>
-
-      {/* Comments list */}
-      {isPending ? (
-        <div className="px-6 py-6 text-center">
-          <Text size="small" className="text-ui-fg-muted">
-            Loading comments...
-          </Text>
-        </div>
-      ) : comments.length === 0 ? (
-        <div className="flex flex-col items-center gap-y-2 px-6 py-6">
-          <ChatBubble className="text-ui-fg-muted" />
-          <Text size="small" className="text-ui-fg-muted">
-            No comments yet. Be the first to comment.
-          </Text>
-        </div>
-      ) : (
-        <div className="flex flex-col">
-          {comments.map((comment: MediaComment) => (
-            <div
-              key={comment.id}
-              className="flex flex-col gap-y-1 px-6 py-3 border-b border-ui-border-base last:border-b-0"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-x-2">
-                  <Text size="xsmall" weight="plus">
-                    {comment.author_name}
-                  </Text>
-                  <Badge
-                    size="2xsmall"
-                    color={
-                      comment.author_type === "admin" ? "blue" : "green"
-                    }
-                  >
-                    {comment.author_type}
-                  </Badge>
-                </div>
-                {comment.created_at && (
-                  <Text size="xsmall" className="text-ui-fg-muted">
-                    {new Date(comment.created_at).toLocaleDateString(
-                      undefined,
-                      {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      }
-                    )}
-                  </Text>
-                )}
-              </div>
-              <Text size="small" className="text-ui-fg-subtle">
-                {comment.content}
-              </Text>
-            </div>
-          ))}
-        </div>
-      )}
-    </Container>
   )
 }
 

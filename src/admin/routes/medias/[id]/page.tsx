@@ -8,7 +8,6 @@ import { FolderRelationshipsSection } from "../../../components/media/folders/fo
 import { FolderMetadataSection } from "../../../components/media/folders/folder-metadata-section";
 import { FolderMediaSection } from "../../../components/media/folders/folder-media-section";
 import { FolderAssignedPersonsSection } from "../../../components/media/folders/folder-assigned-persons-section";
-import { FolderAllCommentsSection } from "../../../components/media/folders/folder-comments-section";
 
 const MediaFolderDetailPage = () => {
   const { id } = useParams();
@@ -48,10 +47,6 @@ const MediaFolderDetailPage = () => {
         <FolderGeneralSection folder={folder} />
         <FolderRelationshipsSection folder={folder} />
         <FolderMediaSection folder={folder} />
-        <FolderAllCommentsSection
-          folderId={folder.id}
-          mediaFiles={folder.media_files}
-        />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <FolderMetadataSection folder={folder} />
