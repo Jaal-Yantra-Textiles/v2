@@ -140,29 +140,48 @@ print(json.dumps({
 PY
 )"
 
-  local resp
-  resp="$(curl -sS --max-time 30 "$DASHSCOPE_BASE_URL/chat/completions" \
-            -H "Authorization: Bearer $DASHSCOPE_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$payload" 2>/dev/null)" || {
-    rm -f "$files_tmp" "$diff_tmp"; c_warn "ai: request failed"; return 1;
-  }
+  local resp_tmp http_code
+  resp_tmp="$(mktemp -t jyt-ai-resp.XXXXXX)"
+  http_code="$(curl -sS --max-time 90 --retry 2 --retry-delay 1 \
+    -o "$resp_tmp" -w "%{http_code}" \
+    "$DASHSCOPE_BASE_URL/chat/completions" \
+    -H "Authorization: Bearer $DASHSCOPE_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null)" || http_code="000"
   rm -f "$files_tmp" "$diff_tmp"
 
-  local resp_tmp msg
-  resp_tmp="$(mktemp -t jyt-ai-resp.XXXXXX)"
-  printf '%s' "$resp" >"$resp_tmp"
+  if [[ "$http_code" != "200" ]]; then
+    c_warn "ai: request failed (http $http_code)"
+    [[ -s "$resp_tmp" ]] && head -c 400 "$resp_tmp" >&2 && echo >&2
+    rm -f "$resp_tmp"; return 1
+  fi
+
+  local msg
   msg="$(python3 - "$resp_tmp" <<'PY'
 import json, sys
 try:
-    with open(sys.argv[1]) as f: d = json.load(f)
-    content = d["choices"][0]["message"]["content"].strip()
-    first = content.splitlines()[0].strip()
-    for ch in ('"', "'", '`'):
-        if first.startswith(ch) and first.endswith(ch): first = first[1:-1]
-    print(first)
+    with open(sys.argv[1], encoding="utf-8", errors="replace") as f:
+        raw = f.read()
+    d = json.loads(raw)
+except json.JSONDecodeError as e:
+    sys.stderr.write(f"ai parse error: invalid json ({e}); body starts: {raw[:200]!r}\n")
+    sys.exit(1)
 except Exception as e:
     sys.stderr.write(f"ai parse error: {e}\n"); sys.exit(1)
+
+if "choices" not in d:
+    err = d.get("error") or d
+    sys.stderr.write(f"ai api error: {json.dumps(err)[:300]}\n"); sys.exit(1)
+
+try:
+    content = d["choices"][0]["message"]["content"].strip()
+except (KeyError, IndexError, TypeError) as e:
+    sys.stderr.write(f"ai parse error: unexpected shape ({e})\n"); sys.exit(1)
+
+first = content.splitlines()[0].strip() if content else ""
+for ch in ('"', "'", '`'):
+    if first.startswith(ch) and first.endswith(ch): first = first[1:-1]
+print(first)
 PY
 )" || { rm -f "$resp_tmp"; c_warn "ai: couldn't parse response"; return 1; }
   rm -f "$resp_tmp"
