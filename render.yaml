@@ -6,7 +6,11 @@ services:
     # pnpm-lock.yaml (workspace lockfile lives at root) and doesn't fall
     # back to `npm install`, which fails on strict peer conflicts like
     # date-fns@4 vs react-day-picker's ^2||^3 peer range.
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run partner-ui:build
+    # Render auto-installs deps with pnpm when it detects pnpm-lock.yaml
+    # at the repo root (see `==> Installing dependencies with pnpm...` in
+    # build logs), so we only need to run the build step here. Do NOT add
+    # `corepack enable` — Render's build container has a read-only /usr/bin.
+    buildCommand: pnpm run partner-ui:build
     staticPublishPath: apps/partner-ui/dist
     # Only build when files under apps/partner-ui/ actually change.
     # Mirrors the Vercel ignoreCommand used for storefront-starter:
