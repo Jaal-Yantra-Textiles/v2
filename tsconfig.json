@@ -44,5 +44,7 @@
     "**/src/mastra/**/*",
     "apps/**/*",
     "src/partner/**/*",
+    "src/scripts/search/**/*",
+    "src/scripts/specs/**/*",
   ]
 }

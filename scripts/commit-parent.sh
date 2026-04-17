@@ -412,7 +412,7 @@ else
     git commit -m "$(cat <<EOF
 $MESSAGE
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Saransh and Claude Opus 4.7 (1M context) <noreply@anthropic.com> <git@jaalyantra.com>
 EOF
 )"
     c_ok "parent → $(git rev-parse --short HEAD)"
