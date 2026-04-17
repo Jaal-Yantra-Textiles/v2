@@ -2,9 +2,12 @@ services:
   - type: web
     name: partner-ui
     runtime: static
-    rootDir: apps/partner-ui
-    buildCommand: pnpm install && pnpm partner-ui:build
-    staticPublishPath: dist
+    # rootDir omitted — defaults to repo root. Required so Render detects
+    # pnpm-lock.yaml (workspace lockfile lives at root) and doesn't fall
+    # back to `npm install`, which fails on strict peer conflicts like
+    # date-fns@4 vs react-day-picker's ^2||^3 peer range.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run partner-ui:build
+    staticPublishPath: apps/partner-ui/dist
     # Only build when files under apps/partner-ui/ actually change.
     # Mirrors the Vercel ignoreCommand used for storefront-starter:
     #   git diff --quiet HEAD^ HEAD -- apps/partner-ui || exit 1
