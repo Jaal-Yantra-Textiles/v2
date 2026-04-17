@@ -12,6 +12,13 @@ import updatePartnerWorkflow from "../../../../workflows/partners/update-partner
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || "cicilabel.com"
 const STOREFRONT_REPO = process.env.VERCEL_STOREFRONT_REPO || ""
 const STOREFRONT_ROOT_DIR = process.env.VERCEL_STOREFRONT_ROOT_DIR || "apps/storefront-starter"
+// Vercel's "Ignored Build Step". Exit 0 → skip deploy, exit 1 → build.
+// Default: only build when the storefront directory (including the
+// submodule pointer) actually changed. The `|| exit 1` fallback handles
+// Vercel's first deploy where HEAD^ doesn't resolve.
+const STOREFRONT_IGNORE_COMMAND =
+  process.env.VERCEL_STOREFRONT_IGNORE_COMMAND ||
+  `git diff --quiet HEAD^ HEAD -- ${STOREFRONT_ROOT_DIR} || exit 1`
 const MEDUSA_BACKEND_URL =
   process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_KEY || ""
@@ -168,6 +175,7 @@ export const POST = async (
       root_domain: ROOT_DOMAIN,
       storefront_repo: STOREFRONT_REPO,
       storefront_root_dir: STOREFRONT_ROOT_DIR,
+      storefront_ignore_command: STOREFRONT_IGNORE_COMMAND,
       medusa_backend_url: MEDUSA_BACKEND_URL,
       stripe_publishable_key: STRIPE_PUBLISHABLE_KEY,
       s3_hostname: s3Config.hostname,

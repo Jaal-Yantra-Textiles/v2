@@ -19,6 +19,7 @@ export type ProvisionStorefrontInput = {
   root_domain: string
   storefront_repo: string
   storefront_root_dir?: string
+  storefront_ignore_command?: string
   medusa_backend_url: string
   stripe_publishable_key: string
   s3_hostname: string
@@ -38,7 +39,10 @@ export type ProvisionStorefrontResult = {
 // Step 1: Create Vercel project
 const createVercelProjectStep = createStep(
   "create-vercel-project",
-  async (input: { handle: string; storefrontRepo: string; rootDirectory?: string }, { container }) => {
+  async (
+    input: { handle: string; storefrontRepo: string; rootDirectory?: string; ignoreCommand?: string },
+    { container }
+  ) => {
     const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     const projectName = `storefront-${input.handle}`
     const project = await deployment.createProject({
@@ -47,6 +51,7 @@ const createVercelProjectStep = createStep(
       framework: "nextjs",
       rootDirectory: input.rootDirectory,
       installCommand: "pnpm install --no-frozen-lockfile",
+      ignoreCommand: input.ignoreCommand,
     })
 
     return new StepResponse(
@@ -320,6 +325,7 @@ export const provisionStorefrontWorkflow = createWorkflow(
       handle: input.handle,
       storefrontRepo: input.storefront_repo,
       rootDirectory: input.storefront_root_dir,
+      ignoreCommand: input.storefront_ignore_command,
     })
 
     // Step 2: Set env vars

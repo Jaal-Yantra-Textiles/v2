@@ -127,6 +127,7 @@ class DeploymentService {
     framework?: string
     rootDirectory?: string
     installCommand?: string
+    ignoreCommand?: string
   }): Promise<VercelProject> {
     const projectName = this.sanitizeProjectName(input.name)
     const payload: Record<string, any> = {
@@ -140,6 +141,9 @@ class DeploymentService {
     if (input.installCommand) {
       payload.installCommand = input.installCommand
     }
+    if (input.ignoreCommand) {
+      payload.commandForIgnoringBuildStep = input.ignoreCommand
+    }
     const res = await fetch(`${VERCEL_API_BASE}/v11/projects${this.vercelTeamQuery()}`, {
       method: "POST",
       headers: this.vercelHeaders(),
@@ -150,6 +154,65 @@ class DeploymentService {
       throw new Error(`Vercel createProject failed (${res.status}): ${body}`)
     }
     return res.json()
+  }
+
+  async updateProject(
+    projectId: string,
+    patch: {
+      rootDirectory?: string | null
+      installCommand?: string | null
+      ignoreCommand?: string | null
+    }
+  ): Promise<VercelProject> {
+    const payload: Record<string, any> = {}
+    if (patch.rootDirectory !== undefined) payload.rootDirectory = patch.rootDirectory
+    if (patch.installCommand !== undefined) payload.installCommand = patch.installCommand
+    if (patch.ignoreCommand !== undefined) payload.commandForIgnoringBuildStep = patch.ignoreCommand
+
+    const res = await fetch(
+      `${VERCEL_API_BASE}/v9/projects/${projectId}${this.vercelTeamQuery()}`,
+      { method: "PATCH", headers: this.vercelHeaders(), body: JSON.stringify(payload) }
+    )
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Vercel updateProject failed (${res.status}): ${body}`)
+    }
+    return res.json()
+  }
+
+  async listProjects(opts?: { prefix?: string; limit?: number }): Promise<VercelProject[]> {
+    const prefix = opts?.prefix
+    const pageLimit = opts?.limit ?? 100
+    const results: VercelProject[] = []
+    const teamId = process.env.VERCEL_TEAM_ID
+    let until: string | undefined
+
+    while (true) {
+      const url = new URL(`${VERCEL_API_BASE}/v9/projects`)
+      if (teamId) url.searchParams.set("teamId", teamId)
+      url.searchParams.set("limit", String(pageLimit))
+      if (until) url.searchParams.set("until", until)
+
+      const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: this.vercelHeaders(),
+      })
+      if (!res.ok) {
+        const body = await res.text()
+        throw new Error(`Vercel listProjects failed (${res.status}): ${body}`)
+      }
+      const data = (await res.json()) as {
+        projects?: VercelProject[]
+        pagination?: { next?: number | string | null }
+      }
+      for (const p of data.projects || []) {
+        if (!prefix || p.name.startsWith(prefix)) results.push(p)
+      }
+      const next = data.pagination?.next
+      if (!next) break
+      until = String(next)
+    }
+    return results
   }
 
   async setEnvironmentVariables(
