@@ -15,6 +15,17 @@ RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
 
 WORKDIR /app
 
+# Build-time env for the admin (Vite) bundle. Vite inlines these at compile
+# time; they can't be set at runtime. Public URLs only — no secrets here.
+ARG MEDUSA_BACKEND_URL
+ARG VITE_MEDUSA_BACKEND_URL
+ARG VITE_MEDIA_GALLERY_BASE_URL
+ARG VITE_STOREFRONT_URL
+ENV MEDUSA_BACKEND_URL=${MEDUSA_BACKEND_URL}
+ENV VITE_MEDUSA_BACKEND_URL=${VITE_MEDUSA_BACKEND_URL}
+ENV VITE_MEDIA_GALLERY_BASE_URL=${VITE_MEDIA_GALLERY_BASE_URL}
+ENV VITE_STOREFRONT_URL=${VITE_STOREFRONT_URL}
+
 # Copy everything — pnpm-workspace.yaml references apps/* and pnpm expects
 # those manifests to exist. A .dockerignore trims node_modules/.medusa/etc.
 COPY . .

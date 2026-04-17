@@ -101,6 +101,14 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Baked into the Vite admin bundle at build time — Vite can't
+          # read them at runtime. Public URLs, not secrets. Uses repo
+          # Variables (not Secrets) so values are visible for auditing.
+          build-args: |
+            MEDUSA_BACKEND_URL=${{ vars.MEDUSA_BACKEND_URL }}
+            VITE_MEDUSA_BACKEND_URL=${{ vars.MEDUSA_BACKEND_URL }}
+            VITE_MEDIA_GALLERY_BASE_URL=${{ vars.VITE_MEDIA_GALLERY_BASE_URL }}
+            VITE_STOREFRONT_URL=${{ vars.VITE_STOREFRONT_URL }}
           # Cache layers in GitHub Actions cache so repeat builds are fast
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -247,7 +255,7 @@ jobs:
 
       - name: Poll /health until ready
         env:
-          BACKEND_URL: ${{ secrets.MEDUSA_BACKEND_URL }}
+          BACKEND_URL: ${{ vars.MEDUSA_BACKEND_URL }}
         run: |
           MAX_ATTEMPTS=30
           INTERVAL=30
@@ -278,5 +286,5 @@ jobs:
           echo "### Server Health Check" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| URL | \`${{ secrets.MEDUSA_BACKEND_URL }}/health\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL | \`${{ vars.MEDUSA_BACKEND_URL }}/health\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Result | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
