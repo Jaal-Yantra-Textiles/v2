@@ -293,6 +293,36 @@ class SocialsService extends MedusaService({
     }
     return best?.platform ?? (await this.getDefaultWhatsAppPlatform())
   }
+
+  /**
+   * Enforce the single-default invariant: at most one WhatsApp SocialPlatform
+   * row may have `api_config.is_default === true`. Unsets `is_default` on all
+   * WhatsApp rows except `keepId`.
+   *
+   * Call after an admin create/update when the saved row is a WhatsApp
+   * platform with `is_default: true`. No-op when no other defaults exist.
+   */
+  async clearOtherWhatsAppDefaults(keepId: string) {
+    if (!keepId) return
+    const all = await this.findWhatsAppPlatforms()
+    const others = all.filter((p: any) => {
+      if (p.id === keepId) return false
+      const cfg = p.api_config as WhatsAppPlatformApiConfig | null
+      return cfg?.is_default === true
+    })
+    if (others.length === 0) return
+
+    await Promise.all(
+      others.map((p: any) => {
+        const nextConfig = { ...(p.api_config as Record<string, any>) }
+        delete nextConfig.is_default
+        return this.updateSocialPlatforms({
+          selector: { id: p.id },
+          data: { api_config: nextConfig },
+        })
+      })
+    )
+  }
 }
 
 export default SocialsService;

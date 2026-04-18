@@ -38,7 +38,16 @@ const CATEGORY_COLORS: Record<string, "blue" | "purple" | "orange"> = {
   AUTHENTICATION: "orange",
 }
 
-export const WhatsAppTemplatesSection = () => {
+interface WhatsAppTemplatesSectionProps {
+  /**
+   * Id of the SocialPlatform row this section is scoped to. When provided,
+   * every config / templates request targets this WhatsApp number. Omit for
+   * the legacy single-platform behavior (default platform).
+   */
+  platformId?: string
+}
+
+export const WhatsAppTemplatesSection = ({ platformId }: WhatsAppTemplatesSectionProps = {}) => {
   const [config, setConfig] = useState<WhatsAppConfig | null>(null)
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,20 +64,22 @@ export const WhatsAppTemplatesSection = () => {
   const [newFooter, setNewFooter] = useState("")
   const [creating, setCreating] = useState(false)
 
+  const qs = platformId ? `?platform_id=${encodeURIComponent(platformId)}` : ""
+
   const loadConfig = useCallback(async () => {
     try {
-      const resp: any = await sdk.client.fetch("/admin/social-platforms/whatsapp/config", { method: "GET" })
+      const resp: any = await sdk.client.fetch(`/admin/social-platforms/whatsapp/config${qs}`, { method: "GET" })
       setConfig(resp)
       setWabaIdInput(resp.waba_id || "")
     } catch (e: any) {
       console.error("Failed to load WhatsApp config:", e.message)
     }
-  }, [])
+  }, [qs])
 
   const loadTemplates = useCallback(async () => {
     setLoading(true)
     try {
-      const resp: any = await sdk.client.fetch("/admin/social-platforms/whatsapp/templates", { method: "GET" })
+      const resp: any = await sdk.client.fetch(`/admin/social-platforms/whatsapp/templates${qs}`, { method: "GET" })
       setTemplates(resp.templates || [])
     } catch (e: any) {
       // May fail if WABA not configured
@@ -76,17 +87,17 @@ export const WhatsAppTemplatesSection = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [qs])
 
   useEffect(() => {
     loadConfig()
     loadTemplates()
-  }, [])
+  }, [loadConfig, loadTemplates])
 
   const handleSync = async () => {
     setSyncing(true)
     try {
-      const resp: any = await sdk.client.fetch("/admin/social-platforms/whatsapp/templates/sync", { method: "POST" })
+      const resp: any = await sdk.client.fetch(`/admin/social-platforms/whatsapp/templates/sync${qs}`, { method: "POST" })
       toast.success(`Synced ${resp.synced} templates from Meta`)
       setTemplates(resp.templates || [])
       loadConfig()
@@ -101,7 +112,7 @@ export const WhatsAppTemplatesSection = () => {
     if (!wabaIdInput.trim()) return
     setSavingConfig(true)
     try {
-      await sdk.client.fetch("/admin/social-platforms/whatsapp/config", {
+      await sdk.client.fetch(`/admin/social-platforms/whatsapp/config${qs}`, {
         method: "POST",
         body: { waba_id: wabaIdInput.trim() },
       })
@@ -116,7 +127,7 @@ export const WhatsAppTemplatesSection = () => {
 
   const handleSetDefault = async (templateName: string, lang: string) => {
     try {
-      await sdk.client.fetch("/admin/social-platforms/whatsapp/config", {
+      await sdk.client.fetch(`/admin/social-platforms/whatsapp/config${qs}`, {
         method: "POST",
         body: { initiation_template: templateName, initiation_template_lang: lang },
       })
@@ -130,7 +141,11 @@ export const WhatsAppTemplatesSection = () => {
   const handleDelete = async (name: string) => {
     if (!confirm(`Delete template "${name}"? This cannot be undone.`)) return
     try {
-      await sdk.client.fetch(`/admin/social-platforms/whatsapp/templates/delete?name=${name}`, { method: "DELETE" })
+      const sep = qs ? "&" : "?"
+      await sdk.client.fetch(
+        `/admin/social-platforms/whatsapp/templates/delete${qs}${sep}name=${name}`,
+        { method: "DELETE" }
+      )
       toast.success(`Template "${name}" deleted`)
       loadTemplates()
     } catch (e: any) {
@@ -162,7 +177,7 @@ export const WhatsAppTemplatesSection = () => {
         components.push({ type: "FOOTER", text: newFooter.trim() })
       }
 
-      const resp: any = await sdk.client.fetch("/admin/social-platforms/whatsapp/templates", {
+      const resp: any = await sdk.client.fetch(`/admin/social-platforms/whatsapp/templates${qs}`, {
         method: "POST",
         body: {
           name: newName.toLowerCase().replace(/[^a-z0-9_]/g, "_"),

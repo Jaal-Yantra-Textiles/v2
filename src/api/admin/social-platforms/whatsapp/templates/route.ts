@@ -8,7 +8,8 @@ import { getWhatsAppConfig, graphApiRequest } from "../helpers"
  * List WhatsApp message templates from Meta.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const config = await getWhatsAppConfig(req.scope)
+  const platformId = (req.query.platform_id as string | undefined) || undefined
+  const config = await getWhatsAppConfig(req.scope, platformId)
 
   if (!config.accessToken) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "WhatsApp not configured")
@@ -49,7 +50,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * Create a new WhatsApp message template on Meta.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const config = await getWhatsAppConfig(req.scope)
+  const platformId = (req.query.platform_id as string | undefined) || undefined
+  const config = await getWhatsAppConfig(req.scope, platformId)
 
   if (!config.accessToken || !config.wabaId) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "WhatsApp or WABA ID not configured")

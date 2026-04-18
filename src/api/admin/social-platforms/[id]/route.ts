@@ -114,6 +114,8 @@ import { refetchSocialPlatform } from "../helpers";
 import { listSocialPlatformWorkflow } from "../../../../workflows/socials/list-social-platform";
 import { updateSocialPlatformWorkflow } from "../../../../workflows/socials/update-social-platform";
 import { deleteSocialPlatformWorkflow } from "../../../../workflows/socials/delete-social-platform";
+import { SOCIALS_MODULE } from "../../../../modules/socials";
+import type SocialsService from "../../../../modules/socials/service";
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { result } = await listSocialPlatformWorkflow(req.scope).run({
@@ -130,6 +132,16 @@ export const POST = async (req: MedusaRequest<UpdateSocialPlatform>, res: Medusa
     },
   });
   const socialPlatform = await refetchSocialPlatform(result.id, req.scope);
+
+  // Enforce single-default invariant for WhatsApp: if this row was saved as
+  // default, unset `is_default` on every other WhatsApp row.
+  const apiConfig = (socialPlatform as any)?.api_config as Record<string, any> | null;
+  const isWhatsApp = apiConfig?.provider === "whatsapp" || (socialPlatform as any)?.name === "WhatsApp";
+  if (isWhatsApp && apiConfig?.is_default === true) {
+    const socials = req.scope.resolve(SOCIALS_MODULE) as unknown as SocialsService;
+    await socials.clearOtherWhatsAppDefaults((socialPlatform as any).id);
+  }
+
   res.status(200).json({ socialPlatform });
 };
 

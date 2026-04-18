@@ -10,7 +10,8 @@ import { getWhatsAppConfig, graphApiRequest } from "../../helpers"
  * This caches templates locally so the UI doesn't need to hit Meta every time.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const config = await getWhatsAppConfig(req.scope)
+  const platformId = (req.query.platform_id as string | undefined) || undefined
+  const config = await getWhatsAppConfig(req.scope, platformId)
 
   if (!config.accessToken || !config.wabaId) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "WhatsApp or WABA ID not configured")

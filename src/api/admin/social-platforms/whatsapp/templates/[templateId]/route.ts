@@ -9,7 +9,8 @@ import { getWhatsAppConfig, graphApiRequest } from "../../helpers"
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { templateId } = req.params
-  const config = await getWhatsAppConfig(req.scope)
+  const platformId = (req.query.platform_id as string | undefined) || undefined
+  const config = await getWhatsAppConfig(req.scope, platformId)
 
   if (!config.accessToken) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "WhatsApp not configured")
@@ -29,7 +30,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * Delete a template from Meta. Requires the template name (passed as query param).
  */
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
-  const config = await getWhatsAppConfig(req.scope)
+  const platformId = (req.query.platform_id as string | undefined) || undefined
+  const config = await getWhatsAppConfig(req.scope, platformId)
   const name = req.query.name as string
 
   if (!config.accessToken || !config.wabaId) {

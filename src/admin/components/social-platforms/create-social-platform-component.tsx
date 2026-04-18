@@ -29,9 +29,14 @@ const CreateSocialPlatformSchema = z.object({
   inbound_domain: z.string().optional(),
   // Communication (WhatsApp) fields
   phone_number_id: z.string().optional(),
+  waba_id: z.string().optional(),
   access_token: z.string().optional(),
   webhook_verify_token: z.string().optional(),
   app_secret: z.string().optional(),
+  // Multi-number routing (WhatsApp)
+  label: z.string().optional(),
+  country_codes: z.string().optional(),
+  is_default: z.boolean().optional(),
   // SMS fields
   account_sid: z.string().optional(),
   auth_token: z.string().optional(),
@@ -91,6 +96,21 @@ const CreateSocialPlatformSchema = z.object({
 
 type CreateSocialPlatformForm = z.infer<typeof CreateSocialPlatformSchema>
 
+/**
+ * Parse comma-separated country codes into a normalized array of E.164
+ * prefixes (e.g. "91, +61" → ["+91", "+61"]). Returns undefined for empty
+ * input so api_config doesn't carry an empty array.
+ */
+function parseCountryCodes(input: string | undefined | null): string[] | undefined {
+  if (!input) return undefined
+  const codes = input
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => (s.startsWith("+") ? s : `+${s}`))
+  return codes.length ? codes : undefined
+}
+
 /** Build api_config from form data based on category */
 function buildApiConfig(category: string, data: Record<string, any>): Record<string, any> {
   const config: Record<string, any> = { provider: data.provider_type }
@@ -118,9 +138,13 @@ function buildApiConfig(category: string, data: Record<string, any>): Record<str
     case "communication":
       Object.assign(config, {
         phone_number_id: data.phone_number_id,
+        waba_id: data.waba_id,
         access_token: data.access_token,
         app_secret: data.app_secret,
         webhook_verify_token: data.webhook_verify_token,
+        label: data.label,
+        country_codes: parseCountryCodes(data.country_codes),
+        is_default: data.is_default === true ? true : undefined,
       })
       break
 

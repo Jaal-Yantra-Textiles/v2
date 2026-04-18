@@ -9,7 +9,8 @@ import { getWhatsAppConfig, graphApiRequest } from "../helpers"
  * Returns the current WhatsApp configuration (non-sensitive fields).
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const config = await getWhatsAppConfig(req.scope)
+  const platformId = (req.query.platform_id as string | undefined) || undefined
+  const config = await getWhatsAppConfig(req.scope, platformId)
 
   // Get phone number info from Meta if possible
   let phoneInfo: any = null
@@ -75,12 +76,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     initiation_template_lang?: string
   }
 
-  const config = await getWhatsAppConfig(req.scope)
+  const platformId = (req.query.platform_id as string | undefined) || undefined
+  const config = await getWhatsAppConfig(req.scope, platformId)
 
   if (!config.platformId) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
-      "WhatsApp not connected via SocialPlatform. Use /admin/social-platforms/whatsapp/connect first."
+      "WhatsApp not connected via SocialPlatform. Add one in Settings > External Platforms."
     )
   }
 

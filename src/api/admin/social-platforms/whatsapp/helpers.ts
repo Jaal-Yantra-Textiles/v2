@@ -1,4 +1,6 @@
+import { MedusaError } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
+import type SocialsService from "../../../../modules/socials/service"
 import { ENCRYPTION_MODULE } from "../../../../modules/encryption"
 import type EncryptionService from "../../../../modules/encryption/service"
 import type { EncryptedData } from "../../../../modules/encryption"
@@ -15,45 +17,85 @@ export interface WhatsAppPlatformConfig {
 }
 
 /**
- * Resolve WhatsApp config from SocialPlatform DB or env vars.
+ * Convert a SocialPlatform row into a resolved WhatsApp config, decrypting
+ * the access token when stored encrypted.
  */
-export async function getWhatsAppConfig(scope: any): Promise<WhatsAppPlatformConfig> {
-  // Try DB first
-  try {
-    const socialsService = scope.resolve(SOCIALS_MODULE) as any
-    const allComm = await socialsService.listSocialPlatforms({ category: "communication", status: "active" })
-    const list = Array.isArray(allComm) ? allComm : [allComm]
-    const platform = list.find(
-      (p: any) => p?.api_config?.provider === "whatsapp" || p?.name === "WhatsApp"
+function buildConfigFromPlatform(
+  platform: any,
+  encryptionService: EncryptionService
+): WhatsAppPlatformConfig | null {
+  const apiConfig = (platform?.api_config as Record<string, any>) || null
+  if (!apiConfig) return null
+
+  let accessToken = ""
+  if (apiConfig.access_token_encrypted) {
+    try {
+      accessToken = encryptionService.decrypt(apiConfig.access_token_encrypted as EncryptedData)
+    } catch {
+      accessToken = apiConfig.access_token || ""
+    }
+  } else {
+    accessToken = apiConfig.access_token || ""
+  }
+
+  if (!accessToken) return null
+
+  return {
+    accessToken,
+    phoneNumberId: apiConfig.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+    wabaId: apiConfig.waba_id,
+    appSecret: apiConfig.app_secret,
+    webhookVerifyToken: apiConfig.webhook_verify_token,
+    platformId: platform.id,
+  }
+}
+
+/**
+ * Resolve WhatsApp config from SocialPlatform DB or env vars.
+ *
+ * With multi-number support, callers should pass `platformId` to target a
+ * specific WhatsApp number. When omitted, falls back to the default WhatsApp
+ * platform (explicit `is_default: true`, else the first active row), then to
+ * env vars if no DB row exists.
+ *
+ * Throws NOT_FOUND when an explicit `platformId` is passed but the row does
+ * not exist or is not a WhatsApp platform — surfacing bad ids early instead
+ * of silently masking them with another number's config.
+ */
+export async function getWhatsAppConfig(
+  scope: any,
+  platformId?: string
+): Promise<WhatsAppPlatformConfig> {
+  const socialsService = scope.resolve(SOCIALS_MODULE) as unknown as SocialsService
+  const encryptionService = scope.resolve(ENCRYPTION_MODULE) as EncryptionService
+
+  // Targeted lookup: the admin opened platform X's detail page and wants
+  // to act on that row specifically (not "whichever was first").
+  if (platformId) {
+    const platform = await socialsService.findWhatsAppPlatformById(platformId)
+    if (!platform) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `WhatsApp platform ${platformId} not found`
+      )
+    }
+    const cfg = buildConfigFromPlatform(platform, encryptionService)
+    if (cfg) return cfg
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `WhatsApp platform ${platformId} has no access token configured`
     )
+  }
 
-    if (platform?.api_config) {
-      const apiConfig = platform.api_config as Record<string, any>
-      const encryptionService = scope.resolve(ENCRYPTION_MODULE) as EncryptionService
-
-      let accessToken = ""
-      if (apiConfig.access_token_encrypted) {
-        try { accessToken = encryptionService.decrypt(apiConfig.access_token_encrypted as EncryptedData) } catch {
-          accessToken = apiConfig.access_token || ""
-        }
-      } else {
-        accessToken = apiConfig.access_token || ""
-      }
-
-      if (accessToken) {
-        return {
-          accessToken,
-          phoneNumberId: apiConfig.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "",
-          wabaId: apiConfig.waba_id,
-          appSecret: apiConfig.app_secret,
-          webhookVerifyToken: apiConfig.webhook_verify_token,
-          platformId: platform.id,
-        }
-      }
+  // No target: pick the default row (is_default → else first).
+  try {
+    const platform = await socialsService.getDefaultWhatsAppPlatform()
+    if (platform) {
+      const cfg = buildConfigFromPlatform(platform, encryptionService)
+      if (cfg) return cfg
     }
   } catch { /* fall through to env */ }
 
-  // Fallback to env vars
   return {
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",

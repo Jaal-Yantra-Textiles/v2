@@ -34,7 +34,7 @@ export default function SocialPlatformDetailPage() {
         <SocialPlatformGeneralSection platform={platform} />
         {/* WhatsApp-specific sections */}
         {(platform.category === "communication" && platform.api_config?.provider === "whatsapp") && (
-          <WhatsAppTemplatesSection />
+          <WhatsAppTemplatesSection platformId={platform.id} />
         )}
     </SingleColumnPage>
   );

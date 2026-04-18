@@ -68,9 +68,13 @@ const categoryPlatformSchema = z.object({
   mailbox: z.string().optional(),
   inbound_domain: z.string().optional(),
   phone_number_id: z.string().optional(),
+  waba_id: z.string().optional(),
   access_token: z.string().optional(),
   webhook_verify_token: z.string().optional(),
   app_secret: z.string().optional(),
+  label: z.string().optional(),
+  country_codes: z.string().optional(),
+  is_default: z.boolean().optional(),
   account_sid: z.string().optional(),
   auth_token: z.string().optional(),
   from_number: z.string().optional(),
@@ -107,6 +111,21 @@ type EditSocialPlatformFormProps = {
   socialPlatform: AdminSocialPlatform;
 };
 
+/**
+ * Parse comma-separated country codes into a normalized array of E.164
+ * prefixes. Returns undefined for empty input so api_config doesn't carry
+ * an empty array.
+ */
+function parseCountryCodes(input: string | undefined | null): string[] | undefined {
+  if (!input) return undefined
+  const codes = input
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => (s.startsWith("+") ? s : `+${s}`))
+  return codes.length ? codes : undefined
+}
+
 /** Build defaults from existing api_config */
 function getDefaultsFromApiConfig(apiConfig: Record<string, any> | null): Record<string, any> {
   if (!apiConfig) return {}
@@ -119,6 +138,12 @@ function getDefaultsFromApiConfig(apiConfig: Record<string, any> | null): Record
     mailbox: apiConfig.mailbox || "INBOX",
     inbound_domain: apiConfig.inbound_domain || "",
     phone_number_id: apiConfig.phone_number_id || "",
+    waba_id: apiConfig.waba_id || "",
+    label: apiConfig.label || "",
+    country_codes: Array.isArray(apiConfig.country_codes)
+      ? apiConfig.country_codes.join(", ")
+      : "",
+    is_default: apiConfig.is_default === true,
     account_sid: apiConfig.account_sid || "",
     from_number: apiConfig.from_number || "",
     messaging_service_sid: apiConfig.messaging_service_sid || "",
@@ -178,9 +203,21 @@ function mergeApiConfig(
     case "communication":
       Object.assign(config, {
         phone_number_id: data.phone_number_id,
+        waba_id: data.waba_id || existing.waba_id || undefined,
         access_token: mergeSecret("access_token"),
         app_secret: mergeSecret("app_secret"),
         webhook_verify_token: mergeSecret("webhook_verify_token"),
+        label: data.label || undefined,
+        country_codes: parseCountryCodes(data.country_codes),
+        is_default: data.is_default === true ? true : undefined,
+        // Preserve Meta-supplied display metadata and cached templates
+        // (synced separately from the WhatsApp templates section)
+        display_phone_number: existing.display_phone_number,
+        verified_name: existing.verified_name,
+        templates: existing.templates,
+        templates_synced_at: existing.templates_synced_at,
+        initiation_template: existing.initiation_template,
+        initiation_template_lang: existing.initiation_template_lang,
       })
       break
 
