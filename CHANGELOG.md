@@ -1,3 +1,10 @@
+# [12.15.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.14.1...v12.15.0) (2026-04-18)
+
+
+### Features
+
+* **messaging:** add WhatsApp sender selection and persistence per conversation ([ad09acb](https://github.com/Jaal-Yantra-Textiles/v2/commit/ad09acb076879e1cc7d5d2383784f092305f344c))
+
 ## [12.14.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.14.0...v12.14.1) (2026-04-17)
 
 # [12.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.13.0...v12.14.0) (2026-04-17)
