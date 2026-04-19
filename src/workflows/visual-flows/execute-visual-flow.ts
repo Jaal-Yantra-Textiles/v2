@@ -71,6 +71,17 @@ const initializeExecutionStep = createStep(
   ) => {
     const service: VisualFlowService = container.resolve(VISUAL_FLOWS_MODULE)
     
+    // Resolve the actual event name. Precedence:
+    //   1. metadata.event_name — passed by the event-trigger subscriber, the
+    //      only source that knows the concrete event for wildcard listeners.
+    //   2. trigger_config.event / event_type — exact-match flow configs.
+    // event_pattern is not a name, so we never read it here.
+    const incomingEventName =
+      (input.metadata as Record<string, any> | undefined)?.event_name ??
+      (input.flow.trigger_config as any)?.event ??
+      (input.flow.trigger_config as any)?.event_type ??
+      undefined
+
     // Initialize data chain.
     // Spread triggerData at the root of $trigger so users can write
     // {{ $trigger.id }}, {{ $trigger.html_body }}, etc. directly.
@@ -79,7 +90,7 @@ const initializeExecutionStep = createStep(
       $trigger: {
         ...input.triggerData,
         payload: input.triggerData,
-        event: input.flow.trigger_config?.event,
+        event: incomingEventName,
         timestamp: new Date().toISOString(),
       },
       $accountability: {

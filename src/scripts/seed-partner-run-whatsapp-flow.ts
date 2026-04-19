@@ -35,11 +35,12 @@ const X_LEFT = 200
 const X_RIGHT = 800
 
 const Y_READ_RUN = 140
-const Y_READ_PARTNER = 300
-const Y_RESOLVE = 460
-const Y_COND = 620
-const Y_SEND = 780
-const Y_SKIP = 780
+const Y_READ_PARTNER = 280
+const Y_READ_DESIGN = 420
+const Y_RESOLVE = 560
+const Y_COND = 700
+const Y_SEND = 840
+const Y_SKIP = 840
 
 // ─── Code for the resolve_template node ──────────────────────────────────────
 //
@@ -48,17 +49,35 @@ const Y_SKIP = 780
 // { skipped: true } when the event has no template — drives the condition.
 const RESOLVE_TEMPLATE_CODE = `\
 const eventName = $trigger?.event || ""
+const expectedRunId = $trigger?.payload?.production_run_id || null
+const expectedPartnerId = $trigger?.payload?.partner_id || null
+const expectedDesignId = $trigger?.payload?.design_id || null
+
 const run = $input.read_run?.records?.[0]
 const partner = $input.read_partner?.records?.[0]
+const design = $input.read_design?.records?.[0]
 
+if (!expectedRunId) {
+  return { skipped: true, reason: "missing_production_run_id_in_payload", event: eventName }
+}
+if (!expectedPartnerId) {
+  // Parent / bundle run on a re-run dispatch — no partner attached. Skip.
+  return { skipped: true, reason: "no_partner_on_event", event: eventName, run_id: expectedRunId }
+}
 if (!run || !partner) {
   return { skipped: true, reason: "missing_run_or_partner", event: eventName }
 }
+// Defensive: read_data drops null filter values silently and returns the
+// first row when filters end up empty — verify identity so we never
+// misdeliver to an unrelated partner.
+if (run.id !== expectedRunId || partner.id !== expectedPartnerId) {
+  return { skipped: true, reason: "id_mismatch", event: eventName, expectedRunId, expectedPartnerId, gotRunId: run?.id, gotPartnerId: partner?.id }
+}
 
 const partnerName = partner.name || "Partner"
-const designName = run?.design?.name || run?.design_id || "Unknown Design"
+const designName = design?.name || expectedDesignId || run?.design_id || "Unknown Design"
 const quantity = String(run?.quantity ?? 0)
-const runId = run?.id || $trigger?.payload?.id || ""
+const runId = run?.id || expectedRunId
 
 // Resolve recipient phone — verified whatsapp_number first, then first
 // active admin's phone. Mirrors the legacy subscriber priority.
@@ -146,6 +165,7 @@ const FLOW_DEF = {
       { id: "trigger", type: "trigger", position: { x: X_CENTER, y: -20 }, data: { label: "Production Run — any event", triggerType: "event", triggerConfig: { event_pattern: "production_run.*" } } },
       { id: "read_run",         type: "operation", position: { x: X_CENTER, y: Y_READ_RUN },     data: { label: "Read Production Run", operationKey: "read_run",         operationType: "read_data"    } },
       { id: "read_partner",     type: "operation", position: { x: X_CENTER, y: Y_READ_PARTNER }, data: { label: "Read Partner",        operationKey: "read_partner",     operationType: "read_data"    } },
+      { id: "read_design",      type: "operation", position: { x: X_CENTER, y: Y_READ_DESIGN },  data: { label: "Read Design",         operationKey: "read_design",      operationType: "read_data"    } },
       { id: "resolve_template", type: "operation", position: { x: X_CENTER, y: Y_RESOLVE },      data: { label: "Resolve Template",    operationKey: "resolve_template", operationType: "execute_code" } },
       { id: "has_template",     type: "operation", position: { x: X_CENTER, y: Y_COND },         data: { label: "Has Template?",       operationKey: "has_template",     operationType: "condition"    } },
       { id: "send",             type: "operation", position: { x: X_LEFT,   y: Y_SEND },         data: { label: "Send WhatsApp",       operationKey: "send",             operationType: "send_whatsapp" } },
@@ -154,10 +174,11 @@ const FLOW_DEF = {
     edges: [
       { id: "e-0", source: "trigger",          sourceHandle: "default", target: "read_run",         targetHandle: "default" },
       { id: "e-1", source: "read_run",         sourceHandle: "default", target: "read_partner",     targetHandle: "default" },
-      { id: "e-2", source: "read_partner",     sourceHandle: "default", target: "resolve_template", targetHandle: "default" },
-      { id: "e-3", source: "resolve_template", sourceHandle: "default", target: "has_template",     targetHandle: "default" },
-      { id: "e-4", source: "has_template",     sourceHandle: "success", target: "send",             targetHandle: "default" },
-      { id: "e-5", source: "has_template",     sourceHandle: "failure", target: "log_skip",         targetHandle: "default" },
+      { id: "e-2", source: "read_partner",     sourceHandle: "default", target: "read_design",      targetHandle: "default" },
+      { id: "e-3", source: "read_design",      sourceHandle: "default", target: "resolve_template", targetHandle: "default" },
+      { id: "e-4", source: "resolve_template", sourceHandle: "default", target: "has_template",     targetHandle: "default" },
+      { id: "e-5", source: "has_template",     sourceHandle: "success", target: "send",             targetHandle: "default" },
+      { id: "e-6", source: "has_template",     sourceHandle: "failure", target: "log_skip",         targetHandle: "default" },
     ],
   },
 
@@ -171,7 +192,7 @@ const FLOW_DEF = {
       position_x: X_CENTER,
       position_y: Y_READ_RUN,
       options: {
-        entity: "production_run",
+        entity: "production_runs",
         fields: [
           "id",
           "partner_id",
@@ -181,10 +202,8 @@ const FLOW_DEF = {
           "run_type",
           "status",
           "cancelled_reason",
-          "design.id",
-          "design.name",
         ],
-        filters: { id: "{{ $trigger.payload.id }}" },
+        filters: { id: "{{ $trigger.payload.production_run_id }}" },
         limit: 1,
       },
     },
@@ -198,7 +217,7 @@ const FLOW_DEF = {
       position_x: X_CENTER,
       position_y: Y_READ_PARTNER,
       options: {
-        entity: "partners",
+        entity: "partner",
         fields: [
           "id",
           "name",
@@ -210,17 +229,33 @@ const FLOW_DEF = {
           "admins.phone",
           "admins.is_active",
         ],
-        filters: { id: "{{ read_run.records[0].partner_id }}" },
+        filters: { id: "{{ $trigger.payload.partner_id }}" },
         limit: 1,
       },
     },
 
-    // ── 3. Resolve template config ─────────────────────────────────────────
+    // ── 3. Read design (no module link to production_runs — must read by id) ──
+    {
+      operation_key: "read_design",
+      operation_type: "read_data",
+      name: "Read Design",
+      sort_order: 2,
+      position_x: X_CENTER,
+      position_y: Y_READ_DESIGN,
+      options: {
+        entity: "design",
+        fields: ["id", "name"],
+        filters: { id: "{{ $trigger.payload.design_id }}" },
+        limit: 1,
+      },
+    },
+
+    // ── 4. Resolve template config ─────────────────────────────────────────
     {
       operation_key: "resolve_template",
       operation_type: "execute_code",
       name: "Resolve Template",
-      sort_order: 2,
+      sort_order: 3,
       position_x: X_CENTER,
       position_y: Y_RESOLVE,
       options: {
@@ -229,12 +264,12 @@ const FLOW_DEF = {
       },
     },
 
-    // ── 4. Condition: was a template resolved? ────────────────────────────
+    // ── 5. Condition: was a template resolved? ────────────────────────────
     {
       operation_key: "has_template",
       operation_type: "condition",
       name: "Has Template?",
-      sort_order: 3,
+      sort_order: 4,
       position_x: X_CENTER,
       position_y: Y_COND,
       options: {
@@ -245,12 +280,12 @@ const FLOW_DEF = {
       },
     },
 
-    // ── 5a. Send WhatsApp template (success branch) ────────────────────────
+    // ── 6a. Send WhatsApp template (success branch) ────────────────────────
     {
       operation_key: "send",
       operation_type: "send_whatsapp",
       name: "Send WhatsApp",
-      sort_order: 4,
+      sort_order: 5,
       position_x: X_LEFT,
       position_y: Y_SEND,
       options: {
@@ -271,12 +306,12 @@ const FLOW_DEF = {
       },
     },
 
-    // ── 5b. Log skip (failure branch) ──────────────────────────────────────
+    // ── 6b. Log skip (failure branch) ──────────────────────────────────────
     {
       operation_key: "log_skip",
       operation_type: "log",
       name: "Log: Skipped",
-      sort_order: 5,
+      sort_order: 6,
       position_x: X_RIGHT,
       position_y: Y_SKIP,
       options: {
@@ -290,7 +325,8 @@ const FLOW_DEF = {
   connections: [
     { source_id: "trigger",          source_handle: "default", target_id: "read_run",         connection_type: "default" as const },
     { source_id: "read_run",         source_handle: "default", target_id: "read_partner",     connection_type: "default" as const },
-    { source_id: "read_partner",     source_handle: "default", target_id: "resolve_template", connection_type: "default" as const },
+    { source_id: "read_partner",     source_handle: "default", target_id: "read_design",      connection_type: "default" as const },
+    { source_id: "read_design",      source_handle: "default", target_id: "resolve_template", connection_type: "default" as const },
     { source_id: "resolve_template", source_handle: "default", target_id: "has_template",     connection_type: "default" as const },
     { source_id: "has_template",     source_handle: "success", target_id: "send",             connection_type: "success" as const },
     { source_id: "has_template",     source_handle: "failure", target_id: "log_skip",         connection_type: "failure" as const },
