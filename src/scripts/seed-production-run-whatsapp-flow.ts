@@ -1,5 +1,24 @@
 /**
- * Seed: Production Run WhatsApp Notifications — Visual Flow
+ * ⚠️  DEPRECATED — superseded by seed-partner-run-whatsapp-flow.ts.
+ *
+ * This script predates the `send_whatsapp` visual-flow operation and the
+ * multi-number routing layer. It builds a flow out of three `execute_code`
+ * nodes that hit Meta Graph directly via env vars (WHATSAPP_PHONE_NUMBER_ID
+ * / WHATSAPP_ACCESS_TOKEN), bypassing every SocialPlatform row and the
+ * per-conversation sender pin. It also hardcodes the English `en` language
+ * and never persists a `messaging_message` row — no audit trail.
+ *
+ * The replacement is `src/scripts/seed-partner-run-whatsapp-flow.ts`, which
+ * is a single wildcard-triggered dispatcher flow that:
+ *   - uses the `send_whatsapp` operation (correct routing + persistence)
+ *   - maps every production_run.* event to its Meta-approved template
+ *   - respects partner language choice from conversation metadata
+ *
+ * Do NOT seed this flow alongside the new one — doing so causes double
+ * sends on the `sent_to_partner` event. This script is gated behind
+ * `FORCE_OLD_SEED=1` so nobody accidentally runs it.
+ *
+ * Original description kept below for historical context:
  *
  * Sends WhatsApp utility template messages to partners on production run events.
  * Uses templates (not free-form) so messages are delivered regardless of the
@@ -308,6 +327,18 @@ const FLOW_DEF = {
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 export default async function seedProductionRunWhatsAppFlow({ container }: { container: any }) {
+  if (process.env.FORCE_OLD_SEED !== "1") {
+    console.warn(
+      `[DEPRECATED] ${FLOW_NAME} is obsolete. The replacement is ` +
+        `seed-partner-run-whatsapp-flow.ts which uses the send_whatsapp ` +
+        `operation + multi-number routing.\n\n` +
+        `If you really need to run this legacy seed, re-run with FORCE_OLD_SEED=1 ` +
+        `— but note it will double-send on sent_to_partner events when the ` +
+        `new flow is also active.`
+    )
+    return
+  }
+
   const service: VisualFlowService = container.resolve(VISUAL_FLOWS_MODULE)
 
   const [existing] = await service.listVisualFlows({ name: FLOW_NAME } as any)

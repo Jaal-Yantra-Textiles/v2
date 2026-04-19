@@ -54,10 +54,26 @@ export class FlowExecutionEngine {
     }
 
     // 2. Initialize data chain
+    //
+    // `event` resolves in this order:
+    //   1. options.metadata.event_name  — the real event that fired (set by
+    //      the event subscriber). This is authoritative when a flow uses a
+    //      wildcard / event_types trigger and the config doesn't name the
+    //      specific event.
+    //   2. flow.trigger_config.event    — legacy explicit name on the flow
+    //      (kept for any existing flow that relied on this shape).
+    //   3. flow.trigger_config.event_type — the trigger shape most flows
+    //      actually use today; fine when the flow listens to exactly one.
+    const incomingEventName =
+      (options.metadata as Record<string, any> | undefined)?.event_name ??
+      (flow.trigger_config as any)?.event ??
+      (flow.trigger_config as any)?.event_type ??
+      undefined
+
     const dataChain: DataChain = {
       $trigger: {
         payload: triggerData,
-        event: (flow.trigger_config as any)?.event,
+        event: incomingEventName,
         timestamp: new Date().toISOString(),
       },
       $accountability: {

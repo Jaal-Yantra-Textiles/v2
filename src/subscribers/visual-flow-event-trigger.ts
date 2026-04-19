@@ -39,10 +39,16 @@ export default async function visualFlowEventTriggerHandler({
       status: "active",
     })
     
-    // Filter flows that match this specific event
+    // Filter flows that match this specific event.
+    //
+    // Trigger config supports three shapes (in order of precedence):
+    //   1. event_pattern: "production_run.*"  — shell-style wildcard match,
+    //      lets one flow listen to a whole namespace of events.
+    //   2. event_types: ["a", "b"]            — array of exact names.
+    //   3. event_type: "a"                    — legacy single exact name
+    //      (kept for backward compatibility with older flows).
     const matchingFlows = flows.filter((flow: any) => {
-      const triggerConfig = flow.trigger_config || {}
-      return triggerConfig.event_type === eventName
+      return matchesTrigger(flow.trigger_config || {}, eventName)
     })
     
     if (matchingFlows.length === 0) {
@@ -77,6 +83,46 @@ export default async function visualFlowEventTriggerHandler({
     // Don't throw - we don't want to break other subscribers
     logger.error(`[visual-flow-event-trigger] Error processing event "${eventName}": ${error.message}`)
   }
+}
+
+/**
+ * Return true if the given trigger_config matches the incoming event name.
+ * Supports the three shapes documented in the filter above. `event_pattern`
+ * uses shell-style wildcards (`*` = any chars, `?` = single char); everything
+ * else is escaped. Pattern match beats array match beats exact match so a
+ * flow with both doesn't need strict ordering.
+ */
+function matchesTrigger(triggerConfig: any, eventName: string): boolean {
+  if (!triggerConfig || !eventName) return false
+
+  const pattern = triggerConfig.event_pattern
+  if (typeof pattern === "string" && pattern.length > 0) {
+    return wildcardMatch(pattern, eventName)
+  }
+
+  const eventTypes = triggerConfig.event_types
+  if (Array.isArray(eventTypes) && eventTypes.length > 0) {
+    return eventTypes.some(
+      (t: any) =>
+        t === eventName ||
+        (typeof t === "string" && t.includes("*") && wildcardMatch(t, eventName))
+    )
+  }
+
+  return triggerConfig.event_type === eventName
+}
+
+function wildcardMatch(pattern: string, input: string): boolean {
+  // Escape regex metacharacters except * and ?, then translate those two.
+  const regex = new RegExp(
+    "^" +
+      pattern
+        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+        .replace(/\*/g, ".*")
+        .replace(/\?/g, ".") +
+      "$"
+  )
+  return regex.test(input)
 }
 
 /**

@@ -212,13 +212,32 @@ export const CommunicationProviderFields = ({
             )}
           />
 
+          {/*
+            Canonical Medusa SwitchBox pattern
+            (@medusajs/dashboard/src/components/common/switch-box/switch-box.tsx:33).
+            Three things make it work where ad-hoc wiring didn't:
+              1. Destructure `{ value, onChange, ...field }` — the remaining
+                 `field` object carries `ref`/`name`/`onBlur`.
+              2. Spread `{...field}` onto the Switch BEFORE `checked` /
+                 `onCheckedChange`. The ref forward is what links the Radix
+                 widget's internal state back to Controller.
+              3. `Form.Control` directly wraps the Switch (no div). Slot's
+                 prop-cloning is fine when the ref chain is intact.
+          */}
           <Form.Field
             control={control}
             name="is_default"
-            render={({ field }) => (
+            render={({ field: { value, onChange, ...field } }) => (
               <Form.Item>
-                <div className="flex items-start justify-between gap-x-4">
-                  <div className="flex flex-col gap-y-1">
+                <div className="bg-ui-bg-component shadow-elevation-card-rest flex items-start gap-x-3 rounded-lg p-3">
+                  <Form.Control>
+                    <Switch
+                      {...field}
+                      checked={value}
+                      onCheckedChange={(checked) => onChange(checked)}
+                    />
+                  </Form.Control>
+                  <div>
                     <Form.Label>Use as default sender</Form.Label>
                     <Form.Hint>
                       Fallback when no country code matches. At most one
@@ -226,12 +245,6 @@ export const CommunicationProviderFields = ({
                       default.
                     </Form.Hint>
                   </div>
-                  <Form.Control>
-                    <Switch
-                      checked={!!field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </Form.Control>
                 </div>
                 <Form.ErrorMessage />
               </Form.Item>

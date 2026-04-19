@@ -321,7 +321,65 @@ export default class WhatsAppService {
       action: {
         buttons: [
           { type: "reply", reply: { id: `accept_${data.runId}`, title: "✅ Accept" } },
-          { type: "reply", reply: { id: `view_${data.runId}`, title: "📄 View Details" } },
+          { type: "reply", reply: { id: `decline_${data.runId}`, title: "✖️ Decline" } },
+          { type: "reply", reply: { id: `view_${data.runId}`, title: "📄 View" } },
+        ],
+      },
+    })
+  }
+
+  /**
+   * Send the decline-reason list for a run the partner wants to refuse.
+   * Prompted when the partner taps the "Decline" button on an assignment
+   * or types `decline prod_run_…`. Reply ids use the shape
+   * `decline_<reason>_<runId>` where reason ∈ capacity / materials /
+   * scheduling / other. Keep the reason tokens stable — the inbound
+   * handler parses them directly.
+   */
+  async sendDeclineReasons(
+    to: string,
+    runId: string,
+    designName?: string
+  ): Promise<WhatsAppMessageResponse> {
+    const contextLine = designName
+      ? `*Decline run ${runId}* — ${designName}`
+      : `*Decline run ${runId}*`
+
+    return this.sendInteractiveMessage(to, {
+      type: "list",
+      header: { type: "text", text: "Why are you declining?" },
+      body: {
+        text: `${contextLine}\n\nPick the closest reason. An admin will be notified.`,
+      },
+      footer: { text: "You can only decline before starting work." },
+      action: {
+        button: "Choose reason",
+        sections: [
+          {
+            title: "Reasons",
+            rows: [
+              {
+                id: `decline_capacity_${runId}`,
+                title: "No capacity",
+                description: "Too busy or unavailable",
+              },
+              {
+                id: `decline_materials_${runId}`,
+                title: "Materials unavailable",
+                description: "Required stock not in hand",
+              },
+              {
+                id: `decline_scheduling_${runId}`,
+                title: "Scheduling conflict",
+                description: "Can't meet the dates",
+              },
+              {
+                id: `decline_other_${runId}`,
+                title: "Other",
+                description: "Admin will follow up",
+              },
+            ],
+          },
         ],
       },
     })

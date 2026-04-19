@@ -205,11 +205,34 @@ function mergeApiConfig(
         phone_number_id: data.phone_number_id,
         waba_id: data.waba_id || existing.waba_id || undefined,
         access_token: mergeSecret("access_token"),
+        // Preserve the encrypted variant across edits — the edit form only
+        // re-sends plaintext via `access_token`, so we'd otherwise lose the
+        // encrypted copy on every save.
+        access_token_encrypted: existing.access_token_encrypted,
         app_secret: mergeSecret("app_secret"),
+        app_secret_encrypted: existing.app_secret_encrypted,
         webhook_verify_token: mergeSecret("webhook_verify_token"),
+        webhook_verify_token_encrypted: existing.webhook_verify_token_encrypted,
         label: data.label || undefined,
         country_codes: parseCountryCodes(data.country_codes),
-        is_default: data.is_default === true ? true : undefined,
+        // Three-way merge for booleans — explicit user actions (dirty field)
+        // win; untouched saves preserve existing. handleSubmit above only
+        // populates `data.is_default` when form.formState.dirtyFields marked
+        // it dirty, so each branch below corresponds to a distinct intent:
+        //   true  → user toggled on  → store true
+        //   false → user toggled off → store false explicitly (not strip,
+        //           so the payload carries the user's intent unambiguously
+        //           and a future field-merge backend wouldn't keep a stale
+        //           existing value)
+        //   undefined → field never touched → preserve existing
+        is_default:
+          data.is_default === true
+            ? true
+            : data.is_default === false
+              ? false
+              : existing.is_default === true
+                ? true
+                : undefined,
         // Preserve Meta-supplied display metadata and cached templates
         // (synced separately from the WhatsApp templates section)
         display_phone_number: existing.display_phone_number,
@@ -365,13 +388,23 @@ const EditCategoryPlatformForm = ({ socialPlatform }: EditSocialPlatformFormProp
       secret_access_key: "",
       api_secret: "",
       webhook_signing_secret: "",
+      is_default: socialPlatform.api_config?.is_default === true,
       ...getDefaultsFromApiConfig(apiConfig),
     },
   });
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    const newApiConfig = mergeApiConfig(socialPlatform.category, data, apiConfig);
-
+    // Only treat boolean fields as "user set this" if the form marked them
+    // dirty. Otherwise pass `undefined` so mergeApiConfig's three-way merge
+    // preserves the existing DB value. Without this, a stale React Query
+    // cache that loaded the form with is_default:false would silently strip
+    // a DB value of true — the exact symptom of the "can't set default" bug.
+    const mergedData = {
+      ...data,
+      is_default: form.formState.dirtyFields.is_default ? data.is_default : undefined,
+    };
+    const newApiConfig = mergeApiConfig(socialPlatform.category, mergedData, apiConfig);
+    console.log("Merged API Config:", newApiConfig, mergedData); // Debug log to verify the merged config
     await mutateAsync(
       {
         name: data.name,

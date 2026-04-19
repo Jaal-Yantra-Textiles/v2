@@ -10,16 +10,22 @@ export const VisualFlowOperation = model.define("visual_flow_operation", {
   // Unique key within the flow for data chain references
   operation_key: model.text(),
   
-  // Operation type
+  // Operation type — keep in sync with the DB CHECK constraint
+  // (see migrations/Migration20260418100000.ts for the latest authoritative list).
   operation_type: model.enum([
     "condition",
     "create_data",
-    "read_data", 
+    "read_data",
     "update_data",
     "delete_data",
+    "bulk_update_data",
+    "bulk_create_data",
+    "bulk_http_request",
+    "bulk_trigger_workflow",
     "http_request",
     "run_script",
     "send_email",
+    "send_whatsapp",
     "notification",
     "transform",
     "trigger_workflow",
@@ -28,6 +34,7 @@ export const VisualFlowOperation = model.define("visual_flow_operation", {
     "sleep",
     "log",
     "ai_extract",
+    "aggregate_product_analytics",
   ]),
   
   // Display name

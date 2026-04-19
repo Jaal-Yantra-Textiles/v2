@@ -1,7 +1,11 @@
 import { MEDIA_MODULE } from "../../modules/media"
+import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
+import type ProductionRunService from "../../modules/production_runs/service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { uploadAndOrganizeMediaWorkflow } from "../media/upload-and-organize-media"
+import { listSingleDesignsWorkflow } from "../designs/list-single-design"
+import { updateDesignWorkflow } from "../designs/update-design"
 
 /**
  * Find or create a media folder for a partner's WhatsApp media.
@@ -111,6 +115,98 @@ export async function downloadAndSaveWhatsAppMedia(
   } catch (e: any) {
     console.error("[whatsapp-media] Failed to download/save media:", e.message)
     return null
+  }
+}
+
+export type RunMediaAttachResult =
+  | { ok: true; runId: string; designId: string; fileUrl: string }
+  | { ok: false; reason: "run_not_found" | "not_partner_run" | "not_started" | "terminal_state" | "no_design" | "attach_failed"; detail?: string }
+
+/**
+ * Attach an already-uploaded media file to the design linked to a
+ * production run. Mirrors the guard logic in
+ * src/api/partners/production-runs/[id]/media/attach/route.ts so the
+ * WhatsApp path honors the same "between start and complete" window.
+ *
+ * Gates (all must hold):
+ *   - run exists
+ *   - run.partner_id === partnerId
+ *   - run.status === "in_progress"
+ *   - run.started_at is set (work has actually begun)
+ *   - run is not cancelled / completed
+ *   - run has a design linked
+ */
+export async function attachMediaToRunDesign(
+  scope: any,
+  options: {
+    runId: string
+    partnerId: string
+    fileUrl: string
+    fileId?: string
+  }
+): Promise<RunMediaAttachResult> {
+  const productionRunService = scope.resolve(PRODUCTION_RUNS_MODULE) as ProductionRunService
+
+  let run: any
+  try {
+    run = await productionRunService.retrieveProductionRun(options.runId)
+  } catch {
+    return { ok: false, reason: "run_not_found" }
+  }
+
+  if (run.partner_id !== options.partnerId) {
+    return { ok: false, reason: "not_partner_run" }
+  }
+  if (run.status === "cancelled" || run.status === "completed") {
+    return { ok: false, reason: "terminal_state", detail: String(run.status) }
+  }
+  if (!run.started_at || run.status !== "in_progress") {
+    return { ok: false, reason: "not_started" }
+  }
+  const designId = run.design_id as string | undefined
+  if (!designId) {
+    return { ok: false, reason: "no_design" }
+  }
+
+  try {
+    const { result: currentDesign } = await listSingleDesignsWorkflow(scope).run({
+      input: { id: designId, fields: ["*"] },
+    })
+
+    const existing: any[] = (currentDesign as any)?.media_files || []
+
+    // Dedup by file id first (strongest), then by url
+    const already = existing.some((m: any) => {
+      if (options.fileId && m?.id === options.fileId) return true
+      return m?.url === options.fileUrl
+    })
+    const nextMedia = already
+      ? existing
+      : [
+          ...existing,
+          {
+            id: options.fileId,
+            url: options.fileUrl,
+            isThumbnail: false,
+            source: "whatsapp",
+            run_id: options.runId,
+          },
+        ]
+
+    const { errors } = await updateDesignWorkflow(scope).run({
+      input: {
+        id: designId,
+        media_files: nextMedia,
+      },
+    })
+
+    if (errors?.length) {
+      return { ok: false, reason: "attach_failed", detail: errors.map((e: any) => e?.error?.message || String(e)).join(", ") }
+    }
+
+    return { ok: true, runId: options.runId, designId, fileUrl: options.fileUrl }
+  } catch (e: any) {
+    return { ok: false, reason: "attach_failed", detail: e?.message }
   }
 }
 

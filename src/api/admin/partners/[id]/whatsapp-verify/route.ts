@@ -4,9 +4,14 @@ import { PARTNER_MODULE } from "../../../../../modules/partner"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../../modules/social-provider"
 import type SocialProviderService from "../../../../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../../../../modules/messaging"
+import { TEMPLATE_NAMES } from "../../../../../scripts/whatsapp-templates/partner-run-templates"
 
-const DEFAULT_TEMPLATE = "jyt_production_run_assigned"
+// Welcome template: dedicated to the admin-triggered onboarding flow.
+// Canonical name lives in the templates spec so bumping the version
+// (welcome_v1 → welcome_v2) is a one-file change.
+const DEFAULT_TEMPLATE = TEMPLATE_NAMES.PARTNER_WELCOME
 const DEFAULT_LANG = process.env.WHATSAPP_TEMPLATE_LANG || "hi"
+const BUSINESS_NAME = process.env.WHATSAPP_BUSINESS_NAME || "JYT Textiles"
 
 /**
  * POST /admin/partners/:id/whatsapp-verify
@@ -60,6 +65,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   let templateSent = false
 
   try {
+    // jyt_partner_welcome_v1 body has two placeholders:
+    //   {{1}} partner name, {{2}} business name
     const waResponse = await whatsapp.sendTemplateMessage(
       normalized,
       DEFAULT_TEMPLATE,
@@ -68,9 +75,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         type: "body",
         parameters: [
           { type: "text", text: partner.name || "Partner" },
-          { type: "text", text: "JYT Commerce" },
-          { type: "text", text: "0" },
-          { type: "text", text: "Welcome" },
+          { type: "text", text: BUSINESS_NAME },
         ],
       }]
     )

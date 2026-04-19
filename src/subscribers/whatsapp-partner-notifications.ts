@@ -4,21 +4,26 @@ import type SocialProviderService from "../modules/social-provider/service"
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
 import { MESSAGING_MODULE } from "../modules/messaging"
+import { TEMPLATE_NAMES } from "../scripts/whatsapp-templates/partner-run-templates"
 
 /**
- * Template names and language resolution.
+ * Legacy subscriber. The new canonical path is the visual flow seeded by
+ * src/scripts/seed-partner-run-whatsapp-flow.ts — activate it and set
+ * DISABLE_LEGACY_WHATSAPP_PARTNER_SUBSCRIBER=1 to turn this off.
+ *
+ * Until the flow is active, this subscriber still handles partner-facing
+ * sends for sent_to_partner + cancelled events. Template names are pulled
+ * from the shared spec so bumping a version (_v3 → _v4) propagates here
+ * automatically — no more hardcoded dead names.
+ *
  * Language is read from conversation metadata (set during partner onboarding).
  * Falls back to WHATSAPP_TEMPLATE_LANG env var, then "hi" (Hindi).
- *
- * Templates must be created and approved in Meta before use:
- *   - jyt_production_run_assigned (UTILITY): {{1}}=partner, {{2}}=design, {{3}}=quantity, {{4}}=run ID
- *   - jyt_production_run_cancelled (UTILITY): {{1}}=partner, {{2}}=run ID, {{3}}=design, {{4}}=reason
  */
 const DEFAULT_LANG = process.env.WHATSAPP_TEMPLATE_LANG || "hi"
 
 const TEMPLATES = {
-  assigned: "jyt_production_run_assigned",
-  cancelled: "jyt_production_run_cancelled",
+  assigned: TEMPLATE_NAMES.RUN_ASSIGNED,
+  cancelled: TEMPLATE_NAMES.RUN_CANCELLED,
 } as const
 
 /**
@@ -40,6 +45,15 @@ export default async function whatsappPartnerNotificationHandler({
 }>) {
   const data = event.data
   if (!data) return
+
+  // Opt-out gate — when the visual-flow dispatcher
+  // (src/scripts/seed-partner-run-whatsapp-flow.ts) is activated, set
+  // DISABLE_LEGACY_WHATSAPP_PARTNER_SUBSCRIBER=1 to shut off this path
+  // and prevent double-sends. The flag is deliberately off by default so
+  // existing deployments keep working until operators explicitly switch.
+  if (process.env.DISABLE_LEGACY_WHATSAPP_PARTNER_SUBSCRIBER === "1") {
+    return
+  }
 
   // Check if WhatsApp is configured
   if (!process.env.WHATSAPP_PHONE_NUMBER_ID || !process.env.WHATSAPP_ACCESS_TOKEN) {

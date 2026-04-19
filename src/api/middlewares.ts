@@ -1896,6 +1896,14 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/production-runs/:id/decline",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/production-runs/:id/consumption-logs",
       method: "POST",
       middlewares: [

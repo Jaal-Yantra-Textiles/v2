@@ -16,6 +16,7 @@ export { readDataOperation } from "./read-data"
 export { updateDataOperation } from "./update-data"
 export { deleteDataOperation } from "./delete-data"
 export { sendEmailOperation } from "./send-email"
+export { sendWhatsAppOperation } from "./send-whatsapp"
 export { executeCodeOperation } from "./execute-code"
 export { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
 export { bulkUpdateDataOperation } from "./bulk-update-data"
@@ -39,6 +40,7 @@ import { readDataOperation } from "./read-data"
 import { updateDataOperation } from "./update-data"
 import { deleteDataOperation } from "./delete-data"
 import { sendEmailOperation } from "./send-email"
+import { sendWhatsAppOperation } from "./send-whatsapp"
 import { executeCodeOperation } from "./execute-code"
 import { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
 import { bulkUpdateDataOperation } from "./bulk-update-data"
@@ -64,6 +66,7 @@ export function registerBuiltInOperations(): void {
   
   // Communication operations
   operationRegistry.register(sendEmailOperation)
+  operationRegistry.register(sendWhatsAppOperation)
   operationRegistry.register(notificationOperation)
   
   // Integration operations
