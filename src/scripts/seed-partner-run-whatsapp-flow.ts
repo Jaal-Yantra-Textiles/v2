@@ -16,6 +16,10 @@
  *
  * Other events still fire the flow but hit the "skip" branch — no send.
  *
+ * The legacy subscriber (src/subscribers/whatsapp-partner-notifications.ts)
+ * has been retired — this flow is the only path that sends partner-facing
+ * production-run WhatsApps.
+ *
  * Run:
  *   npx medusa exec ./src/scripts/seed-partner-run-whatsapp-flow.ts
  *
@@ -372,8 +376,5 @@ export default async function seedPartnerRunWhatsAppFlow({
   console.log(`     - jyt_production_run_completed_v3`)
   console.log(`     Check status via the admin Templates panel or:`)
   console.log(`       MODE=dry-run npx medusa exec ./src/scripts/manage-whatsapp-templates.ts`)
-  console.log(`  2. Disable the legacy subscriber to avoid double-sends:`)
-  console.log(`     Set env DISABLE_LEGACY_WHATSAPP_PARTNER_SUBSCRIBER=1`)
-  console.log(`     (or delete src/subscribers/whatsapp-partner-notifications.ts)`)
-  console.log(`  3. Flip flow status: draft → active in the admin editor.`)
+  console.log(`  2. Flip flow status: draft → active in the admin editor.`)
 }
