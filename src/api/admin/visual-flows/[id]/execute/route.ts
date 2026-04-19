@@ -79,17 +79,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const data = executeSchema.parse(req.body)
     const userId = (req as any).auth_context?.actor_id
 
-    // Replay: copy trigger_data from a previous execution
+    // Replay: copy trigger_data + event_name from a previous execution so
+    // wildcard-listening flows (event_pattern) get the same $trigger.event
+    // they had on the original run. Caller-supplied metadata.event_name still
+    // wins so testers can override.
     let triggerData = data.trigger_data || {}
     let replayedFrom: string | undefined
+    let replayedEventName: string | undefined
     if (data.replay_execution_id) {
       const service = req.scope.resolve(VISUAL_FLOWS_MODULE) as any
       const prev = await service.retrieveVisualFlowExecution(data.replay_execution_id, {
-        select: ["id", "trigger_data"],
+        select: ["id", "trigger_data", "metadata"],
       }).catch(() => null)
       if (prev?.trigger_data) {
         triggerData = prev.trigger_data
         replayedFrom = data.replay_execution_id
+        replayedEventName = (prev.metadata as Record<string, any> | null)?.event_name
       }
     }
 
@@ -100,6 +105,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         triggerData,
         triggeredBy: userId || "manual",
         metadata: {
+          ...(replayedEventName ? { event_name: replayedEventName } : {}),
           ...data.metadata,
           ...(replayedFrom ? { replayed_from: replayedFrom } : {}),
         },
