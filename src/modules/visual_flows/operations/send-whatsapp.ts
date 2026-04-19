@@ -258,9 +258,19 @@ export const sendWhatsAppOperation: OperationDefinition = {
           process.env.WHATSAPP_TEMPLATE_LANG ||
           "hi"
 
-        const variableValues: string[] = Array.isArray(options.variables)
-          ? options.variables.map((v: any) =>
-              typeof v === "string" ? interpolateString(v, dataChain) : String(interpolateVariables(v, dataChain) ?? "")
+        // Variables can arrive in two shapes from the saved options:
+        //   1. literal array of strings, each maybe containing {{ }}
+        //      e.g. ["{{ partner.name }}", "{{ run.id }}"]
+        //   2. a single full-string {{ }} that resolves to an array
+        //      e.g. "{{ resolve_template.variables }}" → ["Saransh", "ABC", ...]
+        // interpolateVariables() handles (2) by returning the actual array
+        // when the whole string matches /^{{ ... }}$/. Without this step the
+        // string passed Array.isArray() === false and we sent zero
+        // localizable_params, which Meta rejected with code 132000.
+        const interpolatedVariables = interpolateVariables(options.variables, dataChain)
+        const variableValues: string[] = Array.isArray(interpolatedVariables)
+          ? interpolatedVariables.map((v: any) =>
+              typeof v === "string" ? interpolateString(v, dataChain) : String(v ?? "")
             )
           : []
 
