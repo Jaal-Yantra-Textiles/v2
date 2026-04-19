@@ -36,20 +36,41 @@ export const readDataOperation: OperationDefinition = {
         fields = options.fields.map((f: string) => interpolateString(f, context.dataChain))
       }
       
-      // Handle filters - interpolate values, then drop any keys that resolved
-      // to undefined/null so they don't silently disable the filter
+      // Handle filters - interpolate values. If the source had filter keys
+      // but any of them resolved to undefined/null/"", short-circuit with an
+      // empty result instead of dropping the key and returning arbitrary
+      // rows. The previous "warn-and-drop" behavior turned a missing
+      // partner_id into a wrong-partner read (and downstream
+      // misdelivery). Refusing to query is the safe default; bad variable
+      // paths surface as zero records + an error message instead of silent
+      // misuse of the first row.
       const rawFilters = options.filters
         ? interpolateVariables(options.filters, context.dataChain)
         : undefined
 
       const filters: Record<string, any> = {}
+      const unresolvedFilterKeys: string[] = []
       if (rawFilters && typeof rawFilters === "object") {
         for (const [k, v] of Object.entries(rawFilters)) {
           if (v === undefined || v === null || v === "") {
-            console.warn(`[read_data] Filter key "${k}" resolved to ${JSON.stringify(v)} — check your variable path. It will be ignored.`)
+            unresolvedFilterKeys.push(k)
           } else {
             filters[k] = v
           }
+        }
+      }
+
+      if (unresolvedFilterKeys.length > 0) {
+        const msg = `Filter key(s) ${JSON.stringify(unresolvedFilterKeys)} resolved to null/undefined — refusing to query without them to avoid returning arbitrary rows. Check the variable paths in your filters.`
+        console.warn(`[read_data] ${msg}`)
+        return {
+          success: true,
+          data: {
+            records: [],
+            count: 0,
+            unresolved_filter_keys: unresolvedFilterKeys,
+            warning: msg,
+          },
         }
       }
 
