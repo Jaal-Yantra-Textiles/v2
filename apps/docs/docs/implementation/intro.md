@@ -18,3 +18,4 @@ Technical implementation details, architecture decisions, and internal module do
 - **[AI & Search](/docs/implementation/ai/image-generation)** - AI image generation, contextual retrieval, BM25, spec generator
 - **[Integrations](/docs/implementation/integrations/etsy-sync)** - Etsy sync, external API, external stores, design-to-cart
 - **[Workflows](/docs/implementation/workflows/builder-architecture)** - Visual workflow builder, scripts, task steps, logger migration, [partner WhatsApp run flow](/docs/implementation/workflows/whatsapp-partner-run-flow)
+- **[Stats](/docs/implementation/stats/module)** - Analytics dashboards (Directus Insights-style), shared aggregate/time-series operations, [Tiptap blog integration](/docs/implementation/stats/blog-integration)

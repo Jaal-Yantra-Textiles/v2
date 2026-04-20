@@ -1,58 +1,56 @@
 ---
 title: "Stats Module — Analytics Dashboards & Panels"
-sidebar_label: "Module Plan"
+sidebar_label: "Module"
 sidebar_position: 0
 ---
 
-# Stats Module — Implementation Plan
+# Stats Module
 
-Internal analytics dashboards, modelled on Directus Insights. Operators create **dashboards** composed of **panels**; each panel is a serialized call against the existing `visual_flows` operation registry. No new source/query layer — reuses `read_data`, `aggregate_product_analytics`, and two new aggregation operations added to `visual_flows/operations`.
+Internal analytics dashboards, modeled on Directus Insights. Operators create **dashboards** composed of **panels**; each panel is a serialized call against the existing `visual_flows` operation registry. No new source/query layer — panels reuse `read_data`, `aggregate_data`, `time_series`, and `aggregate_product_analytics`.
 
-## Goals
+**Who it's for:** internal / admin-only. No end-user permissions. The same dashboards are also the source for numbers embedded in blog posts via Tiptap (see [Stats Panels in Blogs](./blog-integration)).
 
-- Operators can assemble dashboards of metrics, lists, time-series, and simple charts without writing code.
-- Surface data already in Medusa: partners, designs, orders, production runs, website sessions.
-- Be the go-to source for blog-ready numbers ("N partners, M designs produced last month") and day-to-day observability.
-
-## Non-goals
-
-- Self-serve BI. No arbitrary SQL, no cross-module joins beyond what `query.graph` already gives us.
-- End-user / customer-facing dashboards. This is admin-only, so **no panel-level permissions** — inherits admin auth.
-- Real-time streaming. Panels are pull-on-render with optional TTL cache.
-
-## Architecture
+## System Overview
 
 ```
-┌────────────────────────────────┐
-│  Admin UI                      │
-│  /stats → dashboards list      │
-│  /stats/:id → panel grid       │
-└──────────────┬─────────────────┘
-               │ GET /admin/stats/panels/:id/data
-               ▼
-┌────────────────────────────────┐
-│  Stats service                 │
-│  resolvePanel(panel) →         │
-│   1. lookup operation in       │
-│      visual_flows registry     │
-│   2. build stub context        │
-│   3. execute(options, ctx)     │
-│   4. apply display mapping     │
-└──────────────┬─────────────────┘
-               │
-               ▼
-┌────────────────────────────────┐
-│  operationRegistry             │
-│  (shared with visual_flows)    │
-│  - read_data                   │
-│  - aggregate_data   (new)      │
-│  - time_series      (new)      │
-│  - aggregate_product_analytics │
-│  - ...future sources           │
-└────────────────────────────────┘
+┌─────────────────────────────────┐
+│ Admin UI: /stats                │
+│   - list dashboards             │
+│   - /stats/:id grid of panels   │
+│   - panel editor (JSON + form)  │
+└─────────────────┬───────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────┐
+│ /admin/stats/*                  │
+│   dashboards CRUD               │
+│   panels CRUD                   │
+│   /panels/:id/data  ← resolver  │
+│   /panels/preview   ← dry-run   │
+│   /operations       ← registry  │
+└─────────────────┬───────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────┐
+│ Stats service                   │
+│   resolvePanel(panel):          │
+│     1. lookup operation in      │
+│        visual_flows registry    │
+│     2. build stub context       │
+│     3. execute(options, ctx)    │
+│     4. apply TTL cache          │
+└─────────────────┬───────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────┐
+│ operationRegistry               │
+│   (shared with visual_flows)    │
+│   - read_data                   │
+│   - aggregate_data   (new)      │
+│   - time_series      (new)      │
+│   - aggregate_product_analytics │
+└─────────────────────────────────┘
 ```
-
-A panel = **one operation invocation plus display metadata**. Everything upstream of "display" already exists.
 
 ## Data Model
 
@@ -67,10 +65,8 @@ Two tables in `src/modules/stats/`.
 | `description` | text nullable | |
 | `icon` | text nullable | Medusa icon slug |
 | `color` | text nullable | Accent |
-| `metadata` | json default `{}` | Per-dashboard filters (e.g. default date range) |
+| `metadata` | json default `{}` | Dashboard-level extras |
 | `panels` | hasMany → stats_panel | |
-
-Indexes: `name`.
 
 ### `stats_panel`
 
@@ -80,87 +76,77 @@ Indexes: `name`.
 | `dashboard_id` | text | FK → stats_dashboard |
 | `name` | text | Header title |
 | `type` | enum | `metric` \| `list` \| `table` \| `bar` \| `line` \| `area` \| `label` |
-| `x`, `y`, `width`, `height` | int | Grid units (Directus-style) |
+| `x`, `y`, `width`, `height` | int | Grid units (12-col) |
 | `operation_type` | text | Key from `operationRegistry` |
 | `operation_options` | json | Validated by the operation's `optionsSchema` on write |
-| `display` | json default `{}` | `{ field, label, format, prefix, suffix, color, xAxis, yAxis, groupBy, dateField, precision, limit, conditionalFormatting[] }` |
+| `display` | json default `{}` | `{ field, label, format, prefix, suffix, color, xAxis, yAxis, groupBy, dateField, precision, limit, decimals, conditionalFormatting[] }` |
 | `cache_ttl_seconds` | int nullable | null = no cache |
 | `metadata` | json default `{}` | |
 
-Indexes: `dashboard_id`, `operation_type`.
+Migration: `src/modules/stats/migrations/Migration20260420091906.ts`.
 
-The `display` blob is panel-render-time concern only — never interpreted by the operation. The operation returns **rows** (for `list` / `table`) or **aggregates** (for `metric`) or **buckets** (for `time_series`); `display` tells the frontend which field to render as the value, which as the label, how to format it, etc.
+## Shared Operations
 
-## Shared Operations (added to `visual_flows/operations/`)
-
-Both live in `visual_flows` so flows can also use them (e.g. "compute yesterday's metric, send to Slack").
+Live in `src/modules/visual_flows/operations/` so flows can also use them.
 
 ### `aggregate_data`
 
-```typescript
-{
-  entity: string,                 // "partner" | "design" | "order" | "production_run" | ...
-  fields?: string[],              // passthrough to query.graph if needed
-  filters?: Record<string, any>,  // same shape as read_data
-  aggregate: {
-    fn: "count" | "sum" | "avg" | "min" | "max" | "count_distinct",
-    field?: string,               // required for non-count
-  },
-  groupBy?: string | string[],    // optional group-by; returns [{ key, value }]
-  limit?: number,
-}
-```
-
-Returns: `{ value: number }` when no groupBy, `{ groups: [{ key, value }] }` otherwise.
-
-Execution: uses `query.graph` to fetch rows, then aggregates in-process. Fine for our volume today. If any single panel ever returns > 50k rows it gets switched to a module-service query — defer until we hit it.
-
-### `time_series`
+File: `src/modules/visual_flows/operations/aggregate-data.ts`
 
 ```typescript
 {
   entity: string,
-  dateField: string,              // e.g. "created_at", "started_at"
+  fields?: string[],
   filters?: Record<string, any>,
-  aggregate: { fn, field? },
-  precision: "day" | "week" | "month",
-  range: { from: ISODate, to: ISODate } | { last_days: number },
-  groupBy?: string,               // optional series split (e.g. by status)
+  aggregate: {
+    fn: "count" | "sum" | "avg" | "min" | "max" | "count_distinct",
+    field?: string,                   // required for non-count
+  },
+  groupBy?: string | string[],
+  limit?: number,
+  fetchLimit?: number,                // default 10_000
+  sort?: "asc" | "desc"               // default desc
 }
 ```
 
-Returns: `{ buckets: [{ date: ISODate, value: number, series?: string }] }`.
+Returns `{ value, row_count, truncated }` or `{ groups: [{ key, keys, value }], row_count, group_count, truncated }`.
 
-Both operations sit in `category: "data"` alongside `read_data`. They are **pure reads** — no compensation needed, no writes.
+### `time_series`
 
-## Registered Sources (existing — no new code)
+File: `src/modules/visual_flows/operations/time-series.ts`
 
-| Thing to visualize | Operation | Notes |
-|---|---|---|
-| Total partners | `aggregate_data` | `entity: "partner", aggregate: { fn: "count" }` |
-| Partners by status | `aggregate_data` + groupBy | `groupBy: "status"` |
-| Total designs / active designs | `aggregate_data` | |
-| Designs per partner | `aggregate_data` | `entity: "design", groupBy: "partner_id"` |
-| Orders per partner | `aggregate_data` | `entity: "order", groupBy: "partner_id"` |
-| Inventory orders count | `aggregate_data` | filtered by whatever field marks inventory orders |
-| Website sessions / visitors (daily/weekly) | `aggregate_data` over `analytics_daily_stats` | uses pre-rolled stats — no expensive scan |
-| Top pages / referrers | `read_data` on `analytics_daily_stats.top_pages` | JSON field; reshape in `display` |
-| Pageviews time series | `time_series` on `analytics_event` or `analytics_daily_stats` | |
-| Product pageview rollups | `aggregate_product_analytics` | already exists |
+```typescript
+{
+  entity: string,
+  dateField: string,
+  filters?: Record<string, any>,
+  aggregate: { fn, field? },
+  precision: "day" | "week" | "month",
+  range: { from: ISO, to: ISO } | { last_days: number },
+  groupBy?: string,                   // series split
+  fetchLimit?: number,                // default 50_000
+  fillGaps?: boolean                  // default true
+}
+```
 
-**Website sessions/visitors specifically**: `custom_analytics` module ships `analytics_session`, `analytics_event`, `analytics_daily_stats`. Prefer `analytics_daily_stats` for dashboard panels since daily rollups are already computed — reduces each panel to a tiny read.
+Returns `{ buckets: [{ date, value, series? }], row_count, truncated, precision, from, to }`.
+
+Both registered in `src/modules/visual_flows/operations/index.ts` alongside `read_data` and `aggregate_product_analytics`.
+
+### Query.graph limitation
+
+`query.graph` doesn't support DB aggregations (count/sum/group-by). Both new ops fetch rows then aggregate in-process. For partner/design volumes (hundreds to thousands) this is fine. For large tables prefer an already-rolled entity (e.g. `analytics_daily_stats` instead of `analytics_event`). If a single panel needs raw aggregation over millions of rows, add a typed service method with `@InjectManager()` + `manager.execute(...)` and register a new operation.
 
 ## Panel → Operation Context Adapter
 
-Operations expect an `OperationContext` with `dataChain`, `flowId`, etc. For panels we stub:
+`src/modules/stats/resolver.ts`:
 
 ```typescript
-// src/modules/stats/resolver.ts
-function buildPanelContext(container: MedusaContainer, panel: StatsPanel): OperationContext {
+function buildPanelContext(container, panel): OperationContext {
   return {
     container,
-    dataChain: { $trigger: { payload: {}, timestamp: new Date().toISOString() }, $accountability: { triggered_by: "stats_panel" }, $env: {}, $last: null },
-    flowId: `panel:${panel.dashboard_id}`,
+    dataChain: { $trigger: {...}, $accountability: { triggered_by: "stats_panel" }, $env: {}, $last: null },
+    flowId: `panel:${panel.dashboard_id ?? "preview"}`,
     executionId: `panel-render-${panel.id}-${Date.now()}`,
     operationId: panel.id,
     operationKey: panel.id,
@@ -168,138 +154,125 @@ function buildPanelContext(container: MedusaContainer, panel: StatsPanel): Opera
 }
 ```
 
-Interpolation (`{{ $trigger.foo }}`) isn't meaningful for panels — just don't use templated strings in `operation_options`. If we later want dashboard-level variables (date range picker), they go into `dataChain.$trigger.payload` and templates in `operation_options` interpolate normally.
-
-## API Routes
-
-All under `src/api/admin/stats/`:
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/admin/stats/dashboards` | List |
-| `POST` | `/admin/stats/dashboards` | Create |
-| `GET` | `/admin/stats/dashboards/:id` | Read (with panels) |
-| `PATCH` | `/admin/stats/dashboards/:id` | Update |
-| `DELETE` | `/admin/stats/dashboards/:id` | Delete |
-| `POST` | `/admin/stats/dashboards/:id/duplicate` | Clone |
-| `POST` | `/admin/stats/dashboards/:id/panels` | Create panel |
-| `PATCH` | `/admin/stats/panels/:id` | Update (position, options, display) |
-| `DELETE` | `/admin/stats/panels/:id` | Delete |
-| `POST` | `/admin/stats/panels/:id/data` | **Resolve** — returns `{ data, resolved_at, cache_hit }` |
-| `POST` | `/admin/stats/panels/preview` | Dry-run resolve without persisting (for editor) |
-| `GET` | `/admin/stats/operations` | List available operations for the panel editor — same as `/admin/visual-flows/operations` but filtered to `category: "data"` |
-
-All use `validateAndTransformBody(wrapSchema(...))` per project convention.
+Template interpolation (`{{ $trigger.foo }}`) is not meaningful for panels — don't use templated strings in `operation_options`.
 
 ## Caching
 
-Per-panel `cache_ttl_seconds`:
-- null → always fresh
-- > 0 → cached in memory keyed by `{panel.id, hash(operation_options)}`. Flush on panel update.
+`src/modules/stats/cache.ts` — in-process `Map` keyed by `{panel.id}:{hash(operation_options)}`. TTL per panel. Invalidated on panel update / delete. Single-process only; swap for Medusa's cache module if multi-instance ever matters.
 
-Start with an in-process Map. If multi-instance becomes relevant later, swap for cache module (Medusa's `cacheService`). Not day-one.
+## API Routes
+
+All under `src/api/admin/stats/`. Zod-validated inline.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/admin/stats/dashboards` | List (with `q`, `limit`, `offset`) |
+| `POST` | `/admin/stats/dashboards` | Create |
+| `GET` | `/admin/stats/dashboards/:id` | Read (includes panels) |
+| `PUT` | `/admin/stats/dashboards/:id` | Update |
+| `DELETE` | `/admin/stats/dashboards/:id` | Delete (cascades panels) |
+| `POST` | `/admin/stats/dashboards/:id/duplicate` | Clone dashboard + panels |
+| `POST` | `/admin/stats/dashboards/:id/panels` | Create panel (validates options against op schema) |
+| `GET` | `/admin/stats/panels/:id` | Read |
+| `PUT` | `/admin/stats/panels/:id` | Update (re-validates options, busts cache) |
+| `DELETE` | `/admin/stats/panels/:id` | Delete |
+| `POST` | `/admin/stats/panels/:id/data` | Resolve — returns `{ data, display, resolved_at, cache_hit }` (supports `?skip_cache=true`) |
+| `POST` | `/admin/stats/panels/preview` | Dry-run resolve without persisting |
+| `GET` | `/admin/stats/operations` | List data-category ops for the panel editor |
 
 ## Admin UI
 
-Split into two PRs.
+`/stats` — dashboards list with create/delete/duplicate + search.
+`/stats/:id` — grid of panels, **Add panel** button, per-panel refresh/edit/delete.
+- Dashboard name resolves via a loader so the breadcrumb shows the title.
+- Loading states use `HeadingSkeleton`, `TextSkeleton`, and a per-panel-type `PanelSkeleton`.
 
-### Phase 1 — read-only + JSON editor
-- `/stats` → dashboards list, create/delete/duplicate
-- `/stats/:id` → grid of panels rendering via `POST /admin/stats/panels/:id/data`
-- Panel editor: form for name/type/grid/TTL + **raw JSON textarea** for `operation_options` and `display`, validated server-side against the operation's Zod schema
-- Enough to ship useful dashboards while Phase 2 is built
+### Panel editor
 
-### Phase 2 — visual panel editor
-- Pick operation from a dropdown → form auto-generated from `optionsSchema` (the visual-flows properties-panel already does this — reuse `src/admin/components/visual-flows/panels/properties-panel.tsx`)
-- Entity/filter pickers
-- Live preview using `/admin/stats/panels/preview`
-- Drag-to-resize + position via `react-grid-layout`
+File: `src/admin/components/stats/panel-editor-drawer.tsx`
+
+- Form fields: name, type (7 options), width, height, cache TTL
+- Operation dropdown (fed by `/admin/stats/operations`)
+- Two JSON textareas: `operation_options` and `display`
+- **Preview** button calls `/admin/stats/panels/preview` and renders the result inline using the same `PanelRenderer` used on the grid
+
+### Renderers
+
+`src/admin/components/stats/panel-renderer.tsx` switches on panel type:
+- `metric` — big number with optional prefix/suffix/label
+- `list` — divs with key + badge value
+- `table` — HTML table
+- `bar` / `line` / `area` — recharts
+- `label` — static text block
+
+## Seed Script
+
+`src/scripts/seed-stats-dashboards.ts` — idempotent (skips by name). Seeds three dashboards:
+
+- **JYT Overview** — 7 panels: partner/design/order counts, bar charts by status, 30-day sessions area chart
+- **Partners & Production** — 4 panels: verified partners, run counts, by-status bar, 30-day trend line
+- **Website Traffic** — 5 panels: visitor/pageview/bounce-rate metrics + daily pageviews + sessions charts (pulls from `analytics_daily_stats`)
+
+Run:
+```bash
+yarn medusa exec ./src/scripts/seed-stats-dashboards.ts
+```
+
+Example panel `operation_options`:
+
+| Goal | Config |
+|---|---|
+| Total partners | `{ "entity": "partner", "aggregate": { "fn": "count" } }` |
+| Active partners | `{ "entity": "partner", "aggregate": { "fn": "count" }, "filters": { "status": "active" } }` |
+| Designs per partner (top 10) | `{ "entity": "design", "aggregate": { "fn": "count" }, "groupBy": "partner_id", "limit": 10 }` |
+| Daily sessions, last 30 days | `{ "entity": "analytics_daily_stats", "dateField": "date", "aggregate": { "fn": "sum", "field": "sessions" }, "precision": "day", "range": { "last_days": 30 } }` |
 
 ## File Layout
 
 ```
 src/modules/stats/
   index.ts                                # Module(STATS_MODULE, { service })
-  service.ts                              # MedusaService({ StatsDashboard, StatsPanel }) + resolvePanel()
-  resolver.ts                             # buildPanelContext(), applyDisplay()
-  cache.ts                                # in-process TTL cache
+  service.ts                              # MedusaService({ StatsDashboard, StatsPanel })
+  resolver.ts                             # resolvePanel(), invalidatePanelCache()
+  cache.ts                                # in-process TTL map
+  inject-panel-data.ts                    # walks tiptap doc, injects resolved data
   models/
     stats-dashboard.ts
     stats-panel.ts
     index.ts
-  migrations/
-    Migration<timestamp>.ts               # generated via `yarn medusa db:generate stats`
-  __tests__/
-    resolver.test.ts
-    aggregate-data.integration.test.ts
+  migrations/Migration20260420091906.ts
 
 src/modules/visual_flows/operations/
-  aggregate-data.ts                       # NEW — shared
-  time-series.ts                          # NEW — shared
-  index.ts                                # register both in operationRegistry
+  aggregate-data.ts                       # shared
+  time-series.ts                          # shared
+  index.ts                                # registers both
 
 src/api/admin/stats/
-  dashboards/
-    route.ts
-    [id]/route.ts
-    [id]/duplicate/route.ts
-    [id]/panels/route.ts
-  panels/
-    [id]/route.ts
-    [id]/data/route.ts
-    preview/route.ts
+  validators.ts
+  dashboards/route.ts
+  dashboards/[id]/route.ts
+  dashboards/[id]/duplicate/route.ts
+  dashboards/[id]/panels/route.ts
+  panels/[id]/route.ts
+  panels/[id]/data/route.ts
+  panels/preview/route.ts
   operations/route.ts
-  middlewares.ts                          # zod schemas per route
 
-src/admin/routes/stats/
-  page.tsx                                # dashboards list
-  [id]/page.tsx                           # dashboard grid
+src/admin/hooks/api/stats.ts              # useDashboards, usePanelData, etc.
+src/admin/routes/stats/page.tsx
+src/admin/routes/stats/[id]/page.tsx
+src/admin/routes/stats/[id]/loader.ts     # dashboard prefetch for breadcrumb
 src/admin/components/stats/
-  panel-grid.tsx
-  panel-renderer.tsx                      # switches on panel.type
-  panel-editor.tsx                        # Phase 1: JSON; Phase 2: form
-  renderers/
-    metric-panel.tsx
-    list-panel.tsx
-    table-panel.tsx
-    bar-chart-panel.tsx
-    line-chart-panel.tsx
-    area-chart-panel.tsx
+  panel-renderer.tsx                      # metric / list / table / bar / line / area / label
+  panel-card.tsx
+  panel-editor-drawer.tsx
+  stats-panel-picker.tsx                  # used by the tiptap editor
+
+src/scripts/seed-stats-dashboards.ts
 ```
 
-## Medusa config
+## Known risks
 
-Add module to `medusa-config.ts`:
-```typescript
-{
-  resolve: "./src/modules/stats",
-  key: STATS_MODULE,
-}
-```
-
-Nothing to link — stats module is self-contained; it pulls data via `query.graph` / other modules' services through the container.
-
-## Phased rollout
-
-| Phase | Scope | Acceptance |
-|---|---|---|
-| 1 | Models + migrations + service | `yarn dev` boots, `yarn medusa db:migrate` clean |
-| 2 | `aggregate_data` + `time_series` ops in `visual_flows`, with integration tests | Ops callable from a visual flow |
-| 3 | All admin CRUD routes + resolver + cache | `POST /panels/:id/data` returns data for a seeded panel |
-| 4 | Admin UI Phase 1 (read-only grid + JSON editor) | Operator can build a dashboard with partners-count, designs-count, weekly-sessions |
-| 5 | Admin UI Phase 2 (form editor, drag-to-resize, preview) | Dog-food for blog numbers — author builds dashboards without JSON |
-| 6 | Seed a default "JYT Overview" dashboard via a migration or init script | New environments get a useful dashboard out-of-the-box |
-
-## Testing
-
-- **Unit**: `resolver.ts` display mapping, cache expiry.
-- **Integration (modules)**: new operations against real query.graph with seeded partners/designs/orders.
-- **Integration (HTTP)**: `/admin/stats/panels/:id/data` happy path + invalid options rejected by Zod.
-
-Run via `pnpm test:integration:http:shared ./integration-tests/http/stats` per project convention.
-
-## Open risks
-
-1. **In-process aggregation** of `aggregate_data` loads rows into memory. Fine for partners/designs (hundreds), questionable for analytics events (millions). Mitigate by preferring `analytics_daily_stats` for visitor panels. If a panel targets `analytics_event` directly it's the operator's responsibility to filter — document in the editor.
-2. **Operation context stub** — if a future operation ever reads `context.flowId` to look up flow metadata it'll get a panel pseudo-id and likely return empty. We only expose `category: "data"` operations in the panel editor; those shouldn't do that.
-3. **Schema evolution**: `operation_options` is a JSON blob. Renaming an operation's option field breaks existing panels silently. Add a version field per-operation later if this bites — defer.
+1. **In-process aggregation** — documented above. Mitigation: prefer rolled entities; add typed service methods for hot paths.
+2. **Operation context stub** — panels pass a pseudo `flowId` and empty `dataChain`. Operations in the panel editor are filtered to `category: "data"` which don't inspect those fields today. A new op that reads `flowId` would fail silently against panels.
+3. **Schema evolution on `operation_options`** — a free-form JSON blob. Renaming an option field breaks panels silently. Add an operation-level version later if this bites.
