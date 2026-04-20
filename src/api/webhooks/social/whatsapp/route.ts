@@ -270,15 +270,39 @@ async function processWhatsAppWebhook(
           }
         } catch { /* proceed if check fails */ }
 
-        console.log("[whatsapp-webhook] Incoming message:", {
-          from: msg.from,
-          type: msg.type,
-          id: msg.id,
-        })
+        // Log the full raw message shape (not just {from,type,id}) so we
+        // can recover from future parser-gap bugs. Meta has no API to
+        // retrieve a past webhook body by wamid — the only record is what
+        // we log at receive time. Previously a template button tap arrived
+        // as type "button", the parser returned null, and the payload was
+        // lost forever. Now: log first, parse second.
+        try {
+          console.log(
+            "[whatsapp-webhook] Incoming message (raw):",
+            JSON.stringify(msg)
+          )
+        } catch {
+          // Extremely unlikely but don't let logging crash the handler
+          console.log("[whatsapp-webhook] Incoming message:", {
+            from: msg.from,
+            type: msg.type,
+            id: msg.id,
+          })
+        }
 
         try {
           const incomingMessage = parseWebhookMessage(msg)
-          if (!incomingMessage) continue
+          if (!incomingMessage) {
+            // Parser didn't know how to normalize this type. We already
+            // logged the raw body above, so this line is just an operator
+            // signal that a new type showed up and needs a case added to
+            // parseWebhookMessage() below.
+            console.warn(
+              "[whatsapp-webhook] Parser returned null — unhandled type. See raw log above. Add a case to parseWebhookMessage().",
+              { from: msg.from, type: msg.type, id: msg.id }
+            )
+            continue
+          }
 
           // Resolve media URL from Meta using the platform this message
           // arrived on (access tokens are per-number in general).
@@ -355,6 +379,19 @@ function parseWebhookMessage(msg: any): ParsedWhatsAppMessage | null {
       }
       return null
 
+    // Template quick-reply button tap — Meta sends top-level type "button"
+    // (not "interactive"). Shape: { button: { payload, text } }. Normalize
+    // to the interactive shape so the downstream handler — which already
+    // resolves actions via BUTTON_TITLE_ACTIONS + conversation
+    // pending_run_id — processes it without a second code path.
+    case "button":
+      return {
+        from, messageId, replyToWaMessageId,
+        type: "interactive",
+        buttonReplyId: msg.button?.payload,
+        buttonReplyTitle: msg.button?.text,
+      }
+
     case "image":
       return {
         from, messageId, replyToWaMessageId,
@@ -391,7 +428,14 @@ function parseWebhookMessage(msg: any): ParsedWhatsAppMessage | null {
       }
 
     default:
-      console.log("[whatsapp-webhook] Unsupported message type:", msg.type)
+      // Unhandled types (e.g. "reaction", "order", "sticker", future Meta
+      // additions). The full raw body was logged upstream — this warning
+      // just names the type so an operator can grep quickly and add the
+      // case here.
+      console.warn(
+        "[whatsapp-webhook] Unsupported message type — add case to parseWebhookMessage:",
+        msg.type
+      )
       return null
   }
 }
