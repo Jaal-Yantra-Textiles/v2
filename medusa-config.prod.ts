@@ -387,5 +387,8 @@ module.exports = defineConfig({
    {
     resolve: "./src/modules/stats",
   },
+  {
+    resolve: "./src/modules/google_merchant",
+  },
 ],
 });

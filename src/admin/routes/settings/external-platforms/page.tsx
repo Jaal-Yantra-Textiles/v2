@@ -140,6 +140,13 @@ const SocialPlatformPage = () => {
               <DataTable.FilterMenu tooltip="Filter platforms" />
               <Button
                 size="small"
+                variant="transparent"
+                onClick={() => navigate("/settings/google-merchant")}
+              >
+                Google Merchant
+              </Button>
+              <Button
+                size="small"
                 variant="secondary"
                 onClick={() => navigate("/settings/external-platforms/create")}
               >

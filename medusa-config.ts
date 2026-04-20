@@ -319,6 +319,9 @@ module.exports = defineConfig({
     resolve: "./src/modules/external_stores",
   },
   {
+    resolve: "./src/modules/google_merchant",
+  },
+  {
     resolve: "./src/modules/encryption",
   },
   {
