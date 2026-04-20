@@ -33,6 +33,8 @@ import {
 
 // --- Tiptap Node ---
 import { ImageUploadNode } from "@/components/tiptap-node/image-upload-node/image-upload-node-extension"
+import { StatsPanelExtension } from "@/components/common/tiptap-extensions/StatsPanelExtension"
+import { StatsPanelPickerButton } from "@/components/stats/stats-panel-picker"
 import "@/components/tiptap-node/code-block-node/code-block-node.scss"
 import "@/components/tiptap-node/list-node/list-node.scss"
 import "@/components/tiptap-node/image-node/image-node.scss"
@@ -145,6 +147,12 @@ const MainToolbarContent = ({
 
       <ToolbarGroup>
         <ImageUploadButton text="Add" />
+      </ToolbarGroup>
+
+      <ToolbarSeparator />
+
+      <ToolbarGroup>
+        <StatsPanelPickerButton />
       </ToolbarGroup>
 
       <Spacer />
@@ -293,6 +301,7 @@ export function SimpleEditor({
         onError: (error) => console.error("Upload failed:", error),
       }),
       TrailingNode,
+      StatsPanelExtension,
       Link.configure({ openOnClick: false }),
       SelectionPopover.configure({
         onSelectionChange: (selection) => {

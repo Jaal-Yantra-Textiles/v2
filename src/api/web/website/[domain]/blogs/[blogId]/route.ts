@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { findWebsitePagePerDomainWorkflow } from "../../../../../../workflows/website/find-website-page-per-domain";
+import { injectStatsPanelData } from "../../../../../../modules/stats/inject-panel-data";
 
 export const GET = async (
   req: MedusaRequest,
@@ -19,7 +20,25 @@ export const GET = async (
       throw errors;
     }
 
-    // Only return necessary data for public consumption
+    const blocks = result.page.blocks?.map(block => ({
+      id: block.id,
+      type: block.type,
+      content: block.content,
+      order: block.order,
+    })) || [];
+
+    // Resolve any statsPanel nodes server-side so the storefront can render
+    // from pre-resolved attrs without hitting any further API.
+    await Promise.all(
+      blocks.map((block: any) => {
+        const tipTapContent = block?.content?.text
+        if (tipTapContent) {
+          return injectStatsPanelData(req.scope, tipTapContent)
+        }
+        return null
+      })
+    );
+
     const publicPageData = {
       title: result.page.title,
       slug: result.page.slug,
@@ -28,12 +47,7 @@ export const GET = async (
       page_type: result.page.page_type,
       published_at: result.page.published_at,
       public_metadata: result.page.public_metadata,
-      blocks: result.page.blocks?.map(block => ({
-        id: block.id,
-        type: block.type,
-        content: block.content,
-        order: block.order,
-      })) || [],
+      blocks,
     };
 
     res.status(200).json(publicPageData);
