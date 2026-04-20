@@ -383,6 +383,9 @@ module.exports = defineConfig({
   },
   {
     resolve: "./src/modules/energy_rates",
-  }
+  },
+   {
+    resolve: "./src/modules/stats",
+  },
 ],
 });
