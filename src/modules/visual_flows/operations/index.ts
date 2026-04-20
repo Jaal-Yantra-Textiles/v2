@@ -19,6 +19,8 @@ export { sendEmailOperation } from "./send-email"
 export { sendWhatsAppOperation } from "./send-whatsapp"
 export { executeCodeOperation } from "./execute-code"
 export { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
+export { aggregateDataOperation } from "./aggregate-data"
+export { timeSeriesOperation } from "./time-series"
 export { bulkUpdateDataOperation } from "./bulk-update-data"
 export { bulkCreateDataOperation } from "./bulk-create-data"
 export { bulkHttpRequestOperation } from "./bulk-http-request"
@@ -44,6 +46,8 @@ import { sendEmailOperation } from "./send-email"
 import { sendWhatsAppOperation } from "./send-whatsapp"
 import { executeCodeOperation } from "./execute-code"
 import { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
+import { aggregateDataOperation } from "./aggregate-data"
+import { timeSeriesOperation } from "./time-series"
 import { bulkUpdateDataOperation } from "./bulk-update-data"
 import { bulkCreateDataOperation } from "./bulk-create-data"
 import { bulkHttpRequestOperation } from "./bulk-http-request"
@@ -86,6 +90,8 @@ export function registerBuiltInOperations(): void {
 
   // Analytics operations
   operationRegistry.register(aggregateProductAnalyticsOperation)
+  operationRegistry.register(aggregateDataOperation)
+  operationRegistry.register(timeSeriesOperation)
 }
 
 // Auto-register on import
