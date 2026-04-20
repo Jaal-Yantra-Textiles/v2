@@ -1,4 +1,5 @@
 import { Text, Heading, Badge } from "@medusajs/ui"
+import { Skeleton, HeadingSkeleton, TextSkeleton } from "../table/skeleton"
 import {
   ResponsiveContainer,
   BarChart,
@@ -256,6 +257,48 @@ function ChartPanel({
   )
 }
 
+function PanelSkeleton({ type }: { type: StatsPanel["type"] }) {
+  if (type === "metric") {
+    return (
+      <div className="flex flex-col gap-y-2 p-4">
+        <HeadingSkeleton level="h1" characters={6} />
+        <TextSkeleton size="small" characters={14} />
+      </div>
+    )
+  }
+  if (type === "list" || type === "table") {
+    return (
+      <div className="flex flex-col divide-y">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex justify-between items-center px-4 py-3">
+            <TextSkeleton size="small" characters={18} />
+            <Skeleton className="h-4 w-12" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (type === "label") {
+    return (
+      <div className="flex flex-col gap-y-2 p-4">
+        <HeadingSkeleton level="h2" characters={12} />
+        <TextSkeleton size="small" characters={24} />
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-end justify-between gap-2 px-4 py-6 h-[240px]">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <Skeleton
+          key={i}
+          className="flex-1"
+          style={{ height: `${30 + ((i * 37) % 70)}%` }}
+        />
+      ))}
+    </div>
+  )
+}
+
 function LabelPanel({
   panel,
   display,
@@ -285,13 +328,7 @@ export function PanelRenderer({ panel, result, isLoading, error }: PanelRenderer
   }
 
   if (isLoading) {
-    return (
-      <div className="p-4">
-        <Text size="small" className="text-ui-fg-muted">
-          Loading…
-        </Text>
-      </div>
-    )
+    return <PanelSkeleton type={panel.type} />
   }
 
   if (error || result?.error) {

@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom"
+import { LoaderFunctionArgs, UIMatch, useParams, useNavigate } from "react-router-dom"
 import {
   Container,
   Heading,
@@ -7,7 +7,9 @@ import {
   toast,
   usePrompt,
 } from "@medusajs/ui"
-import { ArrowLeft, Plus, Trash } from "@medusajs/icons"
+import { HeadingSkeleton, TextSkeleton } from "../../../components/table/skeleton"
+import { Plus, Trash } from "@medusajs/icons"
+import { statsDashboardLoader } from "./loader"
 import { useState } from "react"
 import {
   useDashboard,
@@ -63,12 +65,21 @@ const DashboardDetailPage = () => {
       <Container className="p-0">
         <div className="flex justify-between items-center px-6 py-4">
           <div className="flex items-center gap-3">
-            <div>
-              <Heading>{dashboard?.name ?? (isLoading ? "Loading…" : "")}</Heading>
-              {dashboard?.description && (
-                <Text size="small" className="text-ui-fg-subtle">
-                  {dashboard.description}
-                </Text>
+            <div className="flex flex-col gap-y-1">
+              {isLoading && !dashboard ? (
+                <>
+                  <HeadingSkeleton level="h1" characters={18} />
+                  <TextSkeleton size="small" characters={32} />
+                </>
+              ) : (
+                <>
+                  <Heading>{dashboard?.name ?? ""}</Heading>
+                  {dashboard?.description && (
+                    <Text size="small" className="text-ui-fg-subtle">
+                      {dashboard.description}
+                    </Text>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -122,6 +133,13 @@ const DashboardDetailPage = () => {
 
 export default DashboardDetailPage
 
+export async function loader({ params }: LoaderFunctionArgs) {
+  return statsDashboardLoader({ params } as LoaderFunctionArgs)
+}
+
 export const handle = {
-  breadcrumb: () => "Dashboard",
+  breadcrumb: (match: UIMatch<{ id: string }>) => {
+    const data = match.data as { dashboard?: { name?: string } } | undefined
+    return data?.dashboard?.name ?? match.params.id
+  },
 }
