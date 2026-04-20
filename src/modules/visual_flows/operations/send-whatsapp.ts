@@ -44,7 +44,7 @@ export const sendWhatsAppOperation: OperationDefinition = {
         "SocialPlatform row id to send from. Omit to auto-route by country code."
       ),
 
-    mode: z.enum(["template", "text"]).default("template"),
+    mode: z.enum(["template", "text", "image"]).default("template"),
 
     // Template-mode fields
     template_name: z
@@ -72,6 +72,29 @@ export const sendWhatsAppOperation: OperationDefinition = {
       .optional()
       .describe(
         'Required when mode="text". Only delivers inside Meta\'s 24-hour window.'
+      ),
+
+    // Image-mode fields
+    image_url: z
+      .string()
+      .optional()
+      .describe(
+        'Required when mode="image". Public HTTPS URL of a JPEG/PNG under 5MB. ' +
+          "Supports {{ }} interpolation."
+      ),
+    caption: z
+      .string()
+      .optional()
+      .describe(
+        'Optional caption when mode="image" (max 1024 chars). Supports {{ }} interpolation.'
+      ),
+    skip_if_no_image: z
+      .boolean()
+      .default(true)
+      .describe(
+        'When mode="image" and image_url resolves empty, exit cleanly via the ' +
+          '"failure" branch instead of erroring. Lets flows send images only when ' +
+          "the source data has one, without an upstream condition node."
       ),
 
     // Audit / dedup
@@ -240,7 +263,7 @@ export const sendWhatsAppOperation: OperationDefinition = {
 
       // 4. Send.
       let waResponse: any = null
-      let messageType: "template" | "text" = "template"
+      let messageType: "template" | "text" | "media" = "template"
       let contentPreview = ""
 
       if (mode === "template") {
@@ -287,6 +310,31 @@ export const sendWhatsAppOperation: OperationDefinition = {
         waResponse = await whatsapp.sendTemplateMessage(to, templateName, lang, components)
         messageType = "template"
         contentPreview = `[template:${templateName}] ${variableValues.join(" · ")}`.slice(0, 500)
+      } else if (mode === "image") {
+        const imageUrl = options.image_url
+          ? interpolateString(options.image_url, dataChain).trim()
+          : ""
+        if (!imageUrl) {
+          if (options.skip_if_no_image !== false) {
+            return {
+              success: true,
+              data: {
+                sent: false,
+                reason: "no_image_url",
+                _branch: "failure",
+              },
+            }
+          }
+          return failed('mode="image" requires image_url')
+        }
+
+        const caption = options.caption
+          ? interpolateString(options.caption, dataChain).slice(0, 1024)
+          : undefined
+
+        waResponse = await whatsapp.sendImageMessage(to, imageUrl, caption)
+        messageType = "media"
+        contentPreview = `[image] ${caption || imageUrl}`.slice(0, 500)
       } else {
         const body = options.body ? interpolateString(options.body, dataChain) : ""
         if (!body.trim()) {

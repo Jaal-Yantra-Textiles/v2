@@ -1,7 +1,8 @@
-import { MedusaError } from "@medusajs/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/utils"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
 import { PARTNER_MODULE } from "../../modules/partner"
+import { TASKS_MODULE } from "../../modules/tasks"
 import { acceptProductionRunWorkflow } from "../production-runs/accept-production-run"
 import { signalLifecycleStepSuccessWorkflow } from "../production-runs/production-run-steps"
 import {
@@ -745,6 +746,31 @@ async function handleDecline(
     cancelled_at: new Date(),
     cancelled_reason: `Declined by partner (${apiReason})`,
   })
+
+  // Cancel linked tasks — mirrors the HTTP decline route at
+  // src/api/partners/production-runs/[id]/decline/route.ts:113-128. Without
+  // this, tasks stay "pending" on the partner's task list after decline
+  // and cause confusion (ghost work items for a run that's already gone).
+  try {
+    const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
+    const taskService = scope.resolve(TASKS_MODULE) as any
+    const { data: runData } = await query.graph({
+      entity: "production_runs",
+      fields: ["tasks.id", "tasks.status"],
+      filters: { id: runId },
+    })
+    const tasks = runData?.[0]?.tasks || []
+    for (const task of tasks) {
+      if (task.status !== "completed" && task.status !== "cancelled") {
+        await taskService.updateTasks({ id: task.id, status: "cancelled" })
+      }
+    }
+  } catch (e: any) {
+    console.error(
+      `[whatsapp-decline] Failed to cancel linked tasks for ${runId}:`,
+      e.message
+    )
+  }
 
   // Fire both events (mirrors the HTTP route) so admin feed + existing
   // cancellation subscribers see this.

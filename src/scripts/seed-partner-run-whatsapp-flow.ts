@@ -44,6 +44,8 @@ const Y_READ_DESIGN = 420
 const Y_RESOLVE = 560
 const Y_COND = 700
 const Y_SEND = 840
+const Y_GEN_LINK = 980
+const Y_SEND_IMAGE = 1120
 const Y_SKIP = 840
 
 // ─── Code for the resolve_template node ──────────────────────────────────────
@@ -82,6 +84,39 @@ const partnerName = partner.name || "Partner"
 const designName = design?.name || expectedDesignId || run?.design_id || "Unknown Design"
 const quantity = String(run?.quantity ?? 0)
 const runId = run?.id || expectedRunId
+
+// Resolve ONE image to send as a follow-up. Try sources in priority
+// order — thumbnail first (smallest, most likely present), then
+// structured collections. Each source can be a plain URL string or an
+// object with { url } / { image } / { src }.
+function pickUrl(value) {
+  if (!value) return null
+  if (typeof value === "string") return value.trim() || null
+  if (typeof value === "object") {
+    return (
+      (typeof value.url === "string" && value.url) ||
+      (typeof value.image === "string" && value.image) ||
+      (typeof value.src === "string" && value.src) ||
+      null
+    )
+  }
+  return null
+}
+function firstImageUrl(design) {
+  if (!design) return null
+  const direct = pickUrl(design.thumbnail_url)
+  if (direct) return direct
+  for (const key of ["moodboard", "media_files", "design_files"]) {
+    const arr = design[key]
+    if (!Array.isArray(arr)) continue
+    for (const item of arr) {
+      const url = pickUrl(item)
+      if (url) return url
+    }
+  }
+  return null
+}
+const designImageUrl = firstImageUrl(design)
 
 // Resolve recipient phone — verified whatsapp_number first, then first
 // active admin's phone. Mirrors the legacy subscriber priority.
@@ -142,6 +177,8 @@ return {
   variables: config.vars,
   context_type: "production_run",
   context_id: runId,
+  design_image_url: designImageUrl,
+  design_name: designName,
 }
 `
 
@@ -173,6 +210,8 @@ const FLOW_DEF = {
       { id: "resolve_template", type: "operation", position: { x: X_CENTER, y: Y_RESOLVE },      data: { label: "Resolve Template",    operationKey: "resolve_template", operationType: "execute_code" } },
       { id: "has_template",     type: "operation", position: { x: X_CENTER, y: Y_COND },         data: { label: "Has Template?",       operationKey: "has_template",     operationType: "condition"    } },
       { id: "send",             type: "operation", position: { x: X_LEFT,   y: Y_SEND },         data: { label: "Send WhatsApp",       operationKey: "send",             operationType: "send_whatsapp" } },
+      { id: "gen_link",         type: "operation", position: { x: X_LEFT,   y: Y_GEN_LINK },     data: { label: "Generate Deep-Link",  operationKey: "gen_link",         operationType: "generate_partner_deeplink" } },
+      { id: "send_image",       type: "operation", position: { x: X_LEFT,   y: Y_SEND_IMAGE },   data: { label: "Send Design Image",   operationKey: "send_image",       operationType: "send_whatsapp" } },
       { id: "log_skip",         type: "operation", position: { x: X_RIGHT,  y: Y_SKIP },         data: { label: "Log: Skipped",        operationKey: "log_skip",         operationType: "log"          } },
     ],
     edges: [
@@ -183,6 +222,8 @@ const FLOW_DEF = {
       { id: "e-4", source: "resolve_template", sourceHandle: "default", target: "has_template",     targetHandle: "default" },
       { id: "e-5", source: "has_template",     sourceHandle: "success", target: "send",             targetHandle: "default" },
       { id: "e-6", source: "has_template",     sourceHandle: "failure", target: "log_skip",         targetHandle: "default" },
+      { id: "e-7", source: "send",             sourceHandle: "success", target: "gen_link",         targetHandle: "default" },
+      { id: "e-8", source: "gen_link",         sourceHandle: "default", target: "send_image",       targetHandle: "default" },
     ],
   },
 
@@ -248,7 +289,16 @@ const FLOW_DEF = {
       position_y: Y_READ_DESIGN,
       options: {
         entity: "design",
-        fields: ["id", "name"],
+        fields: [
+          "id",
+          "name",
+          "thumbnail_url",
+          "description",
+          "design_type",
+          "media_files",
+          "moodboard",
+          "design_files",
+        ],
         filters: { id: "{{ $trigger.payload.design_id }}" },
         limit: 1,
       },
@@ -310,12 +360,59 @@ const FLOW_DEF = {
       },
     },
 
+    // ── 6c. Generate partner deep-link (success branch, after template) ───
+    {
+      operation_key: "gen_link",
+      operation_type: "generate_partner_deeplink",
+      name: "Generate Deep-Link",
+      sort_order: 6,
+      position_x: X_LEFT,
+      position_y: Y_GEN_LINK,
+      options: {
+        partner_id: "{{ resolve_template.partner_id }}",
+        run_id: "{{ resolve_template.context_id }}",
+        type: "production_run",
+        // base_url falls back to PARTNER_PORTAL_URL env then to the
+        // hard-coded partner subdomain in the operation implementation.
+      },
+    },
+
+    // ── 6d. Send design image with deep-link caption (best-effort) ────────
+    {
+      operation_key: "send_image",
+      operation_type: "send_whatsapp",
+      name: "Send Design Image",
+      sort_order: 7,
+      position_x: X_LEFT,
+      position_y: Y_SEND_IMAGE,
+      options: {
+        to: "{{ resolve_template.to }}",
+        partner_id: "{{ resolve_template.partner_id }}",
+        mode: "image",
+        // When the design has no thumbnail/moodboard/media URL, the
+        // operation exits via its "failure" branch instead of erroring —
+        // flow still succeeds overall.
+        image_url: "{{ resolve_template.design_image_url }}",
+        caption:
+          "{{ resolve_template.design_name }} — Run {{ resolve_template.context_id }}\n" +
+          "Open in portal (no password): {{ gen_link.url }}",
+        skip_if_no_image: true,
+        context_type: "production_run",
+        context_id: "{{ resolve_template.context_id }}",
+        // Dedup off — the template send already dedups on the same
+        // (context_type, context_id); this is a follow-up so we don't want
+        // to swallow it as a duplicate.
+        dedup_window_minutes: 0,
+        require_partner: true,
+      },
+    },
+
     // ── 6b. Log skip (failure branch) ──────────────────────────────────────
     {
       operation_key: "log_skip",
       operation_type: "log",
       name: "Log: Skipped",
-      sort_order: 6,
+      sort_order: 8,
       position_x: X_RIGHT,
       position_y: Y_SKIP,
       options: {
@@ -334,6 +431,8 @@ const FLOW_DEF = {
     { source_id: "resolve_template", source_handle: "default", target_id: "has_template",     connection_type: "default" as const },
     { source_id: "has_template",     source_handle: "success", target_id: "send",             connection_type: "success" as const },
     { source_id: "has_template",     source_handle: "failure", target_id: "log_skip",         connection_type: "failure" as const },
+    { source_id: "send",             source_handle: "success", target_id: "gen_link",         connection_type: "success" as const },
+    { source_id: "gen_link",         source_handle: "default", target_id: "send_image",       connection_type: "default" as const },
   ],
 }
 
