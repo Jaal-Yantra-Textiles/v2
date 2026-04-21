@@ -1,12 +1,14 @@
-import { Button, Container, DataTable, DataTablePaginationState, DataTableFilteringState, Heading, Text, useDataTable, createDataTableFilterHelper } from "@medusajs/ui"
+import { Button, Container, DataTable, DataTablePaginationState, DataTableFilteringState, Drawer, Heading, StatusBadge, Text, useDataTable, createDataTableFilterHelper } from "@medusajs/ui"
 import { useSocialPlatforms } from "../../../hooks/api/social-platforms"
 import { useSocialPlatformTableColumns } from "./hooks/use-social-platform-table-columns"
 import { useNavigate } from "react-router-dom"
 import { AdminSocialPlatform } from "../../../hooks/api/social-platforms"
+import { useGoogleMerchantAccounts } from "../../../hooks/api/google-merchant"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { FolderIllustration } from "@medusajs/icons"
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import debounce from "lodash/debounce"
+import { GOOGLE_MERCHANT_VIRTUAL_ID } from "./constants"
 
 const PAGE_SIZE = 10
 
@@ -18,10 +20,14 @@ const SocialPlatformPage = () => {
   })
   const [search, setSearch] = useState("")
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [googleDrawerOpen, setGoogleDrawerOpen] = useState(false)
 
   const offset = pagination.pageIndex * pagination.pageSize
 
-  const { socialPlatforms, count, isLoading, isError, error } = useSocialPlatforms({ 
+  const { accounts: googleAccounts, count: googleAccountsCount, isLoading: googleAccountsLoading } = useGoogleMerchantAccounts({ limit: 50 })
+  const googleConnected = googleAccounts.some((a) => a.connected)
+
+  const { socialPlatforms, count, isLoading, isError, error } = useSocialPlatforms({
     limit: pagination.pageSize, 
     offset, 
     q: search || undefined,
@@ -33,6 +39,32 @@ const SocialPlatformPage = () => {
         return acc;
       }, {} as any) : {}),
   })
+
+  const hasActiveFilters = Object.keys(filtering).length > 0 || !!search
+  const showGoogleMerchantRow = pagination.pageIndex === 0 && !hasActiveFilters
+
+  const tableData = useMemo<AdminSocialPlatform[]>(() => {
+    const base = (socialPlatforms || []) as AdminSocialPlatform[]
+    if (!showGoogleMerchantRow) return base
+    const virtual: AdminSocialPlatform = {
+      id: GOOGLE_MERCHANT_VIRTUAL_ID,
+      name: "Google Merchant Center",
+      category: "other",
+      auth_type: "oauth2",
+      icon_url: null,
+      base_url: "https://merchants.google.com",
+      description: googleConnected
+        ? `${googleAccountsCount} account${googleAccountsCount === 1 ? "" : "s"} · connected`
+        : "Sync products to Google Shopping",
+      api_config: null,
+      status: googleConnected ? "active" : "pending",
+      metadata: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+    }
+    return [virtual, ...base]
+  }, [socialPlatforms, showGoogleMerchantRow, googleConnected, googleAccountsCount])
 
   const columns = useSocialPlatformTableColumns()
 
@@ -95,11 +127,15 @@ const SocialPlatformPage = () => {
   );
 
   const table = useDataTable({
-    data: (socialPlatforms || []) as AdminSocialPlatform[],
+    data: tableData,
     columns: columns,
-    rowCount: count,
+    rowCount: (count ?? 0) + (showGoogleMerchantRow ? 1 : 0),
     getRowId: (row: AdminSocialPlatform) => row.id,
     onRowClick: (_, row) => {
+      if (row.id === GOOGLE_MERCHANT_VIRTUAL_ID) {
+        setGoogleDrawerOpen(true)
+        return
+      }
       navigate(`/settings/external-platforms/${row.id}`);
     },
     isLoading: isLoading,
@@ -140,13 +176,6 @@ const SocialPlatformPage = () => {
               <DataTable.FilterMenu tooltip="Filter platforms" />
               <Button
                 size="small"
-                variant="transparent"
-                onClick={() => navigate("/settings/google-merchant")}
-              >
-                Google Merchant
-              </Button>
-              <Button
-                size="small"
                 variant="secondary"
                 onClick={() => navigate("/settings/external-platforms/create")}
               >
@@ -158,6 +187,74 @@ const SocialPlatformPage = () => {
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
+
+      <Drawer open={googleDrawerOpen} onOpenChange={setGoogleDrawerOpen}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Google Merchant Center</Drawer.Title>
+            <Drawer.Description>
+              Connect and manage Google Merchant Center accounts for product syncing.
+            </Drawer.Description>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <Text size="small" weight="plus">Accounts</Text>
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  {googleAccountsLoading
+                    ? "Loading…"
+                    : `${googleAccountsCount} account${googleAccountsCount === 1 ? "" : "s"}`}
+                </Text>
+              </div>
+              <Button
+                size="small"
+                variant="primary"
+                onClick={() => {
+                  setGoogleDrawerOpen(false)
+                  navigate("/settings/google-merchant/create")
+                }}
+              >
+                Add Account
+              </Button>
+            </div>
+
+            {!googleAccountsLoading && googleAccounts.length === 0 ? (
+              <Text size="small" className="text-ui-fg-subtle">
+                No Google Merchant accounts yet. Click "Add Account" to connect one.
+              </Text>
+            ) : (
+              <div className="flex flex-col divide-y rounded-md border">
+                {googleAccounts.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className="flex items-center justify-between px-3 py-2 text-left hover:bg-ui-bg-subtle-hover"
+                    onClick={() => {
+                      setGoogleDrawerOpen(false)
+                      navigate(`/settings/google-merchant/${a.id}`)
+                    }}
+                  >
+                    <div className="flex flex-col">
+                      <Text size="small" weight="plus">{a.name}</Text>
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        ID {a.merchant_id}{a.account_email ? ` · ${a.account_email}` : ""}
+                      </Text>
+                    </div>
+                    <StatusBadge color={a.connected ? "green" : "orange"}>
+                      {a.connected ? "Connected" : "Not connected"}
+                    </StatusBadge>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Drawer.Close asChild>
+              <Button variant="secondary">Back to External Platforms</Button>
+            </Drawer.Close>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
     </Container>
   )
 }
