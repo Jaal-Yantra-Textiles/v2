@@ -3,10 +3,7 @@ import { ContainerRegistrationKeys, Modules, MedusaError } from "@medusajs/frame
 import type { RemoteQueryFunction } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { GOOGLE_MERCHANT_MODULE } from "../../../modules/google_merchant"
-import { ENCRYPTION_MODULE } from "../../../modules/encryption"
 import type GoogleMerchantService from "../../../modules/google_merchant/service"
-import type EncryptionService from "../../../modules/encryption/service"
-import { GoogleMerchantProvider } from "../../../modules/google_merchant/provider"
 import { mapProductToGoogleMerchant, validateProductForGoogle } from "./map-product-to-google"
 import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
@@ -36,44 +33,8 @@ export const syncProductToGoogleStep = createStep(
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const googleMerchantService = container.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
-    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
 
-    const [account] = await googleMerchantService.listGoogleMerchantAccounts(
-      { id: input.account_id },
-      { take: 1 }
-    )
-
-    if (!account) {
-      throw new MedusaError(MedusaError.Types.NOT_FOUND, `Google Merchant account ${input.account_id} not found`)
-    }
-    if (!account.refresh_token) {
-      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Account ${input.account_id} is not authenticated — complete OAuth first`)
-    }
-    if (!account.merchant_id) {
-      throw new MedusaError(MedusaError.Types.INVALID_DATA, `Account ${input.account_id} is missing merchant_id`)
-    }
-
-    const clientSecret = encryption.decrypt(account.client_secret as any)
-    const refreshToken = encryption.decrypt(account.refresh_token as any)
-
-    const provider = new GoogleMerchantProvider({
-      client_id: account.client_id,
-      client_secret: clientSecret,
-      redirect_uri: account.redirect_uri,
-      merchant_id: account.merchant_id,
-    })
-
-    let accessToken = decryptAccessToken(encryption, account.access_token)
-    const expiresAt = account.token_expires_at ? new Date(account.token_expires_at).getTime() : 0
-    if (!accessToken || Date.now() > expiresAt - 60_000) {
-      const refreshed = await provider.refreshAccessToken(refreshToken)
-      accessToken = refreshed.access_token
-      await googleMerchantService.updateGoogleMerchantAccounts({
-        id: account.id,
-        access_token: JSON.stringify(encryption.encrypt(refreshed.access_token)),
-        token_expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000) : null,
-      })
-    }
+    const { account, provider, accessToken } = await googleMerchantService.getAuthedProvider(input.account_id)
 
     const { data: products } = await query.graph({
       entity: "product",
@@ -182,25 +143,10 @@ export const syncProductToGoogleStep = createStep(
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const googleMerchantService = container.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
-    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
 
     try {
-      const [account] = await googleMerchantService.listGoogleMerchantAccounts(
-        { id: state.account_id },
-        { take: 1 }
-      )
-      if (account?.refresh_token) {
-        const clientSecret = encryption.decrypt(account.client_secret as any)
-        const refreshToken = encryption.decrypt(account.refresh_token as any)
-        const provider = new GoogleMerchantProvider({
-          client_id: account.client_id,
-          client_secret: clientSecret,
-          redirect_uri: account.redirect_uri,
-          merchant_id: account.merchant_id,
-        })
-        const refreshed = await provider.refreshAccessToken(refreshToken)
-        await provider.deleteProduct(refreshed.access_token, state.google_product_name)
-      }
+      const { provider, accessToken } = await googleMerchantService.getAuthedProvider(state.account_id)
+      await provider.deleteProduct(accessToken, state.google_product_name)
     } catch (e: any) {
       logger?.warn?.(
         `[sync-product-to-google compensate] Google delete failed for ${state.google_product_name}: ${e.message}`
@@ -229,21 +175,6 @@ export const syncProductToGoogleStep = createStep(
     }
   }
 )
-
-function decryptAccessToken(encryption: EncryptionService, stored: string | null | undefined): string | undefined {
-  if (!stored) return undefined
-  // New format: JSON-serialized EncryptedData blob. Legacy format: plaintext token.
-  if (!stored.startsWith("{")) return stored
-  try {
-    const parsed = JSON.parse(stored)
-    if (parsed && typeof parsed === "object" && "encrypted" in parsed) {
-      return encryption.decrypt(parsed)
-    }
-    return stored
-  } catch {
-    return stored
-  }
-}
 
 async function readExistingLink(
   query: Omit<RemoteQueryFunction, symbol>,

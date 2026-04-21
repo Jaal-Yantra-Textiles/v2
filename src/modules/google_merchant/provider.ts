@@ -29,7 +29,7 @@ export interface GoogleMerchantProductPayload {
   condition?: "new" | "refurbished" | "used"
   price?: { amountMicros: string; currencyCode: string }
   brand?: string
-  gtin?: string
+  gtins?: string[]
   mpn?: string
 }
 
@@ -37,8 +37,8 @@ const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const TOKEN_URL = "https://oauth2.googleapis.com/token"
 const DEFAULT_SCOPE = "https://www.googleapis.com/auth/content"
 const USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
-const MERCHANT_API_BASE = "https://merchantapi.googleapis.com/products/v1beta"
-const DATASOURCES_API_BASE = "https://merchantapi.googleapis.com/datasources/v1beta"
+const MERCHANT_API_BASE = "https://merchantapi.googleapis.com/products/v1"
+const DATASOURCES_API_BASE = "https://merchantapi.googleapis.com/datasources/v1"
 
 export type DataSourceChannel = "ONLINE_PRODUCTS" | "LOCAL_PRODUCTS" | "PRODUCTS"
 
@@ -155,11 +155,10 @@ export class GoogleMerchantProvider {
       const response = await axios.post(
         `${MERCHANT_API_BASE}/accounts/${merchantId}/productInputs:insert?dataSource=${encodeURIComponent(ds)}`,
         {
-          channel: "ONLINE",
           offerId: payload.offerId,
           contentLanguage: payload.contentLanguage,
           feedLabel: payload.feedLabel,
-          product: {
+          attributes: {
             title: payload.title,
             description: payload.description,
             link: payload.link,
@@ -169,7 +168,7 @@ export class GoogleMerchantProvider {
             condition: payload.condition || "new",
             price: payload.price,
             brand: payload.brand,
-            gtin: payload.gtin,
+            gtins: payload.gtins,
             mpn: payload.mpn,
           },
         },
@@ -197,7 +196,7 @@ export class GoogleMerchantProvider {
     dataSourceName?: string
   ): Promise<void> {
     try {
-      await axios.delete(`https://merchantapi.googleapis.com/products/v1beta/${productName}`, {
+      await axios.delete(`${MERCHANT_API_BASE}/${productName}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
         params: dataSourceName ? { dataSource: dataSourceName } : undefined,
       })
@@ -261,8 +260,8 @@ export class GoogleMerchantProvider {
   }
 
   /**
-   * Lists computed products for the account. Merchant API v1beta only exposes list
-   * on `products` (the processed/unified view), not on `productInputs`. Each item
+   * Lists computed products for the account. Merchant API only exposes list on
+   * `products` (the processed/unified view), not on `productInputs`. Each item
    * includes `offerId` and `dataSource`, which is what we need for import + takeover.
    */
   async listProducts(

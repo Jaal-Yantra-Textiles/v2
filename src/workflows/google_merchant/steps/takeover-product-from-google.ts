@@ -2,10 +2,7 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { RemoteQueryFunction } from "@medusajs/types"
 import { GOOGLE_MERCHANT_MODULE } from "../../../modules/google_merchant"
-import { ENCRYPTION_MODULE } from "../../../modules/encryption"
 import type GoogleMerchantService from "../../../modules/google_merchant/service"
-import type EncryptionService from "../../../modules/encryption/service"
-import { GoogleMerchantProvider } from "../../../modules/google_merchant/provider"
 import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
 const LINK_ENTRY = productGoogleMerchantLink.entryPoint
@@ -28,15 +25,6 @@ export const takeoverProductStep = createStep(
     const logger = container.resolve("logger") as any
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const service = container.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
-    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
-
-    const [account] = await service.listGoogleMerchantAccounts({ id: input.account_id }, { take: 1 })
-    if (!account) {
-      throw new MedusaError(MedusaError.Types.NOT_FOUND, `Account ${input.account_id} not found`)
-    }
-    if (!account.refresh_token) {
-      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Account not authenticated")
-    }
 
     const { data: links } = await query.graph({
       entity: LINK_ENTRY,
@@ -57,20 +45,12 @@ export const takeoverProductStep = createStep(
       })
     }
 
-    const clientSecret = encryption.decrypt(account.client_secret as any)
-    const refreshToken = encryption.decrypt(account.refresh_token as any)
-    const provider = new GoogleMerchantProvider({
-      client_id: account.client_id,
-      client_secret: clientSecret,
-      redirect_uri: account.redirect_uri,
-      merchant_id: account.merchant_id,
-    })
-    const refreshed = await provider.refreshAccessToken(refreshToken)
+    const { provider, accessToken } = await service.getAuthedProvider(input.account_id)
 
     let deleted = false
     let warning: string | undefined
     try {
-      await provider.deleteProduct(refreshed.access_token, googleName, sourceDs)
+      await provider.deleteProduct(accessToken, googleName, sourceDs)
       deleted = true
     } catch (e: any) {
       // UI-managed productInputs often can't be deleted via API — that's fine,

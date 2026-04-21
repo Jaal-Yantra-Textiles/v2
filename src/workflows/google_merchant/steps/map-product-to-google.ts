@@ -41,7 +41,7 @@ export function mapProductToGoogleMerchant(
       ? { amountMicros, currencyCode: (priceRecord?.currency_code || options.currencyCode).toUpperCase() }
       : undefined,
     brand: product.metadata?.brand as string | undefined,
-    gtin: product.metadata?.gtin as string | undefined,
+    gtins: product.metadata?.gtin ? [String(product.metadata.gtin)] : undefined,
     mpn: product.metadata?.mpn as string | undefined,
   }
 }

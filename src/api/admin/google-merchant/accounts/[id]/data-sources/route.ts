@@ -1,34 +1,12 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { GOOGLE_MERCHANT_MODULE } from "../../../../../../modules/google_merchant"
-import { ENCRYPTION_MODULE } from "../../../../../../modules/encryption"
 import type GoogleMerchantService from "../../../../../../modules/google_merchant/service"
-import type EncryptionService from "../../../../../../modules/encryption/service"
-import { GoogleMerchantProvider } from "../../../../../../modules/google_merchant/provider"
 
 async function getAuthed(req: MedusaRequest) {
   const service = req.scope.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
-  const encryption = req.scope.resolve(ENCRYPTION_MODULE) as EncryptionService
-  const [account] = await service.listGoogleMerchantAccounts({ id: req.params.id }, { take: 1 })
-  if (!account) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Account ${req.params.id} not found`)
-  if (!account.refresh_token) {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Account not authenticated — complete OAuth first")
-  }
-  const clientSecret = encryption.decrypt(account.client_secret as any)
-  const refreshToken = encryption.decrypt(account.refresh_token as any)
-  const provider = new GoogleMerchantProvider({
-    client_id: account.client_id,
-    client_secret: clientSecret,
-    redirect_uri: account.redirect_uri,
-    merchant_id: account.merchant_id,
-  })
-  const refreshed = await provider.refreshAccessToken(refreshToken)
-  await service.updateGoogleMerchantAccounts({
-    id: account.id,
-    access_token: JSON.stringify(encryption.encrypt(refreshed.access_token)),
-    token_expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000) : null,
-  })
-  return { service, encryption, account, provider, accessToken: refreshed.access_token }
+  const { account, provider, accessToken } = await service.getAuthedProvider(req.params.id)
+  return { service, account, provider, accessToken }
 }
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {

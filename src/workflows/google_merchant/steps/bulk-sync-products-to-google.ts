@@ -3,10 +3,7 @@ import { ContainerRegistrationKeys, Modules, MedusaError } from "@medusajs/frame
 import type { RemoteQueryFunction } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { GOOGLE_MERCHANT_MODULE } from "../../../modules/google_merchant"
-import { ENCRYPTION_MODULE } from "../../../modules/encryption"
 import type GoogleMerchantService from "../../../modules/google_merchant/service"
-import type EncryptionService from "../../../modules/encryption/service"
-import { GoogleMerchantProvider } from "../../../modules/google_merchant/provider"
 import { mapProductToGoogleMerchant, validateProductForGoogle } from "./map-product-to-google"
 import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
@@ -30,14 +27,15 @@ export const bulkSyncProductsToGoogleStep = createStep(
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const service = container.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
-    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
 
-    const [account] = await service.listGoogleMerchantAccounts({ id: input.account_id }, { take: 1 })
-    if (!account) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Account ${input.account_id} not found`)
-    if (!account.refresh_token) {
-      await failJob(service, input.job_id, "Account not authenticated — complete OAuth first")
-      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Account not authenticated")
+    let authed: { account: any; provider: any; accessToken: string }
+    try {
+      authed = await service.getAuthedProvider(input.account_id)
+    } catch (e: any) {
+      await failJob(service, input.job_id, e?.message || "Failed to authenticate with Google")
+      throw e
     }
+    const { account, provider, accessToken } = authed
 
     await service.updateGoogleMerchantSyncJobs({
       id: input.job_id,
@@ -75,23 +73,6 @@ export const bulkSyncProductsToGoogleStep = createStep(
       })
       return new StepResponse({ job_id: input.job_id, total: 0, synced: 0, failed: 0 })
     }
-
-    const clientSecret = encryption.decrypt(account.client_secret as any)
-    const refreshToken = encryption.decrypt(account.refresh_token as any)
-    const provider = new GoogleMerchantProvider({
-      client_id: account.client_id,
-      client_secret: clientSecret,
-      redirect_uri: account.redirect_uri,
-      merchant_id: account.merchant_id,
-    })
-
-    const refreshed = await provider.refreshAccessToken(refreshToken)
-    const accessToken = refreshed.access_token
-    await service.updateGoogleMerchantAccounts({
-      id: account.id,
-      access_token: JSON.stringify(encryption.encrypt(accessToken)),
-      token_expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000) : null,
-    })
 
     const contentLanguage = input.content_language || (account.api_config as any)?.content_language || "en"
     const feedLabel = input.feed_label || (account.api_config as any)?.feed_label || "US"

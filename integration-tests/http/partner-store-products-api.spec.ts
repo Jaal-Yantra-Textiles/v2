@@ -131,6 +131,7 @@ setupSharedTestSuite(() => {
             title: `New Product ${unique}`,
             handle: `new-prod-${unique}`,
             status: ProductStatus.DRAFT,
+            options: [{ title: "Default option", values: ["Default option value"] }],
           },
           { headers: partner.headers }
         )
@@ -204,6 +205,47 @@ setupSharedTestSuite(() => {
         )
         expect(res.status).toBe(200)
         expect(res.data.variant.title).toBe("Extra Small")
+      })
+
+      it("POST /variants/batch updates multiple variant prices in one call", async () => {
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/variants/batch`,
+          {
+            update: partner.variantIds.map((id: string, i: number) => ({
+              id,
+              prices: [{ amount: 9000 + i, currency_code: partner.currencyCode }],
+            })),
+          },
+          { headers: partner.headers }
+        )
+
+        expect(res.status).toBe(200)
+        expect(Array.isArray(res.data.updated)).toBe(true)
+        expect(res.data.updated.length).toBe(partner.variantIds.length)
+
+        const updatedIds = res.data.updated.map((v: any) => v.id).sort()
+        expect(updatedIds).toEqual([...partner.variantIds].sort())
+
+        // Verify persisted prices reflect the new amounts
+        const firstVariant = res.data.updated.find(
+          (v: any) => v.id === partner.variantIds[0]
+        )
+        const matched = (firstVariant?.prices || []).find(
+          (p: any) => p.currency_code === partner.currencyCode
+        )
+        expect(matched?.amount).toBe(9000)
+      })
+
+      it("POST /variants/batch rejects cross-partner writes", async () => {
+        const other = await createPartnerWithStoreAndProduct(api, adminHeaders)
+        const res = await api.post(
+          `/partners/stores/${other.storeId}/products/${other.productId}/variants/batch`,
+          {
+            update: [{ id: other.variantIds[0], title: "Hijacked" }],
+          },
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        expect([400, 401, 403]).toContain(res.status)
       })
     })
 

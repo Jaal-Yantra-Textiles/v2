@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { linkSalesChannelsToStockLocationWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../../helpers"
 
 export const POST = async (
@@ -21,27 +22,13 @@ export const POST = async (
   }
 
   const { add, remove } = req.body as { add?: string[]; remove?: string[] }
-  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
 
-  if (add?.length) {
-    for (const channelId of add) {
-      await remoteLink.create({
-        [Modules.STOCK_LOCATION]: { stock_location_id: locationId },
-        [Modules.SALES_CHANNEL]: { sales_channel_id: channelId },
-      })
-    }
+  if (add?.length || remove?.length) {
+    await linkSalesChannelsToStockLocationWorkflow(req.scope).run({
+      input: { id: locationId, add, remove },
+    })
   }
 
-  if (remove?.length) {
-    for (const channelId of remove) {
-      await remoteLink.dismiss({
-        [Modules.STOCK_LOCATION]: { stock_location_id: locationId },
-        [Modules.SALES_CHANNEL]: { sales_channel_id: channelId },
-      })
-    }
-  }
-
-  // Return updated location with sales channels
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: locations } = await query.graph({
     entity: "stock_locations",

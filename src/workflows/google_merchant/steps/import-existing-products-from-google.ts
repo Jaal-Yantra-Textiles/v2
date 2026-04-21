@@ -1,12 +1,10 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
-import { ContainerRegistrationKeys, Modules, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { RemoteQueryFunction } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { GOOGLE_MERCHANT_MODULE } from "../../../modules/google_merchant"
-import { ENCRYPTION_MODULE } from "../../../modules/encryption"
 import type GoogleMerchantService from "../../../modules/google_merchant/service"
-import type EncryptionService from "../../../modules/encryption/service"
-import { GoogleMerchantProvider, GoogleProductInput } from "../../../modules/google_merchant/provider"
+import { GoogleProductInput } from "../../../modules/google_merchant/provider"
 import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
 const LINK_ENTRY = productGoogleMerchantLink.entryPoint
@@ -32,33 +30,11 @@ export const importExistingProductsFromGoogleStep = createStep(
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const service = container.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
-    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
 
-    const [account] = await service.listGoogleMerchantAccounts({ id: input.account_id }, { take: 1 })
-    if (!account) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Account ${input.account_id} not found`)
-    if (!account.refresh_token) {
-      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Account not authenticated")
-    }
+    const { account, provider, accessToken } = await service.getAuthedProvider(input.account_id)
 
-    const clientSecret = encryption.decrypt(account.client_secret as any)
-    const refreshToken = encryption.decrypt(account.refresh_token as any)
-    const provider = new GoogleMerchantProvider({
-      client_id: account.client_id,
-      client_secret: clientSecret,
-      redirect_uri: account.redirect_uri,
-      merchant_id: account.merchant_id,
-    })
-
-    const refreshed = await provider.refreshAccessToken(refreshToken)
-    const accessToken = refreshed.access_token
-    await service.updateGoogleMerchantAccounts({
-      id: account.id,
-      access_token: JSON.stringify(encryption.encrypt(accessToken)),
-      token_expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000) : null,
-    })
-
-    // Paginate through the account's computed products (v1beta only supports list on `products`,
-    // not `productInputs` — but each Product includes offerId + dataSource, which is what we need).
+    // Paginate through the account's computed products (Merchant API only supports list on
+    // `products`, not `productInputs` — but each Product includes offerId + dataSource).
     const allInputs: GoogleProductInput[] = []
     let pageToken: string | undefined
     let pagesFetched = 0

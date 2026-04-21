@@ -58,10 +58,10 @@ export const PricingEdit = ({
     defaultValues: {
       variants: variants?.map((variant: any) => ({
         title: variant.title,
-        prices: variant.prices.reduce((acc: any, price: any) => {
+        prices: (variant.prices ?? []).reduce((acc: any, price: any) => {
           if (price.rules?.region_id) {
             acc[price.rules.region_id] = price.amount
-          } else {
+          } else if (price.currency_code) {
             acc[price.currency_code] = price.amount
           }
           return acc
