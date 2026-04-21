@@ -6,6 +6,7 @@ import {
   useGoogleMerchantAccounts,
   useSyncProductToGoogleMerchant,
   useUnsyncProductFromGoogleMerchant,
+  useTakeoverProductFromGoogleMerchant,
   useProductGoogleMerchantStatus,
   type ProductAccountSyncStatus,
 } from "../hooks/api/google-merchant"
@@ -33,6 +34,7 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
   const { links, isLoading: statusLoading } = useProductGoogleMerchantStatus(data?.id)
   const syncMutation = useSyncProductToGoogleMerchant()
   const unsyncMutation = useUnsyncProductFromGoogleMerchant()
+  const takeoverMutation = useTakeoverProductFromGoogleMerchant()
 
   const byAccount = new Map<string, ProductAccountSyncStatus>(
     links.map((l) => [l.account_id, l])
@@ -55,6 +57,22 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
       toast.success("Removed from Google Merchant")
     } catch (err: any) {
       toast.error(err?.message || "Unsync failed")
+    }
+  }
+
+  const handleTakeover = async (accountId: string) => {
+    if (!confirm(
+      "Take over this listing from Merchant Center UI? We'll try to delete the original and re-create it via the API. If the delete fails you'll need to remove the original manually in Merchant Center."
+    )) return
+    try {
+      const result = await takeoverMutation.mutateAsync({ account_id: accountId, product_id: data.id })
+      if (result.takeover.warning) {
+        toast.warning(result.takeover.warning)
+      } else {
+        toast.success("Listing taken over — now managed via API")
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Takeover failed")
     }
   }
 
@@ -91,7 +109,9 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
               const status = link?.sync_status || "not_synced"
               const isSyncing = syncMutation.isPending && syncMutation.variables?.account_id === account.id
               const isUnsyncing = unsyncMutation.isPending && unsyncMutation.variables?.account_id === account.id
+              const isTakingOver = takeoverMutation.isPending && takeoverMutation.variables?.account_id === account.id
               const hasGoogleProduct = !!link?.google_product_id
+              const externallyManaged = !!link?.externally_managed
 
               return (
                 <div key={account.id} className="flex items-start justify-between gap-x-3">
@@ -103,10 +123,18 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
                       <StatusBadge color={STATUS_COLORS[status] ?? "grey"}>
                         {STATUS_LABELS[status] ?? status}
                       </StatusBadge>
+                      {externallyManaged && (
+                        <StatusBadge color="blue">Merchant Center UI</StatusBadge>
+                      )}
                     </div>
                     <Text size="xsmall" className="text-ui-fg-subtle truncate">
                       {account.account_email || `ID ${account.merchant_id}`}
                     </Text>
+                    {externallyManaged && (
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Imported from a non-API data source. Take over to manage via Medusa, or keep editing in Merchant Center.
+                      </Text>
+                    )}
                     {link?.last_synced_at && (
                       <Text size="xsmall" className="text-ui-fg-subtle">
                         Last synced: {new Date(link.last_synced_at).toLocaleString()}
@@ -126,18 +154,31 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
                     )}
                   </div>
                   <div className="flex items-center gap-x-2 shrink-0">
-                    <Button size="small" variant="secondary" onClick={() => handleSync(account.id)} isLoading={isSyncing}>
-                      {hasGoogleProduct ? "Re-sync" : "Sync"}
-                    </Button>
-                    {hasGoogleProduct && (
+                    {externallyManaged ? (
                       <Button
                         size="small"
-                        variant="danger"
-                        onClick={() => handleUnsync(account.id)}
-                        isLoading={isUnsyncing}
+                        variant="primary"
+                        onClick={() => handleTakeover(account.id)}
+                        isLoading={isTakingOver}
                       >
-                        Remove
+                        Take over
                       </Button>
+                    ) : (
+                      <>
+                        <Button size="small" variant="secondary" onClick={() => handleSync(account.id)} isLoading={isSyncing}>
+                          {hasGoogleProduct ? "Re-sync" : "Sync"}
+                        </Button>
+                        {hasGoogleProduct && (
+                          <Button
+                            size="small"
+                            variant="danger"
+                            onClick={() => handleUnsync(account.id)}
+                            isLoading={isUnsyncing}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

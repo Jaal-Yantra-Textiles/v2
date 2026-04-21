@@ -17,7 +17,7 @@ export default async function googleMerchantProductUpdatedHandler({
   try {
     const res = await query.graph({
       entity: LINK_ENTITY,
-      fields: ["product_id", "google_merchant_account_id", "sync_status"],
+      fields: ["product_id", "google_merchant_account_id", "sync_status", "metadata"],
       filters: { product_id: data.id },
     })
     links = res?.data || []
@@ -30,6 +30,7 @@ export default async function googleMerchantProductUpdatedHandler({
 
   for (const link of links) {
     if (!link?.google_merchant_account_id) continue
+    if (link?.metadata?.externally_managed) continue
     syncProductToGoogleWorkflow(container)
       .run({
         input: {

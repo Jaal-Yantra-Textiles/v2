@@ -20,6 +20,7 @@ export type ImportExistingOutput = {
   google_total: number
   matched: number
   linked: number
+  externally_managed: number
   skipped_existing_link: number
   unmatched: Array<{ offer_id: string; google_name: string }>
 }
@@ -76,10 +77,13 @@ export const importExistingProductsFromGoogleStep = createStep(
         google_total: 0,
         matched: 0,
         linked: 0,
+        externally_managed: 0,
         skipped_existing_link: 0,
         unmatched: [],
       })
     }
+
+    const ourDataSource = (account.api_config as any)?.data_source_name as string | undefined
 
     // Look up Medusa products whose handle matches any Google offerId
     const offerIds = allInputs.map((p) => p.offerId).filter(Boolean)
@@ -108,6 +112,7 @@ export const importExistingProductsFromGoogleStep = createStep(
     let matched = 0
     let linked = 0
     let skipped = 0
+    let externallyManaged = 0
 
     for (const gp of allInputs) {
       const productId = handleToProductId.get(gp.offerId)
@@ -122,6 +127,10 @@ export const importExistingProductsFromGoogleStep = createStep(
         continue
       }
 
+      const sourceDs = gp.dataSource || null
+      const isExternallyManaged = !!sourceDs && !!ourDataSource && sourceDs !== ourDataSource
+      if (isExternallyManaged) externallyManaged++
+
       if (input.dry_run) continue
 
       try {
@@ -135,7 +144,12 @@ export const importExistingProductsFromGoogleStep = createStep(
               google_product_name: gp.name,
               last_synced_at: new Date(),
               sync_error: null,
-              metadata: { imported: true, imported_at: new Date().toISOString() },
+              metadata: {
+                imported: true,
+                imported_at: new Date().toISOString(),
+                source_data_source: sourceDs,
+                externally_managed: isExternallyManaged,
+              },
             },
           },
         ])
@@ -150,6 +164,7 @@ export const importExistingProductsFromGoogleStep = createStep(
       google_total: allInputs.length,
       matched,
       linked,
+      externally_managed: externallyManaged,
       skipped_existing_link: skipped,
       unmatched,
     })

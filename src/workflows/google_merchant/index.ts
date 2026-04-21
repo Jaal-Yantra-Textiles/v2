@@ -6,3 +6,5 @@ export { bulkSyncProductsToGoogleWorkflow } from "./workflows/bulk-sync-products
 export { bulkSyncProductsToGoogleStep } from "./steps/bulk-sync-products-to-google"
 export { importExistingProductsFromGoogleWorkflow } from "./workflows/import-existing-products-from-google"
 export { importExistingProductsFromGoogleStep } from "./steps/import-existing-products-from-google"
+export { takeoverProductFromGoogleWorkflow } from "./workflows/takeover-product-from-google"
+export { takeoverProductStep } from "./steps/takeover-product-from-google"

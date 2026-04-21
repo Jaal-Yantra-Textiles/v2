@@ -59,6 +59,7 @@ export interface GoogleProductInput {
   offerId: string
   contentLanguage?: string
   feedLabel?: string
+  dataSource?: string
   product?: Record<string, any>
 }
 
@@ -190,10 +191,15 @@ export class GoogleMerchantProvider {
     }
   }
 
-  async deleteProduct(accessToken: string, productName: string): Promise<void> {
+  async deleteProduct(
+    accessToken: string,
+    productName: string,
+    dataSourceName?: string
+  ): Promise<void> {
     try {
       await axios.delete(`https://merchantapi.googleapis.com/products/v1beta/${productName}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
+        params: dataSourceName ? { dataSource: dataSourceName } : undefined,
       })
     } catch (error: any) {
       const msg = error.response?.data?.error?.message || error.message

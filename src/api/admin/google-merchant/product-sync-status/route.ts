@@ -55,6 +55,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       google_product_name: link?.google_product_name || null,
       last_synced_at: link?.last_synced_at || null,
       sync_error: link?.sync_error || null,
+      externally_managed: !!link?.metadata?.externally_managed,
+      source_data_source: link?.metadata?.source_data_source || null,
     }
   })
 

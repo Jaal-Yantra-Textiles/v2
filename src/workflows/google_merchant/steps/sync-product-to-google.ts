@@ -18,6 +18,7 @@ export type SyncProductToGoogleInput = {
   feed_label?: string
   currency_code?: string
   landing_url_base?: string
+  takeover?: boolean
 }
 
 type SyncCompensationState = {
@@ -96,6 +97,13 @@ export const syncProductToGoogleStep = createStep(
 
     const priorLink = await readExistingLink(query, input.product_id, input.account_id)
 
+    if (priorLink?.metadata?.externally_managed && !input.takeover) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Product is managed in Google Merchant Center UI (or a non-API data source). Use the Take over action before syncing, or delete the existing listing in Merchant Center first."
+      )
+    }
+
     const validation = validateProductForGoogle(product)
     if (!validation.valid) {
       await upsertLink(remoteLink, query, input.product_id, input.account_id, {
@@ -135,7 +143,12 @@ export const syncProductToGoogleStep = createStep(
         google_product_name: result.name,
         last_synced_at: new Date(),
         sync_error: null,
-        metadata: { synced_at: new Date().toISOString() },
+        metadata: {
+          ...(priorLink?.metadata || {}),
+          synced_at: new Date().toISOString(),
+          source_data_source: dataSourceName || null,
+          externally_managed: false,
+        },
       })
 
       const compensationState: SyncCompensationState = {

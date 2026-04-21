@@ -155,6 +155,8 @@ export type ProductAccountSyncStatus = {
   google_product_name?: string | null
   last_synced_at?: string | null
   sync_error?: string | null
+  externally_managed?: boolean
+  source_data_source?: string | null
 }
 
 export function useProductGoogleMerchantStatus(product_id: string | undefined) {
@@ -263,6 +265,20 @@ export function useGoogleMerchantSyncJobs(account_id: string | undefined, opts?:
     refetchInterval: opts?.refetchIntervalMs,
   })
   return { jobs: query.data?.jobs || [], count: query.data?.count || 0, ...query }
+}
+
+export function useTakeoverProductFromGoogleMerchant() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ account_id, product_id }: { account_id: string; product_id: string }) =>
+      sdk.client.fetch<{ takeover: { deleted_from_source: boolean; warning?: string }; sync: { success: boolean } }>(
+        `/admin/google-merchant/accounts/${account_id}/products/${product_id}/takeover`,
+        { method: "POST" }
+      ),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.productStatus(vars.product_id) })
+    },
+  })
 }
 
 export function useUnsyncProductFromGoogleMerchant() {

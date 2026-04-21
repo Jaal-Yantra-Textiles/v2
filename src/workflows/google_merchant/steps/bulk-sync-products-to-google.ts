@@ -19,6 +19,7 @@ export type BulkSyncInput = {
   feed_label?: string
   currency_code?: string
   landing_url_base?: string
+  include_externally_managed?: boolean
 }
 
 export const bulkSyncProductsToGoogleStep = createStep(
@@ -104,9 +105,33 @@ export const bulkSyncProductsToGoogleStep = createStep(
 
     let synced = 0
     let failed = 0
+    let skippedExternal = 0
     const errors: Array<{ product_id: string; error: string }> = []
 
+    // Pre-fetch externally-managed flag for every product so we can skip them without per-item queries
+    const externallyManaged = new Set<string>()
+    if (!input.include_externally_managed) {
+      try {
+        const { data: priorLinks } = await query.graph({
+          entity: LINK_ENTITY,
+          fields: ["product_id", "metadata"],
+          filters: {
+            google_merchant_account_id: input.account_id,
+            product_id: products.map((p: any) => p.id),
+          } as any,
+        } as any)
+        for (const l of (priorLinks || []) as any[]) {
+          if (l?.metadata?.externally_managed && l.product_id) externallyManaged.add(l.product_id)
+        }
+      } catch {}
+    }
+
     for (const product of products) {
+      if (externallyManaged.has(product.id)) {
+        skippedExternal++
+        continue
+      }
+
       const validation = validateProductForGoogle(product)
       if (!validation.valid) {
         failed++
@@ -156,16 +181,27 @@ export const bulkSyncProductsToGoogleStep = createStep(
       await maybeReportProgress(service, input.job_id, synced, failed)
     }
 
+    const errorLog =
+      errors.length || skippedExternal > 0
+        ? ({ errors, skipped_externally_managed: skippedExternal } as any)
+        : null
+
     await service.updateGoogleMerchantSyncJobs({
       id: input.job_id,
       status: failed > 0 && synced === 0 ? "failed" : "completed",
       synced_count: synced,
       failed_count: failed,
-      error_log: errors.length ? (errors as any) : null,
+      error_log: errorLog,
       completed_at: new Date(),
     })
 
-    return new StepResponse({ job_id: input.job_id, total, synced, failed })
+    return new StepResponse({
+      job_id: input.job_id,
+      total,
+      synced,
+      failed,
+      skipped_externally_managed: skippedExternal,
+    })
   }
 )
 
