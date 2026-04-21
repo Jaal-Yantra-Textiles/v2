@@ -9,6 +9,8 @@ import type EncryptionService from "../../../modules/encryption/service"
 import { GoogleMerchantProvider } from "../../../modules/google_merchant/provider"
 import { mapProductToGoogleMerchant, validateProductForGoogle } from "./map-product-to-google"
 
+const LINK_ENTITY = "product_product_google_merchant_google_merchant_account"
+
 export type SyncProductToGoogleInput = {
   product_id: string
   account_id: string
@@ -16,6 +18,14 @@ export type SyncProductToGoogleInput = {
   feed_label?: string
   currency_code?: string
   landing_url_base?: string
+}
+
+type SyncCompensationState = {
+  product_id: string
+  account_id: string
+  google_product_name: string
+  link_existed_before: boolean
+  previous_link_data: Record<string, any> | null
 }
 
 export const syncProductToGoogleStep = createStep(
@@ -51,14 +61,14 @@ export const syncProductToGoogleStep = createStep(
       merchant_id: account.merchant_id,
     })
 
-    let accessToken = account.access_token || undefined
+    let accessToken = decryptAccessToken(encryption, account.access_token)
     const expiresAt = account.token_expires_at ? new Date(account.token_expires_at).getTime() : 0
     if (!accessToken || Date.now() > expiresAt - 60_000) {
       const refreshed = await provider.refreshAccessToken(refreshToken)
       accessToken = refreshed.access_token
       await googleMerchantService.updateGoogleMerchantAccounts({
         id: account.id,
-        access_token: refreshed.access_token,
+        access_token: JSON.stringify(encryption.encrypt(refreshed.access_token)),
         token_expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000) : null,
       })
     }
@@ -84,9 +94,11 @@ export const syncProductToGoogleStep = createStep(
       throw new MedusaError(MedusaError.Types.NOT_FOUND, `Product ${input.product_id} not found`)
     }
 
+    const priorLink = await readExistingLink(query, input.product_id, input.account_id)
+
     const validation = validateProductForGoogle(product)
     if (!validation.valid) {
-      await upsertLink(remoteLink, input.product_id, input.account_id, {
+      await upsertLink(remoteLink, query, input.product_id, input.account_id, {
         sync_status: "failed",
         sync_error: validation.error!,
       })
@@ -115,7 +127,7 @@ export const syncProductToGoogleStep = createStep(
 
     try {
       const result = await provider.insertProduct(accessToken!, account.merchant_id, payload)
-      await upsertLink(remoteLink, input.product_id, input.account_id, {
+      await upsertLink(remoteLink, query, input.product_id, input.account_id, {
         sync_status: "synced",
         google_product_id: result.offerId,
         google_product_name: result.name,
@@ -123,35 +135,144 @@ export const syncProductToGoogleStep = createStep(
         sync_error: null,
         metadata: { synced_at: new Date().toISOString() },
       })
-      return new StepResponse({
-        success: true,
-        google_product_id: result.offerId,
+
+      const compensationState: SyncCompensationState = {
+        product_id: input.product_id,
+        account_id: input.account_id,
         google_product_name: result.name,
-      })
+        link_existed_before: !!priorLink,
+        previous_link_data: priorLink,
+      }
+
+      return new StepResponse(
+        {
+          success: true,
+          google_product_id: result.offerId,
+          google_product_name: result.name,
+        },
+        compensationState
+      )
     } catch (error: any) {
-      await upsertLink(remoteLink, input.product_id, input.account_id, {
+      await upsertLink(remoteLink, query, input.product_id, input.account_id, {
         sync_status: "failed",
         sync_error: error.message || "Unknown error",
       })
       throw error
     }
+  },
+  async (state: SyncCompensationState | undefined, { container }) => {
+    if (!state) return
+    const logger = container.resolve("logger") as any
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
+    const googleMerchantService = container.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
+    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
+
+    try {
+      const [account] = await googleMerchantService.listGoogleMerchantAccounts(
+        { id: state.account_id },
+        { take: 1 }
+      )
+      if (account?.refresh_token) {
+        const clientSecret = encryption.decrypt(account.client_secret as any)
+        const refreshToken = encryption.decrypt(account.refresh_token as any)
+        const provider = new GoogleMerchantProvider({
+          client_id: account.client_id,
+          client_secret: clientSecret,
+          redirect_uri: account.redirect_uri,
+          merchant_id: account.merchant_id,
+        })
+        const refreshed = await provider.refreshAccessToken(refreshToken)
+        await provider.deleteProduct(refreshed.access_token, state.google_product_name)
+      }
+    } catch (e: any) {
+      logger?.warn?.(
+        `[sync-product-to-google compensate] Google delete failed for ${state.google_product_name}: ${e.message}`
+      )
+    }
+
+    if (state.link_existed_before && state.previous_link_data) {
+      await upsertLink(
+        remoteLink,
+        query,
+        state.product_id,
+        state.account_id,
+        state.previous_link_data
+      )
+    } else {
+      try {
+        await remoteLink.dismiss([
+          {
+            [Modules.PRODUCT]: { product_id: state.product_id },
+            [GOOGLE_MERCHANT_MODULE]: { google_merchant_account_id: state.account_id },
+          },
+        ])
+      } catch (e: any) {
+        logger?.warn?.(`[sync-product-to-google compensate] dismiss failed: ${e.message}`)
+      }
+    }
   }
 )
 
-async function upsertLink(remoteLink: Link, product_id: string, account_id: string, data: Record<string, any>) {
+function decryptAccessToken(encryption: EncryptionService, stored: string | null | undefined): string | undefined {
+  if (!stored) return undefined
+  // New format: JSON-serialized EncryptedData blob. Legacy format: plaintext token.
+  if (!stored.startsWith("{")) return stored
   try {
-    await remoteLink.dismiss([
-      {
-        [Modules.PRODUCT]: { product_id },
-        [GOOGLE_MERCHANT_MODULE]: { google_merchant_account_id: account_id },
-      },
-    ])
-  } catch {}
-  await remoteLink.create([
-    {
-      [Modules.PRODUCT]: { product_id },
-      [GOOGLE_MERCHANT_MODULE]: { google_merchant_account_id: account_id },
-      data,
-    },
-  ])
+    const parsed = JSON.parse(stored)
+    if (parsed && typeof parsed === "object" && "encrypted" in parsed) {
+      return encryption.decrypt(parsed)
+    }
+    return stored
+  } catch {
+    return stored
+  }
+}
+
+async function readExistingLink(
+  query: Omit<RemoteQueryFunction, symbol>,
+  product_id: string,
+  account_id: string
+): Promise<Record<string, any> | null> {
+  try {
+    const { data } = await query.graph({
+      entity: LINK_ENTITY,
+      fields: [
+        "google_product_id",
+        "google_product_name",
+        "sync_status",
+        "sync_error",
+        "last_synced_at",
+        "metadata",
+      ],
+      filters: { product_id, google_merchant_account_id: account_id },
+    } as any)
+    return (data?.[0] as Record<string, any>) || null
+  } catch {
+    return null
+  }
+}
+
+async function upsertLink(
+  remoteLink: Link,
+  query: Omit<RemoteQueryFunction, symbol>,
+  product_id: string,
+  account_id: string,
+  data: Record<string, any>
+) {
+  const existing = await readExistingLink(query, product_id, account_id)
+  const definition = {
+    [Modules.PRODUCT]: { product_id },
+    [GOOGLE_MERCHANT_MODULE]: { google_merchant_account_id: account_id },
+  }
+
+  if (!existing) {
+    await remoteLink.create([{ ...definition, data }])
+    return
+  }
+
+  // Merge so partial updates don't blank out prior fields.
+  const merged = { ...existing, ...data }
+  await remoteLink.dismiss([definition])
+  await remoteLink.create([{ ...definition, data: merged }])
 }

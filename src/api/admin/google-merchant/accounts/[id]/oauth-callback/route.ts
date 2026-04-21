@@ -47,7 +47,7 @@ export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse) => {
 
   await service.updateGoogleMerchantAccounts({
     id: account.id,
-    access_token: token.access_token,
+    access_token: JSON.stringify(encryption.encrypt(token.access_token)),
     refresh_token: token.refresh_token ? (encryption.encrypt(token.refresh_token) as any) : account.refresh_token,
     token_expires_at: token.expires_in ? new Date(Date.now() + token.expires_in * 1000) : null,
     account_email: email,

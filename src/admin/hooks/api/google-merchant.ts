@@ -24,6 +24,22 @@ const KEYS = {
   list: (params: any) => [...KEYS.all, "list", params] as const,
   detail: (id: string) => [...KEYS.all, "detail", id] as const,
   productStatus: (product_id: string) => [...KEYS.all, "product-status", product_id] as const,
+  syncJobs: (account_id: string) => [...KEYS.all, "sync-jobs", account_id] as const,
+  syncJob: (job_id: string) => [...KEYS.all, "sync-job", job_id] as const,
+}
+
+export type GoogleMerchantSyncJob = {
+  id: string
+  account_id: string
+  status: "pending" | "processing" | "completed" | "failed"
+  total_products: number
+  synced_count: number
+  failed_count: number
+  error_log?: any | null
+  started_at?: string | null
+  completed_at?: string | null
+  created_at: string
+  updated_at: string
 }
 
 export function useGoogleMerchantAccounts(params?: { limit?: number; offset?: number; q?: string }) {
@@ -155,6 +171,32 @@ export function useProductGoogleMerchantStatus(product_id: string | undefined) {
     enabled: !!product_id,
   })
   return { ...query, links: query.data?.links || [] }
+}
+
+export function useBulkSyncGoogleMerchant(account_id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body?: { product_ids?: string[]; content_language?: string; feed_label?: string; currency_code?: string; landing_url_base?: string }) =>
+      sdk.client.fetch<{ job: GoogleMerchantSyncJob }>(`/admin/google-merchant/accounts/${account_id}/sync-all`, {
+        method: "POST",
+        body: body || {},
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.syncJobs(account_id) }),
+  })
+}
+
+export function useGoogleMerchantSyncJobs(account_id: string | undefined, opts?: { refetchIntervalMs?: number }) {
+  const query = useQuery({
+    queryKey: KEYS.syncJobs(account_id!),
+    queryFn: () =>
+      sdk.client.fetch<{ jobs: GoogleMerchantSyncJob[]; count: number }>(
+        `/admin/google-merchant/accounts/${account_id}/sync-jobs`,
+        { method: "GET" }
+      ),
+    enabled: !!account_id,
+    refetchInterval: opts?.refetchIntervalMs,
+  })
+  return { jobs: query.data?.jobs || [], count: query.data?.count || 0, ...query }
 }
 
 export function useUnsyncProductFromGoogleMerchant() {
