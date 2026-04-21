@@ -8,6 +8,8 @@ import {
   useUpdateGoogleMerchantAccount,
   useBulkSyncGoogleMerchant,
   useGoogleMerchantSyncJobs,
+  useGoogleMerchantDataSourceAction,
+  useImportExistingGoogleProducts,
 } from "../../../../hooks/api/google-merchant"
 
 const DetailPage = () => {
@@ -72,11 +74,18 @@ const DetailPage = () => {
               Reconnect
             </Button>
           )}
+          <ImportExistingButton accountId={account.id} connected={account.connected} />
           <SyncAllButton accountId={account.id} connected={account.connected} />
           <Button size="small" variant="secondary" onClick={() => setEditOpen(true)}>Edit</Button>
           <Button size="small" variant="danger" onClick={handleDelete}>Delete</Button>
         </div>
       </div>
+
+      <DataSourceBanner
+        accountId={account.id}
+        connected={account.connected}
+        currentName={(account.api_config as any)?.data_source_name || null}
+      />
 
       <div className="px-6 py-4 grid grid-cols-2 gap-y-3">
         <Detail label="Account Email" value={account.account_email || "—"} />
@@ -90,6 +99,10 @@ const DetailPage = () => {
         <Detail
           label="Token Expiry"
           value={account.token_expires_at ? new Date(account.token_expires_at).toLocaleString() : "—"}
+        />
+        <Detail
+          label="Data source"
+          value={(account.api_config as any)?.data_source_name || "—"}
         />
       </div>
 
@@ -217,6 +230,75 @@ function EditField({ label, hint, children }: { label: string; hint?: string; ch
       {children}
       {hint && <Text size="xsmall" className="text-ui-fg-subtle">{hint}</Text>}
     </div>
+  )
+}
+
+function DataSourceBanner({
+  accountId,
+  connected,
+  currentName,
+}: {
+  accountId: string
+  connected: boolean
+  currentName: string | null
+}) {
+  const action = useGoogleMerchantDataSourceAction(accountId)
+
+  if (!connected || currentName) return null
+
+  const handleDetect = async () => {
+    try {
+      const resp = await action.mutateAsync({ action: "detect" })
+      toast.success(
+        resp.created
+          ? `Created data source ${resp.created.displayName}`
+          : "Data source selected"
+      )
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to detect data source")
+    }
+  }
+
+  return (
+    <div className="px-6 py-3 bg-ui-bg-base-hover">
+      <div className="flex items-center justify-between gap-x-3">
+        <div>
+          <Text size="small" weight="plus">No data source configured</Text>
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            Google requires a data source for API product uploads. Detect existing or create one automatically.
+          </Text>
+        </div>
+        <Button size="small" variant="primary" onClick={handleDetect} isLoading={action.isPending}>
+          Detect or create
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ImportExistingButton({ accountId, connected }: { accountId: string; connected: boolean }) {
+  const mutate = useImportExistingGoogleProducts(accountId)
+  const handle = async () => {
+    if (!connected) {
+      toast.error("Connect the account first.")
+      return
+    }
+    if (!confirm(
+      "Pull existing Google Merchant listings and link them to Medusa products with matching handles?"
+    )) return
+    try {
+      const r = await mutate.mutateAsync(undefined)
+      toast.success(
+        `Linked ${r.linked} / ${r.matched} matched · ${r.google_total} total in Google · ${r.unmatched.length} unmatched`
+      )
+    } catch (e: any) {
+      toast.error(e?.message || "Import failed")
+    }
+  }
+  return (
+    <Button size="small" variant="secondary" onClick={handle} isLoading={mutate.isPending} disabled={!connected}>
+      Import from Google
+    </Button>
   )
 }
 

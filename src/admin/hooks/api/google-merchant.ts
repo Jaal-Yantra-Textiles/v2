@@ -173,6 +173,72 @@ export function useProductGoogleMerchantStatus(product_id: string | undefined) {
   return { ...query, links: query.data?.links || [] }
 }
 
+export type GoogleMerchantDataSource = {
+  name: string
+  dataSourceId: string
+  displayName: string
+  input?: string
+  primaryProductDataSource?: {
+    feedLabel?: string
+    contentLanguage?: string
+    channel?: string
+  }
+}
+
+export function useGoogleMerchantDataSources(account_id: string | undefined) {
+  const query = useQuery({
+    queryKey: [...KEYS.detail(account_id!), "data-sources"],
+    queryFn: () =>
+      sdk.client.fetch<{ data_sources: GoogleMerchantDataSource[]; selected: string | null }>(
+        `/admin/google-merchant/accounts/${account_id}/data-sources`,
+        { method: "GET" }
+      ),
+    enabled: !!account_id,
+  })
+  return {
+    dataSources: query.data?.data_sources || [],
+    selected: query.data?.selected || null,
+    ...query,
+  }
+}
+
+export function useGoogleMerchantDataSourceAction(account_id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { action: "detect" | "create" | "select"; data_source_name?: string; display_name?: string }) =>
+      sdk.client.fetch<{ selected: string; detected?: any; created?: any }>(
+        `/admin/google-merchant/accounts/${account_id}/data-sources`,
+        { method: "POST", body }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(account_id) })
+    },
+  })
+}
+
+export type ImportExistingResult = {
+  account_id: string
+  google_total: number
+  matched: number
+  linked: number
+  skipped_existing_link: number
+  unmatched: Array<{ offer_id: string; google_name: string }>
+}
+
+export function useImportExistingGoogleProducts(account_id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body?: { dry_run?: boolean }) =>
+      sdk.client.fetch<ImportExistingResult>(`/admin/google-merchant/accounts/${account_id}/import`, {
+        method: "POST",
+        body: body || {},
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(account_id) })
+    },
+  })
+}
+
 export function useBulkSyncGoogleMerchant(account_id: string) {
   const qc = useQueryClient()
   return useMutation({

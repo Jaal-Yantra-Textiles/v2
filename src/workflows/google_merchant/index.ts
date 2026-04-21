@@ -4,3 +4,5 @@ export { unsyncProductFromGoogleWorkflow } from "./workflows/unsync-product-from
 export { unsyncProductFromGoogleStep } from "./steps/unsync-product-from-google"
 export { bulkSyncProductsToGoogleWorkflow } from "./workflows/bulk-sync-products-to-google"
 export { bulkSyncProductsToGoogleStep } from "./steps/bulk-sync-products-to-google"
+export { importExistingProductsFromGoogleWorkflow } from "./workflows/import-existing-products-from-google"
+export { importExistingProductsFromGoogleStep } from "./steps/import-existing-products-from-google"

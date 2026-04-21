@@ -125,8 +125,10 @@ export const syncProductToGoogleStep = createStep(
       currencyCode,
     })
 
+    const dataSourceName = (account.api_config as any)?.data_source_name as string | undefined
+
     try {
-      const result = await provider.insertProduct(accessToken!, account.merchant_id, payload)
+      const result = await provider.insertProduct(accessToken!, account.merchant_id, payload, dataSourceName)
       await upsertLink(remoteLink, query, input.product_id, input.account_id, {
         sync_status: "synced",
         google_product_id: result.offerId,

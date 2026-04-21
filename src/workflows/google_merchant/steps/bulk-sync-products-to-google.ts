@@ -128,7 +128,12 @@ export const bulkSyncProductsToGoogleStep = createStep(
       })
 
       try {
-        const result = await provider.insertProduct(accessToken, account.merchant_id, payload)
+        const result = await provider.insertProduct(
+          accessToken,
+          account.merchant_id,
+          payload,
+          (account.api_config as any)?.data_source_name
+        )
         await writeLinkSafe(remoteLink, query, product.id, account.id, {
           sync_status: "synced",
           google_product_id: result.offerId,

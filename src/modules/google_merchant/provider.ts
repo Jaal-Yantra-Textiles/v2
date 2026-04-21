@@ -38,6 +38,27 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token"
 const DEFAULT_SCOPE = "https://www.googleapis.com/auth/content"
 const USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 const MERCHANT_API_BASE = "https://merchantapi.googleapis.com/products/v1beta"
+const DATASOURCES_API_BASE = "https://merchantapi.googleapis.com/datasources/v1beta"
+
+export interface GoogleDataSource {
+  name: string
+  dataSourceId: string
+  displayName: string
+  input?: "API" | "FILE" | "UI" | "AUTOFEED"
+  primaryProductDataSource?: {
+    feedLabel?: string
+    contentLanguage?: string
+    channel?: "ONLINE" | "LOCAL"
+  }
+}
+
+export interface GoogleProductInput {
+  name: string
+  offerId: string
+  contentLanguage?: string
+  feedLabel?: string
+  product?: Record<string, any>
+}
 
 export class GoogleMerchantProvider {
   private creds: GoogleMerchantCredentials
@@ -123,11 +144,13 @@ export class GoogleMerchantProvider {
   async insertProduct(
     accessToken: string,
     merchantId: string,
-    payload: GoogleMerchantProductPayload
+    payload: GoogleMerchantProductPayload,
+    dataSourceName?: string
   ): Promise<{ name: string; offerId: string; raw: any }> {
+    const ds = dataSourceName || `accounts/${merchantId}/dataSources/primary`
     try {
       const response = await axios.post(
-        `${MERCHANT_API_BASE}/accounts/${merchantId}/productInputs:insert?dataSource=accounts/${merchantId}/dataSources/primary`,
+        `${MERCHANT_API_BASE}/accounts/${merchantId}/productInputs:insert?dataSource=${encodeURIComponent(ds)}`,
         {
           channel: "ONLINE",
           offerId: payload.offerId,
@@ -173,6 +196,74 @@ export class GoogleMerchantProvider {
     } catch (error: any) {
       const msg = error.response?.data?.error?.message || error.message
       throw new Error(`Google Merchant product delete failed: ${msg}`)
+    }
+  }
+
+  async listDataSources(accessToken: string, merchantId: string): Promise<GoogleDataSource[]> {
+    try {
+      const response = await axios.get(
+        `${DATASOURCES_API_BASE}/accounts/${merchantId}/dataSources`,
+        { headers: { Authorization: `Bearer ${accessToken}` }, params: { pageSize: 250 } }
+      )
+      return response.data?.dataSources || []
+    } catch (error: any) {
+      const msg = error.response?.data?.error?.message || error.message
+      throw new Error(`Google Merchant listDataSources failed: ${msg}`)
+    }
+  }
+
+  async createPrimaryApiDataSource(
+    accessToken: string,
+    merchantId: string,
+    input: { displayName: string; contentLanguage: string; feedLabel: string; channel?: "ONLINE" | "LOCAL" }
+  ): Promise<GoogleDataSource> {
+    try {
+      const response = await axios.post(
+        `${DATASOURCES_API_BASE}/accounts/${merchantId}/dataSources`,
+        {
+          displayName: input.displayName,
+          input: "API",
+          primaryProductDataSource: {
+            channel: input.channel || "ONLINE",
+            contentLanguage: input.contentLanguage,
+            feedLabel: input.feedLabel,
+            countries: [input.feedLabel],
+          },
+        },
+        {
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        }
+      )
+      return response.data
+    } catch (error: any) {
+      const msg = error.response?.data?.error?.message || error.message
+      throw new Error(`Google Merchant createDataSource failed: ${msg}`)
+    }
+  }
+
+  async listProductInputs(
+    accessToken: string,
+    merchantId: string,
+    opts?: { pageSize?: number; pageToken?: string }
+  ): Promise<{ productInputs: GoogleProductInput[]; nextPageToken?: string }> {
+    try {
+      const response = await axios.get(
+        `${MERCHANT_API_BASE}/accounts/${merchantId}/productInputs`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params: {
+            pageSize: opts?.pageSize || 100,
+            pageToken: opts?.pageToken,
+          },
+        }
+      )
+      return {
+        productInputs: response.data?.productInputs || [],
+        nextPageToken: response.data?.nextPageToken,
+      }
+    } catch (error: any) {
+      const msg = error.response?.data?.error?.message || error.message
+      throw new Error(`Google Merchant listProductInputs failed: ${msg}`)
     }
   }
 }
