@@ -7,6 +7,8 @@ import { getPartnerFromAuthContext } from "../../helpers"
 import { DEPLOYMENT_MODULE } from "../../../../modules/deployment"
 import type DeploymentService from "../../../../modules/deployment/service"
 import type { VercelDomainConfig } from "../../../../modules/deployment/service"
+import { WEBSITE_MODULE } from "../../../../modules/website"
+import type WebsiteService from "../../../../modules/website/service"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
 
 /**
@@ -166,6 +168,29 @@ export const POST = async (
     },
   })
 
+  // Register the custom domain as a website alias so backend lookups resolve
+  // this partner's content. Best-effort: don't fail the request if it errors.
+  const websiteId =
+    (partner as any).website_id || partner.metadata?.website_id
+  if (websiteId) {
+    try {
+      const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
+      const [existing] = await (websiteService as any).listAndCountWebsiteDomains(
+        { domain: cleaned },
+        { take: 1 }
+      )
+      if (!existing?.length) {
+        await (websiteService as any).createWebsiteDomains({
+          domain: cleaned,
+          is_primary: false,
+          website_id: websiteId,
+        })
+      }
+    } catch (e) {
+      // non-fatal — storefront lookups can fall back through partner.storefront_domain
+    }
+  }
+
   res.status(201).json({
     domain: cleaned,
     verified: result.verified,
@@ -221,6 +246,21 @@ export const DELETE = async (
       data: { metadata: meta },
     },
   })
+
+  // Soft-delete the alias row so lookups stop resolving the custom domain
+  try {
+    const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
+    const [rows] = await (websiteService as any).listAndCountWebsiteDomains(
+      { domain: customDomain },
+      { take: 1 }
+    )
+    const row = rows?.[0]
+    if (row && !row.is_primary) {
+      await (websiteService as any).softDeleteWebsiteDomains(row.id)
+    }
+  } catch {
+    // best-effort
+  }
 
   res.json({ message: "Custom domain removed" })
 }

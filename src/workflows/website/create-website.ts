@@ -28,6 +28,10 @@ export const createWebsiteStep = createStep(
       ...input
     });
 
+    // Mirror the primary domain into the website_domain alias table so
+    // find-website-by-domain can resolve it via either path.
+    await websiteService.ensurePrimaryWebsiteDomain(newWebsite.id, newWebsite.domain);
+
     // Return the created entity and its ID for potential compensation
     return new StepResponse(newWebsite, newWebsite.id);
   },

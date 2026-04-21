@@ -24,7 +24,25 @@ export const findWebsiteByDomainStep = createStep(
       { relations: ["pages"], take: 1 }
     );
 
-    // 2. Fallback: resolve via partner.storefront_domain → partner.website_id.
+    // 2. Alias lookup: check website_domain table for any additional domains
+    //    (custom domains, marketing aliases) that map to the same website.
+    if (!websites?.length) {
+      const [aliasRows] = await (websiteService as any).listAndCountWebsiteDomains(
+        { domain: input.domain },
+        { take: 1 }
+      );
+      const websiteId = aliasRows?.[0]?.website_id;
+      if (websiteId) {
+        const website = await websiteService.retrieveWebsite(websiteId, {
+          relations: ["pages"],
+        });
+        if (website) {
+          websites = [website];
+        }
+      }
+    }
+
+    // 3. Fallback: resolve via partner.storefront_domain → partner.website_id.
     // Covers the window between provisioning and website row propagation,
     // or partners whose website_id was linked via an alternative flow.
     if (!websites?.length) {

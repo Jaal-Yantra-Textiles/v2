@@ -268,6 +268,8 @@ const createWebsiteRecordStep = createStep(
       status: "Active",
     })
 
+    await websiteService.ensurePrimaryWebsiteDomain(website.id, domain)
+
     // Save website_id on partner record
     const partnerService: PartnerService = container.resolve("partner")
     await partnerService.updatePartners({

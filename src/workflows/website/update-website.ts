@@ -42,6 +42,11 @@ export const updateWebsiteStep = createStep(
       }
   })  as unknown as Website;
 
+    // Keep the primary alias row in sync when the canonical domain changes
+    if (input.domain && input.domain !== originalWebsite.domain) {
+      await websiteService.ensurePrimaryWebsiteDomain(input.id, input.domain)
+    }
+
     // Return the updated entity and compensation data
     return new StepResponse(updatedWebsite, {
       id: input.id,

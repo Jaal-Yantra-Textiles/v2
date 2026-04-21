@@ -119,6 +119,11 @@ export default async function backfillStorefrontDeployments({
       }
       if (website && !websiteId) websiteId = website.id
 
+      // Ensure the alias table has a primary row for this domain
+      if (!dryRun && websiteId) {
+        await websiteService.ensurePrimaryWebsiteDomain(websiteId, domain)
+      }
+
       // 2. Backfill partner columns (metadata → table) + new repo/branch defaults
       const patch: Record<string, any> = {
         storefront_domain: domain,
