@@ -226,6 +226,7 @@ const saveStorefrontMetadataStep = createStep(
       vercel_project_id: input.projectId,
       vercel_project_name: input.projectName,
       vercel_last_deployment_id: input.lastDeploymentId ?? null,
+      vercel_linked: true,
       storefront_repo: input.storefrontRepo,
       storefront_root_dir: input.storefrontRootDir ?? null,
       storefront_branch: input.storefrontBranch ?? "main",

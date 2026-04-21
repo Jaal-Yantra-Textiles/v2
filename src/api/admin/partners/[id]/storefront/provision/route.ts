@@ -102,6 +102,7 @@ export const POST = async (
           vercel_project_id: null,
           vercel_project_name: null,
           vercel_last_deployment_id: null,
+          vercel_linked: false,
           metadata: Object.keys(cleanMeta).length > 0 ? cleanMeta : null,
         },
       },

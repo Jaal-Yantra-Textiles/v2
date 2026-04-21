@@ -21,6 +21,7 @@ export type UpdatePartnerInput = {
     vercel_project_id: string | null
     vercel_project_name: string | null
     vercel_last_deployment_id: string | null
+    vercel_linked: boolean
     storefront_repo: string | null
     storefront_root_dir: string | null
     storefront_branch: string | null

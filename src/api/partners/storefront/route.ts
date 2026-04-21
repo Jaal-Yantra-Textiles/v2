@@ -201,7 +201,13 @@ export const DELETE = async (
   await updatePartnerWorkflow(req.scope).run({
     input: {
       id: partner.id,
-      data: { metadata: cleanMetadata },
+      data: {
+        metadata: cleanMetadata,
+        vercel_project_id: null,
+        vercel_project_name: null,
+        vercel_last_deployment_id: null,
+        vercel_linked: false,
+      },
     },
   })
 

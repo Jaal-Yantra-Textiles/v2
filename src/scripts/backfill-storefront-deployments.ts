@@ -27,8 +27,17 @@ import type PartnerService from "../modules/partner/service"
  *   BACKFILL_STOREFRONT_REPO        default: VERCEL_STOREFRONT_REPO
  *   BACKFILL_STOREFRONT_ROOT_DIR    default: empty (repo root)
  *   BACKFILL_STOREFRONT_BRANCH      default: VERCEL_STOREFRONT_BRANCH or "main"
+ *   BACKFILL_PARTNER_IDS            explicit comma-separated partner IDs to
+ *                                    process (overrides the vercel_linked filter).
+ *                                    Use this for targeted one-time migrations.
  *   DRY_RUN=1                        print plan, don't mutate anything
  *   TRIGGER_DEPLOY=1                 also trigger a fresh Vercel deployment
+ *
+ * Selection rules:
+ *   - If BACKFILL_PARTNER_IDS is set → only those rows, regardless of flag.
+ *   - Otherwise → only partners with vercel_linked=true.
+ *   Partners without an explicit flag AND no id list are skipped, so
+ *   half-provisioned records can't sneak in.
  */
 export default async function backfillStorefrontDeployments({
   container,
@@ -54,6 +63,10 @@ export default async function backfillStorefrontDeployments({
     "main"
   const dryRun = process.env.DRY_RUN === "1"
   const triggerDeploy = process.env.TRIGGER_DEPLOY === "1"
+  const explicitIds = (process.env.BACKFILL_PARTNER_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
 
   if (!repo) {
     logger.error(
@@ -65,18 +78,29 @@ export default async function backfillStorefrontDeployments({
   logger.info(
     `[backfill-storefront] repo=${repo} rootDir=${rootDir || "<root>"} branch=${branch} dryRun=${dryRun} triggerDeploy=${triggerDeploy}`
   )
+  if (explicitIds.length) {
+    logger.info(
+      `[backfill-storefront] explicit partner ids: ${explicitIds.join(", ")}`
+    )
+  }
 
-  // Pull partners with any storefront marker (table column OR legacy metadata)
+  // Select partners: explicit id list overrides, otherwise only vercel_linked=true
   const [allPartners] = await partnerService.listAndCountPartners({}, { take: 1000 })
   const partners = allPartners.filter((p: any) => {
-    const hasColumn = p.vercel_project_id || p.storefront_domain
-    const hasMeta =
-      p.metadata?.vercel_project_id || p.metadata?.storefront_domain
-    return hasColumn || hasMeta
+    if (explicitIds.length) return explicitIds.includes(p.id)
+    return p.vercel_linked === true
   })
 
   if (!partners.length) {
-    logger.info("[backfill-storefront] no partners with provisioned storefronts found")
+    if (explicitIds.length) {
+      logger.warn(
+        `[backfill-storefront] none of the provided partner ids matched: ${explicitIds.join(", ")}`
+      )
+    } else {
+      logger.info(
+        "[backfill-storefront] no partners with vercel_linked=true — pass BACKFILL_PARTNER_IDS to target specific rows"
+      )
+    }
     return
   }
 
@@ -129,6 +153,7 @@ export default async function backfillStorefrontDeployments({
         storefront_domain: domain,
         vercel_project_id: projectId,
         vercel_project_name: projectName,
+        vercel_linked: true,
         storefront_repo: partner.storefront_repo || repo,
         storefront_root_dir: partner.storefront_root_dir ?? (rootDir || null),
         storefront_branch: partner.storefront_branch || branch,
