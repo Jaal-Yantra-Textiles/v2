@@ -232,16 +232,21 @@ export class GoogleMerchantProvider {
     }
   ): Promise<GoogleDataSource> {
     try {
+      const inferredCountries =
+        input.countries && input.countries.length > 0
+          ? input.countries
+          : /^[A-Z]{2}$/.test(input.feedLabel)
+            ? [input.feedLabel]
+            : undefined
       const response = await axios.post(
         `${DATASOURCES_API_BASE}/accounts/${merchantId}/dataSources`,
         {
           displayName: input.displayName,
-          input: "API",
           primaryProductDataSource: {
             channel: input.channel || "ONLINE_PRODUCTS",
             contentLanguage: input.contentLanguage,
             feedLabel: input.feedLabel,
-            countries: input.countries?.length ? input.countries : [input.feedLabel],
+            ...(inferredCountries ? { countries: inferredCountries } : {}),
           },
         },
         {
@@ -255,14 +260,19 @@ export class GoogleMerchantProvider {
     }
   }
 
-  async listProductInputs(
+  /**
+   * Lists computed products for the account. Merchant API v1beta only exposes list
+   * on `products` (the processed/unified view), not on `productInputs`. Each item
+   * includes `offerId` and `dataSource`, which is what we need for import + takeover.
+   */
+  async listProducts(
     accessToken: string,
     merchantId: string,
     opts?: { pageSize?: number; pageToken?: string }
-  ): Promise<{ productInputs: GoogleProductInput[]; nextPageToken?: string }> {
+  ): Promise<{ products: GoogleProductInput[]; nextPageToken?: string }> {
     try {
       const response = await axios.get(
-        `${MERCHANT_API_BASE}/accounts/${merchantId}/productInputs`,
+        `${MERCHANT_API_BASE}/accounts/${merchantId}/products`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
           params: {
@@ -272,12 +282,12 @@ export class GoogleMerchantProvider {
         }
       )
       return {
-        productInputs: response.data?.productInputs || [],
+        products: response.data?.products || [],
         nextPageToken: response.data?.nextPageToken,
       }
     } catch (error: any) {
       const msg = error.response?.data?.error?.message || error.message
-      throw new Error(`Google Merchant listProductInputs failed: ${msg}`)
+      throw new Error(`Google Merchant listProducts failed: ${msg}`)
     }
   }
 }

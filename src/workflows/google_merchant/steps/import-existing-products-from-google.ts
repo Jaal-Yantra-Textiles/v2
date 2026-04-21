@@ -56,16 +56,17 @@ export const importExistingProductsFromGoogleStep = createStep(
       token_expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000) : null,
     })
 
-    // Paginate through all Google productInputs
+    // Paginate through the account's computed products (v1beta only supports list on `products`,
+    // not `productInputs` — but each Product includes offerId + dataSource, which is what we need).
     const allInputs: GoogleProductInput[] = []
     let pageToken: string | undefined
     let pagesFetched = 0
     do {
-      const page = await provider.listProductInputs(accessToken, account.merchant_id, {
+      const page = await provider.listProducts(accessToken, account.merchant_id, {
         pageSize: 250,
         pageToken,
       })
-      allInputs.push(...page.productInputs)
+      allInputs.push(...page.products)
       pageToken = page.nextPageToken
       pagesFetched++
       if (pagesFetched > 50) break // safety — ~12.5k products
