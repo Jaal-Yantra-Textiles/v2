@@ -18,6 +18,12 @@ export type UpdatePartnerInput = {
     metadata: Record<string, any> | null
     website_id: string | null
     storefront_domain: string | null
+    vercel_project_id: string | null
+    vercel_project_name: string | null
+    vercel_last_deployment_id: string | null
+    storefront_repo: string | null
+    storefront_root_dir: string | null
+    storefront_branch: string | null
   }>
 }
 

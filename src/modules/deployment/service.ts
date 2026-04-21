@@ -180,6 +180,35 @@ class DeploymentService {
     return res.json()
   }
 
+  async relinkGitRepo(
+    projectId: string,
+    input: { gitRepo: string; type?: "github" | "gitlab" | "bitbucket" }
+  ): Promise<VercelProject> {
+    // Disconnect any existing git link first (404 is fine — nothing to detach)
+    const detachRes = await fetch(
+      `${VERCEL_API_BASE}/v9/projects/${projectId}/link${this.vercelTeamQuery()}`,
+      { method: "DELETE", headers: this.vercelHeaders() }
+    )
+    if (!detachRes.ok && detachRes.status !== 404) {
+      const body = await detachRes.text()
+      throw new Error(`Vercel detach link failed (${detachRes.status}): ${body}`)
+    }
+
+    const attachRes = await fetch(
+      `${VERCEL_API_BASE}/v9/projects/${projectId}/link${this.vercelTeamQuery()}`,
+      {
+        method: "POST",
+        headers: this.vercelHeaders(),
+        body: JSON.stringify({ type: input.type || "github", repo: input.gitRepo }),
+      }
+    )
+    if (!attachRes.ok) {
+      const body = await attachRes.text()
+      throw new Error(`Vercel attach link failed (${attachRes.status}): ${body}`)
+    }
+    return attachRes.json()
+  }
+
   async listProjects(opts?: { prefix?: string; limit?: number }): Promise<VercelProject[]> {
     const prefix = opts?.prefix
     const pageLimit = opts?.limit ?? 100

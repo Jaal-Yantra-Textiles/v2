@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { WEBSITE_MODULE } from "../../modules/website";
 import WebsiteService from "../../modules/website/service";
+import PartnerService from "../../modules/partner/service";
 import { MedusaError } from "@medusajs/framework/utils";
 
 export type FindWebsiteByDomainStepInput = {
@@ -17,51 +18,33 @@ export const findWebsiteByDomainStep = createStep(
   async (input: FindWebsiteByDomainStepInput, { container }) => {
     const websiteService: WebsiteService = container.resolve(WEBSITE_MODULE);
 
-    // 1. Direct domain lookup
+    // 1. Direct domain lookup (primary path, unique index on website.domain)
     let [websites] = await websiteService.listAndCountWebsites(
       { domain: input.domain },
       { relations: ["pages"], take: 1 }
     );
 
-    // 2. Fallback: if domain looks like a Vercel preview URL, extract the handle
-    // Format: storefront-{handle}-{hash}-{user}.vercel.app
-    if (!websites?.length && input.domain.includes(".vercel.app")) {
-      const match = input.domain.match(/^storefront-([a-z0-9-]+?)-[a-z0-9]+-/);
-      if (match) {
-        const handle = match[1];
-        // Look up by domain containing the handle
-        const [allWebsites] = await websiteService.listAndCountWebsites(
-          {},
-          { relations: ["pages"], take: 100 }
-        );
-
-        const found = allWebsites.find((w: any) =>
-          w.domain?.includes(handle)
-        );
-
-        if (found) {
-          websites = [found];
-        }
-      }
-    }
-
-    // 3. Fallback: try subdomain match (e.g. "sharlho.cicilabel.com" matches "sharlho")
+    // 2. Fallback: resolve via partner.storefront_domain → partner.website_id.
+    // Covers the window between provisioning and website row propagation,
+    // or partners whose website_id was linked via an alternative flow.
     if (!websites?.length) {
-      const subdomain = input.domain.split(".")[0];
-      if (subdomain && subdomain !== "www") {
-        const [allWebsites] = await websiteService.listAndCountWebsites(
-          {},
-          { relations: ["pages"], take: 100 }
+      try {
+        const partnerService: PartnerService = container.resolve("partner");
+        const [partners] = await partnerService.listAndCountPartners(
+          { storefront_domain: input.domain },
+          { take: 1 }
         );
-
-        const found = allWebsites.find((w: any) => {
-          const wSubdomain = w.domain?.split(".")?.[0];
-          return wSubdomain === subdomain;
-        });
-
-        if (found) {
-          websites = [found];
+        const websiteId = (partners?.[0] as any)?.website_id;
+        if (websiteId) {
+          const website = await websiteService.retrieveWebsite(websiteId, {
+            relations: ["pages"],
+          });
+          if (website) {
+            websites = [website];
+          }
         }
+      } catch {
+        // partner service may be unavailable in some contexts — fall through
       }
     }
 

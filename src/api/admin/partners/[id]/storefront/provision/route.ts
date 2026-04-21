@@ -6,8 +6,9 @@ import type DeploymentService from "../../../../../../modules/deployment/service
 import updatePartnerWorkflow from "../../../../../../workflows/partners/update-partner"
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || "cicilabel.com"
-const STOREFRONT_REPO = process.env.VERCEL_STOREFRONT_REPO || ""
-const STOREFRONT_ROOT_DIR = process.env.VERCEL_STOREFRONT_ROOT_DIR || "apps/storefront-starter"
+const STOREFRONT_REPO_ENV = process.env.VERCEL_STOREFRONT_REPO || ""
+const STOREFRONT_ROOT_DIR_ENV = process.env.VERCEL_STOREFRONT_ROOT_DIR || ""
+const STOREFRONT_BRANCH_ENV = process.env.VERCEL_STOREFRONT_BRANCH || "main"
 const MEDUSA_BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_KEY || ""
 
@@ -30,13 +31,6 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   const { id: partnerId } = req.params
-
-  if (!STOREFRONT_REPO) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      "VERCEL_STOREFRONT_REPO environment variable is not configured"
-    )
-  }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -72,12 +66,14 @@ export const POST = async (
   }
 
   // Check if already provisioned — verify the project actually exists on Vercel
-  if (partner.metadata?.vercel_project_id) {
+  const existingProjectId =
+    partner.vercel_project_id || partner.metadata?.vercel_project_id
+  if (existingProjectId) {
     let projectExists = false
     const deploymentSvc: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
     if (deploymentSvc.isVercelConfigured()) {
       try {
-        await deploymentSvc.getProject(partner.metadata.vercel_project_id)
+        await deploymentSvc.getProject(existingProjectId)
         projectExists = true
       } catch {
         projectExists = false
@@ -87,11 +83,11 @@ export const POST = async (
     if (projectExists) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Storefront already provisioned (Vercel project: ${partner.metadata.vercel_project_id}). Use the redeploy endpoint to update.`
+        `Storefront already provisioned (Vercel project: ${existingProjectId}). Use the redeploy endpoint to update.`
       )
     }
 
-    // Stale metadata — clean it up before re-provisioning
+    // Stale refs — clean up table columns and legacy metadata before re-provisioning
     const currentMeta = (partner.metadata || {}) as Record<string, any>
     const cleanMeta: Record<string, any> = {}
     for (const [k, v] of Object.entries(currentMeta)) {
@@ -102,10 +98,17 @@ export const POST = async (
     await updatePartnerWorkflow(req.scope).run({
       input: {
         id: partnerId,
-        data: { metadata: Object.keys(cleanMeta).length > 0 ? cleanMeta : null },
+        data: {
+          vercel_project_id: null,
+          vercel_project_name: null,
+          vercel_last_deployment_id: null,
+          metadata: Object.keys(cleanMeta).length > 0 ? cleanMeta : null,
+        },
       },
     })
     partner.metadata = cleanMeta
+    partner.vercel_project_id = null
+    partner.vercel_project_name = null
   }
 
   // 2. Find publishable API key linked to this sales channel
@@ -136,19 +139,33 @@ export const POST = async (
 
   const s3Config = getS3ImageConfig()
 
+  const storefrontRepo = partner.storefront_repo || STOREFRONT_REPO_ENV
+  const storefrontRootDir =
+    partner.storefront_root_dir || STOREFRONT_ROOT_DIR_ENV || undefined
+  const storefrontBranch =
+    partner.storefront_branch || STOREFRONT_BRANCH_ENV
+
+  if (!storefrontRepo) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "No storefront repo configured (partner.storefront_repo or VERCEL_STOREFRONT_REPO)"
+    )
+  }
+
   const { result } = await provisionStorefrontWorkflow(req.scope).run({
     input: {
       partner_id: partnerId,
+      partner_name: partner.name,
       handle,
       publishable_key: matchingKey.token,
       root_domain: ROOT_DOMAIN,
-      storefront_repo: STOREFRONT_REPO,
-      storefront_root_dir: STOREFRONT_ROOT_DIR,
+      storefront_repo: storefrontRepo,
+      storefront_root_dir: storefrontRootDir,
+      storefront_branch: storefrontBranch,
       medusa_backend_url: MEDUSA_BACKEND_URL,
       stripe_publishable_key: STRIPE_PUBLISHABLE_KEY,
       s3_hostname: s3Config.hostname,
       s3_pathname: s3Config.pathname,
-      existing_metadata: partner.metadata || {},
     },
   })
 

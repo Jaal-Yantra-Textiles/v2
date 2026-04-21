@@ -6,8 +6,10 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { getPartnerFromAuthContext } from "../../helpers"
 import { DEPLOYMENT_MODULE } from "../../../../modules/deployment"
 import type DeploymentService from "../../../../modules/deployment/service"
+import PartnerService from "../../../../modules/partner/service"
 
-const STOREFRONT_REPO = process.env.VERCEL_STOREFRONT_REPO || ""
+const STOREFRONT_REPO_ENV = process.env.VERCEL_STOREFRONT_REPO || ""
+const STOREFRONT_BRANCH_ENV = process.env.VERCEL_STOREFRONT_BRANCH || "main"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -21,8 +23,14 @@ export const POST = async (
     )
   }
 
-  const vercelProjectId = partner.metadata?.vercel_project_id
-  const vercelProjectName = partner.metadata?.vercel_project_name
+  const vercelProjectId =
+    (partner as any).vercel_project_id || partner.metadata?.vercel_project_id
+  const vercelProjectName =
+    (partner as any).vercel_project_name || partner.metadata?.vercel_project_name
+  const storefrontRepo =
+    (partner as any).storefront_repo || STOREFRONT_REPO_ENV
+  const storefrontBranch =
+    (partner as any).storefront_branch || STOREFRONT_BRANCH_ENV
 
   if (!vercelProjectId || !vercelProjectName) {
     throw new MedusaError(
@@ -31,10 +39,10 @@ export const POST = async (
     )
   }
 
-  if (!STOREFRONT_REPO) {
+  if (!storefrontRepo) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      "VERCEL_STOREFRONT_REPO environment variable is not configured"
+      "No storefront repo configured (partner.storefront_repo or VERCEL_STOREFRONT_REPO)"
     )
   }
 
@@ -134,8 +142,14 @@ export const POST = async (
   const deploymentSvc: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
   const deployment = await deploymentSvc.triggerDeployment({
     projectName: vercelProjectName,
-    gitRepo: STOREFRONT_REPO,
-    ref: body.ref || "main",
+    gitRepo: storefrontRepo,
+    ref: body.ref || storefrontBranch,
+  })
+
+  const partnerService: PartnerService = req.scope.resolve("partner")
+  await partnerService.updatePartners({
+    id: partner.id,
+    vercel_last_deployment_id: deployment.id,
   })
 
   res.json({

@@ -1,5 +1,6 @@
 import { model } from "@medusajs/framework/utils";
 import Page from "./page";
+import WebsiteDomain from "./website-domain";
 const Website = model.define("website", {
   id: model.id().primaryKey(),
   domain: model.text().unique(),
@@ -19,10 +20,12 @@ const Website = model.define("website", {
 
   // Relationship with Pages
   pages: model.hasMany(() => Page),
+  // Extra domains that resolve to this website (aliases, custom domains, etc.)
+  domains: model.hasMany(() => WebsiteDomain),
 })
 .cascades(
   {
-    delete: ['pages']
+    delete: ['pages', 'domains']
   }
 )
 

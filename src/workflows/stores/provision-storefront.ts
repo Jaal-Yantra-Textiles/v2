@@ -19,12 +19,11 @@ export type ProvisionStorefrontInput = {
   root_domain: string
   storefront_repo: string
   storefront_root_dir?: string
-  storefront_ignore_command?: string
+  storefront_branch?: string
   medusa_backend_url: string
   stripe_publishable_key: string
   s3_hostname: string
   s3_pathname: string
-  existing_metadata: Record<string, any>
 }
 
 export type ProvisionStorefrontResult = {
@@ -40,7 +39,7 @@ export type ProvisionStorefrontResult = {
 const createVercelProjectStep = createStep(
   "create-vercel-project",
   async (
-    input: { handle: string; storefrontRepo: string; rootDirectory?: string; ignoreCommand?: string },
+    input: { handle: string; storefrontRepo: string; rootDirectory?: string },
     { container }
   ) => {
     const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
@@ -51,7 +50,6 @@ const createVercelProjectStep = createStep(
       framework: "nextjs",
       rootDirectory: input.rootDirectory,
       installCommand: "pnpm install --no-frozen-lockfile",
-      ignoreCommand: input.ignoreCommand,
     })
 
     return new StepResponse(
@@ -183,13 +181,16 @@ const createVercelVerificationRecordsStep = createStep(
 // Step 5: Trigger Vercel production deployment
 const triggerVercelDeploymentStep = createStep(
   "trigger-vercel-deployment",
-  async (input: { handle: string; storefrontRepo: string }, { container }) => {
+  async (
+    input: { handle: string; storefrontRepo: string; branch?: string },
+    { container }
+  ) => {
     const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     const projectName = `storefront-${input.handle}`
     const result = await deployment.triggerDeployment({
       projectName,
       gitRepo: input.storefrontRepo,
-      ref: "main",
+      ref: input.branch || "main",
     })
 
     return new StepResponse({
@@ -210,7 +211,10 @@ const saveStorefrontMetadataStep = createStep(
       projectName: string
       handle: string
       rootDomain: string
-      existingMetadata: Record<string, any>
+      storefrontRepo: string
+      storefrontRootDir?: string
+      storefrontBranch?: string
+      lastDeploymentId?: string
     },
     { container }
   ) => {
@@ -218,18 +222,13 @@ const saveStorefrontMetadataStep = createStep(
     const partnerService: PartnerService = container.resolve("partner")
     await partnerService.updatePartners({
       id: input.partnerId,
-      // Table columns (reliable)
       storefront_domain: domain,
       vercel_project_id: input.projectId,
       vercel_project_name: input.projectName,
-      // Keep metadata for backward compatibility
-      metadata: {
-        ...input.existingMetadata,
-        vercel_project_id: input.projectId,
-        vercel_project_name: input.projectName,
-        storefront_domain: domain,
-        storefront_provisioned_at: new Date().toISOString(),
-      },
+      vercel_last_deployment_id: input.lastDeploymentId ?? null,
+      storefront_repo: input.storefrontRepo,
+      storefront_root_dir: input.storefrontRootDir ?? null,
+      storefront_branch: input.storefrontBranch ?? "main",
     })
 
     return new StepResponse({ success: true })
@@ -320,15 +319,29 @@ const seedDefaultWebsitePagesStep = createStep(
 export const provisionStorefrontWorkflow = createWorkflow(
   "provision-storefront",
   (input: ProvisionStorefrontInput) => {
-    // Step 1: Create Vercel project
+    // Step 1: Create website row FIRST so /web/website/{domain}/* never
+    // races a missing row on the very first Vercel build.
+    const websiteResult = createWebsiteRecordStep({
+      handle: input.handle,
+      rootDomain: input.root_domain,
+      partnerName: input.partner_name as unknown as string,
+      partnerId: input.partner_id,
+    })
+
+    // Step 2: Seed default pages for the website
+    seedDefaultWebsitePagesStep({
+      websiteId: websiteResult.website.id as unknown as string,
+      wasCreated: websiteResult.created as unknown as boolean,
+    })
+
+    // Step 3: Create Vercel project (linked directly to the storefront repo)
     const project = createVercelProjectStep({
       handle: input.handle,
       storefrontRepo: input.storefront_repo,
       rootDirectory: input.storefront_root_dir,
-      ignoreCommand: input.storefront_ignore_command,
     })
 
-    // Step 2: Set env vars
+    // Step 4: Set env vars
     setVercelEnvVarsStep({
       projectId: project.id,
       publishableKey: input.publishable_key,
@@ -338,52 +351,42 @@ export const provisionStorefrontWorkflow = createWorkflow(
       s3Pathname: input.s3_pathname,
     })
 
-    // Step 3: Add custom domain to Vercel
+    // Step 5: Add custom domain to Vercel
     const domainResult = addVercelDomainStep({
       projectId: project.id,
       handle: input.handle,
       rootDomain: input.root_domain,
     })
 
-    // Step 4a: Create Cloudflare CNAME
+    // Step 6a: Create Cloudflare CNAME
     const dnsResult = createCloudflareCnameStep({
       subdomain: input.handle,
       rootDomain: input.root_domain,
     })
 
-    // Step 4b: Create verification DNS records (depends on step 3 domain result)
+    // Step 6b: Create verification DNS records (depends on step 5 domain result)
     const verificationResult = createVercelVerificationRecordsStep({
       verification: domainResult.verification as any,
     })
 
-    // Step 5: Trigger deployment
+    // Step 7: Trigger deployment
     const deployment = triggerVercelDeploymentStep({
       handle: input.handle,
       storefrontRepo: input.storefront_repo,
+      branch: input.storefront_branch,
     })
 
-    // Step 6: Save metadata
+    // Step 8: Save partner storefront state (source of truth = table columns)
     saveStorefrontMetadataStep({
       partnerId: input.partner_id,
       projectId: project.id,
       projectName: project.name,
       handle: input.handle,
       rootDomain: input.root_domain,
-      existingMetadata: input.existing_metadata,
-    })
-
-    // Step 7: Create website record for the domain
-    const websiteResult = createWebsiteRecordStep({
-      handle: input.handle,
-      rootDomain: input.root_domain,
-      partnerName: input.partner_name as unknown as string,
-      partnerId: input.partner_id,
-    })
-
-    // Step 8: Seed default pages
-    seedDefaultWebsitePagesStep({
-      websiteId: websiteResult.website.id as unknown as string,
-      wasCreated: websiteResult.created as unknown as boolean,
+      storefrontRepo: input.storefront_repo,
+      storefrontRootDir: input.storefront_root_dir,
+      storefrontBranch: input.storefront_branch,
+      lastDeploymentId: deployment.id as unknown as string,
     })
 
     return new WorkflowResponse({

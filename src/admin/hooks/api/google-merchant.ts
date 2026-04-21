@@ -128,24 +128,44 @@ export function useSyncProductToGoogleMerchant() {
   })
 }
 
+export type ProductAccountSyncStatus = {
+  account_id: string
+  account_name: string
+  merchant_id: string
+  account_email?: string | null
+  connected: boolean
+  sync_status: "not_synced" | "pending" | "synced" | "failed" | string
+  google_product_id?: string | null
+  google_product_name?: string | null
+  last_synced_at?: string | null
+  sync_error?: string | null
+}
+
 export function useProductGoogleMerchantStatus(product_id: string | undefined) {
   const query = useQuery({
     queryKey: KEYS.productStatus(product_id!),
     queryFn: () =>
-      sdk.client.fetch<{
-        product_id: string
-        links: Array<{
-          account_id: string
-          account_name: string
-          merchant_id: string
-          account_email?: string | null
-          connected: boolean
-        }>
-      }>("/admin/google-merchant/product-sync-status", {
-        method: "GET",
-        query: { product_id: product_id as string },
-      }),
+      sdk.client.fetch<{ product_id: string; links: ProductAccountSyncStatus[] }>(
+        "/admin/google-merchant/product-sync-status",
+        {
+          method: "GET",
+          query: { product_id: product_id as string },
+        }
+      ),
     enabled: !!product_id,
   })
   return { ...query, links: query.data?.links || [] }
+}
+
+export function useUnsyncProductFromGoogleMerchant() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ account_id, product_id }: { account_id: string; product_id: string }) =>
+      sdk.client.fetch(`/admin/google-merchant/accounts/${account_id}/products/${product_id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.productStatus(vars.product_id) })
+    },
+  })
 }

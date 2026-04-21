@@ -26,6 +26,10 @@ const Partner = model.define("partner", {
     website_id: model.text().nullable(),
     vercel_project_id: model.text().nullable(),
     vercel_project_name: model.text().nullable(),
+    vercel_last_deployment_id: model.text().nullable(),
+    storefront_repo: model.text().nullable(),
+    storefront_root_dir: model.text().nullable(),
+    storefront_branch: model.text().nullable(),
 
     // Relationships
     admins: model.hasMany(() => PartnerAdmin),

@@ -1,36 +1,60 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { DetailWidgetProps } from "@medusajs/framework/types"
-import { Button, Container, Heading, StatusBadge, Text, toast } from "@medusajs/ui"
+import { Button, Container, Heading, StatusBadge, Text, toast, Tooltip } from "@medusajs/ui"
 import { ShoppingCart } from "@medusajs/icons"
 import {
   useGoogleMerchantAccounts,
   useSyncProductToGoogleMerchant,
+  useUnsyncProductFromGoogleMerchant,
   useProductGoogleMerchantStatus,
+  type ProductAccountSyncStatus,
 } from "../hooks/api/google-merchant"
 import { useNavigate } from "react-router-dom"
 
 type AdminProduct = { id: string; title?: string }
+
+const STATUS_COLORS: Record<string, "green" | "orange" | "red" | "grey"> = {
+  synced: "green",
+  pending: "orange",
+  failed: "red",
+  not_synced: "grey",
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  synced: "Synced",
+  pending: "Pending",
+  failed: "Failed",
+  not_synced: "Not synced",
+}
 
 const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
   const navigate = useNavigate()
   const { accounts, isLoading: accountsLoading } = useGoogleMerchantAccounts({ limit: 50 })
   const { links, isLoading: statusLoading } = useProductGoogleMerchantStatus(data?.id)
   const syncMutation = useSyncProductToGoogleMerchant()
+  const unsyncMutation = useUnsyncProductFromGoogleMerchant()
 
+  const byAccount = new Map<string, ProductAccountSyncStatus>(
+    links.map((l) => [l.account_id, l])
+  )
   const connectedAccounts = accounts.filter((a) => a.connected)
-  const linkedAccountIds = new Set(links.map((l) => l.account_id))
 
   const handleSync = async (accountId: string) => {
     try {
-      const result = await syncMutation.mutateAsync({
-        account_id: accountId,
-        product_id: data.id,
-      })
-      if (result.success) {
-        toast.success("Synced to Google Merchant")
-      }
+      const result = await syncMutation.mutateAsync({ account_id: accountId, product_id: data.id })
+      if (result.success) toast.success("Synced to Google Merchant")
     } catch (err: any) {
       toast.error(err?.message || "Sync failed")
+    }
+  }
+
+  const handleUnsync = async (accountId: string) => {
+    if (!confirm("Remove this product from Google Merchant Center?")) return
+    try {
+      await unsyncMutation.mutateAsync({ account_id: accountId, product_id: data.id })
+      toast.success("Removed from Google Merchant")
+    } catch (err: any) {
+      toast.error(err?.message || "Unsync failed")
     }
   }
 
@@ -51,9 +75,7 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
           <Text size="small" className="text-ui-fg-subtle">Loading…</Text>
         ) : accounts.length === 0 ? (
           <div className="flex flex-col gap-y-2">
-            <Text size="small" className="text-ui-fg-subtle">
-              No Google Merchant accounts configured yet.
-            </Text>
+            <Text size="small" className="text-ui-fg-subtle">No Google Merchant accounts configured yet.</Text>
             <Button size="small" variant="secondary" onClick={() => navigate("/settings/google-merchant/create")}>
               Add account
             </Button>
@@ -65,21 +87,58 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
         ) : (
           <div className="flex flex-col gap-y-3">
             {connectedAccounts.map((account) => {
-              const isLinked = linkedAccountIds.has(account.id)
-              const isPending = syncMutation.isPending && syncMutation.variables?.account_id === account.id
+              const link = byAccount.get(account.id)
+              const status = link?.sync_status || "not_synced"
+              const isSyncing = syncMutation.isPending && syncMutation.variables?.account_id === account.id
+              const isUnsyncing = unsyncMutation.isPending && unsyncMutation.variables?.account_id === account.id
+              const hasGoogleProduct = !!link?.google_product_id
+
               return (
-                <div key={account.id} className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <Text size="small" weight="plus">{account.name}</Text>
-                    <Text size="xsmall" className="text-ui-fg-subtle">
+                <div key={account.id} className="flex items-start justify-between gap-x-3">
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-x-2">
+                      <Text size="small" weight="plus" className="truncate">
+                        {account.name}
+                      </Text>
+                      <StatusBadge color={STATUS_COLORS[status] ?? "grey"}>
+                        {STATUS_LABELS[status] ?? status}
+                      </StatusBadge>
+                    </div>
+                    <Text size="xsmall" className="text-ui-fg-subtle truncate">
                       {account.account_email || `ID ${account.merchant_id}`}
                     </Text>
+                    {link?.last_synced_at && (
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Last synced: {new Date(link.last_synced_at).toLocaleString()}
+                      </Text>
+                    )}
+                    {link?.sync_error && status === "failed" && (
+                      <Tooltip content={link.sync_error}>
+                        <Text size="xsmall" className="text-ui-fg-error truncate max-w-[260px]">
+                          {link.sync_error}
+                        </Text>
+                      </Tooltip>
+                    )}
+                    {link?.google_product_id && (
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Offer ID: {link.google_product_id}
+                      </Text>
+                    )}
                   </div>
-                  <div className="flex items-center gap-x-2">
-                    {isLinked && <StatusBadge color="green">Synced</StatusBadge>}
-                    <Button size="small" variant="secondary" onClick={() => handleSync(account.id)} isLoading={isPending}>
-                      {isLinked ? "Re-sync" : "Sync"}
+                  <div className="flex items-center gap-x-2 shrink-0">
+                    <Button size="small" variant="secondary" onClick={() => handleSync(account.id)} isLoading={isSyncing}>
+                      {hasGoogleProduct ? "Re-sync" : "Sync"}
                     </Button>
+                    {hasGoogleProduct && (
+                      <Button
+                        size="small"
+                        variant="danger"
+                        onClick={() => handleUnsync(account.id)}
+                        isLoading={isUnsyncing}
+                      >
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 </div>
               )

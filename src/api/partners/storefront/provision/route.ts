@@ -10,15 +10,9 @@ import type DeploymentService from "../../../../modules/deployment/service"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || "cicilabel.com"
-const STOREFRONT_REPO = process.env.VERCEL_STOREFRONT_REPO || ""
-const STOREFRONT_ROOT_DIR = process.env.VERCEL_STOREFRONT_ROOT_DIR || "apps/storefront-starter"
-// Vercel's "Ignored Build Step". Exit 0 → skip deploy, exit 1 → build.
-// Default: only build when the storefront directory (including the
-// submodule pointer) actually changed. The `|| exit 1` fallback handles
-// Vercel's first deploy where HEAD^ doesn't resolve.
-const STOREFRONT_IGNORE_COMMAND =
-  process.env.VERCEL_STOREFRONT_IGNORE_COMMAND ||
-  `git diff --quiet HEAD^ HEAD -- ${STOREFRONT_ROOT_DIR} || exit 1`
+const STOREFRONT_REPO_ENV = process.env.VERCEL_STOREFRONT_REPO || ""
+const STOREFRONT_ROOT_DIR_ENV = process.env.VERCEL_STOREFRONT_ROOT_DIR || ""
+const STOREFRONT_BRANCH_ENV = process.env.VERCEL_STOREFRONT_BRANCH || "main"
 const MEDUSA_BACKEND_URL =
   process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_KEY || ""
@@ -61,13 +55,6 @@ export const POST = async (
     )
   }
 
-  if (!STOREFRONT_REPO) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      "VERCEL_STOREFRONT_REPO environment variable is not configured"
-    )
-  }
-
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
   // Fetch partner with stores
@@ -98,15 +85,17 @@ export const POST = async (
   }
 
   // Check if already provisioned — verify the project actually exists on Vercel
-  if (partnerData.metadata?.vercel_project_id) {
+  const existingProjectId =
+    partnerData.vercel_project_id || partnerData.metadata?.vercel_project_id
+  if (existingProjectId) {
     let projectExists = false
     const deploymentSvc: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
     if (deploymentSvc.isVercelConfigured()) {
       try {
-        await deploymentSvc.getProject(partnerData.metadata.vercel_project_id)
+        await deploymentSvc.getProject(existingProjectId)
         projectExists = true
       } catch {
-        // Project doesn't exist on Vercel (404) — clear stale metadata and allow re-provisioning
+        // Project doesn't exist on Vercel (404) — clear stale refs and allow re-provisioning
         projectExists = false
       }
     }
@@ -118,7 +107,7 @@ export const POST = async (
       )
     }
 
-    // Stale metadata — clean it up before re-provisioning
+    // Stale partner refs — clean up table columns and legacy metadata before re-provisioning
     const currentMeta = (partnerData.metadata || {}) as Record<string, any>
     const cleanMeta: Record<string, any> = {}
     for (const [k, v] of Object.entries(currentMeta)) {
@@ -129,11 +118,17 @@ export const POST = async (
     await updatePartnerWorkflow(req.scope).run({
       input: {
         id: partner.id,
-        data: { metadata: Object.keys(cleanMeta).length > 0 ? cleanMeta : null },
+        data: {
+          vercel_project_id: null,
+          vercel_project_name: null,
+          vercel_last_deployment_id: null,
+          metadata: Object.keys(cleanMeta).length > 0 ? cleanMeta : null,
+        },
       },
     })
-    // Update partnerData.metadata for the workflow below
     partnerData.metadata = cleanMeta
+    partnerData.vercel_project_id = null
+    partnerData.vercel_project_name = null
   }
 
   // Find publishable API key linked to this sales channel
@@ -166,6 +161,21 @@ export const POST = async (
 
   const s3Config = getS3ImageConfig()
 
+  // Partner-level overrides take precedence over env fallbacks so each
+  // partner can BYO repo/branch/root later without code changes.
+  const storefrontRepo = partnerData.storefront_repo || STOREFRONT_REPO_ENV
+  const storefrontRootDir =
+    partnerData.storefront_root_dir || STOREFRONT_ROOT_DIR_ENV || undefined
+  const storefrontBranch =
+    partnerData.storefront_branch || STOREFRONT_BRANCH_ENV
+
+  if (!storefrontRepo) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "No storefront repo configured (partner.storefront_repo or VERCEL_STOREFRONT_REPO)"
+    )
+  }
+
   const { result } = await provisionStorefrontWorkflow(req.scope).run({
     input: {
       partner_id: partner.id,
@@ -173,14 +183,13 @@ export const POST = async (
       handle,
       publishable_key: matchingKey.token,
       root_domain: ROOT_DOMAIN,
-      storefront_repo: STOREFRONT_REPO,
-      storefront_root_dir: STOREFRONT_ROOT_DIR,
-      storefront_ignore_command: STOREFRONT_IGNORE_COMMAND,
+      storefront_repo: storefrontRepo,
+      storefront_root_dir: storefrontRootDir,
+      storefront_branch: storefrontBranch,
       medusa_backend_url: MEDUSA_BACKEND_URL,
       stripe_publishable_key: STRIPE_PUBLISHABLE_KEY,
       s3_hostname: s3Config.hostname,
       s3_pathname: s3Config.pathname,
-      existing_metadata: partnerData.metadata || {},
     },
   })
 
