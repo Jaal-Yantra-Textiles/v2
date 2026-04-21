@@ -8,8 +8,9 @@ import type GoogleMerchantService from "../../../modules/google_merchant/service
 import type EncryptionService from "../../../modules/encryption/service"
 import { GoogleMerchantProvider } from "../../../modules/google_merchant/provider"
 import { mapProductToGoogleMerchant, validateProductForGoogle } from "./map-product-to-google"
+import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
-const LINK_ENTITY = "product_product_google_merchant_google_merchant_account"
+const LINK_ENTRY = productGoogleMerchantLink.entryPoint
 
 export type SyncProductToGoogleInput = {
   product_id: string
@@ -251,7 +252,7 @@ async function readExistingLink(
 ): Promise<Record<string, any> | null> {
   try {
     const { data } = await query.graph({
-      entity: LINK_ENTITY,
+      entity: LINK_ENTRY,
       fields: [
         "google_product_id",
         "google_product_name",

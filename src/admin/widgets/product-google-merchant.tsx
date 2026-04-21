@@ -1,6 +1,6 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { DetailWidgetProps } from "@medusajs/framework/types"
-import { Button, Container, Heading, StatusBadge, Text, toast, Tooltip } from "@medusajs/ui"
+import { Button, Container, Heading, StatusBadge, Text, toast, Tooltip, usePrompt } from "@medusajs/ui"
 import { ShoppingCart } from "@medusajs/icons"
 import {
   useGoogleMerchantAccounts,
@@ -35,6 +35,7 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
   const syncMutation = useSyncProductToGoogleMerchant()
   const unsyncMutation = useUnsyncProductFromGoogleMerchant()
   const takeoverMutation = useTakeoverProductFromGoogleMerchant()
+  const prompt = usePrompt()
 
   const byAccount = new Map<string, ProductAccountSyncStatus>(
     links.map((l) => [l.account_id, l])
@@ -51,7 +52,14 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
   }
 
   const handleUnsync = async (accountId: string) => {
-    if (!confirm("Remove this product from Google Merchant Center?")) return
+    const confirmed = await prompt({
+      title: "Remove from Google Merchant",
+      description: "Remove this product from Google Merchant Center? The listing will be deleted and the local link dismissed.",
+      confirmText: "Remove",
+      cancelText: "Cancel",
+      variant: "danger",
+    })
+    if (!confirmed) return
     try {
       await unsyncMutation.mutateAsync({ account_id: accountId, product_id: data.id })
       toast.success("Removed from Google Merchant")
@@ -61,9 +69,14 @@ const ProductGoogleMerchantWidget = ({ data }: DetailWidgetProps<AdminProduct>) 
   }
 
   const handleTakeover = async (accountId: string) => {
-    if (!confirm(
-      "Take over this listing from Merchant Center UI? We'll try to delete the original and re-create it via the API. If the delete fails you'll need to remove the original manually in Merchant Center."
-    )) return
+    const confirmed = await prompt({
+      title: "Take over listing?",
+      description:
+        "We'll try to delete the original Merchant Center listing and re-create it via the API. If the delete is rejected (common for UI-managed products), you'll need to remove the original manually in Merchant Center.",
+      confirmText: "Take over",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
     try {
       const result = await takeoverMutation.mutateAsync({ account_id: accountId, product_id: data.id })
       if (result.takeover.warning) {

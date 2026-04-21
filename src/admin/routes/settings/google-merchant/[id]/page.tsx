@@ -1,4 +1,4 @@
-import { Button, Container, Drawer, Heading, Input, Label, StatusBadge, Text, toast } from "@medusajs/ui"
+import { Button, Container, Drawer, Heading, Input, Label, StatusBadge, Text, toast, usePrompt } from "@medusajs/ui"
 import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
@@ -19,6 +19,7 @@ const DetailPage = () => {
   const deleteMutation = useDeleteGoogleMerchantAccount()
   const initiateOAuth = useInitiateGoogleMerchantOAuth()
   const [editOpen, setEditOpen] = useState(false)
+  const prompt = usePrompt()
 
   if (isLoading) {
     return (
@@ -44,7 +45,14 @@ const DetailPage = () => {
   }
 
   const handleDelete = async () => {
-    if (!confirm("Delete this Google Merchant account? Linked products will lose sync status.")) return
+    const confirmed = await prompt({
+      title: "Delete account?",
+      description: "Delete this Google Merchant account? Linked products will lose sync status and OAuth tokens will be revoked locally.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      variant: "danger",
+    })
+    if (!confirmed) return
     try {
       await deleteMutation.mutateAsync(account.id)
       toast.success("Account deleted")
@@ -278,14 +286,20 @@ function DataSourceBanner({
 
 function ImportExistingButton({ accountId, connected }: { accountId: string; connected: boolean }) {
   const mutate = useImportExistingGoogleProducts(accountId)
+  const prompt = usePrompt()
   const handle = async () => {
     if (!connected) {
       toast.error("Connect the account first.")
       return
     }
-    if (!confirm(
-      "Pull existing Google Merchant listings and link them to Medusa products with matching handles?"
-    )) return
+    const confirmed = await prompt({
+      title: "Import existing Google listings?",
+      description:
+        "Pull existing Google Merchant Center listings and link them to Medusa products whose handle matches the Google offerId.",
+      confirmText: "Import",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
     try {
       const r = await mutate.mutateAsync(undefined)
       toast.success(
@@ -304,12 +318,19 @@ function ImportExistingButton({ accountId, connected }: { accountId: string; con
 
 function SyncAllButton({ accountId, connected }: { accountId: string; connected: boolean }) {
   const bulk = useBulkSyncGoogleMerchant(accountId)
+  const prompt = usePrompt()
   const handle = async () => {
     if (!connected) {
       toast.error("Connect the account first — complete OAuth.")
       return
     }
-    if (!confirm("Sync all products to Google Merchant? This runs in the background.")) return
+    const confirmed = await prompt({
+      title: "Sync all products?",
+      description: "Queue every Medusa product for sync to this Google Merchant account. Runs in the background — you'll see progress in the Sync History below.",
+      confirmText: "Sync all",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
     try {
       const resp = await bulk.mutateAsync(undefined)
       toast.success(`Bulk sync started (job ${resp.job.id.slice(0, 8)}…)`)

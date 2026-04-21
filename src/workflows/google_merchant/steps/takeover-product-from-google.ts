@@ -6,8 +6,9 @@ import { ENCRYPTION_MODULE } from "../../../modules/encryption"
 import type GoogleMerchantService from "../../../modules/google_merchant/service"
 import type EncryptionService from "../../../modules/encryption/service"
 import { GoogleMerchantProvider } from "../../../modules/google_merchant/provider"
+import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
-const LINK_ENTITY = "product_product_google_merchant_google_merchant_account"
+const LINK_ENTRY = productGoogleMerchantLink.entryPoint
 
 export type TakeoverProductInput = {
   product_id: string
@@ -38,7 +39,7 @@ export const takeoverProductStep = createStep(
     }
 
     const { data: links } = await query.graph({
-      entity: LINK_ENTITY,
+      entity: LINK_ENTRY,
       fields: ["product_id", "google_merchant_account_id", "google_product_name", "metadata"],
       filters: { product_id: input.product_id, google_merchant_account_id: input.account_id } as any,
     } as any)

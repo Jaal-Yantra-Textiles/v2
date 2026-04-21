@@ -7,8 +7,9 @@ import { ENCRYPTION_MODULE } from "../../../modules/encryption"
 import type GoogleMerchantService from "../../../modules/google_merchant/service"
 import type EncryptionService from "../../../modules/encryption/service"
 import { GoogleMerchantProvider } from "../../../modules/google_merchant/provider"
+import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
-const LINK_ENTITY = "product_product_google_merchant_google_merchant_account"
+const LINK_ENTRY = productGoogleMerchantLink.entryPoint
 
 export type UnsyncProductInput = {
   product_id: string
@@ -32,7 +33,7 @@ export const unsyncProductFromGoogleStep = createStep(
     }
 
     const { data: links } = await query.graph({
-      entity: LINK_ENTITY,
+      entity: LINK_ENTRY,
       fields: ["google_product_name", "google_product_id"],
       filters: {
         product_id: input.product_id,

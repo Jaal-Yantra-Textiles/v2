@@ -1,8 +1,9 @@
 import { SubscriberArgs, type SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { syncProductToGoogleWorkflow } from "../workflows/google_merchant"
+import productGoogleMerchantLink from "../links/product-google-merchant-link"
 
-const LINK_ENTITY = "product_product_google_merchant_google_merchant_account"
+const LINK_ENTRY = productGoogleMerchantLink.entryPoint
 
 export default async function googleMerchantProductUpdatedHandler({
   event: { data },
@@ -16,7 +17,7 @@ export default async function googleMerchantProductUpdatedHandler({
   let links: any[] = []
   try {
     const res = await query.graph({
-      entity: LINK_ENTITY,
+      entity: LINK_ENTRY,
       fields: ["product_id", "google_merchant_account_id", "sync_status", "metadata"],
       filters: { product_id: data.id },
     })

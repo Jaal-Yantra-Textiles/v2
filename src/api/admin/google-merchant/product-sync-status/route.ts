@@ -3,8 +3,9 @@ import { MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/util
 import type { RemoteQueryFunction } from "@medusajs/types"
 import { GOOGLE_MERCHANT_MODULE } from "../../../../modules/google_merchant"
 import type GoogleMerchantService from "../../../../modules/google_merchant/service"
+import productGoogleMerchantLink from "../../../../links/product-google-merchant-link"
 
-const LINK_ENTITY = "product_product_google_merchant_google_merchant_account"
+const LINK_ENTRY = productGoogleMerchantLink.entryPoint
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const product_id = req.query.product_id as string
@@ -20,7 +21,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   let links: any[] = []
   try {
     const { data } = await query.graph({
-      entity: LINK_ENTITY,
+      entity: LINK_ENTRY,
       fields: [
         "product_id",
         "google_merchant_account_id",

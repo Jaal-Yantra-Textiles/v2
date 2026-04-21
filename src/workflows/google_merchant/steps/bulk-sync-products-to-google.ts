@@ -8,8 +8,9 @@ import type GoogleMerchantService from "../../../modules/google_merchant/service
 import type EncryptionService from "../../../modules/encryption/service"
 import { GoogleMerchantProvider } from "../../../modules/google_merchant/provider"
 import { mapProductToGoogleMerchant, validateProductForGoogle } from "./map-product-to-google"
+import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
-const LINK_ENTITY = "product_product_google_merchant_google_merchant_account"
+const LINK_ENTRY = productGoogleMerchantLink.entryPoint
 
 export type BulkSyncInput = {
   job_id: string
@@ -113,7 +114,7 @@ export const bulkSyncProductsToGoogleStep = createStep(
     if (!input.include_externally_managed) {
       try {
         const { data: priorLinks } = await query.graph({
-          entity: LINK_ENTITY,
+          entity: LINK_ENTRY,
           fields: ["product_id", "metadata"],
           filters: {
             google_merchant_account_id: input.account_id,
@@ -245,7 +246,7 @@ async function writeLinkSafe(
   }
   try {
     const { data: existing } = await query.graph({
-      entity: LINK_ENTITY,
+      entity: LINK_ENTRY,
       fields: ["google_product_id", "google_product_name", "sync_status"],
       filters: { product_id, google_merchant_account_id: account_id },
     } as any)
