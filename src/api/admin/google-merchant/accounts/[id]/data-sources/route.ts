@@ -68,7 +68,7 @@ export const POST = async (req: MedusaRequest<PostBody>, res: MedusaResponse) =>
       displayName: body.display_name || `Medusa API (${feedLabel}/${contentLanguage})`,
       contentLanguage,
       feedLabel,
-      channel: "ONLINE",
+      channel: "ONLINE_PRODUCTS",
     })
     apiConfig.data_source_name = created.name
     await service.updateGoogleMerchantAccounts({ id: account.id, api_config: apiConfig })
@@ -99,7 +99,7 @@ export const POST = async (req: MedusaRequest<PostBody>, res: MedusaResponse) =>
     displayName: `Medusa API (${feedLabel}/${contentLanguage})`,
     contentLanguage,
     feedLabel,
-    channel: "ONLINE",
+    channel: "ONLINE_PRODUCTS",
   })
   apiConfig.data_source_name = created.name
   await service.updateGoogleMerchantAccounts({ id: account.id, api_config: apiConfig })

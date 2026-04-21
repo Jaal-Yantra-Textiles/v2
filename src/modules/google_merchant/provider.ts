@@ -40,6 +40,8 @@ const USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 const MERCHANT_API_BASE = "https://merchantapi.googleapis.com/products/v1beta"
 const DATASOURCES_API_BASE = "https://merchantapi.googleapis.com/datasources/v1beta"
 
+export type DataSourceChannel = "ONLINE_PRODUCTS" | "LOCAL_PRODUCTS" | "PRODUCTS"
+
 export interface GoogleDataSource {
   name: string
   dataSourceId: string
@@ -48,7 +50,7 @@ export interface GoogleDataSource {
   primaryProductDataSource?: {
     feedLabel?: string
     contentLanguage?: string
-    channel?: "ONLINE" | "LOCAL"
+    channel?: DataSourceChannel
   }
 }
 
@@ -215,7 +217,13 @@ export class GoogleMerchantProvider {
   async createPrimaryApiDataSource(
     accessToken: string,
     merchantId: string,
-    input: { displayName: string; contentLanguage: string; feedLabel: string; channel?: "ONLINE" | "LOCAL" }
+    input: {
+      displayName: string
+      contentLanguage: string
+      feedLabel: string
+      channel?: DataSourceChannel
+      countries?: string[]
+    }
   ): Promise<GoogleDataSource> {
     try {
       const response = await axios.post(
@@ -224,10 +232,10 @@ export class GoogleMerchantProvider {
           displayName: input.displayName,
           input: "API",
           primaryProductDataSource: {
-            channel: input.channel || "ONLINE",
+            channel: input.channel || "ONLINE_PRODUCTS",
             contentLanguage: input.contentLanguage,
             feedLabel: input.feedLabel,
-            countries: [input.feedLabel],
+            countries: input.countries?.length ? input.countries : [input.feedLabel],
           },
         },
         {
