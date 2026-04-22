@@ -30,14 +30,18 @@ export const updateSocialPlatformStep = createStep(
   async (input: UpdateSocialPlatformStepInput, { container }) => {
     const service: SocialPlatformService = container.resolve(SOCIALS_MODULE);
     const { id, ...updateData } = input;
-    
+
     const original = await service.retrieveSocialPlatform(id);
 
-    const updated = await service.updateSocialPlatforms({
+    // `updateSocialPlatforms({ selector, data })` returns an array of updated
+    // entities — normalize to a single record so downstream (refetch, event)
+    // can rely on `result.id`.
+    const updatedResult = await service.updateSocialPlatforms({
       selector: { id },
       data: updateData,
-    }) as unknown as SocialPlatform;
-    
+    }) as unknown;
+    const updated = (Array.isArray(updatedResult) ? updatedResult[0] : updatedResult) as SocialPlatform;
+
     return new StepResponse(updated, { id, originalData: original });
   },
   async (compensationData: { id: string; originalData: any }, { container }) => {
@@ -56,11 +60,14 @@ export const updateSocialPlatformWorkflow = createWorkflow(
   (input: UpdateSocialPlatformWorkflowInput) => {
     const result = updateSocialPlatformStep(input);
     emitEventStep({
-          eventName: 'social_platform.updated',
-          data: {
-            id: result.id
-          }
-        })
+      eventName: 'social_platform.updated',
+      // Use the input id — always present — rather than relying on
+      // result.id, which has historically been undefined when the service
+      // returned an array.
+      data: {
+        id: input.id,
+      },
+    })
     return new WorkflowResponse(result);
   }
 );

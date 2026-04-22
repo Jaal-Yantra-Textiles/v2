@@ -116,6 +116,7 @@ import { updateSocialPlatformWorkflow } from "../../../../workflows/socials/upda
 import { deleteSocialPlatformWorkflow } from "../../../../workflows/socials/delete-social-platform";
 import { SOCIALS_MODULE } from "../../../../modules/socials";
 import type SocialsService from "../../../../modules/socials/service";
+import { encryptSocialPlatformCredentials } from "../../../../subscribers/social-platform-credentials-encryption";
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { result } = await listSocialPlatformWorkflow(req.scope).run({
@@ -125,13 +126,22 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 };
 
 export const POST = async (req: MedusaRequest<UpdateSocialPlatform>, res: MedusaResponse) => {
-  const { result } = await updateSocialPlatformWorkflow(req.scope).run({
+  await updateSocialPlatformWorkflow(req.scope).run({
     input: {
       id: req.params.id,
       ...req.validatedBody,
     },
   });
-  const socialPlatform = await refetchSocialPlatform(result.id, req.scope);
+
+  // Encrypt any newly-submitted credentials synchronously so the response
+  // reflects the final (encrypted) state. The subscriber still fires on the
+  // emitted event; its guards make the second pass a no-op.
+  await encryptSocialPlatformCredentials(req.params.id, req.scope);
+
+  // Always refetch by the URL param. Never trust `result.id` — the service's
+  // `updateSocialPlatforms({ selector, data })` returns an array, which has
+  // previously led to stale/wrong-record responses.
+  const socialPlatform = await refetchSocialPlatform(req.params.id, req.scope);
 
   // Enforce single-default invariant for WhatsApp: if this row was saved as
   // default, unset `is_default` on every other WhatsApp row.
