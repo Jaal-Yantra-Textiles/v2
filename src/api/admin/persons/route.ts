@@ -184,15 +184,32 @@ export const GET = async (req: MedusaRequest<ListPersonsQuery>, res: MedusaRespo
       state: query.state
     };
     // Get the validated limit and offset
+    // Parse the `order` query param (accepts "created_at:DESC" or "-created_at")
+    // and fall back to newest-first when no sort is supplied.
+    const parseOrder = (raw?: string): Record<string, "ASC" | "DESC"> => {
+      if (!raw) return { created_at: "DESC" }
+      const trim = raw.trim()
+      if (!trim) return { created_at: "DESC" }
+      let field = trim
+      let direction: "ASC" | "DESC" = "ASC"
+      if (trim.startsWith("-")) {
+        field = trim.slice(1)
+        direction = "DESC"
+      } else if (trim.includes(":")) {
+        const [f, d] = trim.split(":")
+        field = f
+        direction = (d || "").toLowerCase() === "desc" ? "DESC" : "ASC"
+      }
+      return field ? { [field]: direction } : { created_at: "DESC" }
+    }
+
     const { result:persons, errors } = await listAndCountPersonsWithFilterWorkflow(req.scope).run({
       input: {
         filters,
         pagination: {
           take: query.limit,
           skip: query.offset,
-          order: {
-            created_at: 'ASC'
-          }
+          order: parseOrder(query.order as string | undefined),
         },
         withDeleted: Boolean(query.withDeleted),
         fields: fields || '*'

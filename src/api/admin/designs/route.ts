@@ -246,11 +246,30 @@ export const GET = async (
       })
     }
 
+    // Parse `order` ("created_at:DESC" / "-created_at"); default newest-first.
+    const parseOrder = (raw?: unknown): Record<string, "ASC" | "DESC"> => {
+      if (!raw || typeof raw !== "string") return { created_at: "DESC" }
+      const trim = raw.trim()
+      if (!trim) return { created_at: "DESC" }
+      let field = trim
+      let direction: "ASC" | "DESC" = "ASC"
+      if (trim.startsWith("-")) {
+        field = trim.slice(1)
+        direction = "DESC"
+      } else if (trim.includes(":")) {
+        const [f, d] = trim.split(":")
+        field = f
+        direction = (d || "").toLowerCase() === "desc" ? "DESC" : "ASC"
+      }
+      return field ? { [field]: direction } : { created_at: "DESC" }
+    }
+
     const { result, errors } = await listDesignsWorkflow(req.scope).run({
       input: {
         pagination: {
           offset: Number(req.query.offset) || 0,
           limit: Number(req.query.limit) || 10,
+          order: parseOrder((req.query as any).order),
         },
         filters: {
           q: req.query.q,

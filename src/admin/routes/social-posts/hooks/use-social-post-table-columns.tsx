@@ -1,14 +1,17 @@
-import { createColumnHelper } from "@tanstack/react-table"
+import { Badge, createDataTableColumnHelper } from "@medusajs/ui"
 import { AdminSocialPost } from "../../../hooks/api/social-posts"
-import { Badge } from "@medusajs/ui"
 
-const columnHelper = createColumnHelper<AdminSocialPost>()
+const columnHelper = createDataTableColumnHelper<AdminSocialPost>()
 
 export const useSocialPostTableColumns = () => {
   return [
     columnHelper.accessor("name", {
       header: "Name",
       cell: (info) => info.getValue(),
+      enableSorting: true,
+      sortLabel: "Name",
+      sortAscLabel: "A → Z",
+      sortDescLabel: "Z → A",
     }),
     columnHelper.accessor("caption", {
       header: "Caption",

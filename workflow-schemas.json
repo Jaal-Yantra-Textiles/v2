@@ -4097,6 +4097,12 @@
         "type": "number",
         "required": false,
         "placeholder": "0"
+      },
+      {
+        "name": "order",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
       }
     ],
     "source": "custom_ts",

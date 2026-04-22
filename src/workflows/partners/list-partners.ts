@@ -15,6 +15,7 @@ type ListPartnersInput = {
   fields?: string[]
   offset?: number
   limit?: number
+  order?: Record<string, "ASC" | "DESC">
 }
 
 export const listPartnersStep = createStep(
@@ -61,6 +62,8 @@ export const listPartnersStep = createStep(
       pagination: {
         skip: input.offset || 0,
         take: input.limit || 20,
+        // Caller-supplied sort wins; otherwise newest first.
+        order: input.order ?? { created_at: "DESC" },
       },
     })
 

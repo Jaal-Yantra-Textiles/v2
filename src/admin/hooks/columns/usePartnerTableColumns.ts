@@ -1,8 +1,8 @@
-import { createColumnHelper } from "@tanstack/react-table"
+import { createDataTableColumnHelper } from "@medusajs/ui"
 import { useMemo } from "react"
 import type { AdminPartner } from "../api/partners-admin"
 
-const columnHelper = createColumnHelper<AdminPartner>()
+const columnHelper = createDataTableColumnHelper<AdminPartner>()
 
 export const usePartnerTableColumns = () => {
   return useMemo(
@@ -10,10 +10,18 @@ export const usePartnerTableColumns = () => {
       columnHelper.accessor("name", {
         header: "Name",
         cell: ({ getValue }) => String(getValue() ?? "-"),
+        enableSorting: true,
+        sortLabel: "Name",
+        sortAscLabel: "A → Z",
+        sortDescLabel: "Z → A",
       }),
       columnHelper.accessor("handle", {
         header: "Handle",
         cell: ({ getValue }) => String(getValue() ?? "-"),
+        enableSorting: true,
+        sortLabel: "Handle",
+        sortAscLabel: "A → Z",
+        sortDescLabel: "Z → A",
       }),
       columnHelper.accessor("status", {
         header: "Status",

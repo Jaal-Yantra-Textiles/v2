@@ -1,10 +1,11 @@
-import { createColumnHelper, CellContext } from "@tanstack/react-table"
+import { CellContext } from "@tanstack/react-table"
+import { createDataTableColumnHelper } from "@medusajs/ui"
 import { useMemo } from "react"
 import { AdminSocialPlatform } from "../../../../hooks/api/social-platforms"
 import { PlatformActions } from "./platform-actions"
 import { GOOGLE_MERCHANT_VIRTUAL_ID } from "../constants"
 
-const columnHelper = createColumnHelper<AdminSocialPlatform>()
+const columnHelper = createDataTableColumnHelper<AdminSocialPlatform>()
 
 export const useSocialPlatformTableColumns = () => {
   return useMemo(
@@ -12,6 +13,10 @@ export const useSocialPlatformTableColumns = () => {
       columnHelper.accessor("name", {
         header: "Name",
         cell: (info) => info.getValue(),
+        enableSorting: true,
+        sortLabel: "Name",
+        sortAscLabel: "A → Z",
+        sortDescLabel: "Z → A",
       }),
       columnHelper.accessor("base_url", {
         header: "URL",
@@ -34,6 +39,10 @@ export const useSocialPlatformTableColumns = () => {
       columnHelper.accessor("created_at", {
         header: "Created At",
         cell: (info) => new Date(info.getValue()).toLocaleDateString(),
+        enableSorting: true,
+        sortLabel: "Created",
+        sortAscLabel: "Oldest first",
+        sortDescLabel: "Newest first",
       }),
       columnHelper.display({
         id: "actions",

@@ -1,8 +1,19 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Tabs, Button, DatePicker, Label, Select } from "@medusajs/ui";
+import {
+  Button,
+  Container,
+  DataTable,
+  DataTableFilteringState,
+  DataTablePaginationState,
+  createDataTableColumnHelper,
+  createDataTableFilterHelper,
+  Heading,
+  Tabs,
+  Text,
+  useDataTable,
+} from "@medusajs/ui";
 import { Link, Outlet, useNavigate } from "react-router-dom";
-import { useMemo, useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
-import { createColumnHelper } from "@tanstack/react-table";
 import { AdminMediaFolder } from "../../hooks/api/media-folders";
 import { useMedias } from "../../hooks/api/media-folders/use-medias";
 import debounce from "lodash/debounce";
@@ -10,7 +21,9 @@ import { Folder, PencilSquare } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 
-const columnHelper = createColumnHelper<AdminMediaFolder>();
+type SortingState = { id: string; desc: boolean } | null;
+
+const columnHelper = createDataTableColumnHelper<AdminMediaFolder>();
 
 export const useColumns = () => {
   const columns = useMemo(
@@ -18,6 +31,10 @@ export const useColumns = () => {
       columnHelper.accessor("name", {
         header: "Name",
         cell: (info) => info.getValue(),
+        enableSorting: true,
+        sortLabel: "Name",
+        sortAscLabel: "A → Z",
+        sortDescLabel: "Z → A",
       }),
       columnHelper.accessor("description", {
         header: "Description",
@@ -30,10 +47,14 @@ export const useColumns = () => {
       columnHelper.accessor("level", {
         header: "Level",
         cell: (info) => info.getValue(),
+        enableSorting: true,
+        sortLabel: "Level",
+        sortAscLabel: "Shallowest first",
+        sortDescLabel: "Deepest first",
       }),
       columnHelper.accessor("is_public", {
         header: "Public",
-        cell: (info) => info.getValue() ? "Yes" : "No",
+        cell: (info) => (info.getValue() ? "Yes" : "No"),
       }),
     ],
     []
@@ -66,71 +87,130 @@ export const useColumns = () => {
   );
 };
 
-// Albums table columns (minimal)
 type AdminAlbum = {
-  id: string
-  name: string
-  description?: string | null
-  slug: string
-  type?: string
-  is_public?: boolean
-}
-const albumColumnHelper = createColumnHelper<AdminAlbum>()
-const useAlbumColumns = () => {
-  return useMemo(
+  id: string;
+  name: string;
+  description?: string | null;
+  slug: string;
+  type?: string;
+  is_public?: boolean;
+};
+const albumColumnHelper = createDataTableColumnHelper<AdminAlbum>();
+const useAlbumColumns = () =>
+  useMemo(
     () => [
-      albumColumnHelper.accessor("name", { header: "Name" }),
-      albumColumnHelper.accessor("description", { header: "Description", cell: (i) => i.getValue() || "-" }),
+      albumColumnHelper.accessor("name", {
+        header: "Name",
+        enableSorting: true,
+        sortLabel: "Name",
+        sortAscLabel: "A → Z",
+        sortDescLabel: "Z → A",
+      }),
+      albumColumnHelper.accessor("description", {
+        header: "Description",
+        cell: (i) => i.getValue() || "-",
+      }),
       albumColumnHelper.accessor("slug", { header: "Slug" }),
-      albumColumnHelper.accessor("type", { header: "Type", cell: (i) => i.getValue() || "-" }),
-      albumColumnHelper.accessor("is_public", { header: "Public", cell: (i) => (i.getValue() ? "Yes" : "No") }),
+      albumColumnHelper.accessor("type", {
+        header: "Type",
+        cell: (i) => i.getValue() || "-",
+      }),
+      albumColumnHelper.accessor("is_public", {
+        header: "Public",
+        cell: (i) => (i.getValue() ? "Yes" : "No"),
+      }),
     ],
     []
-  )
-}
+  );
 
-// Files table columns (re-use MediaFile interface from hooks)
 type AdminMediaFile = {
-  id: string
-  file_name: string
-  mime_type: string
-  file_type?: string
-  file_size?: number
-  width?: number | null
-  height?: number | null
-  is_public?: boolean
-}
-const fileColumnHelper = createColumnHelper<AdminMediaFile>()
-const useFileColumns = () => {
-  return useMemo(
+  id: string;
+  file_name: string;
+  mime_type: string;
+  file_type?: string;
+  file_size?: number;
+  width?: number | null;
+  height?: number | null;
+  is_public?: boolean;
+};
+const fileColumnHelper = createDataTableColumnHelper<AdminMediaFile>();
+const useFileColumns = () =>
+  useMemo(
     () => [
-      fileColumnHelper.accessor("file_name", { header: "File Name" }),
+      fileColumnHelper.accessor("file_name", {
+        header: "File Name",
+        enableSorting: true,
+        sortLabel: "File name",
+        sortAscLabel: "A → Z",
+        sortDescLabel: "Z → A",
+      }),
       fileColumnHelper.accessor("mime_type", { header: "MIME Type" }),
-      fileColumnHelper.accessor("file_type", { header: "Type", cell: (i) => i.getValue() || "-" }),
-      fileColumnHelper.accessor("file_size", { header: "Size", cell: (i) => (i.getValue() ? `${i.getValue()} B` : "-") }),
-      fileColumnHelper.accessor("is_public", { header: "Public", cell: (i) => (i.getValue() ? "Yes" : "No") }),
+      fileColumnHelper.accessor("file_type", {
+        header: "Type",
+        cell: (i) => i.getValue() || "-",
+      }),
+      fileColumnHelper.accessor("file_size", {
+        header: "Size",
+        cell: (i) => (i.getValue() ? `${i.getValue()} B` : "-"),
+        enableSorting: true,
+        sortLabel: "Size",
+        sortAscLabel: "Smallest first",
+        sortDescLabel: "Largest first",
+      }),
+      fileColumnHelper.accessor("is_public", {
+        header: "Public",
+        cell: (i) => (i.getValue() ? "Yes" : "No"),
+      }),
     ],
     []
-  )
-}
+  );
 
-type TabView = "folders" | "albums" | "files"
+type TabView = "folders" | "albums" | "files";
+
+// Preset date windows for the created_at filter — same shape used by other
+// admin tables (see designs/page.tsx). Values are comparison operators the
+// backend already accepts via `filters.created_at`.
+const useDateFilterOptions = () =>
+  useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    const daysAgo = (d: number) => {
+      const date = new Date(startOfToday);
+      date.setDate(date.getDate() - d);
+      return date.toISOString();
+    };
+    return [
+      {
+        label: "Today",
+        value: {
+          $gte: startOfToday.toISOString(),
+          $lte: endOfToday.toISOString(),
+        },
+      },
+      { label: "Last 7 days", value: { $gte: daysAgo(7) } },
+      { label: "Last 30 days", value: { $gte: daysAgo(30) } },
+      { label: "Last 90 days", value: { $gte: daysAgo(90) } },
+      { label: "Last 12 months", value: { $gte: daysAgo(365) } },
+    ];
+  }, []);
 
 const AllMediaPage = () => {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<TabView>("folders")
-  
+  const [tab, setTab] = useState<TabView>("folders");
+
   const [pagination, setPagination] = useState<DataTablePaginationState>({
     pageSize: 20,
     pageIndex: 0,
   });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
-  const [createdFrom, setCreatedFrom] = useState<Date | null>(null);
-  const [createdTo, setCreatedTo] = useState<Date | null>(null);
-  const [sortBy, setSortBy] = useState<string>("created_at:desc");
-  
-  // Debounced filter change handler to prevent rapid re-renders and API calls
+  const [sorting, setSorting] = useState<SortingState>({
+    id: "created_at",
+    desc: true,
+  });
+
   const handleFilterChange = useCallback(
     debounce((newFilters: DataTableFilteringState) => {
       setFiltering(newFilters);
@@ -138,28 +218,49 @@ const AllMediaPage = () => {
     []
   );
 
-  // Debounced search change handler
   const handleSearchChange = useCallback(
     debounce((newSearch: string) => {
       setSearch(newSearch);
     }, 300),
     []
   );
-  
-  // Calculate the offset based on pagination
+
+  // Tab switch: reset any column sort that only exists on one entity (e.g.
+  // `file_name` on files) so we don't ship a sort key the folders/albums
+  // workflow will reject — the backend also guards against this, but
+  // clearing here keeps the UI indicator honest.
+  const handleTabChange = useCallback((v: string) => {
+    setTab(v as TabView);
+    setSorting({ id: "created_at", desc: true });
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  }, []);
+
   const offset = pagination.pageIndex * pagination.pageSize;
-  
-  const createdAtFilter = useMemo(() => {
-    const range: Record<string, string> = {};
-    if (createdFrom) range["$gte"] = createdFrom.toISOString();
-    if (createdTo) {
-      // end-of-day for inclusive "to"
-      const eod = new Date(createdTo);
-      eod.setHours(23, 59, 59, 999);
-      range["$lte"] = eod.toISOString();
+
+  const mappedFilters = useMemo(() => {
+    const out: Record<string, any> = {};
+    if (search) out.q = search;
+    for (const [key, value] of Object.entries(filtering)) {
+      if (value === undefined || value === null) continue;
+      if (key === "is_public") {
+        out.is_public = value === "true" ? true : value === "false" ? false : value;
+      } else if (key === "parent_folder_id") {
+        if (value !== "") out.parent_folder_id = value;
+      } else if (key === "file_type") {
+        out.file_type = value;
+      } else if (key === "created_at") {
+        // DataTable date filter produces a comparison-operator object that
+        // the backend already understands.
+        out.created_at = value;
+      }
     }
-    return Object.keys(range).length ? range : undefined;
-  }, [createdFrom, createdTo]);
+    return out;
+  }, [search, filtering]);
+
+  const orderConfig = useMemo(() => {
+    if (!sorting?.id) return undefined;
+    return { [sorting.id]: sorting.desc ? "DESC" : "ASC" } as Record<string, "ASC" | "DESC">;
+  }, [sorting]);
 
   const {
     folders,
@@ -174,35 +275,23 @@ const AllMediaPage = () => {
   } = useMedias({
     skip: offset,
     take: pagination.pageSize,
-    // Forward search and filters in a generic way; backend can map as needed
-    filters: {
-      q: search || undefined,
-      ...(createdAtFilter ? { created_at: createdAtFilter } : {}),
-      ...(Object.keys(filtering).length > 0
-        ? Object.entries(filtering).reduce((acc, [key, value]) => {
-            if (key === "is_public") {
-              acc.is_public = value === "true" ? true : value === "false" ? false : value;
-            } else if (key === "parent_folder_id") {
-              acc.parent_folder_id = value as string;
-            } else if (key === "file_type") {
-              acc.file_type = value as string;
-            }
-            return acc;
-          }, {} as Record<string, any>)
-        : {}),
-    },
-    config: { order: sortBy },
+    filters: mappedFilters,
+    config: orderConfig ? { order: orderConfig } : undefined,
   });
 
   const folderColumns = useColumns();
   const albumColumns = useAlbumColumns();
   const fileColumns = useFileColumns();
-  const columns: any = tab === "folders" ? folderColumns : tab === "albums" ? albumColumns : fileColumns;
-  
-  // Create filter helper
+  const columns: any =
+    tab === "folders"
+      ? folderColumns
+      : tab === "albums"
+      ? albumColumns
+      : fileColumns;
+
   const filterHelper = createDataTableFilterHelper<AdminMediaFolder>();
-  
-  // Define filters for the DataTable
+  const dateFilterOptions = useDateFilterOptions();
+
   const filters = useMemo(() => {
     const base = [
       filterHelper.accessor("is_public", {
@@ -213,7 +302,12 @@ const AllMediaPage = () => {
           { label: "No", value: "false" },
         ],
       }),
-    ] as any[]
+      filterHelper.accessor("created_at", {
+        type: "date",
+        label: "Created date",
+        options: dateFilterOptions,
+      }),
+    ] as any[];
     if (tab === "folders") {
       base.push(
         filterHelper.accessor("parent_folder_id", {
@@ -223,10 +317,13 @@ const AllMediaPage = () => {
             if (!folders?.length) return [] as any;
             return folders
               .filter((f) => !!f.id)
-              .map((f) => ({ label: f.path || f.name || f.id, value: f.id }));
+              .map((f) => ({
+                label: f.path || f.name || f.id,
+                value: f.id,
+              }));
           })(),
         })
-      )
+      );
     }
     if (tab === "files") {
       base.push(
@@ -242,21 +339,30 @@ const AllMediaPage = () => {
             { label: "Other", value: "other" },
           ],
         })
-      )
+      );
     }
-    return base
-  }, [filterHelper, tab, folders])
+    return base;
+  }, [filterHelper, tab, folders, dateFilterOptions]);
 
   const table = useDataTable<any>({
     columns: columns as any,
-    data: (tab === "folders" ? (folders ?? []) : tab === "albums" ? (albums as any[] ?? []) : (media_files as any[] ?? [])) as any[],
+    data: (tab === "folders"
+      ? folders ?? []
+      : tab === "albums"
+      ? (albums as any[]) ?? []
+      : (media_files as any[]) ?? []) as any[],
     getRowId: (row: any) => row.id as string,
     onRowClick: (_, row) => {
       if (tab === "folders") {
-        navigate(`/medias/${(row as any).id}`)
+        navigate(`/medias/${(row as any).id}`);
       }
     },
-    rowCount: tab === "folders" ? folders_count : tab === "albums" ? albums_count : media_files_count,
+    rowCount:
+      tab === "folders"
+        ? folders_count
+        : tab === "albums"
+        ? albums_count
+        : media_files_count,
     isLoading,
     filters,
     pagination: {
@@ -271,6 +377,10 @@ const AllMediaPage = () => {
       state: filtering,
       onFilteringChange: handleFilterChange,
     },
+    sorting: {
+      state: sorting,
+      onSortingChange: setSorting,
+    },
   });
 
   if (isError) {
@@ -279,100 +389,40 @@ const AllMediaPage = () => {
 
   return (
     <div>
-    <Container className="divide-y p-0">
-      <DataTable instance={table}>
-        <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
-          <div className="flex-1 min-w-0">
-            <Heading>All Media</Heading>
-            <Text className="text-ui-fg-subtle" size="small">
-              Browse folders, albums, and files
-            </Text>
-          </div>
-          <div className="flex items-center gap-x-2">
-            <Button asChild size="small" variant="secondary">
-               <Link to="upload">{"Upload Files"}</Link>
-            </Button>
-            <CreateButton />
-          </div>
-        </DataTable.Toolbar>
-        {/* Tabs row (divided section) */}
-        <div className="flex items-start justify-between gap-x-4 px-6 py-4 border-t border-ui-border-base">
-          <div className="w-full max-w-[60%] flex items-center gap-x-4">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+      <Container className="divide-y p-0">
+        <DataTable instance={table}>
+          <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
+            <div className="flex-1 min-w-0">
+              <Heading>All Media</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Browse folders, albums, and files
+              </Text>
+            </div>
+            <div className="flex items-center gap-x-2">
+              <Button asChild size="small" variant="secondary">
+                <Link to="upload">Upload Files</Link>
+              </Button>
+              <CreateButton />
+            </div>
+          </DataTable.Toolbar>
+          {/* Tabs + Search — Filter/Sort menus are rendered by
+              <DataTable.Toolbar> itself (via its internal FilterBar), so
+              putting them here again would draw them twice. */}
+          <div className="flex items-center justify-between gap-x-4 px-6 py-4 border-t border-ui-border-base">
+            <Tabs value={tab} onValueChange={handleTabChange}>
               <Tabs.List>
                 <Tabs.Trigger value="folders">Folders</Tabs.Trigger>
                 <Tabs.Trigger value="albums">Albums</Tabs.Trigger>
                 <Tabs.Trigger value="files">Files</Tabs.Trigger>
               </Tabs.List>
             </Tabs>
-          </div>
-          <div className="flex shrink-0 items-center gap-x-2" />
-        </div>
-        {/* Search and filter row (divided section) */}
-        <div className="flex flex-col gap-y-3 px-6 py-4 border-t border-ui-border-base md:flex-row md:items-end md:justify-between md:gap-x-4">
-          <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-            <DataTable.FilterMenu tooltip="Filter medias" />
-            <div className="flex flex-col gap-y-1">
-              <Label size="xsmall" className="text-ui-fg-subtle">Created from</Label>
-              <DatePicker
-                modal
-                value={createdFrom ?? undefined}
-                maxValue={createdTo ?? undefined}
-                onChange={(d) => setCreatedFrom(d ?? null)}
-              />
-            </div>
-            <div className="flex flex-col gap-y-1">
-              <Label size="xsmall" className="text-ui-fg-subtle">Created to</Label>
-              <DatePicker
-                modal
-                value={createdTo ?? undefined}
-                minValue={createdFrom ?? undefined}
-                onChange={(d) => setCreatedTo(d ?? null)}
-              />
-            </div>
-            {(createdFrom || createdTo) && (
-              <Button
-                variant="transparent"
-                size="small"
-                onClick={() => {
-                  setCreatedFrom(null)
-                  setCreatedTo(null)
-                }}
-              >
-                Clear dates
-              </Button>
-            )}
-            <div className="flex flex-col gap-y-1">
-              <Label size="xsmall" className="text-ui-fg-subtle">Sort</Label>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <Select.Trigger>
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="created_at:desc">Newest first</Select.Item>
-                  <Select.Item value="created_at:asc">Oldest first</Select.Item>
-                  <Select.Item value="updated_at:desc">Recently updated</Select.Item>
-                  <Select.Item value={tab === "files" ? "file_name:asc" : "name:asc"}>Name A–Z</Select.Item>
-                  <Select.Item value={tab === "files" ? "file_name:desc" : "name:desc"}>Name Z–A</Select.Item>
-                  {tab === "files" && (
-                    <Select.Item value="file_size:desc">Largest first</Select.Item>
-                  )}
-                  {tab === "files" && (
-                    <Select.Item value="file_size:asc">Smallest first</Select.Item>
-                  )}
-                </Select.Content>
-              </Select>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-x-2">
             <DataTable.Search placeholder="Search medias..." />
           </div>
-        </div>
-        <DataTable.Table />
-        <DataTable.Pagination />
-      </DataTable>
-    </Container>
-    <Outlet></Outlet>
+          <DataTable.Table />
+          <DataTable.Pagination />
+        </DataTable>
+      </Container>
+      <Outlet />
     </div>
   );
 };

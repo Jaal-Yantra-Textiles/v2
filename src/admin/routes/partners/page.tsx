@@ -1,4 +1,6 @@
 import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Button } from "@medusajs/ui"
+
+type SortingState = { id: string; desc: boolean } | null
 import { Link, Outlet, useNavigate } from "react-router-dom"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { UserGroup } from "@medusajs/icons"
@@ -22,6 +24,7 @@ const PartnersPage = () => {
   })
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
   const [search, setSearch] = useState<string>("")
+  const [sorting, setSorting] = useState<SortingState>(null)
 
   const handleFilterChange = useCallback(
     debounce((newFilters: DataTableFilteringState) => setFiltering(newFilters), 300),
@@ -31,9 +34,14 @@ const PartnersPage = () => {
 
   const offset = pagination.pageIndex * pagination.pageSize
 
+  const orderParam = sorting?.id
+    ? `${sorting.id}:${sorting.desc ? "DESC" : "ASC"}`
+    : undefined
+
   const { partners = [], count = 0, isPending } = usePartners({
     limit: pagination.pageSize,
     offset,
+    ...(orderParam ? { order: orderParam } : {}),
     // Apply known filters only
     ...(Object.keys(filtering).length > 0
       ? Object.entries(filtering).reduce((acc: Record<string, any>, [key, value]) => {
@@ -97,6 +105,7 @@ const PartnersPage = () => {
     pagination: { state: pagination, onPaginationChange: setPagination },
     search: { state: search, onSearchChange: handleSearchChange },
     filtering: { state: filtering, onFilteringChange: handleFilterChange },
+    sorting: { state: sorting, onSortingChange: setSorting },
   })
 
   return (

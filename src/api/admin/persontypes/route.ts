@@ -134,7 +134,7 @@ export const POST = async (
 };
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { q, offset: offsetStr, limit: limitStr, ...filters } = req.query;
+  const { q, offset: offsetStr, limit: limitStr, order: orderRaw, ...filters } = req.query;
 
   const offset = parseInt(offsetStr as string) || 0;
   const limit = parseInt(limitStr as string) || 10;
@@ -143,12 +143,31 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters.name = q;
   }
 
+  // Parse `order` ("created_at:DESC" or "-created_at"); default newest-first.
+  const parseOrder = (raw?: unknown): Record<string, "ASC" | "DESC"> => {
+    if (!raw || typeof raw !== "string") return { created_at: "DESC" };
+    const trim = raw.trim();
+    if (!trim) return { created_at: "DESC" };
+    let field = trim;
+    let direction: "ASC" | "DESC" = "ASC";
+    if (trim.startsWith("-")) {
+      field = trim.slice(1);
+      direction = "DESC";
+    } else if (trim.includes(":")) {
+      const [f, d] = trim.split(":");
+      field = f;
+      direction = (d || "").toLowerCase() === "desc" ? "DESC" : "ASC";
+    }
+    return field ? { [field]: direction } : { created_at: "DESC" };
+  };
+
   const workflowInput: ListPersonTypesWorkFlowInput = {
     filters: filters,
     pagination: {
       offset,
       limit,
     },
+    order: parseOrder(orderRaw),
   };
   const { result } = await listPersonTypeWorkflow(req.scope).run({
     input: workflowInput,

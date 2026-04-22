@@ -18,13 +18,19 @@ const SocialPostPage = () => {
   })
   const [search, setSearch] = useState("")
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [sorting, setSorting] = useState<{ id: string; desc: boolean } | null>(null)
 
   const offset = pagination.pageIndex * pagination.pageSize
+
+  const orderParam = sorting?.id
+    ? `${sorting.id}:${sorting.desc ? "DESC" : "ASC"}`
+    : undefined
 
   const { socialPosts, count, isLoading, isError, error } = useSocialPosts({
     limit: pagination.pageSize,
     offset,
     q: search || undefined,
+    ...(orderParam ? { order: orderParam } : {}),
     ...(filtering.status ? { status: filtering.status as any } : {}),
   })
 
@@ -103,6 +109,10 @@ const SocialPostPage = () => {
     search: {
       state: search,
       onSearchChange: handleSearchChange,
+    },
+    sorting: {
+      state: sorting,
+      onSortingChange: setSorting,
     },
   })
 

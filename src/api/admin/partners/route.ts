@@ -168,12 +168,31 @@ export const GET = async (
       handle?: string
       status?: "active" | "inactive" | "pending"
       is_verified?: boolean
+      order?: string
     }
   },
   res: MedusaResponse
 ) => {
   const offset = Number(req.query?.offset ?? 0)
   const limit = Number(req.query?.limit ?? 20)
+
+  // Parse `order` ("created_at:DESC" or "-created_at"); fall back to newest-first.
+  const parseOrder = (raw?: string): Record<string, "ASC" | "DESC"> => {
+    if (!raw) return { created_at: "DESC" }
+    const trim = String(raw).trim()
+    if (!trim) return { created_at: "DESC" }
+    let field = trim
+    let direction: "ASC" | "DESC" = "ASC"
+    if (trim.startsWith("-")) {
+      field = trim.slice(1)
+      direction = "DESC"
+    } else if (trim.includes(":")) {
+      const [f, d] = trim.split(":")
+      field = f
+      direction = (d || "").toLowerCase() === "desc" ? "DESC" : "ASC"
+    }
+    return field ? { [field]: direction } : { created_at: "DESC" }
+  }
 
   const { result } = await listPartnersWorkflow(req.scope).run({
     input: {
@@ -186,6 +205,7 @@ export const GET = async (
       },
       offset,
       limit,
+      order: parseOrder(req.query?.order),
     },
   })
 

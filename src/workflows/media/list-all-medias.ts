@@ -18,45 +18,82 @@ export type ListAllMediasInput = {
   };
 };
 
+// Scope filters AND sort keys to fields that actually exist on the target
+// entity. MikroORM throws a 400 when asked to filter/order by a missing
+// column — so the partner API would surface that as `Failed to list media
+// entities`. Dropping unknown keys here lets cross-entity sort values
+// (e.g. `file_name:asc` picked while viewing Files) degrade to the entity's
+// default order rather than blowing up the whole multi-entity response.
+const pickAllowed = <T extends Record<string, any>>(
+  obj: T | undefined,
+  allowed: Set<string>,
+): Record<string, any> => {
+  const out: Record<string, any> = {}
+  for (const [k, v] of Object.entries(obj || {})) {
+    if (allowed.has(k)) out[k] = v
+  }
+  return out
+}
+
+const scopeConfig = (
+  config: Record<string, any> | undefined,
+  allowed: Set<string>,
+): Record<string, any> | undefined => {
+  if (!config) return config
+  const next = { ...config }
+  if (next.order !== undefined) {
+    if (typeof next.order === "string") {
+      // Leave string-form orders to the API route's normalizer; but scrub
+      // any key-based string that points at a missing column.
+      const raw = next.order.trim()
+      const field = raw.startsWith("-")
+        ? raw.slice(1)
+        : raw.includes(":")
+          ? raw.split(":")[0]
+          : raw
+      if (!allowed.has(field)) {
+        delete next.order
+      }
+    } else if (typeof next.order === "object" && next.order !== null) {
+      const scoped = pickAllowed(next.order, allowed)
+      if (Object.keys(scoped).length === 0) {
+        delete next.order
+      } else {
+        next.order = scoped
+      }
+    }
+  }
+  return next
+}
+
 export const listAllMediasWorkflow = createWorkflow(
   "list-all-medias",
   (input: ListAllMediasInput) => {
     // Derive per-entity filters to avoid querying by non-existent fields
     const foldersRes = listFolderWorkflow.runAsStep({
       input: transform({ input }, (data) => {
-        const raw = { ...(data.input.filters || {}) }
         // Whitelist only fields that exist on Folder
         const allowedKeys = new Set(["id", "name", "slug", "description", "path", "level", "sort_order", "is_public", "parent_folder_id", "metadata", "created_at", "updated_at"])
-        const filtered: Record<string, any> = {}
-        for (const [k, v] of Object.entries(raw)) {
-          if (allowedKeys.has(k)) filtered[k] = v
-        }
         return {
-          filters: filtered,
-          config: data.input.config,
+          filters: pickAllowed(data.input.filters, allowedKeys),
+          config: scopeConfig(data.input.config, allowedKeys),
         }
       }),
     });
 
     const albumsRes = listAlbumWorkflow.runAsStep({
       input: transform({ input }, (data) => {
-        const raw = { ...(data.input.filters || {}) }
         // Whitelist only fields that exist on Album
         const allowedKeys = new Set(["id", "name", "description", "slug", "is_public", "sort_order", "type", "metadata", "cover_media_id", "created_at", "updated_at"])
-        const filtered: Record<string, any> = {}
-        for (const [k, v] of Object.entries(raw)) {
-          if (allowedKeys.has(k)) filtered[k] = v
-        }
         return {
-          filters: filtered,
-          config: data.input.config,
+          filters: pickAllowed(data.input.filters, allowedKeys),
+          config: scopeConfig(data.input.config, allowedKeys),
         }
       }),
     });
 
     const mediaFilesRes = listMediaFileWorkflow.runAsStep({
       input: transform({ input }, (data) => {
-        const raw = { ...(data.input.filters || {}) }
         // Whitelist only fields that exist on MediaFile
         const allowedKeys = new Set([
           "id", "file_name", "original_name", "file_path", "file_size", "file_hash",
@@ -64,29 +101,20 @@ export const listAllMediasWorkflow = createWorkflow(
           "title", "description", "alt_text", "caption", "folder_path", "tags",
           "is_public", "metadata", "folder_id", "created_at", "updated_at"
         ])
-        const filtered: Record<string, any> = {}
-        for (const [k, v] of Object.entries(raw)) {
-          if (allowedKeys.has(k)) filtered[k] = v
-        }
         return {
-          filters: filtered,
-          config: data.input.config,
+          filters: pickAllowed(data.input.filters, allowedKeys),
+          config: scopeConfig(data.input.config, allowedKeys),
         }
       }),
     });
 
     const albumMediaRes = listAlbumMediaWorkflow.runAsStep({
       input: transform({ input }, (data) => {
-        const raw = { ...(data.input.filters || {}) }
-        // Whitelist only fields that exist on AlbumMedia
-        const allowedKeys = new Set(["sort_order", "title", "description", "album", "media"]) // relations by FK supported via Medusa service
-        const filtered: Record<string, any> = {}
-        for (const [k, v] of Object.entries(raw)) {
-          if (allowedKeys.has(k)) filtered[k] = v
-        }
+        // Whitelist only fields that exist on AlbumMedia (relations by FK supported via Medusa service)
+        const allowedKeys = new Set(["sort_order", "title", "description", "album", "media", "created_at", "updated_at"])
         return {
-          filters: filtered,
-          config: data.input.config,
+          filters: pickAllowed(data.input.filters, allowedKeys),
+          config: scopeConfig(data.input.config, allowedKeys),
         }
       }),
     });

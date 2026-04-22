@@ -14,6 +14,7 @@ export type ListSocialPostStepInput = {
     take?: number;
     select?: string[];
     relations?: string[];
+    order?: Record<string, "ASC" | "DESC">;
   };
 };
 
@@ -21,9 +22,15 @@ export const listSocialPostStep = createStep(
   "list-social-post-step",
   async (input: ListSocialPostStepInput, { container }) => {
     const service: SocialPostService = container.resolve(SOCIALS_MODULE);
+    // Default newest-first so new posts land at the top of the admin list.
+    // Callers can override by passing their own `order` in config.
+    const config = {
+      ...(input.config || {}),
+      order: input.config?.order ?? { created_at: "DESC" },
+    };
     const results = await service.listAndCountSocialPosts(
       input.filters,
-      input.config
+      config as any
     );
     return new StepResponse(results);
   }

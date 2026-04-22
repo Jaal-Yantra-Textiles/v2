@@ -129,12 +129,31 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters.status = req.validatedQuery.status
   }
   
+  // Parse `order` ("created_at:DESC" / "-created_at"); default newest-first.
+  const parseOrder = (raw?: unknown): Record<string, "ASC" | "DESC"> => {
+    if (!raw || typeof raw !== "string") return { created_at: "DESC" }
+    const trim = raw.trim()
+    if (!trim) return { created_at: "DESC" }
+    let field = trim
+    let direction: "ASC" | "DESC" = "ASC"
+    if (trim.startsWith("-")) {
+      field = trim.slice(1)
+      direction = "DESC"
+    } else if (trim.includes(":")) {
+      const [f, d] = trim.split(":")
+      field = f
+      direction = (d || "").toLowerCase() === "desc" ? "DESC" : "ASC"
+    }
+    return field ? { [field]: direction } : { created_at: "DESC" }
+  }
+
   const { result } = await listSocialPlatformWorkflow(req.scope).run({
     input: {
       filters,
       config: {
         take: req.validatedQuery.limit,
         skip: req.validatedQuery.offset,
+        order: parseOrder((req.validatedQuery as any).order),
       },
     },
   });

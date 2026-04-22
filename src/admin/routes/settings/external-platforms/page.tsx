@@ -20,6 +20,7 @@ const SocialPlatformPage = () => {
   })
   const [search, setSearch] = useState("")
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [sorting, setSorting] = useState<{ id: string; desc: boolean } | null>(null)
   const [googleDrawerOpen, setGoogleDrawerOpen] = useState(false)
 
   const offset = pagination.pageIndex * pagination.pageSize
@@ -27,10 +28,15 @@ const SocialPlatformPage = () => {
   const { accounts: googleAccounts, count: googleAccountsCount, isLoading: googleAccountsLoading } = useGoogleMerchantAccounts({ limit: 50 })
   const googleConnected = googleAccounts.some((a) => a.connected)
 
+  const orderParam = sorting?.id
+    ? `${sorting.id}:${sorting.desc ? "DESC" : "ASC"}`
+    : undefined
+
   const { socialPlatforms, count, isLoading, isError, error } = useSocialPlatforms({
-    limit: pagination.pageSize, 
-    offset, 
+    limit: pagination.pageSize,
+    offset,
     q: search || undefined,
+    ...(orderParam ? { order: orderParam } : {}),
     // Apply filtering - transform filter values to match API expectations
     ...(Object.keys(filtering).length > 0 ? 
       Object.entries(filtering).reduce((acc, [key, value]) => {
@@ -151,6 +157,10 @@ const SocialPlatformPage = () => {
     filtering: {
       state: filtering,
       onFilteringChange: handleFilterChange,
+    },
+    sorting: {
+      state: sorting,
+      onSortingChange: setSorting,
     },
   })
 

@@ -14,6 +14,7 @@ export type ListSocialPlatformStepInput = {
     take?: number;
     select?: string[];
     relations?: string[];
+    order?: Record<string, "ASC" | "DESC">;
   };
 };
 
@@ -21,9 +22,14 @@ export const listSocialPlatformStep = createStep(
   "list--social-platform-step",
   async (input: ListSocialPlatformStepInput, { container }) => {
     const service: SocialPlatformService = container.resolve(SOCIALS_MODULE);
+    // Default newest-first — overridable via config.order.
+    const config = {
+      ...(input.config || {}),
+      order: input.config?.order ?? { created_at: "DESC" },
+    };
     const results = await service.listAndCountSocialPlatforms(
       input.filters,
-      input.config
+      config as any
     );
     return new StepResponse(results);
   }

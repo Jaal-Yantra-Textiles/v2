@@ -150,6 +150,7 @@ const DesignsPage = () => {
     search: "",
   });
   const [tableUiResetKey, setTableUiResetKey] = useState(0);
+  const [sorting, setSorting] = useState<{ id: string; desc: boolean } | null>(null);
 
   const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({});
   const [isRecreateDrawerOpen, setIsRecreateDrawerOpen] = useState(false);
@@ -196,6 +197,9 @@ const DesignsPage = () => {
       limit: pagination.pageSize,
       offset: offset,
       name: search || undefined, // Use name instead of q for search
+      ...(sorting?.id
+        ? { order: `${sorting.id}:${sorting.desc ? "DESC" : "ASC"}` }
+        : {}),
       // Apply filtering only for known fields
       ...(Object.keys(filtering).length > 0
         ? Object.entries(filtering).reduce((acc, [key, value]) => {
@@ -602,6 +606,10 @@ const DesignsPage = () => {
     filtering: {
       state: filtering,
       onFilteringChange: handleFilterChange,
+    },
+    sorting: {
+      state: sorting,
+      onSortingChange: setSorting,
     },
   });
 

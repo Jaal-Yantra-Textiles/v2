@@ -61,14 +61,20 @@ const FormsPage = () => {
   })
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
   const [search, setSearch] = useState<string>("")
+  const [sorting, setSorting] = useState<{ id: string; desc: boolean } | null>(null)
 
   const offset = pagination.pageIndex * pagination.pageSize
+
+  const orderParam = sorting?.id
+    ? `${sorting.id}:${sorting.desc ? "DESC" : "ASC"}`
+    : undefined
 
   const { forms, count, isLoading } = useForms(
     {
       limit: pagination.pageSize,
       offset,
       q: search || undefined,
+      ...(orderParam ? { order: orderParam } : {}),
       ...(Object.keys(filtering).length > 0
         ? Object.entries(filtering).reduce((acc, [key, value]) => {
             acc[key] = value as string
@@ -137,6 +143,10 @@ const FormsPage = () => {
     filtering: {
       state: filtering,
       onFilteringChange: handleFilterChange,
+    },
+    sorting: {
+      state: sorting,
+      onSortingChange: setSorting,
     },
   })
 

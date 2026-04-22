@@ -1,5 +1,8 @@
 import { EllipsisHorizontal } from "@medusajs/icons"
 import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Button, DropdownMenu, IconButton } from "@medusajs/ui";
+
+// Sort state is a single active sort — `null` means default backend order.
+type SortingState = { id: string; desc: boolean } | null
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { Users } from "@medusajs/icons";
@@ -33,6 +36,7 @@ const PersonsPage = () => {
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
   const [includeDeleted, setIncludeDeleted] = useState<boolean>(false);
+  const [sorting, setSorting] = useState<SortingState>(null);
   
   // Debounced filter change handler to prevent rapid re-renders and API calls
   const handleFilterChange = useCallback(
@@ -53,8 +57,14 @@ const PersonsPage = () => {
   // Calculate the offset based on pagination
   const offset = pagination.pageIndex * pagination.pageSize;
   
+  // Sort state → backend `order` string. The API parses both
+  // "created_at:DESC" and "-created_at" shapes.
+  const orderParam = sorting?.id
+    ? `${sorting.id}:${sorting.desc ? "DESC" : "ASC"}`
+    : undefined
+
   const {
-    persons, 
+    persons,
     count,
     isLoading,
   } = usePersons(
@@ -62,7 +72,8 @@ const PersonsPage = () => {
       limit: pagination.pageSize,
       offset: offset,
       q: search || undefined,
-      withDeleted: includeDeleted, 
+      withDeleted: includeDeleted,
+      ...(orderParam ? { order: orderParam } : {}),
       // Apply filtering only for known fields
       ...(Object.keys(filtering).length > 0 ? 
         Object.entries(filtering).reduce((acc: AdminPersonsListParams, [key, value]) => {
@@ -168,6 +179,10 @@ const PersonsPage = () => {
     filtering: {
       state: filtering,
       onFilteringChange: handleFilterChange,
+    },
+    sorting: {
+      state: sorting,
+      onSortingChange: setSorting,
     },
   });
 

@@ -14,6 +14,7 @@ export type ListFormsStepInput = {
     take?: number
     select?: string[]
     relations?: string[]
+    order?: Record<string, "ASC" | "DESC">
   }
 }
 
@@ -21,7 +22,12 @@ const listFormsStep = createStep(
   "list-forms",
   async (input: ListFormsStepInput, { container }) => {
     const forms: FormsService = container.resolve(FORMS_MODULE)
-    const results = await forms.listAndCountForms(input.filters, input.config)
+    // Default newest-first — overridable via config.order.
+    const config = {
+      ...(input.config || {}),
+      order: input.config?.order ?? { created_at: "DESC" },
+    }
+    const results = await forms.listAndCountForms(input.filters, config as any)
     return new StepResponse(results)
   }
 )

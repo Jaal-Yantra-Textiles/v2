@@ -23,6 +23,7 @@ const PersonTypesPage = () => {
   const [pagination, setPagination] = useState<DataTablePaginationState>({ pageIndex: 0, pageSize: PAGE_SIZE });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState("");
+  const [sorting, setSorting] = useState<{ id: string; desc: boolean } | null>(null);
 
   const handleSearchChange = useCallback(
     debounce((newSearch: string) => {
@@ -31,11 +32,16 @@ const PersonTypesPage = () => {
     []
   );
 
+  const orderParam = sorting?.id
+    ? `${sorting.id}:${sorting.desc ? "DESC" : "ASC"}`
+    : undefined;
+
   const { personTypes, count, isLoading, isError, error } = usePersonTypes(
     {
       limit: pagination.pageSize,
       offset: pagination.pageIndex * pagination.pageSize,
       q: search,
+      ...(orderParam ? { order: orderParam } : {}),
       ...filtering,
     },
     {
@@ -73,6 +79,10 @@ const PersonTypesPage = () => {
     filtering: {
       state: filtering,
       onFilteringChange: setFiltering,
+    },
+    sorting: {
+      state: sorting,
+      onSortingChange: setSorting,
     },
     filters,
     isLoading,

@@ -31,6 +31,7 @@ export type ListDesignsStepInput = {
   pagination: {
     offset: number;
     limit: number;
+    order?: Record<string, "ASC" | "DESC">;
   };
 };
 
@@ -123,6 +124,8 @@ export const listDesignsStep = createStep(
         pagination: {
           skip: input.pagination.offset,
           take: input.pagination.limit,
+          // Caller-supplied sort wins; otherwise newest first.
+          order: input.pagination.order ?? { created_at: "DESC" },
         },
       })
 
@@ -147,6 +150,8 @@ export const listDesignsStep = createStep(
       {
         skip: input.pagination.offset,
         take: input.pagination.limit,
+        // Caller-supplied sort wins; otherwise newest first.
+        order: input.pagination.order ?? { created_at: "DESC" },
       }
     )
 

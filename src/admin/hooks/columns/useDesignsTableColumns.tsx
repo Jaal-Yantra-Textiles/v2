@@ -1,9 +1,8 @@
 import { AdminDesign } from "../../hooks/api/designs";
-import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
-import { Badge } from "@medusajs/ui";
+import { Badge, createDataTableColumnHelper } from "@medusajs/ui";
 
-const columnHelper = createColumnHelper<AdminDesign>();
+const columnHelper = createDataTableColumnHelper<AdminDesign>();
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -49,6 +48,10 @@ export const useDesignsTableColumns = () => {
       columnHelper.accessor("name", {
         header: "Name",
         cell: ({ getValue }) => getValue(),
+        enableSorting: true,
+        sortLabel: "Name",
+        sortAscLabel: "A → Z",
+        sortDescLabel: "Z → A",
       }),
       columnHelper.accessor("design_type", {
         header: "Type",

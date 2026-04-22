@@ -75,12 +75,31 @@ export const GET = async (
     filters.title = { $ilike: `%${queryParams.q}%` }
   }
 
+  // Parse `order` ("created_at:DESC" / "-created_at"); default newest-first.
+  const parseOrder = (raw?: unknown): Record<string, "ASC" | "DESC"> => {
+    if (!raw || typeof raw !== "string") return { created_at: "DESC" }
+    const trim = raw.trim()
+    if (!trim) return { created_at: "DESC" }
+    let field = trim
+    let direction: "ASC" | "DESC" = "ASC"
+    if (trim.startsWith("-")) {
+      field = trim.slice(1)
+      direction = "DESC"
+    } else if (trim.includes(":")) {
+      const [f, d] = trim.split(":")
+      field = f
+      direction = (d || "").toLowerCase() === "desc" ? "DESC" : "ASC"
+    }
+    return field ? { [field]: direction } : { created_at: "DESC" }
+  }
+
   const { result } = await listFormsWorkflow(req.scope).run({
     input: {
       filters,
       config: {
         skip: queryParams.offset || 0,
         take: queryParams.limit || 20,
+        order: parseOrder((queryParams as any).order),
       },
     },
   })
