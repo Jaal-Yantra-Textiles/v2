@@ -242,7 +242,7 @@ const useColumns = (product: HttpTypes.AdminProduct) => {
         case 0:
           break
         case 1: {
-          const inventoryItemLink = `/inventory/${
+          const inventoryItemLink = `/products/inventory/${
             variant.inventory_items![0].inventory.id
           }`
 
@@ -262,7 +262,7 @@ const useColumns = (product: HttpTypes.AdminProduct) => {
             break
           }
 
-          const inventoryKitLink = `/inventory?${new URLSearchParams({
+          const inventoryKitLink = `/products/inventory?${new URLSearchParams({
             id: ids.join(","),
           }).toString()}`
 

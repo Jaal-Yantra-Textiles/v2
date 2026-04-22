@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Button, Heading, Text } from "@medusajs/ui"
-import { BoltSolid, WrenchSolid } from "@medusajs/icons"
+import { BoltSolid, Wrench } from "@medusajs/icons"
 
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"
 
@@ -69,7 +69,7 @@ export const ProductCreateChoice = () => {
               className="group text-left border border-ui-border-base rounded-lg p-6 hover:border-ui-border-interactive hover:bg-ui-bg-subtle-hover transition"
             >
               <div className="flex items-center gap-x-2 mb-2">
-                <WrenchSolid className="text-ui-fg-muted" />
+                <Wrench className="text-ui-fg-muted" />
                 <Heading level="h2" className="text-lg">
                   Advanced
                 </Heading>

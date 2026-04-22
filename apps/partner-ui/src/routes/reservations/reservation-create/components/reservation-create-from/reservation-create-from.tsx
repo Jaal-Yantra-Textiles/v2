@@ -123,7 +123,7 @@ export const ReservationCreateForm = (props: { inventoryItemId?: string }) => {
         toast.success(t("inventory.reservation.successToast"))
         handleSuccess(
           props.inventoryItemId
-            ? `/inventory/${props.inventoryItemId}`
+            ? `/products/inventory/${props.inventoryItemId}`
             : `/reservations/${reservation.id}`
         )
       },

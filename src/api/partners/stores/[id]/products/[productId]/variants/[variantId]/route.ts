@@ -26,6 +26,12 @@ export const GET = async (
       "options.*",
       "options.option.*",
       "inventory_items.*",
+      // Nested inventory relations are required for the partner variant
+      // detail page: row click navigates to `/inventory/${inventory.id}` and
+      // stock availability renders from `inventory.location_levels`. Without
+      // these, `i.inventory` is undefined → /inventory/undefined → 404.
+      "inventory_items.inventory.*",
+      "inventory_items.inventory.location_levels.*",
     ],
     filters: { id: req.params.variantId },
   })

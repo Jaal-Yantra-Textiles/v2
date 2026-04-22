@@ -16,7 +16,7 @@ export const InventoryActions = ({ item }: { item: InventoryItemDTO }) => {
             {
               icon: <Buildings />,
               label: t("products.variant.inventory.navigateToItem"),
-              to: `/inventory/${item.id}`,
+              to: `/products/inventory/${item.id}`,
             },
           ],
         },

@@ -643,7 +643,7 @@ const Actions = ({ location }: { location: HttpTypes.AdminStockLocation }) => {
             {
               icon: <ArchiveBox />,
               label: t("stockLocations.edit.viewInventory"),
-              to: `/inventory?location_id=${location.id}`,
+              to: `/products/inventory?location_id=${location.id}`,
             },
           ],
         },

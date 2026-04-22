@@ -38,7 +38,10 @@ export async function encryptSocialPlatformCredentials(
       const encryptedKey = `${field}_encrypted`
       if (typeof value === "string" && value && !apiConfig[encryptedKey]) {
         encryptedConfig[encryptedKey] = encryptionService.encrypt(value)
-        delete encryptedConfig[field]
+        // MikroORM merges JSON columns on update, so `delete` on the local
+        // object never reaches the DB. Null-out the key instead — the merge
+        // wipes the plaintext from storage.
+        encryptedConfig[field] = null
         needsUpdate = true
         logger.info(`[Encryption] ✓ Encrypted ${field} for platform ${platform.name}`)
       }
@@ -65,7 +68,7 @@ export async function encryptSocialPlatformCredentials(
           ? encryptionService.encrypt(oauth1.access_token_secret)
           : undefined,
       }
-      delete encryptedConfig.oauth1_credentials
+      encryptedConfig.oauth1_credentials = null
       needsUpdate = true
       logger.info(`[Encryption] ✓ Encrypted OAuth1 credentials for platform ${platform.name}`)
     }
@@ -83,7 +86,7 @@ export async function encryptSocialPlatformCredentials(
           ? encryptionService.encrypt(oauth1App.consumer_secret)
           : undefined,
       }
-      delete encryptedConfig.oauth1_app_credentials
+      encryptedConfig.oauth1_app_credentials = null
       needsUpdate = true
       logger.info(`[Encryption] ✓ Encrypted OAuth1 app credentials for platform ${platform.name}`)
     }

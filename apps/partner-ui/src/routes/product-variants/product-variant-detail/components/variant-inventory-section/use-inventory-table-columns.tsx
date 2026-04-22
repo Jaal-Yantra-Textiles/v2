@@ -76,8 +76,17 @@ export const useInventoryTableColumns = () => {
           let quantity = 0
           let locations = 0
 
-          inventory.location_levels.forEach((level) => {
-            quantity += level.available_quantity
+          inventory.location_levels.forEach((level: any) => {
+            // `available_quantity` is a virtual field and isn't always
+            // serialised by the partner graph query — fall back to the
+            // persistent `stocked_quantity` so the cell still renders.
+            const levelQty =
+              typeof level?.available_quantity === "number"
+                ? level.available_quantity
+                : typeof level?.stocked_quantity === "number"
+                ? level.stocked_quantity
+                : 0
+            quantity += levelQty
             locations += 1
           })
 
