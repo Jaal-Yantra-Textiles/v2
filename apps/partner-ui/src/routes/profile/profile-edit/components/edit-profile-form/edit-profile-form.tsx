@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Button, Input, toast } from "@medusajs/ui"
+import { Button, Input, Select, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z as zod } from "@medusajs/framework/zod"
@@ -9,6 +9,7 @@ import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useUpdateUser } from "../../../../../hooks/api/users"
+import { languages } from "../../../../../i18n/languages"
 import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type EditProfileProps = {
@@ -19,16 +20,19 @@ type EditProfileProps = {
 const EditProfileSchema = zod.object({
   first_name: zod.string().optional(),
   last_name: zod.string().optional(),
+  language: zod.string(),
   // usage_insights: zod.boolean(),
 })
 
 export const EditProfileForm = ({ user }: EditProfileProps) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { handleSuccess } = useRouteModal()
   const form = useForm<zod.infer<typeof EditProfileSchema>>({
     defaultValues: {
       first_name: user.first_name ?? "",
       last_name: user.last_name ?? "",
+      language:
+        languages.find((lang) => lang.code === i18n.language)?.code ?? "en",
       // usage_insights: usageInsights,
     },
     resolver: zodResolver(EditProfileSchema),
@@ -49,6 +53,10 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
         },
       }
     )
+
+    if (values.language && values.language !== i18n.language) {
+      await i18n.changeLanguage(values.language)
+    }
 
     toast.success(t("profile.toast.edit"))
     handleSuccess()
@@ -87,6 +95,33 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
                 )}
               />
             </div>
+            <Form.Field
+              control={form.control}
+              name="language"
+              render={({ field: { onChange, ref, ...field } }) => (
+                <Form.Item>
+                  <Form.Label>{t("profile.fields.languageLabel")}</Form.Label>
+                  <Form.Control>
+                    <Select {...field} onValueChange={onChange}>
+                      <Select.Trigger ref={ref}>
+                        <Select.Value
+                          placeholder={t("profile.edit.languagePlaceholder")}
+                        />
+                      </Select.Trigger>
+                      <Select.Content>
+                        {languages.map((lang) => (
+                          <Select.Item key={lang.code} value={lang.code}>
+                            {lang.display_name}
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select>
+                  </Form.Control>
+                  <Form.Hint>{t("profile.edit.languageHint")}</Form.Hint>
+                  <Form.ErrorMessage />
+                </Form.Item>
+              )}
+            />
             {/* TODO: Do we want to implement usage insights in V2? */}
             {/* <Form.Field
               control={form.control}
