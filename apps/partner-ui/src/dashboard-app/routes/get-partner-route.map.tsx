@@ -360,6 +360,18 @@ export function getPartnerRouteMap(): RouteObject[] {
                             ),
                         },
                         {
+                          // Edit a single location level — drawer reads
+                          // { id, location_id } from useParams(), so this
+                          // nested path is the one the edit-action in
+                          // location-levels-table/use-location-list-table-columns.tsx
+                          // navigates to via `locations/${level.location_id}`.
+                          path: "locations/:location_id",
+                          lazy: () =>
+                            import(
+                              "../../routes/inventory/inventory-detail/components/adjust-inventory"
+                            ),
+                        },
+                        {
                           path: "adjust",
                           lazy: () =>
                             import(
@@ -511,6 +523,13 @@ export function getPartnerRouteMap(): RouteObject[] {
                           lazy: () =>
                             import(
                               "../../routes/product-variants/product-variant-edit"
+                            ),
+                        },
+                        {
+                          path: "media",
+                          lazy: () =>
+                            import(
+                              "../../routes/product-variants/product-variant-media"
                             ),
                         },
                         {
