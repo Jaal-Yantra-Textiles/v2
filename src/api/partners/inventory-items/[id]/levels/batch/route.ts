@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError, Modules } from "@medusajs/framework/utils"
-import { deleteInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { batchInventoryItemLevelsWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext, getPartnerStore } from "../../../../helpers"
 
 export const POST = async (
@@ -17,47 +17,51 @@ export const POST = async (
 
   const { id } = req.params
   const body = req.body as Record<string, any>
-  const inventoryService = req.scope.resolve(Modules.INVENTORY) as any
 
-  const results: any = {}
+  const create = (body.create || [])
+    .map((c: any) => ({
+      ...c,
+      inventory_item_id: id,
+      location_id: c.location_id || partnerLocationId,
+    }))
+    .filter((c: any) => c.location_id === partnerLocationId)
 
-  if (body.create?.length) {
-    // Force all creates to use the partner's location
-    results.created = await inventoryService.createInventoryLevels(
-      body.create.map((c: any) => ({
-        ...c,
-        inventory_item_id: id,
-        location_id: c.location_id || partnerLocationId,
-      }))
+  const update = (body.update || [])
+    .map((u: any) => ({
+      ...u,
+      inventory_item_id: id,
+      location_id: u.location_id || partnerLocationId,
+    }))
+    .filter((u: any) => u.location_id === partnerLocationId)
+
+  // UI sends `delete` as a flat array of location ids (per-item manage locations
+  // drawer). Resolve each to the matching inventory level row for this item,
+  // then forward the level ids to the workflow.
+  const deleteLocationIds: string[] = Array.isArray(body.delete) ? body.delete : []
+  let allowedLevelIds: string[] = []
+  if (deleteLocationIds.length > 0) {
+    const allowedLocations = deleteLocationIds.filter(
+      (locId) => locId === partnerLocationId
     )
-  }
-
-  if (body.update?.length) {
-    results.updated = []
-    for (const u of body.update) {
-      // Only allow updating levels at partner's location
-      const locationId = u.location_id || partnerLocationId
-      if (locationId !== partnerLocationId) continue
-
-      const updated = await inventoryService.updateInventoryLevels(
-        { inventory_item_id: id, location_id: locationId },
-        u
-      )
-      results.updated.push(updated)
+    if (allowedLocations.length > 0) {
+      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: levels } = await query.graph({
+        entity: "inventory_level",
+        fields: ["id"],
+        filters: { inventory_item_id: id, location_id: allowedLocations },
+      } as any)
+      allowedLevelIds = (levels as any[]).map((l) => l.id)
     }
   }
 
-  if (body.delete?.length) {
-    for (const locationId of body.delete) {
-      // Only allow deleting levels at partner's location
-      if (locationId !== partnerLocationId) continue
+  const { result } = await batchInventoryItemLevelsWorkflow(req.scope).run({
+    input: {
+      create,
+      update,
+      delete: allowedLevelIds,
+      force: !!body.force,
+    } as any,
+  })
 
-      await deleteInventoryLevelsWorkflow(req.scope).run({
-        input: { inventory_item_id: id, location_id: locationId },
-      })
-    }
-    results.deleted = body.delete.filter((l: string) => l === partnerLocationId)
-  }
-
-  res.json(results)
+  res.json(result)
 }

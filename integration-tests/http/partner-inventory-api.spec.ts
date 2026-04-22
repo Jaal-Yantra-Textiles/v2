@@ -148,6 +148,70 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(200)
         expect(Array.isArray(res.data.inventory_levels)).toBe(true)
       })
+
+      it("POST /partners/inventory-items/batch-levels persists stocked_quantity", async () => {
+        // Creating the inventory item above auto-seeds a level at the
+        // partner's default location, so we go straight to an update.
+        const updateRes = await api.post(
+          "/partners/inventory-items/batch-levels",
+          {
+            create: [],
+            update: [
+              {
+                inventory_item_id: itemId,
+                location_id: partner.locationId,
+                stocked_quantity: 42,
+              },
+            ],
+            delete: [],
+          },
+          { headers: partner.headers }
+        )
+        expect(updateRes.status).toBe(200)
+
+        // The persisted level must reflect the new quantity.
+        // (Previously the route silently no-op'd — this is the regression
+        // test for that bug.)
+        const levelsRes = await api.get(
+          `/partners/inventory-items/${itemId}/levels`,
+          { headers: partner.headers }
+        )
+        expect(levelsRes.status).toBe(200)
+        const level = (levelsRes.data.inventory_levels || []).find(
+          (l: any) => l.location_id === partner.locationId
+        )
+        expect(level).toBeDefined()
+        expect(level.stocked_quantity).toBe(42)
+      })
+
+      it("POST /partners/inventory-items/batch-levels deletes by level id", async () => {
+        // Existing auto-seeded level at the partner's default location.
+        const levelsBefore = await api.get(
+          `/partners/inventory-items/${itemId}/levels`,
+          { headers: partner.headers }
+        )
+        const levelId = (levelsBefore.data.inventory_levels || []).find(
+          (l: any) => l.location_id === partner.locationId
+        )?.id
+        expect(levelId).toBeDefined()
+
+        // UI sends delete as a flat array of level ids. Verify it works.
+        const deleteRes = await api.post(
+          "/partners/inventory-items/batch-levels",
+          { create: [], update: [], delete: [levelId], force: true },
+          { headers: partner.headers }
+        )
+        expect(deleteRes.status).toBe(200)
+
+        const levelsAfter = await api.get(
+          `/partners/inventory-items/${itemId}/levels`,
+          { headers: partner.headers }
+        )
+        const stillThere = (levelsAfter.data.inventory_levels || []).some(
+          (l: any) => l.id === levelId
+        )
+        expect(stillThere).toBe(false)
+      })
     })
 
     describe("GET /partners/inventory-orders", () => {

@@ -369,91 +369,114 @@ export function getPartnerRouteMap(): RouteObject[] {
                 },
                 {
                   path: ":id",
+                  errorElement: <ErrorBoundary />,
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader } = await import(
+                    const { Breadcrumb, loader } = await import(
                       "../../routes/products/product-detail"
                     )
                     return {
-                      Component,
+                      Component: Outlet,
                       loader,
                       handle: {
-                        breadcrumb: (match: UIMatch<HttpTypes.AdminProductResponse>) =>
-                          <Breadcrumb {...match} />,
+                        breadcrumb: (
+                          match: UIMatch<HttpTypes.AdminProductResponse>
+                        ) => <Breadcrumb {...match} />,
                       },
                     }
                   },
                   children: [
                     {
-                      path: "edit",
-                      lazy: () => import("../../routes/products/product-edit"),
-                    },
-                    {
-                      path: "sales-channels",
+                      path: "",
                       lazy: () =>
-                        import("../../routes/products/product-sales-channels"),
-                    },
-                    {
-                      path: "media",
-                      lazy: () => import("../../routes/products/product-media"),
-                    },
-                    {
-                      path: "attributes",
-                      lazy: () =>
-                        import("../../routes/products/product-attributes"),
-                    },
-                    {
-                      path: "organization",
-                      lazy: () =>
-                        import("../../routes/products/product-organization"),
-                    },
-                    {
-                      path: "prices",
-                      lazy: () => import("../../routes/products/product-prices"),
-                    },
-                    {
-                      path: "stock",
-                      lazy: () => import("../../routes/products/product-stock"),
-                    },
-                    {
-                      path: "shipping-profile",
-                      lazy: () =>
-                        import(
-                          "../../routes/products/product-shipping-profile"
-                        ),
-                    },
-                    {
-                      path: "metadata/edit",
-                      lazy: () =>
-                        import("../../routes/products/product-metadata"),
-                    },
-                    {
-                      path: "options/create",
-                      lazy: () =>
-                        import("../../routes/products/product-create-option"),
-                    },
-                    {
-                      path: "options/:optionId/edit",
-                      lazy: () =>
-                        import("../../routes/products/product-edit-option"),
-                    },
-                    {
-                      path: "variants/create",
-                      lazy: () =>
-                        import("../../routes/products/product-create-variant"),
-                    },
-                    {
-                      path: "edit-variant",
-                      lazy: () =>
-                        import(
-                          "../../routes/product-variants/product-variant-edit"
-                        ),
-                    },
-                    {
-                      path: "images/:imageId/variants-edit",
-                      lazy: () =>
-                        import(
-                          "../../routes/products/product-image-variants-edit"
-                        ),
+                        import("../../routes/products/product-detail"),
+                      children: [
+                        {
+                          path: "edit",
+                          lazy: () =>
+                            import("../../routes/products/product-edit"),
+                        },
+                        {
+                          path: "sales-channels",
+                          lazy: () =>
+                            import(
+                              "../../routes/products/product-sales-channels"
+                            ),
+                        },
+                        {
+                          path: "media",
+                          lazy: () =>
+                            import("../../routes/products/product-media"),
+                        },
+                        {
+                          path: "attributes",
+                          lazy: () =>
+                            import("../../routes/products/product-attributes"),
+                        },
+                        {
+                          path: "organization",
+                          lazy: () =>
+                            import(
+                              "../../routes/products/product-organization"
+                            ),
+                        },
+                        {
+                          path: "prices",
+                          lazy: () =>
+                            import("../../routes/products/product-prices"),
+                        },
+                        {
+                          path: "stock",
+                          lazy: () =>
+                            import("../../routes/products/product-stock"),
+                        },
+                        {
+                          path: "shipping-profile",
+                          lazy: () =>
+                            import(
+                              "../../routes/products/product-shipping-profile"
+                            ),
+                        },
+                        {
+                          path: "metadata/edit",
+                          lazy: () =>
+                            import("../../routes/products/product-metadata"),
+                        },
+                        {
+                          path: "options/create",
+                          lazy: () =>
+                            import(
+                              "../../routes/products/product-create-option"
+                            ),
+                        },
+                        {
+                          path: "options/:optionId/edit",
+                          lazy: () =>
+                            import(
+                              "../../routes/products/product-edit-option"
+                            ),
+                        },
+                        {
+                          path: "variants/create",
+                          lazy: () =>
+                            import(
+                              "../../routes/products/product-create-variant"
+                            ),
+                        },
+                        {
+                          path: "edit-variant",
+                          lazy: () =>
+                            import(
+                              "../../routes/product-variants/product-variant-edit"
+                            ),
+                        },
+                        {
+                          path: "images/:imageId/variants-edit",
+                          lazy: () =>
+                            import(
+                              "../../routes/products/product-image-variants-edit"
+                            ),
+                        },
+                      ],
                     },
                     {
                       path: "variants/:variant_id",
