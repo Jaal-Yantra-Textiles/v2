@@ -52,7 +52,32 @@ function MetricPanel({
 }) {
   const raw = result?.data
   const field = display?.field ?? "value"
-  const value = raw ? (raw as any)[field] ?? raw.value : undefined
+  const value = raw ? (raw as any)[field] ?? (raw as any).value : undefined
+
+  // Misconfig guard: metric expects a scalar (read `raw.value` or an explicit
+  // field override). A panel wired to `read_data`, a grouped `aggregate_data`,
+  // or `time_series` lands here with no scalar — surface it.
+  if (raw && value === undefined) {
+    const shape = Array.isArray((raw as any).records)
+      ? "records"
+      : Array.isArray((raw as any).groups)
+      ? "groups"
+      : Array.isArray((raw as any).buckets)
+      ? "buckets"
+      : null
+    if (shape) {
+      return (
+        <div className="p-4">
+          <Text size="small" className="text-ui-fg-error">
+            Metric panel got a {shape} list instead of a scalar. Use
+            aggregate_data without groupBy, or set display.field to pick a
+            field off the first record.
+          </Text>
+        </div>
+      )
+    }
+  }
+
   return (
     <div className="flex flex-col gap-y-1 p-4">
       <Heading level="h1" className="text-4xl font-semibold">
@@ -72,6 +97,16 @@ function MetricPanel({
   )
 }
 
+const RECORD_LABEL_FALLBACK = ["name", "title", "label", "handle", "email", "id"]
+const RECORD_VALUE_FALLBACK = ["status", "quantity", "amount", "count", "value"]
+
+function pickField(item: Record<string, any>, candidates: string[]): string | undefined {
+  for (const c of candidates) {
+    if (item[c] !== undefined && item[c] !== null) return c
+  }
+  return undefined
+}
+
 function ListPanel({
   result,
   display,
@@ -81,8 +116,23 @@ function ListPanel({
 }) {
   const raw = result?.data
   const items: any[] = raw?.groups ?? raw?.records ?? []
-  const labelField = display?.labelField ?? "key"
-  const valueField = display?.valueField ?? "value"
+
+  // Scalar result from aggregate_data without groupBy — a common misconfig
+  // (list panel paired with a count aggregate). Surface it instead of
+  // silently rendering "No results".
+  if (!items.length && raw && typeof raw === "object" && "value" in raw && !("groups" in raw)) {
+    return (
+      <div className="p-4">
+        <Text size="small" className="text-ui-fg-error">
+          This list panel is reading a scalar aggregate. Use groupBy on
+          aggregate_data, or switch the operation to read_data.
+        </Text>
+        <Text size="xsmall" className="text-ui-fg-muted mt-1">
+          value: {formatValue((raw as any).value, display)}
+        </Text>
+      </div>
+    )
+  }
 
   if (!items.length) {
     return (
@@ -94,10 +144,20 @@ function ListPanel({
     )
   }
 
+  const first = items[0] ?? {}
+  const isGrouped = first?.keys !== undefined || first?.key !== undefined
+  const labelField =
+    display?.labelField ??
+    (isGrouped ? "key" : pickField(first, RECORD_LABEL_FALLBACK) ?? "id")
+  const valueField =
+    display?.valueField ??
+    (isGrouped ? "value" : pickField(first, RECORD_VALUE_FALLBACK) ?? "value")
+
   return (
     <div className="divide-y">
       {items.slice(0, display?.limit ?? 20).map((item, idx) => {
-        const label = item?.keys?.[labelField] ?? item?.[labelField] ?? item?.key
+        const label =
+          item?.keys?.[labelField] ?? item?.[labelField] ?? item?.key
         const value = item?.[valueField]
         return (
           <div key={idx} className="flex justify-between items-center px-4 py-2">
@@ -120,7 +180,20 @@ function TablePanel({
   display?: Record<string, any>
 }) {
   const raw = result?.data
-  const rows: any[] = raw?.groups ?? raw?.records ?? []
+  const rows: any[] = raw?.groups ?? raw?.records ?? raw?.buckets ?? []
+
+  // Misconfig guard: scalar aggregate can't render as rows.
+  if (!rows.length && raw && typeof raw === "object" && "value" in raw && !("groups" in raw)) {
+    return (
+      <div className="p-4">
+        <Text size="small" className="text-ui-fg-error">
+          Table panel is reading a scalar aggregate. Use groupBy on
+          aggregate_data, or switch the operation to read_data.
+        </Text>
+      </div>
+    )
+  }
+
   if (!rows.length) {
     return (
       <div className="p-4">
@@ -173,6 +246,31 @@ function ChartPanel({
 }) {
   const raw = result?.data
   const buckets: any[] = raw?.buckets ?? raw?.groups ?? []
+
+  // Misconfig guards: scalar aggregate or raw records can't be charted.
+  if (!buckets.length && raw && typeof raw === "object") {
+    if ("value" in raw && !("groups" in raw)) {
+      return (
+        <div className="p-4">
+          <Text size="small" className="text-ui-fg-error">
+            Chart panel is reading a scalar aggregate. Use time_series, or
+            aggregate_data with groupBy.
+          </Text>
+        </div>
+      )
+    }
+    if (Array.isArray((raw as any).records)) {
+      return (
+        <div className="p-4">
+          <Text size="small" className="text-ui-fg-error">
+            Chart panel got a records list from read_data. Use time_series
+            for date-bucketed charts, or aggregate_data with groupBy.
+          </Text>
+        </div>
+      )
+    }
+  }
+
   if (!buckets.length) {
     return (
       <div className="p-4">
