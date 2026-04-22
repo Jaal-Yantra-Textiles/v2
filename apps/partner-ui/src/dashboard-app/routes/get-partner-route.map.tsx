@@ -283,6 +283,16 @@ export function getPartnerRouteMap(): RouteObject[] {
                 },
                 {
                   path: "create",
+                  lazy: () =>
+                    import("../../routes/products/product-create-choice"),
+                },
+                {
+                  path: "create/quick",
+                  lazy: () =>
+                    import("../../routes/products/product-quick-create"),
+                },
+                {
+                  path: "create/advanced",
                   lazy: () => import("../../routes/products/product-create"),
                 },
                 {

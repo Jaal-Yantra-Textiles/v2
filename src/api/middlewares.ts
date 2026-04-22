@@ -1756,6 +1756,14 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/stores/:id/products/quick",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/stores/:id/products/:productId",
       method: "GET",
       middlewares: [

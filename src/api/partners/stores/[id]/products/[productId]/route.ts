@@ -27,6 +27,7 @@ export const GET = async (
       "variants.price_set.prices.price_rules.*",
       "variants.options.*",
       "variants.inventory_items.*",
+      "variants.inventory_items.inventory.*",
       "options.*",
       "options.values.*",
       "images.*",

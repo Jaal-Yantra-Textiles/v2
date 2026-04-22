@@ -425,6 +425,42 @@ export const useCreateProduct = (
   })
 }
 
+export type QuickCreateProductPayload = {
+  title: string
+  description?: string
+  thumbnail?: string
+  images?: string[]
+  price: number
+  stock_quantity?: number
+}
+
+export const useCreateQuickProduct = (
+  options?: UseMutationOptions<
+    { product: any },
+    FetchError,
+    QuickCreateProductPayload
+  >
+) => {
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
+
+  return useMutation({
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ product: any }>(
+        `/partners/stores/${storeId}/products/quick`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: productsQueryKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: inventoryItemsQueryKeys.lists(),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
 export const useUpdateProduct = (
   id: string,
   options?: UseMutationOptions<

@@ -123,6 +123,52 @@ setupSharedTestSuite(() => {
         expect(products.length).toBeGreaterThanOrEqual(1)
       })
 
+      it("POST /partners/stores/:id/products/quick creates product + variant + price + stock in one shot", async () => {
+        const unique = Date.now()
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/quick`,
+          {
+            title: `QuickProd ${unique}`,
+            description: "Handwoven artisan piece.",
+            price: 2500,
+            stock_quantity: 17,
+          },
+          { headers: partner.headers }
+        )
+
+        expect(res.status).toBe(201)
+        expect(res.data.product).toBeDefined()
+        const product = res.data.product
+        expect(product.title).toBe(`QuickProd ${unique}`)
+
+        // Read the product back to assert the full shape was composed.
+        const detail = await api.get(
+          `/partners/stores/${partner.storeId}/products/${product.id}`,
+          { headers: partner.headers }
+        )
+        expect(detail.status).toBe(200)
+        const p = detail.data.product
+        expect(p.variants.length).toBe(1)
+        const variant = p.variants[0]
+        const price = (variant.prices || []).find(
+          (x: any) => x.currency_code === partner.currencyCode
+        )
+        expect(price?.amount).toBe(2500)
+
+        // Stock seeded at the partner's default location.
+        const invItemId = variant.inventory_items?.[0]?.inventory?.id
+        expect(invItemId).toBeDefined()
+        const levelsRes = await api.get(
+          `/partners/inventory-items/${invItemId}/levels`,
+          { headers: partner.headers }
+        )
+        expect(levelsRes.status).toBe(200)
+        const level = (levelsRes.data.inventory_levels || []).find(
+          (l: any) => l.location_id === partner.locationId
+        )
+        expect(level?.stocked_quantity).toBe(17)
+      })
+
       it("POST /partners/stores/:id/products creates a product in the store", async () => {
         const unique = Date.now()
         const res = await api.post(
