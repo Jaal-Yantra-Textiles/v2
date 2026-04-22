@@ -492,6 +492,13 @@ export function getPartnerRouteMap(): RouteObject[] {
                               "../../routes/product-variants/product-variant-manage-inventory-items"
                             ),
                         },
+                        {
+                          path: "metadata/edit",
+                          lazy: () =>
+                            import(
+                              "../../routes/product-variants/product-variant-metadata"
+                            ),
+                        },
                       ],
                     },
                   ],
@@ -558,6 +565,11 @@ export function getPartnerRouteMap(): RouteObject[] {
                         import(
                           "../../routes/orders/order-edit-billing-address"
                         ),
+                    },
+                    {
+                      path: "metadata/edit",
+                      lazy: () =>
+                        import("../../routes/orders/order-metadata"),
                     },
                   ],
                 },
@@ -645,6 +657,11 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () =>
                         import("../../routes/categories/category-organize"),
                     },
+                    {
+                      path: "metadata/edit",
+                      lazy: () =>
+                        import("../../routes/categories/categories-metadata"),
+                    },
                   ],
                 },
               ],
@@ -686,6 +703,13 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () =>
                         import(
                           "../../routes/collections/collection-add-products"
+                        ),
+                    },
+                    {
+                      path: "metadata/edit",
+                      lazy: () =>
+                        import(
+                          "../../routes/collections/collection-metadata"
                         ),
                     },
                   ],
@@ -730,6 +754,13 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () =>
                         import(
                           "../../routes/product-types/product-type-edit"
+                        ),
+                    },
+                    {
+                      path: "metadata/edit",
+                      lazy: () =>
+                        import(
+                          "../../routes/product-types/product-type-metadata"
                         ),
                     },
                   ],
