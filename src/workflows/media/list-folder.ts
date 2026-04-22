@@ -14,6 +14,7 @@ export type ListFolderStepInput = {
     take?: number;
     select?: string[];
     relations?: string[];
+    order?: Record<string, "ASC" | "DESC">;
   };
 };
 
@@ -21,9 +22,13 @@ export const listFolderStep = createStep(
   "list-folder-step",
   async (input: ListFolderStepInput, { container }) => {
     const service: FolderService = container.resolve(MEDIA_MODULE);
+    const config = {
+      ...(input.config || {}),
+      order: input.config?.order ?? { sort_order: "ASC", created_at: "DESC" },
+    };
     const results = await service.listAndCountFolders(
       input.filters,
-      input.config
+      config as any
     );
     return new StepResponse(results);
   }

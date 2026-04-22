@@ -14,6 +14,7 @@ export type ListMediaFileStepInput = {
     take?: number;
     select?: string[];
     relations?: string[];
+    order?: Record<string, "ASC" | "DESC">;
   };
 };
 
@@ -21,9 +22,13 @@ export const listMediaFileStep = createStep(
   "list-media-file-step",
   async (input: ListMediaFileStepInput, { container }) => {
     const service: MediaFileService = container.resolve(MEDIA_MODULE);
+    const config = {
+      ...(input.config || {}),
+      order: input.config?.order ?? { created_at: "DESC" },
+    };
     const results = await service.listAndCountMediaFiles(
       input.filters,
-      input.config
+      config as any
     );
     return new StepResponse(results);
   }

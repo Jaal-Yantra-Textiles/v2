@@ -833,6 +833,36 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/agreements/update-agreement.ts"
   },
+  "describe-product-image": {
+    "fields": [
+      {
+        "name": "imageUrl",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.imageUrl }}"
+      },
+      {
+        "name": "hint",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.hint }}"
+      },
+      {
+        "name": "providerRole",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.providerRole }}"
+      },
+      {
+        "name": "providerNameContains",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.providerNameContains }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/ai/describe-product-image.ts"
+  },
   "extract-and-create-inventory": {
     "fields": [
       {
@@ -2731,6 +2761,96 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/forms/verify-form-response.ts"
+  },
+  "bulk-sync-products-to-google": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/google_merchant/workflows/bulk-sync-products-to-google.ts"
+  },
+  "import-existing-products-from-google": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/google_merchant/workflows/import-existing-products-from-google.ts"
+  },
+  "sync-product-to-google": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/google_merchant/workflows/sync-product-to-google.ts"
+  },
+  "takeover-product-from-google": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/google_merchant/workflows/takeover-product-from-google.ts"
+  },
+  "unsync-product-from-google": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/google_merchant/workflows/unsync-product-from-google.ts"
   },
   "normalize-create-social-post-input-workflow": {
     "fields": [
@@ -5678,10 +5798,10 @@
         "placeholder": "{{ $last.storefront_root_dir }}"
       },
       {
-        "name": "storefront_ignore_command",
+        "name": "storefront_branch",
         "type": "string",
         "required": false,
-        "placeholder": "{{ $last.storefront_ignore_command }}"
+        "placeholder": "{{ $last.storefront_branch }}"
       },
       {
         "name": "medusa_backend_url",
@@ -5706,12 +5826,6 @@
         "type": "string",
         "required": true,
         "placeholder": "{{ $last.s3_pathname }}"
-      },
-      {
-        "name": "existing_metadata",
-        "type": "object",
-        "required": true,
-        "placeholder": "{}"
       }
     ],
     "source": "custom_ts",

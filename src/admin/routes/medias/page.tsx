@@ -1,4 +1,4 @@
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Tabs, Button } from "@medusajs/ui";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Tabs, Button, DatePicker, Label, Select } from "@medusajs/ui";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useMemo, useState, useCallback } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
@@ -126,6 +126,9 @@ const AllMediaPage = () => {
   });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
+  const [createdFrom, setCreatedFrom] = useState<Date | null>(null);
+  const [createdTo, setCreatedTo] = useState<Date | null>(null);
+  const [sortBy, setSortBy] = useState<string>("created_at:desc");
   
   // Debounced filter change handler to prevent rapid re-renders and API calls
   const handleFilterChange = useCallback(
@@ -146,6 +149,18 @@ const AllMediaPage = () => {
   // Calculate the offset based on pagination
   const offset = pagination.pageIndex * pagination.pageSize;
   
+  const createdAtFilter = useMemo(() => {
+    const range: Record<string, string> = {};
+    if (createdFrom) range["$gte"] = createdFrom.toISOString();
+    if (createdTo) {
+      // end-of-day for inclusive "to"
+      const eod = new Date(createdTo);
+      eod.setHours(23, 59, 59, 999);
+      range["$lte"] = eod.toISOString();
+    }
+    return Object.keys(range).length ? range : undefined;
+  }, [createdFrom, createdTo]);
+
   const {
     folders,
     folders_count,
@@ -162,6 +177,7 @@ const AllMediaPage = () => {
     // Forward search and filters in a generic way; backend can map as needed
     filters: {
       q: search || undefined,
+      ...(createdAtFilter ? { created_at: createdAtFilter } : {}),
       ...(Object.keys(filtering).length > 0
         ? Object.entries(filtering).reduce((acc, [key, value]) => {
             if (key === "is_public") {
@@ -175,6 +191,7 @@ const AllMediaPage = () => {
           }, {} as Record<string, any>)
         : {}),
     },
+    config: { order: sortBy },
   });
 
   const folderColumns = useColumns();
@@ -201,11 +218,12 @@ const AllMediaPage = () => {
       base.push(
         filterHelper.accessor("parent_folder_id", {
           type: "select",
-          label: "Parent Folder ID",
+          label: "Parent Folder",
           options: ((): { label: string; value: string }[] => {
             if (!folders?.length) return [] as any;
-            const uniqueParentFolders = [...new Set(folders.map((f) => f.parent_folder_id))];
-            return uniqueParentFolders.map((id) => ({ label: id || "", value: id || "" }));
+            return folders
+              .filter((f) => !!f.id)
+              .map((f) => ({ label: f.path || f.name || f.id, value: f.id }));
           })(),
         })
       )
@@ -291,9 +309,60 @@ const AllMediaPage = () => {
           <div className="flex shrink-0 items-center gap-x-2" />
         </div>
         {/* Search and filter row (divided section) */}
-        <div className="flex items-start justify-between gap-x-4 px-6 py-4 border-t border-ui-border-base">
-          <div className="w-full max-w-[60%] flex items-center gap-x-4">
+        <div className="flex flex-col gap-y-3 px-6 py-4 border-t border-ui-border-base md:flex-row md:items-end md:justify-between md:gap-x-4">
+          <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
             <DataTable.FilterMenu tooltip="Filter medias" />
+            <div className="flex flex-col gap-y-1">
+              <Label size="xsmall" className="text-ui-fg-subtle">Created from</Label>
+              <DatePicker
+                modal
+                value={createdFrom ?? undefined}
+                maxValue={createdTo ?? undefined}
+                onChange={(d) => setCreatedFrom(d ?? null)}
+              />
+            </div>
+            <div className="flex flex-col gap-y-1">
+              <Label size="xsmall" className="text-ui-fg-subtle">Created to</Label>
+              <DatePicker
+                modal
+                value={createdTo ?? undefined}
+                minValue={createdFrom ?? undefined}
+                onChange={(d) => setCreatedTo(d ?? null)}
+              />
+            </div>
+            {(createdFrom || createdTo) && (
+              <Button
+                variant="transparent"
+                size="small"
+                onClick={() => {
+                  setCreatedFrom(null)
+                  setCreatedTo(null)
+                }}
+              >
+                Clear dates
+              </Button>
+            )}
+            <div className="flex flex-col gap-y-1">
+              <Label size="xsmall" className="text-ui-fg-subtle">Sort</Label>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <Select.Trigger>
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="created_at:desc">Newest first</Select.Item>
+                  <Select.Item value="created_at:asc">Oldest first</Select.Item>
+                  <Select.Item value="updated_at:desc">Recently updated</Select.Item>
+                  <Select.Item value={tab === "files" ? "file_name:asc" : "name:asc"}>Name A–Z</Select.Item>
+                  <Select.Item value={tab === "files" ? "file_name:desc" : "name:desc"}>Name Z–A</Select.Item>
+                  {tab === "files" && (
+                    <Select.Item value="file_size:desc">Largest first</Select.Item>
+                  )}
+                  {tab === "files" && (
+                    <Select.Item value="file_size:asc">Smallest first</Select.Item>
+                  )}
+                </Select.Content>
+              </Select>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-x-2">
             <DataTable.Search placeholder="Search medias..." />

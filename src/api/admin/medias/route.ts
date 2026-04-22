@@ -269,6 +269,43 @@ import { UploadMediaRequest } from "./validator";
         }
       }
 
+      // Accept created_at range filter from query (ISO strings) in a few shapes:
+      //   filters[created_at][gte]=..., filters[created_at][lte]=...
+      //   filters[created_at_gte]=..., filters[created_at_lte]=...
+      const createdAtGte = (filters.created_at?.gte ?? filters.created_at?.$gte ?? filters.created_at_gte) as string | undefined
+      const createdAtLte = (filters.created_at?.lte ?? filters.created_at?.$lte ?? filters.created_at_lte) as string | undefined
+      delete filters.created_at_gte
+      delete filters.created_at_lte
+      const createdAtFilter: Record<string, string> = {}
+      if (typeof createdAtGte === "string" && createdAtGte) createdAtFilter.$gte = createdAtGte
+      if (typeof createdAtLte === "string" && createdAtLte) createdAtFilter.$lte = createdAtLte
+      if (Object.keys(createdAtFilter).length) {
+        filters.created_at = createdAtFilter
+      } else {
+        delete filters.created_at
+      }
+
+      // Accept `order` via config.order as either an object ({ created_at: "DESC" })
+      // or a string ("created_at:desc" / "-created_at"). Normalize to object form.
+      if (config?.order !== undefined && typeof config.order === "string") {
+        const raw = (config.order as string).trim()
+        if (raw.length) {
+          let field = raw
+          let direction: "ASC" | "DESC" = "ASC"
+          if (raw.startsWith("-")) {
+            field = raw.slice(1)
+            direction = "DESC"
+          } else if (raw.includes(":")) {
+            const [f, d] = raw.split(":")
+            field = f
+            direction = (d || "").toLowerCase() === "desc" ? "DESC" : "ASC"
+          }
+          config.order = { [field]: direction }
+        } else {
+          delete config.order
+        }
+      }
+
       const { result } = await listAllMediasWorkflow(req.scope).run({
         input: {
           filters,

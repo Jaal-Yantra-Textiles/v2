@@ -1,9 +1,11 @@
 import { CheckCircleSolid, FolderOpen, Photo } from "@medusajs/icons"
-import { Button, Text, Tooltip, Select, Input } from "@medusajs/ui"
+import { Button, Text, Tooltip, Select, Input, DatePicker, Label, toast } from "@medusajs/ui"
 import { useMediaFiles, useFolders, useAlbums, MediaFile, MediaFolder } from "../../../hooks/api/media"
 import { RoundSpinner } from "../../ui/spinner"
 import { getThumbUrl, isImageUrl } from "../../../lib/media"
 import { useState, useMemo, useRef, useEffect } from "react"
+import { FileUpload } from "../../common/file-upload"
+import { useUploadSingleMedia } from "../../../hooks/api/media-folders/use-upload-manager"
 
 // Optimized thumbnail component with intersection observer for lazy loading
 interface MediaThumbnailProps {
@@ -87,17 +89,28 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
   const [folderId, setFolderId] = useState<string | undefined>(undefined)
   const [albumId, setAlbumId] = useState<string | undefined>(undefined)
   const [search, setSearch] = useState<string>("")
-  const [dateFrom, setDateFrom] = useState<string>("")
-  const [dateTo, setDateTo] = useState<string>("")
+  const [dateFrom, setDateFrom] = useState<Date | null>(null)
+  const [dateTo, setDateTo] = useState<Date | null>(null)
   const [showFolders] = useState(true)
+  const [uploadingCount, setUploadingCount] = useState(0)
 
   // Fetch data
   const { data: foldersData } = useFolders()
   const { data: albumsData } = useAlbums()
-  
+
   const folders = foldersData?.folders || []
   const albums = albumsData?.albums || []
-  
+
+  const uploadMutation = useUploadSingleMedia()
+
+  const dateFromIso = useMemo(() => (dateFrom ? dateFrom.toISOString() : undefined), [dateFrom])
+  const dateToIso = useMemo(() => {
+    if (!dateTo) return undefined
+    const eod = new Date(dateTo)
+    eod.setHours(23, 59, 59, 999)
+    return eod.toISOString()
+  }, [dateTo])
+
   const {
     files,
     isLoading,
@@ -109,10 +122,35 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
     folder_id: folderId,
     album_id: albumId,
     search: search || undefined,
-    created_after: dateFrom || undefined,
-    created_before: dateTo || undefined,
+    created_after: dateFromIso,
+    created_before: dateToIso,
     limit: 40,
   })
+
+  const handleDropUpload = async (dropped: { file: File; url: string }[]) => {
+    if (!dropped.length) return
+    const files = dropped.map((d) => d.file)
+    setUploadingCount(files.length)
+    try {
+      for (const f of files) {
+        await uploadMutation.mutateAsync({
+          file: f,
+          options: {
+            existingFolderId: folderId,
+            existingAlbumIds: albumId ? [albumId] : undefined,
+          },
+        })
+      }
+      toast.success(`Uploaded ${files.length} file(s)`)
+    } catch (e: any) {
+      toast.error(e?.message || "Upload failed")
+    } finally {
+      dropped.forEach((d) => {
+        try { URL.revokeObjectURL(d.url) } catch {}
+      })
+      setUploadingCount(0)
+    }
+  }
 
   // Active filters count
   const activeFiltersCount = useMemo(() => {
@@ -129,8 +167,8 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
     setFolderId(undefined)
     setAlbumId(undefined)
     setSearch("")
-    setDateFrom("")
-    setDateTo("")
+    setDateFrom(null)
+    setDateTo(null)
   }
 
   // Get folders in current folder (for navigation)
@@ -157,6 +195,17 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
 
   return (
     <div className="flex flex-col gap-y-4 p-6">
+      {/* Upload drop-zone — uploads directly into the selected folder/album */}
+      <div className="border-b pb-4">
+        <FileUpload
+          label={uploadingCount > 0 ? `Uploading ${uploadingCount} file(s)...` : "Upload new media"}
+          hint={folderId ? "Files will be added to the selected folder" : "Files will be uploaded to the root"}
+          multiple
+          onUploaded={handleDropUpload}
+          isLoading={uploadingCount > 0}
+        />
+      </div>
+
       {/* Filter Section */}
       <div className="flex flex-col gap-3 border-b pb-4">
         <div className="flex items-center justify-between">
@@ -233,23 +282,21 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
           {/* Date Range */}
           <div className="flex gap-1">
             <div className="flex-1">
-              <Text size="xsmall" className="mb-1 text-ui-fg-subtle">From</Text>
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                size="small"
-                disabled={isLoading}
+              <Label size="xsmall" className="mb-1 text-ui-fg-subtle block">From</Label>
+              <DatePicker
+                modal
+                value={dateFrom ?? undefined}
+                maxValue={dateTo ?? undefined}
+                onChange={(d) => setDateFrom(d ?? null)}
               />
             </div>
             <div className="flex-1">
-              <Text size="xsmall" className="mb-1 text-ui-fg-subtle">To</Text>
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                size="small"
-                disabled={isLoading}
+              <Label size="xsmall" className="mb-1 text-ui-fg-subtle block">To</Label>
+              <DatePicker
+                modal
+                value={dateTo ?? undefined}
+                minValue={dateFrom ?? undefined}
+                onChange={(d) => setDateTo(d ?? null)}
               />
             </div>
           </div>

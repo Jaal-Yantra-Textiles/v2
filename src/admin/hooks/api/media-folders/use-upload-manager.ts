@@ -1,5 +1,5 @@
 import { useMutation, UseMutationOptions, useQueryClient } from "@tanstack/react-query"
-import { sdk, VITE_MEDUSA_BACKEND_URL } from "../../../lib/config"
+import { sdk } from "../../../lib/config"
 import { mediasQueryKeys } from "./use-medias"
 
 interface UploadManagerOptions {
@@ -48,50 +48,9 @@ export const useUploadSingleMedia = (
       })
 
       try {
-        // Small file threshold - use direct upload
-        const SMALL_FILE_THRESHOLD = 5 * 1024 * 1024 // 5MB
-
-        if (file.size <= SMALL_FILE_THRESHOLD) {
-          // Use direct fetch for FormData uploads (SDK doesn't handle FormData well)
-          const formData = new FormData()
-          formData.append("files", file, file.name || "upload.bin")
-          
-          if (uploadOptions?.existingAlbumIds?.length) {
-            for (const id of uploadOptions.existingAlbumIds) {
-              formData.append("existingAlbumIds", id)
-            }
-          }
-
-          // Use direct fetch with credentials (like use-upload-media.ts does)
-          const base = VITE_MEDUSA_BACKEND_URL?.replace(/\/$/, "") || ""
-          const url = `${base}/admin/medias`
-
-          const response = await fetch(url, {
-            method: "POST",
-            body: formData,
-            credentials: "include",
-            // Don't set Content-Type - browser will set it with boundary
-          })
-
-          const data = await response.json().catch(() => ({})) as any
-          
-          if (!response.ok) {
-            const message = (data && (data.message || data.error)) || `Upload failed with status ${response.status}`
-            throw new Error(message)
-          }
-
-          // Notify completion
-          onProgress?.({
-            id: fileId,
-            name: file.name,
-            progress: 1,
-            status: "completed",
-          })
-
-          return data as UploadMediaResponse
-        }
-
-        // Large file - use multipart upload
+        // All uploads go through the S3 multipart flow for consistent, clean
+        // `<safeBase>-<rand>.<ext>` naming — even tiny files. S3 allows a
+        // single-part multipart upload of any size, so this works uniformly.
         return await uploadLargeFile(file, uploadOptions, fileId, onProgress)
       } catch (error: any) {
         onProgress?.({
@@ -107,6 +66,7 @@ export const useUploadSingleMedia = (
     onSuccess: (data, variables, _mutateResult, context) => {
       // Refresh media queries
       queryClient.invalidateQueries({ queryKey: mediasQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ["media"] })
       queryClient.invalidateQueries({ queryKey: ["media-dictionaries"] })
       queryClient.invalidateQueries({ queryKey: ["media-folders", "list"] })
       options?.onSuccess?.(data, variables, _mutateResult, context)

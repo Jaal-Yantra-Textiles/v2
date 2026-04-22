@@ -87,17 +87,19 @@ export interface UseMediaFilesQuery {
   created_after?: string;
   created_before?: string;
   limit?: number;
+  /** Sort order for results. Defaults to newest first. */
+  order?: string;
 }
 
 export const useMediaFiles = (query: UseMediaFilesQuery = {}) => {
-  const { limit = 20, ...filters } = query; // Reduced from 40 to 20 for better memory management
+  const { limit = 20, order = "created_at:desc", ...filters } = query;
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, ...rest } = useInfiniteQuery({
-    queryKey: mediaQueryKeys.list({ ...query }),
+    queryKey: mediaQueryKeys.list({ ...query, order }),
     queryFn: async ({ pageParam = 0 }) => {
       // Build filters object
       const apiFilters: Record<string, any> = {};
-      
+
       if (filters.folder_id) apiFilters.folder_id = filters.folder_id;
       // Note: album_id filtering is currently not supported in the backend
       // because it requires querying through the AlbumMedia pivot table
@@ -116,6 +118,7 @@ export const useMediaFiles = (query: UseMediaFilesQuery = {}) => {
         method: "GET",
         query: {
           filters: JSON.stringify(apiFilters),
+          config: JSON.stringify({ order }),
           skip: pageParam,
           take: limit,
         },

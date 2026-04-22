@@ -32,6 +32,11 @@ export type MediasQuery = {
   config?: {
     select?: string[];
     relations?: string[];
+    /**
+     * Sort order. Accepts shorthand ("created_at:desc", "-created_at", "created_at")
+     * or object form ({ created_at: "DESC" }). Server normalizes both.
+     */
+    order?: string | Record<string, "ASC" | "DESC">;
   };
 };
 

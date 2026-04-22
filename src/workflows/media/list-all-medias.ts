@@ -26,7 +26,7 @@ export const listAllMediasWorkflow = createWorkflow(
       input: transform({ input }, (data) => {
         const raw = { ...(data.input.filters || {}) }
         // Whitelist only fields that exist on Folder
-        const allowedKeys = new Set(["id", "name", "slug", "description", "path", "level", "sort_order", "is_public", "parent_folder_id", "metadata"])
+        const allowedKeys = new Set(["id", "name", "slug", "description", "path", "level", "sort_order", "is_public", "parent_folder_id", "metadata", "created_at", "updated_at"])
         const filtered: Record<string, any> = {}
         for (const [k, v] of Object.entries(raw)) {
           if (allowedKeys.has(k)) filtered[k] = v
@@ -42,7 +42,7 @@ export const listAllMediasWorkflow = createWorkflow(
       input: transform({ input }, (data) => {
         const raw = { ...(data.input.filters || {}) }
         // Whitelist only fields that exist on Album
-        const allowedKeys = new Set(["id", "name", "description", "slug", "is_public", "sort_order", "type", "metadata", "cover_media_id"])
+        const allowedKeys = new Set(["id", "name", "description", "slug", "is_public", "sort_order", "type", "metadata", "cover_media_id", "created_at", "updated_at"])
         const filtered: Record<string, any> = {}
         for (const [k, v] of Object.entries(raw)) {
           if (allowedKeys.has(k)) filtered[k] = v
