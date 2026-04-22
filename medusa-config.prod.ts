@@ -390,5 +390,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/google_merchant",
   },
+  {
+    resolve: "./src/modules/ai_usage",
+  },
 ],
 });

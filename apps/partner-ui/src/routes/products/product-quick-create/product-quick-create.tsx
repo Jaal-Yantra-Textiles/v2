@@ -2,13 +2,23 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { Button, Heading, Input, Label, Text, Textarea, toast } from "@medusajs/ui"
-import { PencilSquare, Plus, XMarkMini } from "@medusajs/icons"
+import {
+  Alert,
+  Button,
+  Heading,
+  Input,
+  Label,
+  Text,
+  Textarea,
+  toast,
+} from "@medusajs/ui"
+import { PencilSquare, Plus, Sparkles, XMarkMini } from "@medusajs/icons"
 import { z } from "zod"
 
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"
 import { KeyboundForm } from "../../../components/utilities/keybound-form"
 import { Form } from "../../../components/common/form"
+import { useAiUsage, useDescribeImage } from "../../../hooks/api/ai"
 import { useCreateQuickProduct } from "../../../hooks/api/products"
 import { usePartnerStores } from "../../../hooks/api/partner-stores"
 import { usePartnerUpload } from "../../../hooks/api/uploads"
@@ -36,11 +46,18 @@ export const ProductQuickCreate = () => {
     ""
 
   const [images, setImages] = useState<string[]>([])
+  const [upgradeBanner, setUpgradeBanner] = useState<
+    | { used: number; limit: number; message: string }
+    | null
+  >(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { mutateAsync: upload, isPending: isUploading } = usePartnerUpload()
   const { mutateAsync: createProduct, isPending: isCreating } =
     useCreateQuickProduct()
+  const { mutateAsync: describeImage, isPending: isDescribing } =
+    useDescribeImage()
+  const { image_describe: describeQuota } = useAiUsage()
 
   const form = useForm<QuickProductSchemaType>({
     defaultValues: {
@@ -131,6 +148,33 @@ export const ProductQuickCreate = () => {
                 </Text>
               </div>
 
+              {upgradeBanner && (
+                <Alert variant="warning" dismissible onDismiss={() => setUpgradeBanner(null)}>
+                  <div className="flex flex-col gap-y-2">
+                    <Text size="small" weight="plus">
+                      {upgradeBanner.used}/{upgradeBanner.limit} free AI
+                      descriptions used this month
+                    </Text>
+                    <Text size="small">
+                      {upgradeBanner.message} Upgrade your plan to keep
+                      generating descriptions.
+                    </Text>
+                    <div>
+                      <Button
+                        size="small"
+                        variant="primary"
+                        type="button"
+                        onClick={() => {
+                          handleSuccess("/settings/plan")
+                        }}
+                      >
+                        See plans
+                      </Button>
+                    </div>
+                  </div>
+                </Alert>
+              )}
+
               {/* Photos */}
               <div className="flex flex-col gap-y-2">
                 <Label size="small" weight="plus">
@@ -191,7 +235,79 @@ export const ProductQuickCreate = () => {
                 name="title"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label>Title</Form.Label>
+                    <div className="flex items-center justify-between">
+                      <Form.Label>Title</Form.Label>
+                      {images.length > 0 && (
+                        <div className="flex items-center gap-x-2">
+                          {describeQuota && (
+                            <Text
+                              size="xsmall"
+                              className="text-ui-fg-muted"
+                              title="Free AI descriptions reset on the 1st of each month"
+                            >
+                              {describeQuota.used}/{describeQuota.limit} free
+                            </Text>
+                          )}
+                          <Button
+                            type="button"
+                            variant="transparent"
+                            size="small"
+                            isLoading={isDescribing}
+                            disabled={
+                              isDescribing ||
+                              (describeQuota && !describeQuota.allowed)
+                            }
+                            onClick={async () => {
+                              const first = images[0]
+                              if (!first) return
+                              try {
+                                const res = await describeImage({
+                                  imageUrl: first,
+                                  hint: form.getValues("title") || undefined,
+                                })
+                                if (!form.getValues("title")) {
+                                  form.setValue("title", res.title, {
+                                    shouldDirty: true,
+                                  })
+                                }
+                                form.setValue(
+                                  "description",
+                                  res.description,
+                                  { shouldDirty: true }
+                                )
+                                setUpgradeBanner(null)
+                                toast.success("Description drafted from image")
+                              } catch (err: any) {
+                                // 402 → quota exhausted. The server already
+                                // returned used/limit so we pin a sticky
+                                // banner with a plans CTA; toast alone is
+                                // too easy to miss.
+                                if (
+                                  err?.status === 402 &&
+                                  err?.upgrade_required
+                                ) {
+                                  setUpgradeBanner({
+                                    used: err.used,
+                                    limit: err.limit,
+                                    message:
+                                      err.message ||
+                                      "You've used your free AI descriptions for this month.",
+                                  })
+                                } else {
+                                  toast.error(
+                                    err?.message ||
+                                      "Could not generate a description"
+                                  )
+                                }
+                              }
+                            }}
+                          >
+                            <Sparkles className="text-ui-fg-interactive" />
+                            <span>Describe from image</span>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                     <Form.Control>
                       <Input {...field} placeholder="Handmade cotton dari" />
                     </Form.Control>

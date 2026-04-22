@@ -51,6 +51,17 @@ export default async function socialPlatformCredentialsEncryptionHandler({
       }
     }
 
+    // Check if api_key needs encryption (used by non-OAuth platforms like
+    // Qwen / DashScope / OpenAI that auth with a single bearer key).
+    if (apiConfig.api_key && typeof apiConfig.api_key === 'string') {
+      if (!apiConfig.api_key_encrypted) {
+        encryptedConfig.api_key_encrypted = encryptionService.encrypt(apiConfig.api_key)
+        delete encryptedConfig.api_key
+        needsUpdate = true
+        logger.info(`[Encryption Subscriber] ✓ Encrypted api_key for platform ${platform.name}`)
+      }
+    }
+
     // Check if refresh_token needs encryption
     if (apiConfig.refresh_token && typeof apiConfig.refresh_token === 'string') {
       if (!apiConfig.refresh_token_encrypted) {

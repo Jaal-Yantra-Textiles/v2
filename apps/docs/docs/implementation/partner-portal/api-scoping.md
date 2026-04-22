@@ -24,8 +24,9 @@ Authentication: `authenticate("partner", ["session", "bearer"])` middleware with
 | Operation | Endpoint | Notes |
 |-----------|----------|-------|
 | List | `GET /partners/stores/:id/products` | Via sales channel link |
-| Detail | `GET /partners/stores/:id/products/:productId` | Includes variants, options, collection, images, tags |
+| Detail | `GET /partners/stores/:id/products/:productId` | Variants include `prices` with flat `rules` object (reconstructed from `price_rules`), plus `inventory_items.inventory` for the stock page. |
 | Create | `POST /partners/stores/:id/products` | Auto-assigns store's sales channel |
+| Quick create | `POST /partners/stores/:id/products/quick` | One-shot: product + default variant + 1 price + 1 stock level. See [Quick Add Product](./quick-add-product). |
 | Update | `POST /partners/stores/:id/products/:productId` | |
 | Delete | `DELETE /partners/stores/:id/products/:productId` | Uses `deleteProductsWorkflow` |
 
@@ -36,7 +37,16 @@ Authentication: `authenticate("partner", ["session", "bearer"])` middleware with
 | Detail | `GET /partners/stores/:id/products/:productId/variants/:variantId` |
 | Create | `POST /partners/stores/:id/products/:productId/variants` |
 | Update | `POST /partners/stores/:id/products/:productId/variants/:variantId` |
+| Batch (create/update/delete) | `POST /partners/stores/:id/products/:productId/variants/batch` |
 | Delete | `DELETE /partners/stores/:id/products/:productId/variants/:variantId` |
+
+All variant endpoints reconstruct `price.rules` from the underlying `price_rules` relation so the pricing UI can render region-scoped prices (region columns on the pricing grid). Wired via `remapVariantResponse` from `@medusajs/medusa/api/admin/products/helpers`.
+
+### AI (partner-scoped)
+| Operation | Endpoint | Notes |
+|-----------|----------|-------|
+| Describe image | `POST /partners/ai/describe-image` | Body `{imageUrl, hint?}` → `{title, description, usage}`. Returns HTTP 402 `{upgrade_required: true, code: "ai_quota_exhausted", used, limit}` when the partner is over their monthly free allowance. Provider key is read from a `SocialPlatform` record; see [Quick Add Product](./quick-add-product) for setup. |
+| Usage counters | `GET /partners/ai/usage` | Returns `{image_describe: {used, limit, allowed}}` for the current calendar month. UI uses this to render an `X/10 free` hint and disable the describe button at the limit. |
 
 ### Product Metadata
 | Resource | Endpoint | Scoping |

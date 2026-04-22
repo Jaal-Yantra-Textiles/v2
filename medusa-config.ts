@@ -107,6 +107,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/energy_rates",
     },
+    {
+      resolve: "./src/modules/ai_usage",
+    },
 
     // Production-ready modules
     // {

@@ -213,6 +213,40 @@ export function encryptTokens(
   if (tokens.userAccessToken) {
     encrypted.user_access_token_encrypted = encryptionService.encrypt(tokens.userAccessToken)
   }
-  
+
   return encrypted
+}
+
+/**
+ * Decrypt a generic API key from platform api_config (for non-OAuth
+ * platforms like Qwen/DashScope that auth with a single bearer token).
+ *
+ * Reads `api_key_encrypted` (new format) first, then falls back to plaintext
+ * `api_key` for backward compatibility with platforms seeded before the
+ * encryption module was wired up.
+ */
+export function decryptApiKey(
+  apiConfig: Record<string, any>,
+  container: MedusaContainer
+): string | null {
+  if (apiConfig.api_key_encrypted) {
+    const encryptionService = container.resolve(ENCRYPTION_MODULE) as EncryptionService
+    return encryptionService.decrypt(apiConfig.api_key_encrypted as EncryptedData)
+  }
+  if (apiConfig.api_key) {
+    console.warn("[Token Helper] Using plaintext api_key (not encrypted). Consider rotating.")
+    return apiConfig.api_key
+  }
+  return null
+}
+
+/**
+ * Encrypt an API key for storage in api_config.
+ */
+export function encryptApiKey(
+  apiKey: string,
+  container: MedusaContainer
+): EncryptedData {
+  const encryptionService = container.resolve(ENCRYPTION_MODULE) as EncryptionService
+  return encryptionService.encrypt(apiKey)
 }

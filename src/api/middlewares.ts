@@ -3509,6 +3509,23 @@ export default defineMiddlewares({
         // JSON body is handled by default express.json; no multer needed here
       ],
     },
+    // Partner AI — image description (Qwen vision via SocialPlatform)
+    {
+      matcher: "/partners/ai/describe-image",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/ai/usage",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner file uploads (product images, etc.)
     {
       matcher: "/partners/uploads",
