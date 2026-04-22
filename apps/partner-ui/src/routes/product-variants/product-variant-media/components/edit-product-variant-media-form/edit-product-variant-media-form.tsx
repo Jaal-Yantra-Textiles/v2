@@ -42,13 +42,17 @@ export const EditProductVariantMediaForm = ({
   const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
 
+  // The `variant` prop is shadowed inside `.some((variant) => ...)`, so the
+  // original predicate compared the iterator value with itself — always
+  // true. Rename the inner param to `v` so the check actually filters by
+  // THIS variant's id.
   const allProductImages = variant.product?.images || []
   const allVariantImages = (variant.images || []).filter((image) =>
-    image.variants?.some((variant) => variant.id === variant.id)
+    image.variants?.some((v) => v.id === variant.id)
   )
 
   const unassociatedImages = allProductImages.filter(
-    (image) => !image.variants?.some((variant) => variant.id === variant.id)
+    (image) => !image.variants?.some((v) => v.id === variant.id)
   )
 
   const [selection, setSelection] = useState<Record<string, true>>({})

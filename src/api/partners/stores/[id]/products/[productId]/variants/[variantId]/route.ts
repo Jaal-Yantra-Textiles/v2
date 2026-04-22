@@ -2,13 +2,13 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { deleteProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
-import { validatePartnerStoreAccess } from "../../../../../../helpers"
+import { scopeAndAggregateVariantInventory, validatePartnerStoreAccess } from "../../../../../../helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
@@ -32,6 +32,16 @@ export const GET = async (
       // these, `i.inventory` is undefined → /inventory/undefined → 404.
       "inventory_items.inventory.*",
       "inventory_items.inventory.location_levels.*",
+      // Images: the variant media edit page (/products/:id/variants/:vid/media)
+      // needs both the variant-scoped images AND the full product image pool
+      // so users can associate existing product images with this variant.
+      // Each image's `variants.id` is required to tell the form which
+      // images are already linked to the variant.
+      "product.*",
+      "product.images.*",
+      "product.images.variants.id",
+      "images.*",
+      "images.variants.id",
     ],
     filters: { id: req.params.variantId },
   })
@@ -40,6 +50,8 @@ export const GET = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Variant not found")
   }
 
+  // Partner-scope inventory and populate aggregate quantities before remap.
+  scopeAndAggregateVariantInventory([variants[0]] as any[], store?.default_location_id)
   const variant = remapVariantResponse(variants[0] as any) as any
 
   if (!variant.product_id) {

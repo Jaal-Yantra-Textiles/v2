@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Button, Input, Select, toast } from "@medusajs/ui"
+import { Button, Input, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z as zod } from "@medusajs/framework/zod"
@@ -9,8 +9,6 @@ import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useUpdateUser } from "../../../../../hooks/api/users"
-import { languages } from "../../../../../i18n/languages"
-import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
 import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type EditProfileProps = {
@@ -21,31 +19,20 @@ type EditProfileProps = {
 const EditProfileSchema = zod.object({
   first_name: zod.string().optional(),
   last_name: zod.string().optional(),
-  language: zod.string(),
   // usage_insights: zod.boolean(),
 })
 
 export const EditProfileForm = ({ user }: EditProfileProps) => {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
-  const direction = useDocumentDirection()
   const form = useForm<zod.infer<typeof EditProfileSchema>>({
     defaultValues: {
       first_name: user.first_name ?? "",
       last_name: user.last_name ?? "",
-      language: i18n.language,
       // usage_insights: usageInsights,
     },
     resolver: zodResolver(EditProfileSchema),
   })
-
-  const changeLanguage = async (code: string) => {
-    await i18n.changeLanguage(code)
-  }
-
-  const sortedLanguages = languages.sort((a, b) =>
-    a.display_name.localeCompare(b.display_name)
-  )
 
   const { mutateAsync, isPending } = useUpdateUser(user.id!)
 
@@ -62,8 +49,6 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
         },
       }
     )
-
-    await changeLanguage(values.language)
 
     toast.success(t("profile.toast.edit"))
     handleSuccess()
@@ -102,50 +87,6 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
                 )}
               />
             </div>
-            <Form.Field
-              control={form.control}
-              name="language"
-              render={({ field: { ref, ...field } }) => (
-                <Form.Item className="gap-y-4">
-                  <div>
-                    <Form.Label>{t("profile.fields.languageLabel")}</Form.Label>
-                    <Form.Hint>{t("profile.edit.languageHint")}</Form.Hint>
-                  </div>
-                  <div>
-                    <Form.Control>
-                      <Select
-                        dir={direction}
-                        {...field}
-                        onValueChange={field.onChange}
-                      >
-                        <Select.Trigger ref={ref} className="py-1 text-[13px]">
-                          <Select.Value
-                            placeholder={t("profile.edit.languagePlaceholder")}
-                          >
-                            {
-                              sortedLanguages.find(
-                                (language) => language.code === field.value
-                              )?.display_name
-                            }
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Content>
-                          {languages.map((language) => (
-                            <Select.Item
-                              key={language.code}
-                              value={language.code}
-                            >
-                              {language.display_name}
-                            </Select.Item>
-                          ))}
-                        </Select.Content>
-                      </Select>
-                    </Form.Control>
-                    <Form.ErrorMessage />
-                  </div>
-                </Form.Item>
-              )}
-            />
             {/* TODO: Do we want to implement usage insights in V2? */}
             {/* <Form.Field
               control={form.control}

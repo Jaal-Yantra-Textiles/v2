@@ -226,6 +226,51 @@ export const validatePartnerOrderEntityOwnership = async (
 }
 
 /**
+ * Scopes each variant's inventory to the partner's location and populates
+ * aggregate fields that Medusa's `query.graph` does not auto-compute:
+ *   - inventory.stocked_quantity / reserved_quantity / incoming_quantity
+ *   - variant.inventory_quantity (kit-aware: min floor((stocked-reserved)/required))
+ *
+ * Without this, partner product/variant responses come back with those
+ * fields as `null` and the UI's "X in stock" widgets render blank.
+ *
+ * Mutates `variants` in place for ergonomics; also returns it.
+ */
+export const scopeAndAggregateVariantInventory = <T extends any>(
+    variants: T[],
+    locationId: string | null | undefined,
+): T[] => {
+    if (!Array.isArray(variants)) return variants
+    for (const variant of variants as any[]) {
+        const items = Array.isArray(variant?.inventory_items) ? variant.inventory_items : []
+        let variantQty: number | null = null
+        for (const pivot of items) {
+            const inv = pivot?.inventory
+            if (!inv) continue
+            const allLevels = Array.isArray(inv.location_levels) ? inv.location_levels : []
+            const levels = locationId
+                ? allLevels.filter((l: any) => l?.location_id === locationId)
+                : allLevels
+            inv.location_levels = levels
+            const stocked = levels.reduce((a: number, l: any) => a + (Number(l?.stocked_quantity) || 0), 0)
+            const reserved = levels.reduce((a: number, l: any) => a + (Number(l?.reserved_quantity) || 0), 0)
+            const incoming = levels.reduce((a: number, l: any) => a + (Number(l?.incoming_quantity) || 0), 0)
+            inv.stocked_quantity = stocked
+            inv.reserved_quantity = reserved
+            inv.incoming_quantity = incoming
+            const required = Number(pivot?.required_quantity) || 1
+            const available = Math.max(0, stocked - reserved)
+            const perItem = required > 0 ? Math.floor(available / required) : available
+            variantQty = variantQty === null ? perItem : Math.min(variantQty, perItem)
+        }
+        if (variant) {
+            variant.inventory_quantity = variantQty ?? 0
+        }
+    }
+    return variants
+}
+
+/**
  * Gets the partner's sales channel ID for order scoping.
  */
 export const getPartnerSalesChannelId = async (

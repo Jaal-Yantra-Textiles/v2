@@ -18,6 +18,7 @@ import { z } from "zod"
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"
 import { KeyboundForm } from "../../../components/utilities/keybound-form"
 import { Form } from "../../../components/common/form"
+import { Skeleton } from "../../../components/common/skeleton"
 import { useAiUsage, useDescribeImage } from "../../../hooks/api/ai"
 import { useCreateQuickProduct } from "../../../hooks/api/products"
 import { usePartnerStores } from "../../../hooks/api/partner-stores"
@@ -33,10 +34,32 @@ const QuickProductSchema = z.object({
 
 type QuickProductSchemaType = z.infer<typeof QuickProductSchema>
 
+// RouteFocusModal mounts the RouteModalProvider INSIDE its JSX tree, so a
+// component that renders `<RouteFocusModal>` cannot itself call
+// `useRouteModal()` at the top of its own function body (the provider isn't
+// in the ancestry yet and the hook throws). Wrap the route with a
+// provider-free shell and put the form — which actually needs the hook —
+// into a child that's rendered inside the modal.
 export const ProductQuickCreate = () => {
+  return (
+    <RouteFocusModal>
+      <RouteFocusModal.Title asChild>
+        <span className="sr-only">Quick add product</span>
+      </RouteFocusModal.Title>
+      <RouteFocusModal.Description asChild>
+        <span className="sr-only">
+          Create a single-variant product with one price and one stock number.
+        </span>
+      </RouteFocusModal.Description>
+      <ProductQuickCreateForm />
+    </RouteFocusModal>
+  )
+}
+
+const ProductQuickCreateForm = () => {
   const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
-  const { stores } = usePartnerStores()
+  const { stores, isLoading: isStoresLoading } = usePartnerStores() as any
   const store = stores?.[0] as any
 
   const defaultCurrency =
@@ -122,18 +145,16 @@ export const ProductQuickCreate = () => {
     [defaultCurrency]
   )
 
-  return (
-    <RouteFocusModal>
-      <RouteFocusModal.Title asChild>
-        <span className="sr-only">Quick add product</span>
-      </RouteFocusModal.Title>
-      <RouteFocusModal.Description asChild>
-        <span className="sr-only">
-          Create a single-variant product with one price and one stock number.
-        </span>
-      </RouteFocusModal.Description>
+  // Wait until we know the default currency before rendering the form — the
+  // price suffix renders off it and seeing the currency pop in after the
+  // fact is jarring. Shell-level <ProgressBar/> covers the chunk-load
+  // phase; this covers the data-resolve phase inside the modal.
+  if (isStoresLoading) {
+    return <ProductQuickCreateSkeleton />
+  }
 
-      <RouteFocusModal.Form form={form}>
+  return (
+    <RouteFocusModal.Form form={form}>
         <KeyboundForm
           onSubmit={onSubmit}
           className="flex size-full flex-col overflow-hidden"
@@ -422,6 +443,54 @@ export const ProductQuickCreate = () => {
           </RouteFocusModal.Footer>
         </KeyboundForm>
       </RouteFocusModal.Form>
-    </RouteFocusModal>
+  )
+}
+
+const ProductQuickCreateSkeleton = () => {
+  return (
+    <>
+      <RouteFocusModal.Header />
+      <RouteFocusModal.Body className="flex flex-col overflow-y-auto">
+        <div className="mx-auto w-full max-w-xl px-4 py-8 flex flex-col gap-y-6">
+          <div className="flex flex-col items-center gap-y-2">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          {/* Photo row */}
+          <div className="flex flex-col gap-y-2">
+            <Skeleton className="h-4 w-16" />
+            <div className="flex gap-x-2">
+              <Skeleton className="h-[60px] w-[60px] rounded-md" />
+            </div>
+          </div>
+          {/* Title + Description */}
+          <div className="flex flex-col gap-y-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-9 w-full rounded-md" />
+          </div>
+          <div className="flex flex-col gap-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-24 w-full rounded-md" />
+          </div>
+          {/* Price + Stock */}
+          <div className="grid grid-cols-2 gap-x-4">
+            <div className="flex flex-col gap-y-2">
+              <Skeleton className="h-4 w-14" />
+              <Skeleton className="h-9 w-full rounded-md" />
+            </div>
+            <div className="flex flex-col gap-y-2">
+              <Skeleton className="h-4 w-14" />
+              <Skeleton className="h-9 w-full rounded-md" />
+            </div>
+          </div>
+        </div>
+      </RouteFocusModal.Body>
+      <RouteFocusModal.Footer>
+        <div className="flex w-full items-center justify-end gap-x-2">
+          <Skeleton className="h-8 w-20 rounded-md" />
+          <Skeleton className="h-8 w-24 rounded-md" />
+        </div>
+      </RouteFocusModal.Footer>
+    </>
   )
 }

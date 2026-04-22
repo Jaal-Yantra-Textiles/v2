@@ -3,12 +3,19 @@ import { useNavigate } from "react-router-dom"
 import { Button, Heading, Text } from "@medusajs/ui"
 import { BoltSolid, Wrench } from "@medusajs/icons"
 
-import { RouteFocusModal, useRouteModal } from "../../../components/modals"
+import { RouteFocusModal } from "../../../components/modals"
 
 export const ProductCreateChoice = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { handleSuccess } = useRouteModal()
+
+  // Note: can't call useRouteModal() here. This component renders
+  // <RouteFocusModal>, which is the component that establishes the
+  // RouteModalProvider context — so at function-body time, the context
+  // doesn't exist yet and useRouteModal would throw. The Cancel button
+  // wraps itself in <RouteFocusModal.Close>, which already navigates back
+  // via FocusModal's onOpenChange, so no explicit handleSuccess call is
+  // needed.
 
   const pick = (path: "quick" | "advanced") => {
     if (path === "quick") {
@@ -85,11 +92,7 @@ export const ProductCreateChoice = () => {
           </div>
 
           <RouteFocusModal.Close asChild>
-            <Button
-              variant="transparent"
-              size="small"
-              onClick={() => handleSuccess("..")}
-            >
+            <Button variant="transparent" size="small">
               Cancel
             </Button>
           </RouteFocusModal.Close>

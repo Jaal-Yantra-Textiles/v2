@@ -2,13 +2,13 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { deleteProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { remapProductResponse } from "@medusajs/medusa/api/admin/products/helpers"
-import { validatePartnerStoreAccess } from "../../../../helpers"
+import { scopeAndAggregateVariantInventory, validatePartnerStoreAccess } from "../../../../helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
@@ -28,6 +28,7 @@ export const GET = async (
       "variants.options.*",
       "variants.inventory_items.*",
       "variants.inventory_items.inventory.*",
+      "variants.inventory_items.inventory.location_levels.*",
       "options.*",
       "options.values.*",
       "images.*",
@@ -43,7 +44,10 @@ export const GET = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Product not found")
   }
 
-  res.json({ product: remapProductResponse(products[0] as any) })
+  const product = products[0] as any
+  scopeAndAggregateVariantInventory(product.variants || [], store?.default_location_id)
+
+  res.json({ product: remapProductResponse(product) })
 }
 
 export const POST = async (

@@ -62,6 +62,17 @@ async function verifyPartnerInventoryAccess(
 
   item.location_levels = levels
 
+  // Medusa's retrieveInventoryItem doesn't populate the aggregate
+  // stocked/reserved/incoming fields on the item itself — they come back as
+  // null. The partner UI's general section reads them at the top level, so
+  // compute them from the (already partner-scoped) location_levels here.
+  const sum = (field: "stocked_quantity" | "reserved_quantity" | "incoming_quantity") =>
+    (levels as any[]).reduce((acc, lvl) => acc + (Number(lvl?.[field]) || 0), 0)
+
+  item.stocked_quantity = sum("stocked_quantity")
+  item.reserved_quantity = sum("reserved_quantity")
+  item.incoming_quantity = sum("incoming_quantity")
+
   return { item, locationId }
 }
 

@@ -1,13 +1,13 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
-import { validatePartnerStoreAccess } from "../../../../../helpers"
+import { scopeAndAggregateVariantInventory, validatePartnerStoreAccess } from "../../../../../helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
@@ -28,9 +28,9 @@ export const GET = async (
     filters: { id: req.params.productId },
   })
 
-  const variants = (products?.[0]?.variants || []).map((v: any) =>
-    remapVariantResponse(v)
-  )
+  const rawVariants = (products?.[0]?.variants || []) as any[]
+  scopeAndAggregateVariantInventory(rawVariants, store?.default_location_id)
+  const variants = rawVariants.map((v: any) => remapVariantResponse(v))
 
   res.json({ variants, count: variants.length, offset: 0, limit: 20 })
 }

@@ -45,13 +45,25 @@ export const GET = async (
     { take: itemIds.length, relations: ["location_levels"] }
   )
 
-  // Filter location_levels to only show the partner's location
-  const scoped = (items || []).map((item: any) => ({
-    ...item,
-    location_levels: (item.location_levels || []).filter(
+  // Filter location_levels to partner's location AND aggregate totals onto
+  // the item itself. listAndCountInventoryItems doesn't populate the
+  // top-level stocked/reserved/incoming quantities (they come back null),
+  // but the partner UI list + detail read them from the item directly.
+  const scoped = (items || []).map((item: any) => {
+    const levels = (item.location_levels || []).filter(
       (ll: any) => ll.location_id === locationId
-    ),
-  }))
+    )
+    const sum = (field: "stocked_quantity" | "reserved_quantity" | "incoming_quantity") =>
+      levels.reduce((acc: number, lvl: any) => acc + (Number(lvl?.[field]) || 0), 0)
+
+    return {
+      ...item,
+      location_levels: levels,
+      stocked_quantity: sum("stocked_quantity"),
+      reserved_quantity: sum("reserved_quantity"),
+      incoming_quantity: sum("incoming_quantity"),
+    }
+  })
 
   res.json({
     inventory_items: scoped,

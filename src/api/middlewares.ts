@@ -1836,6 +1836,15 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // Partner variant images batch — add/remove image associations for a variant
+    {
+      matcher: "/partners/stores/:id/products/:productId/variants/:variantId/images/batch",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Store Product Options
     {
       matcher: "/partners/stores/:id/products/:productId/options",
