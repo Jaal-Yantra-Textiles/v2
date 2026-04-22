@@ -5,7 +5,12 @@ export function isProductVariant(
     | HttpTypes.AdminProductVariant
     | HttpTypes.AdminProductVariantInventoryItemLink
 ): row is HttpTypes.AdminProductVariant {
-  return row.id.startsWith("variant_")
+  // Defensive: pivot rows from `inventory_items` links can arrive without
+  // their own pivot id depending on how the API includes relations. Missing
+  // id used to crash render here (TypeError: undefined.startsWith). A pivot
+  // row is identifiable by its variant_id/inventory_item_id shape, so treat
+  // absence of an id-prefixed "variant_" as "not a variant".
+  return typeof (row as any)?.id === "string" && (row as any).id.startsWith("variant_")
 }
 
 export function isProductVariantWithInventoryPivot(
