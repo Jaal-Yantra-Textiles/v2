@@ -149,7 +149,14 @@ export const ProductQuickCreate = () => {
               </div>
 
               {upgradeBanner && (
-                <Alert variant="warning" dismissible onDismiss={() => setUpgradeBanner(null)}>
+                // @medusajs/ui Alert has no onDismiss — dismissal is internal
+                // state. Use `key` so a new banner payload re-mounts the Alert
+                // rather than reusing a previously-dismissed instance.
+                <Alert
+                  key={`${upgradeBanner.used}-${upgradeBanner.limit}-${upgradeBanner.message}`}
+                  variant="warning"
+                  dismissible
+                >
                   <div className="flex flex-col gap-y-2">
                     <Text size="small" weight="plus">
                       {upgradeBanner.used}/{upgradeBanner.limit} free AI
