@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { deleteProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
+import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
 import { validatePartnerStoreAccess } from "../../../../../../helpers"
 
 export const GET = async (
@@ -15,16 +16,13 @@ export const GET = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Fetch variant with the same structure as admin API:
-  // - options with option_id and nested option (id, title)
-  // - prices with all fields
-  // - product_id for linking back to product
   const { data: variants } = await query.graph({
     entity: "product_variants",
     fields: [
       "*",
       "product_id",
-      "prices.*",
+      "price_set.prices.*",
+      "price_set.prices.price_rules.*",
       "options.*",
       "options.option.*",
       "inventory_items.*",
@@ -36,9 +34,8 @@ export const GET = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Variant not found")
   }
 
-  const variant = variants[0] as any
+  const variant = remapVariantResponse(variants[0] as any) as any
 
-  // Ensure product_id is set (query.graph on product_variants may not include it directly)
   if (!variant.product_id) {
     variant.product_id = req.params.productId
   }

@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
 import { validatePartnerStoreAccess } from "../../../../../helpers"
 
 export const GET = async (
@@ -17,7 +18,8 @@ export const GET = async (
     entity: "products",
     fields: [
       "variants.*",
-      "variants.prices.*",
+      "variants.price_set.prices.*",
+      "variants.price_set.prices.price_rules.*",
       "variants.options.*",
       "variants.inventory_items.*",
       "variants.inventory_items.inventory.*",
@@ -26,7 +28,9 @@ export const GET = async (
     filters: { id: req.params.productId },
   })
 
-  const variants = products?.[0]?.variants || []
+  const variants = (products?.[0]?.variants || []).map((v: any) =>
+    remapVariantResponse(v)
+  )
 
   res.json({ variants, count: variants.length, offset: 0, limit: 20 })
 }

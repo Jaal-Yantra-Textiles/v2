@@ -236,6 +236,59 @@ setupSharedTestSuite(() => {
         expect(matched?.amount).toBe(9000)
       })
 
+      it("region-scoped price round-trips with rules object", async () => {
+        // Use the store's existing region (US was created in setup)
+        const regionsRes = await api.get(
+          `/partners/stores/${partner.storeId}/regions`,
+          { headers: partner.headers }
+        )
+        expect(regionsRes.status).toBe(200)
+        const regionId = regionsRes.data.regions?.[0]?.id
+        expect(regionId).toBeDefined()
+
+        // Write a region-scoped price via batch
+        const variantId = partner.variantIds[0]
+        const batchRes = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/variants/batch`,
+          {
+            update: [
+              {
+                id: variantId,
+                prices: [
+                  {
+                    amount: 7777,
+                    currency_code: partner.currencyCode,
+                    rules: { region_id: regionId },
+                  },
+                ],
+              },
+            ],
+          },
+          { headers: partner.headers }
+        )
+        expect(batchRes.status).toBe(200)
+
+        // The critical assertion: reading the product back must expose
+        // `rules.region_id` so the pricing UI can map the price to its
+        // region column. `rules_count` alone is not enough — the UI needs
+        // the flat rules object reconstructed from price_rules.
+        const productRes = await api.get(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}`,
+          { headers: partner.headers }
+        )
+        expect(productRes.status).toBe(200)
+        const v = productRes.data.product.variants.find(
+          (x: any) => x.id === variantId
+        )
+        const regionalPrice = (v?.prices || []).find(
+          (p: any) =>
+            p.currency_code === partner.currencyCode && p.rules?.region_id === regionId
+        )
+        expect(regionalPrice).toBeDefined()
+        expect(regionalPrice.amount).toBe(7777)
+        expect(regionalPrice.rules).toEqual({ region_id: regionId })
+      })
+
       it("POST /variants/batch rejects cross-partner writes", async () => {
         const other = await createPartnerWithStoreAndProduct(api, adminHeaders)
         const res = await api.post(

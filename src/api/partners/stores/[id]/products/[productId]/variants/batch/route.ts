@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { batchProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
+import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
 import { validatePartnerStoreAccess } from "../../../../../../helpers"
 
 export const POST = async (
@@ -34,7 +35,8 @@ export const POST = async (
   const variantFields = [
     "*",
     "product_id",
-    "prices.*",
+    "price_set.prices.*",
+    "price_set.prices.price_rules.*",
     "options.*",
     "options.option.*",
     "inventory_items.*",
@@ -49,7 +51,7 @@ export const POST = async (
       fields: variantFields,
       filters: { id: createdIds },
     })
-    created = data as any[]
+    created = (data as any[]).map((v) => remapVariantResponse(v))
   }
 
   if (updatedIds.length) {
@@ -58,7 +60,7 @@ export const POST = async (
       fields: variantFields,
       filters: { id: updatedIds },
     })
-    updated = data as any[]
+    updated = (data as any[]).map((v) => remapVariantResponse(v))
   }
 
   res.json({

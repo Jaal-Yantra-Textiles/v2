@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { deleteProductsWorkflow } from "@medusajs/medusa/core-flows"
+import { remapProductResponse } from "@medusajs/medusa/api/admin/products/helpers"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 
 export const GET = async (
@@ -14,12 +15,16 @@ export const GET = async (
   )
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  // Fetch prices via the price_set relation so we can reconstruct the flat
+  // `rules` object from `price_rules` — the `prices.*` relation only returns
+  // denormalized `rules_count`, which breaks region-scoped pricing in the UI.
   const { data: products } = await query.graph({
     entity: "products",
     fields: [
       "*",
       "variants.*",
-      "variants.prices.*",
+      "variants.price_set.prices.*",
+      "variants.price_set.prices.price_rules.*",
       "variants.options.*",
       "variants.inventory_items.*",
       "options.*",
@@ -37,7 +42,7 @@ export const GET = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Product not found")
   }
 
-  res.json({ product: products[0] })
+  res.json({ product: remapProductResponse(products[0] as any) })
 }
 
 export const POST = async (
