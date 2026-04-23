@@ -1,11 +1,17 @@
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  MedusaError,
+  Modules,
+  TransactionHandlerType,
+} from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse, when, transform } from "@medusajs/framework/workflows-sdk"
 import { DESIGN_MODULE } from "../../modules/designs"
 import DesignService from "../../modules/designs/service"
 import TaskService from "../../modules/tasks/service"
 import { TASKS_MODULE } from "../../modules/tasks"
-import { IInventoryService } from "@medusajs/types"
+import { IInventoryService, IWorkflowEngineService } from "@medusajs/types"
 import { LinkDefinition } from "@medusajs/framework/types"
+import { sendDesignToPartnerWorkflow } from "./send-to-partner"
 
 export type ConsumptionInput = {
   inventory_item_id: string
@@ -17,6 +23,88 @@ export type CompletePartnerDesignInput = {
   design_id: string
   consumptions?: ConsumptionInput[]
 }
+
+const assertAssignmentNotCancelledStep = createStep(
+  "complete-design-assert-not-cancelled",
+  async (input: { design_id: string }, { container }) => {
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: "designs",
+      fields: ["metadata"],
+      filters: { id: input.design_id },
+    })
+    if (data?.[0]?.metadata?.partner_assignment_cancelled_at) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "This design assignment has been cancelled"
+      )
+    }
+    return new StepResponse({ ok: true })
+  }
+)
+
+// Tolerant best-effort signal to a sendDesignToPartner workflow step. Swallows
+// all engine errors — gates like await-design-redo/refinish are expected to be
+// absent for happy-path completions.
+const softSignalDesignStep = createStep(
+  "complete-design-soft-signal",
+  async (
+    input: {
+      design_id: string
+      step_id: string
+      kind: "success" | "failed"
+      updatedDesign: any
+    },
+    { container }
+  ) => {
+    const engineService: IWorkflowEngineService = container.resolve(
+      Modules.WORKFLOW_ENGINE
+    )
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+
+    try {
+      const taskLinksResult = await query.graph({
+        entity: "designs",
+        fields: ["id", "tasks.*"],
+        filters: { id: input.design_id },
+      })
+
+      const txCandidates: any[] = []
+      for (const design of taskLinksResult.data || []) {
+        for (const task of (design as any).tasks || []) {
+          if (task?.transaction_id) txCandidates.push(task)
+        }
+      }
+      if (!txCandidates.length) return new StepResponse({ signaled: false })
+
+      txCandidates.sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      )
+      const workflowTransactionId = txCandidates[0].transaction_id
+
+      const updatedDesign = Array.isArray(input.updatedDesign)
+        ? input.updatedDesign[0]
+        : input.updatedDesign
+      const targetId = updatedDesign?.id || input.design_id
+
+      const idempotencyKey = {
+        action: TransactionHandlerType.INVOKE,
+        transactionId: workflowTransactionId,
+        stepId: input.step_id,
+        workflowId: sendDesignToPartnerWorkflow.getName(),
+      }
+      const stepResponse = new StepResponse(updatedDesign, targetId)
+      if (input.kind === "success") {
+        await engineService.setStepSuccess({ idempotencyKey, stepResponse })
+      } else {
+        await engineService.setStepFailure({ idempotencyKey, stepResponse })
+      }
+      return new StepResponse({ signaled: true })
+    } catch {
+      return new StepResponse({ signaled: false })
+    }
+  }
+)
 
 const validateAndFetchDesignStep = createStep(
   "complete-design-validate-and-fetch",
@@ -191,6 +279,8 @@ export const completePartnerDesignWorkflow = createWorkflow(
     store: true,
   },
   (input: CompletePartnerDesignInput) => {
+    assertAssignmentNotCancelledStep({ design_id: input.design_id })
+
     const design = validateAndFetchDesignStep(input)
 
     const adjustments = computeAdjustmentsStep({ design, consumptions: input.consumptions })
@@ -202,6 +292,33 @@ export const completePartnerDesignWorkflow = createWorkflow(
     const updatedDesign = updateDesignStatusStep({ designId: input.design_id }) as any
 
     const taskResult = completeDesignTasksStep({ tasks: (design as any).tasks || [] }) as any
+
+    // Best-effort sendDesignToPartner gate signaling. Each call is tolerant —
+    // missing gates (redo/refinish in happy path) are expected.
+    softSignalDesignStep({
+      design_id: input.design_id,
+      step_id: "await-design-inventory",
+      kind: "success",
+      updatedDesign,
+    })
+    softSignalDesignStep({
+      design_id: input.design_id,
+      step_id: "await-design-redo",
+      kind: "failed",
+      updatedDesign,
+    })
+    softSignalDesignStep({
+      design_id: input.design_id,
+      step_id: "await-design-refinish",
+      kind: "failed",
+      updatedDesign,
+    })
+    softSignalDesignStep({
+      design_id: input.design_id,
+      step_id: "await-design-completed",
+      kind: "success",
+      updatedDesign,
+    })
 
     return new WorkflowResponse({
       success: true,
