@@ -15,12 +15,16 @@
  *   OPENROUTER_API_KEY=sk-or-... node scripts/i18n/translate.js <locale>
  *
  *   Flags:
- *     --section=<name>    Only translate one top-level section.
- *     --resume            Skip sections already translated (values != en.json).
- *     --force             Re-translate every section even if already translated.
- *     --dry-run           Log what would be done without calling the API.
- *     --model=<id>        Override MODEL env var.
- *     --concurrency=<n>   Parallel section requests (default 1).
+ *     --section=<name>           Only translate one top-level section.
+ *     --subsection=<a,b,c>       (Requires --section) Translate only these
+ *                                immediate children of the section. Result is
+ *                                deep-merged into the target file, leaving
+ *                                other children untouched.
+ *     --resume                   Skip sections already translated (values != en.json).
+ *     --force                    Re-translate every section even if already translated.
+ *     --dry-run                  Log what would be done without calling the API.
+ *     --model=<id>               Override MODEL env var.
+ *     --concurrency=<n>          Parallel section requests (default 1).
  *
  *   Env:
  *     OPENROUTER_API_KEY  Required unless --dry-run.
@@ -282,7 +286,7 @@ async function main() {
   const args = parseArgs(process.argv)
   const locale = args.positional[0]
   if (!locale) {
-    console.error("Usage: node scripts/i18n/translate.js <locale> [--section=X] [--resume] [--force] [--dry-run] [--model=X] [--concurrency=N]")
+    console.error("Usage: node scripts/i18n/translate.js <locale> [--section=X] [--subsection=a,b,c] [--resume] [--force] [--dry-run] [--model=X] [--concurrency=N]")
     process.exit(1)
   }
 
@@ -336,10 +340,51 @@ async function main() {
     process.exit(1)
   }
 
+  // --subsection support: comma-separated immediate children of --section.
+  // When set, only those children are translated; the result is deep-merged
+  // into target[section] without disturbing other children.
+  const subsectionArg = args.opts.subsection
+  let subsectionKeys = null
+  if (subsectionArg) {
+    if (!only) {
+      console.error("--subsection requires --section=<name>.")
+      process.exit(1)
+    }
+    subsectionKeys = subsectionArg
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const enSec = en[only] || {}
+    const unknown = subsectionKeys.filter((k) => !(k in enSec))
+    if (unknown.length) {
+      console.error(
+        `Unknown subsection key(s) under "${only}": ${unknown.join(", ")}.\n` +
+          `Available: ${Object.keys(enSec).join(", ")}`
+      )
+      process.exit(1)
+    }
+  }
+
   const skipTranslated = args.flags.has("resume") && !args.flags.has("force")
 
   const todo = sections.filter((s) => {
     if (args.flags.has("force")) return true
+    // When --subsection is in play, --resume compares only the targeted
+    // sub-trees; if ANY selected sub-tree is missing or equal to English,
+    // we still need to translate.
+    if (skipTranslated && subsectionKeys) {
+      const targetSec = (target[s] || {})
+      const anyMissing = subsectionKeys.some(
+        (k) =>
+          !(k in targetSec) ||
+          JSON.stringify(targetSec[k]) === JSON.stringify(en[s][k])
+      )
+      if (!anyMissing) {
+        console.log(`skip  ${s}.{${subsectionKeys.join(",")}} (already translated)`)
+        return false
+      }
+      return true
+    }
     if (skipTranslated && !sectionIsUntranslated(en[s], target[s])) {
       console.log(`skip  ${s} (already translated)`)
       return false
@@ -361,21 +406,38 @@ async function main() {
 
   const runOne = async (sectionName) => {
     const start = Date.now()
-    const prompt = buildPrompt(languageName, sectionName, en[sectionName])
+
+    // When --subsection is set, translate only the selected children and
+    // deep-merge the result into target[sectionName] to preserve existing
+    // translations of siblings.
+    const payload = subsectionKeys
+      ? Object.fromEntries(subsectionKeys.map((k) => [k, en[sectionName][k]]))
+      : en[sectionName]
+    const promptLabel = subsectionKeys
+      ? `${sectionName}.{${subsectionKeys.join(",")}}`
+      : sectionName
+
+    const prompt = buildPrompt(languageName, promptLabel, payload)
+
     let translated
     try {
       translated = await callModel({ provider, apiKey, model, prompt })
-      validateStructure(en[sectionName], translated, sectionName)
+      validateStructure(payload, translated, promptLabel)
     } catch (err) {
-      console.error(`FAIL  ${sectionName}: ${err.message}`)
+      console.error(`FAIL  ${promptLabel}: ${err.message}`)
       if (err.details) for (const d of err.details) console.error(`        - ${d}`)
       return
     }
-    target[sectionName] = translated
+
+    if (subsectionKeys) {
+      target[sectionName] = { ...(target[sectionName] || {}), ...translated }
+    } else {
+      target[sectionName] = translated
+    }
     fs.writeFileSync(targetPath, JSON.stringify(target, null, 2) + "\n")
     done++
     const secs = ((Date.now() - start) / 1000).toFixed(1)
-    console.log(`ok    ${sectionName} (${secs}s · ${done}/${todo.length})`)
+    console.log(`ok    ${promptLabel} (${secs}s · ${done}/${todo.length})`)
   }
 
   // Simple concurrency pool

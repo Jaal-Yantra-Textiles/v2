@@ -3458,6 +3458,121 @@
         "notCompleted": "Chưa hoàn tất",
         "open": "Mở hướng dẫn bắt đầu"
       }
+    },
+    "home": {
+      "dashboard": "Bảng điều khiển",
+      "welcome": "Chào mừng",
+      "gettingStarted": {
+        "heading": "Bắt đầu",
+        "description": "Hoàn tất các bước sau để thiết lập không gian làm việc của bạn.",
+        "onboardingLabel": "Hoàn tất hướng dẫn bắt đầu",
+        "onboardingDescription": "Thêm thông tin cá nhân và thành viên nhóm.",
+        "open": "Mở",
+        "workspaceLabel": "Chọn loại không gian làm việc",
+        "change": "Thay đổi",
+        "seller": "Người bán",
+        "manufacturer": "Nhà sản xuất",
+        "individual": "Cá nhân",
+        "verifyLabel": "Xác minh danh tính",
+        "verifyDescription": "Tải lên tài liệu xác minh.",
+        "upload": "Tải lên",
+        "storeLabel": "Tạo cửa hàng",
+        "storeDescription": "Kích hoạt sản phẩm, đơn hàng và kênh bán hàng.",
+        "create": "Tạo",
+        "taskSummary_one": "{{total}} tác vụ · {{pending}} đang chờ",
+        "taskSummary_other": "{{total}} tác vụ · {{pending}} đang chờ",
+        "viewTasks": "Xem các tác vụ"
+      },
+      "quickSettings": {
+        "heading": "Cài đặt nhanh",
+        "description": "Quản lý cấu hình cửa hàng của bạn.",
+        "paymentProviders": "Nhà cung cấp thanh toán",
+        "paymentProvidersDescription": "Cấu hình cách bạn nhận thanh toán.",
+        "shippingSetup": "Thiết lập vận chuyển",
+        "shippingSetupDescription": "Khu vực, vùng vận chuyển và mức phí.",
+        "taxRegions": "Khu vực áp thuế",
+        "taxRegionsDescription": "Cấu hình mức thuế theo khu vực.",
+        "storeSettings": "Cài đặt cửa hàng",
+        "storeSettingsDescription": "Thông tin cửa hàng và giao diện storefront."
+      },
+      "discover": {
+        "title": "Khám phá sản phẩm",
+        "preview": "Gợi ý sản phẩm từ đối tác khác hoặc sao chép để tự sản xuất.",
+        "modalDescription": "Duyệt sản phẩm từ các đối tác khác. Thêm trực tiếp vào mục gợi ý chéo hoặc sao chép dưới dạng bản nháp để tự sản xuất.",
+        "shuffle": "Đổi ngẫu nhiên",
+        "emptyTitle": "Chưa có sản phẩm nào khả dụng để khám phá.",
+        "emptyDescription": "Sản phẩm sẽ xuất hiện tại đây khi các đối tác khác công bố.",
+        "showing": "Hiển thị 8 trên tổng số {{total}} sản phẩm — nhấn Đổi ngẫu nhiên để xem thêm",
+        "copying": "Đang sao chép...",
+        "addToStore": "Thêm vào Cửa hàng của tôi",
+        "variant_one": "{{count}} biến thể",
+        "variant_other": "{{count}} biến thể",
+        "copySuccess": "Sản phẩm đã được thêm vào cửa hàng của bạn",
+        "copySuccessDescription": "\"{{title}}\" đã được sao chép dưới dạng bản nháp.",
+        "copyFailed": "Không thể sao chép sản phẩm",
+        "somethingWrong": "Đã xảy ra lỗi"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Thư mục được chia sẻ",
+      "description": "Các thư mục được chia sẻ với bạn để tải lên ảnh và tài liệu",
+      "breadcrumb": "Thư mục được chia sẻ",
+      "columns": {
+        "folder": "Thư mục",
+        "path": "Đường dẫn",
+        "files": "Tệp",
+        "assignedTo": "Được gán cho"
+      },
+      "empty": {
+        "title": "Không có thư mục được chia sẻ",
+        "message": "Bạn chưa có thư mục nào được chia sẻ. Quản trị viên sẽ gán thư mục cho bạn."
+      }
+    },
+    "content": {
+      "heading": "Nội dung",
+      "columns": {
+        "title": "Tiêu đề",
+        "slug": "Slug",
+        "type": "Loại",
+        "status": "Trạng thái"
+      },
+      "filters": {
+        "status": "Trạng thái",
+        "type": "Loại"
+      },
+      "statusOptions": {
+        "published": "Đã xuất bản",
+        "draft": "Bản nháp",
+        "archived": "Đã lưu trữ"
+      },
+      "typeOptions": {
+        "home": "Trang chủ",
+        "about": "Giới thiệu",
+        "contact": "Liên hệ",
+        "custom": "Tùy chỉnh",
+        "service": "Dịch vụ",
+        "portfolio": "Dự án",
+        "landing": "Trang đích"
+      },
+      "actions": {
+        "creatingPages": "Đang tạo...",
+        "createPages": "Tạo trang",
+        "createStore": "Tạo cửa hàng",
+        "enableStorefront": "Kích hoạt storefront"
+      },
+      "toast": {
+        "pagesCreated": "Đã tạo trang thành công",
+        "createFailed": "Không thể tạo trang"
+      },
+      "empty": {
+        "noStoreTitle": "Chưa tạo cửa hàng nào",
+        "noStoreMessage": "Vui lòng tạo cửa hàng trước để quản lý nội dung storefront.",
+        "notProvisionedTitle": "Storefront chưa được kích hoạt",
+        "notProvisionedMessage": "Kích hoạt storefront trong cài đặt cửa hàng để bắt đầu quản lý các trang.",
+        "noPagesTitle": "Chưa có trang nào",
+        "noPagesMessage": "Tạo các trang mặc định để bắt đầu quản lý nội dung storefront.",
+        "noMatches": "Không tìm thấy trang nào"
+      }
     }
   }
 }

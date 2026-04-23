@@ -3409,6 +3409,121 @@
         "notCompleted": "Neužbaigta",
         "open": "Atidaryti pradėjimą"
       }
+    },
+    "home": {
+      "dashboard": "Valdymo skydelis",
+      "welcome": "Sveiki",
+      "gettingStarted": {
+        "heading": "Pradėkite darbą",
+        "description": "Atlikite šiuos veiksmus, kad sukonfigūruotumėte savo darbo aplinką.",
+        "onboardingLabel": "Užbaigti pradines nustatymų procedūras",
+        "onboardingDescription": "Pridėkite savo duomenis ir komandą.",
+        "open": "Atidaryti",
+        "workspaceLabel": "Pasirinkti darbo aplinkos tipą",
+        "change": "Keisti",
+        "seller": "Pardavėjas",
+        "manufacturer": "Gamintojas",
+        "individual": "Fizinis asmuo",
+        "verifyLabel": "Gauti patvirtinimą",
+        "verifyDescription": "Įkelkite patvirtinimo dokumentus.",
+        "upload": "Įkelti",
+        "storeLabel": "Sukurti parduotuvę",
+        "storeDescription": "Aktyvuokite prekes, užsakymus ir pardavimų kanalus.",
+        "create": "Sukurti",
+        "taskSummary_one": "{{total}} užduotis · {{pending}} laukia",
+        "taskSummary_other": "{{total}} užduotys · {{pending}} laukia",
+        "viewTasks": "Peržiūrėti užduotis"
+      },
+      "quickSettings": {
+        "heading": "Greitosios nuostatos",
+        "description": "Tvarkykite savo parduotuvės konfigūraciją.",
+        "paymentProviders": "Mokėjimų tiekėjai",
+        "paymentProvidersDescription": "Nustatykite, kaip gaunate mokėjimus.",
+        "shippingSetup": "Siuntimo nustatymai",
+        "shippingSetupDescription": "Vietos, zonos ir kainos.",
+        "taxRegions": "Mokesčių regionai",
+        "taxRegionsDescription": "Konfigūruokite mokesčių tarifus pagal regioną.",
+        "storeSettings": "Parduotuvės nustatymai",
+        "storeSettingsDescription": "Parduotuvės duomenys ir internetinė parduotuvė."
+      },
+      "discover": {
+        "title": "Raskite prekes",
+        "preview": "Kryžminiai pardavimai iš kitų partnerių arba kopijuokite jas, kad gamintumėte savo.",
+        "modalDescription": "Peržiūrėkite kitų partnerių prekes. Pridėkite jas tiesiogiai kryžminiams pardavimams arba kopijuokite kaip juodraščius, kad gamintumėte savo.",
+        "shuffle": "Išmaišyti",
+        "emptyTitle": "Dar nėra prekių, kurias galima rasti.",
+        "emptyDescription": "Kitų partnerių paskelbtos prekės pasirodys čia.",
+        "showing": "Rodoma 8 iš {{total}} prekių — spustelėkite „Išmaišyti“, kad pamatytumėte daugiau",
+        "copying": "Kopijuojama...",
+        "addToStore": "Pridėti į mano parduotuvę",
+        "variant_one": "{{count}} variantas",
+        "variant_other": "{{count}} variantai",
+        "copySuccess": "Prekė pridėta į jūsų parduotuvę",
+        "copySuccessDescription": "\"{{title}}\" nukopijuota kaip juodraštis.",
+        "copyFailed": "Nepavyko nukopijuoti prekės",
+        "somethingWrong": "Įvyko klaida"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Bendrinamos aplankai",
+      "description": "Aplankai, bendrinami su jumis nuotraukų ir dokumentų įkėlimui",
+      "breadcrumb": "Bendrinamos aplankai",
+      "columns": {
+        "folder": "Aplankas",
+        "path": "Kelias",
+        "files": "Failai",
+        "assignedTo": "Priskirta"
+      },
+      "empty": {
+        "title": "Nėra bendrinamų aplankų",
+        "message": "Jūsų dar neturi bendrinamų aplankų. Administratorius priskirs aplankus jums."
+      }
+    },
+    "content": {
+      "heading": "Turinys",
+      "columns": {
+        "title": "Pavadinimas",
+        "slug": "Slug",
+        "type": "Tipas",
+        "status": "Būsena"
+      },
+      "filters": {
+        "status": "Būsena",
+        "type": "Tipas"
+      },
+      "statusOptions": {
+        "published": "Paskelbta",
+        "draft": "Juodraštis",
+        "archived": "Archyvuota"
+      },
+      "typeOptions": {
+        "home": "Pradžia",
+        "about": "Apie mus",
+        "contact": "Kontaktai",
+        "custom": "Tinkintas",
+        "service": "Paslauga",
+        "portfolio": "Portfelis",
+        "landing": "Landing puslapis"
+      },
+      "actions": {
+        "creatingPages": "Kuriamos...",
+        "createPages": "Sukurti puslapius",
+        "createStore": "Sukurti parduotuvę",
+        "enableStorefront": "Įjungti internetinę parduotuvę"
+      },
+      "toast": {
+        "pagesCreated": "Puslapiai sėkmingai sukurti",
+        "createFailed": "Nepavyko sukurti puslapių"
+      },
+      "empty": {
+        "noStoreTitle": "Parduotuvė nepasukta",
+        "noStoreMessage": "Pirmiausia sukurkite parduotuvę, kad valdytumėte savo internetinės parduotuvės turinį.",
+        "notProvisionedTitle": "Internetinė parduotuvė neįjungta",
+        "notProvisionedMessage": "Internetinę parduotuvę įjunkite parduotuvės nustatymuose, kad pradėtumėte valdyti puslapius.",
+        "noPagesTitle": "Dar nėra puslapių",
+        "noPagesMessage": "Sukurkite numatytuosius puslapius, kad pradėtumėte tvarkyti savo internetinės parduotuvės turinį.",
+        "noMatches": "Puslapių nerasta"
+      }
     }
   }
 }

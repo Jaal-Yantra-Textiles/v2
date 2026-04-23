@@ -3591,6 +3591,121 @@
         "notCompleted": "Nieukończone",
         "open": "Otwórz wprowadzenie"
       }
+    },
+    "home": {
+      "dashboard": "Panel kontrolny",
+      "welcome": "Witaj",
+      "gettingStarted": {
+        "heading": "Pierwsze kroki",
+        "description": "Wykonaj te kroki, aby skonfigurować swoje środowisko robocze.",
+        "onboardingLabel": "Zakończ proces wprowadzania",
+        "onboardingDescription": "Dodaj swoje dane i zespół.",
+        "open": "Otwórz",
+        "workspaceLabel": "Wybierz typ środowiska roboczego",
+        "change": "Zmień",
+        "seller": "Sprzedawca",
+        "manufacturer": "Producent",
+        "individual": "Osoba prywatna",
+        "verifyLabel": "Zweryfikuj się",
+        "verifyDescription": "Prześlij dokumenty potwierdzające tożsamość.",
+        "upload": "Prześlij",
+        "storeLabel": "Utwórz sklep",
+        "storeDescription": "Odblokuj produkty, zamówienia i kanały sprzedaży.",
+        "create": "Utwórz",
+        "taskSummary_one": "{{total}} zadanie · {{pending}} oczekujące",
+        "taskSummary_other": "{{total}} zadań · {{pending}} oczekujących",
+        "viewTasks": "Zobacz zadania"
+      },
+      "quickSettings": {
+        "heading": "Szybkie ustawienia",
+        "description": "Zarządzaj konfiguracją sklepu.",
+        "paymentProviders": "Dostawcy płatności",
+        "paymentProvidersDescription": "Skonfiguruj sposób otrzymywania płatności.",
+        "shippingSetup": "Konfiguracja wysyłki",
+        "shippingSetupDescription": "Lokalizacje, strefy i ceny wysyłki.",
+        "taxRegions": "Strefy podatkowe",
+        "taxRegionsDescription": "Skonfiguruj stawki podatkowe według regionu.",
+        "storeSettings": "Ustawienia sklepu",
+        "storeSettingsDescription": "Dane sklepu i strona internetowa."
+      },
+      "discover": {
+        "title": "Odkrywaj produkty",
+        "preview": "Promuj produkty innych partnerów lub skopiuj je, aby samodzielnie je produkować.",
+        "modalDescription": "Przeglądaj produkty innych partnerów. Dodaj je do promocji krzyżowej bezpośrednio lub skopiuj jako szkice, aby produkować je samodzielnie.",
+        "shuffle": "Losuj",
+        "emptyTitle": "Brak dostępnych produktów do odkrycia.",
+        "emptyDescription": "Produkty pojawią się tutaj po ich opublikowaniu przez innych partnerów.",
+        "showing": "Wyświetlane 8 z {{total}} produktów — kliknij „Losuj”, aby zobaczyć więcej",
+        "copying": "Kopiowanie...",
+        "addToStore": "Dodaj do mojego sklepu",
+        "variant_one": "{{count}} wariant",
+        "variant_other": "{{count}} wariantów",
+        "copySuccess": "Produkt dodany do sklepu",
+        "copySuccessDescription": "„{{title}}” skopiowany jako szkic.",
+        "copyFailed": "Nie udało się skopiować produktu",
+        "somethingWrong": "Wystąpił błąd"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Wspólne foldery",
+      "description": "Foldery udostępnione Ci do przesyłania zdjęć i dokumentów",
+      "breadcrumb": "Wspólne foldery",
+      "columns": {
+        "folder": "Folder",
+        "path": "Ścieżka",
+        "files": "Pliki",
+        "assignedTo": "Przydzielono do"
+      },
+      "empty": {
+        "title": "Brak wspólnych folderów",
+        "message": "Nie masz jeszcze żadnych wspólnych folderów. Administrator przypisze je do Ciebie."
+      }
+    },
+    "content": {
+      "heading": "Zawartość",
+      "columns": {
+        "title": "Tytuł",
+        "slug": "Slug",
+        "type": "Typ",
+        "status": "Status"
+      },
+      "filters": {
+        "status": "Status",
+        "type": "Typ"
+      },
+      "statusOptions": {
+        "published": "Opublikowano",
+        "draft": "Szkic",
+        "archived": "Zarchiwizowano"
+      },
+      "typeOptions": {
+        "home": "Strona główna",
+        "about": "O nas",
+        "contact": "Kontakt",
+        "custom": "Niestandardowy",
+        "service": "Usługi",
+        "portfolio": "Portfolio",
+        "landing": "Strona docelowa"
+      },
+      "actions": {
+        "creatingPages": "Tworzenie...",
+        "createPages": "Utwórz strony",
+        "createStore": "Utwórz sklep",
+        "enableStorefront": "Włącz stronę internetową"
+      },
+      "toast": {
+        "pagesCreated": "Strony zostały pomyślnie utworzone",
+        "createFailed": "Nie udało się utworzyć stron"
+      },
+      "empty": {
+        "noStoreTitle": "Nie utworzono sklepu",
+        "noStoreMessage": "Najpierw utwórz sklep, aby zarządzać treścią strony internetowej.",
+        "notProvisionedTitle": "Strona internetowa nie jest włączona",
+        "notProvisionedMessage": "Włącz stronę internetową w ustawieniach sklepu, aby rozpocząć zarządzanie stronami.",
+        "noPagesTitle": "Brak stron",
+        "noPagesMessage": "Utwórz domyślne strony, aby rozpocząć pracę z treścią strony internetowej.",
+        "noMatches": "Nie znaleziono stron"
+      }
     }
   }
 }

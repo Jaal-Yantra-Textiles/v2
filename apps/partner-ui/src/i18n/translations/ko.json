@@ -3425,6 +3425,121 @@
         "notCompleted": "미완료",
         "open": "온보딩 열기"
       }
+    },
+    "home": {
+      "dashboard": "대시보드",
+      "welcome": "환영합니다",
+      "gettingStarted": {
+        "heading": "시작하기",
+        "description": "워크스페이스 설정을 완료하려면 다음 단계를 수행하세요.",
+        "onboardingLabel": "온보딩 완료",
+        "onboardingDescription": "귀하의 정보와 팀을 추가하세요.",
+        "open": "열기",
+        "workspaceLabel": "워크스페이스 유형 선택",
+        "change": "변경",
+        "seller": "판매자",
+        "manufacturer": "제조사",
+        "individual": "개인",
+        "verifyLabel": "인증 받기",
+        "verifyDescription": "인증 서류를 업로드하세요.",
+        "upload": "업로드",
+        "storeLabel": "스토어 생성",
+        "storeDescription": "제품, 주문 및 판매 채널을 활성화하세요.",
+        "create": "생성",
+        "taskSummary_one": "{{total}}개 작업 · {{pending}}개 대기 중",
+        "taskSummary_other": "{{total}}개 작업 · {{pending}}개 대기 중",
+        "viewTasks": "작업 보기"
+      },
+      "quickSettings": {
+        "heading": "빠른 설정",
+        "description": "스토어 구성 관리",
+        "paymentProviders": "결제 제공업체",
+        "paymentProvidersDescription": "결제 수단을 설정하세요.",
+        "shippingSetup": "배송 설정",
+        "shippingSetupDescription": "배송 지역, 구역 및 요금.",
+        "taxRegions": "세금 지역",
+        "taxRegionsDescription": "지역별 세율을 설정하세요.",
+        "storeSettings": "스토어 설정",
+        "storeSettingsDescription": "스토어 정보 및 프론트엔드."
+      },
+      "discover": {
+        "title": "제품 검색",
+        "preview": "다른 파트너의 제품을 크로스셀링하거나, 직접 생산할 제품으로 복사하세요.",
+        "modalDescription": "다른 파트너의 제품을 탐색하세요. 바로 크로스셀링에 추가하거나, 자체 생산용 초안으로 복사할 수 있습니다.",
+        "shuffle": "재정렬",
+        "emptyTitle": "아직 검색 가능한 제품이 없습니다.",
+        "emptyDescription": "다른 파트너가 제품을 게시하면 여기에 표시됩니다.",
+        "showing": "총 {{total}}개 제품 중 8개 표시 — 더 보기 위해 '재정렬' 클릭",
+        "copying": "복사 중...",
+        "addToStore": "내 스토어에 추가",
+        "variant_one": "{{count}}개 변형",
+        "variant_other": "{{count}}개 변형",
+        "copySuccess": "제품이 스토어에 추가됨",
+        "copySuccessDescription": "\"{{title}}\"이(가) 초안으로 복사됨.",
+        "copyFailed": "제품 복사 실패",
+        "somethingWrong": "오류가 발생했습니다"
+      }
+    },
+    "sharedFolders": {
+      "heading": "공유 폴더",
+      "description": "사진 및 문서 업로드를 위해 귀하와 공유된 폴더",
+      "breadcrumb": "공유 폴더",
+      "columns": {
+        "folder": "폴더",
+        "path": "경로",
+        "files": "파일",
+        "assignedTo": "지정 대상"
+      },
+      "empty": {
+        "title": "공유 폴더 없음",
+        "message": "아직 공유 폴더가 없습니다. 관리자가 폴더를 귀하에게 지정할 것입니다."
+      }
+    },
+    "content": {
+      "heading": "콘텐츠",
+      "columns": {
+        "title": "제목",
+        "slug": "슬러그",
+        "type": "유형",
+        "status": "상태"
+      },
+      "filters": {
+        "status": "상태",
+        "type": "유형"
+      },
+      "statusOptions": {
+        "published": "게시됨",
+        "draft": "초안",
+        "archived": "보관됨"
+      },
+      "typeOptions": {
+        "home": "홈",
+        "about": "소개",
+        "contact": "문의",
+        "custom": "사용자 정의",
+        "service": "서비스",
+        "portfolio": "포트폴리오",
+        "landing": "랜딩"
+      },
+      "actions": {
+        "creatingPages": "생성 중...",
+        "createPages": "페이지 생성",
+        "createStore": "스토어 생성",
+        "enableStorefront": "프론트엔드 활성화"
+      },
+      "toast": {
+        "pagesCreated": "페이지가 성공적으로 생성됨",
+        "createFailed": "페이지 생성 실패"
+      },
+      "empty": {
+        "noStoreTitle": "생성된 스토어 없음",
+        "noStoreMessage": "프론트엔드 콘텐츠를 관리하려면 먼저 스토어를 생성하세요.",
+        "notProvisionedTitle": "프론트엔드 비활성화됨",
+        "notProvisionedMessage": "페이지 관리를 시작하려면 스토어 설정에서 프론트엔드를 활성화하세요.",
+        "noPagesTitle": "아직 페이지 없음",
+        "noPagesMessage": "프론트엔드 콘텐츠를 시작하려면 기본 페이지를 생성하세요.",
+        "noMatches": "일치하는 페이지 없음"
+      }
     }
   }
 }

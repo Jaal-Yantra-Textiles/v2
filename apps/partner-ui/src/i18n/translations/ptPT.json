@@ -3618,6 +3618,121 @@
         "notCompleted": "Não concluído",
         "open": "Abrir configuração inicial"
       }
+    },
+    "home": {
+      "dashboard": "Painel de Controlo",
+      "welcome": "Bem-vindo",
+      "gettingStarted": {
+        "heading": "Primeiros Passos",
+        "description": "Complete estes passos para configurar o seu espaço de trabalho.",
+        "onboardingLabel": "Concluir integração",
+        "onboardingDescription": "Adicione os seus dados e a sua equipa.",
+        "open": "Abrir",
+        "workspaceLabel": "Escolha o tipo de espaço de trabalho",
+        "change": "Alterar",
+        "seller": "Vendedor",
+        "manufacturer": "Fabricante",
+        "individual": "Particular",
+        "verifyLabel": "Obter verificação",
+        "verifyDescription": "Envie documentos de verificação.",
+        "upload": "Enviar",
+        "storeLabel": "Criar uma loja",
+        "storeDescription": "Ative produtos, encomendas e canais de vendas.",
+        "create": "Criar",
+        "taskSummary_one": "{{total}} tarefa · {{pending}} pendente",
+        "taskSummary_other": "{{total}} tarefas · {{pending}} pendentes",
+        "viewTasks": "Ver tarefas"
+      },
+      "quickSettings": {
+        "heading": "Definições Rápidas",
+        "description": "Gestione a configuração da sua loja.",
+        "paymentProviders": "Fornecedores de Pagamento",
+        "paymentProvidersDescription": "Configure como recebe pagamentos.",
+        "shippingSetup": "Configuração de Envios",
+        "shippingSetupDescription": "Localizações, zonas e taxas.",
+        "taxRegions": "Regiões Fiscais",
+        "taxRegionsDescription": "Configure as taxas fiscais por região.",
+        "storeSettings": "Definições da Loja",
+        "storeSettingsDescription": "Detalhes da loja e vitrine online."
+      },
+      "discover": {
+        "title": "Descobrir Produtos",
+        "preview": "Produtos complementares de outros parceiros ou copie-os para produzir por sua conta.",
+        "modalDescription": "Navegue pelos produtos de outros parceiros. Adicione-os diretamente para venda cruzada ou copie-os como rascunhos para produção própria.",
+        "shuffle": "Misturar",
+        "emptyTitle": "Ainda não há produtos disponíveis para descoberta.",
+        "emptyDescription": "Os produtos aparecerão aqui assim que outros parceiros os publicarem.",
+        "showing": "A mostrar 8 de {{total}} produtos — clique em Misturar para ver mais",
+        "copying": "A copiar...",
+        "addToStore": "Adicionar à Minha Loja",
+        "variant_one": "{{count}} variante",
+        "variant_other": "{{count}} variantes",
+        "copySuccess": "Produto adicionado à sua loja",
+        "copySuccessDescription": "\"{{title}}\" copiado como rascunho.",
+        "copyFailed": "Falha ao copiar o produto",
+        "somethingWrong": "Ocorreu um erro"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Pastas Partilhadas",
+      "description": "Pastas partilhadas consigo para envio de fotografias e documentos",
+      "breadcrumb": "Pastas Partilhadas",
+      "columns": {
+        "folder": "Pasta",
+        "path": "Caminho",
+        "files": "Ficheiros",
+        "assignedTo": "Atribuído a"
+      },
+      "empty": {
+        "title": "Sem pastas partilhadas",
+        "message": "Ainda não tem pastas partilhadas. Um administrador atribuir-lhe-á pastas."
+      }
+    },
+    "content": {
+      "heading": "Conteúdo",
+      "columns": {
+        "title": "Título",
+        "slug": "Slug",
+        "type": "Tipo",
+        "status": "Estado"
+      },
+      "filters": {
+        "status": "Estado",
+        "type": "Tipo"
+      },
+      "statusOptions": {
+        "published": "Publicado",
+        "draft": "Rascunho",
+        "archived": "Arquivado"
+      },
+      "typeOptions": {
+        "home": "Início",
+        "about": "Sobre",
+        "contact": "Contacto",
+        "custom": "Personalizado",
+        "service": "Serviço",
+        "portfolio": "Portfólio",
+        "landing": "Página de Destino"
+      },
+      "actions": {
+        "creatingPages": "A criar...",
+        "createPages": "Criar Páginas",
+        "createStore": "Criar Loja",
+        "enableStorefront": "Ativar Vitrine Online"
+      },
+      "toast": {
+        "pagesCreated": "Páginas criadas com sucesso",
+        "createFailed": "Falha ao criar páginas"
+      },
+      "empty": {
+        "noStoreTitle": "Nenhuma loja criada",
+        "noStoreMessage": "Crie primeiro uma loja para gerir o conteúdo da sua vitrine online.",
+        "notProvisionedTitle": "Vitrine online não ativada",
+        "notProvisionedMessage": "Ative a sua vitrine online nas definições da loja para começar a gerir páginas.",
+        "noPagesTitle": "Ainda não existem páginas",
+        "noPagesMessage": "Crie as suas páginas predefinidas para começar a gerir o conteúdo da sua vitrine online.",
+        "noMatches": "Nenhuma página encontrada"
+      }
     }
   }
 }

@@ -3223,6 +3223,121 @@
         "notCompleted": "未完了",
         "open": "オンボーディングを開く"
       }
+    },
+    "home": {
+      "dashboard": "ダッシュボード",
+      "welcome": "ようこそ",
+      "gettingStarted": {
+        "heading": "はじめに",
+        "description": "ワークスペースを設定するには、以下の手順を完了してください。",
+        "onboardingLabel": "オンボーディングを完了",
+        "onboardingDescription": "ご自身の情報を入力し、チームを追加してください。",
+        "open": "開く",
+        "workspaceLabel": "ワークスペースの種類を選択",
+        "change": "変更",
+        "seller": "販売者",
+        "manufacturer": "メーカー",
+        "individual": "個人事業主",
+        "verifyLabel": "本人確認を取得",
+        "verifyDescription": "本人確認書類をアップロードしてください。",
+        "upload": "アップロード",
+        "storeLabel": "ストアを作成",
+        "storeDescription": "製品、注文、販売チャネルを有効化します。",
+        "create": "作成",
+        "taskSummary_one": "{{total}}件のタスク・{{pending}}件未完了",
+        "taskSummary_other": "{{total}}件のタスク・{{pending}}件未完了",
+        "viewTasks": "タスクを表示"
+      },
+      "quickSettings": {
+        "heading": "クイック設定",
+        "description": "ストアの設定を管理します。",
+        "paymentProviders": "決済プロバイダー",
+        "paymentProvidersDescription": "支払い方法を設定します。",
+        "shippingSetup": "配送設定",
+        "shippingSetupDescription": "配送地域、ゾーン、および料金を設定します。",
+        "taxRegions": "課税地域",
+        "taxRegionsDescription": "地域ごとに消費税率を設定します。",
+        "storeSettings": "ストア設定",
+        "storeSettingsDescription": "ストアの詳細と storefront（オンラインショップ）設定。"
+      },
+      "discover": {
+        "title": "製品を検索",
+        "preview": "他のパートナーからクロスセル用製品を取得するか、自社で生産するためコピーできます。",
+        "modalDescription": "他のパートナーが公開した製品を閲覧できます。直接クロスセル用に追加するか、ドラフトとしてコピーして自社で生産できます。",
+        "shuffle": "シャッフル",
+        "emptyTitle": "検索可能な製品がまだありません。",
+        "emptyDescription": "他のパートナーが製品を公開すると、ここに表示されます。",
+        "showing": "全{{total}}件中8件を表示 — もっと見るには「シャッフル」をクリック",
+        "copying": "コピー中...",
+        "addToStore": "私のストアに追加",
+        "variant_one": "{{count}}バリエーション",
+        "variant_other": "{{count}}バリエーション",
+        "copySuccess": "製品がストアに追加されました",
+        "copySuccessDescription": "「{{title}}」がドラフトとしてコピーされました。",
+        "copyFailed": "製品のコピーに失敗しました",
+        "somethingWrong": "問題が発生しました"
+      }
+    },
+    "sharedFolders": {
+      "heading": "共有フォルダー",
+      "description": "写真および文書のアップロードのためにあなたと共有されたフォルダー",
+      "breadcrumb": "共有フォルダー",
+      "columns": {
+        "folder": "フォルダー",
+        "path": "パス",
+        "files": "ファイル",
+        "assignedTo": "担当者"
+      },
+      "empty": {
+        "title": "共有フォルダーがありません",
+        "message": "現時点では共有フォルダーがありません。管理者がフォルダーを割り当てます。"
+      }
+    },
+    "content": {
+      "heading": "コンテンツ",
+      "columns": {
+        "title": "タイトル",
+        "slug": "スラッグ",
+        "type": "タイプ",
+        "status": "ステータス"
+      },
+      "filters": {
+        "status": "ステータス",
+        "type": "タイプ"
+      },
+      "statusOptions": {
+        "published": "公開済み",
+        "draft": "下書き",
+        "archived": "アーカイブ済み"
+      },
+      "typeOptions": {
+        "home": "ホーム",
+        "about": "会社情報",
+        "contact": "お問い合わせ",
+        "custom": "カスタム",
+        "service": "サービス",
+        "portfolio": "ポートフォリオ",
+        "landing": "ランディングページ"
+      },
+      "actions": {
+        "creatingPages": "ページ作成中...",
+        "createPages": "ページを作成",
+        "createStore": "ストアを作成",
+        "enableStorefront": "ストアフロントを有効化"
+      },
+      "toast": {
+        "pagesCreated": "ページが正常に作成されました",
+        "createFailed": "ページの作成に失敗しました"
+      },
+      "empty": {
+        "noStoreTitle": "ストアが作成されていません",
+        "noStoreMessage": "ストアフロントのコンテンツを管理するには、まずストアを作成してください。",
+        "notProvisionedTitle": "ストアフロントが有効化されていません",
+        "notProvisionedMessage": "ページの管理を開始するには、ストア設定でストアフロントを有効化してください。",
+        "noPagesTitle": "ページがまだありません",
+        "noPagesMessage": "ストアフロントのコンテンツを開始するには、デフォルトページを作成してください。",
+        "noMatches": "該当するページが見つかりません"
+      }
     }
   }
 }

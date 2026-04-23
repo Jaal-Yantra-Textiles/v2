@@ -3407,6 +3407,121 @@
         "notCompleted": "Niet voltooid",
         "open": "Inwerkproces openen"
       }
+    },
+    "home": {
+      "dashboard": "Dashboard",
+      "welcome": "Welkom",
+      "gettingStarted": {
+        "heading": "Aan de slag",
+        "description": "Voltooi deze stappen om uw werkruimte in te stellen.",
+        "onboardingLabel": "Onboarding voltooien",
+        "onboardingDescription": "Voeg uw gegevens en team toe.",
+        "open": "Openen",
+        "workspaceLabel": "Kies werkruimtetype",
+        "change": "Wijzigen",
+        "seller": "Verkoper",
+        "manufacturer": "Fabrikant",
+        "individual": "Particulier",
+        "verifyLabel": "Verifiëren",
+        "verifyDescription": "Upload verificatiedocumenten.",
+        "upload": "Uploaden",
+        "storeLabel": "Winkel maken",
+        "storeDescription": "Schakel producten, bestellingen en verkoopkanalen vrij.",
+        "create": "Maken",
+        "taskSummary_one": "{{total}} taak · {{pending}} openstaand",
+        "taskSummary_other": "{{total}} taken · {{pending}} openstaand",
+        "viewTasks": "Taken bekijken"
+      },
+      "quickSettings": {
+        "heading": "Snelle instellingen",
+        "description": "Beheer de configuratie van uw winkel.",
+        "paymentProviders": "Betalingsproviders",
+        "paymentProvidersDescription": "Configureer hoe u wordt uitbetaald.",
+        "shippingSetup": "Verzendinstellingen",
+        "shippingSetupDescription": "Locaties, zones en tarieven.",
+        "taxRegions": "Belastingregio's",
+        "taxRegionsDescription": "Configureer belastingtarieven per regio.",
+        "storeSettings": "Winkelinstellingen",
+        "storeSettingsDescription": "Winkelgegevens en storefront."
+      },
+      "discover": {
+        "title": "Producten ontdekken",
+        "preview": "Cross-sell producten van andere partners of kopieer ze om zelf te produceren.",
+        "modalDescription": "Blader door producten van andere partners. Voeg ze direct toe voor cross-selling, of kopieer ze als concepten om zelf te produceren.",
+        "shuffle": "Willekeurig",
+        "emptyTitle": "Nog geen producten beschikbaar voor ontdekking.",
+        "emptyDescription": "Producten verschijnen hier zodra andere partners ze publiceren.",
+        "showing": "Weergave van 8 van de {{total}} producten — klik op Willekeurig voor meer",
+        "copying": "Bezig met kopiëren...",
+        "addToStore": "Toevoegen aan mijn winkel",
+        "variant_one": "{{count}} variant",
+        "variant_other": "{{count}} varianten",
+        "copySuccess": "Product toegevoegd aan uw winkel",
+        "copySuccessDescription": "\"{{title}}\" gekopieerd als concept.",
+        "copyFailed": "Kopiëren van product mislukt",
+        "somethingWrong": "Er is iets misgegaan"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Gedeelde mappen",
+      "description": "Mappen die met u zijn gedeeld voor het uploaden van foto's en documenten",
+      "breadcrumb": "Gedeelde mappen",
+      "columns": {
+        "folder": "Map",
+        "path": "Pad",
+        "files": "Bestanden",
+        "assignedTo": "Toegewezen aan"
+      },
+      "empty": {
+        "title": "Geen gedeelde mappen",
+        "message": "U heeft nog geen gedeelde mappen. Een beheerder wijst u mappen toe."
+      }
+    },
+    "content": {
+      "heading": "Inhoud",
+      "columns": {
+        "title": "Titel",
+        "slug": "Slug",
+        "type": "Type",
+        "status": "Status"
+      },
+      "filters": {
+        "status": "Status",
+        "type": "Type"
+      },
+      "statusOptions": {
+        "published": "Gepubliceerd",
+        "draft": "Concept",
+        "archived": "Gearchiveerd"
+      },
+      "typeOptions": {
+        "home": "Startpagina",
+        "about": "Over ons",
+        "contact": "Contact",
+        "custom": "Aangepast",
+        "service": "Dienst",
+        "portfolio": "Portfolio",
+        "landing": "Landingpagina"
+      },
+      "actions": {
+        "creatingPages": "Bezig met maken...",
+        "createPages": "Pagina's maken",
+        "createStore": "Winkel maken",
+        "enableStorefront": "Storefront inschakelen"
+      },
+      "toast": {
+        "pagesCreated": "Pagina's succesvol aangemaakt",
+        "createFailed": "Aanmaken van pagina's mislukt"
+      },
+      "empty": {
+        "noStoreTitle": "Geen winkel aangemaakt",
+        "noStoreMessage": "Maak eerst een winkel om uw storefront-inhoud te beheren.",
+        "notProvisionedTitle": "Storefront niet ingeschakeld",
+        "notProvisionedMessage": "Schakel uw storefront in de winkelinstellingen in om pagina's te gaan beheren.",
+        "noPagesTitle": "Nog geen pagina's",
+        "noPagesMessage": "Maak uw standaardpagina's om aan de slag te gaan met uw storefront-inhoud.",
+        "noMatches": "Geen pagina's gevonden"
+      }
     }
   }
 }

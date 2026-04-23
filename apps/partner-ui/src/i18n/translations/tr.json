@@ -3360,6 +3360,121 @@
         "notCompleted": "Tamamlanmadı",
         "open": "Başlangıç akışını aç"
       }
+    },
+    "home": {
+      "dashboard": "Kontrol Paneli",
+      "welcome": "Hoş geldiniz",
+      "gettingStarted": {
+        "heading": "Başlarken",
+        "description": "Çalışma alanınızı ayarlamak için bu adımları tamamlayın.",
+        "onboardingLabel": "Başlangıç sürecini tamamlayın",
+        "onboardingDescription": "Bilgilerinizi ve ekibinizi ekleyin.",
+        "open": "Aç",
+        "workspaceLabel": "Çalışma alanı türünü seçin",
+        "change": "Değiştir",
+        "seller": "Satıcı",
+        "manufacturer": "Üretici",
+        "individual": "Bireysel",
+        "verifyLabel": "Doğrulanın",
+        "verifyDescription": "Doğrulama belgelerini yükleyin.",
+        "upload": "Yükle",
+        "storeLabel": "Mağaza oluşturun",
+        "storeDescription": "Ürünleri, siparişleri ve satış kanallarını etkinleştirin.",
+        "create": "Oluştur",
+        "taskSummary_one": "{{total}} görev · {{pending}} bekliyor",
+        "taskSummary_other": "{{total}} görev · {{pending}} bekliyor",
+        "viewTasks": "Görevleri görüntüle"
+      },
+      "quickSettings": {
+        "heading": "Hızlı Ayarlar",
+        "description": "Mağaza yapılandırmanızı yönetin.",
+        "paymentProviders": "Ödeme Sağlayıcıları",
+        "paymentProvidersDescription": "Nasıl ödeme alacağınızı yapılandırın.",
+        "shippingSetup": "Kargo Ayarları",
+        "shippingSetupDescription": "Konumlar, bölgeler ve oranlar.",
+        "taxRegions": "Vergi Bölgeleri",
+        "taxRegionsDescription": "Bölgeye göre vergi oranlarını yapılandırın.",
+        "storeSettings": "Mağaza Ayarları",
+        "storeSettingsDescription": "Mağaza bilgileri ve mağaza ön yüzü."
+      },
+      "discover": {
+        "title": "Ürünleri Keşfedin",
+        "preview": "Diğer ortaklardan ürünleri çapraz satış yapın veya kendi üretimleriniz için kopyalayın.",
+        "modalDescription": "Diğer ortakların ürünlerini gözden geçirin. Doğrudan çapraz satış için ekleyin ya da kendi üretimleriniz için taslak olarak kopyalayın.",
+        "shuffle": "Karıştır",
+        "emptyTitle": "Keşfedilebilir ürün henüz yok.",
+        "emptyDescription": "Diğer ortaklar ürün yayınladığında burada görünecekler.",
+        "showing": "Toplam {{total}} üründen 8 tanesi gösteriliyor — daha fazlasını görmek için Karıştır’a tıklayın",
+        "copying": "Kopyalanıyor...",
+        "addToStore": "Mağazama Ekle",
+        "variant_one": "{{count}} varyant",
+        "variant_other": "{{count}} varyant",
+        "copySuccess": "Ürün mağazanıza eklendi",
+        "copySuccessDescription": "\"{{title}}\" taslak olarak kopyalandı.",
+        "copyFailed": "Ürün kopyalanamadı",
+        "somethingWrong": "Bir şeyler ters gitti"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Paylaşılan Klasörler",
+      "description": "Fotoğraf ve belge yüklemek için size paylaşılan klasörler",
+      "breadcrumb": "Paylaşılan Klasörler",
+      "columns": {
+        "folder": "Klasör",
+        "path": "Yol",
+        "files": "Dosyalar",
+        "assignedTo": "Atanan Kişi"
+      },
+      "empty": {
+        "title": "Paylaşılan klasör yok",
+        "message": "Henüz herhangi bir paylaşılan klasörünüz yok. Bir yönetici size klasör atayacak."
+      }
+    },
+    "content": {
+      "heading": "İçerik",
+      "columns": {
+        "title": "Başlık",
+        "slug": "Slug",
+        "type": "Tür",
+        "status": "Durum"
+      },
+      "filters": {
+        "status": "Durum",
+        "type": "Tür"
+      },
+      "statusOptions": {
+        "published": "Yayınlandı",
+        "draft": "Taslak",
+        "archived": "Arşivlendi"
+      },
+      "typeOptions": {
+        "home": "Ana Sayfa",
+        "about": "Hakkında",
+        "contact": "İletişim",
+        "custom": "Özelleştirilmiş",
+        "service": "Hizmet",
+        "portfolio": "Portföy",
+        "landing": "Landing Sayfası"
+      },
+      "actions": {
+        "creatingPages": "Oluşturuluyor...",
+        "createPages": "Sayfalar Oluştur",
+        "createStore": "Mağaza Oluştur",
+        "enableStorefront": "Mağaza Ön Yüzünü Etkinleştir"
+      },
+      "toast": {
+        "pagesCreated": "Sayfalar başarıyla oluşturuldu",
+        "createFailed": "Sayfalar oluşturulamadı"
+      },
+      "empty": {
+        "noStoreTitle": "Hiçbir mağaza oluşturulmadı",
+        "noStoreMessage": "Mağaza ön yüzü içeriğini yönetmek için önce bir mağaza oluşturun.",
+        "notProvisionedTitle": "Mağaza ön yüzü etkinleştirilmedi",
+        "notProvisionedMessage": "Sayfaları yönetmeye başlamak için mağaza ayarlarından mağaza ön yüzünüzü etkinleştirin.",
+        "noPagesTitle": "Henüz sayfa yok",
+        "noPagesMessage": "Mağaza ön yüzü içeriğinizle başlamak için varsayılan sayfalarınızı oluşturun.",
+        "noMatches": "Hiçbir sayfa bulunamadı"
+      }
     }
   }
 }

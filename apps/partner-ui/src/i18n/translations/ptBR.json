@@ -3191,6 +3191,121 @@
         "notCompleted": "Não concluído",
         "open": "Abrir configuração inicial"
       }
+    },
+    "home": {
+      "dashboard": "Painel de Controle",
+      "welcome": "Bem-vindo",
+      "gettingStarted": {
+        "heading": "Primeiros Passos",
+        "description": "Conclua estas etapas para configurar seu espaço de trabalho.",
+        "onboardingLabel": "Concluir o onboarding",
+        "onboardingDescription": "Adicione seus dados e sua equipe.",
+        "open": "Abrir",
+        "workspaceLabel": "Escolha o tipo de espaço de trabalho",
+        "change": "Alterar",
+        "seller": "Vendedor",
+        "manufacturer": "Fabricante",
+        "individual": "Individual",
+        "verifyLabel": "Obter verificação",
+        "verifyDescription": "Envie documentos de verificação.",
+        "upload": "Enviar",
+        "storeLabel": "Criar uma loja",
+        "storeDescription": "Desbloqueie produtos, pedidos e canais de vendas.",
+        "create": "Criar",
+        "taskSummary_one": "{{total}} tarefa · {{pending}} pendente",
+        "taskSummary_other": "{{total}} tarefas · {{pending}} pendentes",
+        "viewTasks": "Ver tarefas"
+      },
+      "quickSettings": {
+        "heading": "Configurações Rápidas",
+        "description": "Gerencie a configuração da sua loja.",
+        "paymentProviders": "Provedores de Pagamento",
+        "paymentProvidersDescription": "Configure como você receberá os pagamentos.",
+        "shippingSetup": "Configuração de Envios",
+        "shippingSetupDescription": "Localizações, zonas e tarifas.",
+        "taxRegions": "Regiões Tributárias",
+        "taxRegionsDescription": "Configure as alíquotas de impostos por região.",
+        "storeSettings": "Configurações da Loja",
+        "storeSettingsDescription": "Detalhes da loja e vitrine."
+      },
+      "discover": {
+        "title": "Descobrir Produtos",
+        "preview": "Realize cross-selling de produtos de outros parceiros ou copie-os para produzi-los por conta própria.",
+        "modalDescription": "Navegue pelos produtos de outros parceiros. Adicione-os diretamente ao cross-selling ou copie-os como rascunhos para produzi-los por conta própria.",
+        "shuffle": "Aleatorizar",
+        "emptyTitle": "Ainda não há produtos disponíveis para descoberta.",
+        "emptyDescription": "Os produtos aparecerão aqui quando outros parceiros os publicarem.",
+        "showing": "Mostrando 8 de {{total}} produtos — clique em Aleatorizar para ver mais",
+        "copying": "Copiando...",
+        "addToStore": "Adicionar à Minha Loja",
+        "variant_one": "{{count}} variação",
+        "variant_other": "{{count}} variações",
+        "copySuccess": "Produto adicionado à sua loja",
+        "copySuccessDescription": "\"{{title}}\" copiado como rascunho.",
+        "copyFailed": "Falha ao copiar o produto",
+        "somethingWrong": "Ocorreu um erro"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Pastas Compartilhadas",
+      "description": "Pastas compartilhadas com você para envio de fotos e documentos",
+      "breadcrumb": "Pastas Compartilhadas",
+      "columns": {
+        "folder": "Pasta",
+        "path": "Caminho",
+        "files": "Arquivos",
+        "assignedTo": "Atribuído a"
+      },
+      "empty": {
+        "title": "Nenhuma pasta compartilhada",
+        "message": "Você ainda não tem pastas compartilhadas. Um administrador atribuirá pastas a você."
+      }
+    },
+    "content": {
+      "heading": "Conteúdo",
+      "columns": {
+        "title": "Título",
+        "slug": "Slug",
+        "type": "Tipo",
+        "status": "Status"
+      },
+      "filters": {
+        "status": "Status",
+        "type": "Tipo"
+      },
+      "statusOptions": {
+        "published": "Publicado",
+        "draft": "Rascunho",
+        "archived": "Arquivado"
+      },
+      "typeOptions": {
+        "home": "Início",
+        "about": "Sobre",
+        "contact": "Contato",
+        "custom": "Personalizado",
+        "service": "Serviço",
+        "portfolio": "Portfólio",
+        "landing": "Landing"
+      },
+      "actions": {
+        "creatingPages": "Criando...",
+        "createPages": "Criar Páginas",
+        "createStore": "Criar Loja",
+        "enableStorefront": "Habilitar Vitrine"
+      },
+      "toast": {
+        "pagesCreated": "Páginas criadas com sucesso",
+        "createFailed": "Falha ao criar páginas"
+      },
+      "empty": {
+        "noStoreTitle": "Nenhuma loja criada",
+        "noStoreMessage": "Crie uma loja primeiro para gerenciar o conteúdo da sua vitrine.",
+        "notProvisionedTitle": "Vitrine não habilitada",
+        "notProvisionedMessage": "Habilite sua vitrine nas configurações da loja para começar a gerenciar páginas.",
+        "noPagesTitle": "Ainda não há páginas",
+        "noPagesMessage": "Crie suas páginas padrão para começar a gerenciar o conteúdo da sua vitrine.",
+        "noMatches": "Nenhuma página encontrada"
+      }
     }
   }
 }

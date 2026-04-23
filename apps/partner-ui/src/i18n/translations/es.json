@@ -3508,6 +3508,121 @@
         "notCompleted": "No completado",
         "open": "Abrir configuración inicial"
       }
+    },
+    "home": {
+      "dashboard": "Panel de control",
+      "welcome": "Bienvenido",
+      "gettingStarted": {
+        "heading": "Primeros pasos",
+        "description": "Complete estos pasos para configurar su espacio de trabajo.",
+        "onboardingLabel": "Completar la incorporación",
+        "onboardingDescription": "Agregue sus datos y su equipo.",
+        "open": "Abrir",
+        "workspaceLabel": "Elija el tipo de espacio de trabajo",
+        "change": "Cambiar",
+        "seller": "Vendedor",
+        "manufacturer": "Fabricante",
+        "individual": "Particular",
+        "verifyLabel": "Verificarse",
+        "verifyDescription": "Suba documentos de verificación.",
+        "upload": "Subir",
+        "storeLabel": "Crear una tienda",
+        "storeDescription": "Desbloquee productos, pedidos y canales de venta.",
+        "create": "Crear",
+        "taskSummary_one": "{{total}} tarea · {{pending}} pendiente",
+        "taskSummary_other": "{{total}} tareas · {{pending}} pendientes",
+        "viewTasks": "Ver tareas"
+      },
+      "quickSettings": {
+        "heading": "Configuración rápida",
+        "description": "Gestione la configuración de su tienda.",
+        "paymentProviders": "Proveedores de pagos",
+        "paymentProvidersDescription": "Configure cómo recibirá los pagos.",
+        "shippingSetup": "Configuración de envíos",
+        "shippingSetupDescription": "Ubicaciones, zonas y tarifas.",
+        "taxRegions": "Regiones fiscales",
+        "taxRegionsDescription": "Configure las tasas impositivas por región.",
+        "storeSettings": "Configuración de la tienda",
+        "storeSettingsDescription": "Detalles de la tienda y escaparate."
+      },
+      "discover": {
+        "title": "Descubrir productos",
+        "preview": "Venda productos complementarios de otros socios o cópielos para producirlos usted mismo.",
+        "modalDescription": "Explore productos de otros socios. Agréguelos directamente para venta cruzada o cópielos como borradores para producirlos usted mismo.",
+        "shuffle": "Mezclar",
+        "emptyTitle": "No hay productos disponibles para descubrir aún.",
+        "emptyDescription": "Los productos aparecerán aquí cuando otros socios los publiquen.",
+        "showing": "Mostrando 8 de {{total}} productos — haga clic en Mezclar para ver más",
+        "copying": "Copiando...",
+        "addToStore": "Agregar a mi tienda",
+        "variant_one": "{{count}} variante",
+        "variant_other": "{{count}} variantes",
+        "copySuccess": "Producto agregado a su tienda",
+        "copySuccessDescription": "\"{{title}}\" copiado como borrador.",
+        "copyFailed": "Error al copiar el producto",
+        "somethingWrong": "Ha ocurrido un error"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Carpetas compartidas",
+      "description": "Carpetas compartidas con usted para subir fotos y documentos",
+      "breadcrumb": "Carpetas compartidas",
+      "columns": {
+        "folder": "Carpeta",
+        "path": "Ruta",
+        "files": "Archivos",
+        "assignedTo": "Asignado a"
+      },
+      "empty": {
+        "title": "No hay carpetas compartidas",
+        "message": "Aún no tiene carpetas compartidas. Un administrador le asignará carpetas."
+      }
+    },
+    "content": {
+      "heading": "Contenido",
+      "columns": {
+        "title": "Título",
+        "slug": "Slug",
+        "type": "Tipo",
+        "status": "Estado"
+      },
+      "filters": {
+        "status": "Estado",
+        "type": "Tipo"
+      },
+      "statusOptions": {
+        "published": "Publicado",
+        "draft": "Borrador",
+        "archived": "Archivado"
+      },
+      "typeOptions": {
+        "home": "Inicio",
+        "about": "Acerca de",
+        "contact": "Contacto",
+        "custom": "Personalizado",
+        "service": "Servicio",
+        "portfolio": "Portafolio",
+        "landing": "Landing"
+      },
+      "actions": {
+        "creatingPages": "Creando...",
+        "createPages": "Crear páginas",
+        "createStore": "Crear tienda",
+        "enableStorefront": "Habilitar escaparate"
+      },
+      "toast": {
+        "pagesCreated": "Páginas creadas correctamente",
+        "createFailed": "Error al crear las páginas"
+      },
+      "empty": {
+        "noStoreTitle": "No se ha creado ninguna tienda",
+        "noStoreMessage": "Cree primero una tienda para gestionar el contenido de su escaparate.",
+        "notProvisionedTitle": "Escaparate no habilitado",
+        "notProvisionedMessage": "Habilite su escaparate en la configuración de la tienda para comenzar a gestionar páginas.",
+        "noPagesTitle": "Aún no hay páginas",
+        "noPagesMessage": "Cree sus páginas predeterminadas para empezar con el contenido de su escaparate.",
+        "noMatches": "No se encontraron páginas"
+      }
     }
   }
 }

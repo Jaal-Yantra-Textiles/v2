@@ -3407,6 +3407,121 @@
         "notCompleted": "Nem befejezve",
         "open": "Bevezetés megnyitása"
       }
+    },
+    "home": {
+      "dashboard": "Irányítópult",
+      "welcome": "Üdvözöljük",
+      "gettingStarted": {
+        "heading": "Első lépések",
+        "description": "Végezze el ezeket a lépéseket a munkaterület beállításához.",
+        "onboardingLabel": "Befejezett bevezetés",
+        "onboardingDescription": "Adja meg adatait és csapatát.",
+        "open": "Megnyitás",
+        "workspaceLabel": "Válassza ki a munkaterület típusát",
+        "change": "Módosítás",
+        "seller": "Kiskereskedő",
+        "manufacturer": "Gyártó",
+        "individual": "Magánszemély",
+        "verifyLabel": "Hitelesítés",
+        "verifyDescription": "Töltse fel a hitelesítő dokumentumokat.",
+        "upload": "Feltöltés",
+        "storeLabel": "Áruház létrehozása",
+        "storeDescription": "Termékek, rendelések és értékesítési csatornák aktiválása.",
+        "create": "Létrehozás",
+        "taskSummary_one": "{{total}} feladat · {{pending}} függőben",
+        "taskSummary_other": "{{total}} feladat · {{pending}} függőben",
+        "viewTasks": "Feladatok megtekintése"
+      },
+      "quickSettings": {
+        "heading": "Gyorsbeállítások",
+        "description": "Áruháza konfigurációjának kezelése.",
+        "paymentProviders": "Fizetési szolgáltatók",
+        "paymentProvidersDescription": "Állítsa be, hogyan kap fizetést.",
+        "shippingSetup": "Szállítási beállítások",
+        "shippingSetupDescription": "Helyek, szállítási zónák és díjszabás.",
+        "taxRegions": "Adórégiók",
+        "taxRegionsDescription": "Adókulcsok régió szerinti konfigurálása.",
+        "storeSettings": "Áruházbeállítások",
+        "storeSettingsDescription": "Áruház adatai és webáruház."
+      },
+      "discover": {
+        "title": "Termékek felfedezése",
+        "preview": "Keresztforgalmazás más partnerek termékeiből, vagy másolja őket saját gyártásra.",
+        "modalDescription": "Tallózza fel más partnerek termékeit. Azonnal keresztforgalmazáshoz adjuk hozzá őket, vagy vázlatként másolja saját gyártásra.",
+        "shuffle": "Keverés",
+        "emptyTitle": "Még nincsenek felfedezhető termékek.",
+        "emptyDescription": "A termékek itt jelennek meg, amikor más partnerek közzéteszik őket.",
+        "showing": "8 termék megjelenítve a(z) {{total}} termékből – kattintson a Keverés gombra több megtekintéséhez",
+        "copying": "Másolás...",
+        "addToStore": "Hozzáadás az áruházamhoz",
+        "variant_one": "{{count}} változat",
+        "variant_other": "{{count}} változat",
+        "copySuccess": "Termék hozzáadva az áruházához",
+        "copySuccessDescription": "\"{{title}}\" vázlatként másolva.",
+        "copyFailed": "A termék másolása sikertelen",
+        "somethingWrong": "Valami hiba történt"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Megosztott mappák",
+      "description": "Fényképek és dokumentumok feltöltésére megosztott mappák",
+      "breadcrumb": "Megosztott mappák",
+      "columns": {
+        "folder": "Mappa",
+        "path": "Elérési út",
+        "files": "Fájlok",
+        "assignedTo": "Hozzárendelve"
+      },
+      "empty": {
+        "title": "Nincsenek megosztott mappák",
+        "message": "Jelenleg nincsenek megosztott mappái. Egy rendszergazda fog mappákat rendelni Önnek."
+      }
+    },
+    "content": {
+      "heading": "Tartalom",
+      "columns": {
+        "title": "Cím",
+        "slug": "Slug",
+        "type": "Típus",
+        "status": "Státusz"
+      },
+      "filters": {
+        "status": "Státusz",
+        "type": "Típus"
+      },
+      "statusOptions": {
+        "published": "Közzétéve",
+        "draft": "Vázlat",
+        "archived": "Archiválva"
+      },
+      "typeOptions": {
+        "home": "Kezdőlap",
+        "about": "Rólunk",
+        "contact": "Kapcsolat",
+        "custom": "Egyéni",
+        "service": "Szolgáltatás",
+        "portfolio": "Portfólió",
+        "landing": "Landing page"
+      },
+      "actions": {
+        "creatingPages": "Létrehozás...",
+        "createPages": "Oldalak létrehozása",
+        "createStore": "Áruház létrehozása",
+        "enableStorefront": "Webáruház engedélyezése"
+      },
+      "toast": {
+        "pagesCreated": "Az oldalak sikeresen létrehozva",
+        "createFailed": "Az oldalak létrehozása sikertelen"
+      },
+      "empty": {
+        "noStoreTitle": "Nincs létrehozott áruház",
+        "noStoreMessage": "Hozzon létre először egy áruházat a webáruház tartalmának kezeléséhez.",
+        "notProvisionedTitle": "A webáruház nincs engedélyezve",
+        "notProvisionedMessage": "Engedélyezze a webáruházát az áruházbeállításokban az oldalak kezelésének megkezdéséhez.",
+        "noPagesTitle": "Még nincsenek oldalak",
+        "noPagesMessage": "Hozza létre alapoldalait a webáruház tartalmának kezelésének megkezdéséhez.",
+        "noMatches": "Nem találhatók oldalak"
+      }
     }
   }
 }

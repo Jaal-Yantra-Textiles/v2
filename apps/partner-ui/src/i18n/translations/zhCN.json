@@ -3424,6 +3424,121 @@
         "notCompleted": "未完成",
         "open": "打开入门引导"
       }
+    },
+    "home": {
+      "dashboard": "仪表板",
+      "welcome": "欢迎",
+      "gettingStarted": {
+        "heading": "入门指南",
+        "description": "完成以下步骤以设置您的工作区。",
+        "onboardingLabel": "完成新手引导",
+        "onboardingDescription": "添加您的信息和团队成员。",
+        "open": "打开",
+        "workspaceLabel": "选择工作区类型",
+        "change": "更改",
+        "seller": "卖家",
+        "manufacturer": "制造商",
+        "individual": "个人",
+        "verifyLabel": "完成资质认证",
+        "verifyDescription": "上传资质验证文件。",
+        "upload": "上传",
+        "storeLabel": "创建店铺",
+        "storeDescription": "解锁商品、订单及销售渠道功能。",
+        "create": "创建",
+        "taskSummary_one": "{{total}} 项任务 · {{pending}} 项待处理",
+        "taskSummary_other": "{{total}} 项任务 · {{pending}} 项待处理",
+        "viewTasks": "查看任务"
+      },
+      "quickSettings": {
+        "heading": "快速设置",
+        "description": "管理您的店铺配置。",
+        "paymentProviders": "支付服务提供商",
+        "paymentProvidersDescription": "配置收款方式。",
+        "shippingSetup": "物流设置",
+        "shippingSetupDescription": "配送地区、区域及运费规则。",
+        "taxRegions": "税务地区",
+        "taxRegionsDescription": "按地区配置税率。",
+        "storeSettings": "店铺设置",
+        "storeSettingsDescription": "店铺详情与 storefront 配置。"
+      },
+      "discover": {
+        "title": "发现商品",
+        "preview": "跨销其他合作伙伴的商品，或复制后自行生产。",
+        "modalDescription": "浏览其他合作伙伴的商品。可直接添加用于跨销，或复制为草稿自行生产。",
+        "shuffle": "刷新",
+        "emptyTitle": "暂无可供发现的商品。",
+        "emptyDescription": "当其他合作伙伴发布商品后，此处将显示相关内容。",
+        "showing": "显示 {{total}} 个商品中的 8 个 — 点击“刷新”查看更多",
+        "copying": "正在复制...",
+        "addToStore": "添加至我的店铺",
+        "variant_one": "{{count}} 个规格",
+        "variant_other": "{{count}} 个规格",
+        "copySuccess": "商品已添加至您的店铺",
+        "copySuccessDescription": "“{{title}}”已作为草稿复制。",
+        "copyFailed": "商品复制失败",
+        "somethingWrong": "发生错误"
+      }
+    },
+    "sharedFolders": {
+      "heading": "共享文件夹",
+      "description": "供您上传照片和文档的共享文件夹",
+      "breadcrumb": "共享文件夹",
+      "columns": {
+        "folder": "文件夹",
+        "path": "路径",
+        "files": "文件",
+        "assignedTo": "指派给"
+      },
+      "empty": {
+        "title": "暂无共享文件夹",
+        "message": "您当前没有共享文件夹。管理员将为您分配文件夹。"
+      }
+    },
+    "content": {
+      "heading": "内容",
+      "columns": {
+        "title": "标题",
+        "slug": "标识符",
+        "type": "类型",
+        "status": "状态"
+      },
+      "filters": {
+        "status": "状态",
+        "type": "类型"
+      },
+      "statusOptions": {
+        "published": "已发布",
+        "draft": "草稿",
+        "archived": "已归档"
+      },
+      "typeOptions": {
+        "home": "首页",
+        "about": "关于我们",
+        "contact": "联系我们",
+        "custom": "自定义",
+        "service": "服务",
+        "portfolio": "作品集",
+        "landing": "落地页"
+      },
+      "actions": {
+        "creatingPages": "正在创建...",
+        "createPages": "创建页面",
+        "createStore": "创建店铺",
+        "enableStorefront": "启用 storefront"
+      },
+      "toast": {
+        "pagesCreated": "页面创建成功",
+        "createFailed": "页面创建失败"
+      },
+      "empty": {
+        "noStoreTitle": "尚未创建店铺",
+        "noStoreMessage": "请先创建店铺，再管理 storefront 内容。",
+        "notProvisionedTitle": "storefront 未启用",
+        "notProvisionedMessage": "请在店铺设置中启用 storefront，以开始管理页面。",
+        "noPagesTitle": "暂无页面",
+        "noPagesMessage": "请创建默认页面，以开始管理 storefront 内容。",
+        "noMatches": "未找到页面"
+      }
     }
   }
 }

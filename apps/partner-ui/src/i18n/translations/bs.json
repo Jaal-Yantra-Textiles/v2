@@ -3417,6 +3417,121 @@
         "notCompleted": "Nije završeno",
         "open": "Otvori uvođenje u sistem"
       }
+    },
+    "home": {
+      "dashboard": "Kontrolna ploča",
+      "welcome": "Dobrodošli",
+      "gettingStarted": {
+        "heading": "Prvi koraci",
+        "description": "Završite ove korake da biste postavili svoj radni prostor.",
+        "onboardingLabel": "Završite uvodni proces",
+        "onboardingDescription": "Dodajte svoje podatke i tim.",
+        "open": "Otvori",
+        "workspaceLabel": "Odaberite vrstu radnog prostora",
+        "change": "Promijeni",
+        "seller": "Prodavac",
+        "manufacturer": "Proizvođač",
+        "individual": "Fizičko lice",
+        "verifyLabel": "Potvrdite identitet",
+        "verifyDescription": "Prenesite dokumente za verifikaciju.",
+        "upload": "Preuzmi",
+        "storeLabel": "Kreirajte trgovinu",
+        "storeDescription": "Omogućite proizvode, narudžbe i prodajne kanale.",
+        "create": "Kreiraj",
+        "taskSummary_one": "{{total}} zadatak · {{pending}} u čekanju",
+        "taskSummary_other": "{{total}} zadataka · {{pending}} u čekanju",
+        "viewTasks": "Pogledaj zadatke"
+      },
+      "quickSettings": {
+        "heading": "Brze postavke",
+        "description": "Upravljajte konfiguracijom svoje trgovine.",
+        "paymentProviders": "Pružatelji usluga plaćanja",
+        "paymentProvidersDescription": "Konfigurišite način na koji primaćete uplate.",
+        "shippingSetup": "Postavke dostave",
+        "shippingSetupDescription": "Lokacije, zone i tarife.",
+        "taxRegions": "Porezne regije",
+        "taxRegionsDescription": "Konfigurišite porezne stope po regiji.",
+        "storeSettings": "Postavke trgovine",
+        "storeSettingsDescription": "Podaci o trgovini i izgled prodajnog mjesta."
+      },
+      "discover": {
+        "title": "Otkrijte proizvode",
+        "preview": "Preporučite proizvode drugih partnera ili ih kopirajte kako biste ih sami proizveli.",
+        "modalDescription": "Pregledajte proizvode drugih partnera. Dodajte ih za preporuku direktno ili ih kopirajte kao nacrte kako biste ih sami proizveli.",
+        "shuffle": "Promiješaj",
+        "emptyTitle": "Nema dostupnih proizvoda za otkrivanje.",
+        "emptyDescription": "Proizvodi će se pojaviti ovdje kada ih drugi partneri objave.",
+        "showing": "Prikazano 8 od {{total}} proizvoda — kliknite na „Promiješaj“ da biste vidjeli više",
+        "copying": "Kopiranje...",
+        "addToStore": "Dodaj u moju trgovinu",
+        "variant_one": "{{count}} varijanta",
+        "variant_other": "{{count}} varijanti",
+        "copySuccess": "Proizvod dodan u vašu trgovinu",
+        "copySuccessDescription": "\"{{title}}\" kopiran kao nacrt.",
+        "copyFailed": "Neuspjelo kopiranje proizvoda",
+        "somethingWrong": "Došlo je do greške"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Dijeljeni folderi",
+      "description": "Folderi koje su vam dijeljeni za prenošenje slika i dokumenata",
+      "breadcrumb": "Dijeljeni folderi",
+      "columns": {
+        "folder": "Folder",
+        "path": "Putanja",
+        "files": "Datoteke",
+        "assignedTo": "Dodijeljeno"
+      },
+      "empty": {
+        "title": "Nema dijeljenih foldera",
+        "message": "Još nemate dijeljenih foldera. Administrator će vam dodijeliti foldere."
+      }
+    },
+    "content": {
+      "heading": "Sadržaj",
+      "columns": {
+        "title": "Naslov",
+        "slug": "Slug",
+        "type": "Vrsta",
+        "status": "Status"
+      },
+      "filters": {
+        "status": "Status",
+        "type": "Vrsta"
+      },
+      "statusOptions": {
+        "published": "Objavljeno",
+        "draft": "Nacrt",
+        "archived": "Arhivirano"
+      },
+      "typeOptions": {
+        "home": "Početna",
+        "about": "O nama",
+        "contact": "Kontakt",
+        "custom": "Prilagođeno",
+        "service": "Usluge",
+        "portfolio": "Portfolio",
+        "landing": "Landing stranica"
+      },
+      "actions": {
+        "creatingPages": "Kreiranje...",
+        "createPages": "Kreiraj stranice",
+        "createStore": "Kreiraj trgovinu",
+        "enableStorefront": "Omogući prodajno mjesto"
+      },
+      "toast": {
+        "pagesCreated": "Stranice uspješno kreirane",
+        "createFailed": "Neuspjelo kreiranje stranica"
+      },
+      "empty": {
+        "noStoreTitle": "Trgovina nije kreirana",
+        "noStoreMessage": "Prvo kreirajte trgovinu kako biste upravljali sadržajem svog prodajnog mjesta.",
+        "notProvisionedTitle": "Prodajno mjesto nije omogućeno",
+        "notProvisionedMessage": "Omogućite prodajno mjesto u postavkama trgovine da biste započeli upravljanje stranicama.",
+        "noPagesTitle": "Još nema stranica",
+        "noPagesMessage": "Kreirajte svoje osnovne stranice da biste započeli sa sadržajem svog prodajnog mjesta.",
+        "noMatches": "Nema pronađenih stranica"
+      }
     }
   }
 }

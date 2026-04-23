@@ -3358,6 +3358,121 @@
         "notCompleted": "غير مكتمل",
         "open": "فتح الإدخال"
       }
+    },
+    "home": {
+      "dashboard": "لوحة التحكم",
+      "welcome": "مرحبًا",
+      "gettingStarted": {
+        "heading": "البدء",
+        "description": "أكمل هذه الخطوات لإعداد مساحة عملك.",
+        "onboardingLabel": "إكمال عملية الإرشاد",
+        "onboardingDescription": "أضف تفاصيلك وفريقك.",
+        "open": "فتح",
+        "workspaceLabel": "اختر نوع مساحة العمل",
+        "change": "تغيير",
+        "seller": "بائع",
+        "manufacturer": "مُصنِّع",
+        "individual": "فرد",
+        "verifyLabel": "التحقق من الهوية",
+        "verifyDescription": "قم برفع وثائق التحقق.",
+        "upload": "رفع",
+        "storeLabel": "إنشاء متجر",
+        "storeDescription": "فعّل المنتجات والطلبات وقنوات المبيعات.",
+        "create": "إنشاء",
+        "taskSummary_one": "{{total}} مهمة · {{pending}} معلقة",
+        "taskSummary_other": "{{total}} مهام · {{pending}} معلقة",
+        "viewTasks": "عرض المهام"
+      },
+      "quickSettings": {
+        "heading": "الإعدادات السريعة",
+        "description": "إدارة إعدادات متجرك.",
+        "paymentProviders": "مقدمو خدمات الدفع",
+        "paymentProvidersDescription": "ضبط طريقة استلامك للمدفوعات.",
+        "shippingSetup": "إعداد الشحن",
+        "shippingSetupDescription": "المواقع والمناطق والأسعار.",
+        "taxRegions": "المناطق الضريبية",
+        "taxRegionsDescription": "ضبط معدلات الضرائب حسب المنطقة.",
+        "storeSettings": "إعدادات المتجر",
+        "storeSettingsDescription": "تفاصيل المتجر وواجهة المتجر."
+      },
+      "discover": {
+        "title": "اكتشف المنتجات",
+        "preview": "اعرض منتجات شركاء آخرين كعروض تكميلية أو انسخها لإنتاجها بنفسك.",
+        "modalDescription": "تصفح منتجات الشركاء الآخرين. أضفها كعروض تكميلية مباشرةً، أو انقر لنسخها كمسودات لإنتاجها بنفسك.",
+        "shuffle": "خلّط",
+        "emptyTitle": "لا توجد منتجات متاحة للاكتشاف بعد.",
+        "emptyDescription": "ستظهر المنتجات هنا عندما ينشرها الشركاء الآخرون.",
+        "showing": "معروض ٨ من أصل {{total}} منتج — انقر على «خلّط» لعرض المزيد",
+        "copying": "جارٍ النسخ...",
+        "addToStore": "إضافة إلى متجري",
+        "variant_one": "{{count}} نسخة",
+        "variant_other": "{{count}} نسخ",
+        "copySuccess": "تمت إضافة المنتج إلى متجرك",
+        "copySuccessDescription": "تم نسخ \"{{title}}\" كمسودة.",
+        "copyFailed": "فشل نسخ المنتج",
+        "somethingWrong": "حدث خطأ ما"
+      }
+    },
+    "sharedFolders": {
+      "heading": "المجلدات المشتركة",
+      "description": "المجلدات التي تم مشاركتها معك لتحميل الصور والمستندات",
+      "breadcrumb": "المجلدات المشتركة",
+      "columns": {
+        "folder": "المجلد",
+        "path": "المسار",
+        "files": "الملفات",
+        "assignedTo": "معيَّن إلى"
+      },
+      "empty": {
+        "title": "لا توجد مجلدات مشتركة",
+        "message": "ليس لديك أي مجلدات مشتركة بعد. سيقوم المسؤول بتعيين مجلدات لك."
+      }
+    },
+    "content": {
+      "heading": "المحتوى",
+      "columns": {
+        "title": "العنوان",
+        "slug": "الرابط القصير",
+        "type": "النوع",
+        "status": "الحالة"
+      },
+      "filters": {
+        "status": "الحالة",
+        "type": "النوع"
+      },
+      "statusOptions": {
+        "published": "منشور",
+        "draft": "مسودة",
+        "archived": "مؤرشف"
+      },
+      "typeOptions": {
+        "home": "الرئيسية",
+        "about": "من نحن",
+        "contact": "اتصل بنا",
+        "custom": "مخصص",
+        "service": "خدمة",
+        "portfolio": "محفظة أعمال",
+        "landing": "صفحة هبوط"
+      },
+      "actions": {
+        "creatingPages": "جارٍ الإنشاء...",
+        "createPages": "إنشاء صفحات",
+        "createStore": "إنشاء متجر",
+        "enableStorefront": "تفعيل واجهة المتجر"
+      },
+      "toast": {
+        "pagesCreated": "تم إنشاء الصفحات بنجاح",
+        "createFailed": "فشل إنشاء الصفحات"
+      },
+      "empty": {
+        "noStoreTitle": "لم يتم إنشاء متجر بعد",
+        "noStoreMessage": "أنشئ متجرًا أولًا لإدارة محتوى واجهة متجرك.",
+        "notProvisionedTitle": "واجهة المتجر غير مفعلة",
+        "notProvisionedMessage": "فعّل واجهة متجرك في إعدادات المتجر لبدء إدارة الصفحات.",
+        "noPagesTitle": "لا توجد صفحات بعد",
+        "noPagesMessage": "أنشئ صفحاتك الافتراضية للبدء بإدارة محتوى واجهة متجرك.",
+        "noMatches": "لم يتم العثور على صفحات"
+      }
     }
   }
 }

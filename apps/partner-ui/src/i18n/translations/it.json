@@ -3204,6 +3204,121 @@
         "notCompleted": "Non completato",
         "open": "Apri onboarding"
       }
+    },
+    "home": {
+      "dashboard": "Dashboard",
+      "welcome": "Benvenuto",
+      "gettingStarted": {
+        "heading": "Primi passi",
+        "description": "Completa questi passaggi per configurare il tuo spazio di lavoro.",
+        "onboardingLabel": "Completa l'onboarding",
+        "onboardingDescription": "Aggiungi i tuoi dati e il tuo team.",
+        "open": "Apri",
+        "workspaceLabel": "Scegli il tipo di spazio di lavoro",
+        "change": "Cambia",
+        "seller": "Venditore",
+        "manufacturer": "Produttore",
+        "individual": "Privato",
+        "verifyLabel": "Verifica il tuo account",
+        "verifyDescription": "Carica i documenti richiesti per la verifica.",
+        "upload": "Carica",
+        "storeLabel": "Crea un negozio",
+        "storeDescription": "Abilita prodotti, ordini e canali di vendita.",
+        "create": "Crea",
+        "taskSummary_one": "{{total}} attività · {{pending}} in sospeso",
+        "taskSummary_other": "{{total}} attività · {{pending}} in sospeso",
+        "viewTasks": "Visualizza attività"
+      },
+      "quickSettings": {
+        "heading": "Impostazioni rapide",
+        "description": "Gestisci la configurazione del tuo negozio.",
+        "paymentProviders": "Provider di pagamento",
+        "paymentProvidersDescription": "Configura le modalità di ricezione dei pagamenti.",
+        "shippingSetup": "Configurazione spedizioni",
+        "shippingSetupDescription": "Località, zone e tariffe.",
+        "taxRegions": "Regioni fiscali",
+        "taxRegionsDescription": "Configura le aliquote fiscali per regione.",
+        "storeSettings": "Impostazioni negozio",
+        "storeSettingsDescription": "Dettagli del negozio e vetrina."
+      },
+      "discover": {
+        "title": "Scopri prodotti",
+        "preview": "Cross-sell di prodotti di altri partner o copiali per produrli autonomamente.",
+        "modalDescription": "Esplora i prodotti di altri partner. Aggiungili direttamente al cross-sell oppure copiali come bozze da produrre autonomamente.",
+        "shuffle": "Rimescola",
+        "emptyTitle": "Nessun prodotto disponibile per la scoperta.",
+        "emptyDescription": "I prodotti appariranno qui non appena altri partner li pubblicheranno.",
+        "showing": "Mostrati 8 di {{total}} prodotti — clicca su Rimescola per vedere altri",
+        "copying": "Sto copiando...",
+        "addToStore": "Aggiungi al mio negozio",
+        "variant_one": "{{count}} variante",
+        "variant_other": "{{count}} varianti",
+        "copySuccess": "Prodotto aggiunto al tuo negozio",
+        "copySuccessDescription": "\"{{title}}\" copiato come bozza.",
+        "copyFailed": "Impossibile copiare il prodotto",
+        "somethingWrong": "Si è verificato un errore"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Cartelle condivise",
+      "description": "Cartelle condivise con te per caricare foto e documenti",
+      "breadcrumb": "Cartelle condivise",
+      "columns": {
+        "folder": "Cartella",
+        "path": "Percorso",
+        "files": "File",
+        "assignedTo": "Assegnata a"
+      },
+      "empty": {
+        "title": "Nessuna cartella condivisa",
+        "message": "Non hai ancora cartelle condivise. Un amministratore te ne assegnerà una."
+      }
+    },
+    "content": {
+      "heading": "Contenuti",
+      "columns": {
+        "title": "Titolo",
+        "slug": "Slug",
+        "type": "Tipo",
+        "status": "Stato"
+      },
+      "filters": {
+        "status": "Stato",
+        "type": "Tipo"
+      },
+      "statusOptions": {
+        "published": "Pubblicato",
+        "draft": "Bozza",
+        "archived": "Archiviato"
+      },
+      "typeOptions": {
+        "home": "Home",
+        "about": "Chi siamo",
+        "contact": "Contatti",
+        "custom": "Personalizzato",
+        "service": "Servizio",
+        "portfolio": "Portfolio",
+        "landing": "Landing"
+      },
+      "actions": {
+        "creatingPages": "Creazione in corso...",
+        "createPages": "Crea pagine",
+        "createStore": "Crea negozio",
+        "enableStorefront": "Abilita vetrina"
+      },
+      "toast": {
+        "pagesCreated": "Pagine create correttamente",
+        "createFailed": "Creazione pagine non riuscita"
+      },
+      "empty": {
+        "noStoreTitle": "Nessun negozio creato",
+        "noStoreMessage": "Crea prima un negozio per gestire i contenuti della tua vetrina.",
+        "notProvisionedTitle": "Vetrina non abilitata",
+        "notProvisionedMessage": "Abilita la vetrina nelle impostazioni del negozio per iniziare a gestire le pagine.",
+        "noPagesTitle": "Ancora nessuna pagina",
+        "noPagesMessage": "Crea le tue pagine predefinite per iniziare a gestire i contenuti della vetrina.",
+        "noMatches": "Nessuna pagina trovata"
+      }
     }
   }
 }

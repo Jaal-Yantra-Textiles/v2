@@ -3334,6 +3334,121 @@
         "notCompleted": "Nefinalizat",
         "open": "Deschideți configurarea inițială"
       }
+    },
+    "home": {
+      "dashboard": "Tablou de bord",
+      "welcome": "Bine ați venit",
+      "gettingStarted": {
+        "heading": "Primii pași",
+        "description": "Finalizați acești pași pentru a configura spațiul de lucru.",
+        "onboardingLabel": "Finalizați procesul de integrare",
+        "onboardingDescription": "Adăugați-vă datele și echipa.",
+        "open": "Deschideți",
+        "workspaceLabel": "Alegeți tipul de spațiu de lucru",
+        "change": "Modificați",
+        "seller": "Vânzător",
+        "manufacturer": "Producător",
+        "individual": "Persoană fizică",
+        "verifyLabel": "Obțineți verificarea",
+        "verifyDescription": "Încărcați documentele de verificare.",
+        "upload": "Încărcați",
+        "storeLabel": "Creați un magazin",
+        "storeDescription": "Activați produsele, comenzile și canalele de vânzare.",
+        "create": "Creați",
+        "taskSummary_one": "{{total}} sarcină · {{pending}} în așteptare",
+        "taskSummary_other": "{{total}} sarcini · {{pending}} în așteptare",
+        "viewTasks": "Vizualizați sarcinile"
+      },
+      "quickSettings": {
+        "heading": "Setări rapide",
+        "description": "Gestionați configurarea magazinului.",
+        "paymentProviders": "Furnizori de plată",
+        "paymentProvidersDescription": "Configurați modul în care primiți plățile.",
+        "shippingSetup": "Configurare livrare",
+        "shippingSetupDescription": "Locații, zone și tarife.",
+        "taxRegions": "Regiuni fiscale",
+        "taxRegionsDescription": "Configurați cotele de taxă pe regiuni.",
+        "storeSettings": "Setări magazin",
+        "storeSettingsDescription": "Detalii despre magazin și vitrină."
+      },
+      "discover": {
+        "title": "Descoperiți produse",
+        "preview": "Promovați produse din partea altor parteneri sau copiați-le pentru a le produce singuri.",
+        "modalDescription": "Răsfoiți produsele oferite de alți parteneri. Adăugați-le direct pentru promovare împreună sau copiați-le ca ciornă pentru a le produce singuri.",
+        "shuffle": "Amestecați",
+        "emptyTitle": "Nu sunt disponibile încă produse pentru descoperire.",
+        "emptyDescription": "Produsele vor apărea aici când alți parteneri le publică.",
+        "showing": "Se afișează 8 din {{total}} produse — faceți clic pe Amestecați pentru a vedea mai multe",
+        "copying": "Se copiază...",
+        "addToStore": "Adăugați în magazinul meu",
+        "variant_one": "{{count}} variantă",
+        "variant_other": "{{count}} variante",
+        "copySuccess": "Produs adăugat în magazinul dumneavoastră",
+        "copySuccessDescription": "\"{{title}}\" copiat ca ciornă.",
+        "copyFailed": "Eșec la copierea produsului",
+        "somethingWrong": "A apărut o problemă"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Dosare partajate",
+      "description": "Dosare partajate cu dumneavoastră pentru încărcarea de fotografii și documente",
+      "breadcrumb": "Dosare partajate",
+      "columns": {
+        "folder": "Dosar",
+        "path": "Cale",
+        "files": "Fișiere",
+        "assignedTo": "Atribuit lui"
+      },
+      "empty": {
+        "title": "Niciun dosar partajat",
+        "message": "Nu aveți încă dosare partajate. Un administrator vă va atribui dosare."
+      }
+    },
+    "content": {
+      "heading": "Conținut",
+      "columns": {
+        "title": "Titlu",
+        "slug": "Slug",
+        "type": "Tip",
+        "status": "Stare"
+      },
+      "filters": {
+        "status": "Stare",
+        "type": "Tip"
+      },
+      "statusOptions": {
+        "published": "Publicat",
+        "draft": "Ciornă",
+        "archived": "Arhivat"
+      },
+      "typeOptions": {
+        "home": "Acasă",
+        "about": "Despre noi",
+        "contact": "Contact",
+        "custom": "Personalizat",
+        "service": "Serviciu",
+        "portfolio": "Portofoliu",
+        "landing": "Pagină de destinație"
+      },
+      "actions": {
+        "creatingPages": "Se creează...",
+        "createPages": "Creați pagini",
+        "createStore": "Creați magazin",
+        "enableStorefront": "Activați vitrina"
+      },
+      "toast": {
+        "pagesCreated": "Pagini create cu succes",
+        "createFailed": "Eșec la crearea paginilor"
+      },
+      "empty": {
+        "noStoreTitle": "Niciun magazin creat",
+        "noStoreMessage": "Creați mai întâi un magazin pentru a gestiona conținutul vitrinei.",
+        "notProvisionedTitle": "Vitrina nu este activată",
+        "notProvisionedMessage": "Activați vitrina în setările magazinului pentru a începe gestionarea paginilor.",
+        "noPagesTitle": "Nicio pagină încă",
+        "noPagesMessage": "Creați paginile dvs. implicite pentru a începe cu conținutul vitrinei.",
+        "noMatches": "Nu s-au găsit pagini"
+      }
     }
   }
 }

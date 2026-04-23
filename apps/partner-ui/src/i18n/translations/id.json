@@ -3419,6 +3419,121 @@
         "notCompleted": "Belum selesai",
         "open": "Buka onboarding"
       }
+    },
+    "home": {
+      "dashboard": "Dasbor",
+      "welcome": "Selamat Datang",
+      "gettingStarted": {
+        "heading": "Memulai",
+        "description": "Selesaikan langkah-langkah ini untuk mengatur ruang kerja Anda.",
+        "onboardingLabel": "Selesaikan proses onboarding",
+        "onboardingDescription": "Tambahkan detail dan tim Anda.",
+        "open": "Buka",
+        "workspaceLabel": "Pilih jenis ruang kerja",
+        "change": "Ubah",
+        "seller": "Penjual",
+        "manufacturer": "Produsen",
+        "individual": "Perorangan",
+        "verifyLabel": "Diverifikasi",
+        "verifyDescription": "Unggah dokumen verifikasi.",
+        "upload": "Unggah",
+        "storeLabel": "Buat toko",
+        "storeDescription": "Aktifkan produk, pesanan, dan saluran penjualan.",
+        "create": "Buat",
+        "taskSummary_one": "{{total}} tugas · {{pending}} tertunda",
+        "taskSummary_other": "{{total}} tugas · {{pending}} tertunda",
+        "viewTasks": "Lihat tugas"
+      },
+      "quickSettings": {
+        "heading": "Pengaturan Cepat",
+        "description": "Kelola konfigurasi toko Anda.",
+        "paymentProviders": "Penyedia Pembayaran",
+        "paymentProvidersDescription": "Atur cara Anda menerima pembayaran.",
+        "shippingSetup": "Pengaturan Pengiriman",
+        "shippingSetupDescription": "Lokasi, zona, dan tarif pengiriman.",
+        "taxRegions": "Wilayah Pajak",
+        "taxRegionsDescription": "Atur tarif pajak berdasarkan wilayah.",
+        "storeSettings": "Pengaturan Toko",
+        "storeSettingsDescription": "Detail toko dan tampilan toko."
+      },
+      "discover": {
+        "title": "Temukan Produk",
+        "preview": "Produk lintas-penjualan dari mitra lain atau salin untuk diproduksi sendiri.",
+        "modalDescription": "Telusuri produk dari mitra lain. Tambahkan langsung untuk lintas-penjualan, atau salin sebagai draf untuk diproduksi sendiri.",
+        "shuffle": "Acak",
+        "emptyTitle": "Belum ada produk yang tersedia untuk ditemukan.",
+        "emptyDescription": "Produk akan muncul di sini ketika mitra lain mempublikasikannya.",
+        "showing": "Menampilkan 8 dari {{total}} produk — klik Acak untuk melihat lebih banyak",
+        "copying": "Menyalin...",
+        "addToStore": "Tambahkan ke Toko Saya",
+        "variant_one": "{{count}} varian",
+        "variant_other": "{{count}} varian",
+        "copySuccess": "Produk berhasil ditambahkan ke toko Anda",
+        "copySuccessDescription": "\"{{title}}\" disalin sebagai draf.",
+        "copyFailed": "Gagal menyalin produk",
+        "somethingWrong": "Terjadi kesalahan"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Folder Bersama",
+      "description": "Folder yang dibagikan kepada Anda untuk mengunggah foto dan dokumen",
+      "breadcrumb": "Folder Bersama",
+      "columns": {
+        "folder": "Folder",
+        "path": "Lokasi",
+        "files": "Berkas",
+        "assignedTo": "Ditugaskan Kepada"
+      },
+      "empty": {
+        "title": "Tidak ada folder bersama",
+        "message": "Anda belum memiliki folder bersama. Admin akan menetapkan folder untuk Anda."
+      }
+    },
+    "content": {
+      "heading": "Konten",
+      "columns": {
+        "title": "Judul",
+        "slug": "Slug",
+        "type": "Jenis",
+        "status": "Status"
+      },
+      "filters": {
+        "status": "Status",
+        "type": "Jenis"
+      },
+      "statusOptions": {
+        "published": "Dipublikasikan",
+        "draft": "Draf",
+        "archived": "Diarsipkan"
+      },
+      "typeOptions": {
+        "home": "Beranda",
+        "about": "Tentang Kami",
+        "contact": "Kontak",
+        "custom": "Kustom",
+        "service": "Layanan",
+        "portfolio": "Portofolio",
+        "landing": "Halaman Landing"
+      },
+      "actions": {
+        "creatingPages": "Membuat...",
+        "createPages": "Buat Halaman",
+        "createStore": "Buat Toko",
+        "enableStorefront": "Aktifkan Tampilan Toko"
+      },
+      "toast": {
+        "pagesCreated": "Halaman berhasil dibuat",
+        "createFailed": "Gagal membuat halaman"
+      },
+      "empty": {
+        "noStoreTitle": "Belum ada toko yang dibuat",
+        "noStoreMessage": "Buat toko terlebih dahulu untuk mengelola konten tampilan toko Anda.",
+        "notProvisionedTitle": "Tampilan toko belum diaktifkan",
+        "notProvisionedMessage": "Aktifkan tampilan toko di pengaturan toko untuk mulai mengelola halaman.",
+        "noPagesTitle": "Belum ada halaman",
+        "noPagesMessage": "Buat halaman bawaan Anda untuk memulai pengelolaan konten tampilan toko.",
+        "noMatches": "Tidak ditemukan halaman"
+      }
     }
   }
 }

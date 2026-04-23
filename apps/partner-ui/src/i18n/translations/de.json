@@ -3191,6 +3191,121 @@
         "notCompleted": "Nicht abgeschlossen",
         "open": "Onboarding öffnen"
       }
+    },
+    "home": {
+      "dashboard": "Dashboard",
+      "welcome": "Willkommen",
+      "gettingStarted": {
+        "heading": "Erste Schritte",
+        "description": "Führen Sie diese Schritte aus, um Ihren Arbeitsbereich einzurichten.",
+        "onboardingLabel": "Onboarding abschließen",
+        "onboardingDescription": "Geben Sie Ihre Angaben und Ihr Team an.",
+        "open": "Öffnen",
+        "workspaceLabel": "Arbeitsbereichstyp wählen",
+        "change": "Ändern",
+        "seller": "Verkäufer",
+        "manufacturer": "Hersteller",
+        "individual": "Privatperson",
+        "verifyLabel": "Verifizierung erhalten",
+        "verifyDescription": "Laden Sie Verifizierungsdokumente hoch.",
+        "upload": "Hochladen",
+        "storeLabel": "Shop erstellen",
+        "storeDescription": "Aktivieren Sie Produkte, Bestellungen und Vertriebskanäle.",
+        "create": "Erstellen",
+        "taskSummary_one": "{{total}} Aufgabe · {{pending}} ausstehend",
+        "taskSummary_other": "{{total}} Aufgaben · {{pending}} ausstehend",
+        "viewTasks": "Aufgaben anzeigen"
+      },
+      "quickSettings": {
+        "heading": "Schnelleinstellungen",
+        "description": "Verwalten Sie die Konfiguration Ihres Shops.",
+        "paymentProviders": "Zahlungsanbieter",
+        "paymentProvidersDescription": "Konfigurieren Sie Ihre Zahlungsempfänge.",
+        "shippingSetup": "Versandkonfiguration",
+        "shippingSetupDescription": "Standorte, Zonen und Tarife.",
+        "taxRegions": "Steuerräume",
+        "taxRegionsDescription": "Konfigurieren Sie Steuersätze nach Region.",
+        "storeSettings": "Shop-Einstellungen",
+        "storeSettingsDescription": "Shop-Details und Online-Shop."
+      },
+      "discover": {
+        "title": "Produkte entdecken",
+        "preview": "Cross-Sell-Produkte von anderen Partnern oder kopieren Sie sie, um sie selbst herzustellen.",
+        "modalDescription": "Durchsuchen Sie Produkte anderer Partner. Fügen Sie sie direkt für Cross-Selling hinzu oder kopieren Sie sie als Entwürfe, um sie selbst herzustellen.",
+        "shuffle": "Zufällig",
+        "emptyTitle": "Noch keine Produkte zum Entdecken verfügbar.",
+        "emptyDescription": "Produkte erscheinen hier, sobald andere Partner sie veröffentlichen.",
+        "showing": "Zeige 8 von {{total}} Produkten – klicken Sie auf „Zufällig“, um weitere anzuzeigen",
+        "copying": "Wird kopiert...",
+        "addToStore": "Zu meinem Shop hinzufügen",
+        "variant_one": "{{count}} Variante",
+        "variant_other": "{{count}} Varianten",
+        "copySuccess": "Produkt wurde zu Ihrem Shop hinzugefügt",
+        "copySuccessDescription": "\"{{title}}\" wurde als Entwurf kopiert.",
+        "copyFailed": "Fehler beim Kopieren des Produkts",
+        "somethingWrong": "Ein Fehler ist aufgetreten"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Freigegebene Ordner",
+      "description": "Ordner, die mit Ihnen zum Hochladen von Fotos und Dokumenten freigegeben wurden",
+      "breadcrumb": "Freigegebene Ordner",
+      "columns": {
+        "folder": "Ordner",
+        "path": "Pfad",
+        "files": "Dateien",
+        "assignedTo": "Zugewiesen an"
+      },
+      "empty": {
+        "title": "Keine freigegebenen Ordner",
+        "message": "Sie haben noch keine freigegebenen Ordner. Ein Administrator weist Ihnen Ordner zu."
+      }
+    },
+    "content": {
+      "heading": "Inhalte",
+      "columns": {
+        "title": "Titel",
+        "slug": "Slug",
+        "type": "Typ",
+        "status": "Status"
+      },
+      "filters": {
+        "status": "Status",
+        "type": "Typ"
+      },
+      "statusOptions": {
+        "published": "Veröffentlicht",
+        "draft": "Entwurf",
+        "archived": "Archiviert"
+      },
+      "typeOptions": {
+        "home": "Startseite",
+        "about": "Über uns",
+        "contact": "Kontakt",
+        "custom": "Benutzerdefiniert",
+        "service": "Leistung",
+        "portfolio": "Portfolio",
+        "landing": "Landingpage"
+      },
+      "actions": {
+        "creatingPages": "Wird erstellt...",
+        "createPages": "Seiten erstellen",
+        "createStore": "Shop erstellen",
+        "enableStorefront": "Online-Shop aktivieren"
+      },
+      "toast": {
+        "pagesCreated": "Seiten erfolgreich erstellt",
+        "createFailed": "Fehler beim Erstellen der Seiten"
+      },
+      "empty": {
+        "noStoreTitle": "Kein Shop erstellt",
+        "noStoreMessage": "Erstellen Sie zunächst einen Shop, um Inhalte für Ihren Online-Shop zu verwalten.",
+        "notProvisionedTitle": "Online-Shop nicht aktiviert",
+        "notProvisionedMessage": "Aktivieren Sie Ihren Online-Shop in den Shop-Einstellungen, um mit der Verwaltung von Seiten zu beginnen.",
+        "noPagesTitle": "Noch keine Seiten",
+        "noPagesMessage": "Erstellen Sie Ihre Standardseiten, um mit den Inhalten für Ihren Online-Shop zu beginnen.",
+        "noMatches": "Keine Seiten gefunden"
+      }
     }
   }
 }

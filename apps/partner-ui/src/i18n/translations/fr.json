@@ -3193,6 +3193,121 @@
         "notCompleted": "Non terminé",
         "open": "Ouvrir la configuration initiale"
       }
+    },
+    "home": {
+      "dashboard": "Tableau de bord",
+      "welcome": "Bienvenue",
+      "gettingStarted": {
+        "heading": "Premiers pas",
+        "description": "Effectuez ces étapes pour configurer votre espace de travail.",
+        "onboardingLabel": "Finaliser la prise en main",
+        "onboardingDescription": "Ajoutez vos informations et celles de votre équipe.",
+        "open": "Ouvrir",
+        "workspaceLabel": "Choisir le type d’espace de travail",
+        "change": "Modifier",
+        "seller": "Vendeur",
+        "manufacturer": "Fabricant",
+        "individual": "Particulier",
+        "verifyLabel": "Obtenir la vérification",
+        "verifyDescription": "Téléversez les documents justificatifs.",
+        "upload": "Téléverser",
+        "storeLabel": "Créer une boutique",
+        "storeDescription": "Débloquez les produits, les commandes et les canaux de vente.",
+        "create": "Créer",
+        "taskSummary_one": "{{total}} tâche · {{pending}} en attente",
+        "taskSummary_other": "{{total}} tâches · {{pending}} en attente",
+        "viewTasks": "Afficher les tâches"
+      },
+      "quickSettings": {
+        "heading": "Paramètres rapides",
+        "description": "Gérez la configuration de votre boutique.",
+        "paymentProviders": "Fournisseurs de paiement",
+        "paymentProvidersDescription": "Configurez vos modes de paiement.",
+        "shippingSetup": "Configuration de l’expédition",
+        "shippingSetupDescription": "Emplacements, zones et tarifs.",
+        "taxRegions": "Régions fiscales",
+        "taxRegionsDescription": "Configurez les taux de taxe par région.",
+        "storeSettings": "Paramètres de la boutique",
+        "storeSettingsDescription": "Détails de la boutique et vitrine."
+      },
+      "discover": {
+        "title": "Découvrir des produits",
+        "preview": "Proposez en complément des produits d’autres partenaires ou copiez-les pour les produire vous-même.",
+        "modalDescription": "Parcourez les produits d’autres partenaires. Ajoutez-les directement à vos offres complémentaires, ou copiez-les comme brouillons pour les produire vous-même.",
+        "shuffle": "Mélanger",
+        "emptyTitle": "Aucun produit disponible pour découverte pour le moment.",
+        "emptyDescription": "Les produits apparaîtront ici dès qu’un autre partenaire les publiera.",
+        "showing": "Affichage de 8 produits sur {{total}} — cliquez sur « Mélanger » pour en voir davantage",
+        "copying": "Copie en cours…",
+        "addToStore": "Ajouter à ma boutique",
+        "variant_one": "{{count}} variante",
+        "variant_other": "{{count}} variantes",
+        "copySuccess": "Produit ajouté à votre boutique",
+        "copySuccessDescription": "« {{title}} » copié comme brouillon.",
+        "copyFailed": "Échec de la copie du produit",
+        "somethingWrong": "Une erreur s’est produite"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Dossiers partagés",
+      "description": "Dossiers partagés avec vous pour téléverser des photos et des documents",
+      "breadcrumb": "Dossiers partagés",
+      "columns": {
+        "folder": "Dossier",
+        "path": "Chemin",
+        "files": "Fichiers",
+        "assignedTo": "Attribué à"
+      },
+      "empty": {
+        "title": "Aucun dossier partagé",
+        "message": "Vous n’avez pas encore de dossiers partagés. Un administrateur vous en attribuera."
+      }
+    },
+    "content": {
+      "heading": "Contenu",
+      "columns": {
+        "title": "Titre",
+        "slug": "Slug",
+        "type": "Type",
+        "status": "Statut"
+      },
+      "filters": {
+        "status": "Statut",
+        "type": "Type"
+      },
+      "statusOptions": {
+        "published": "Publié",
+        "draft": "Brouillon",
+        "archived": "Archivé"
+      },
+      "typeOptions": {
+        "home": "Accueil",
+        "about": "À propos",
+        "contact": "Contact",
+        "custom": "Personnalisé",
+        "service": "Service",
+        "portfolio": "Portfolio",
+        "landing": "Page de destination"
+      },
+      "actions": {
+        "creatingPages": "Création en cours…",
+        "createPages": "Créer des pages",
+        "createStore": "Créer une boutique",
+        "enableStorefront": "Activer la vitrine"
+      },
+      "toast": {
+        "pagesCreated": "Pages créées avec succès",
+        "createFailed": "Échec de la création des pages"
+      },
+      "empty": {
+        "noStoreTitle": "Aucune boutique créée",
+        "noStoreMessage": "Créez d’abord une boutique pour gérer le contenu de votre vitrine.",
+        "notProvisionedTitle": "Vitrine non activée",
+        "notProvisionedMessage": "Activez votre vitrine dans les paramètres de la boutique pour commencer à gérer les pages.",
+        "noPagesTitle": "Aucune page pour le moment",
+        "noPagesMessage": "Créez vos pages par défaut pour démarrer la gestion du contenu de votre vitrine.",
+        "noMatches": "Aucune page trouvée"
+      }
     }
   }
 }

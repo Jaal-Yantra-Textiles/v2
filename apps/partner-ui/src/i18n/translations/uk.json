@@ -3263,6 +3263,121 @@
         "notCompleted": "Не завершено",
         "open": "Відкрити перші кроки"
       }
+    },
+    "home": {
+      "dashboard": "Панель керування",
+      "welcome": "Ласкаво просимо",
+      "gettingStarted": {
+        "heading": "Початок роботи",
+        "description": "Виконайте ці кроки, щоб налаштувати робоче середовище.",
+        "onboardingLabel": "Завершити ознайомлення",
+        "onboardingDescription": "Додайте свої дані та команду.",
+        "open": "Відкрити",
+        "workspaceLabel": "Обрати тип робочого середовища",
+        "change": "Змінити",
+        "seller": "Продавець",
+        "manufacturer": "Виробник",
+        "individual": "Фізична особа",
+        "verifyLabel": "Отримати верифікацію",
+        "verifyDescription": "Завантажте документи для верифікації.",
+        "upload": "Завантажити",
+        "storeLabel": "Створити магазин",
+        "storeDescription": "Розблокуйте товари, замовлення та канали продажу.",
+        "create": "Створити",
+        "taskSummary_one": "{{total}} завдання · {{pending}} очікує",
+        "taskSummary_other": "{{total}} завдань · {{pending}} очікує",
+        "viewTasks": "Переглянути завдання"
+      },
+      "quickSettings": {
+        "heading": "Швидкі налаштування",
+        "description": "Керуйте конфігурацією магазину.",
+        "paymentProviders": "Платіжні провайдери",
+        "paymentProvidersDescription": "Налаштуйте спосіб отримання платежів.",
+        "shippingSetup": "Налаштування доставки",
+        "shippingSetupDescription": "Локації, зони та тарифи.",
+        "taxRegions": "Податкові регіони",
+        "taxRegionsDescription": "Налаштуйте податкові ставки за регіонами.",
+        "storeSettings": "Налаштування магазину",
+        "storeSettingsDescription": "Деталі магазину та вітрина."
+      },
+      "discover": {
+        "title": "Пошук товарів",
+        "preview": "Крос-селінг товарів інших партнерів або їх копіювання для власного виробництва.",
+        "modalDescription": "Перегляньте товари інших партнерів. Додайте їх до крос-селінгу безпосередньо або скопіюйте як чернетки для власного виробництва.",
+        "shuffle": "Змішати",
+        "emptyTitle": "Ще немає товарів для пошуку.",
+        "emptyDescription": "Товари з’являться тут, коли інші партнери опублікують їх.",
+        "showing": "Показано 8 з {{total}} товарів — натисніть «Змішати», щоб побачити більше",
+        "copying": "Копіювання...",
+        "addToStore": "Додати до мого магазину",
+        "variant_one": "{{count}} модифікація",
+        "variant_other": "{{count}} модифікацій",
+        "copySuccess": "Товар додано до вашого магазину",
+        "copySuccessDescription": "\"{{title}}\" скопійовано як чернетку.",
+        "copyFailed": "Не вдалося скопіювати товар",
+        "somethingWrong": "Щось пішло не так"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Спільні папки",
+      "description": "Папки, спільні з вами для завантаження фотографій і документів",
+      "breadcrumb": "Спільні папки",
+      "columns": {
+        "folder": "Папка",
+        "path": "Шлях",
+        "files": "Файли",
+        "assignedTo": "Призначено"
+      },
+      "empty": {
+        "title": "Спільних папок немає",
+        "message": "У вас ще немає спільних папок. Адміністратор призначить їх вам."
+      }
+    },
+    "content": {
+      "heading": "Контент",
+      "columns": {
+        "title": "Назва",
+        "slug": "Slug",
+        "type": "Тип",
+        "status": "Статус"
+      },
+      "filters": {
+        "status": "Статус",
+        "type": "Тип"
+      },
+      "statusOptions": {
+        "published": "Опубліковано",
+        "draft": "Чернетка",
+        "archived": "Архівовано"
+      },
+      "typeOptions": {
+        "home": "Головна",
+        "about": "Про нас",
+        "contact": "Контакти",
+        "custom": "Нестандартний",
+        "service": "Послуга",
+        "portfolio": "Портфоліо",
+        "landing": "Лендінг"
+      },
+      "actions": {
+        "creatingPages": "Створення...",
+        "createPages": "Створити сторінки",
+        "createStore": "Створити магазин",
+        "enableStorefront": "Увімкнути вітрину"
+      },
+      "toast": {
+        "pagesCreated": "Сторінки успішно створено",
+        "createFailed": "Не вдалося створити сторінки"
+      },
+      "empty": {
+        "noStoreTitle": "Магазин не створено",
+        "noStoreMessage": "Спочатку створіть магазин, щоб керувати контентом вітрини.",
+        "notProvisionedTitle": "Вітрина не увімкнена",
+        "notProvisionedMessage": "Увімкніть вітрину в налаштуваннях магазину, щоб почати керування сторінками.",
+        "noPagesTitle": "Ще немає сторінок",
+        "noPagesMessage": "Створіть базові сторінки, щоб почати працювати з контентом вітрини.",
+        "noMatches": "Сторінки не знайдено"
+      }
     }
   }
 }

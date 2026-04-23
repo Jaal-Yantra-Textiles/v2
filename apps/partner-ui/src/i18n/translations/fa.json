@@ -3334,6 +3334,121 @@
         "notCompleted": "تکمیل‌نشده",
         "open": "باز کردن راه‌اندازی اولیه"
       }
+    },
+    "home": {
+      "dashboard": "داشبورد",
+      "welcome": "خوش‌آمدید",
+      "gettingStarted": {
+        "heading": "شروع کار",
+        "description": "این مراحل را برای پیکربندی فضای کار خود تکمیل کنید.",
+        "onboardingLabel": "تکمیل راه‌اندازی اولیه",
+        "onboardingDescription": "اطلاعات خود و تیم را اضافه کنید.",
+        "open": "باز کردن",
+        "workspaceLabel": "انتخاب نوع فضای کار",
+        "change": "تغییر",
+        "seller": "فروشنده",
+        "manufacturer": "تولیدکننده",
+        "individual": "فردی",
+        "verifyLabel": "تأیید هویت",
+        "verifyDescription": "اسناد تأییدی را آپلود کنید.",
+        "upload": "آپلود",
+        "storeLabel": "ایجاد فروشگاه",
+        "storeDescription": "دسترسی به محصولات، سفارش‌ها و کانال‌های فروش را فعال کنید.",
+        "create": "ایجاد",
+        "taskSummary_one": "{{total}} وظیفه · {{pending}} در انتظار",
+        "taskSummary_other": "{{total}} وظیفه · {{pending}} در انتظار",
+        "viewTasks": "مشاهدهٔ وظایف"
+      },
+      "quickSettings": {
+        "heading": "تنظیمات سریع",
+        "description": "مدیریت پیکربندی فروشگاه شما.",
+        "paymentProviders": "ارائه‌دهندگان پرداخت",
+        "paymentProvidersDescription": "روش دریافت پرداخت‌ها را پیکربندی کنید.",
+        "shippingSetup": "پیکربندی حمل‌ونقل",
+        "shippingSetupDescription": "مکان‌ها، مناطق و نرخ‌ها.",
+        "taxRegions": "مناطق مالیاتی",
+        "taxRegionsDescription": "نرخ‌های مالیاتی را بر اساس منطقه پیکربندی کنید.",
+        "storeSettings": "تنظیمات فروشگاه",
+        "storeSettingsDescription": "جزئیات فروشگاه و صفحهٔ فروشگاه."
+      },
+      "discover": {
+        "title": "کشف محصولات",
+        "preview": "محصولات دیگر شرکا را برای فروش متقابل انتخاب کنید یا آن‌ها را برای تولید شخصی کپی کنید.",
+        "modalDescription": "محصولات دیگر شرکا را مرور کنید. برای فروش متقابل مستقیم به فروشگاه اضافه کنید یا به‌صورت پیش‌نویس برای تولید شخصی کپی کنید.",
+        "shuffle": "تغییر تصادفی",
+        "emptyTitle": "هنوز هیچ محصولی برای کشف وجود ندارد.",
+        "emptyDescription": "محصولات زمانی در اینجا ظاهر می‌شوند که سایر شرکا آن‌ها را منتشر کنند.",
+        "showing": "نمایش ۸ محصول از مجموع {{total}} محصول — برای مشاهدهٔ بیشتر روی «تغییر تصادفی» کلیک کنید",
+        "copying": "در حال کپی‌کردن...",
+        "addToStore": "افزودن به فروشگاه من",
+        "variant_one": "{{count}} نسخه",
+        "variant_other": "{{count}} نسخه",
+        "copySuccess": "محصول به فروشگاه شما اضافه شد",
+        "copySuccessDescription": "\"{{title}}\" به‌عنوان پیش‌نویس کپی شد.",
+        "copyFailed": "کپی محصول با شکست مواجه شد",
+        "somethingWrong": "خطایی رخ داده است"
+      }
+    },
+    "sharedFolders": {
+      "heading": "پوشه‌های اشتراک‌گذاری‌شده",
+      "description": "پوشه‌هایی که برای آپلود عکس‌ها و اسناد با شما اشتراک‌گذاری شده‌اند",
+      "breadcrumb": "پوشه‌های اشتراک‌گذاری‌شده",
+      "columns": {
+        "folder": "پوشه",
+        "path": "مسیر",
+        "files": "فایل‌ها",
+        "assignedTo": "اختصاص‌داده‌شده به"
+      },
+      "empty": {
+        "title": "پوشه‌ای اشتراک‌گذاری‌شده وجود ندارد",
+        "message": "شما هنوز هیچ پوشه‌ای اشتراک‌گذاری‌شده ندارید. یک مدیر پوشه‌ها را به شما اختصاص خواهد داد."
+      }
+    },
+    "content": {
+      "heading": "محتوا",
+      "columns": {
+        "title": "عنوان",
+        "slug": "اسلاگ",
+        "type": "نوع",
+        "status": "وضعیت"
+      },
+      "filters": {
+        "status": "وضعیت",
+        "type": "نوع"
+      },
+      "statusOptions": {
+        "published": "منتشرشده",
+        "draft": "پیش‌نویس",
+        "archived": "بایگانی‌شده"
+      },
+      "typeOptions": {
+        "home": "صفحهٔ اصلی",
+        "about": "دربارهٔ ما",
+        "contact": "تماس با ما",
+        "custom": "سفارشی",
+        "service": "خدمات",
+        "portfolio": "نمونه‌کارها",
+        "landing": "صفحهٔ لندینگ"
+      },
+      "actions": {
+        "creatingPages": "در حال ایجاد...",
+        "createPages": "ایجاد صفحات",
+        "createStore": "ایجاد فروشگاه",
+        "enableStorefront": "فعال‌سازی صفحهٔ فروشگاه"
+      },
+      "toast": {
+        "pagesCreated": "صفحات با موفقیت ایجاد شدند",
+        "createFailed": "ایجاد صفحات با شکست مواجه شد"
+      },
+      "empty": {
+        "noStoreTitle": "فروشگاهی ایجاد نشده است",
+        "noStoreMessage": "ابتدا یک فروشگاه ایجاد کنید تا بتوانید محتوای صفحهٔ فروشگاه خود را مدیریت کنید.",
+        "notProvisionedTitle": "صفحهٔ فروشگاه فعال نشده است",
+        "notProvisionedMessage": "برای شروع مدیریت صفحات، صفحهٔ فروشگاه را در تنظیمات فروشگاه فعال کنید.",
+        "noPagesTitle": "هنوز هیچ صفحه‌ای وجود ندارد",
+        "noPagesMessage": "برای شروع کار با محتوای صفحهٔ فروشگاه، صفحات پیش‌فرض خود را ایجاد کنید.",
+        "noMatches": "صفحه‌ای یافت نشد"
+      }
     }
   }
 }

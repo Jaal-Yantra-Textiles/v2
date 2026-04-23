@@ -3453,6 +3453,121 @@
         "notCompleted": "Nedokončeno",
         "open": "Otevřít nastavení"
       }
+    },
+    "home": {
+      "dashboard": "Nástenka",
+      "welcome": "Vítejte",
+      "gettingStarted": {
+        "heading": "Začínáme",
+        "description": "Dokončete tyto kroky pro nastavení pracovního prostoru.",
+        "onboardingLabel": "Dokončit úvodní průvodce",
+        "onboardingDescription": "Přidejte své údaje a tým.",
+        "open": "Otevřít",
+        "workspaceLabel": "Vyberte typ pracovního prostoru",
+        "change": "Změnit",
+        "seller": "Prodejce",
+        "manufacturer": "Výrobce",
+        "individual": "Fyzická osoba",
+        "verifyLabel": "Získat ověření",
+        "verifyDescription": "Nahrajte ověřovací dokumenty.",
+        "upload": "Nahrát",
+        "storeLabel": "Vytvořit obchod",
+        "storeDescription": "Umožní správu produktů, objednávek a prodejních kanálů.",
+        "create": "Vytvořit",
+        "taskSummary_one": "{{total}} úkol · {{pending}} čekajících",
+        "taskSummary_other": "{{total}} úkoly · {{pending}} čekajících",
+        "viewTasks": "Zobrazit úkoly"
+      },
+      "quickSettings": {
+        "heading": "Rychlé nastavení",
+        "description": "Spravujte konfiguraci svého obchodu.",
+        "paymentProviders": "Platební poskytovatelé",
+        "paymentProvidersDescription": "Nakonfigurujte, jak budete přijímat platby.",
+        "shippingSetup": "Nastavení dopravy",
+        "shippingSetupDescription": "Umístění, zóny a sazby.",
+        "taxRegions": "Daňové oblasti",
+        "taxRegionsDescription": "Nakonfigurujte daňové sazby podle oblasti.",
+        "storeSettings": "Nastavení obchodu",
+        "storeSettingsDescription": "Údaje o obchodě a webové stránky."
+      },
+      "discover": {
+        "title": "Objevte produkty",
+        "preview": "Křížově prodávejte produkty od jiných partnerů nebo je zkopírujte pro vlastní výrobu.",
+        "modalDescription": "Procházejte produkty od jiných partnerů. Přidejte je přímo do křížového prodeje nebo je zkopírujte jako návrhy pro vlastní výrobu.",
+        "shuffle": "Zamíchat",
+        "emptyTitle": "Zatím nejsou k dispozici žádné produkty.",
+        "emptyDescription": "Produkty se zde objeví, jakmile je jiní partneři zveřejní.",
+        "showing": "Zobrazeno 8 z {{total}} produktů – kliknutím na Zamíchat uvidíte další",
+        "copying": "Kopírování...",
+        "addToStore": "Přidat do mého obchodu",
+        "variant_one": "{{count}} varianta",
+        "variant_other": "{{count}} varianty",
+        "copySuccess": "Produkt byl přidán do vašeho obchodu",
+        "copySuccessDescription": "\"{{title}}\" zkopírován jako návrh.",
+        "copyFailed": "Kopírování produktu selhalo",
+        "somethingWrong": "Něco se pokazilo"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Sdílené složky",
+      "description": "Složky sdílené s vámi pro nahrávání fotografií a dokumentů",
+      "breadcrumb": "Sdílené složky",
+      "columns": {
+        "folder": "Složka",
+        "path": "Cesta",
+        "files": "Soubory",
+        "assignedTo": "Přiřazeno komu"
+      },
+      "empty": {
+        "title": "Žádné sdílené složky",
+        "message": "Zatím nemáte žádné sdílené složky. Správce vám složky přiřadí."
+      }
+    },
+    "content": {
+      "heading": "Obsah",
+      "columns": {
+        "title": "Název",
+        "slug": "Slug",
+        "type": "Typ",
+        "status": "Stav"
+      },
+      "filters": {
+        "status": "Stav",
+        "type": "Typ"
+      },
+      "statusOptions": {
+        "published": "Publikováno",
+        "draft": "Návrh",
+        "archived": "Archivováno"
+      },
+      "typeOptions": {
+        "home": "Domů",
+        "about": "O nás",
+        "contact": "Kontakt",
+        "custom": "Vlastní",
+        "service": "Služba",
+        "portfolio": "Portfolio",
+        "landing": "Landing page"
+      },
+      "actions": {
+        "creatingPages": "Vytváření...",
+        "createPages": "Vytvořit stránky",
+        "createStore": "Vytvořit obchod",
+        "enableStorefront": "Povolit webové stránky"
+      },
+      "toast": {
+        "pagesCreated": "Stránky byly úspěšně vytvořeny",
+        "createFailed": "Vytvoření stránek se nezdařilo"
+      },
+      "empty": {
+        "noStoreTitle": "Nebyl vytvořen žádný obchod",
+        "noStoreMessage": "Nejprve vytvořte obchod, abyste mohli spravovat obsah webových stránek.",
+        "notProvisionedTitle": "Webové stránky nejsou povoleny",
+        "notProvisionedMessage": "Povolte webové stránky v nastavení obchodu, abyste mohli začít spravovat stránky.",
+        "noPagesTitle": "Zatím žádné stránky",
+        "noPagesMessage": "Vytvořte své výchozí stránky, abyste mohli začít spravovat obsah webových stránek.",
+        "noMatches": "Žádné stránky nenalezeny"
+      }
     }
   }
 }

@@ -3191,6 +3191,121 @@
         "notCompleted": "ยังไม่เสร็จสมบูรณ์",
         "open": "เปิดการเริ่มต้นใช้งาน"
       }
+    },
+    "home": {
+      "dashboard": "แดชบอร์ด",
+      "welcome": "ยินดีต้อนรับ",
+      "gettingStarted": {
+        "heading": "เริ่มต้นใช้งาน",
+        "description": "ทำตามขั้นตอนเหล่านี้เพื่อตั้งค่าพื้นที่ทำงานของคุณ",
+        "onboardingLabel": "เสร็จสิ้นการแนะนำการใช้งาน",
+        "onboardingDescription": "เพิ่มข้อมูลส่วนตัวและทีมของคุณ",
+        "open": "เปิด",
+        "workspaceLabel": "เลือกประเภทพื้นที่ทำงาน",
+        "change": "เปลี่ยน",
+        "seller": "ผู้ขาย",
+        "manufacturer": "ผู้ผลิต",
+        "individual": "บุคคลทั่วไป",
+        "verifyLabel": "รับการยืนยันตัวตน",
+        "verifyDescription": "อัปโหลดเอกสารเพื่อยืนยันตัวตน",
+        "upload": "อัปโหลด",
+        "storeLabel": "สร้างร้านค้า",
+        "storeDescription": "ปลดล็อกฟีเจอร์สินค้า คำสั่งซื้อ และช่องทางการขาย",
+        "create": "สร้าง",
+        "taskSummary_one": "{{total}} งาน · {{pending}} งานที่ค้างอยู่",
+        "taskSummary_other": "{{total}} งาน · {{pending}} งานที่ค้างอยู่",
+        "viewTasks": "ดูงานทั้งหมด"
+      },
+      "quickSettings": {
+        "heading": "การตั้งค่าด่วน",
+        "description": "จัดการการกำหนดค่าร้านค้าของคุณ",
+        "paymentProviders": "ผู้ให้บริการชำระเงิน",
+        "paymentProvidersDescription": "กำหนดวิธีการรับชำระเงินของคุณ",
+        "shippingSetup": "การตั้งค่าการจัดส่ง",
+        "shippingSetupDescription": "สถานที่ โซน และอัตราค่าจัดส่ง",
+        "taxRegions": "เขตภาษี",
+        "taxRegionsDescription": "กำหนดอัตราภาษีตามภูมิภาค",
+        "storeSettings": "การตั้งค่าร้านค้า",
+        "storeSettingsDescription": "รายละเอียดร้านค้าและหน้าเว็บร้านค้า"
+      },
+      "discover": {
+        "title": "ค้นหาสินค้า",
+        "preview": "ขายสินค้าแบบข้ามแบรนด์จากพันธมิตรรายอื่น หรือคัดลอกสินค้าเหล่านั้นมาผลิตเอง",
+        "modalDescription": "เรียกดูสินค้าจากพันธมิตรรายอื่น เพิ่มลงในรายการขายข้ามแบรนด์โดยตรง หรือคัดลอกเป็นฉบับร่างเพื่อผลิตเอง",
+        "shuffle": "สุ่มใหม่",
+        "emptyTitle": "ยังไม่มีสินค้าให้ค้นหา",
+        "emptyDescription": "สินค้าจะปรากฏที่นี่เมื่อพันธมิตรรายอื่นเผยแพร่สินค้า",
+        "showing": "แสดงสินค้า 8 รายการจากทั้งหมด {{total}} รายการ — คลิก สุ่มใหม่ เพื่อดูเพิ่มเติม",
+        "copying": "กำลังคัดลอก...",
+        "addToStore": "เพิ่มลงในร้านค้าของฉัน",
+        "variant_one": "{{count}} รุ่น",
+        "variant_other": "{{count}} รุ่น",
+        "copySuccess": "เพิ่มสินค้าลงในร้านค้าของคุณแล้ว",
+        "copySuccessDescription": "คัดลอก \"{{title}}\" เป็นฉบับร่างแล้ว",
+        "copyFailed": "ไม่สามารถคัดลอกสินค้าได้",
+        "somethingWrong": "เกิดข้อผิดพลาดบางอย่าง"
+      }
+    },
+    "sharedFolders": {
+      "heading": "โฟลเดอร์ที่แชร์",
+      "description": "โฟลเดอร์ที่แชร์ให้คุณเพื่ออัปโหลดรูปภาพและเอกสาร",
+      "breadcrumb": "โฟลเดอร์ที่แชร์",
+      "columns": {
+        "folder": "โฟลเดอร์",
+        "path": "เส้นทาง",
+        "files": "ไฟล์",
+        "assignedTo": "มอบหมายให้"
+      },
+      "empty": {
+        "title": "ไม่มีโฟลเดอร์ที่แชร์",
+        "message": "คุณยังไม่มีโฟลเดอร์ที่แชร์ใดๆ ผู้ดูแลระบบจะมอบหมายโฟลเดอร์ให้คุณ"
+      }
+    },
+    "content": {
+      "heading": "เนื้อหา",
+      "columns": {
+        "title": "ชื่อเรื่อง",
+        "slug": "สแล็ก",
+        "type": "ประเภท",
+        "status": "สถานะ"
+      },
+      "filters": {
+        "status": "สถานะ",
+        "type": "ประเภท"
+      },
+      "statusOptions": {
+        "published": "เผยแพร่แล้ว",
+        "draft": "ฉบับร่าง",
+        "archived": "เก็บถาวร"
+      },
+      "typeOptions": {
+        "home": "หน้าแรก",
+        "about": "เกี่ยวกับเรา",
+        "contact": "ติดต่อเรา",
+        "custom": "กำหนดเอง",
+        "service": "บริการ",
+        "portfolio": "ผลงาน",
+        "landing": "หน้า Landing"
+      },
+      "actions": {
+        "creatingPages": "กำลังสร้าง...",
+        "createPages": "สร้างหน้า",
+        "createStore": "สร้างร้านค้า",
+        "enableStorefront": "เปิดใช้งานหน้าเว็บร้านค้า"
+      },
+      "toast": {
+        "pagesCreated": "สร้างหน้าเรียบร้อยแล้ว",
+        "createFailed": "ไม่สามารถสร้างหน้าได้"
+      },
+      "empty": {
+        "noStoreTitle": "ยังไม่ได้สร้างร้านค้า",
+        "noStoreMessage": "โปรดสร้างร้านค้าก่อน เพื่อจัดการเนื้อหาหน้าเว็บร้านค้า",
+        "notProvisionedTitle": "ยังไม่ได้เปิดใช้งานหน้าเว็บร้านค้า",
+        "notProvisionedMessage": "เปิดใช้งานหน้าเว็บร้านค้าใน การตั้งค่าร้านค้า เพื่อเริ่มจัดการหน้า",
+        "noPagesTitle": "ยังไม่มีหน้าใดๆ",
+        "noPagesMessage": "สร้างหน้าเริ่มต้นของคุณเพื่อเริ่มต้นจัดการเนื้อหาหน้าเว็บร้านค้า",
+        "noMatches": "ไม่พบหน้าใดๆ"
+      }
     }
   }
 }
