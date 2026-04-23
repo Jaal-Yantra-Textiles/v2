@@ -122,8 +122,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 /**
  * POST /admin/production-runs/:id
- * Update a production run. Only allowed before the run has started (accepted_at).
- * Editable fields: quantity, role, run_type
+ * Update a production run. quantity/role/run_type are only allowed before the
+ * run is accepted/started. Cost fields (partner_cost_estimate, cost_type) are
+ * editable by admins any time except cancelled, since admins may need to
+ * record/correct cost after the partner has already begun work.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -131,27 +133,52 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const run = await productionRunService.retrieveProductionRun(id) as any
 
-  // Block edits after the run has been accepted/started
-  if (run.accepted_at || run.started_at) {
+  if (run.status === "cancelled") {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
-      "Cannot edit a production run after it has been accepted or started"
-    )
-  }
-
-  if (run.status === "completed" || run.status === "cancelled") {
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      `Cannot edit a ${run.status} production run`
+      "Cannot edit a cancelled production run"
     )
   }
 
   const body = req.body as Record<string, any>
   const update: Record<string, any> = {}
 
-  if (body.quantity !== undefined) update.quantity = Number(body.quantity)
-  if (body.role !== undefined) update.role = body.role
-  if (body.run_type !== undefined) update.run_type = body.run_type
+  const touchesStructural =
+    body.quantity !== undefined ||
+    body.role !== undefined ||
+    body.run_type !== undefined
+
+  if (touchesStructural) {
+    if (run.accepted_at || run.started_at) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Cannot edit quantity, role, or run_type after the run has been accepted or started"
+      )
+    }
+    if (run.status === "completed") {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Cannot edit a completed production run"
+      )
+    }
+    if (body.quantity !== undefined) update.quantity = Number(body.quantity)
+    if (body.role !== undefined) update.role = body.role
+    if (body.run_type !== undefined) update.run_type = body.run_type
+  }
+
+  if (body.partner_cost_estimate !== undefined) {
+    update.partner_cost_estimate =
+      body.partner_cost_estimate === null ? null : Number(body.partner_cost_estimate)
+  }
+  if (body.cost_type !== undefined) {
+    if (body.cost_type !== "total" && body.cost_type !== "per_unit") {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "cost_type must be 'total' or 'per_unit'"
+      )
+    }
+    update.cost_type = body.cost_type
+  }
 
   if (Object.keys(update).length === 0) {
     return res.json({ production_run: run, message: "No changes" })
