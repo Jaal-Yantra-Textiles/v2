@@ -110,9 +110,17 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
 const ProductionRunRow = ({ run, partnerNameMap = {} }: { run: any; partnerNameMap?: Record<string, string> }) => {
   const id = String(run.id)
   const status = String(run.status || "-")
+  const dispatchState = String(run.dispatch_state || "idle")
   const partnerId = run.partner_id ? String(run.partner_id) : "-"
   const quantity = run.quantity ?? "-"
   const canCancel = !["completed", "cancelled"].includes(status)
+  // Hide once the dispatch workflow has progressed past idle OR the run has
+  // moved past "approved" — stale list data sometimes leaves status=approved
+  // after a dispatch, so dispatch_state is the authoritative signal.
+  const canDispatch =
+    status === "approved" &&
+    dispatchState === "idle" &&
+    !run.dispatch_completed_at
 
   const cancelRun = useCancelProductionRun(id)
 
@@ -153,7 +161,7 @@ const ProductionRunRow = ({ run, partnerNameMap = {} }: { run: any; partnerNameM
             </div>
             <div className="flex items-center gap-2">
               <Badge color={statusColor(status)}>{status.replace(/_/g, " ")}</Badge>
-              {status === "approved" && (
+              {canDispatch && (
                 <Link
                   to={`/production-runs/${id}/dispatch`}
                   onClick={(e) => e.stopPropagation()}

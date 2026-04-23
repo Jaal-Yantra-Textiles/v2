@@ -97,9 +97,8 @@ const DispatchProductionRunDrawerForm = () => {
     : null
 
   return (
-    <RouteDrawer.Form form={null as any}>
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <RouteDrawer.Header>
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <RouteDrawer.Header>
           <Heading>Dispatch Production Run</Heading>
         </RouteDrawer.Header>
 
@@ -260,9 +259,8 @@ const DispatchProductionRunDrawerForm = () => {
               </Button>
             )}
           </div>
-        </RouteDrawer.Footer>
-      </div>
-    </RouteDrawer.Form>
+      </RouteDrawer.Footer>
+    </div>
   )
 }
 

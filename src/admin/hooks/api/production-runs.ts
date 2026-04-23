@@ -299,12 +299,20 @@ export const useApproveProductionRun = (
   })
 }
 
+export type AdminUpdateProductionRunPayload = {
+  quantity?: number
+  role?: string
+  run_type?: string
+  partner_cost_estimate?: number | null
+  cost_type?: "total" | "per_unit"
+}
+
 export const useUpdateProductionRun = (
   runId: string,
   options?: UseMutationOptions<
     { production_run: AdminProductionRun },
     FetchError,
-    { quantity?: number; role?: string; run_type?: string }
+    AdminUpdateProductionRunPayload
   >
 ) => {
   const queryClient = useQueryClient()
