@@ -4,16 +4,15 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z as zod } from "@medusajs/framework/zod"
 
-import { HttpTypes } from "@medusajs/types"
 import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
-import { useUpdateUser } from "../../../../../hooks/api/users"
+import { PartnerUser, useUpdateMe } from "../../../../../hooks/api/users"
 import { languages } from "../../../../../i18n/languages"
 import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
 type EditProfileProps = {
-  user: HttpTypes.AdminUser
+  user: PartnerUser
   // usageInsights: boolean
 }
 
@@ -24,6 +23,16 @@ const EditProfileSchema = zod.object({
   // usage_insights: zod.boolean(),
 })
 
+const resolveInitialLanguage = (
+  user: PartnerUser,
+  currentI18nLanguage: string
+) => {
+  const candidate = user.preferred_language || currentI18nLanguage
+  return (
+    languages.find((lang) => lang.code === candidate)?.code ?? "en"
+  )
+}
+
 export const EditProfileForm = ({ user }: EditProfileProps) => {
   const { t, i18n } = useTranslation()
   const { handleSuccess } = useRouteModal()
@@ -31,20 +40,20 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
     defaultValues: {
       first_name: user.first_name ?? "",
       last_name: user.last_name ?? "",
-      language:
-        languages.find((lang) => lang.code === i18n.language)?.code ?? "en",
+      language: resolveInitialLanguage(user, i18n.language),
       // usage_insights: usageInsights,
     },
     resolver: zodResolver(EditProfileSchema),
   })
 
-  const { mutateAsync, isPending } = useUpdateUser(user.id!)
+  const { mutateAsync, isPending } = useUpdateMe()
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await mutateAsync(
       {
         first_name: values.first_name,
         last_name: values.last_name,
+        preferred_language: values.language,
       },
       {
         onError: (error) => {

@@ -9,7 +9,10 @@ const PartnerAdmin = model.define("partner_admin", {
     last_name: model.text().searchable(),
     email: model.text().unique().searchable(),
     phone: model.text().nullable(),
-    
+
+    // UI preferences
+    preferred_language: model.text().nullable(),
+
     // Authentication and status
     password_hash: model.text().nullable(),
     is_active: model.boolean().default(true),

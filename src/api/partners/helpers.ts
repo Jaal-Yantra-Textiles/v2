@@ -12,7 +12,8 @@ export const refetchPartner = async (
             id: partnerId
         },
         fields: ["*", "admins.id", "admins.first_name", "admins.last_name", "admins.email",
-            "admins.phone", "admins.role", "admins.permissions", "admins.metadata", 
+            "admins.phone", "admins.role", "admins.permissions", "admins.metadata",
+            "admins.preferred_language",
             "admins.created_at", "admins.updated_at"
         ]
     })

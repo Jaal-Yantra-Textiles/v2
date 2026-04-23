@@ -24,6 +24,7 @@ export type PartnerAdmin = {
   email?: string | null
   phone?: string | null
   role?: string | null
+  preferred_language?: string | null
   metadata?: Record<string, any> | null
 }
 
@@ -194,6 +195,38 @@ export const useUpdateUser = (
       // We invalidate the me query in case the user updates their own profile
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.me() })
 
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export type UpdateMePayload = {
+  first_name?: string | null
+  last_name?: string | null
+  phone?: string | null
+  preferred_language?: string | null
+}
+
+type UpdateMeResponse = {
+  admin: PartnerAdmin
+}
+
+export const useUpdateMe = (
+  options?: UseMutationOptions<
+    UpdateMeResponse,
+    FetchError,
+    UpdateMePayload
+  >
+) => {
+  return useMutation({
+    mutationFn: (payload) =>
+      sdk.client.fetch<UpdateMeResponse>("/partners/me", {
+        method: "PATCH",
+        body: payload,
+      }),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: usersQueryKeys.me() })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

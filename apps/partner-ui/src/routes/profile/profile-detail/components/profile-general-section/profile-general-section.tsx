@@ -72,10 +72,12 @@ export const ProfileGeneralSection = ({ user }: ProfileGeneralSectionProps) => {
       </div>
       <div className="grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" leading="compact" weight="plus">
-          Onboarding
+          {t("profile.fields.onboardingLabel")}
         </Text>
         <StatusBadge color={onboardingStatus.completed ? "green" : "red"} className="w-fit">
-          {onboardingStatus.completed ? "Completed" : "Not completed"}
+          {onboardingStatus.completed
+            ? t("profile.fields.onboardingCompleted")
+            : t("profile.fields.onboardingNotCompleted")}
         </StatusBadge>
       </div>
       {/* TODO: Do we want to implement usage insights in V2? */}

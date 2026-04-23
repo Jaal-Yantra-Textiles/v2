@@ -9101,11 +9101,26 @@
             "languageLabel": {
               "type": "string"
             },
+            "onboardingLabel": {
+              "type": "string"
+            },
+            "onboardingCompleted": {
+              "type": "string"
+            },
+            "onboardingNotCompleted": {
+              "type": "string"
+            },
             "usageInsightsLabel": {
               "type": "string"
             }
           },
-          "required": ["languageLabel", "usageInsightsLabel"],
+          "required": [
+            "languageLabel",
+            "onboardingLabel",
+            "onboardingCompleted",
+            "onboardingNotCompleted",
+            "usageInsightsLabel"
+          ],
           "additionalProperties": false
         },
         "edit": {
@@ -9351,10 +9366,10 @@
         "removeLocaleWarning_other": {
           "type": "string"
         },
-        "localeAlreadyAdded": {
+        "currencyAlreadyAdded": {
           "type": "string"
         },
-        "currencyAlreadyAdded": {
+        "localeAlreadyAdded": {
           "type": "string"
         },
         "edit": {
@@ -9373,10 +9388,10 @@
             "update": {
               "type": "string"
             },
-            "localesUpdated": {
+            "currenciesUpdated": {
               "type": "string"
             },
-            "currenciesUpdated": {
+            "localesUpdated": {
               "type": "string"
             },
             "currenciesRemoved": {
@@ -9391,8 +9406,8 @@
           },
           "required": [
             "update",
-            "localesUpdated",
             "currenciesUpdated",
+            "localesUpdated",
             "currenciesRemoved",
             "localesRemoved",
             "updatedTaxInclusivitySuccessfully"

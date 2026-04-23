@@ -10,6 +10,7 @@ import {
   faIR,
   fr,
   he,
+  hi,
   hu,
   id,
   it,
@@ -80,6 +81,12 @@ export const languages: Language[] = [
     display_name: "עברית",
     ltr: false,
     date_locale: he,
+  },
+  {
+    code: "hi",
+    display_name: "हिन्दी",
+    ltr: true,
+    date_locale: hi,
   },
   {
     code: "hu",
