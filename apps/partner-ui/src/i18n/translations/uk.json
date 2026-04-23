@@ -2509,7 +2509,10 @@
         "placeholder": "неправильний_розмір",
         "tooltip": "Значення має бути унікальним ідентифікатором для причини повернення."
       },
-      "label": { "label": "Мітка", "placeholder": "Неправильний розмір" },
+      "label": {
+        "label": "Мітка",
+        "placeholder": "Неправильний розмір"
+      },
       "description": {
         "label": "Опис",
         "placeholder": "Клієнт отримав неправильний розмір"
@@ -2852,5 +2855,414 @@
     "minutes_other": "Хвилини",
     "seconds_one": "Секунда",
     "seconds_other": "Секунди"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Магазин",
+      "regions": "Регіони",
+      "locationsShipping": "Локації та доставка",
+      "salesChannels": "Канали продажу",
+      "taxRegions": "Податкові регіони",
+      "returnReasons": "Причини повернення",
+      "refundReasons": "Причини повернення коштів",
+      "onboarding": "Перші кроки",
+      "people": "Команда",
+      "payments": "Платежі",
+      "paymentConfig": "Налаштування платежів",
+      "planBilling": "Тарифний план та оплата"
+    },
+    "paymentSubmissions": {
+      "heading": "Заявки на оплату",
+      "description": "Надсилайте завершені дизайни або завдання для оплати",
+      "newSubmission": "Нова заявка",
+      "breadcrumb": "Заявки на оплату",
+      "columns": {
+        "submission": "Заявка",
+        "status": "Статус",
+        "amount": "Сума",
+        "items": "Елементи",
+        "submitted": "Надіслано",
+        "reviewed": "Переглянуто",
+        "design_one": "{{count}} дизайн",
+        "design_other": "{{count}} дизайни",
+        "task_one": "{{count}} завдання",
+        "task_other": "{{count}} завдань"
+      },
+      "empty": {
+        "title": "Ще немає заявок на оплату",
+        "message": "Надішліть свої завершені дизайни для оплати, натиснувши «Нова заявка»."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Замовлення на інвентар",
+      "empty": "Немає замовлень на інвентар",
+      "filters": {
+        "status": "Статус",
+        "partnerStatus": "Статус партнера"
+      },
+      "statusOptions": {
+        "pending": "Очікує",
+        "processing": "Обробляється",
+        "shipped": "Відправлено",
+        "delivered": "Доставлено",
+        "cancelled": "Скасовано",
+        "partial": "Частково"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Статус партнера",
+        "status": "Статус",
+        "updated": "Оновлено",
+        "created": "Створено"
+      },
+      "detail": {
+        "heading": "Замовлення на інвентар",
+        "missingId": "Відсутній ідентифікатор замовлення",
+        "orderId": "Ідентифікатор замовлення",
+        "status": "Статус",
+        "partnerStatus": "Статус партнера",
+        "linesHeading": "Позиції",
+        "linesDescription": "Запитано vs виконано",
+        "noLines": "Немає позицій",
+        "linePrefix": "Позиція",
+        "columns": {
+          "item": "Товар",
+          "requested": "Запитано",
+          "fulfilled": "Виконано",
+          "remaining": "Залишилось"
+        },
+        "activities": {
+          "title": "Дії",
+          "completed": "Завершено",
+          "pending": "Очікує"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Ласкаво просимо! Давайте налаштуємо ваш робочий простір",
+      "steps": {
+        "about": "Про вас",
+        "logo": "Логотип і бренд",
+        "people": "Команда"
+      },
+      "businessTypes": {
+        "manufacturer": "Виробник / Постачальник",
+        "seller": "Продавець / Ритейлер",
+        "designer": "Дизайнер / Творець",
+        "wholesaler": "Оптова компанія / Дистриб’ютор",
+        "artisan": "Майстер / Ремісник",
+        "individual": "Фізична особа (модель, фрілансер тощо)",
+        "other": "Інше"
+      },
+      "about": {
+        "heading": "Розкажіть нам про ваш бізнес",
+        "description": "Це допоможе нам персоналізувати ваш досвід і зв’язати вас з потрібними інструментами.",
+        "businessName": "Назва бізнесу",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "Що найкраще описує ваш бізнес?",
+        "businessTypePlaceholder": "Виберіть тип бізнесу",
+        "descriptionLabel": "Короткий опис",
+        "descriptionPlaceholder": "Що ви виробляєте або продаєте? Хто ваші клієнти?",
+        "website": "Веб-сайт",
+        "phone": "Телефон",
+        "optional": "(необов’язково)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Завантажте логотип вашої компанії",
+        "description": "Він з’явиться у вашому профілі партнера та на веб-сайті. Ви можете змінити його пізніше.",
+        "clickToChange": "Натисніть, щоб змінити",
+        "clickToUpload": "Натисніть, щоб завантажити, або перетягніть сюди",
+        "fileTypes": "SVG, PNG, JPG (макс. 5 МБ)",
+        "currentLogo": "Поточний логотип"
+      },
+      "team": {
+        "heading": "Додайте членів команди",
+        "description": "Запросіть людей, які допомагатимуть вам управляти магазином і товарами. Цей крок необов’язковий — ви можете додати членів команди пізніше.",
+        "success": "Перші кроки успішно завершено!",
+        "firstName": "Ім’я",
+        "firstNamePlaceholder": "Іван",
+        "lastName": "Прізвище",
+        "lastNamePlaceholder": "Петренко",
+        "email": "Електронна пошта",
+        "emailPlaceholder": "ivan@company.com",
+        "remove": "Видалити",
+        "addAnother": "+ Додати ще одну людину"
+      },
+      "footer": {
+        "skip": "Пропустити зараз",
+        "skipShort": "Пропустити",
+        "stepCount": "Крок {{current}} з {{total}}",
+        "back": "Назад",
+        "continue": "Продовжити",
+        "complete": "Завершити налаштування"
+      },
+      "toast": {
+        "completed": "Перші кроки завершено"
+      },
+      "errors": {
+        "unknown": "Сталася невідома помилка"
+      }
+    },
+    "plan": {
+      "heading": "Тарифний план та оплата",
+      "description": "Виберіть план, який підходить вашому бізнесу",
+      "labels": {
+        "plan": "План",
+        "price": "Ціна",
+        "period": "Період",
+        "payment": "Оплата"
+      },
+      "providerPayu": "PayU (Індія)",
+      "providerStripe": "Stripe (міжнародний)",
+      "cancelSubscription": "Скасувати підписку",
+      "noSubscription": "Активна підписка відсутня. Оберіть план нижче, щоб розпочати.",
+      "chooseHeading": "Оберіть свій план",
+      "chooseDescription": "Усі плани включають необмежену кількість товарів, облікових записів співробітників і живої доставки. Продажі не обмежені.",
+      "badges": {
+        "current": "Поточний",
+        "popular": "Популярний"
+      },
+      "currentPlan": "Поточний план",
+      "cta": {
+        "getStarted": "Розпочати",
+        "downgrade": "Знизити",
+        "upgrade": "Підвищити"
+      },
+      "whatsIncluded": "Що входить",
+      "features": {
+        "unlimitedProducts": "Необмежена кількість товарів",
+        "unlimitedSelling": "Необмежені продажі",
+        "unlimitedStaff": "Необмежена кількість облікових записів співробітників",
+        "storefrontSource": "Вихідний код веб-сайту",
+        "customDomain": "Власний домен",
+        "jytEmails": "Електронні листи JYT",
+        "liveShipping": "Жива доставка (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "комісія за обробку платежів",
+        "analyticsAdvanced": "Розширені аналітики",
+        "analyticsBasic": "Базові аналітики",
+        "aiChatSupport": "Підтримка через AI-чат",
+        "customModules": "Нестандартні модулі",
+        "customApis": "Нестандартні API",
+        "prioritySupport": "Пріоритетна підтримка",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "Порівняння функцій",
+        "featureColumn": "Функція",
+        "priceRow": "Ціна",
+        "rows": {
+          "unlimitedProducts": "Товари",
+          "unlimitedSelling": "Продажі",
+          "unlimitedStaff": "Облікові записи співробітників",
+          "storefrontSource": "Вихідний код веб-сайту",
+          "customDomain": "Власний домен",
+          "themeCustomization": "Редактор тем",
+          "jytEmails": "Електронні листи JYT",
+          "liveShipping": "Жива доставка",
+          "paymentFee": "Комісія за оплату",
+          "analytics": "Аналітика",
+          "aiChatSupport": "Підтримка через AI-чат",
+          "customModules": "Нестандартні модулі",
+          "customApis": "Нестандартні API",
+          "prioritySupport": "Пріоритетна підтримка",
+          "whiteLabel": "White label"
+        },
+        "values": {
+          "unlimited": "Необмежено",
+          "yes": "Так",
+          "no": "Ні",
+          "analyticsAdvanced": "Розширені",
+          "analyticsBasic": "Базові",
+          "free": "Безкоштовно"
+        }
+      },
+      "paymentInfo": "Платежі обробляються через {{provider}}. Комісія за обробку платежів стягується лише при оплаті клієнтами через шлюзи оплати JYT. Ви можете надати свої облікові дані платформи оплати, щоб уникнути комісії платформи.",
+      "prompts": {
+        "switchTitle": "Перейти на {{plan}}",
+        "switchPaidDescription": "Вам буде стягнуто {{price}}/{{interval}} через {{provider}}. Ваш поточний план буде замінено.",
+        "switchFreeDescription": "Ви перейдете на безкоштовний план. Ваш поточний план буде скасовано.",
+        "payWith": "Оплатити через {{provider}}",
+        "switch": "Перейти",
+        "cancel": "Скасувати",
+        "cancelTitle": "Скасувати підписку",
+        "cancelDescription": "Ви впевнені? Доступ залишиться до кінця поточного розрахункового періоду. Ви можете повторно оформити підписку в будь-який час.",
+        "cancelConfirm": "Скасувати підписку",
+        "keepPlan": "Залишити план"
+      },
+      "toast": {
+        "paymentSuccess": "Оплата успішна! Ваш план активовано.",
+        "paymentFailed": "Помилка оплати. Спробуйте ще раз.",
+        "paymentCanceled": "Оплату скасовано.",
+        "paymentError": "Помилка оплати: {{message}}",
+        "paymentUnknown": "Невідома помилка",
+        "switchedTo": "Перейдено на {{plan}}",
+        "switchFailed": "Не вдалося змінити план",
+        "canceled": "Підписку скасовано",
+        "cancelFailed": "Не вдалося скасувати",
+        "somethingWrong": "Щось пішло не так"
+      }
+    },
+    "people": {
+      "heading": "Члени команди",
+      "description": "Керуйте людьми в вашій організації. Адміністратори можуть увійти в панель керування.",
+      "addPerson": "Додати людину",
+      "empty": "Ще немає членів команди. Додайте першу людину вище.",
+      "columns": {
+        "name": "Ім’я",
+        "email": "Електронна пошта",
+        "access": "Доступ",
+        "accessDashboard": "Панель керування",
+        "accessTeamOnly": "Лише команда",
+        "role": "Роль",
+        "added": "Додано"
+      },
+      "drawer": {
+        "title": "Додати людину",
+        "description": "Додайте члена команди до вашої організації.",
+        "emailLabel": "Електронна пошта *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "Ім’я",
+        "firstNamePlaceholder": "Іван",
+        "lastName": "Прізвище",
+        "lastNamePlaceholder": "Петренко",
+        "phone": "Телефон",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Створити як адміністратора панелі керування",
+        "adminHint": "Ця людина отримає облікові дані для входу та матиме доступ до панелі керування партнера.",
+        "teamHint": "Ця людина буде вказана як член команди, але не матиме доступу до панелі керування.",
+        "role": "Роль",
+        "roleAdmin": "Адміністратор — повний доступ",
+        "roleManager": "Менеджер — товари та замовлення",
+        "roleOwner": "Власник — повний доступ + оплата",
+        "password": "Пароль",
+        "passwordPlaceholder": "Залиште порожнім для автоматичної генерації",
+        "passwordHint": "Генерується автоматично, якщо залишити порожнім. Включено у привітному листі.",
+        "freeTextRole": "Роль",
+        "freeTextRolePlaceholder": "напр., Дизайнер, Ткач, Контролер якості",
+        "freeTextRoleHint": "Вільний текст ролі для організаційних цілей.",
+        "cancel": "Скасувати",
+        "addAdmin": "Додати адміністратора"
+      },
+      "toast": {
+        "emailRequired": "Електронна пошта обов’язкова",
+        "adminAdded": "Адміністратора успішно додано",
+        "adminAddedDescription": "Привітний лист надіслано на {{email}}. Тимчасовий пароль: {{password}}",
+        "addAdminFailed": "Не вдалося додати адміністратора",
+        "personAdded": "Людину додано",
+        "personAddedDescription": "{{email}} додано як {{role}}. У нього/неї немає доступу до панелі керування.",
+        "addPersonFailed": "Не вдалося додати людину"
+      }
+    },
+    "payments": {
+      "heading": "Платежі",
+      "subheading": "Способи оплати",
+      "create": "Створити",
+      "recentHeading": "Останні платежі",
+      "recentDescription": "Перегляньте останні платежі.",
+      "emptyMethods": "Немає способів оплати",
+      "emptyPayments": "Немає платежів",
+      "columns": {
+        "type": "Тип",
+        "accountName": "Назва рахунку",
+        "details": "Деталі",
+        "bank": "Банк",
+        "walletPrefix": "Гаманець",
+        "added": "Додано",
+        "paymentId": "Ідентифікатор платежу",
+        "amount": "Сума",
+        "currency": "Валюта"
+      },
+      "typeLabels": {
+        "bankAccount": "Банківський рахунок",
+        "cashAccount": "Готівковий рахунок",
+        "digitalWallet": "Цифровий гаманець"
+      },
+      "form": {
+        "heading": "Додати спосіб оплати",
+        "description": "Додайте посилання на спосіб виплати.",
+        "missingPartner": "Відсутній контекст партнера.",
+        "type": "Тип",
+        "typePlaceholder": "Виберіть тип",
+        "accountName": "Назва рахунку",
+        "accountNumber": "Номер рахунку",
+        "bankName": "Назва банку",
+        "ifsc": "IFSC",
+        "walletId": "Ідентифікатор гаманця",
+        "cancel": "Скасувати",
+        "create": "Створити"
+      },
+      "toast": {
+        "created": "Спосіб оплати створено"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Облікові дані платформи оплати",
+      "subHeading": "Ваші облікові дані платформи оплати. Вони замінюють стандартні параметри платформи для вашого магазину.",
+      "empty": {
+        "heading": "Облікові дані платформи оплати не налаштовано",
+        "description": "Ви використовуєте спільні облікові дані платформи. Додайте власні, щоб використовувати власні торгові рахунки."
+      },
+      "columns": {
+        "provider": "Платформа",
+        "status": "Статус",
+        "statusActive": "Активно",
+        "statusInactive": "Неактивно",
+        "credentials": "Облікові дані",
+        "added": "Додано"
+      },
+      "removePrompt": {
+        "description": "Видалити ваші облікові дані {{provider}}? Ваш магазин повернеться до спільних облікових даних платформи."
+      },
+      "toast": {
+        "removed": "Облікові дані видалено",
+        "removeFailed": "Не вдалося видалити",
+        "saved": "Облікові дані платформи оплати збережено",
+        "saveFailed": "Не вдалося зберегти облікові дані"
+      },
+      "form": {
+        "heading": "Додати облікові дані платформи оплати",
+        "description": "Налаштуйте власні облікові дані платформи оплати. Це замінює стандартні параметри платформи для вашого магазину.",
+        "provider": "Платформа",
+        "merchantKey": "Ключ продавця",
+        "merchantKeyPlaceholder": "Ваш ключ PayU для продавця",
+        "merchantSalt": "Сіль продавця",
+        "merchantSaltPlaceholder": "Ваша сіль PayU для продавця",
+        "mode": "Режим",
+        "modeTest": "Тестовий",
+        "modeLive": "Реальний",
+        "stripeApiKey": "API-ключ Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... або sk_test_...",
+        "stripeApiKeyHint": "Ваш секретний ключ Stripe з панелі керування Stripe."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Тип бізнесу",
+        "description": "Оберіть, як ви використовуєте JYT. Це визначає елементи навігації у вашій бічній панелі.",
+        "active": "Активно",
+        "seller": {
+          "title": "Продавець",
+          "description": "Продавайте товари онлайн. Переглядайте Товари, Замовлення, Клієнтів, Категорії та Колекції."
+        },
+        "manufacturer": {
+          "title": "Виробник",
+          "description": "Розробляйте та виробляйте текстиль. Переглядайте Дизайни, Замовлення на інвентар, Виробничі партії, Завдання тощо."
+        },
+        "individual": {
+          "title": "Фізична особа",
+          "description": "Виконуйте призначені завдання. Переглядайте Завдання, Спільні папки та Заявки на оплату."
+        }
+      },
+      "status": {
+        "heading": "Перші кроки",
+        "description": "Відстежуйте завершення перших кроків і повторно відкрийте процес.",
+        "label": "Статус",
+        "completed": "Завершено",
+        "notCompleted": "Не завершено",
+        "open": "Відкрити перші кроки"
+      }
+    }
   }
 }

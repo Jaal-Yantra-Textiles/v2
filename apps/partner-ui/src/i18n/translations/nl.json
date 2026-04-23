@@ -2654,7 +2654,10 @@
         "placeholder": "verkeerde_maat",
         "tooltip": "De waarde moet een unieke identificatie zijn voor de retourreden."
       },
-      "label": { "label": "Label", "placeholder": "Verkeerde maat" },
+      "label": {
+        "label": "Label",
+        "placeholder": "Verkeerde maat"
+      },
       "description": {
         "label": "Beschrijving",
         "placeholder": "Klant ontving de verkeerde maat"
@@ -3001,5 +3004,409 @@
     "minutes_other": "Minuten",
     "seconds_one": "Seconde",
     "seconds_other": "Seconden"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Winkel",
+      "regions": "Regio's",
+      "locationsShipping": "Locaties & Verzending",
+      "salesChannels": "Verkoopkanalen",
+      "taxRegions": "Belastingregio's",
+      "returnReasons": "Redenen voor retour",
+      "refundReasons": "Redenen voor terugbetaling",
+      "onboarding": "Inwerkproces",
+      "people": "Teamleden",
+      "payments": "Betalingen",
+      "paymentConfig": "Betalingconfiguratie",
+      "planBilling": "Abonnement & Facturering"
+    },
+    "paymentSubmissions": {
+      "heading": "Betalingen aanvragen",
+      "description": "Dien voltooide ontwerpen of taken in voor betaling",
+      "newSubmission": "Nieuwe aanvraag",
+      "breadcrumb": "Betalingen aanvragen",
+      "columns": {
+        "submission": "Aanvraag",
+        "status": "Status",
+        "amount": "Bedrag",
+        "items": "Items",
+        "submitted": "Ingediend",
+        "reviewed": "Beoordeeld",
+        "design_one": "{{count}} ontwerp",
+        "design_other": "{{count}} ontwerpen",
+        "task_one": "{{count}} taak",
+        "task_other": "{{count}} taken"
+      },
+      "empty": {
+        "title": "Nog geen betalingsaanvragen",
+        "message": "Dien uw voltooide ontwerpen in voor betaling door op 'Nieuwe aanvraag' te klikken."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Voorraadbestellingen",
+      "empty": "Geen voorraadbestellingen",
+      "filters": {
+        "status": "Status",
+        "partnerStatus": "Partnerstatus"
+      },
+      "statusOptions": {
+        "pending": "In afwachting",
+        "processing": "Bezig met verwerken",
+        "shipped": "Verzonden",
+        "delivered": "Geleverd",
+        "cancelled": "Geannuleerd",
+        "partial": "Gedeeltelijk"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Partnerstatus",
+        "status": "Status",
+        "updated": "Bijgewerkt",
+        "created": "Aangemaakt"
+      },
+      "detail": {
+        "heading": "Voorraadbestelling",
+        "missingId": "Ontbrekende bestel-ID",
+        "orderId": "Bestel-ID",
+        "status": "Status",
+        "partnerStatus": "Partnerstatus",
+        "linesHeading": "Regels",
+        "linesDescription": "Aangevraagde vs. uitgevoerde hoeveelheden",
+        "noLines": "Geen regels",
+        "linePrefix": "Regel",
+        "columns": {
+          "item": "Artikel",
+          "requested": "Aangevraagd",
+          "fulfilled": "Uitgevoerd",
+          "remaining": "Resterend"
+        },
+        "activities": {
+          "title": "Activiteiten",
+          "completed": "Voltooid",
+          "pending": "In afwachting"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Welkom! Laten we uw werkruimte instellen",
+      "steps": {
+        "about": "Over u",
+        "logo": "Logo & merk",
+        "people": "Team"
+      },
+      "businessTypes": {
+        "manufacturer": "Fabrikant / Producent",
+        "seller": "Verkoper / Detailhandelaar",
+        "designer": "Ontwerper / Maker",
+        "wholesaler": "Groothandelaar / Distributeur",
+        "artisan": "Ambachtsman / Vakmensen",
+        "individual": "Individueel (model, freelancer, enz.)",
+        "other": "Overig"
+      },
+      "about": {
+        "heading": "Vertel ons over uw bedrijf",
+        "description": "Dit helpt ons uw ervaring aan te passen en u te verbinden met de juiste tools.",
+        "businessName": "Bedrijfsnaam",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "Wat beschrijft uw bedrijf het beste?",
+        "businessTypePlaceholder": "Selecteer bedrijfstype",
+        "descriptionLabel": "Korte beschrijving",
+        "descriptionPlaceholder": "Wat maakt of verkoopt u? Wie zijn uw klanten?",
+        "website": "Website",
+        "phone": "Telefoon",
+        "optional": "(optioneel)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Upload uw bedrijfslogo",
+        "description": "Dit verschijnt op uw partnerprofiel en webshop. U kunt dit later altijd wijzigen.",
+        "clickToChange": "Klik om te wijzigen",
+        "clickToUpload": "Klik om te uploaden of sleep en zet neer",
+        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)"
+      },
+      "team": {
+        "heading": "Voeg uw teamleden toe",
+        "description": "Nodig personen uit die u helpen bij het beheren van uw winkel en producten. Deze stap is optioneel — u kunt later nog teamleden toevoegen.",
+        "success": "Inwerkproces succesvol voltooid!",
+        "firstName": "Voornaam",
+        "firstNamePlaceholder": "Jan",
+        "lastName": "Achternaam",
+        "lastNamePlaceholder": "Jansen",
+        "email": "E-mail",
+        "emailPlaceholder": "jan@bedrijf.nl",
+        "remove": "Verwijderen",
+        "addAnother": "+ Een andere persoon toevoegen"
+      },
+      "footer": {
+        "skip": "Voor nu overslaan",
+        "stepCount": "Stap {{current}} van {{total}}",
+        "back": "Terug",
+        "continue": "Doorgaan",
+        "complete": "Instellen voltooien"
+      },
+      "errors": {
+        "unknown": "Er is een onbekende fout opgetreden"
+      }
+    },
+    "plan": {
+      "heading": "Abonnement & Facturering",
+      "description": "Kies het abonnement dat bij uw bedrijf past",
+      "labels": {
+        "plan": "Abonnement",
+        "price": "Prijs",
+        "period": "Periode",
+        "payment": "Betaling"
+      },
+      "providerPayu": "PayU (India)",
+      "providerStripe": "Stripe (Internationaal)",
+      "cancelSubscription": "Abonnement annuleren",
+      "noSubscription": "Geen actief abonnement. Kies hieronder een abonnement om te beginnen.",
+      "chooseHeading": "Kies uw abonnement",
+      "chooseDescription": "Alle abonnementen omvatten onbeperkt aantal producten, medewerkersaccounts en liveverzending. Geen beperkingen op verkoop.",
+      "badges": {
+        "current": "Huidig",
+        "popular": "Populair"
+      },
+      "currentPlan": "Huidig abonnement",
+      "cta": {
+        "getStarted": "Aan de slag",
+        "downgrade": "Omlaag schakelen",
+        "upgrade": "Omhoog schakelen"
+      },
+      "whatsIncluded": "Wat is inbegrepen",
+      "features": {
+        "unlimitedProducts": "Onbeperkt aantal producten",
+        "unlimitedSelling": "Onbeperkte verkoop",
+        "unlimitedStaff": "Onbeperkt aantal medewerkersaccounts",
+        "storefrontSource": "Broncode van de webshop",
+        "customDomain": "Aangepast domein",
+        "jytEmails": "JYT-e-mails",
+        "liveShipping": "Liveverzending (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "betalingsverwerkingskosten",
+        "analyticsAdvanced": "Geavanceerde analyses",
+        "analyticsBasic": "Basisanalyses",
+        "aiChatSupport": "AI-chatondersteuning",
+        "customModules": "Aangepaste modules",
+        "customApis": "Aangepaste API's",
+        "prioritySupport": "Prioritaire ondersteuning",
+        "whiteLabel": "White-label"
+      },
+      "comparison": {
+        "heading": "Vergelijking van functies",
+        "featureColumn": "Functie",
+        "priceRow": "Prijs",
+        "rows": {
+          "unlimitedProducts": "Producten",
+          "unlimitedSelling": "Verkoop",
+          "unlimitedStaff": "Medewerkersaccounts",
+          "storefrontSource": "Broncode van de webshop",
+          "customDomain": "Aangepast domein",
+          "themeCustomization": "Thema-editor",
+          "jytEmails": "JYT-e-mails",
+          "liveShipping": "Liveverzending",
+          "paymentFee": "Betalingskosten",
+          "analytics": "Analyses",
+          "aiChatSupport": "AI-chatondersteuning",
+          "customModules": "Aangepaste modules",
+          "customApis": "Aangepaste API's",
+          "prioritySupport": "Prioritaire ondersteuning",
+          "whiteLabel": "White-label"
+        },
+        "values": {
+          "unlimited": "Onbeperkt",
+          "yes": "Ja",
+          "no": "Nee",
+          "analyticsAdvanced": "Geavanceerd",
+          "analyticsBasic": "Basis",
+          "free": "Gratis"
+        }
+      },
+      "paymentInfo": "Betalingen worden verwerkt via {{provider}}. De betalingsverwerkingskosten gelden alleen wanneer klanten betalen via JYT-betalingsgateways. U kunt uw eigen betalingsprovidergegevens gebruiken om platformkosten te omzeilen.",
+      "prompts": {
+        "switchTitle": "Overschakelen naar {{plan}}",
+        "switchPaidDescription": "U wordt gefactureerd met {{price}}/{{interval}} via {{provider}}. Uw huidige abonnement wordt vervangen.",
+        "switchFreeDescription": "U schakelt over naar het gratis abonnement. Uw huidige abonnement wordt geannuleerd.",
+        "payWith": "Betalen met {{provider}}",
+        "switch": "Overschakelen",
+        "cancel": "Annuleren",
+        "cancelTitle": "Abonnement annuleren",
+        "cancelDescription": "Weet u het zeker? U behoudt toegang tot het einde van uw factureringsperiode. U kunt op elk moment opnieuw abonneren.",
+        "cancelConfirm": "Abonnement annuleren",
+        "keepPlan": "Abonnement behouden"
+      },
+      "toast": {
+        "paymentSuccess": "Betaling geslaagd! Uw abonnement is geactiveerd.",
+        "paymentFailed": "Betaling mislukt. Probeer het opnieuw.",
+        "paymentCanceled": "Betaling geannuleerd.",
+        "paymentError": "Fout bij betaling: {{message}}",
+        "paymentUnknown": "Onbekende fout",
+        "switchedTo": "Overgeschakeld naar {{plan}}",
+        "switchFailed": "Kan niet overschakelen naar abonnement",
+        "canceled": "Abonnement geannuleerd",
+        "cancelFailed": "Kan niet annuleren",
+        "somethingWrong": "Er is iets misgegaan"
+      }
+    },
+    "people": {
+      "heading": "Teamleden",
+      "description": "Beheer personen binnen uw organisatie. Beheerders kunnen inloggen op het dashboard.",
+      "addPerson": "Persoon toevoegen",
+      "empty": "Nog geen teamleden. Voeg hierboven uw eerste persoon toe.",
+      "columns": {
+        "name": "Naam",
+        "email": "E-mail",
+        "access": "Toegang",
+        "accessDashboard": "Dashboard",
+        "accessTeamOnly": "Alleen team",
+        "role": "Rol",
+        "added": "Toegevoegd"
+      },
+      "drawer": {
+        "title": "Persoon toevoegen",
+        "description": "Voeg een teamlid toe aan uw organisatie.",
+        "emailLabel": "E-mail *",
+        "emailPlaceholder": "persoon@voorbeeld.nl",
+        "firstName": "Voornaam",
+        "firstNamePlaceholder": "Jan",
+        "lastName": "Achternaam",
+        "lastNamePlaceholder": "Jansen",
+        "phone": "Telefoon",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Aanmaken als dashboardbeheerder",
+        "adminHint": "Deze persoon ontvangt inloggegevens en kan toegang krijgen tot het partnerdashboard.",
+        "teamHint": "Deze persoon wordt vermeld als teamlid, maar heeft geen toegang tot het dashboard.",
+        "role": "Rol",
+        "roleAdmin": "Beheerder — Volledige toegang",
+        "roleManager": "Manager — Producten & bestellingen",
+        "roleOwner": "Eigenaar — Volledige toegang + facturering",
+        "password": "Wachtwoord",
+        "passwordPlaceholder": "Laat leeg om automatisch te genereren",
+        "passwordHint": "Wordt automatisch gegenereerd als leeg gelaten. Wordt opgenomen in de welkomste-mail.",
+        "freeTextRole": "Rol",
+        "freeTextRolePlaceholder": "bijv. Ontwerper, Wever, QA",
+        "freeTextRoleHint": "Vrije tekstrol voor organisatorische doeleinden.",
+        "cancel": "Annuleren",
+        "addAdmin": "Beheerder toevoegen"
+      },
+      "toast": {
+        "emailRequired": "E-mail is verplicht",
+        "adminAdded": "Beheerder succesvol toegevoegd",
+        "adminAddedDescription": "Welkomste-mail verzonden naar {{email}}. Tijdelijk wachtwoord: {{password}}",
+        "addAdminFailed": "Kan beheerder niet toevoegen",
+        "personAdded": "Persoon toegevoegd",
+        "personAddedDescription": "{{email}} is toegevoegd als {{role}}. Deze persoon heeft geen toegang tot het dashboard.",
+        "addPersonFailed": "Kan persoon niet toevoegen"
+      }
+    },
+    "payments": {
+      "heading": "Betalingen",
+      "subheading": "Betaalmethoden",
+      "create": "Aanmaken",
+      "recentHeading": "Recente betalingen",
+      "recentDescription": "Bekijk recente betalingen.",
+      "emptyMethods": "Geen betaalmethoden",
+      "emptyPayments": "Geen betalingen",
+      "columns": {
+        "type": "Type",
+        "accountName": "Rekeningnaam",
+        "details": "Details",
+        "bank": "Bank",
+        "walletPrefix": "Portemonnee",
+        "added": "Toegevoegd",
+        "paymentId": "Betaling-ID",
+        "amount": "Bedrag",
+        "currency": "Valuta"
+      },
+      "typeLabels": {
+        "bankAccount": "Bankrekening",
+        "cashAccount": "Contantrekening",
+        "digitalWallet": "Digitale portemonnee"
+      },
+      "form": {
+        "heading": "Betaalmethode toevoegen",
+        "description": "Voeg een uitbetalingmethodeverwijzing toe.",
+        "missingPartner": "Ontbrekende partnercontext.",
+        "type": "Type",
+        "typePlaceholder": "Selecteer type",
+        "accountName": "Rekeningnaam",
+        "accountNumber": "Rekeningnummer",
+        "bankName": "Banknaam",
+        "ifsc": "IFSC",
+        "walletId": "Portemonnee-ID",
+        "cancel": "Annuleren",
+        "create": "Aanmaken"
+      },
+      "toast": {
+        "created": "Betaalmethode aangemaakt"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Betalingsprovidergegevens",
+      "subHeading": "Uw betalingsprovidergegevens. Deze overschrijven de standaardwaarden van het platform voor uw winkel.",
+      "empty": {
+        "heading": "Geen betalingsprovidergegevens geconfigureerd",
+        "description": "U gebruikt de gedeelde gegevens van het platform. Voeg uw eigen gegevens toe om uw eigen handelaarsaccounts te gebruiken."
+      },
+      "columns": {
+        "provider": "Provider",
+        "status": "Status",
+        "statusActive": "Actief",
+        "statusInactive": "Inactief",
+        "credentials": "Gegevens",
+        "added": "Toegevoegd"
+      },
+      "removePrompt": {
+        "description": "Uw {{provider}}-gegevens verwijderen? Uw winkel zal dan terugvallen op de gedeelde gegevens van het platform."
+      },
+      "toast": {
+        "removed": "Gegevens verwijderd",
+        "removeFailed": "Verwijderen mislukt",
+        "saved": "Betalingsprovidergegevens opgeslagen",
+        "saveFailed": "Opslaan van gegevens mislukt"
+      },
+      "form": {
+        "heading": "Betalingsprovidergegevens toevoegen",
+        "description": "Configureer uw eigen betalingsprovidergegevens. Dit overschrijft de standaardwaarden van het platform voor uw winkel.",
+        "provider": "Provider",
+        "merchantKey": "Handelaarscode",
+        "merchantKeyPlaceholder": "Uw PayU-handelaarscode",
+        "merchantSalt": "Handelaarszout",
+        "merchantSaltPlaceholder": "Uw PayU-handelaarszout",
+        "mode": "Modus",
+        "modeTest": "Test",
+        "modeLive": "Live",
+        "stripeApiKey": "Stripe API-sleutel",
+        "stripeApiKeyPlaceholder": "sk_live_... of sk_test_...",
+        "stripeApiKeyHint": "Uw Stripe geheime sleutel van het Stripe-dashboard."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Bedrijfstype",
+        "description": "Kies hoe u JYT gebruikt. Dit bepaalt welke navigatie-items in uw zijbalk verschijnen.",
+        "active": "Actief",
+        "seller": {
+          "title": "Verkoper",
+          "description": "Verkoop producten online. Ziet Producten, Bestellingen, Klanten, Categorieën en Collecties."
+        },
+        "manufacturer": {
+          "title": "Fabrikant",
+          "description": "Ontwerp en produceer textiel. Ziet Ontwerpen, Voorraadbestellingen, Productieruns, Taken en meer."
+        },
+        "individual": {
+          "title": "Individueel",
+          "description": "Werk aan toegewezen taken. Ziet Taken, Gedeelde mappen en Betalingsaanvragen."
+        }
+      },
+      "status": {
+        "heading": "Inwerkproces",
+        "description": "Volg de voortgang van het inwerkproces en heropen het inwerkproces.",
+        "label": "Status",
+        "completed": "Voltooid",
+        "notCompleted": "Niet voltooid",
+        "open": "Inwerkproces openen"
+      }
+    }
   }
 }

@@ -2931,5 +2931,409 @@
     "minutes_other": "Minute",
     "seconds_one": "Doilea",
     "seconds_other": "secunde"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Magazin",
+      "regions": "Regiuni",
+      "locationsShipping": "Locații și livrare",
+      "salesChannels": "Canale de vânzare",
+      "taxRegions": "Regiuni fiscale",
+      "returnReasons": "Motivele returnărilor",
+      "refundReasons": "Motivele rambursărilor",
+      "onboarding": "Configurare inițială",
+      "people": "Persoane",
+      "payments": "Plăți",
+      "paymentConfig": "Configurare plăți",
+      "planBilling": "Plan și facturare"
+    },
+    "paymentSubmissions": {
+      "heading": "Trimiteri pentru plată",
+      "description": "Trimiteți designurile sau sarcinile finalizate pentru plată",
+      "newSubmission": "Nouă trimitere",
+      "breadcrumb": "Trimiteri pentru plată",
+      "columns": {
+        "submission": "Trimitere",
+        "status": "Stare",
+        "amount": "Sumă",
+        "items": "Elemente",
+        "submitted": "Trimisă",
+        "reviewed": "Verificată",
+        "design_one": "{{count}} design",
+        "design_other": "{{count}} designuri",
+        "task_one": "{{count}} sarcină",
+        "task_other": "{{count}} sarcini"
+      },
+      "empty": {
+        "title": "Nu există încă trimiteri pentru plată",
+        "message": "Trimiteți designurile finalizate pentru plată, apăsând pe „Nouă trimitere”."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Comenzi de inventar",
+      "empty": "Nu există comenzi de inventar",
+      "filters": {
+        "status": "Stare",
+        "partnerStatus": "Stare partener"
+      },
+      "statusOptions": {
+        "pending": "În așteptare",
+        "processing": "În procesare",
+        "shipped": "Expediată",
+        "delivered": "Livrata",
+        "cancelled": "Anulată",
+        "partial": "Parțială"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Stare partener",
+        "status": "Stare",
+        "updated": "Actualizată",
+        "created": "Creată"
+      },
+      "detail": {
+        "heading": "Comandă de inventar",
+        "missingId": "Lipsă ID comandă",
+        "orderId": "ID comandă",
+        "status": "Stare",
+        "partnerStatus": "Stare partener",
+        "linesHeading": "Linii",
+        "linesDescription": "Cantități solicitate vs. îndeplinite",
+        "noLines": "Fără linii",
+        "linePrefix": "Linie",
+        "columns": {
+          "item": "Articol",
+          "requested": "Solicitate",
+          "fulfilled": "Îndeplinite",
+          "remaining": "Rămase"
+        },
+        "activities": {
+          "title": "Activități",
+          "completed": "Finalizate",
+          "pending": "În așteptare"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Bine ați venit! Hai să configurăm spațiul dvs. de lucru",
+      "steps": {
+        "about": "Despre dvs.",
+        "logo": "Logo și marcă",
+        "people": "Echipă"
+      },
+      "businessTypes": {
+        "manufacturer": "Producător / Fabricant",
+        "seller": "Vânzător / Retailer",
+        "designer": "Designer / Creator",
+        "wholesaler": "Grosist / Distribuitor",
+        "artisan": "Meșter / Artizan",
+        "individual": "Persoană fizică (model, freelancer etc.)",
+        "other": "Altul"
+      },
+      "about": {
+        "heading": "Spuneți-ne despre afacerea dvs.",
+        "description": "Aceasta ne ajută să personalizăm experiența dvs. și să vă conectăm cu uneltele potrivite.",
+        "businessName": "Denumirea afacerii",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "Ce descrie cel mai bine afacerea dvs.?",
+        "businessTypePlaceholder": "Selectați tipul de afacere",
+        "descriptionLabel": "Descriere succintă",
+        "descriptionPlaceholder": "Ce produceți sau vindeți? Cine sunt clienții dvs.?",
+        "website": "Site web",
+        "phone": "Telefon",
+        "optional": "(opțional)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Încărcați logo-ul companiei dvs.",
+        "description": "Acesta va apărea în profilul dvs. de partener și în magazinul online. Puteți modifica această imagine ulterior.",
+        "clickToChange": "Faceți clic pentru a schimba",
+        "clickToUpload": "Faceți clic pentru a încărca sau trageți și plasați",
+        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)"
+      },
+      "team": {
+        "heading": "Adăugați membrii echipei dvs.",
+        "description": "Invitați persoane care vă vor ajuta să gestionați magazinul și produsele. Această etapă este opțională — puteți adăuga membrii echipei ulterior.",
+        "success": "Configurarea inițială finalizată cu succes!",
+        "firstName": "Prenume",
+        "firstNamePlaceholder": "Ion",
+        "lastName": "Nume de familie",
+        "lastNamePlaceholder": "Popescu",
+        "email": "Email",
+        "emailPlaceholder": "ion@companie.ro",
+        "remove": "Elimină",
+        "addAnother": "+ Adaugă altă persoană"
+      },
+      "footer": {
+        "skip": "Sari peste momentan",
+        "stepCount": "Pasul {{current}} din {{total}}",
+        "back": "Înapoi",
+        "continue": "Continuă",
+        "complete": "Finalizează configurarea"
+      },
+      "errors": {
+        "unknown": "A apărut o eroare necunoscută"
+      }
+    },
+    "plan": {
+      "heading": "Plan și facturare",
+      "description": "Alegeți planul potrivit pentru afacerea dvs.",
+      "labels": {
+        "plan": "Plan",
+        "price": "Preț",
+        "period": "Perioadă",
+        "payment": "Plată"
+      },
+      "providerPayu": "PayU (India)",
+      "providerStripe": "Stripe (Internacional)",
+      "cancelSubscription": "Anulează abonamentul",
+      "noSubscription": "Nu există un abonament activ. Alegeți un plan mai jos pentru a începe.",
+      "chooseHeading": "Alegeți-vă planul",
+      "chooseDescription": "Toate planurile includ produse nelimitate, conturi de personal și livrare în timp real. Nu există limite privind vânzările.",
+      "badges": {
+        "current": "Actual",
+        "popular": "Popular"
+      },
+      "currentPlan": "Planul actual",
+      "cta": {
+        "getStarted": "Începeți",
+        "downgrade": "Reduceți",
+        "upgrade": "Actualizați"
+      },
+      "whatsIncluded": "Ce include",
+      "features": {
+        "unlimitedProducts": "Produse nelimitate",
+        "unlimitedSelling": "Vânzări nelimitate",
+        "unlimitedStaff": "Conturi de personal nelimitate",
+        "storefrontSource": "Cod sursă magazin online",
+        "customDomain": "Domeniu personalizat",
+        "jytEmails": "Email-uri JYT",
+        "liveShipping": "Livrare în timp real (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "taxă de procesare a plăților",
+        "analyticsAdvanced": "Analitice avansate",
+        "analyticsBasic": "Analitice de bază",
+        "aiChatSupport": "Suport chat AI",
+        "customModules": "Module personalizate",
+        "customApis": "API-uri personalizate",
+        "prioritySupport": "Suport prioritar",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "Comparare caracteristici",
+        "featureColumn": "Caracteristică",
+        "priceRow": "Preț",
+        "rows": {
+          "unlimitedProducts": "Produse",
+          "unlimitedSelling": "Vânzări",
+          "unlimitedStaff": "Conturi de personal",
+          "storefrontSource": "Cod sursă magazin online",
+          "customDomain": "Domeniu personalizat",
+          "themeCustomization": "Editor de teme",
+          "jytEmails": "Email-uri JYT",
+          "liveShipping": "Livrare în timp real",
+          "paymentFee": "Taxă de procesare a plăților",
+          "analytics": "Analitice",
+          "aiChatSupport": "Suport chat AI",
+          "customModules": "Module personalizate",
+          "customApis": "API-uri personalizate",
+          "prioritySupport": "Suport prioritar",
+          "whiteLabel": "White label"
+        },
+        "values": {
+          "unlimited": "Nelimitat",
+          "yes": "Da",
+          "no": "Nu",
+          "analyticsAdvanced": "Avansate",
+          "analyticsBasic": "De bază",
+          "free": "Gratuit"
+        }
+      },
+      "paymentInfo": "Plățile sunt procesate prin {{provider}}. Taxa de procesare a plăților se aplică doar atunci când clienții plătesc prin gateway-urile de plată JYT. Puteți adăuga credențiale proprii pentru furnizori de plăți pentru a evita taxele platformei.",
+      "prompts": {
+        "switchTitle": "Comutați la {{plan}}",
+        "switchPaidDescription": "Veți fi taxat cu {{price}}/{{interval}} prin {{provider}}. Planul actual va fi înlocuit.",
+        "switchFreeDescription": "Veți comuta la planul gratuit. Planul actual va fi anulat.",
+        "payWith": "Plătiți cu {{provider}}",
+        "switch": "Comută",
+        "cancel": "Anulează",
+        "cancelTitle": "Anulați abonamentul",
+        "cancelDescription": "Sigur? Veți păstra accesul până la sfârșitul perioadei de facturare. Puteți relua abonamentul în orice moment.",
+        "cancelConfirm": "Anulați abonamentul",
+        "keepPlan": "Păstrează planul"
+      },
+      "toast": {
+        "paymentSuccess": "Plată reușită! Planul dvs. a fost activat.",
+        "paymentFailed": "Plata a eșuat. Vă rugăm să încercați din nou.",
+        "paymentCanceled": "Plata a fost anulată.",
+        "paymentError": "Eroare de plată: {{message}}",
+        "paymentUnknown": "Eroare necunoscută",
+        "switchedTo": "Comutat la {{plan}}",
+        "switchFailed": "Nu s-a putut comuta planul",
+        "canceled": "Abonament anulat",
+        "cancelFailed": "Nu s-a putut anula",
+        "somethingWrong": "A apărut o problemă"
+      }
+    },
+    "people": {
+      "heading": "Membrii echipei",
+      "description": "Gestionați persoanele din organizația dvs. Administratorii pot accesa panoul de control.",
+      "addPerson": "Adaugă persoană",
+      "empty": "Nu există încă membri ai echipei. Adăugați prima persoană mai sus.",
+      "columns": {
+        "name": "Nume",
+        "email": "Email",
+        "access": "Acces",
+        "accessDashboard": "Panou de control",
+        "accessTeamOnly": "Doar echipă",
+        "role": "Rol",
+        "added": "Adăugat"
+      },
+      "drawer": {
+        "title": "Adaugă persoană",
+        "description": "Adăugați un membru al echipei în organizația dvs.",
+        "emailLabel": "Email *",
+        "emailPlaceholder": "persoana@exemplu.ro",
+        "firstName": "Prenume",
+        "firstNamePlaceholder": "Ion",
+        "lastName": "Nume de familie",
+        "lastNamePlaceholder": "Popescu",
+        "phone": "Telefon",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Creează ca administrator al panoului",
+        "adminHint": "Această persoană va primi datele de autentificare și va putea accesa panoul de control al partenerului.",
+        "teamHint": "Această persoană va fi listată ca membru al echipei, dar nu va avea acces la panoul de control.",
+        "role": "Rol",
+        "roleAdmin": "Administrator — acces complet",
+        "roleManager": "Manager — produse și comenzi",
+        "roleOwner": "Proprietar — acces complet + facturare",
+        "password": "Parolă",
+        "passwordPlaceholder": "Lăsați gol pentru generare automată",
+        "passwordHint": "Generată automat dacă este lăsată goală. Inclusă în emailul de bun venit.",
+        "freeTextRole": "Rol",
+        "freeTextRolePlaceholder": "ex. Designer, Tesător, QA",
+        "freeTextRoleHint": "Rol liber pentru scopuri organizatorice.",
+        "cancel": "Anulează",
+        "addAdmin": "Adaugă administrator"
+      },
+      "toast": {
+        "emailRequired": "Email-ul este obligatoriu",
+        "adminAdded": "Administrator adăugat cu succes",
+        "adminAddedDescription": "Emailul de bun venit a fost trimis către {{email}}. Parolă temporară: {{password}}",
+        "addAdminFailed": "Nu s-a putut adăuga administratorul",
+        "personAdded": "Persoană adăugată",
+        "personAddedDescription": "{{email}} adăugat ca {{role}}. Nu va avea acces la panoul de control.",
+        "addPersonFailed": "Nu s-a putut adăuga persoana"
+      }
+    },
+    "payments": {
+      "heading": "Plăți",
+      "subheading": "Metode de plată",
+      "create": "Creează",
+      "recentHeading": "Plăți recente",
+      "recentDescription": "Vizualizați plățile recente.",
+      "emptyMethods": "Nu există metode de plată",
+      "emptyPayments": "Nu există plăți",
+      "columns": {
+        "type": "Tip",
+        "accountName": "Nume cont",
+        "details": "Detalii",
+        "bank": "Bancă",
+        "walletPrefix": "Portofel",
+        "added": "Adăugat",
+        "paymentId": "ID plată",
+        "amount": "Sumă",
+        "currency": "Valută"
+      },
+      "typeLabels": {
+        "bankAccount": "Cont bancar",
+        "cashAccount": "Cont cash",
+        "digitalWallet": "Portofel digital"
+      },
+      "form": {
+        "heading": "Adaugă metodă de plată",
+        "description": "Adăugați o referință pentru metoda de plată.",
+        "missingPartner": "Lipsește contextul partenerului.",
+        "type": "Tip",
+        "typePlaceholder": "Selectați tipul",
+        "accountName": "Nume cont",
+        "accountNumber": "Număr cont",
+        "bankName": "Nume bancă",
+        "ifsc": "IFSC",
+        "walletId": "ID portofel",
+        "cancel": "Anulează",
+        "create": "Creează"
+      },
+      "toast": {
+        "created": "Metodă de plată creată"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Credențiale de plată",
+      "subHeading": "Credențialele furnizorului de plăți. Acestea înlocuiesc valorile implicite ale platformei pentru magazinul dvs.",
+      "empty": {
+        "heading": "Nu sunt configurate credențiale de plată",
+        "description": "Folosiți credențialele partajate ale platformei. Adăugați-va propriile credențiale pentru a utiliza conturile dvs. de comerciant."
+      },
+      "columns": {
+        "provider": "Furnizor",
+        "status": "Stare",
+        "statusActive": "Activ",
+        "statusInactive": "Inactiv",
+        "credentials": "Credențiale",
+        "added": "Adăugat"
+      },
+      "removePrompt": {
+        "description": "Eliminați credențialele {{provider}}? Magazinul dvs. va reveni la credențialele partajate ale platformei."
+      },
+      "toast": {
+        "removed": "Credențiale eliminate",
+        "removeFailed": "Nu s-au putut elimina",
+        "saved": "Credențialele de plată au fost salvate",
+        "saveFailed": "Nu s-au putut salva credențialele"
+      },
+      "form": {
+        "heading": "Adaugă credențiale de plată",
+        "description": "Configurați credențialele proprii ale furnizorului de plăți. Acestea înlocuiesc valorile implicite ale platformei pentru magazinul dvs.",
+        "provider": "Furnizor",
+        "merchantKey": "Cheie comerciant",
+        "merchantKeyPlaceholder": "Cheia dvs. PayU de comerciant",
+        "merchantSalt": "Salt comerciant",
+        "merchantSaltPlaceholder": "Salt-ul dvs. PayU de comerciant",
+        "mode": "Mod",
+        "modeTest": "Test",
+        "modeLive": "Live",
+        "stripeApiKey": "Cheie API Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... sau sk_test_...",
+        "stripeApiKeyHint": "Cheia secretă Stripe din panoul de control Stripe."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Tipul afacerii",
+        "description": "Alegeți cum folosiți JYT. Aceasta controlează elementele de navigare afișate în bara laterală.",
+        "active": "Activ",
+        "seller": {
+          "title": "Vânzător",
+          "description": "Vindeți produse online. Veți vedea Produse, Comenzi, Clienți, Categorii și Colecții."
+        },
+        "manufacturer": {
+          "title": "Producător",
+          "description": "Proiectați și fabricați textile. Veți vedea Designuri, Comenzi de inventar, Serii de producție, Sarcini și multe altele."
+        },
+        "individual": {
+          "title": "Persoană fizică",
+          "description": "Lucrați la sarcini atribuite. Veți vedea Sarcini, Dosare partajate și Trimiteri pentru plată."
+        }
+      },
+      "status": {
+        "heading": "Configurare inițială",
+        "description": "Urmați progresul configurării inițiale și redeschideți fluxul de configurare.",
+        "label": "Stare",
+        "completed": "Finalizat",
+        "notCompleted": "Nefinalizat",
+        "open": "Deschideți configurarea inițială"
+      }
+    }
   }
 }

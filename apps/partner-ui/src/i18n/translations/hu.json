@@ -2654,7 +2654,10 @@
         "placeholder": "wrong_size",
         "tooltip": "Az értéknek egyedi azonosítónak kell lennie a visszaküldési okhoz."
       },
-      "label": { "label": "Címke", "placeholder": "Rossz méret" },
+      "label": {
+        "label": "Címke",
+        "placeholder": "Rossz méret"
+      },
       "description": {
         "label": "Leírás",
         "placeholder": "A vásárló rossz méretet kapott"
@@ -3001,5 +3004,409 @@
     "minutes_other": "Percek",
     "seconds_one": "Másodperc",
     "seconds_other": "Másodpercek"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Bolt",
+      "regions": "Régiók",
+      "locationsShipping": "Helyek és szállítás",
+      "salesChannels": "Értékesítési csatornák",
+      "taxRegions": "Adórégiók",
+      "returnReasons": "Visszatérítési okok",
+      "refundReasons": "Visszatérítési okok",
+      "onboarding": "Bevezetés",
+      "people": "Személyek",
+      "payments": "Fizetések",
+      "paymentConfig": "Fizetési beállítások",
+      "planBilling": "Csomag és számlázás"
+    },
+    "paymentSubmissions": {
+      "heading": "Fizetési beküldések",
+      "description": "Küldje be a befejezett terveket vagy feladatokat fizetés céljából",
+      "newSubmission": "Új beküldés",
+      "breadcrumb": "Fizetési beküldések",
+      "columns": {
+        "submission": "Beküldés",
+        "status": "Állapot",
+        "amount": "Összeg",
+        "items": "Elemek",
+        "submitted": "Beküldve",
+        "reviewed": "Átnézve",
+        "design_one": "{{count}} terv",
+        "design_other": "{{count}} terv",
+        "task_one": "{{count}} feladat",
+        "task_other": "{{count}} feladat"
+      },
+      "empty": {
+        "title": "Még nincsenek fizetési beküldések",
+        "message": "Kattintson az Új beküldés gombra a befejezett tervek fizetési kérelmének elküldéséhez."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Készletrendelések",
+      "empty": "Nincsenek készletrendelések",
+      "filters": {
+        "status": "Állapot",
+        "partnerStatus": "Partner állapota"
+      },
+      "statusOptions": {
+        "pending": "Függőben",
+        "processing": "Feldolgozás alatt",
+        "shipped": "Kiszállítva",
+        "delivered": "Kézbesítve",
+        "cancelled": "Törölve",
+        "partial": "Részleges"
+      },
+      "columns": {
+        "id": "Azonosító",
+        "partnerStatus": "Partner állapota",
+        "status": "Állapot",
+        "updated": "Frissítve",
+        "created": "Létrehozva"
+      },
+      "detail": {
+        "heading": "Készletrendelés",
+        "missingId": "Hiányzó rendelésazonosító",
+        "orderId": "Rendelésazonosító",
+        "status": "Állapot",
+        "partnerStatus": "Partner állapota",
+        "linesHeading": "Sorok",
+        "linesDescription": "Kért vs. teljesített mennyiségek",
+        "noLines": "Nincsenek sorok",
+        "linePrefix": "Sor",
+        "columns": {
+          "item": "Elem",
+          "requested": "Kért",
+          "fulfilled": "Teljesített",
+          "remaining": "Maradék"
+        },
+        "activities": {
+          "title": "Tevékenységek",
+          "completed": "Befejezve",
+          "pending": "Függőben"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Üdvözöljük! Állítsa be munkaterületét",
+      "steps": {
+        "about": "Ön",
+        "logo": "Logó és márkanev",
+        "people": "Csapat"
+      },
+      "businessTypes": {
+        "manufacturer": "Gyártó / Termelő",
+        "seller": "Kiskereskedő / Értékesítő",
+        "designer": "Tervező / Készítő",
+        "wholesaler": "Nagykereskedő / Disztributor",
+        "artisan": "Mesterember / Kézműves",
+        "individual": "Egyéni vállalkozó (modell, szabadúszó stb.)",
+        "other": "Egyéb"
+      },
+      "about": {
+        "heading": "Meséljen rólunk a vállalkozásáról",
+        "description": "Ez segít testre szabni az Ön számára a felhasználói élményt, és összekötni a megfelelő eszközökkel.",
+        "businessName": "Vállalkozás neve",
+        "businessNamePlaceholder": "Acme Textil",
+        "businessTypeLabel": "Milyen típusú vállalkozás ez?",
+        "businessTypePlaceholder": "Válasszon vállalkozási típust",
+        "descriptionLabel": "Rövid leírás",
+        "descriptionPlaceholder": "Mit gyárt vagy árul? Ki a vevőközönsége?",
+        "website": "Weboldal",
+        "phone": "Telefonszám",
+        "optional": "(nem kötelező)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Töltse fel cégének logóját",
+        "description": "Ez megjelenik partnerprofilján és webáruházán. Később bármikor módosíthatja.",
+        "clickToChange": "Kattintson a módosításhoz",
+        "clickToUpload": "Kattintson a feltöltéshez vagy húzza ide",
+        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)"
+      },
+      "team": {
+        "heading": "Adja hozzá csapattagjait",
+        "description": "Hívja meg azokat, akik segítenek kezelni az üzletét és termékeit. Ez a lépés nem kötelező – csapattagokat később is hozzáadhat.",
+        "success": "A bevezetés sikeresen befejeződött!",
+        "firstName": "Keresztnév",
+        "firstNamePlaceholder": "János",
+        "lastName": "Vezetéknév",
+        "lastNamePlaceholder": "Nagy",
+        "email": "E-mail",
+        "emailPlaceholder": "janos@ceg.hu",
+        "remove": "Eltávolítás",
+        "addAnother": "+ Egy másik személy hozzáadása"
+      },
+      "footer": {
+        "skip": "Most kihagyom",
+        "stepCount": "{{current}}. lépés {{total}}-ből",
+        "back": "Vissza",
+        "continue": "Folytatás",
+        "complete": "Beállítás befejezése"
+      },
+      "errors": {
+        "unknown": "Ismeretlen hiba történt"
+      }
+    },
+    "plan": {
+      "heading": "Csomag és számlázás",
+      "description": "Válassza ki azt a csomagot, amely illeszkedik vállalkozásához",
+      "labels": {
+        "plan": "Csomag",
+        "price": "Ár",
+        "period": "Időszak",
+        "payment": "Fizetés"
+      },
+      "providerPayu": "PayU (India)",
+      "providerStripe": "Stripe (Nemzetközi)",
+      "cancelSubscription": "Előfizetés megszüntetése",
+      "noSubscription": "Nincs aktív előfizetés. Válasszon egy csomagot lentebb a kezdéshez.",
+      "chooseHeading": "Válassza ki csomagját",
+      "chooseDescription": "Minden csomag tartalmazza a korlátlan termékek, alkalmazottfiókok és élő szállítás lehetőségét. Nincs korlátozás az értékesítésre.",
+      "badges": {
+        "current": "Jelenlegi",
+        "popular": "Népszerű"
+      },
+      "currentPlan": "Jelenlegi csomag",
+      "cta": {
+        "getStarted": "Kezdés",
+        "downgrade": "Lejjebb lépés",
+        "upgrade": "Feljebb lépés"
+      },
+      "whatsIncluded": "Mit tartalmaz",
+      "features": {
+        "unlimitedProducts": "Korlátlan termékek",
+        "unlimitedSelling": "Korlátlan értékesítés",
+        "unlimitedStaff": "Korlátlan alkalmazottfiókok",
+        "storefrontSource": "Webáruház forráskódja",
+        "customDomain": "Egyedi domain",
+        "jytEmails": "JYT e-mailek",
+        "liveShipping": "Élő szállítás (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "fizetésfeldolgozási díj",
+        "analyticsAdvanced": "Haladó elemzések",
+        "analyticsBasic": "Alapvető elemzések",
+        "aiChatSupport": "AI-alapú chat-támogatás",
+        "customModules": "Egyedi modulok",
+        "customApis": "Egyedi API-k",
+        "prioritySupport": "Prioritásos támogatás",
+        "whiteLabel": "White-label"
+      },
+      "comparison": {
+        "heading": "Funkciók összehasonlítása",
+        "featureColumn": "Funkció",
+        "priceRow": "Ár",
+        "rows": {
+          "unlimitedProducts": "Termékek",
+          "unlimitedSelling": "Értékesítés",
+          "unlimitedStaff": "Alkalmazottfiókok",
+          "storefrontSource": "Webáruház forráskódja",
+          "customDomain": "Egyedi domain",
+          "themeCustomization": "Téma szerkesztő",
+          "jytEmails": "JYT e-mailek",
+          "liveShipping": "Élő szállítás",
+          "paymentFee": "Fizetési díj",
+          "analytics": "Elemzések",
+          "aiChatSupport": "AI-alapú chat-támogatás",
+          "customModules": "Egyedi modulok",
+          "customApis": "Egyedi API-k",
+          "prioritySupport": "Prioritásos támogatás",
+          "whiteLabel": "White-label"
+        },
+        "values": {
+          "unlimited": "Korlátlan",
+          "yes": "Igen",
+          "no": "Nem",
+          "analyticsAdvanced": "Haladó",
+          "analyticsBasic": "Alapvető",
+          "free": "Ingyenes"
+        }
+      },
+      "paymentInfo": "A fizetések a(z) {{provider}} szolgáltatón keresztül zajlanak. A fizetésfeldolgozási díj csak akkor vonódik le, ha a vásárlók a JYT fizetési átjárókon keresztül fizetnek. Saját fizetési szolgáltatói hitelesítő adatokkal kerülheti el a platform díjait.",
+      "prompts": {
+        "switchTitle": "Átváltás erre: {{plan}}",
+        "switchPaidDescription": "A(z) {{provider}} szolgáltatón keresztül {{price}}/{{interval}} díjat fog fizetni. Jelenlegi csomagja helyettesítésre kerül.",
+        "switchFreeDescription": "Ingyenes csomagra vált. Jelenlegi csomagja megszűnik.",
+        "payWith": "Fizetés a(z) {{provider}} szolgáltatón keresztül",
+        "switch": "Átváltás",
+        "cancel": "Mégse",
+        "cancelTitle": "Előfizetés megszüntetése",
+        "cancelDescription": "Biztos benne? Hozzáférése a számlázási időszak végéig megmarad. Bármikor újra előfizethet.",
+        "cancelConfirm": "Előfizetés megszüntetése",
+        "keepPlan": "Csomag megtartása"
+      },
+      "toast": {
+        "paymentSuccess": "A fizetés sikeres! Csomagja aktiválva lett.",
+        "paymentFailed": "A fizetés sikertelen. Próbálja újra.",
+        "paymentCanceled": "A fizetés megszakadt.",
+        "paymentError": "Fizetési hiba: {{message}}",
+        "paymentUnknown": "Ismeretlen hiba",
+        "switchedTo": "Átváltva erre: {{plan}}",
+        "switchFailed": "A csomagváltás nem sikerült",
+        "canceled": "Az előfizetés megszűnt",
+        "cancelFailed": "Nem sikerült megszüntetni",
+        "somethingWrong": "Valami hiba történt"
+      }
+    },
+    "people": {
+      "heading": "Csapattagok",
+      "description": "Kezelje szervezetének tagjait. A rendszergazdák bejelentkezhetnek a vezérlőpultba.",
+      "addPerson": "Személy hozzáadása",
+      "empty": "Még nincsenek csapattagok. Adja hozzá első tagját fentebb.",
+      "columns": {
+        "name": "Név",
+        "email": "E-mail",
+        "access": "Hozzáférés",
+        "accessDashboard": "Vezérlőpult",
+        "accessTeamOnly": "Csak csapat",
+        "role": "Szerepkör",
+        "added": "Hozzáadva"
+      },
+      "drawer": {
+        "title": "Személy hozzáadása",
+        "description": "Adjon hozzá egy csapattagot szervezetéhez.",
+        "emailLabel": "E-mail *",
+        "emailPlaceholder": "szemely@pelda.hu",
+        "firstName": "Keresztnév",
+        "firstNamePlaceholder": "János",
+        "lastName": "Vezetéknév",
+        "lastNamePlaceholder": "Nagy",
+        "phone": "Telefonszám",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Rendszergazdaként létrehozás",
+        "adminHint": "Ennek a személynek bejelentkezési adatokat küldünk, és hozzáférhet a partner vezérlőpultjához.",
+        "teamHint": "Ez a személy csapattagként jelenik meg, de nem kap hozzáférést a vezérlőpulthoz.",
+        "role": "Szerepkör",
+        "roleAdmin": "Rendszergazda — teljes hozzáférés",
+        "roleManager": "Menedzser — termékek és rendelések",
+        "roleOwner": "Tulajdonos — teljes hozzáférés + számlázás",
+        "password": "Jelszó",
+        "passwordPlaceholder": "Hagyja üresen az automatikus generáláshoz",
+        "passwordHint": "Automatikusan generálódik, ha üresen hagyja. Szerepelni fog a üdvözlő e-mailben.",
+        "freeTextRole": "Szerepkör",
+        "freeTextRolePlaceholder": "pl. Tervező, Szövő, Minőségellenőr",
+        "freeTextRoleHint": "Szabad szöveges szerepkör szervezeti célokra.",
+        "cancel": "Mégse",
+        "addAdmin": "Rendszergazda hozzáadása"
+      },
+      "toast": {
+        "emailRequired": "Az e-mail megadása kötelező",
+        "adminAdded": "Rendszergazda sikeresen hozzáadva",
+        "adminAddedDescription": "Üdvözlő e-mail elküldve a következő címre: {{email}}. Ideiglenes jelszó: {{password}}",
+        "addAdminFailed": "Nem sikerült rendszergazdát hozzáadni",
+        "personAdded": "Személy hozzáadva",
+        "personAddedDescription": "{{email}} hozzáadva mint {{role}}. Nem kap hozzáférést a vezérlőpulthoz.",
+        "addPersonFailed": "Nem sikerült személyt hozzáadni"
+      }
+    },
+    "payments": {
+      "heading": "Fizetések",
+      "subheading": "Fizetési módok",
+      "create": "Létrehozás",
+      "recentHeading": "Legutóbbi fizetések",
+      "recentDescription": "Tekintse meg a legutóbbi fizetéseket.",
+      "emptyMethods": "Nincsenek fizetési módok",
+      "emptyPayments": "Nincsenek fizetések",
+      "columns": {
+        "type": "Típus",
+        "accountName": "Számlanév",
+        "details": "Részletek",
+        "bank": "Bank",
+        "walletPrefix": "Pénztárca",
+        "added": "Hozzáadva",
+        "paymentId": "Fizetés azonosítója",
+        "amount": "Összeg",
+        "currency": "Pénznem"
+      },
+      "typeLabels": {
+        "bankAccount": "Banki számla",
+        "cashAccount": "Készpénzszámla",
+        "digitalWallet": "Digitális pénztárca"
+      },
+      "form": {
+        "heading": "Fizetési mód hozzáadása",
+        "description": "Adjon meg egy kifizetési módszert.",
+        "missingPartner": "Hiányzik a partner kontextusa.",
+        "type": "Típus",
+        "typePlaceholder": "Válasszon típust",
+        "accountName": "Számlanév",
+        "accountNumber": "Számlaszám",
+        "bankName": "Bank neve",
+        "ifsc": "IFSC",
+        "walletId": "Pénztárca azonosító",
+        "cancel": "Mégse",
+        "create": "Létrehozás"
+      },
+      "toast": {
+        "created": "Fizetési mód létrehozva"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Fizetési szolgáltatói hitelesítő adatok",
+      "subHeading": "Fizetési szolgáltatói hitelesítő adatai. Ezek felülírják a platform alapértelmezett beállításait az üzletéhez.",
+      "empty": {
+        "heading": "Nincsenek fizetési hitelesítő adatok konfigurálva",
+        "description": "A platform megosztott hitelesítő adatait használja. Adja meg saját adatait, hogy saját kereskedői fiókjait használhassa."
+      },
+      "columns": {
+        "provider": "Szolgáltató",
+        "status": "Állapot",
+        "statusActive": "Aktív",
+        "statusInactive": "Inaktív",
+        "credentials": "Hitelesítő adatok",
+        "added": "Hozzáadva"
+      },
+      "removePrompt": {
+        "description": "Eltávolítja a(z) {{provider}} hitelesítő adatait? Az üzlet visszatér a platform megosztott hitelesítő adataira."
+      },
+      "toast": {
+        "removed": "Hitelesítő adatok eltávolítva",
+        "removeFailed": "Nem sikerült eltávolítani",
+        "saved": "Fizetési hitelesítő adatok mentve",
+        "saveFailed": "Nem sikerült menteni a hitelesítő adatokat"
+      },
+      "form": {
+        "heading": "Fizetési hitelesítő adatok hozzáadása",
+        "description": "Konfigurálja saját fizetési szolgáltatói hitelesítő adatait. Ez felülírja a platform alapértelmezett beállításait az üzletéhez.",
+        "provider": "Szolgáltató",
+        "merchantKey": "Kereskedő kulcs",
+        "merchantKeyPlaceholder": "PayU kereskedő kulcsa",
+        "merchantSalt": "Kereskedő só",
+        "merchantSaltPlaceholder": "PayU kereskedő sója",
+        "mode": "Mód",
+        "modeTest": "Teszt",
+        "modeLive": "Éles",
+        "stripeApiKey": "Stripe API kulcs",
+        "stripeApiKeyPlaceholder": "sk_live_... vagy sk_test_...",
+        "stripeApiKeyHint": "A Stripe titkos kulcsa a Stripe irányítópultból."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Vállalkozási típus",
+        "description": "Válassza ki, hogyan használja a JYT-t. Ez szabja meg, mely navigációs elemek jelennek meg az oldalsávban.",
+        "active": "Aktív",
+        "seller": {
+          "title": "Kiskereskedő",
+          "description": "Online termékek értékesítése. Láthatja a Termékek, Rendelések, Ügyfelek, Kategóriák és Gyűjtemények menüket."
+        },
+        "manufacturer": {
+          "title": "Gyártó",
+          "description": "Textíliák tervezése és gyártása. Láthatja a Tervek, Készletrendelések, Gyártási sorozatok, Feladatok és egyéb menüket."
+        },
+        "individual": {
+          "title": "Egyéni vállalkozó",
+          "description": "Kiosztott feladatokon való munkavégzés. Láthatja a Feladatok, Megosztott mappák és Fizetési beküldések menüket."
+        }
+      },
+      "status": {
+        "heading": "Bevezetés",
+        "description": "Kövesse nyomon a bevezetés befejezését, és indítsa újra a bevezetési folyamatot.",
+        "label": "Állapot",
+        "completed": "Befejezve",
+        "notCompleted": "Nem befejezve",
+        "open": "Bevezetés megnyitása"
+      }
+    }
   }
 }

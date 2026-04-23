@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button, Heading, Input, Select, Text, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 import * as zod from "zod"
 
 import { Form } from "../../../../components/common/form"
@@ -29,6 +30,7 @@ export const SettingsPaymentsCreate = () => {
 }
 
 const CreatePaymentMethodForm = () => {
+  const { t } = useTranslation()
   const { user } = useMe()
   const partnerId = user?.partner_id
   const { handleSuccess } = useRouteModal()
@@ -58,7 +60,7 @@ const CreatePaymentMethodForm = () => {
 
     await mutateAsync(values, {
       onSuccess: () => {
-        toast.success("Payment method created")
+        toast.success(t("partner.payments.toast.created"))
         handleSuccess("..")
       },
       onError: (e) => {
@@ -78,15 +80,15 @@ const CreatePaymentMethodForm = () => {
           <div className="flex flex-1 flex-col items-center overflow-y-auto">
             <div className="flex w-full max-w-[720px] flex-col gap-y-8 px-2 py-16">
               <div>
-                <Heading>Add Payment Method</Heading>
+                <Heading>{t("partner.payments.form.heading")}</Heading>
                 <Text size="small" className="text-ui-fg-subtle">
-                  Add a payout method reference.
+                  {t("partner.payments.form.description")}
                 </Text>
               </div>
 
               {!partnerId && (
                 <Text size="small" className="text-ui-fg-subtle">
-                  Missing partner context.
+                  {t("partner.payments.form.missingPartner")}
                 </Text>
               )}
 
@@ -96,16 +98,22 @@ const CreatePaymentMethodForm = () => {
                   name="type"
                   render={({ field }) => (
                     <Form.Item className="md:col-span-2">
-                      <Form.Label>Type</Form.Label>
+                      <Form.Label>{t("partner.payments.form.type")}</Form.Label>
                       <Form.Control>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <Select.Trigger>
-                            <Select.Value placeholder="Select type" />
+                            <Select.Value placeholder={t("partner.payments.form.typePlaceholder")} />
                           </Select.Trigger>
                           <Select.Content>
-                            <Select.Item value="bank_account">Bank Account</Select.Item>
-                            <Select.Item value="cash_account">Cash Account</Select.Item>
-                            <Select.Item value="digital_wallet">Digital Wallet</Select.Item>
+                            <Select.Item value="bank_account">
+                              {t("partner.payments.typeLabels.bankAccount")}
+                            </Select.Item>
+                            <Select.Item value="cash_account">
+                              {t("partner.payments.typeLabels.cashAccount")}
+                            </Select.Item>
+                            <Select.Item value="digital_wallet">
+                              {t("partner.payments.typeLabels.digitalWallet")}
+                            </Select.Item>
                           </Select.Content>
                         </Select>
                       </Form.Control>
@@ -119,7 +127,7 @@ const CreatePaymentMethodForm = () => {
                   name="account_name"
                   render={({ field }) => (
                     <Form.Item className="md:col-span-2">
-                      <Form.Label>Account name</Form.Label>
+                      <Form.Label>{t("partner.payments.form.accountName")}</Form.Label>
                       <Form.Control>
                         <Input {...field} />
                       </Form.Control>
@@ -135,7 +143,7 @@ const CreatePaymentMethodForm = () => {
                       name="account_number"
                       render={({ field }) => (
                         <Form.Item>
-                          <Form.Label>Account number</Form.Label>
+                          <Form.Label>{t("partner.payments.form.accountNumber")}</Form.Label>
                           <Form.Control>
                             <Input {...field} />
                           </Form.Control>
@@ -149,7 +157,7 @@ const CreatePaymentMethodForm = () => {
                       name="bank_name"
                       render={({ field }) => (
                         <Form.Item>
-                          <Form.Label>Bank name</Form.Label>
+                          <Form.Label>{t("partner.payments.form.bankName")}</Form.Label>
                           <Form.Control>
                             <Input {...field} />
                           </Form.Control>
@@ -163,7 +171,7 @@ const CreatePaymentMethodForm = () => {
                       name="ifsc_code"
                       render={({ field }) => (
                         <Form.Item className="md:col-span-2">
-                          <Form.Label>IFSC</Form.Label>
+                          <Form.Label>{t("partner.payments.form.ifsc")}</Form.Label>
                           <Form.Control>
                             <Input {...field} />
                           </Form.Control>
@@ -180,7 +188,7 @@ const CreatePaymentMethodForm = () => {
                     name="wallet_id"
                     render={({ field }) => (
                       <Form.Item className="md:col-span-2">
-                        <Form.Label>Wallet ID</Form.Label>
+                        <Form.Label>{t("partner.payments.form.walletId")}</Form.Label>
                         <Form.Control>
                           <Input {...field} />
                         </Form.Control>
@@ -197,7 +205,7 @@ const CreatePaymentMethodForm = () => {
           <div className="flex items-center justify-end gap-x-2">
             <RouteFocusModal.Close asChild>
               <Button size="small" variant="secondary">
-                Cancel
+                {t("partner.payments.form.cancel")}
               </Button>
             </RouteFocusModal.Close>
             <Button
@@ -207,7 +215,7 @@ const CreatePaymentMethodForm = () => {
               isLoading={isPending}
               disabled={!partnerId}
             >
-              Create
+              {t("partner.payments.form.create")}
             </Button>
           </div>
         </RouteFocusModal.Footer>

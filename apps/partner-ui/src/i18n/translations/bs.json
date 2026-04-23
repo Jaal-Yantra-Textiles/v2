@@ -598,7 +598,6 @@
       "weight": {
         "label": "Težina"
       },
-
       "options": {
         "label": "Opcije proizvoda",
         "hint": "Opcije se koriste za definisanje boje, veličine itd. proizvoda",
@@ -2665,7 +2664,10 @@
         "placeholder": "pogrešna_veličina",
         "tooltip": "Vrijednost treba biti jedinstveni identifikator za razlog povrata."
       },
-      "label": { "label": "Oznaka", "placeholder": "Pogrešna veličina" },
+      "label": {
+        "label": "Oznaka",
+        "placeholder": "Pogrešna veličina"
+      },
       "description": {
         "label": "Opis",
         "placeholder": "Kupac je primio pogrešnu veličinu"
@@ -3012,5 +3014,409 @@
     "minutes_other": "Minute",
     "seconds_one": "Sekunda",
     "seconds_other": "Sekunde"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Trgovina",
+      "regions": "Regije",
+      "locationsShipping": "Lokacije i dostava",
+      "salesChannels": "Prodajni kanali",
+      "taxRegions": "Porezne regije",
+      "returnReasons": "Razlozi povrata",
+      "refundReasons": "Razlozi povrata sredstava",
+      "onboarding": "Uvođenje u sistem",
+      "people": "Osobe",
+      "payments": "Plaćanja",
+      "paymentConfig": "Konfiguracija plaćanja",
+      "planBilling": "Plan i naplata"
+    },
+    "paymentSubmissions": {
+      "heading": "Podnosi za plaćanje",
+      "description": "Podnesite završene dizajne ili zadatke za plaćanje",
+      "newSubmission": "Novi podnos",
+      "breadcrumb": "Podnosi za plaćanje",
+      "columns": {
+        "submission": "Podnos",
+        "status": "Status",
+        "amount": "Iznos",
+        "items": "Stavke",
+        "submitted": "Podneseno",
+        "reviewed": "Pročitano",
+        "design_one": "{{count}} dizajn",
+        "design_other": "{{count}} dizajna",
+        "task_one": "{{count}} zadatak",
+        "task_other": "{{count}} zadataka"
+      },
+      "empty": {
+        "title": "Nema još podnosa za plaćanje",
+        "message": "Podnesite svoje završene dizajne za plaćanje klikom na „Novi podnos“."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Narudžbe zaliha",
+      "empty": "Nema narudžbi zaliha",
+      "filters": {
+        "status": "Status",
+        "partnerStatus": "Status partnera"
+      },
+      "statusOptions": {
+        "pending": "Na čekanju",
+        "processing": "U obradi",
+        "shipped": "Poslano",
+        "delivered": "Dostavljeno",
+        "cancelled": "Otkazano",
+        "partial": "Djelomično"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Status partnera",
+        "status": "Status",
+        "updated": "Ažurirano",
+        "created": "Kreirano"
+      },
+      "detail": {
+        "heading": "Narudžba zaliha",
+        "missingId": "Nedostaje ID narudžbe",
+        "orderId": "ID narudžbe",
+        "status": "Status",
+        "partnerStatus": "Status partnera",
+        "linesHeading": "Stavke",
+        "linesDescription": "Zatražene naspram ispunjenih količina",
+        "noLines": "Nema stavki",
+        "linePrefix": "Stavka",
+        "columns": {
+          "item": "Stavka",
+          "requested": "Zatraženo",
+          "fulfilled": "Ispunjeno",
+          "remaining": "Preostalo"
+        },
+        "activities": {
+          "title": "Aktivnosti",
+          "completed": "Završeno",
+          "pending": "Na čekanju"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Dobrodošli! Postavimo vaš radni prostor",
+      "steps": {
+        "about": "O vama",
+        "logo": "Logo i brend",
+        "people": "Tim"
+      },
+      "businessTypes": {
+        "manufacturer": "Proizvođač / Proizvođač",
+        "seller": "Prodavac / Maloprodavac",
+        "designer": "Dizajner / Kreativac",
+        "wholesaler": "Veleprodavac / Distributer",
+        "artisan": "Zanatlija / Umjetnik",
+        "individual": "Fizičko lice (model, freelancer itd.)",
+        "other": "Ostalo"
+      },
+      "about": {
+        "heading": "Recite nam nešto o vašem poslu",
+        "description": "To nam pomaže da prilagodimo vaše iskustvo i povežemo vas s odgovarajućim alatima.",
+        "businessName": "Naziv poslovnog subjekta",
+        "businessNamePlaceholder": "Acme Tekstil",
+        "businessTypeLabel": "Šta najbolje opisuje vaš posao?",
+        "businessTypePlaceholder": "Odaberite tip poslovnog subjekta",
+        "descriptionLabel": "Kratak opis",
+        "descriptionPlaceholder": "Šta proizvodite ili prodajete? Koje su vaše ciljne grupe?",
+        "website": "Web stranica",
+        "phone": "Telefon",
+        "optional": "(opcionalno)",
+        "websitePlaceholder": "https://acmetekstil.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Postavite logotip vaše kompanije",
+        "description": "Ovo će se pojaviti na vašem profilu partnera i trgovini. Možete to promijeniti kasnije.",
+        "clickToChange": "Kliknite za promjenu",
+        "clickToUpload": "Kliknite za postavljanje ili prevucite i ispustite",
+        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)"
+      },
+      "team": {
+        "heading": "Dodajte članove svog tima",
+        "description": "Pozovite ljude koji će vam pomoći u upravljanju trgovinom i proizvodima. Ovaj korak je opcionalan — možete dodati članove tima kasnije.",
+        "success": "Uvođenje u sistem uspješno završeno!",
+        "firstName": "Ime",
+        "firstNamePlaceholder": "John",
+        "lastName": "Prezime",
+        "lastNamePlaceholder": "Doe",
+        "email": "E-mail",
+        "emailPlaceholder": "john@kompanija.com",
+        "remove": "Ukloni",
+        "addAnother": "+ Dodajte još jednu osobu"
+      },
+      "footer": {
+        "skip": "Preskoči za sada",
+        "stepCount": "Korak {{current}} od {{total}}",
+        "back": "Natrag",
+        "continue": "Nastavi",
+        "complete": "Završi postavljanje"
+      },
+      "errors": {
+        "unknown": "Došlo je do nepoznate greške"
+      }
+    },
+    "plan": {
+      "heading": "Plan i naplata",
+      "description": "Odaberite plan koji odgovara vašem poslu",
+      "labels": {
+        "plan": "Plan",
+        "price": "Cijena",
+        "period": "Period",
+        "payment": "Plaćanje"
+      },
+      "providerPayu": "PayU (Indija)",
+      "providerStripe": "Stripe (međunarodno)",
+      "cancelSubscription": "Otkaži pretplatu",
+      "noSubscription": "Nema aktivne pretplate. Odaberite plan ispod da biste započeli.",
+      "chooseHeading": "Odaberite svoj plan",
+      "chooseDescription": "Svi planovi uključuju neograničen broj proizvoda, računa zaposlenika i žive dostave. Nema ograničenja za prodaju.",
+      "badges": {
+        "current": "Trenutni",
+        "popular": "Popularan"
+      },
+      "currentPlan": "Trenutni plan",
+      "cta": {
+        "getStarted": "Započnite",
+        "downgrade": "Snizite",
+        "upgrade": "Nadogradite"
+      },
+      "whatsIncluded": "Šta je uključeno",
+      "features": {
+        "unlimitedProducts": "Neograničen broj proizvoda",
+        "unlimitedSelling": "Neograničena prodaja",
+        "unlimitedStaff": "Neograničen broj računa zaposlenika",
+        "storefrontSource": "Izvorni kod trgovine",
+        "customDomain": "Prilagođena domena",
+        "jytEmails": "JYT e-mailovi",
+        "liveShipping": "Živa dostava (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "naknada za obrađivanje plaćanja",
+        "analyticsAdvanced": "Napredna analitika",
+        "analyticsBasic": "Osnovna analitika",
+        "aiChatSupport": "AI podrška putem čata",
+        "customModules": "Prilagođeni moduli",
+        "customApis": "Prilagođeni API-ji",
+        "prioritySupport": "Prioritetna podrška",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "Usporedba funkcija",
+        "featureColumn": "Funkcija",
+        "priceRow": "Cijena",
+        "rows": {
+          "unlimitedProducts": "Proizvodi",
+          "unlimitedSelling": "Prodaja",
+          "unlimitedStaff": "Računi zaposlenika",
+          "storefrontSource": "Izvorni kod trgovine",
+          "customDomain": "Prilagođena domena",
+          "themeCustomization": "Uređivač teme",
+          "jytEmails": "JYT e-mailovi",
+          "liveShipping": "Živa dostava",
+          "paymentFee": "Naknada za plaćanje",
+          "analytics": "Analitika",
+          "aiChatSupport": "AI podrška putem čata",
+          "customModules": "Prilagođeni moduli",
+          "customApis": "Prilagođeni API-ji",
+          "prioritySupport": "Prioritetna podrška",
+          "whiteLabel": "White label"
+        },
+        "values": {
+          "unlimited": "Neograničeno",
+          "yes": "Da",
+          "no": "Ne",
+          "analyticsAdvanced": "Napredno",
+          "analyticsBasic": "Osnovno",
+          "free": "Besplatno"
+        }
+      },
+      "paymentInfo": "Plaćanja obrađuju se putem {{provider}}. Naknada za obrađivanje plaćanja primjenjuje se samo kada kupci plaćaju putem JYT platnih vrata. Možete unijeti vlastite vjerifikacijske podatke za plaćanje kako biste izbjegli naknade platforme.",
+      "prompts": {
+        "switchTitle": "Prebaci na {{plan}}",
+        "switchPaidDescription": "Bićete naplaćeni iznosom {{price}}/{{interval}} putem {{provider}}. Vaš trenutni plan bit će zamijenjen.",
+        "switchFreeDescription": "Prebacit ćete se na besplatni plan. Vaš trenutni plan bit će otkazan.",
+        "payWith": "Platite putem {{provider}}",
+        "switch": "Prebaci",
+        "cancel": "Otkaži",
+        "cancelTitle": "Otkaži pretplatu",
+        "cancelDescription": "Jeste li sigurni? Zadržat ćete pristup do kraja vašeg naplatnog perioda. Možete se ponovo pretplatiti u bilo kojem trenutku.",
+        "cancelConfirm": "Otkaži pretplatu",
+        "keepPlan": "Zadrži plan"
+      },
+      "toast": {
+        "paymentSuccess": "Plaćanje uspješno! Vaš plan je aktiviran.",
+        "paymentFailed": "Plaćanje nije uspjelo. Molimo pokušajte ponovo.",
+        "paymentCanceled": "Plaćanje je otkazano.",
+        "paymentError": "Greška pri plaćanju: {{message}}",
+        "paymentUnknown": "Nepoznata greška",
+        "switchedTo": "Prebačeno na {{plan}}",
+        "switchFailed": "Nije moguće prebaciti na drugi plan",
+        "canceled": "Pretplata otkazana",
+        "cancelFailed": "Nije moguće otkazati",
+        "somethingWrong": "Došlo je do greške"
+      }
+    },
+    "people": {
+      "heading": "Članovi tima",
+      "description": "Upravljajte osobama u vašoj organizaciji. Administratori se mogu prijaviti na nadzornu ploču.",
+      "addPerson": "Dodaj osobu",
+      "empty": "Još nema članova tima. Dodajte prvu osobu iznad.",
+      "columns": {
+        "name": "Ime",
+        "email": "E-mail",
+        "access": "Pristup",
+        "accessDashboard": "Nadzorna ploča",
+        "accessTeamOnly": "Samo tim",
+        "role": "Uloga",
+        "added": "Dodano"
+      },
+      "drawer": {
+        "title": "Dodaj osobu",
+        "description": "Dodajte člana tima u vašu organizaciju.",
+        "emailLabel": "E-mail *",
+        "emailPlaceholder": "osoba@primjer.com",
+        "firstName": "Ime",
+        "firstNamePlaceholder": "John",
+        "lastName": "Prezime",
+        "lastNamePlaceholder": "Doe",
+        "phone": "Telefon",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Kreiraj kao administratora nadzorne ploče",
+        "adminHint": "Ova osoba će primiti vjerifikacijske podatke za prijavu i moći će pristupiti nadzornoj ploči partnera.",
+        "teamHint": "Ova osoba će biti navedena kao član tima, ali neće imati pristup nadzornoj ploči.",
+        "role": "Uloga",
+        "roleAdmin": "Administrator — pun pristup",
+        "roleManager": "Menadžer — proizvodi i narudžbe",
+        "roleOwner": "Vlasnik — pun pristup + naplata",
+        "password": "Lozinka",
+        "passwordPlaceholder": "Ostavite prazno za automatsku generaciju",
+        "passwordHint": "Automatski se generira ako ostavite prazno. Uključena je u dobrodošlicu e-mail poruci.",
+        "freeTextRole": "Uloga",
+        "freeTextRolePlaceholder": "npr. Dizajner, tkanjač, QA",
+        "freeTextRoleHint": "Slobodno tekstualna uloga radi organizacijskih potreba.",
+        "cancel": "Otkaži",
+        "addAdmin": "Dodaj administratora"
+      },
+      "toast": {
+        "emailRequired": "E-mail je obavezan",
+        "adminAdded": "Administrator uspješno dodan",
+        "adminAddedDescription": "Dobrodošlica e-mail poslana na {{email}}. Privremena lozinka: {{password}}",
+        "addAdminFailed": "Dodavanje administratora nije uspjelo",
+        "personAdded": "Osoba dodana",
+        "personAddedDescription": "{{email}} dodan kao {{role}}. Neće imati pristup nadzornoj ploči.",
+        "addPersonFailed": "Dodavanje osobe nije uspjelo"
+      }
+    },
+    "payments": {
+      "heading": "Plaćanja",
+      "subheading": "Načini plaćanja",
+      "create": "Kreiraj",
+      "recentHeading": "Nedavna plaćanja",
+      "recentDescription": "Pregledajte nedavna plaćanja.",
+      "emptyMethods": "Nema načina plaćanja",
+      "emptyPayments": "Nema plaćanja",
+      "columns": {
+        "type": "Tip",
+        "accountName": "Naziv računa",
+        "details": "Detalji",
+        "bank": "Banka",
+        "walletPrefix": "Novčanik",
+        "added": "Dodano",
+        "paymentId": "ID plaćanja",
+        "amount": "Iznos",
+        "currency": "Valuta"
+      },
+      "typeLabels": {
+        "bankAccount": "Bankovni račun",
+        "cashAccount": "Gotovinski račun",
+        "digitalWallet": "Digitalni novčanik"
+      },
+      "form": {
+        "heading": "Dodaj način plaćanja",
+        "description": "Dodajte referencu za način isplate.",
+        "missingPartner": "Nedostaje kontekst partnera.",
+        "type": "Tip",
+        "typePlaceholder": "Odaberite tip",
+        "accountName": "Naziv računa",
+        "accountNumber": "Broj računa",
+        "bankName": "Naziv banke",
+        "ifsc": "IFSC",
+        "walletId": "ID novčanika",
+        "cancel": "Otkaži",
+        "create": "Kreiraj"
+      },
+      "toast": {
+        "created": "Način plaćanja kreiran"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Vjerifikacijski podaci za plaćanje",
+      "subHeading": "Vaši vjerifikacijski podaci za plaćanje. Ovi podaci zamjenjuju zadane vrijednosti platforme za vašu trgovinu.",
+      "empty": {
+        "heading": "Nisu konfigurirani vjerifikacijski podaci za plaćanje",
+        "description": "Koristite zajedničke vjerifikacijske podatke platforme. Dodajte svoje vlastite kako biste koristili vlastite trgovinske račune."
+      },
+      "columns": {
+        "provider": "Davatelj usluge",
+        "status": "Status",
+        "statusActive": "Aktivan",
+        "statusInactive": "Neaktivan",
+        "credentials": "Vjerifikacijski podaci",
+        "added": "Dodano"
+      },
+      "removePrompt": {
+        "description": "Ukloniti li vaše vjerifikacijske podatke za {{provider}}? Vaša trgovina će se vratiti na zajedničke vjerifikacijske podatke platforme."
+      },
+      "toast": {
+        "removed": "Vjerifikacijski podaci uklonjeni",
+        "removeFailed": "Uklanjanje nije uspjelo",
+        "saved": "Vjerifikacijski podaci za plaćanje sačuvani",
+        "saveFailed": "Spremanje vjerifikacijskih podataka nije uspjelo"
+      },
+      "form": {
+        "heading": "Dodaj vjerifikacijske podatke za plaćanje",
+        "description": "Konfigurirajte vlastite vjerifikacijske podatke za davatelja usluga za plaćanje. Ovo zamjenjuje zadane vrijednosti platforme za vašu trgovinu.",
+        "provider": "Davatelj usluge",
+        "merchantKey": "Ključ trgovca",
+        "merchantKeyPlaceholder": "Vaš PayU ključ trgovca",
+        "merchantSalt": "Sol trgovca",
+        "merchantSaltPlaceholder": "Vaš PayU sol trgovca",
+        "mode": "Način rada",
+        "modeTest": "Test",
+        "modeLive": "Stvarno",
+        "stripeApiKey": "Stripe API ključ",
+        "stripeApiKeyPlaceholder": "sk_live_... ili sk_test_...",
+        "stripeApiKeyHint": "Vaš tajni Stripe ključ sa Stripe nadzorne ploče."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Tip poslovnog subjekta",
+        "description": "Odaberite kako koristite JYT. To kontrolira koje stavke navigacije se pojavljuju u vašem bočnom izborniku.",
+        "active": "Aktivno",
+        "seller": {
+          "title": "Prodavac",
+          "description": "Prodajte proizvode online. Pogledajte Proizvode, Narudžbe, Kupce, Kategorije i Kolekcije."
+        },
+        "manufacturer": {
+          "title": "Proizvođač",
+          "description": "Dizajnirajte i proizvodite tekstil. Pogledajte Dizajne, Narudžbe zaliha, Proizvodne serije, Zadatke i više."
+        },
+        "individual": {
+          "title": "Fizičko lice",
+          "description": "Radite na dodijeljenim zadacima. Pogledajte Zadatke, Dijeljene mape i Podnose za plaćanje."
+        }
+      },
+      "status": {
+        "heading": "Uvođenje u sistem",
+        "description": "Praćenje dovršetka uvođenja u sistem i ponovno otvaranje procesa uvođenja.",
+        "label": "Status",
+        "completed": "Završeno",
+        "notCompleted": "Nije završeno",
+        "open": "Otvori uvođenje u sistem"
+      }
+    }
   }
 }

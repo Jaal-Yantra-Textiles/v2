@@ -2605,7 +2605,10 @@
         "placeholder": "خطأ في الحجم",
         "tooltip": "يجب أن تكون القيمة معرفًا فريدًا لسبب الإرجاع."
       },
-      "label": { "label": "التسمية", "placeholder": "خطأ في الحجم" },
+      "label": {
+        "label": "التسمية",
+        "placeholder": "خطأ في الحجم"
+      },
       "description": {
         "label": "الوصف",
         "placeholder": "تلقى العميل الحجم الخطأ"
@@ -2952,5 +2955,409 @@
     "minutes_other": "دقائق",
     "seconds_one": "ثانية",
     "seconds_other": "ثواني"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "المتجر",
+      "regions": "المناطق",
+      "locationsShipping": "المواقع والشحن",
+      "salesChannels": "قنوات المبيعات",
+      "taxRegions": "مناطق الضرائب",
+      "returnReasons": "أسباب الإرجاع",
+      "refundReasons": "أسباب استرداد الأموال",
+      "onboarding": "الإدخال",
+      "people": "الأفراد",
+      "payments": "المدفوعات",
+      "paymentConfig": "تكوين المدفوعات",
+      "planBilling": "الخطة والفواتير"
+    },
+    "paymentSubmissions": {
+      "heading": "طلبات الدفع",
+      "description": "قدِّم التصاميم أو المهام المكتملة للدفع",
+      "newSubmission": "طلب جديد",
+      "breadcrumb": "طلبات الدفع",
+      "columns": {
+        "submission": "الطلب",
+        "status": "الحالة",
+        "amount": "المبلغ",
+        "items": "العناصر",
+        "submitted": "مقدَّم",
+        "reviewed": "تم المراجعة",
+        "design_one": "{{count}} تصميم",
+        "design_other": "{{count}} تصاميم",
+        "task_one": "{{count}} مهمة",
+        "task_other": "{{count}} مهام"
+      },
+      "empty": {
+        "title": "لا توجد طلبات دفع بعد",
+        "message": "قدِّم تصاميمك المكتملة للدفع بالنقر على 'طلب جديد'."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "طلبات المخزون",
+      "empty": "لا توجد طلبات مخزون",
+      "filters": {
+        "status": "الحالة",
+        "partnerStatus": "حالة الشريك"
+      },
+      "statusOptions": {
+        "pending": "قيد الانتظار",
+        "processing": "جارٍ المعالجة",
+        "shipped": "تم الشحن",
+        "delivered": "تم التوصيل",
+        "cancelled": "ملغاة",
+        "partial": "جزئية"
+      },
+      "columns": {
+        "id": "المعرف",
+        "partnerStatus": "حالة الشريك",
+        "status": "الحالة",
+        "updated": "تم التحديث",
+        "created": "تم الإنشاء"
+      },
+      "detail": {
+        "heading": "طلب المخزون",
+        "missingId": "معرف الطلب مفقود",
+        "orderId": "معرف الطلب",
+        "status": "الحالة",
+        "partnerStatus": "حالة الشريك",
+        "linesHeading": "البنود",
+        "linesDescription": "الكميات المطلوبة مقابل الكميات المنفذة",
+        "noLines": "لا توجد بنود",
+        "linePrefix": "بند",
+        "columns": {
+          "item": "العنصر",
+          "requested": "مُطلَب",
+          "fulfilled": "منفذ",
+          "remaining": "متبقٍ"
+        },
+        "activities": {
+          "title": "الأنشطة",
+          "completed": "مكتمل",
+          "pending": "قيد الانتظار"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "مرحبًا! دعنا نُعدّ مساحة عملك",
+      "steps": {
+        "about": "نبذة عنك",
+        "logo": "الشعار والعلامة التجارية",
+        "people": "الفريق"
+      },
+      "businessTypes": {
+        "manufacturer": "شركة تصنيع / منتج",
+        "seller": "بائع / تاجر تجزئة",
+        "designer": "مصمم / مبتكر",
+        "wholesaler": "تاجر جملة / موزع",
+        "artisan": "حرفي / صانع يدوي",
+        "individual": "فرد (نموذج، مستقل، إلخ.)",
+        "other": "أخرى"
+      },
+      "about": {
+        "heading": "أخبرنا عن نشاطك التجاري",
+        "description": "يساعدنا هذا في تخصيص تجربتك وربطك بالأدوات المناسبة.",
+        "businessName": "اسم النشاط التجاري",
+        "businessNamePlaceholder": "أكما للنسيج",
+        "businessTypeLabel": "ما الوصف الأنسب لنشاطك التجاري؟",
+        "businessTypePlaceholder": "حدد نوع النشاط التجاري",
+        "descriptionLabel": "وصف موجز",
+        "descriptionPlaceholder": "ماذا تصنع أو تبيع؟ ومن هم عملاؤك؟",
+        "website": "الموقع الإلكتروني",
+        "phone": "الهاتف",
+        "optional": "(اختياري)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "قم برفع شعار شركتك",
+        "description": "سيظهر هذا في ملفك الشخصي كشريك وفي واجهة المتجر. يمكنك تغييره في أي وقت لاحق.",
+        "clickToChange": "انقر لتغييره",
+        "clickToUpload": "انقر للتحميل أو اسحب وأفلت",
+        "fileTypes": "SVG، PNG، JPG (حد أقصى ٥ ميجابايت)"
+      },
+      "team": {
+        "heading": "أضف أعضاء فريقك",
+        "description": "ادعُ الأشخاص الذين سيساعدونك في إدارة متجرك ومنتجك. هذه الخطوة اختيارية — يمكنك إضافة أعضاء الفريق لاحقًا.",
+        "success": "اكتمل الإدخال بنجاح!",
+        "firstName": "الاسم الأول",
+        "firstNamePlaceholder": "جون",
+        "lastName": "اسم العائلة",
+        "lastNamePlaceholder": "دو",
+        "email": "البريد الإلكتروني",
+        "emailPlaceholder": "john@company.com",
+        "remove": "إزالة",
+        "addAnother": "+ أضف شخصًا آخر"
+      },
+      "footer": {
+        "skip": "تخطي الآن",
+        "stepCount": "الخطوة {{current}} من {{total}}",
+        "back": "رجوع",
+        "continue": "متابعة",
+        "complete": "إكمال الإعداد"
+      },
+      "errors": {
+        "unknown": "حدث خطأ غير معروف"
+      }
+    },
+    "plan": {
+      "heading": "الخطة والفواتير",
+      "description": "اختر الخطة التي تناسب نشاطك التجاري",
+      "labels": {
+        "plan": "الخطة",
+        "price": "السعر",
+        "period": "الفترة",
+        "payment": "طريقة الدفع"
+      },
+      "providerPayu": "PayU (الهند)",
+      "providerStripe": "Stripe (دولي)",
+      "cancelSubscription": "إلغاء الاشتراك",
+      "noSubscription": "لا يوجد اشتراك نشط. اختر خطة أدناه للبدء.",
+      "chooseHeading": "اختر خطتك",
+      "chooseDescription": "تشمل جميع الخطط منتجات غير محدودة، وحسابات موظفين، وخدمات شحن مباشرة. لا توجد قيود على البيع.",
+      "badges": {
+        "current": "حالية",
+        "popular": "شائعة"
+      },
+      "currentPlan": "الخطة الحالية",
+      "cta": {
+        "getStarted": "البدء",
+        "downgrade": "خفض المستوى",
+        "upgrade": "ترقية"
+      },
+      "whatsIncluded": "ما الذي تتضمنه",
+      "features": {
+        "unlimitedProducts": "منتجات غير محدودة",
+        "unlimitedSelling": "بيع غير محدود",
+        "unlimitedStaff": "حسابات موظفين غير محدودة",
+        "storefrontSource": "كود مصدر واجهة المتجر",
+        "customDomain": "نطاق مخصص",
+        "jytEmails": "رسائل بريد إلكتروني JYT",
+        "liveShipping": "شحن مباشر (Delhivery، DHL، UPS، FedEx)",
+        "paymentFeeSuffix": "رسم معالجة الدفع",
+        "analyticsAdvanced": "تحليلات متقدمة",
+        "analyticsBasic": "تحليلات أساسية",
+        "aiChatSupport": "دعم دردشة ذكاء اصطناعي",
+        "customModules": "وحدات مخصصة",
+        "customApis": "واجهات برمجية مخصصة (APIs)",
+        "prioritySupport": "دعم أولوي",
+        "whiteLabel": "علامة بيضاء"
+      },
+      "comparison": {
+        "heading": "مقارنة الميزات",
+        "featureColumn": "الميزة",
+        "priceRow": "السعر",
+        "rows": {
+          "unlimitedProducts": "المنتجات",
+          "unlimitedSelling": "البيع",
+          "unlimitedStaff": "حسابات الموظفين",
+          "storefrontSource": "كود مصدر واجهة المتجر",
+          "customDomain": "النطاق المخصص",
+          "themeCustomization": "محرر القوالب",
+          "jytEmails": "رسائل بريد إلكتروني JYT",
+          "liveShipping": "الشحن المباشر",
+          "paymentFee": "رسم الدفع",
+          "analytics": "التحليلات",
+          "aiChatSupport": "دعم الدردشة بالذكاء الاصطناعي",
+          "customModules": "الوحدات المخصصة",
+          "customApis": "واجهات البرمجة المخصصة (APIs)",
+          "prioritySupport": "الدعم الأولوي",
+          "whiteLabel": "العلامة البيضاء"
+        },
+        "values": {
+          "unlimited": "غير محدود",
+          "yes": "نعم",
+          "no": "لا",
+          "analyticsAdvanced": "متقدمة",
+          "analyticsBasic": "أساسية",
+          "free": "مجاني"
+        }
+      },
+      "paymentInfo": "تتم معالجة المدفوعات عبر {{provider}}. ينطبق رسم معالجة الدفع فقط عند دفع العملاء عبر بوابات الدفع JYT. ويمكنك استخدام بيانات اعتماد مزود الدفع الخاص بك لتجنب رسوم المنصة.",
+      "prompts": {
+        "switchTitle": "التبديل إلى {{plan}}",
+        "switchPaidDescription": "سيتم تحصيل {{price}}/{{interval}} منك عبر {{provider}}. وسيتم استبدال خطتك الحالية.",
+        "switchFreeDescription": "سوف تنتقل إلى الخطة المجانية. وسيتم إلغاء خطتك الحالية.",
+        "payWith": "الدفع عبر {{provider}}",
+        "switch": "التبديل",
+        "cancel": "إلغاء",
+        "cancelTitle": "إلغاء الاشتراك",
+        "cancelDescription": "هل أنت متأكد؟ ستبقى لديك إمكانية الوصول حتى نهاية فترة الفوترة الخاصة بك. ويمكنك إعادة الاشتراك في أي وقت.",
+        "cancelConfirm": "إلغاء الاشتراك",
+        "keepPlan": "الاحتفاظ بالخطة"
+      },
+      "toast": {
+        "paymentSuccess": "تم الدفع بنجاح! تم تفعيل خطتك.",
+        "paymentFailed": "فشل الدفع. يُرجى المحاولة مرة أخرى.",
+        "paymentCanceled": "تم إلغاء الدفع.",
+        "paymentError": "خطأ في الدفع: {{message}}",
+        "paymentUnknown": "خطأ غير معروف",
+        "switchedTo": "تم التبديل إلى {{plan}}",
+        "switchFailed": "تعذر التبديل إلى الخطة",
+        "canceled": "تم إلغاء الاشتراك",
+        "cancelFailed": "تعذر الإلغاء",
+        "somethingWrong": "حدث خطأ ما"
+      }
+    },
+    "people": {
+      "heading": "أعضاء الفريق",
+      "description": "إدارة الأشخاص في مؤسستك. يمكن للمدراء تسجيل الدخول إلى لوحة التحكم.",
+      "addPerson": "إضافة شخص",
+      "empty": "لا توجد أعضاء في الفريق بعد. أضف أول شخص أعلاه.",
+      "columns": {
+        "name": "الاسم",
+        "email": "البريد الإلكتروني",
+        "access": "الوصول",
+        "accessDashboard": "لوحة التحكم",
+        "accessTeamOnly": "لفريق فقط",
+        "role": "الدور",
+        "added": "تم الإضافة"
+      },
+      "drawer": {
+        "title": "إضافة شخص",
+        "description": "أضف عضوًا في الفريق إلى مؤسستك.",
+        "emailLabel": "البريد الإلكتروني *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "الاسم الأول",
+        "firstNamePlaceholder": "جون",
+        "lastName": "اسم العائلة",
+        "lastNamePlaceholder": "دو",
+        "phone": "الهاتف",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "إنشاء كمدير لوحة التحكم",
+        "adminHint": "سيتلقى هذا الشخص بيانات الاعتماد الخاصة بتسجيل الدخول ويمكنه الوصول إلى لوحة التحكم الخاصة بالشريك.",
+        "teamHint": "سيتم سرد هذا الشخص كعضو في الفريق دون منحه حق الوصول إلى لوحة التحكم.",
+        "role": "الدور",
+        "roleAdmin": "مدير — وصول كامل",
+        "roleManager": "مدير — منتجات وطلبات",
+        "roleOwner": "مالك — وصول كامل + الفواتير",
+        "password": "كلمة المرور",
+        "passwordPlaceholder": "اتركها فارغة لتوليد تلقائي",
+        "passwordHint": "يتم توليدها تلقائيًا إذا تركت فارغة. وتتضمن في رسالة الترحيب الإلكترونية.",
+        "freeTextRole": "الدور",
+        "freeTextRolePlaceholder": "مثل: مصمم، نسّاج، ضبط جودة",
+        "freeTextRoleHint": "دور نصي حر لأغراض تنظيمية.",
+        "cancel": "إلغاء",
+        "addAdmin": "إضافة مدير"
+      },
+      "toast": {
+        "emailRequired": "البريد الإلكتروني مطلوب",
+        "adminAdded": "تم إضافة المدير بنجاح",
+        "adminAddedDescription": "تم إرسال رسالة الترحيب الإلكترونية إلى {{email}}. كلمة المرور المؤقتة: {{password}}",
+        "addAdminFailed": "فشل إضافة المدير",
+        "personAdded": "تم إضافة الشخص",
+        "personAddedDescription": "تم إضافة {{email}} كـ {{role}}. ولن يتمتع بإمكانية تسجيل الدخول إلى لوحة التحكم.",
+        "addPersonFailed": "فشل إضافة الشخص"
+      }
+    },
+    "payments": {
+      "heading": "المدفوعات",
+      "subheading": "طرق الدفع",
+      "create": "إنشاء",
+      "recentHeading": "المدفوعات الأخيرة",
+      "recentDescription": "عرض المدفوعات الأخيرة.",
+      "emptyMethods": "لا توجد طرق دفع",
+      "emptyPayments": "لا توجد مدفوعات",
+      "columns": {
+        "type": "النوع",
+        "accountName": "اسم الحساب",
+        "details": "التفاصيل",
+        "bank": "البنك",
+        "walletPrefix": "محفظة",
+        "added": "تم الإضافة",
+        "paymentId": "معرف الدفع",
+        "amount": "المبلغ",
+        "currency": "العملة"
+      },
+      "typeLabels": {
+        "bankAccount": "حساب مصرفي",
+        "cashAccount": "حساب نقدي",
+        "digitalWallet": "محفظة رقمية"
+      },
+      "form": {
+        "heading": "إضافة طريقة دفع",
+        "description": "أضف مرجعًا لطريقة الدفع.",
+        "missingPartner": "سياق الشريك مفقود.",
+        "type": "النوع",
+        "typePlaceholder": "حدد النوع",
+        "accountName": "اسم الحساب",
+        "accountNumber": "رقم الحساب",
+        "bankName": "اسم البنك",
+        "ifsc": "IFSC",
+        "walletId": "معرف المحفظة",
+        "cancel": "إلغاء",
+        "create": "إنشاء"
+      },
+      "toast": {
+        "created": "تم إنشاء طريقة الدفع"
+      }
+    },
+    "paymentProviders": {
+      "heading": "بيانات اعتماد مزود الدفع",
+      "subHeading": "بيانات اعتماد مزود الدفع الخاصة بك. وهذه تحل محل الإعدادات الافتراضية للمنصة لمتجرك.",
+      "empty": {
+        "heading": "لم يتم تكوين بيانات اعتماد دفع",
+        "description": "أنت تستخدم بيانات اعتماد المنصة المشتركة. أضف بياناتك الخاصة لاستخدام حسابات التاجر الخاصة بك."
+      },
+      "columns": {
+        "provider": "مزود الخدمة",
+        "status": "الحالة",
+        "statusActive": "نشط",
+        "statusInactive": "غير نشط",
+        "credentials": "بيانات الاعتماد",
+        "added": "تم الإضافة"
+      },
+      "removePrompt": {
+        "description": "هل تريد إزالة بيانات اعتماد {{provider}}؟ سيُعاد متجرك تلقائيًا إلى استخدام بيانات اعتماد المنصة المشتركة."
+      },
+      "toast": {
+        "removed": "تمت إزالة بيانات الاعتماد",
+        "removeFailed": "فشل الإزالة",
+        "saved": "تم حفظ بيانات اعتماد الدفع",
+        "saveFailed": "فشل حفظ بيانات الاعتماد"
+      },
+      "form": {
+        "heading": "إضافة بيانات اعتماد الدفع",
+        "description": "قم بتكوين بيانات اعتماد مزود الدفع الخاص بك. وهذا يحل محل الإعدادات الافتراضية للمنصة لمتجرك.",
+        "provider": "مزود الخدمة",
+        "merchantKey": "مفتاح التاجر",
+        "merchantKeyPlaceholder": "مفتاح التاجر الخاص بك في PayU",
+        "merchantSalt": "ملح التاجر",
+        "merchantSaltPlaceholder": "ملح التاجر الخاص بك في PayU",
+        "mode": "الوضع",
+        "modeTest": "اختبار",
+        "modeLive": "حي",
+        "stripeApiKey": "مفتاح API الخاص بـ Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... أو sk_test_...",
+        "stripeApiKeyHint": "مفتاح السر الخاص بك في Stripe من لوحة تحكم Stripe."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "نوع النشاط التجاري",
+        "description": "اختر الطريقة التي تستخدم بها JYT. ويتحكم هذا في العناصر التي تظهر في شريط التنقل الجانبي الخاص بك.",
+        "active": "نشط",
+        "seller": {
+          "title": "بائع",
+          "description": "بيع المنتجات عبر الإنترنت. شاهد عناصر: المنتجات، الطلبات، العملاء، الفئات، والمجموعات."
+        },
+        "manufacturer": {
+          "title": "شركة تصنيع",
+          "description": "تصميم وتصنيع المنسوجات. شاهد عناصر: التصاميم، طلبات المخزون، دورات الإنتاج، المهام، وغيرها."
+        },
+        "individual": {
+          "title": "فرد",
+          "description": "العمل على المهام المُسندة. شاهد عناصر: المهام، المجلدات المشتركة، وطلبات الدفع."
+        }
+      },
+      "status": {
+        "heading": "الإدخال",
+        "description": "تتبع حالة الإدخال وإعادة فتح تدفق الإدخال.",
+        "label": "الحالة",
+        "completed": "مكتمل",
+        "notCompleted": "غير مكتمل",
+        "open": "فتح الإدخال"
+      }
+    }
   }
 }

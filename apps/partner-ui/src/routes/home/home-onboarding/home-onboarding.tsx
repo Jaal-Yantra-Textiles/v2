@@ -11,6 +11,7 @@ import {
   toast,
 } from "@medusajs/ui"
 import { z } from "@medusajs/framework/zod"
+import { useTranslation } from "react-i18next"
 
 import {
   RouteFocusModal,
@@ -41,15 +42,15 @@ const personSchema = z.object({
   email: z.string().email("Invalid email address"),
 })
 
-const BUSINESS_TYPES = [
-  { value: "manufacturer", label: "Manufacturer / Producer" },
-  { value: "seller", label: "Seller / Retailer" },
-  { value: "designer", label: "Designer / Creator" },
-  { value: "wholesaler", label: "Wholesaler / Distributor" },
-  { value: "artisan", label: "Artisan / Craftsperson" },
-  { value: "individual", label: "Individual (Model, Freelancer, etc.)" },
-  { value: "other", label: "Other" },
-]
+const BUSINESS_TYPE_KEYS = [
+  "manufacturer",
+  "seller",
+  "designer",
+  "wholesaler",
+  "artisan",
+  "individual",
+  "other",
+] as const
 
 const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manufacturer" | "individual" => {
   if (businessType === "seller") return "seller"
@@ -59,12 +60,6 @@ const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manuf
 
 const STEPS = ["about", "logo", "people"] as const
 type Step = (typeof STEPS)[number]
-
-const STEP_LABELS: Record<Step, string> = {
-  about: "About You",
-  logo: "Logo & Brand",
-  people: "Team",
-}
 
 const getOnboardingStorageKey = (partnerId: string) =>
   `partner_onboarding_${partnerId}`
@@ -103,10 +98,22 @@ const mapWorkspaceTypeToBusinessType = (workspaceType?: string): string => {
 }
 
 const OnboardingForm = () => {
+  const { t } = useTranslation()
   const { user } = useMe()
   const partnerId = user?.partner_id
   const partner = user?.partner
   const { handleSuccess } = useRouteModal()
+
+  const STEP_LABELS: Record<Step, string> = {
+    about: t("partner.onboardingModal.steps.about"),
+    logo: t("partner.onboardingModal.steps.logo"),
+    people: t("partner.onboardingModal.steps.people"),
+  }
+
+  const BUSINESS_TYPES = BUSINESS_TYPE_KEYS.map((key) => ({
+    value: key,
+    label: t(`partner.onboardingModal.businessTypes.${key}`),
+  }))
 
   const storageKey = useMemo(
     () => (partnerId ? getOnboardingStorageKey(partnerId) : null),
@@ -296,10 +303,10 @@ const OnboardingForm = () => {
         )
       }
 
-      toast.success("Onboarding completed")
+      toast.success(t("partner.onboardingModal.toast.completed"))
       handleSuccess("/")
     } catch (e) {
-      setError(e instanceof Error ? e.message : "An unknown error occurred")
+      setError(e instanceof Error ? e.message : t("partner.onboardingModal.errors.unknown"))
     } finally {
       setIsSubmitting(false)
     }
@@ -344,30 +351,29 @@ const OnboardingForm = () => {
           <ProgressTabs.Content value="about" className="p-6">
             <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
               <div>
-                <Heading>Tell us about your business</Heading>
+                <Heading>{t("partner.onboardingModal.about.heading")}</Heading>
                 <Text size="small" className="text-ui-fg-subtle mt-1">
-                  This helps us customize your experience and connect you with
-                  the right tools.
+                  {t("partner.onboardingModal.about.description")}
                 </Text>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <Text size="small" className="mb-1 block font-medium">
-                    Business name
+                    {t("partner.onboardingModal.about.businessName")}
                   </Text>
                   <Input
                     value={aboutYou.business_name}
                     onChange={(e) =>
                       setAboutYou((prev) => ({ ...prev, business_name: e.target.value }))
                     }
-                    placeholder="Acme Textiles"
+                    placeholder={t("partner.onboardingModal.about.businessNamePlaceholder")}
                   />
                 </div>
 
                 <div className="md:col-span-2">
                   <Text size="small" className="mb-1 block font-medium">
-                    What best describes your business?
+                    {t("partner.onboardingModal.about.businessTypeLabel")}
                   </Text>
                   <Select
                     value={aboutYou.business_type}
@@ -376,7 +382,7 @@ const OnboardingForm = () => {
                     }
                   >
                     <Select.Trigger>
-                      <Select.Value placeholder="Select business type" />
+                      <Select.Value placeholder={t("partner.onboardingModal.about.businessTypePlaceholder")} />
                     </Select.Trigger>
                     <Select.Content>
                       {BUSINESS_TYPES.map((bt) => (
@@ -390,44 +396,48 @@ const OnboardingForm = () => {
 
                 <div className="md:col-span-2">
                   <Text size="small" className="mb-1 block font-medium">
-                    Brief description
+                    {t("partner.onboardingModal.about.descriptionLabel")}
                   </Text>
                   <Textarea
                     value={aboutYou.description}
                     onChange={(e) =>
                       setAboutYou((prev) => ({ ...prev, description: e.target.value }))
                     }
-                    placeholder="What do you make or sell? Who are your customers?"
+                    placeholder={t("partner.onboardingModal.about.descriptionPlaceholder")}
                     rows={3}
                   />
                 </div>
 
                 <div>
                   <Text size="small" className="mb-1 block font-medium">
-                    Website{" "}
-                    <span className="text-ui-fg-muted font-normal">(optional)</span>
+                    {t("partner.onboardingModal.about.website")}{" "}
+                    <span className="text-ui-fg-muted font-normal">
+                      {t("partner.onboardingModal.about.optional")}
+                    </span>
                   </Text>
                   <Input
                     value={aboutYou.website}
                     onChange={(e) =>
                       setAboutYou((prev) => ({ ...prev, website: e.target.value }))
                     }
-                    placeholder="https://acmetextiles.com"
+                    placeholder={t("partner.onboardingModal.about.websitePlaceholder")}
                     type="url"
                   />
                 </div>
 
                 <div>
                   <Text size="small" className="mb-1 block font-medium">
-                    Phone{" "}
-                    <span className="text-ui-fg-muted font-normal">(optional)</span>
+                    {t("partner.onboardingModal.about.phone")}{" "}
+                    <span className="text-ui-fg-muted font-normal">
+                      {t("partner.onboardingModal.about.optional")}
+                    </span>
                   </Text>
                   <Input
                     value={aboutYou.phone}
                     onChange={(e) =>
                       setAboutYou((prev) => ({ ...prev, phone: e.target.value }))
                     }
-                    placeholder="+91 98765 43210"
+                    placeholder={t("partner.onboardingModal.about.phonePlaceholder")}
                     type="tel"
                   />
                 </div>
@@ -439,10 +449,9 @@ const OnboardingForm = () => {
           <ProgressTabs.Content value="logo" className="p-6">
             <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
               <div>
-                <Heading>Upload your company logo</Heading>
+                <Heading>{t("partner.onboardingModal.logo.heading")}</Heading>
                 <Text size="small" className="text-ui-fg-subtle mt-1">
-                  This will appear on your partner profile and storefront.
-                  You can always change this later.
+                  {t("partner.onboardingModal.logo.description")}
                 </Text>
               </div>
               <div className="flex w-full flex-grow items-center justify-center">
@@ -459,30 +468,30 @@ const OnboardingForm = () => {
                           {logo.name}
                         </Text>
                         <Text size="xsmall" className="text-ui-fg-muted">
-                          Click to change
+                          {t("partner.onboardingModal.logo.clickToChange")}
                         </Text>
                       </div>
                     ) : partner?.logo ? (
                       <div className="flex flex-col items-center gap-2">
                         <img
                           src={partner.logo}
-                          alt="Current logo"
+                          alt={t("partner.onboardingModal.logo.currentLogo")}
                           className="h-16 w-16 rounded-lg border object-cover"
                         />
                         <Text size="small" className="text-ui-fg-base font-medium">
-                          Current logo
+                          {t("partner.onboardingModal.logo.currentLogo")}
                         </Text>
                         <Text size="xsmall" className="text-ui-fg-muted">
-                          Click to change
+                          {t("partner.onboardingModal.logo.clickToChange")}
                         </Text>
                       </div>
                     ) : (
                       <>
                         <Text size="small" className="text-ui-fg-subtle mb-2">
-                          Click to upload or drag and drop
+                          {t("partner.onboardingModal.logo.clickToUpload")}
                         </Text>
                         <Text size="small" className="text-ui-fg-muted">
-                          SVG, PNG, JPG (MAX. 5MB)
+                          {t("partner.onboardingModal.logo.fileTypes")}
                         </Text>
                       </>
                     )}
@@ -502,16 +511,15 @@ const OnboardingForm = () => {
           <ProgressTabs.Content value="people" className="p-6">
             <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
               <div>
-                <Heading>Add your team members</Heading>
+                <Heading>{t("partner.onboardingModal.team.heading")}</Heading>
                 <Text size="small" className="text-ui-fg-subtle mt-1">
-                  Invite people who will help manage your store and products.
-                  This step is optional — you can add team members later.
+                  {t("partner.onboardingModal.team.description")}
                 </Text>
               </div>
 
               {error && <Alert variant="error">{error}</Alert>}
               {success && (
-                <Alert variant="success">Onboarding completed!</Alert>
+                <Alert variant="success">{t("partner.onboardingModal.team.success")}</Alert>
               )}
 
               <div className="flex-grow space-y-4">
@@ -521,34 +529,40 @@ const OnboardingForm = () => {
                     className="grid grid-cols-1 gap-4 rounded-lg border p-4 md:grid-cols-3"
                   >
                     <div>
-                      <Text size="small" className="mb-1 block">First Name</Text>
+                      <Text size="small" className="mb-1 block">
+                        {t("partner.onboardingModal.team.firstName")}
+                      </Text>
                       <Input
                         value={person.first_name}
                         onChange={(e) => handlePersonChange(index, "first_name", e.target.value)}
-                        placeholder="John"
+                        placeholder={t("partner.onboardingModal.team.firstNamePlaceholder")}
                       />
                     </div>
                     <div>
-                      <Text size="small" className="mb-1 block">Last Name</Text>
+                      <Text size="small" className="mb-1 block">
+                        {t("partner.onboardingModal.team.lastName")}
+                      </Text>
                       <Input
                         value={person.last_name}
                         onChange={(e) => handlePersonChange(index, "last_name", e.target.value)}
-                        placeholder="Doe"
+                        placeholder={t("partner.onboardingModal.team.lastNamePlaceholder")}
                       />
                     </div>
                     <div>
-                      <Text size="small" className="mb-1 block">Email</Text>
+                      <Text size="small" className="mb-1 block">
+                        {t("partner.onboardingModal.team.email")}
+                      </Text>
                       <Input
                         value={person.email}
                         onChange={(e) => handlePersonChange(index, "email", e.target.value)}
-                        placeholder="john@company.com"
+                        placeholder={t("partner.onboardingModal.team.emailPlaceholder")}
                         type="email"
                       />
                     </div>
                     {people.length > 1 && (
                       <div className="flex justify-end md:col-span-3">
                         <Button variant="danger" size="small" onClick={() => removePerson(index)}>
-                          Remove
+                          {t("partner.onboardingModal.team.remove")}
                         </Button>
                       </div>
                     )}
@@ -557,7 +571,7 @@ const OnboardingForm = () => {
               </div>
 
               <Button variant="secondary" onClick={addPerson} className="w-full">
-                + Add Another Person
+                {t("partner.onboardingModal.team.addAnother")}
               </Button>
             </div>
           </ProgressTabs.Content>
@@ -566,11 +580,13 @@ const OnboardingForm = () => {
         <RouteFocusModal.Footer>
           <div className="flex items-center justify-end gap-x-2">
             <Button variant="secondary" size="small" onClick={handleSkip}>
-              {isFirstStep ? "Skip" : "Skip for now"}
+              {isFirstStep
+                ? t("partner.onboardingModal.footer.skipShort")
+                : t("partner.onboardingModal.footer.skip")}
             </Button>
             {!isFirstStep && (
               <Button variant="secondary" size="small" type="button" onClick={goBack}>
-                Back
+                {t("partner.onboardingModal.footer.back")}
               </Button>
             )}
             {isLastStep ? (
@@ -581,11 +597,11 @@ const OnboardingForm = () => {
                 isLoading={isSubmitting}
                 disabled={isSubmitting}
               >
-                Complete Setup
+                {t("partner.onboardingModal.footer.complete")}
               </Button>
             ) : (
               <Button size="small" variant="primary" type="submit">
-                Continue
+                {t("partner.onboardingModal.footer.continue")}
               </Button>
             )}
           </div>

@@ -12,6 +12,7 @@ import {
   Textarea,
 } from "@medusajs/ui"
 import { z } from "@medusajs/framework/zod"
+import { useTranslation } from "react-i18next"
 import { sdk } from "../../lib/client/client"
 import { queryClient } from "../../lib/query-client"
 
@@ -41,15 +42,15 @@ type OnboardingModalProps = {
   onClose: () => void
 }
 
-const BUSINESS_TYPES = [
-  { value: "manufacturer", label: "Manufacturer / Producer" },
-  { value: "seller", label: "Seller / Retailer" },
-  { value: "designer", label: "Designer / Creator" },
-  { value: "wholesaler", label: "Wholesaler / Distributor" },
-  { value: "artisan", label: "Artisan / Craftsperson" },
-  { value: "individual", label: "Individual (Model, Freelancer, etc.)" },
-  { value: "other", label: "Other" },
-]
+const BUSINESS_TYPE_KEYS = [
+  "manufacturer",
+  "seller",
+  "designer",
+  "wholesaler",
+  "artisan",
+  "individual",
+  "other",
+] as const
 
 /**
  * Maps a business type selection to the corresponding workspace_type enum value.
@@ -62,12 +63,6 @@ const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manuf
 
 const STEPS = ["about", "logo", "people"] as const
 type Step = (typeof STEPS)[number]
-
-const STEP_LABELS: Record<Step, string> = {
-  about: "About You",
-  logo: "Logo & Brand",
-  people: "Team",
-}
 
 const getOnboardingStorageKey = (partnerId: string) =>
   `partner_onboarding_${partnerId}`
@@ -99,10 +94,22 @@ export const OnboardingModal = ({
   isOpen,
   onClose,
 }: OnboardingModalProps) => {
+  const { t } = useTranslation()
   const storageKey = useMemo(
     () => getOnboardingStorageKey(partnerId),
     [partnerId]
   )
+
+  const STEP_LABELS: Record<Step, string> = {
+    about: t("partner.onboardingModal.steps.about"),
+    logo: t("partner.onboardingModal.steps.logo"),
+    people: t("partner.onboardingModal.steps.people"),
+  }
+
+  const BUSINESS_TYPES = BUSINESS_TYPE_KEYS.map((key) => ({
+    value: key,
+    label: t(`partner.onboardingModal.businessTypes.${key}`),
+  }))
 
   const [currentStep, setCurrentStep] = useState<Step>("about")
   const [aboutYou, setAboutYou] = useState<AboutYou>({
@@ -270,7 +277,7 @@ export const OnboardingModal = ({
         onClose()
       }, 1500)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "An unknown error occurred")
+      setError(e instanceof Error ? e.message : t("partner.onboardingModal.errors.unknown"))
     } finally {
       setIsSubmitting(false)
     }
@@ -290,7 +297,7 @@ export const OnboardingModal = ({
       >
         <FocusModal.Header>
           <FocusModal.Title asChild>
-            <Heading>Welcome! Let's set up your workspace</Heading>
+            <Heading>{t("partner.onboardingModal.title")}</Heading>
           </FocusModal.Title>
         </FocusModal.Header>
 
@@ -326,18 +333,17 @@ export const OnboardingModal = ({
               <div className="flex min-h-[300px] flex-col gap-y-4">
                 <div>
                   <Text size="large" weight="plus">
-                    Tell us about your business
+                    {t("partner.onboardingModal.about.heading")}
                   </Text>
                   <Text size="small" className="text-ui-fg-subtle mt-1">
-                    This helps us customize your experience and connect you with
-                    the right tools.
+                    {t("partner.onboardingModal.about.description")}
                   </Text>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
                     <Text size="small" className="mb-1 block font-medium">
-                      Business name
+                      {t("partner.onboardingModal.about.businessName")}
                     </Text>
                     <Input
                       value={aboutYou.business_name}
@@ -347,13 +353,13 @@ export const OnboardingModal = ({
                           business_name: e.target.value,
                         }))
                       }
-                      placeholder="Acme Textiles"
+                      placeholder={t("partner.onboardingModal.about.businessNamePlaceholder")}
                     />
                   </div>
 
                   <div className="md:col-span-2">
                     <Text size="small" className="mb-1 block font-medium">
-                      What best describes your business?
+                      {t("partner.onboardingModal.about.businessTypeLabel")}
                     </Text>
                     <Select
                       value={aboutYou.business_type}
@@ -365,7 +371,7 @@ export const OnboardingModal = ({
                       }
                     >
                       <Select.Trigger>
-                        <Select.Value placeholder="Select business type" />
+                        <Select.Value placeholder={t("partner.onboardingModal.about.businessTypePlaceholder")} />
                       </Select.Trigger>
                       <Select.Content>
                         {BUSINESS_TYPES.map((bt) => (
@@ -379,7 +385,7 @@ export const OnboardingModal = ({
 
                   <div className="md:col-span-2">
                     <Text size="small" className="mb-1 block font-medium">
-                      Brief description
+                      {t("partner.onboardingModal.about.descriptionLabel")}
                     </Text>
                     <Textarea
                       value={aboutYou.description}
@@ -389,16 +395,16 @@ export const OnboardingModal = ({
                           description: e.target.value,
                         }))
                       }
-                      placeholder="What do you make or sell? Who are your customers?"
+                      placeholder={t("partner.onboardingModal.about.descriptionPlaceholder")}
                       rows={3}
                     />
                   </div>
 
                   <div>
                     <Text size="small" className="mb-1 block font-medium">
-                      Website{" "}
+                      {t("partner.onboardingModal.about.website")}{" "}
                       <span className="text-ui-fg-muted font-normal">
-                        (optional)
+                        {t("partner.onboardingModal.about.optional")}
                       </span>
                     </Text>
                     <Input
@@ -409,16 +415,16 @@ export const OnboardingModal = ({
                           website: e.target.value,
                         }))
                       }
-                      placeholder="https://acmetextiles.com"
+                      placeholder={t("partner.onboardingModal.about.websitePlaceholder")}
                       type="url"
                     />
                   </div>
 
                   <div>
                     <Text size="small" className="mb-1 block font-medium">
-                      Phone{" "}
+                      {t("partner.onboardingModal.about.phone")}{" "}
                       <span className="text-ui-fg-muted font-normal">
-                        (optional)
+                        {t("partner.onboardingModal.about.optional")}
                       </span>
                     </Text>
                     <Input
@@ -429,7 +435,7 @@ export const OnboardingModal = ({
                           phone: e.target.value,
                         }))
                       }
-                      placeholder="+91 98765 43210"
+                      placeholder={t("partner.onboardingModal.about.phonePlaceholder")}
                       type="tel"
                     />
                   </div>
@@ -442,11 +448,10 @@ export const OnboardingModal = ({
               <div className="flex min-h-[300px] flex-col gap-y-4">
                 <div>
                   <Text size="large" weight="plus">
-                    Upload your company logo
+                    {t("partner.onboardingModal.logo.heading")}
                   </Text>
                   <Text size="small" className="text-ui-fg-subtle mt-1">
-                    This will appear on your partner profile and storefront.
-                    You can always change this later.
+                    {t("partner.onboardingModal.logo.description")}
                   </Text>
                 </div>
                 <div className="flex w-full flex-grow items-center justify-center">
@@ -466,7 +471,7 @@ export const OnboardingModal = ({
                             {logo.name}
                           </Text>
                           <Text size="xsmall" className="text-ui-fg-muted">
-                            Click to change
+                            {t("partner.onboardingModal.logo.clickToChange")}
                           </Text>
                         </div>
                       ) : (
@@ -475,10 +480,10 @@ export const OnboardingModal = ({
                             size="small"
                             className="text-ui-fg-subtle mb-2"
                           >
-                            Click to upload or drag and drop
+                            {t("partner.onboardingModal.logo.clickToUpload")}
                           </Text>
                           <Text size="small" className="text-ui-fg-muted">
-                            SVG, PNG, JPG (MAX. 5MB)
+                            {t("partner.onboardingModal.logo.fileTypes")}
                           </Text>
                         </>
                       )}
@@ -499,18 +504,17 @@ export const OnboardingModal = ({
               <div className="flex min-h-[300px] flex-col gap-y-4">
                 <div>
                   <Text size="large" weight="plus">
-                    Add your team members
+                    {t("partner.onboardingModal.team.heading")}
                   </Text>
                   <Text size="small" className="text-ui-fg-subtle mt-1">
-                    Invite people who will help manage your store and products.
-                    This step is optional — you can add team members later.
+                    {t("partner.onboardingModal.team.description")}
                   </Text>
                 </div>
 
                 {error && <Alert variant="error">{error}</Alert>}
                 {success && (
                   <Alert variant="success">
-                    Onboarding completed successfully!
+                    {t("partner.onboardingModal.team.success")}
                   </Alert>
                 )}
 
@@ -522,7 +526,7 @@ export const OnboardingModal = ({
                     >
                       <div>
                         <Text size="small" className="mb-1 block">
-                          First Name
+                          {t("partner.onboardingModal.team.firstName")}
                         </Text>
                         <Input
                           value={person.first_name}
@@ -533,12 +537,12 @@ export const OnboardingModal = ({
                               e.target.value
                             )
                           }
-                          placeholder="John"
+                          placeholder={t("partner.onboardingModal.team.firstNamePlaceholder")}
                         />
                       </div>
                       <div>
                         <Text size="small" className="mb-1 block">
-                          Last Name
+                          {t("partner.onboardingModal.team.lastName")}
                         </Text>
                         <Input
                           value={person.last_name}
@@ -549,19 +553,19 @@ export const OnboardingModal = ({
                               e.target.value
                             )
                           }
-                          placeholder="Doe"
+                          placeholder={t("partner.onboardingModal.team.lastNamePlaceholder")}
                         />
                       </div>
                       <div>
                         <Text size="small" className="mb-1 block">
-                          Email
+                          {t("partner.onboardingModal.team.email")}
                         </Text>
                         <Input
                           value={person.email}
                           onChange={(e) =>
                             handlePersonChange(index, "email", e.target.value)
                           }
-                          placeholder="john@company.com"
+                          placeholder={t("partner.onboardingModal.team.emailPlaceholder")}
                           type="email"
                         />
                       </div>
@@ -573,7 +577,7 @@ export const OnboardingModal = ({
                             size="small"
                             onClick={() => removePerson(index)}
                           >
-                            Remove
+                            {t("partner.onboardingModal.team.remove")}
                           </Button>
                         </div>
                       )}
@@ -586,7 +590,7 @@ export const OnboardingModal = ({
                   onClick={addPerson}
                   className="w-full"
                 >
-                  + Add Another Person
+                  {t("partner.onboardingModal.team.addAnother")}
                 </Button>
               </div>
             </ProgressTabs.Content>
@@ -596,21 +600,24 @@ export const OnboardingModal = ({
             <div className="flex w-full items-center justify-between">
               <div className="flex items-center gap-x-3">
                 <Button variant="transparent" size="small" onClick={handleSkip}>
-                  Skip for now
+                  {t("partner.onboardingModal.footer.skip")}
                 </Button>
                 <Badge color="grey" size="2xsmall">
-                  Step {currentIdx + 1} of {STEPS.length}
+                  {t("partner.onboardingModal.footer.stepCount", {
+                    current: currentIdx + 1,
+                    total: STEPS.length,
+                  })}
                 </Badge>
               </div>
               <div className="flex items-center gap-x-2">
                 {!isFirstStep && (
                   <Button variant="secondary" size="small" onClick={goBack}>
-                    Back
+                    {t("partner.onboardingModal.footer.back")}
                   </Button>
                 )}
                 {!isLastStep && (
                   <Button size="small" onClick={goNext}>
-                    Continue
+                    {t("partner.onboardingModal.footer.continue")}
                   </Button>
                 )}
                 {isLastStep && (
@@ -620,7 +627,7 @@ export const OnboardingModal = ({
                     isLoading={isSubmitting}
                     disabled={isSubmitting}
                   >
-                    Complete Setup
+                    {t("partner.onboardingModal.footer.complete")}
                   </Button>
                 )}
               </div>

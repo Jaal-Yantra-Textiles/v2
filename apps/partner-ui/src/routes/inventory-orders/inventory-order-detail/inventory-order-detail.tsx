@@ -8,6 +8,7 @@ import {
   useDataTable,
 } from "@medusajs/ui"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 
 import { ActivitiesSection } from "../../../components/common/activities-section"
@@ -30,15 +31,16 @@ type OrderLineRow = {
 const columnHelper = createDataTableColumnHelper<OrderLineRow>()
 
 export const InventoryOrderDetail = () => {
+  const { t } = useTranslation()
   const { id } = useParams()
 
   if (!id) {
     return (
       <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
         <Container className="p-6">
-          <Heading>Inventory Order</Heading>
+          <Heading>{t("partner.inventoryOrders.detail.heading")}</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            Missing order id
+            {t("partner.inventoryOrders.detail.missingId")}
           </Text>
         </Container>
       </SingleColumnPage>
@@ -87,7 +89,7 @@ export const InventoryOrderDetail = () => {
   const lineColumns = useMemo(
     () => [
       columnHelper.accessor("title", {
-        header: () => "Item",
+        header: () => t("partner.inventoryOrders.detail.columns.item"),
         cell: ({ row }) => {
           return (
             <div className="min-w-0">
@@ -95,26 +97,26 @@ export const InventoryOrderDetail = () => {
                 {row.original.title}
               </Text>
               <Text size="xsmall" className="text-ui-fg-subtle">
-                Line: {row.original.id}
+                {t("partner.inventoryOrders.detail.linePrefix")}: {row.original.id}
               </Text>
             </div>
           )
         },
       }),
       columnHelper.accessor("requested", {
-        header: () => "Requested",
+        header: () => t("partner.inventoryOrders.detail.columns.requested"),
         cell: ({ getValue }) => <Text size="small">{fmt(Number(getValue()))}</Text>,
       }),
       columnHelper.accessor("fulfilled", {
-        header: () => "Fulfilled",
+        header: () => t("partner.inventoryOrders.detail.columns.fulfilled"),
         cell: ({ getValue }) => <Text size="small">{fmt(Number(getValue()))}</Text>,
       }),
       columnHelper.accessor("remaining", {
-        header: () => "Remaining",
+        header: () => t("partner.inventoryOrders.detail.columns.remaining"),
         cell: ({ getValue }) => <Text size="small">{fmt(Number(getValue()))}</Text>,
       }),
     ],
-    [fmt]
+    [fmt, t]
   )
 
   const lineTableInstance = useDataTable({
@@ -141,13 +143,17 @@ export const InventoryOrderDetail = () => {
       {
         id: "started",
         title: "started",
-        status: partnerInfo?.partner_started_at ? "Completed" : "Pending",
+        status: partnerInfo?.partner_started_at
+          ? t("partner.inventoryOrders.detail.activities.completed")
+          : t("partner.inventoryOrders.detail.activities.pending"),
         timestamp: partnerInfo?.partner_started_at,
       },
       {
         id: "completed",
         title: "completed",
-        status: partnerInfo?.partner_completed_at ? "Completed" : "Pending",
+        status: partnerInfo?.partner_completed_at
+          ? t("partner.inventoryOrders.detail.activities.completed")
+          : t("partner.inventoryOrders.detail.activities.pending"),
         timestamp: partnerInfo?.partner_completed_at,
       },
     ]
@@ -163,11 +169,11 @@ export const InventoryOrderDetail = () => {
       <TwoColumnPage.Main>
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
-            <Heading>Inventory Order</Heading>
+            <Heading>{t("partner.inventoryOrders.detail.heading")}</Heading>
           </div>
-          <SectionRow title="Order ID" value={inventoryOrder?.id || "-"} />
+          <SectionRow title={t("partner.inventoryOrders.detail.orderId")} value={inventoryOrder?.id || "-"} />
           <SectionRow
-            title="Status"
+            title={t("partner.inventoryOrders.detail.status")}
             value={
               inventoryOrder?.status ? (
                 <Badge size="2xsmall" color={getStatusBadgeColor(inventoryOrder.status)}>
@@ -179,7 +185,7 @@ export const InventoryOrderDetail = () => {
             }
           />
           <SectionRow
-            title="Partner status"
+            title={t("partner.inventoryOrders.detail.partnerStatus")}
             value={
               inventoryOrder?.partner_info?.partner_status ? (
                 <Badge
@@ -198,9 +204,9 @@ export const InventoryOrderDetail = () => {
         <Container className="divide-y p-0">
           {!orderLines.length ? (
             <div className="px-6 py-4">
-              <Heading level="h2">Lines</Heading>
+              <Heading level="h2">{t("partner.inventoryOrders.detail.linesHeading")}</Heading>
               <Text size="small" className="text-ui-fg-subtle">
-                No lines
+                {t("partner.inventoryOrders.detail.noLines")}
               </Text>
             </div>
           ) : (
@@ -209,9 +215,9 @@ export const InventoryOrderDetail = () => {
                 <UiDataTable instance={lineTableInstance}>
                   <UiDataTable.Toolbar className="flex items-center justify-between px-6 py-4">
                     <div>
-                      <Heading level="h2">Lines</Heading>
+                      <Heading level="h2">{t("partner.inventoryOrders.detail.linesHeading")}</Heading>
                       <Text size="small" className="text-ui-fg-subtle">
-                        Requested vs fulfilled quantities
+                        {t("partner.inventoryOrders.detail.linesDescription")}
                       </Text>
                     </div>
                   </UiDataTable.Toolbar>
@@ -220,9 +226,9 @@ export const InventoryOrderDetail = () => {
               </div>
 
               <div className="px-6 py-4 md:hidden">
-                <Heading level="h2">Lines</Heading>
+                <Heading level="h2">{t("partner.inventoryOrders.detail.linesHeading")}</Heading>
                 <Text size="small" className="text-ui-fg-subtle">
-                  Requested vs fulfilled quantities
+                  {t("partner.inventoryOrders.detail.linesDescription")}
                 </Text>
                 <div className="mt-3 space-y-3">
                   {orderLines.map((line) => {
@@ -251,24 +257,24 @@ export const InventoryOrderDetail = () => {
                           {String(title)}
                         </Text>
                         <Text size="xsmall" className="text-ui-fg-subtle">
-                          Line: {String(line.id)}
+                          {t("partner.inventoryOrders.detail.linePrefix")}: {String(line.id)}
                         </Text>
                         <div className="mt-2 grid grid-cols-3 gap-2">
                           <div className="rounded bg-ui-bg-subtle p-2 text-center">
                             <Text size="xsmall" className="text-ui-fg-subtle">
-                              Requested
+                              {t("partner.inventoryOrders.detail.columns.requested")}
                             </Text>
                             <Text size="small">{fmt(requested)}</Text>
                           </div>
                           <div className="rounded bg-ui-bg-subtle p-2 text-center">
                             <Text size="xsmall" className="text-ui-fg-subtle">
-                              Fulfilled
+                              {t("partner.inventoryOrders.detail.columns.fulfilled")}
                             </Text>
                             <Text size="small">{fmt(fulfilled)}</Text>
                           </div>
                           <div className="rounded bg-ui-bg-subtle p-2 text-center">
                             <Text size="xsmall" className="text-ui-fg-subtle">
-                              Remaining
+                              {t("partner.inventoryOrders.detail.columns.remaining")}
                             </Text>
                             <Text size="small">{fmt(remaining)}</Text>
                           </div>
@@ -290,7 +296,7 @@ export const InventoryOrderDetail = () => {
             isPending={isPending}
           />
         )}
-        <ActivitiesSection title="Activities" items={activities} />
+        <ActivitiesSection title={t("partner.inventoryOrders.detail.activities.title")} items={activities} />
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
   )

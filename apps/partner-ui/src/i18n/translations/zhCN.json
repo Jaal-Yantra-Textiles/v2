@@ -965,7 +965,7 @@
   "customerGroups": {
     "domain": "客户群组",
     "subtitle": "将客户组织成群组。群组可以有不同的促销和价格。",
-   "list": {
+    "list": {
       "empty": {
         "heading": "暂无客户组",
         "description": "当前没有可显示的客户组。"
@@ -1997,7 +1997,7 @@
     "toasts": {
       "promotionCreateSuccess": "促销活动 ({{code}}) 创建成功。"
     },
-    "create": { },
+    "create": {},
     "edit": {
       "title": "编辑促销详情",
       "rules": {
@@ -2666,7 +2666,10 @@
         "placeholder": "wrong_size",
         "tooltip": "值应该是退货原因的唯一标识符。"
       },
-      "label": { "label": "标签", "placeholder": "错误尺寸" },
+      "label": {
+        "label": "标签",
+        "placeholder": "错误尺寸"
+      },
       "description": {
         "label": "描述",
         "placeholder": "客户收到错误尺寸"
@@ -3013,5 +3016,414 @@
     "minutes_other": "分钟",
     "seconds_one": "秒",
     "seconds_other": "秒"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "店铺",
+      "regions": "地区",
+      "locationsShipping": "仓库与配送",
+      "salesChannels": "销售渠道",
+      "taxRegions": "税务地区",
+      "returnReasons": "退货原因",
+      "refundReasons": "退款原因",
+      "onboarding": "入门引导",
+      "people": "团队成员",
+      "payments": "付款方式",
+      "paymentConfig": "付款配置",
+      "planBilling": "套餐与账单"
+    },
+    "paymentSubmissions": {
+      "heading": "付款提交",
+      "description": "提交已完成的设计或任务以申请付款",
+      "newSubmission": "新建提交",
+      "breadcrumb": "付款提交",
+      "columns": {
+        "submission": "提交",
+        "status": "状态",
+        "amount": "金额",
+        "items": "项目",
+        "submitted": "已提交",
+        "reviewed": "已审核",
+        "design_one": "{{count}} 个设计",
+        "design_other": "{{count}} 个设计",
+        "task_one": "{{count}} 个任务",
+        "task_other": "{{count}} 个任务"
+      },
+      "empty": {
+        "title": "暂无付款提交",
+        "message": "点击「新建提交」，提交您已完成的设计以申请付款。"
+      }
+    },
+    "inventoryOrders": {
+      "heading": "库存订单",
+      "empty": "无库存订单",
+      "filters": {
+        "status": "状态",
+        "partnerStatus": "合作伙伴状态"
+      },
+      "statusOptions": {
+        "pending": "待处理",
+        "processing": "处理中",
+        "shipped": "已发货",
+        "delivered": "已送达",
+        "cancelled": "已取消",
+        "partial": "部分完成"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "合作伙伴状态",
+        "status": "状态",
+        "updated": "更新时间",
+        "created": "创建时间"
+      },
+      "detail": {
+        "heading": "库存订单",
+        "missingId": "缺少订单 ID",
+        "orderId": "订单 ID",
+        "status": "状态",
+        "partnerStatus": "合作伙伴状态",
+        "linesHeading": "明细行",
+        "linesDescription": "请求数量 vs 已履约数量",
+        "noLines": "无明细行",
+        "linePrefix": "明细行",
+        "columns": {
+          "item": "商品",
+          "requested": "请求数量",
+          "fulfilled": "已履约数量",
+          "remaining": "剩余数量"
+        },
+        "activities": {
+          "title": "活动记录",
+          "completed": "已完成",
+          "pending": "待完成"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "欢迎！让我们为您设置工作区",
+      "steps": {
+        "about": "关于您",
+        "logo": "Logo 与品牌",
+        "people": "团队"
+      },
+      "businessTypes": {
+        "manufacturer": "制造商 / 生产商",
+        "seller": "销售商 / 零售商",
+        "designer": "设计师 / 创作者",
+        "wholesaler": "批发商 / 分销商",
+        "artisan": "手工艺人",
+        "individual": "个人（模特、自由职业者等）",
+        "other": "其他"
+      },
+      "about": {
+        "heading": "请介绍您的业务",
+        "description": "这有助于我们为您定制体验，并为您匹配合适的工具。",
+        "businessName": "公司名称",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "哪种类型最符合您的业务？",
+        "businessTypePlaceholder": "选择业务类型",
+        "descriptionLabel": "简要描述",
+        "descriptionPlaceholder": "您生产或销售什么？客户是谁？",
+        "website": "网站",
+        "phone": "电话",
+        "optional": "（可选）",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "上传公司 Logo",
+        "description": "该 Logo 将显示在您的合作伙伴资料页和 storefront 上。您可随时更改。",
+        "clickToChange": "点击更换",
+        "clickToUpload": "点击上传或拖放文件",
+        "fileTypes": "SVG、PNG、JPG（最大 5MB）",
+        "currentLogo": "当前 Logo"
+      },
+      "team": {
+        "heading": "添加团队成员",
+        "description": "邀请协助管理店铺和产品的人员。此步骤为可选 — 您可稍后添加团队成员。",
+        "success": "入门引导已完成！",
+        "firstName": "名字",
+        "firstNamePlaceholder": "John",
+        "lastName": "姓氏",
+        "lastNamePlaceholder": "Doe",
+        "email": "邮箱",
+        "emailPlaceholder": "john@company.com",
+        "remove": "移除",
+        "addAnother": "+ 添加另一个人"
+      },
+      "footer": {
+        "skip": "暂跳过",
+        "skipShort": "跳过",
+        "stepCount": "第 {{current}} 步，共 {{total}} 步",
+        "back": "上一步",
+        "continue": "继续",
+        "complete": "完成设置"
+      },
+      "toast": {
+        "completed": "入门引导已完成"
+      },
+      "errors": {
+        "unknown": "发生未知错误"
+      }
+    },
+    "plan": {
+      "heading": "套餐与账单",
+      "description": "选择适合您业务的套餐",
+      "labels": {
+        "plan": "套餐",
+        "price": "价格",
+        "period": "周期",
+        "payment": "付款方式"
+      },
+      "providerPayu": "PayU（印度）",
+      "providerStripe": "Stripe（国际）",
+      "cancelSubscription": "取消订阅",
+      "noSubscription": "无有效订阅。请选择下方套餐开始使用。",
+      "chooseHeading": "选择您的套餐",
+      "chooseDescription": "所有套餐均包含无限商品、员工账号及实时物流功能。销售无限制。",
+      "badges": {
+        "current": "当前",
+        "popular": "热门"
+      },
+      "currentPlan": "当前套餐",
+      "cta": {
+        "getStarted": "立即开始",
+        "downgrade": "降级",
+        "upgrade": "升级"
+      },
+      "whatsIncluded": "包含内容",
+      "features": {
+        "unlimitedProducts": "无限商品",
+        "unlimitedSelling": "无限销售",
+        "unlimitedStaff": "无限员工账号",
+        "storefrontSource": "Storefront 源代码",
+        "customDomain": "自定义域名",
+        "jytEmails": "JYT 邮件服务",
+        "liveShipping": "实时物流（Delhivery、DHL、UPS、FedEx）",
+        "paymentFeeSuffix": "付款处理费",
+        "analyticsAdvanced": "高级分析",
+        "analyticsBasic": "基础分析",
+        "aiChatSupport": "AI 在线客服支持",
+        "customModules": "自定义模块",
+        "customApis": "自定义 API",
+        "prioritySupport": "优先支持",
+        "whiteLabel": "白标"
+      },
+      "comparison": {
+        "heading": "功能对比",
+        "featureColumn": "功能",
+        "priceRow": "价格",
+        "rows": {
+          "unlimitedProducts": "商品",
+          "unlimitedSelling": "销售",
+          "unlimitedStaff": "员工账号",
+          "storefrontSource": "Storefront 源代码",
+          "customDomain": "自定义域名",
+          "themeCustomization": "主题编辑器",
+          "jytEmails": "JYT 邮件服务",
+          "liveShipping": "实时物流",
+          "paymentFee": "付款处理费",
+          "analytics": "分析",
+          "aiChatSupport": "AI 在线客服支持",
+          "customModules": "自定义模块",
+          "customApis": "自定义 API",
+          "prioritySupport": "优先支持",
+          "whiteLabel": "白标"
+        },
+        "values": {
+          "unlimited": "无限",
+          "yes": "是",
+          "no": "否",
+          "analyticsAdvanced": "高级",
+          "analyticsBasic": "基础",
+          "free": "免费"
+        }
+      },
+      "paymentInfo": "付款由 {{provider}} 处理。付款处理费仅在客户通过 JYT 支付网关付款时收取。您可接入自有支付提供商凭据以规避平台费用。",
+      "prompts": {
+        "switchTitle": "切换至 {{plan}}",
+        "switchPaidDescription": "您将通过 {{provider}} 按 {{price}}/{{interval}} 计费。当前套餐将被替换。",
+        "switchFreeDescription": "您将切换至免费套餐。当前套餐将被取消。",
+        "payWith": "使用 {{provider}} 付款",
+        "switch": "切换",
+        "cancel": "取消",
+        "cancelTitle": "取消订阅",
+        "cancelDescription": "确定要取消吗？您可继续使用至当前计费周期结束。您可随时重新订阅。",
+        "cancelConfirm": "确认取消订阅",
+        "keepPlan": "保留当前套餐"
+      },
+      "toast": {
+        "paymentSuccess": "付款成功！您的套餐已激活。",
+        "paymentFailed": "付款失败，请重试。",
+        "paymentCanceled": "付款已取消。",
+        "paymentError": "付款错误：{{message}}",
+        "paymentUnknown": "未知错误",
+        "switchedTo": "已切换至 {{plan}}",
+        "switchFailed": "无法切换套餐",
+        "canceled": "订阅已取消",
+        "cancelFailed": "无法取消",
+        "somethingWrong": "发生错误"
+      }
+    },
+    "people": {
+      "heading": "团队成员",
+      "description": "管理组织内人员。管理员可登录后台仪表盘。",
+      "addPerson": "添加人员",
+      "empty": "暂无团队成员。请在上方添加第一位成员。",
+      "columns": {
+        "name": "姓名",
+        "email": "邮箱",
+        "access": "访问权限",
+        "accessDashboard": "仪表盘",
+        "accessTeamOnly": "仅限团队",
+        "role": "角色",
+        "added": "添加时间"
+      },
+      "drawer": {
+        "title": "添加人员",
+        "description": "为您的组织添加一名团队成员。",
+        "emailLabel": "邮箱 *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "名字",
+        "firstNamePlaceholder": "John",
+        "lastName": "姓氏",
+        "lastNamePlaceholder": "Doe",
+        "phone": "电话",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "创建为仪表盘管理员",
+        "adminHint": "此人将收到登录凭证，并可访问合作伙伴仪表盘。",
+        "teamHint": "此人将列为团队成员，但无仪表盘访问权限。",
+        "role": "角色",
+        "roleAdmin": "管理员 — 全部权限",
+        "roleManager": "经理 — 商品与订单",
+        "roleOwner": "所有者 — 全部权限 + 账单",
+        "password": "密码",
+        "passwordPlaceholder": "留空则自动生成",
+        "passwordHint": "留空将自动生成，并包含在欢迎邮件中。",
+        "freeTextRole": "角色",
+        "freeTextRolePlaceholder": "例如：设计师、织工、质检员",
+        "freeTextRoleHint": "用于组织内部目的的自由文本角色。",
+        "cancel": "取消",
+        "addAdmin": "添加管理员"
+      },
+      "toast": {
+        "emailRequired": "邮箱为必填项",
+        "adminAdded": "管理员添加成功",
+        "adminAddedDescription": "欢迎邮件已发送至 {{email}}。临时密码：{{password}}",
+        "addAdminFailed": "添加管理员失败",
+        "personAdded": "人员已添加",
+        "personAddedDescription": "{{email}} 已作为 {{role}} 添加。其无仪表盘登录权限。",
+        "addPersonFailed": "添加人员失败"
+      }
+    },
+    "payments": {
+      "heading": "付款方式",
+      "subheading": "付款方式",
+      "create": "创建",
+      "recentHeading": "近期付款",
+      "recentDescription": "查看近期付款记录。",
+      "emptyMethods": "无付款方式",
+      "emptyPayments": "无付款记录",
+      "columns": {
+        "type": "类型",
+        "accountName": "账户名称",
+        "details": "详情",
+        "bank": "银行",
+        "walletPrefix": "电子钱包",
+        "added": "添加时间",
+        "paymentId": "付款 ID",
+        "amount": "金额",
+        "currency": "币种"
+      },
+      "typeLabels": {
+        "bankAccount": "银行账户",
+        "cashAccount": "现金账户",
+        "digitalWallet": "电子钱包"
+      },
+      "form": {
+        "heading": "添加付款方式",
+        "description": "添加付款结算方式参考信息。",
+        "missingPartner": "缺少合作伙伴上下文。",
+        "type": "类型",
+        "typePlaceholder": "选择类型",
+        "accountName": "账户名称",
+        "accountNumber": "账户号码",
+        "bankName": "银行名称",
+        "ifsc": "IFSC 码",
+        "walletId": "钱包 ID",
+        "cancel": "取消",
+        "create": "创建"
+      },
+      "toast": {
+        "created": "付款方式已创建"
+      }
+    },
+    "paymentProviders": {
+      "heading": "付款提供商凭据",
+      "subHeading": "您的付款提供商凭据。这些凭据将覆盖平台默认设置，专用于您的店铺。",
+      "empty": {
+        "heading": "未配置付款凭据",
+        "description": "您正在使用平台共享凭据。请添加自有凭据以启用您自己的商户账户。"
+      },
+      "columns": {
+        "provider": "提供商",
+        "status": "状态",
+        "statusActive": "已启用",
+        "statusInactive": "已停用",
+        "credentials": "凭据",
+        "added": "添加时间"
+      },
+      "removePrompt": {
+        "description": "是否移除您的 {{provider}} 凭据？您的店铺将回退至平台共享凭据。"
+      },
+      "toast": {
+        "removed": "凭据已移除",
+        "removeFailed": "移除失败",
+        "saved": "付款凭据已保存",
+        "saveFailed": "保存凭据失败"
+      },
+      "form": {
+        "heading": "添加付款凭据",
+        "description": "配置您自己的付款提供商凭据。这将覆盖平台默认设置，专用于您的店铺。",
+        "provider": "提供商",
+        "merchantKey": "商户密钥",
+        "merchantKeyPlaceholder": "您的 PayU 商户密钥",
+        "merchantSalt": "商户盐值",
+        "merchantSaltPlaceholder": "您的 PayU 商户盐值",
+        "mode": "模式",
+        "modeTest": "测试",
+        "modeLive": "正式",
+        "stripeApiKey": "Stripe API 密钥",
+        "stripeApiKeyPlaceholder": "sk_live_... 或 sk_test_...",
+        "stripeApiKeyHint": "来自 Stripe 后台的 Stripe 秘钥。"
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "业务类型",
+        "description": "选择您使用 JYT 的方式。这将控制侧边栏中显示的导航项。",
+        "active": "已启用",
+        "seller": {
+          "title": "销售商",
+          "description": "在线销售商品。可见「商品」、「订单」、「客户」、「分类」和「合集」。"
+        },
+        "manufacturer": {
+          "title": "制造商",
+          "description": "设计并生产纺织品。可见「设计」、「库存订单」、「生产批次」、「任务」等。"
+        },
+        "individual": {
+          "title": "个人",
+          "description": "处理分配的任务。可见「任务」、「共享文件夹」和「付款提交」。"
+        }
+      },
+      "status": {
+        "heading": "入门引导",
+        "description": "跟踪入门引导完成进度，并重新打开入门引导流程。",
+        "label": "状态",
+        "completed": "已完成",
+        "notCompleted": "未完成",
+        "open": "打开入门引导"
+      }
+    }
   }
 }

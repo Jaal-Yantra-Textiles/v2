@@ -7,6 +7,7 @@ import {
 } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { _DataTable } from "../../../components/table/data-table/data-table"
@@ -19,6 +20,7 @@ import { useDataTable } from "../../../hooks/use-data-table"
 const columnHelper = createDataTableColumnHelper<SharedFolder>()
 
 export const SharedFolderList = () => {
+  const { t } = useTranslation()
   const {
     shared_folders,
     isPending,
@@ -29,7 +31,7 @@ export const SharedFolderList = () => {
   const columns = useMemo(
     () => [
       columnHelper.accessor("name", {
-        header: "Folder",
+        header: t("partner.sharedFolders.columns.folder"),
         cell: (ctx) => {
           const folder = ctx.row.original
           return (
@@ -50,7 +52,7 @@ export const SharedFolderList = () => {
         },
       }),
       columnHelper.accessor("path", {
-        header: "Path",
+        header: t("partner.sharedFolders.columns.path"),
         cell: (ctx) => (
           <span className="font-mono text-xs text-ui-fg-subtle">
             {ctx.getValue()}
@@ -58,7 +60,7 @@ export const SharedFolderList = () => {
         ),
       }),
       columnHelper.accessor("media_files", {
-        header: "Files",
+        header: t("partner.sharedFolders.columns.files"),
         cell: (ctx) => {
           const files = ctx.getValue() || []
           return (
@@ -69,7 +71,7 @@ export const SharedFolderList = () => {
         },
       }),
       columnHelper.accessor("assigned_persons", {
-        header: "Assigned To",
+        header: t("partner.sharedFolders.columns.assignedTo"),
         cell: (ctx) => {
           const persons = ctx.getValue() || []
           if (!persons.length) return "—"
@@ -79,7 +81,7 @@ export const SharedFolderList = () => {
         },
       }),
     ],
-    []
+    [t]
   )
 
   const { table } = useDataTable({
@@ -99,9 +101,9 @@ export const SharedFolderList = () => {
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
           <div>
-            <Heading>Shared Folders</Heading>
+            <Heading>{t("partner.sharedFolders.heading")}</Heading>
             <Text className="text-ui-fg-subtle" size="small">
-              Folders shared with you for uploading photos and documents
+              {t("partner.sharedFolders.description")}
             </Text>
           </div>
         </div>
@@ -113,9 +115,8 @@ export const SharedFolderList = () => {
           isLoading={isPending}
           navigateTo={(row) => `/shared-folders/${row.original.id}`}
           noRecords={{
-            title: "No shared folders",
-            message:
-              "You don't have any shared folders yet. An admin will assign folders to you.",
+            title: t("partner.sharedFolders.empty.title"),
+            message: t("partner.sharedFolders.empty.message"),
           }}
         />
       </Container>

@@ -2656,7 +2656,10 @@
         "placeholder": "klaidingas_dydis",
         "tooltip": "Vertė turėtų būti unikalus grąžinimo priežasties identifikatorius."
       },
-      "label": { "label": "Antraštė", "placeholder": "Klaidingas dydis" },
+      "label": {
+        "label": "Antraštė",
+        "placeholder": "Klaidingas dydis"
+      },
       "description": {
         "label": "Aprašymas",
         "placeholder": "Klientas gavo netinkamą dydį"
@@ -3003,5 +3006,409 @@
     "minutes_other": "Minutės",
     "seconds_one": "Sekundė",
     "seconds_other": "Sekundės"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Parduotuvė",
+      "regions": "Regionai",
+      "locationsShipping": "Vietos ir pristatymas",
+      "salesChannels": "Pardavimo kanalai",
+      "taxRegions": "Mokesčių regionai",
+      "returnReasons": "Grąžinimo priežastys",
+      "refundReasons": "Grąžinimų priežastys",
+      "onboarding": "Pradėjimas",
+      "people": "Žmonės",
+      "payments": "Mokėjimai",
+      "paymentConfig": "Mokėjimų konfigūracija",
+      "planBilling": "Planas ir sąskaitos"
+    },
+    "paymentSubmissions": {
+      "heading": "Mokėjimų paraiškos",
+      "description": "Pateikite užbaigtus dizainus ar užduotis mokėjimui",
+      "newSubmission": "Nauja paraiška",
+      "breadcrumb": "Mokėjimų paraiškos",
+      "columns": {
+        "submission": "Paraiška",
+        "status": "Būsena",
+        "amount": "Suma",
+        "items": "Prekės",
+        "submitted": "Pateikta",
+        "reviewed": "Peržiūrėta",
+        "design_one": "{{count}} dizainas",
+        "design_other": "{{count}} dizainai",
+        "task_one": "{{count}} užduotis",
+        "task_other": "{{count}} užduotys"
+      },
+      "empty": {
+        "title": "Dar nėra mokėjimų paraiškų",
+        "message": "Spustelėkite „Nauja paraiška“, kad pateiktumėte užbaigtus dizainus mokėjimui."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Atsargų užsakymai",
+      "empty": "Nėra atsargų užsakymų",
+      "filters": {
+        "status": "Būsena",
+        "partnerStatus": "Partnerio būsena"
+      },
+      "statusOptions": {
+        "pending": "Laukiama",
+        "processing": "Apdorojama",
+        "shipped": "Išsiųsta",
+        "delivered": "Pristatyta",
+        "cancelled": "Atšaukta",
+        "partial": "Dalinė"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Partnerio būsena",
+        "status": "Būsena",
+        "updated": "Atnaujinta",
+        "created": "Sukurta"
+      },
+      "detail": {
+        "heading": "Atsargų užsakymas",
+        "missingId": "Trūksta užsakymo ID",
+        "orderId": "Užsakymo ID",
+        "status": "Būsena",
+        "partnerStatus": "Partnerio būsena",
+        "linesHeading": "Eilutės",
+        "linesDescription": "Užsakyta vs. įvykdyta kiekiai",
+        "noLines": "Nėra eilučių",
+        "linePrefix": "Eilutė",
+        "columns": {
+          "item": "Prekė",
+          "requested": "Užsakyta",
+          "fulfilled": "Įvykdyta",
+          "remaining": "Likę"
+        },
+        "activities": {
+          "title": "Veiklos",
+          "completed": "Baigta",
+          "pending": "Laukiama"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Sveiki! Pradėkime jūsų darbo vietos sukūrimą",
+      "steps": {
+        "about": "Apie jus",
+        "logo": "Logotipas ir prekės ženklas",
+        "people": "Komanda"
+      },
+      "businessTypes": {
+        "manufacturer": "Gamintojas / Gamintojas",
+        "seller": "Pardavėjas / Prekybininkas",
+        "designer": "Dizaineris / Kūrėjas",
+        "wholesaler": "Didmenininkas / Platintojas",
+        "artisan": "Amatininkas / Rankdarbių meistras",
+        "individual": "Fizinis asmuo (modelis, laisvai samdomasis specialistas ir kt.)",
+        "other": "Kita"
+      },
+      "about": {
+        "heading": "Pasakykite mums apie savo verslą",
+        "description": "Tai padės pritaikyti jūsų patirtį ir susieti su tinkamais įrankiais.",
+        "businessName": "Verslo pavadinimas",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "Kas geriausiai apibūdina jūsų verslą?",
+        "businessTypePlaceholder": "Pasirinkite verslo tipą",
+        "descriptionLabel": "Trumpas aprašymas",
+        "descriptionPlaceholder": "Ką gaminate ar parduodate? Kas yra jūsų klientai?",
+        "website": "Tinklapis",
+        "phone": "Telefonas",
+        "optional": "(neprivaloma)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Įkelkite savo įmonės logotipą",
+        "description": "Jis bus rodomas jūsų partnerio profilyje ir parduotuvėje. Vėliau visada galėsite jį pakeisti.",
+        "clickToChange": "Spustelėkite, kad pakeistumėte",
+        "clickToUpload": "Spustelėkite, kad įkeltumėte, ar vilkite ir paleiskite",
+        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)"
+      },
+      "team": {
+        "heading": "Pridėkite savo komandos narius",
+        "description": "Pakviesti žmones, kurie padės valdyti jūsų parduotuvę ir prekes. Šis žingsnis neprivalomas – komandos narius galėsite pridėti vėliau.",
+        "success": "Pradėjimas sėkmingai baigtas!",
+        "firstName": "Vardas",
+        "firstNamePlaceholder": "Jonas",
+        "lastName": "Pavardė",
+        "lastNamePlaceholder": "Doe",
+        "email": "El. paštas",
+        "emailPlaceholder": "jonas@kompanija.lt",
+        "remove": "Šalinti",
+        "addAnother": "+ Pridėti kitą asmenį"
+      },
+      "footer": {
+        "skip": "Praleisti dabar",
+        "stepCount": "Žingsnis {{current}} iš {{total}}",
+        "back": "Atgal",
+        "continue": "Toliau",
+        "complete": "Užbaigti nustatymą"
+      },
+      "errors": {
+        "unknown": "Įvyko nežinoma klaida"
+      }
+    },
+    "plan": {
+      "heading": "Planas ir sąskaitos",
+      "description": "Pasirinkite planą, kuris tinka jūsų verslui",
+      "labels": {
+        "plan": "Planas",
+        "price": "Kaina",
+        "period": "Laikotarpis",
+        "payment": "Mokėjimas"
+      },
+      "providerPayu": "PayU (Indija)",
+      "providerStripe": "Stripe (tarptautinis)",
+      "cancelSubscription": "Atšaukti prenumeratą",
+      "noSubscription": "Nėra aktyvaus prenumeratos. Norėdami pradėti, pasirinkite planą žemiau.",
+      "chooseHeading": "Pasirinkite savo planą",
+      "chooseDescription": "Visi planai apima neribotą prekių skaičių, darbuotojų paskyras ir tiesioginį pristatymą. Pardavimams ribų nėra.",
+      "badges": {
+        "current": "Dabartinis",
+        "popular": "Populiariausias"
+      },
+      "currentPlan": "Dabartinis planas",
+      "cta": {
+        "getStarted": "Pradėti",
+        "downgrade": "Patikslinti",
+        "upgrade": "Atnaujinti"
+      },
+      "whatsIncluded": "Kas įtraukta",
+      "features": {
+        "unlimitedProducts": "Neribotas prekių skaičius",
+        "unlimitedSelling": "Neriboti pardavimai",
+        "unlimitedStaff": "Neribotos darbuotojų paskyros",
+        "storefrontSource": "Parduotuvės šaltinio kodas",
+        "customDomain": "Individualus domenas",
+        "jytEmails": "JYT el. pašto laiškai",
+        "liveShipping": "Tiesioginis pristatymas (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "mokėjimų apdorojimo mokestis",
+        "analyticsAdvanced": "Išplėstinė analitika",
+        "analyticsBasic": "Pagrindinė analitika",
+        "aiChatSupport": "Dirbtinio intelekto pokalbių palaikymas",
+        "customModules": "Individualūs moduliai",
+        "customApis": "Individualūs API",
+        "prioritySupport": "Pirmenybės palaikymas",
+        "whiteLabel": "Baltasis etiketės sprendimas"
+      },
+      "comparison": {
+        "heading": "Funkcijų palyginimas",
+        "featureColumn": "Funkcija",
+        "priceRow": "Kaina",
+        "rows": {
+          "unlimitedProducts": "Prekės",
+          "unlimitedSelling": "Pardavimai",
+          "unlimitedStaff": "Darbuotojų paskyros",
+          "storefrontSource": "Parduotuvės šaltinio kodas",
+          "customDomain": "Individualus domenas",
+          "themeCustomization": "Temų redaktorius",
+          "jytEmails": "JYT el. pašto laiškai",
+          "liveShipping": "Tiesioginis pristatymas",
+          "paymentFee": "Mokėjimų mokestis",
+          "analytics": "Analitika",
+          "aiChatSupport": "Dirbtinio intelekto pokalbių palaikymas",
+          "customModules": "Individualūs moduliai",
+          "customApis": "Individualūs API",
+          "prioritySupport": "Pirmenybės palaikymas",
+          "whiteLabel": "Baltasis etiketės sprendimas"
+        },
+        "values": {
+          "unlimited": "Neribota",
+          "yes": "Taip",
+          "no": "Ne",
+          "analyticsAdvanced": "Išplėstinė",
+          "analyticsBasic": "Pagrindinė",
+          "free": "Nemokama"
+        }
+      },
+      "paymentInfo": "Mokėjimai apdorojami per {{provider}}. Mokėjimų apdorojimo mokestis taikomas tik tuo atveju, jei klientai moka per JYT mokėjimų vartus. Galite naudoti savo mokėjimų tiekėjo duomenis, kad išvengtumėte platformos mokesčių.",
+      "prompts": {
+        "switchTitle": "Perjungti į {{plan}}",
+        "switchPaidDescription": "Jums bus nurašyta {{price}}/{{interval}} per {{provider}}. Jūsų dabartinis planas bus pakeistas.",
+        "switchFreeDescription": "Jūs perjungsitės į nemokamą planą. Jūsų dabartinis planas bus atšauktas.",
+        "payWith": "Mokėti per {{provider}}",
+        "switch": "Perjungti",
+        "cancel": "Atšaukti",
+        "cancelTitle": "Atšaukti prenumeratą",
+        "cancelDescription": "Ar esate tikri? Turėsite prieigą iki dabartinio sąskaitos laikotarpio pabaigos. Bet kada galėsite vėl prisiregistruoti.",
+        "cancelConfirm": "Atšaukti prenumeratą",
+        "keepPlan": "Palikti planą"
+      },
+      "toast": {
+        "paymentSuccess": "Mokėjimas sėkmingas! Jūsų planas aktyvuotas.",
+        "paymentFailed": "Mokėjimas nepavyko. Bandykite dar kartą.",
+        "paymentCanceled": "Mokėjimas buvo atšauktas.",
+        "paymentError": "Mokėjimo klaida: {{message}}",
+        "paymentUnknown": "Nežinoma klaida",
+        "switchedTo": "Perjungta į {{plan}}",
+        "switchFailed": "Nepavyko perjungti plano",
+        "canceled": "Prenumerata atšaukta",
+        "cancelFailed": "Nepavyko atšaukti",
+        "somethingWrong": "Įvyko klaida"
+      }
+    },
+    "people": {
+      "heading": "Komandos nariai",
+      "description": "Valdykite žmones savo organizacijoje. Administratoriai gali prisijungti prie valdymo skydelio.",
+      "addPerson": "Pridėti asmenį",
+      "empty": "Dar nėra komandos narių. Pridėkite pirmąjį asmenį aukščiau.",
+      "columns": {
+        "name": "Vardas pavardė",
+        "email": "El. paštas",
+        "access": "Prieiga",
+        "accessDashboard": "Valdymo skydelis",
+        "accessTeamOnly": "Tik komandai",
+        "role": "Rolė",
+        "added": "Pridėta"
+      },
+      "drawer": {
+        "title": "Pridėti asmenį",
+        "description": "Pridėkite komandos narį į savo organizaciją.",
+        "emailLabel": "El. paštas *",
+        "emailPlaceholder": "asmuo@pavyzdys.lt",
+        "firstName": "Vardas",
+        "firstNamePlaceholder": "Jonas",
+        "lastName": "Pavardė",
+        "lastNamePlaceholder": "Doe",
+        "phone": "Telefonas",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Sukurti kaip valdymo skydelio administratorių",
+        "adminHint": "Šis asmuo gaus prisijungimo duomenis ir galės pasiekti partnerio valdymo skydelį.",
+        "teamHint": "Šis asmuo bus įrašytas kaip komandos narys, bet neturės prieigos prie valdymo skydelio.",
+        "role": "Rolė",
+        "roleAdmin": "Administratorius — pilna prieiga",
+        "roleManager": "Vadovas — prekės ir užsakymai",
+        "roleOwner": "Savininkas — pilna prieiga + sąskaitos",
+        "password": "Slaptažodis",
+        "passwordPlaceholder": "Palikite tuščią, kad sugeneruotumėte automatiškai",
+        "passwordHint": "Jei paliksite tuščią, bus sugeneruotas automatiškai. Įtrauktas sveikinamajame el. pašto laiške.",
+        "freeTextRole": "Rolė",
+        "freeTextRolePlaceholder": "pvz. Dizaineris, Audėjas, QA",
+        "freeTextRoleHint": "Laisvosios teksto rolė organizaciniais tikslais.",
+        "cancel": "Atšaukti",
+        "addAdmin": "Pridėti administratorių"
+      },
+      "toast": {
+        "emailRequired": "El. pašto adresas yra privalomas",
+        "adminAdded": "Administratorius sėkmingai pridėtas",
+        "adminAddedDescription": "Sveikinamasis el. pašto laiškas išsiųstas adresu {{email}}. Laikinas slaptažodis: {{password}}",
+        "addAdminFailed": "Nepavyko pridėti administratoriaus",
+        "personAdded": "Asmuo pridėtas",
+        "personAddedDescription": "{{email}} pridėtas kaip {{role}}. Jis neturės prieigos prie valdymo skydelio.",
+        "addPersonFailed": "Nepavyko pridėti asmens"
+      }
+    },
+    "payments": {
+      "heading": "Mokėjimai",
+      "subheading": "Mokėjimo būdai",
+      "create": "Sukurti",
+      "recentHeading": "Naujausi mokėjimai",
+      "recentDescription": "Peržiūrėkite naujausius mokėjimus.",
+      "emptyMethods": "Nėra mokėjimo būdų",
+      "emptyPayments": "Nėra mokėjimų",
+      "columns": {
+        "type": "Tipas",
+        "accountName": "Paskyros pavadinimas",
+        "details": "Detaliau",
+        "bank": "Bankas",
+        "walletPrefix": "Piniginė",
+        "added": "Pridėta",
+        "paymentId": "Mokėjimo ID",
+        "amount": "Suma",
+        "currency": "Valiuta"
+      },
+      "typeLabels": {
+        "bankAccount": "Banko sąskaita",
+        "cashAccount": "Grynieji pinigai",
+        "digitalWallet": "Skaitmeninė piniginė"
+      },
+      "form": {
+        "heading": "Pridėti mokėjimo būdą",
+        "description": "Pridėkite išmokėjimo būdo nuorodą.",
+        "missingPartner": "Trūksta partnerio konteksto.",
+        "type": "Tipas",
+        "typePlaceholder": "Pasirinkite tipą",
+        "accountName": "Paskyros pavadinimas",
+        "accountNumber": "Sąskaitos numeris",
+        "bankName": "Banko pavadinimas",
+        "ifsc": "IFSC",
+        "walletId": "Piniginės ID",
+        "cancel": "Atšaukti",
+        "create": "Sukurti"
+      },
+      "toast": {
+        "created": "Mokėjimo būdas sukurtas"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Mokėjimo tiekėjo duomenys",
+      "subHeading": "Jūsų mokėjimo tiekėjo duomenys. Jie pakeičia platformos numatytuosius nustatymus jūsų parduotuvei.",
+      "empty": {
+        "heading": "Nėra sukonfigūruoti mokėjimo tiekėjo duomenys",
+        "description": "Naudojate bendrus platformos duomenis. Pridėkite savo, kad naudotumėte savo prekybininko sąskaitas."
+      },
+      "columns": {
+        "provider": "Tiekėjas",
+        "status": "Būsena",
+        "statusActive": "Aktyvus",
+        "statusInactive": "Neaktyvus",
+        "credentials": "Duomenys",
+        "added": "Pridėta"
+      },
+      "removePrompt": {
+        "description": "Pašalinti jūsų {{provider}} duomenis? Jūsų parduotuvė grįš prie bendrų platformos duomenų."
+      },
+      "toast": {
+        "removed": "Duomenys pašalinti",
+        "removeFailed": "Nepavyko pašalinti",
+        "saved": "Mokėjimo tiekėjo duomenys išsaugoti",
+        "saveFailed": "Nepavyko išsaugoti duomenų"
+      },
+      "form": {
+        "heading": "Pridėti mokėjimo tiekėjo duomenis",
+        "description": "Konfigūruokite savo mokėjimo tiekėjo duomenis. Tai pakeičia platformos numatytuosius nustatymus jūsų parduotuvei.",
+        "provider": "Tiekėjas",
+        "merchantKey": "Prekybininko raktas",
+        "merchantKeyPlaceholder": "Jūsų PayU prekybininko raktas",
+        "merchantSalt": "Prekybininko druska",
+        "merchantSaltPlaceholder": "Jūsų PayU prekybininko druska",
+        "mode": "Režimas",
+        "modeTest": "Testavimas",
+        "modeLive": "Tikroji veikla",
+        "stripeApiKey": "Stripe API raktas",
+        "stripeApiKeyPlaceholder": "sk_live_... arba sk_test_...",
+        "stripeApiKeyHint": "Jūsų Stripe slaptasis raktas iš Stripe valdymo skydelio."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Verslo tipas",
+        "description": "Pasirinkite, kaip naudojate JYT. Tai nustato, kurie navigacijos punktai bus rodomi jūsų šoninėje juostoje.",
+        "active": "Aktyvus",
+        "seller": {
+          "title": "Pardavėjas",
+          "description": "Parduoti prekes internete. Rodyti prekes, užsakymus, klientus, kategorijas ir kolekcijas."
+        },
+        "manufacturer": {
+          "title": "Gamintojas",
+          "description": "Kurti ir gaminti tekstilę. Rodyti dizainus, atsargų užsakymus, gamybos ciklus, užduotis ir daugiau."
+        },
+        "individual": {
+          "title": "Fizinis asmuo",
+          "description": "Dirbti priskirtas užduotis. Rodyti užduotis, bendrus aplankus ir mokėjimų paraiškas."
+        }
+      },
+      "status": {
+        "heading": "Pradėjimas",
+        "description": "Stebėkite pradėjimo baigimą ir vėl atidarykite pradėjimo eigą.",
+        "label": "Būsena",
+        "completed": "Baigta",
+        "notCompleted": "Neužbaigta",
+        "open": "Atidaryti pradėjimą"
+      }
+    }
   }
 }

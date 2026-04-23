@@ -2,7 +2,7 @@
   "$schema": "./$schema.json",
   "general": {
     "ascending": "По возрастанию",
-    "descending": "По убыванию", 
+    "descending": "По убыванию",
     "add": "Добавить",
     "start": "Начало",
     "end": "Конец",
@@ -273,7 +273,7 @@
         "undo": "Отменить",
         "redo": "Повторить",
         "copy": "Копировать",
-        "paste": "Вставить", 
+        "paste": "Вставить",
         "edit": "Редактировать",
         "delete": "Удалить",
         "clear": "Очистить",
@@ -301,7 +301,7 @@
     "date": {
       "today": "Сегодня",
       "lastSevenDays": "Последние 7 дней",
-      "lastThirtyDays": "Последние 30 дней", 
+      "lastThirtyDays": "Последние 30 дней",
       "lastNinetyDays": "Последние 90 дней",
       "lastTwelveMonths": "Последние 12 месяцев",
       "custom": "Произвольный",
@@ -331,7 +331,7 @@
     "searchLabel": "Поиск",
     "sorting": {
       "alphabeticallyAsc": "От А до Я",
-      "alphabeticallyDesc": "От Я до А", 
+      "alphabeticallyDesc": "От Я до А",
       "dateAsc": "Сначала новые",
       "dateDesc": "Сначала старые"
     }
@@ -843,7 +843,7 @@
     "stock": {
       "title": "Обновить количество запасов",
       "description": "Обновите количество складских запасов для выбранных складских позиций.",
-      "action": "Редактировать количество запасов", 
+      "action": "Редактировать количество запасов",
       "placeholder": "Не включено",
       "disablePrompt_one": "Вы собираетесь отключить {{count}} уровень локации. Это действие нельзя отменить.",
       "disablePrompt_other": "Вы собираетесь отключить {{count}} уровней локации. Это действие нельзя отменить.",
@@ -928,7 +928,7 @@
         "description": "Нет групп клиентов для отображения."
       },
       "filtered": {
-        "heading": "Нет результатов", 
+        "heading": "Нет результатов",
         "description": "Нет групп клиентов, соответствующих текущим критериям фильтра."
       }
     },
@@ -983,7 +983,7 @@
       "completed": "Завершен",
       "draft": "Черновик",
       "archived": "В архиве",
-      "canceled": "Отменен", 
+      "canceled": "Отменен",
       "requires_action": "Требует действия"
     },
     "summary": {
@@ -1078,7 +1078,7 @@
         "requestSuccess": "Email заказа изменен на {{email}}."
       },
       "shippingAddress": {
-        "title": "Изменить адрес доставки", 
+        "title": "Изменить адрес доставки",
         "requestSuccess": "Адрес доставки заказа обновлен."
       },
       "billingAddress": {
@@ -1984,7 +1984,7 @@
           "description": "Клиенты смогут использовать этот код"
         },
         "inactive": {
-          "title": "Неактивно", 
+          "title": "Неактивно",
           "description": "Клиенты больше не смогут использовать этот код"
         }
       },
@@ -2302,7 +2302,7 @@
     "manageYourStoresDetails": "Управляйте данными вашего магазина",
     "editStore": "Редактировать магазин",
     "defaultCurrency": "Валюта по умолчанию",
-    "defaultRegion": "Регион по умолчанию", 
+    "defaultRegion": "Регион по умолчанию",
     "swapLinkTemplate": "Шаблон ссылки для обмена",
     "paymentLinkTemplate": "Шаблон ссылки для оплаты",
     "inviteLinkTemplate": "Шаблон ссылки приглашения",
@@ -2437,7 +2437,7 @@
     "removeSalesChannelsWarning_other": "Вы собираетесь удалить {{count}} каналов продаж из локации.",
     "toast": {
       "create": "Локация успешно создана",
-      "update": "Локация успешно обновлена", 
+      "update": "Локация успешно обновлена",
       "removeChannel": "Канал продаж успешно удален"
     }
   },
@@ -2473,7 +2473,6 @@
         }
       }
     },
-    "tooltip": "Канал продаж",
     "tooltip": {
       "cannotDeleteDefault": "Нельзя удалить канал продаж по умолчанию"
     }
@@ -2714,7 +2713,7 @@
       "successToast": "Тег продукта {{value}} успешно создан."
     },
     "edit": {
-      "header": "Редактировать тег продукта", 
+      "header": "Редактировать тег продукта",
       "subtitle": "Редактировать значение тега продукта.",
       "successToast": "Тег продукта {{value}} успешно обновлен."
     },
@@ -2932,5 +2931,409 @@
     "minutes_other": "Минут",
     "seconds_one": "Секунда",
     "seconds_other": "Секунд"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Магазин",
+      "regions": "Регионы",
+      "locationsShipping": "Адреса и доставка",
+      "salesChannels": "Каналы продаж",
+      "taxRegions": "Налоговые регионы",
+      "returnReasons": "Причины возврата",
+      "refundReasons": "Причины возврата средств",
+      "onboarding": "Первоначальная настройка",
+      "people": "Команда",
+      "payments": "Платежи",
+      "paymentConfig": "Настройки платежей",
+      "planBilling": "Тарифный план и оплата"
+    },
+    "paymentSubmissions": {
+      "heading": "Заявки на оплату",
+      "description": "Отправляйте завершённые макеты или задачи для оплаты",
+      "newSubmission": "Новая заявка",
+      "breadcrumb": "Заявки на оплату",
+      "columns": {
+        "submission": "Заявка",
+        "status": "Статус",
+        "amount": "Сумма",
+        "items": "Элементы",
+        "submitted": "Отправлено",
+        "reviewed": "Проверено",
+        "design_one": "{{count}} макет",
+        "design_other": "{{count}} макетов",
+        "task_one": "{{count}} задача",
+        "task_other": "{{count}} задач"
+      },
+      "empty": {
+        "title": "Заявок на оплату пока нет",
+        "message": "Отправьте свои завершённые макеты, нажав «Новая заявка»."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Заказы на пополнение запасов",
+      "empty": "Заказов на пополнение запасов нет",
+      "filters": {
+        "status": "Статус",
+        "partnerStatus": "Статус партнёра"
+      },
+      "statusOptions": {
+        "pending": "Ожидает обработки",
+        "processing": "В обработке",
+        "shipped": "Отправлено",
+        "delivered": "Доставлено",
+        "cancelled": "Отменено",
+        "partial": "Частично"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Статус партнёра",
+        "status": "Статус",
+        "updated": "Обновлено",
+        "created": "Создано"
+      },
+      "detail": {
+        "heading": "Заказ на пополнение запасов",
+        "missingId": "Отсутствует ID заказа",
+        "orderId": "ID заказа",
+        "status": "Статус",
+        "partnerStatus": "Статус партнёра",
+        "linesHeading": "Позиции",
+        "linesDescription": "Запрошено vs выполнено",
+        "noLines": "Позиций нет",
+        "linePrefix": "Позиция",
+        "columns": {
+          "item": "Товар",
+          "requested": "Запрошено",
+          "fulfilled": "Выполнено",
+          "remaining": "Осталось"
+        },
+        "activities": {
+          "title": "Действия",
+          "completed": "Завершено",
+          "pending": "Ожидает"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Добро пожаловать! Давайте настроим ваш рабочее пространство",
+      "steps": {
+        "about": "О вас",
+        "logo": "Логотип и бренд",
+        "people": "Команда"
+      },
+      "businessTypes": {
+        "manufacturer": "Производитель / Поставщик",
+        "seller": "Продавец / Ритейлер",
+        "designer": "Дизайнер / Создатель",
+        "wholesaler": "Оптовик / Дистрибьютор",
+        "artisan": "Ремесленник / Мастер",
+        "individual": "Физическое лицо (модель, фрилансер и др.)",
+        "other": "Другое"
+      },
+      "about": {
+        "heading": "Расскажите о своём бизнесе",
+        "description": "Это поможет нам персонализировать ваш опыт и подключить нужные инструменты.",
+        "businessName": "Название компании",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "Какой тип бизнеса вам подходит?",
+        "businessTypePlaceholder": "Выберите тип бизнеса",
+        "descriptionLabel": "Краткое описание",
+        "descriptionPlaceholder": "Что вы производите или продаёте? Кто ваши клиенты?",
+        "website": "Веб-сайт",
+        "phone": "Телефон",
+        "optional": "(необязательно)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Загрузите логотип вашей компании",
+        "description": "Он будет отображаться в профиле партнёра и на витрине. Вы всегда можете изменить его позже.",
+        "clickToChange": "Нажмите, чтобы изменить",
+        "clickToUpload": "Нажмите для загрузки или перетащите файл сюда",
+        "fileTypes": "SVG, PNG, JPG (макс. 5 МБ)"
+      },
+      "team": {
+        "heading": "Добавьте членов команды",
+        "description": "Пригласите людей, которые будут помогать управлять вашим магазином и товарами. Этот шаг необязателен — вы можете добавить команду позже.",
+        "success": "Первоначальная настройка успешно завершена!",
+        "firstName": "Имя",
+        "firstNamePlaceholder": "Иван",
+        "lastName": "Фамилия",
+        "lastNamePlaceholder": "Иванов",
+        "email": "Электронная почта",
+        "emailPlaceholder": "ivan@company.com",
+        "remove": "Удалить",
+        "addAnother": "+ Добавить ещё одного"
+      },
+      "footer": {
+        "skip": "Пропустить сейчас",
+        "stepCount": "Шаг {{current}} из {{total}}",
+        "back": "Назад",
+        "continue": "Продолжить",
+        "complete": "Завершить настройку"
+      },
+      "errors": {
+        "unknown": "Произошла неизвестная ошибка"
+      }
+    },
+    "plan": {
+      "heading": "Тарифный план и оплата",
+      "description": "Выберите подходящий тарифный план",
+      "labels": {
+        "plan": "План",
+        "price": "Цена",
+        "period": "Период",
+        "payment": "Оплата"
+      },
+      "providerPayu": "PayU (Индия)",
+      "providerStripe": "Stripe (международный)",
+      "cancelSubscription": "Отменить подписку",
+      "noSubscription": "Активная подписка отсутствует. Выберите план ниже, чтобы начать.",
+      "chooseHeading": "Выберите свой план",
+      "chooseDescription": "Все планы включают неограниченное количество товаров, учётных записей сотрудников и живую доставку. Продажи не ограничены.",
+      "badges": {
+        "current": "Текущий",
+        "popular": "Популярный"
+      },
+      "currentPlan": "Текущий план",
+      "cta": {
+        "getStarted": "Начать",
+        "downgrade": "Понизить",
+        "upgrade": "Повысить"
+      },
+      "whatsIncluded": "Что входит",
+      "features": {
+        "unlimitedProducts": "Неограниченное количество товаров",
+        "unlimitedSelling": "Неограниченные продажи",
+        "unlimitedStaff": "Неограниченное количество учётных записей сотрудников",
+        "storefrontSource": "Исходный код витрины",
+        "customDomain": "Пользовательский домен",
+        "jytEmails": "Электронные письма JYT",
+        "liveShipping": "Живая доставка (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "комиссия за обработку платежей",
+        "analyticsAdvanced": "Расширенная аналитика",
+        "analyticsBasic": "Базовая аналитика",
+        "aiChatSupport": "Поддержка через ИИ-чат",
+        "customModules": "Пользовательские модули",
+        "customApis": "Пользовательские API",
+        "prioritySupport": "Приоритетная поддержка",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "Сравнение функций",
+        "featureColumn": "Функция",
+        "priceRow": "Цена",
+        "rows": {
+          "unlimitedProducts": "Товары",
+          "unlimitedSelling": "Продажи",
+          "unlimitedStaff": "Учётные записи сотрудников",
+          "storefrontSource": "Исходный код витрины",
+          "customDomain": "Пользовательский домен",
+          "themeCustomization": "Редактор темы",
+          "jytEmails": "Электронные письма JYT",
+          "liveShipping": "Живая доставка",
+          "paymentFee": "Комиссия за платёж",
+          "analytics": "Аналитика",
+          "aiChatSupport": "Поддержка через ИИ-чат",
+          "customModules": "Пользовательские модули",
+          "customApis": "Пользовательские API",
+          "prioritySupport": "Приоритетная поддержка",
+          "whiteLabel": "White label"
+        },
+        "values": {
+          "unlimited": "Неограниченно",
+          "yes": "Да",
+          "no": "Нет",
+          "analyticsAdvanced": "Расширенная",
+          "analyticsBasic": "Базовая",
+          "free": "Бесплатно"
+        }
+      },
+      "paymentInfo": "Платежи обрабатываются через {{provider}}. Комиссия за обработку платежей взимается только при оплате клиентами через шлюзы оплаты JYT. Вы можете подключить собственные учётные данные платёжного провайдера, чтобы избежать комиссии платформы.",
+      "prompts": {
+        "switchTitle": "Перейти на {{plan}}",
+        "switchPaidDescription": "С вашего счёта будет списываться {{price}}/{{interval}} через {{provider}}. Текущий план будет заменён.",
+        "switchFreeDescription": "Вы перейдёте на бесплатный план. Текущий план будет отменён.",
+        "payWith": "Оплатить через {{provider}}",
+        "switch": "Перейти",
+        "cancel": "Отмена",
+        "cancelTitle": "Отменить подписку",
+        "cancelDescription": "Вы уверены? Доступ сохранится до окончания текущего расчётного периода. Вы можете повторно оформить подписку в любое время.",
+        "cancelConfirm": "Отменить подписку",
+        "keepPlan": "Оставить план"
+      },
+      "toast": {
+        "paymentSuccess": "Платёж выполнен успешно! Ваш план активирован.",
+        "paymentFailed": "Ошибка оплаты. Повторите попытку.",
+        "paymentCanceled": "Платёж отменён.",
+        "paymentError": "Ошибка оплаты: {{message}}",
+        "paymentUnknown": "Неизвестная ошибка",
+        "switchedTo": "Переход на {{plan}} выполнен",
+        "switchFailed": "Не удалось перейти на другой план",
+        "canceled": "Подписка отменена",
+        "cancelFailed": "Не удалось отменить",
+        "somethingWrong": "Что-то пошло не так"
+      }
+    },
+    "people": {
+      "heading": "Члены команды",
+      "description": "Управляйте сотрудниками вашей организации. Администраторы могут входить в панель управления.",
+      "addPerson": "Добавить человека",
+      "empty": "Пока нет членов команды. Добавьте первого выше.",
+      "columns": {
+        "name": "Имя",
+        "email": "Электронная почта",
+        "access": "Доступ",
+        "accessDashboard": "Панель управления",
+        "accessTeamOnly": "Только команда",
+        "role": "Роль",
+        "added": "Добавлен"
+      },
+      "drawer": {
+        "title": "Добавить человека",
+        "description": "Добавьте члена команды в вашу организацию.",
+        "emailLabel": "Электронная почта *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "Имя",
+        "firstNamePlaceholder": "Иван",
+        "lastName": "Фамилия",
+        "lastNamePlaceholder": "Иванов",
+        "phone": "Телефон",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Создать как администратора панели управления",
+        "adminHint": "Этот человек получит учётные данные для входа и сможет получить доступ к панели партнёра.",
+        "teamHint": "Этот человек будет указан как член команды, но не получит доступа к панели управления.",
+        "role": "Роль",
+        "roleAdmin": "Администратор — полный доступ",
+        "roleManager": "Менеджер — товары и заказы",
+        "roleOwner": "Владелец — полный доступ + оплата",
+        "password": "Пароль",
+        "passwordPlaceholder": "Оставьте пустым для автоматической генерации",
+        "passwordHint": "Генерируется автоматически при оставлении поля пустым. Включён в приветственное письмо.",
+        "freeTextRole": "Роль",
+        "freeTextRolePlaceholder": "например, дизайнер, ткач, контроль качества",
+        "freeTextRoleHint": "Свободно задаваемая роль для организационных целей.",
+        "cancel": "Отмена",
+        "addAdmin": "Добавить администратора"
+      },
+      "toast": {
+        "emailRequired": "Электронная почта обязательна",
+        "adminAdded": "Администратор успешно добавлен",
+        "adminAddedDescription": "Приветственное письмо отправлено на {{email}}. Временный пароль: {{password}}",
+        "addAdminFailed": "Не удалось добавить администратора",
+        "personAdded": "Человек добавлен",
+        "personAddedDescription": "{{email}} добавлен как {{role}}. У него не будет доступа к панели управления.",
+        "addPersonFailed": "Не удалось добавить человека"
+      }
+    },
+    "payments": {
+      "heading": "Платежи",
+      "subheading": "Способы оплаты",
+      "create": "Создать",
+      "recentHeading": "Последние платежи",
+      "recentDescription": "Просмотрите последние платежи.",
+      "emptyMethods": "Способы оплаты отсутствуют",
+      "emptyPayments": "Платежи отсутствуют",
+      "columns": {
+        "type": "Тип",
+        "accountName": "Название счёта",
+        "details": "Детали",
+        "bank": "Банк",
+        "walletPrefix": "Электронный кошелёк",
+        "added": "Добавлено",
+        "paymentId": "ID платежа",
+        "amount": "Сумма",
+        "currency": "Валюта"
+      },
+      "typeLabels": {
+        "bankAccount": "Банковский счёт",
+        "cashAccount": "Наличный счёт",
+        "digitalWallet": "Электронный кошелёк"
+      },
+      "form": {
+        "heading": "Добавить способ оплаты",
+        "description": "Добавьте ссылку на метод выплаты.",
+        "missingPartner": "Отсутствует контекст партнёра.",
+        "type": "Тип",
+        "typePlaceholder": "Выберите тип",
+        "accountName": "Название счёта",
+        "accountNumber": "Номер счёта",
+        "bankName": "Название банка",
+        "ifsc": "IFSC",
+        "walletId": "ID кошелька",
+        "cancel": "Отмена",
+        "create": "Создать"
+      },
+      "toast": {
+        "created": "Способ оплаты создан"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Учётные данные платёжных провайдеров",
+      "subHeading": "Учётные данные ваших платёжных провайдеров. Они переопределяют стандартные настройки платформы для вашего магазина.",
+      "empty": {
+        "heading": "Учётные данные платёжных провайдеров не настроены",
+        "description": "Вы используете общие учётные данные платформы. Добавьте свои, чтобы использовать собственные торговые аккаунты."
+      },
+      "columns": {
+        "provider": "Провайдер",
+        "status": "Статус",
+        "statusActive": "Активен",
+        "statusInactive": "Неактивен",
+        "credentials": "Учётные данные",
+        "added": "Добавлено"
+      },
+      "removePrompt": {
+        "description": "Удалить учётные данные {{provider}}? Ваш магазин вернётся к использованию общих учётных данных платформы."
+      },
+      "toast": {
+        "removed": "Учётные данные удалены",
+        "removeFailed": "Не удалось удалить",
+        "saved": "Учётные данные платёжных провайдеров сохранены",
+        "saveFailed": "Не удалось сохранить учётные данные"
+      },
+      "form": {
+        "heading": "Добавить учётные данные платёжного провайдера",
+        "description": "Настройте собственные учётные данные платёжного провайдера. Это переопределит стандартные настройки платформы для вашего магазина.",
+        "provider": "Провайдер",
+        "merchantKey": "Ключ мерчанта",
+        "merchantKeyPlaceholder": "Ваш ключ мерчанта PayU",
+        "merchantSalt": "Соль мерчанта",
+        "merchantSaltPlaceholder": "Ваша соль мерчанта PayU",
+        "mode": "Режим",
+        "modeTest": "Тестовый",
+        "modeLive": "Рабочий",
+        "stripeApiKey": "API-ключ Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... или sk_test_...",
+        "stripeApiKeyHint": "Ваш секретный ключ Stripe из панели управления Stripe."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Тип бизнеса",
+        "description": "Выберите, как вы используете JYT. Это определяет, какие элементы меню отображаются в боковой панели.",
+        "active": "Активно",
+        "seller": {
+          "title": "Продавец",
+          "description": "Продавайте товары онлайн. Отображаются разделы «Товары», «Заказы», «Клиенты», «Категории» и «Коллекции»."
+        },
+        "manufacturer": {
+          "title": "Производитель",
+          "description": "Проектируйте и производите текстиль. Отображаются разделы «Макеты», «Заказы на пополнение запасов», «Производственные циклы», «Задачи» и другие."
+        },
+        "individual": {
+          "title": "Физическое лицо",
+          "description": "Выполняйте назначенные задачи. Отображаются разделы «Задачи», «Общие папки» и «Заявки на оплату»."
+        }
+      },
+      "status": {
+        "heading": "Первоначальная настройка",
+        "description": "Отслеживайте прогресс первоначальной настройки и повторно откройте её процесс.",
+        "label": "Статус",
+        "completed": "Завершено",
+        "notCompleted": "Не завершено",
+        "open": "Открыть первоначальную настройку"
+      }
+    }
   }
 }

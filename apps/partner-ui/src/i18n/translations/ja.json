@@ -2474,7 +2474,10 @@
         "placeholder": "wrong_size",
         "tooltip": "値は返品理由の一意の識別子である必要があります。"
       },
-      "label": { "label": "ラベル", "placeholder": "サイズが合わない" },
+      "label": {
+        "label": "ラベル",
+        "placeholder": "サイズが合わない"
+      },
       "description": {
         "label": "説明",
         "placeholder": "顧客が間違ったサイズを受け取った"
@@ -2817,5 +2820,409 @@
     "minutes_other": "分",
     "seconds_one": "秒",
     "seconds_other": "秒"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "ストア",
+      "regions": "地域",
+      "locationsShipping": "拠点と配送",
+      "salesChannels": "販売チャネル",
+      "taxRegions": "課税地域",
+      "returnReasons": "返品理由",
+      "refundReasons": "返金理由",
+      "onboarding": "オンボーディング",
+      "people": "チームメンバー",
+      "payments": "支払い",
+      "paymentConfig": "支払い設定",
+      "planBilling": "プランと請求"
+    },
+    "paymentSubmissions": {
+      "heading": "支払い申請",
+      "description": "完了したデザインまたはタスクを支払いのために申請します",
+      "newSubmission": "新規申請",
+      "breadcrumb": "支払い申請",
+      "columns": {
+        "submission": "申請",
+        "status": "ステータス",
+        "amount": "金額",
+        "items": "アイテム",
+        "submitted": "申請日",
+        "reviewed": "確認済み",
+        "design_one": "{{count}}件のデザイン",
+        "design_other": "{{count}}件のデザイン",
+        "task_one": "{{count}}件のタスク",
+        "task_other": "{{count}}件のタスク"
+      },
+      "empty": {
+        "title": "まだ支払い申請がありません",
+        "message": "「新規申請」をクリックして、完了したデザインを支払いのために申請してください。"
+      }
+    },
+    "inventoryOrders": {
+      "heading": "在庫発注",
+      "empty": "在庫発注がありません",
+      "filters": {
+        "status": "ステータス",
+        "partnerStatus": "パートナー状況"
+      },
+      "statusOptions": {
+        "pending": "保留中",
+        "processing": "処理中",
+        "shipped": "出荷済み",
+        "delivered": "配達済み",
+        "cancelled": "キャンセル済み",
+        "partial": "一部"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "パートナー状況",
+        "status": "ステータス",
+        "updated": "更新日",
+        "created": "作成日"
+      },
+      "detail": {
+        "heading": "在庫発注",
+        "missingId": "注文IDがありません",
+        "orderId": "注文ID",
+        "status": "ステータス",
+        "partnerStatus": "パートナー状況",
+        "linesHeading": "明細行",
+        "linesDescription": "要求数量 vs 履行数量",
+        "noLines": "明細行がありません",
+        "linePrefix": "明細行",
+        "columns": {
+          "item": "アイテム",
+          "requested": "要求数量",
+          "fulfilled": "履行数量",
+          "remaining": "残り数量"
+        },
+        "activities": {
+          "title": "アクティビティ",
+          "completed": "完了",
+          "pending": "保留中"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "ようこそ！ワークスペースのセットアップを始めましょう",
+      "steps": {
+        "about": "あなたについて",
+        "logo": "ロゴとブランド",
+        "people": "チーム"
+      },
+      "businessTypes": {
+        "manufacturer": "メーカー／プロデューサー",
+        "seller": "セラー／小売業者",
+        "designer": "デザイナー／クリエイター",
+        "wholesaler": "卸売業者／流通業者",
+        "artisan": "職人／クラフツパーソン",
+        "individual": "個人（モデル、フリーランサーなど）",
+        "other": "その他"
+      },
+      "about": {
+        "heading": "あなたのビジネスについて教えてください",
+        "description": "これにより、お客様に最適な体験を提供し、適切なツールと連携できます。",
+        "businessName": "会社名",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "あなたのビジネスに最も当てはまるものを選択してください。",
+        "businessTypePlaceholder": "ビジネスタイプを選択",
+        "descriptionLabel": "簡単な説明",
+        "descriptionPlaceholder": "何を作成・販売していますか？ 顧客層は誰ですか？",
+        "website": "ウェブサイト",
+        "phone": "電話番号",
+        "optional": "（任意）",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "会社のロゴをアップロード",
+        "description": "これはパートナープロフィールおよびストアフロントに表示されます。後からいつでも変更可能です。",
+        "clickToChange": "クリックして変更",
+        "clickToUpload": "クリックしてアップロード、またはドラッグ＆ドロップ",
+        "fileTypes": "SVG、PNG、JPG（最大5MB）"
+      },
+      "team": {
+        "heading": "チームメンバーを追加",
+        "description": "ストアおよび製品の管理を支援するメンバーを招待してください。このステップは任意です。後から追加することもできます。",
+        "success": "オンボーディングが正常に完了しました！",
+        "firstName": "名",
+        "firstNamePlaceholder": "ジョン",
+        "lastName": "姓",
+        "lastNamePlaceholder": "ドウ",
+        "email": "メールアドレス",
+        "emailPlaceholder": "john@company.com",
+        "remove": "削除",
+        "addAnother": "+ 別の人物を追加"
+      },
+      "footer": {
+        "skip": "今はスキップ",
+        "stepCount": "ステップ {{current}} / {{total}}",
+        "back": "戻る",
+        "continue": "次へ",
+        "complete": "セットアップを完了"
+      },
+      "errors": {
+        "unknown": "不明なエラーが発生しました"
+      }
+    },
+    "plan": {
+      "heading": "プランと請求",
+      "description": "あなたのビジネスに合ったプランをお選びください",
+      "labels": {
+        "plan": "プラン",
+        "price": "価格",
+        "period": "期間",
+        "payment": "支払い"
+      },
+      "providerPayu": "PayU（インド）",
+      "providerStripe": "Stripe（国際）",
+      "cancelSubscription": "サブスクリプションをキャンセル",
+      "noSubscription": "有効なサブスクリプションがありません。下記からプランをお選びください。",
+      "chooseHeading": "プランをお選びください",
+      "chooseDescription": "すべてのプランには、製品数・スタッフアカウント数・リアルタイム配送の無制限利用が含まれます。販売に関する制限はありません。",
+      "badges": {
+        "current": "現在のプラン",
+        "popular": "人気"
+      },
+      "currentPlan": "現在のプラン",
+      "cta": {
+        "getStarted": "始める",
+        "downgrade": "ダウングレード",
+        "upgrade": "アップグレード"
+      },
+      "whatsIncluded": "含まれるもの",
+      "features": {
+        "unlimitedProducts": "製品数無制限",
+        "unlimitedSelling": "販売無制限",
+        "unlimitedStaff": "スタッフアカウント無制限",
+        "storefrontSource": "ストアフロントのソースコード",
+        "customDomain": "カスタムドメイン",
+        "jytEmails": "JYTメール",
+        "liveShipping": "リアルタイム配送（Delhivery、DHL、UPS、FedEx）",
+        "paymentFeeSuffix": "支払い処理手数料",
+        "analyticsAdvanced": "高度なアナリティクス",
+        "analyticsBasic": "基本的なアナリティクス",
+        "aiChatSupport": "AIチャットサポート",
+        "customModules": "カスタムモジュール",
+        "customApis": "カスタムAPI",
+        "prioritySupport": "優先サポート",
+        "whiteLabel": "ホワイトラベル"
+      },
+      "comparison": {
+        "heading": "機能比較",
+        "featureColumn": "機能",
+        "priceRow": "価格",
+        "rows": {
+          "unlimitedProducts": "製品",
+          "unlimitedSelling": "販売",
+          "unlimitedStaff": "スタッフアカウント",
+          "storefrontSource": "ストアフロントのソースコード",
+          "customDomain": "カスタムドメイン",
+          "themeCustomization": "テーマエディタ",
+          "jytEmails": "JYTメール",
+          "liveShipping": "リアルタイム配送",
+          "paymentFee": "支払い手数料",
+          "analytics": "アナリティクス",
+          "aiChatSupport": "AIチャットサポート",
+          "customModules": "カスタムモジュール",
+          "customApis": "カスタムAPI",
+          "prioritySupport": "優先サポート",
+          "whiteLabel": "ホワイトラベル"
+        },
+        "values": {
+          "unlimited": "無制限",
+          "yes": "あり",
+          "no": "なし",
+          "analyticsAdvanced": "高度",
+          "analyticsBasic": "基本",
+          "free": "無料"
+        }
+      },
+      "paymentInfo": "支払いは{{provider}}経由で処理されます。支払い処理手数料は、顧客がJYTの決済ゲートウェイ経由で支払う場合のみ適用されます。プラットフォーム手数料を回避するために、独自の決済プロバイダーの認証情報を登録できます。",
+      "prompts": {
+        "switchTitle": "{{plan}}へ切り替え",
+        "switchPaidDescription": "{{provider}}経由で{{price}}/{{interval}}が課金されます。現在のプランは置き換えられます。",
+        "switchFreeDescription": "無料プランへ切り替えます。現在のプランはキャンセルされます。",
+        "payWith": "{{provider}}で支払う",
+        "switch": "切り替え",
+        "cancel": "キャンセル",
+        "cancelTitle": "サブスクリプションをキャンセル",
+        "cancelDescription": "よろしいですか？ 請求期間終了までは引き続きサービスをご利用いただけます。いつでも再契約可能です。",
+        "cancelConfirm": "サブスクリプションをキャンセル",
+        "keepPlan": "現在のプランを維持"
+      },
+      "toast": {
+        "paymentSuccess": "支払いが完了しました！ プランが有効化されました。",
+        "paymentFailed": "支払いに失敗しました。再度お試しください。",
+        "paymentCanceled": "支払いがキャンセルされました。",
+        "paymentError": "支払いエラー：{{message}}",
+        "paymentUnknown": "不明なエラー",
+        "switchedTo": "{{plan}}へ切り替えました",
+        "switchFailed": "プランの切り替えに失敗しました",
+        "canceled": "サブスクリプションをキャンセルしました",
+        "cancelFailed": "キャンセルに失敗しました",
+        "somethingWrong": "問題が発生しました"
+      }
+    },
+    "people": {
+      "heading": "チームメンバー",
+      "description": "組織内のメンバーを管理します。管理者はダッシュボードにログインできます。",
+      "addPerson": "メンバーを追加",
+      "empty": "まだチームメンバーがいません。上記から最初のメンバーを追加してください。",
+      "columns": {
+        "name": "氏名",
+        "email": "メールアドレス",
+        "access": "アクセス権",
+        "accessDashboard": "ダッシュボード",
+        "accessTeamOnly": "チームのみ",
+        "role": "役割",
+        "added": "追加日"
+      },
+      "drawer": {
+        "title": "メンバーを追加",
+        "description": "組織にチームメンバーを追加します。",
+        "emailLabel": "メールアドレス *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "名",
+        "firstNamePlaceholder": "ジョン",
+        "lastName": "姓",
+        "lastNamePlaceholder": "ドウ",
+        "phone": "電話番号",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "ダッシュボード管理者として作成",
+        "adminHint": "この人物にはログイン資格情報が送信され、パートナーダッシュボードにアクセスできます。",
+        "teamHint": "この人物はチームメンバーとしてリストされますが、ダッシュボードへのアクセス権はありません。",
+        "role": "役割",
+        "roleAdmin": "管理者 — 全アクセス権",
+        "roleManager": "マネージャー — 製品と注文",
+        "roleOwner": "オーナー — 全アクセス権 + 請求",
+        "password": "パスワード",
+        "passwordPlaceholder": "自動生成する場合は空白のまま",
+        "passwordHint": "空白の場合は自動生成され、ウェルカムメールに含まれます。",
+        "freeTextRole": "役割",
+        "freeTextRolePlaceholder": "例：デザイナー、織り手、品質保証担当者",
+        "freeTextRoleHint": "組織内での目的のための自由入力形式の役割。",
+        "cancel": "キャンセル",
+        "addAdmin": "管理者を追加"
+      },
+      "toast": {
+        "emailRequired": "メールアドレスは必須です",
+        "adminAdded": "管理者を正常に追加しました",
+        "adminAddedDescription": "ウェルカムメールを{{email}}に送信しました。一時的なパスワード：{{password}}",
+        "addAdminFailed": "管理者の追加に失敗しました",
+        "personAdded": "メンバーを追加しました",
+        "personAddedDescription": "{{email}}を{{role}}として追加しました。ダッシュボードへのログインアクセス権はありません。",
+        "addPersonFailed": "メンバーの追加に失敗しました"
+      }
+    },
+    "payments": {
+      "heading": "支払い",
+      "subheading": "支払い方法",
+      "create": "作成",
+      "recentHeading": "最近の支払い",
+      "recentDescription": "最近の支払いを表示します。",
+      "emptyMethods": "支払い方法がありません",
+      "emptyPayments": "支払いがありません",
+      "columns": {
+        "type": "種類",
+        "accountName": "口座名",
+        "details": "詳細",
+        "bank": "銀行",
+        "walletPrefix": "ウォレット",
+        "added": "追加日",
+        "paymentId": "支払いID",
+        "amount": "金額",
+        "currency": "通貨"
+      },
+      "typeLabels": {
+        "bankAccount": "銀行口座",
+        "cashAccount": "現金口座",
+        "digitalWallet": "デジタルウォレット"
+      },
+      "form": {
+        "heading": "支払い方法を追加",
+        "description": "支払い先の参照情報を追加します。",
+        "missingPartner": "パートナー情報が不足しています。",
+        "type": "種類",
+        "typePlaceholder": "種類を選択",
+        "accountName": "口座名",
+        "accountNumber": "口座番号",
+        "bankName": "銀行名",
+        "ifsc": "IFSC",
+        "walletId": "ウォレットID",
+        "cancel": "キャンセル",
+        "create": "作成"
+      },
+      "toast": {
+        "created": "支払い方法を作成しました"
+      }
+    },
+    "paymentProviders": {
+      "heading": "支払いプロバイダーの認証情報",
+      "subHeading": "支払いプロバイダーの認証情報です。これらはストアのプラットフォームデフォルトを上書きします。",
+      "empty": {
+        "heading": "支払いプロバイダーの認証情報が設定されていません",
+        "description": "プラットフォームの共有認証情報を使用しています。独自の販売者アカウントを使用するには、ご自身の認証情報を追加してください。"
+      },
+      "columns": {
+        "provider": "プロバイダー",
+        "status": "ステータス",
+        "statusActive": "有効",
+        "statusInactive": "無効",
+        "credentials": "認証情報",
+        "added": "追加日"
+      },
+      "removePrompt": {
+        "description": "{{provider}}の認証情報を削除しますか？ ストアはプラットフォームの共有認証情報に戻ります。"
+      },
+      "toast": {
+        "removed": "認証情報を削除しました",
+        "removeFailed": "削除に失敗しました",
+        "saved": "支払い認証情報を保存しました",
+        "saveFailed": "認証情報の保存に失敗しました"
+      },
+      "form": {
+        "heading": "支払い認証情報を追加",
+        "description": "ご自身の支払いプロバイダーの認証情報を設定します。これにより、ストアのプラットフォームデフォルトが上書きされます。",
+        "provider": "プロバイダー",
+        "merchantKey": "マーチャントキー",
+        "merchantKeyPlaceholder": "PayUのマーチャントキー",
+        "merchantSalt": "マーチャントソルト",
+        "merchantSaltPlaceholder": "PayUのマーチャントソルト",
+        "mode": "モード",
+        "modeTest": "テスト",
+        "modeLive": "本番",
+        "stripeApiKey": "Stripe APIキー",
+        "stripeApiKeyPlaceholder": "sk_live_... または sk_test_...",
+        "stripeApiKeyHint": "Stripeダッシュボードから取得したStripeシークレットキーです。"
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "ビジネスタイプ",
+        "description": "JYTの使い方を選択してください。これにより、サイドバーに表示されるナビゲーション項目が決定されます。",
+        "active": "有効",
+        "seller": {
+          "title": "セラー",
+          "description": "オンラインで製品を販売します。「製品」「注文」「顧客」「カテゴリ」「コレクション」が表示されます。"
+        },
+        "manufacturer": {
+          "title": "メーカー",
+          "description": "テキスタイルの設計および製造を行います。「デザイン」「在庫発注」「生産ロット」「タスク」などが表示されます。"
+        },
+        "individual": {
+          "title": "個人",
+          "description": "割り当てられたタスクを遂行します。「タスク」「共有フォルダー」「支払い申請」が表示されます。"
+        }
+      },
+      "status": {
+        "heading": "オンボーディング",
+        "description": "オンボーディングの完了状況を確認し、オンボーディングフローを再開できます。",
+        "label": "ステータス",
+        "completed": "完了",
+        "notCompleted": "未完了",
+        "open": "オンボーディングを開く"
+      }
+    }
   }
 }

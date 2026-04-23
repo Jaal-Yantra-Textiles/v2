@@ -2445,7 +2445,10 @@
         "placeholder": "tamanho_errado",
         "tooltip": "O valor deve ser um identificador único para a razão da devolução."
       },
-      "label": { "label": "Etiqueta", "placeholder": "Tamanho errado" },
+      "label": {
+        "label": "Etiqueta",
+        "placeholder": "Tamanho errado"
+      },
       "description": {
         "label": "Descrição",
         "placeholder": "O cliente recebeu o tamanho errado"
@@ -2785,5 +2788,409 @@
     "minutes_other": "Minutos",
     "seconds_one": "Segundo",
     "seconds_other": "Segundos"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Loja",
+      "regions": "Regiões",
+      "locationsShipping": "Locais e Envios",
+      "salesChannels": "Canais de Venda",
+      "taxRegions": "Regiões Fiscais",
+      "returnReasons": "Motivos de Devolução",
+      "refundReasons": "Motivos de Reembolso",
+      "onboarding": "Configuração Inicial",
+      "people": "Equipe",
+      "payments": "Pagamentos",
+      "paymentConfig": "Configuração de Pagamento",
+      "planBilling": "Plano e Cobrança"
+    },
+    "paymentSubmissions": {
+      "heading": "Envios para Pagamento",
+      "description": "Envie designs ou tarefas concluídos para pagamento",
+      "newSubmission": "Novo Envio",
+      "breadcrumb": "Envios para Pagamento",
+      "columns": {
+        "submission": "Envio",
+        "status": "Status",
+        "amount": "Valor",
+        "items": "Itens",
+        "submitted": "Enviado",
+        "reviewed": "Revisado",
+        "design_one": "{{count}} design",
+        "design_other": "{{count}} designs",
+        "task_one": "{{count}} tarefa",
+        "task_other": "{{count}} tarefas"
+      },
+      "empty": {
+        "title": "Ainda não há envios para pagamento",
+        "message": "Envie seus designs concluídos clicando em Novo Envio."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Pedidos de Estoque",
+      "empty": "Nenhum pedido de estoque",
+      "filters": {
+        "status": "Status",
+        "partnerStatus": "Status do Parceiro"
+      },
+      "statusOptions": {
+        "pending": "Pendente",
+        "processing": "Em processamento",
+        "shipped": "Enviado",
+        "delivered": "Entregue",
+        "cancelled": "Cancelado",
+        "partial": "Parcial"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Status do Parceiro",
+        "status": "Status",
+        "updated": "Atualizado",
+        "created": "Criado"
+      },
+      "detail": {
+        "heading": "Pedido de Estoque",
+        "missingId": "ID do pedido ausente",
+        "orderId": "ID do Pedido",
+        "status": "Status",
+        "partnerStatus": "Status do parceiro",
+        "linesHeading": "Linhas",
+        "linesDescription": "Quantidades solicitadas vs. atendidas",
+        "noLines": "Nenhuma linha",
+        "linePrefix": "Linha",
+        "columns": {
+          "item": "Item",
+          "requested": "Solicitado",
+          "fulfilled": "Atendido",
+          "remaining": "Restante"
+        },
+        "activities": {
+          "title": "Atividades",
+          "completed": "Concluído",
+          "pending": "Pendente"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Bem-vindo! Vamos configurar seu espaço de trabalho",
+      "steps": {
+        "about": "Sobre Você",
+        "logo": "Logotipo e Marca",
+        "people": "Equipe"
+      },
+      "businessTypes": {
+        "manufacturer": "Fabricante / Produtor",
+        "seller": "Vendedor / Varejista",
+        "designer": "Designer / Criador",
+        "wholesaler": "Atacadista / Distribuidor",
+        "artisan": "Artesão / Artesã",
+        "individual": "Individual (Modelo, Freelancer, etc.)",
+        "other": "Outro"
+      },
+      "about": {
+        "heading": "Conte-nos sobre sua empresa",
+        "description": "Isso nos ajuda a personalizar sua experiência e conectá-lo às ferramentas certas.",
+        "businessName": "Nome da empresa",
+        "businessNamePlaceholder": "Acme Têxteis",
+        "businessTypeLabel": "O que melhor descreve sua empresa?",
+        "businessTypePlaceholder": "Selecione o tipo de empresa",
+        "descriptionLabel": "Breve descrição",
+        "descriptionPlaceholder": "O que você produz ou vende? Quem são seus clientes?",
+        "website": "Site",
+        "phone": "Telefone",
+        "optional": "(opcional)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Envie seu logotipo empresarial",
+        "description": "Ele aparecerá no seu perfil de parceiro e na loja virtual. Você pode alterá-lo a qualquer momento.",
+        "clickToChange": "Clique para alterar",
+        "clickToUpload": "Clique para enviar ou arraste e solte",
+        "fileTypes": "SVG, PNG, JPG (MÁX. 5 MB)"
+      },
+      "team": {
+        "heading": "Adicione membros da sua equipe",
+        "description": "Convide pessoas que ajudarão a gerenciar sua loja e produtos. Este passo é opcional — você pode adicionar membros da equipe posteriormente.",
+        "success": "Configuração inicial concluída com sucesso!",
+        "firstName": "Nome",
+        "firstNamePlaceholder": "João",
+        "lastName": "Sobrenome",
+        "lastNamePlaceholder": "Silva",
+        "email": "E-mail",
+        "emailPlaceholder": "joao@empresa.com",
+        "remove": "Remover",
+        "addAnother": "+ Adicionar outra pessoa"
+      },
+      "footer": {
+        "skip": "Pular por enquanto",
+        "stepCount": "Etapa {{current}} de {{total}}",
+        "back": "Voltar",
+        "continue": "Continuar",
+        "complete": "Concluir Configuração"
+      },
+      "errors": {
+        "unknown": "Ocorreu um erro desconhecido"
+      }
+    },
+    "plan": {
+      "heading": "Plano e Cobrança",
+      "description": "Escolha o plano ideal para sua empresa",
+      "labels": {
+        "plan": "Plano",
+        "price": "Preço",
+        "period": "Período",
+        "payment": "Pagamento"
+      },
+      "providerPayu": "PayU (Índia)",
+      "providerStripe": "Stripe (Internacional)",
+      "cancelSubscription": "Cancelar Assinatura",
+      "noSubscription": "Nenhuma assinatura ativa. Escolha um plano abaixo para começar.",
+      "chooseHeading": "Escolha Seu Plano",
+      "chooseDescription": "Todos os planos incluem produtos ilimitados, contas de equipe e envios em tempo real. Sem limites para vendas.",
+      "badges": {
+        "current": "Atual",
+        "popular": "Popular"
+      },
+      "currentPlan": "Plano Atual",
+      "cta": {
+        "getStarted": "Começar",
+        "downgrade": "Rebaixar",
+        "upgrade": "Atualizar"
+      },
+      "whatsIncluded": "O que está incluso",
+      "features": {
+        "unlimitedProducts": "Produtos ilimitados",
+        "unlimitedSelling": "Vendas ilimitadas",
+        "unlimitedStaff": "Contas de equipe ilimitadas",
+        "storefrontSource": "Código-fonte da loja virtual",
+        "customDomain": "Domínio personalizado",
+        "jytEmails": "E-mails JYT",
+        "liveShipping": "Envios em tempo real (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "taxa de processamento de pagamento",
+        "analyticsAdvanced": "Análises avançadas",
+        "analyticsBasic": "Análises básicas",
+        "aiChatSupport": "Suporte por chat com IA",
+        "customModules": "Módulos personalizados",
+        "customApis": "APIs personalizadas",
+        "prioritySupport": "Suporte prioritário",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "Comparação de Recursos",
+        "featureColumn": "Recurso",
+        "priceRow": "Preço",
+        "rows": {
+          "unlimitedProducts": "Produtos",
+          "unlimitedSelling": "Vendas",
+          "unlimitedStaff": "Contas de Equipe",
+          "storefrontSource": "Código-fonte da Loja Virtual",
+          "customDomain": "Domínio Personalizado",
+          "themeCustomization": "Editor de Temas",
+          "jytEmails": "E-mails JYT",
+          "liveShipping": "Envios em Tempo Real",
+          "paymentFee": "Taxa de Pagamento",
+          "analytics": "Análises",
+          "aiChatSupport": "Suporte por Chat com IA",
+          "customModules": "Módulos Personalizados",
+          "customApis": "APIs Personalizadas",
+          "prioritySupport": "Suporte Prioritário",
+          "whiteLabel": "White Label"
+        },
+        "values": {
+          "unlimited": "Ilimitado",
+          "yes": "Sim",
+          "no": "Não",
+          "analyticsAdvanced": "Avançado",
+          "analyticsBasic": "Básico",
+          "free": "Grátis"
+        }
+      },
+      "paymentInfo": "Pagamentos processados via {{provider}}. A taxa de processamento de pagamento aplica-se apenas quando os clientes pagam pelos gateways de pagamento JYT. Você pode usar suas próprias credenciais de provedor de pagamento para evitar as taxas da plataforma.",
+      "prompts": {
+        "switchTitle": "Mudar para {{plan}}",
+        "switchPaidDescription": "Você será cobrado {{price}}/{{interval}} via {{provider}}. Seu plano atual será substituído.",
+        "switchFreeDescription": "Você mudará para o plano gratuito. Seu plano atual será cancelado.",
+        "payWith": "Pagar com {{provider}}",
+        "switch": "Mudar",
+        "cancel": "Cancelar",
+        "cancelTitle": "Cancelar Assinatura",
+        "cancelDescription": "Tem certeza? Você manterá acesso até o final do seu período de faturamento. Você pode se reinscrever a qualquer momento.",
+        "cancelConfirm": "Cancelar Assinatura",
+        "keepPlan": "Manter Plano"
+      },
+      "toast": {
+        "paymentSuccess": "Pagamento realizado com sucesso! Seu plano foi ativado.",
+        "paymentFailed": "Falha no pagamento. Por favor, tente novamente.",
+        "paymentCanceled": "O pagamento foi cancelado.",
+        "paymentError": "Erro de pagamento: {{message}}",
+        "paymentUnknown": "Erro desconhecido",
+        "switchedTo": "Mudado para {{plan}}",
+        "switchFailed": "Não foi possível mudar de plano",
+        "canceled": "Assinatura cancelada",
+        "cancelFailed": "Não foi possível cancelar",
+        "somethingWrong": "Algo deu errado"
+      }
+    },
+    "people": {
+      "heading": "Membros da Equipe",
+      "description": "Gerencie pessoas em sua organização. Administradores podem acessar o painel.",
+      "addPerson": "Adicionar Pessoa",
+      "empty": "Nenhum membro da equipe ainda. Adicione sua primeira pessoa acima.",
+      "columns": {
+        "name": "Nome",
+        "email": "E-mail",
+        "access": "Acesso",
+        "accessDashboard": "Painel",
+        "accessTeamOnly": "Somente equipe",
+        "role": "Função",
+        "added": "Adicionado"
+      },
+      "drawer": {
+        "title": "Adicionar Pessoa",
+        "description": "Adicione um membro da equipe à sua organização.",
+        "emailLabel": "E-mail *",
+        "emailPlaceholder": "pessoa@exemplo.com",
+        "firstName": "Nome",
+        "firstNamePlaceholder": "João",
+        "lastName": "Sobrenome",
+        "lastNamePlaceholder": "Silva",
+        "phone": "Telefone",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Criar como administrador do painel",
+        "adminHint": "Essa pessoa receberá credenciais de login e poderá acessar o painel de parceiros.",
+        "teamHint": "Essa pessoa será listada como membro da equipe, mas não terá acesso ao painel.",
+        "role": "Função",
+        "roleAdmin": "Administrador — Acesso completo",
+        "roleManager": "Gestor — Produtos e pedidos",
+        "roleOwner": "Proprietário — Acesso completo + cobrança",
+        "password": "Senha",
+        "passwordPlaceholder": "Deixe em branco para gerar automaticamente",
+        "passwordHint": "Será gerada automaticamente se deixada em branco. Incluída no e-mail de boas-vindas.",
+        "freeTextRole": "Função",
+        "freeTextRolePlaceholder": "ex.: Designer, Tecelão, QA",
+        "freeTextRoleHint": "Função em texto livre para fins organizacionais.",
+        "cancel": "Cancelar",
+        "addAdmin": "Adicionar Administrador"
+      },
+      "toast": {
+        "emailRequired": "E-mail é obrigatório",
+        "adminAdded": "Administrador adicionado com sucesso",
+        "adminAddedDescription": "E-mail de boas-vindas enviado para {{email}}. Senha temporária: {{password}}",
+        "addAdminFailed": "Falha ao adicionar administrador",
+        "personAdded": "Pessoa adicionada",
+        "personAddedDescription": "{{email}} adicionado como {{role}}. Não terá acesso ao login do painel.",
+        "addPersonFailed": "Falha ao adicionar pessoa"
+      }
+    },
+    "payments": {
+      "heading": "Pagamentos",
+      "subheading": "Métodos de pagamento",
+      "create": "Criar",
+      "recentHeading": "Pagamentos recentes",
+      "recentDescription": "Visualize pagamentos recentes.",
+      "emptyMethods": "Nenhum método de pagamento",
+      "emptyPayments": "Nenhum pagamento",
+      "columns": {
+        "type": "Tipo",
+        "accountName": "Nome da conta",
+        "details": "Detalhes",
+        "bank": "Banco",
+        "walletPrefix": "Carteira",
+        "added": "Adicionado",
+        "paymentId": "ID do Pagamento",
+        "amount": "Valor",
+        "currency": "Moeda"
+      },
+      "typeLabels": {
+        "bankAccount": "Conta bancária",
+        "cashAccount": "Conta em dinheiro",
+        "digitalWallet": "Carteira digital"
+      },
+      "form": {
+        "heading": "Adicionar Método de Pagamento",
+        "description": "Adicione uma referência de método de pagamento.",
+        "missingPartner": "Contexto de parceiro ausente.",
+        "type": "Tipo",
+        "typePlaceholder": "Selecione o tipo",
+        "accountName": "Nome da conta",
+        "accountNumber": "Número da conta",
+        "bankName": "Nome do banco",
+        "ifsc": "IFSC",
+        "walletId": "ID da carteira",
+        "cancel": "Cancelar",
+        "create": "Criar"
+      },
+      "toast": {
+        "created": "Método de pagamento criado"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Credenciais de Pagamento",
+      "subHeading": "Suas credenciais de provedor de pagamento. Elas substituem as configurações padrão da plataforma para sua loja.",
+      "empty": {
+        "heading": "Nenhuma credencial de pagamento configurada",
+        "description": "Você está usando as credenciais compartilhadas da plataforma. Adicione as suas próprias para usar suas contas de comerciante."
+      },
+      "columns": {
+        "provider": "Provedor",
+        "status": "Status",
+        "statusActive": "Ativo",
+        "statusInactive": "Inativo",
+        "credentials": "Credenciais",
+        "added": "Adicionado"
+      },
+      "removePrompt": {
+        "description": "Remover suas credenciais {{provider}}? Sua loja voltará a usar as credenciais compartilhadas da plataforma."
+      },
+      "toast": {
+        "removed": "Credenciais removidas",
+        "removeFailed": "Falha ao remover",
+        "saved": "Credenciais de pagamento salvas",
+        "saveFailed": "Falha ao salvar credenciais"
+      },
+      "form": {
+        "heading": "Adicionar Credenciais de Pagamento",
+        "description": "Configure suas próprias credenciais de provedor de pagamento. Isso substitui as configurações padrão da plataforma para sua loja.",
+        "provider": "Provedor",
+        "merchantKey": "Chave do comerciante",
+        "merchantKeyPlaceholder": "Sua chave de comerciante PayU",
+        "merchantSalt": "Sal do comerciante",
+        "merchantSaltPlaceholder": "Seu sal de comerciante PayU",
+        "mode": "Modo",
+        "modeTest": "Teste",
+        "modeLive": "Produção",
+        "stripeApiKey": "Chave API Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... ou sk_test_...",
+        "stripeApiKeyHint": "Sua chave secreta Stripe do painel Stripe."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Tipo de Empresa",
+        "description": "Escolha como você usa o JYT. Isso define quais itens de navegação aparecem na barra lateral.",
+        "active": "Ativo",
+        "seller": {
+          "title": "Vendedor",
+          "description": "Venda produtos online. Veja Produtos, Pedidos, Clientes, Categorias e Coleções."
+        },
+        "manufacturer": {
+          "title": "Fabricante",
+          "description": "Projete e produza têxteis. Veja Designs, Pedidos de Estoque, Produções, Tarefas e mais."
+        },
+        "individual": {
+          "title": "Individual",
+          "description": "Trabalhe em tarefas atribuídas. Veja Tarefas, Pastas Compartilhadas e Envios para Pagamento."
+        }
+      },
+      "status": {
+        "heading": "Configuração Inicial",
+        "description": "Acompanhe a conclusão da configuração inicial e reabra o fluxo.",
+        "label": "Status",
+        "completed": "Concluído",
+        "notCompleted": "Não concluído",
+        "open": "Abrir configuração inicial"
+      }
+    }
   }
 }

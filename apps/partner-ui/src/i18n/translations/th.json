@@ -2788,5 +2788,409 @@
     "minutes_other": "นาที",
     "seconds_one": "วินาที",
     "seconds_other": "วินาที"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "ร้านค้า",
+      "regions": "ภูมิภาค",
+      "locationsShipping": "สถานที่ตั้งและการจัดส่ง",
+      "salesChannels": "ช่องทางการขาย",
+      "taxRegions": "เขตภาษี",
+      "returnReasons": "เหตุผลในการคืนสินค้า",
+      "refundReasons": "เหตุผลในการคืนเงิน",
+      "onboarding": "การเริ่มต้นใช้งาน",
+      "people": "ทีมงาน",
+      "payments": "การชำระเงิน",
+      "paymentConfig": "การตั้งค่าการชำระเงิน",
+      "planBilling": "แผนและใบแจ้งหนี้"
+    },
+    "paymentSubmissions": {
+      "heading": "การยื่นขอรับชำระเงิน",
+      "description": "ส่งแบบดีไซน์หรืองานที่เสร็จสมบูรณ์เพื่อขอรับชำระเงิน",
+      "newSubmission": "ยื่นขอใหม่",
+      "breadcrumb": "การยื่นขอรับชำระเงิน",
+      "columns": {
+        "submission": "การยื่นขอ",
+        "status": "สถานะ",
+        "amount": "จำนวนเงิน",
+        "items": "รายการ",
+        "submitted": "ส่งแล้ว",
+        "reviewed": "ตรวจสอบแล้ว",
+        "design_one": "ดีไซน์ {{count}} แบบ",
+        "design_other": "ดีไซน์ {{count}} แบบ",
+        "task_one": "งาน {{count}} ชิ้น",
+        "task_other": "งาน {{count}} ชิ้น"
+      },
+      "empty": {
+        "title": "ยังไม่มีการยื่นขอรับชำระเงิน",
+        "message": "ส่งดีไซน์ที่เสร็จสมบูรณ์ของคุณเพื่อขอรับชำระเงินโดยคลิกที่ 'ยื่นขอใหม่'"
+      }
+    },
+    "inventoryOrders": {
+      "heading": "คำสั่งซื้อสินค้าคงคลัง",
+      "empty": "ไม่มีคำสั่งซื้อสินค้าคงคลัง",
+      "filters": {
+        "status": "สถานะ",
+        "partnerStatus": "สถานะพาร์ทเนอร์"
+      },
+      "statusOptions": {
+        "pending": "รอการดำเนินการ",
+        "processing": "กำลังดำเนินการ",
+        "shipped": "จัดส่งแล้ว",
+        "delivered": "นำส่งแล้ว",
+        "cancelled": "ยกเลิกแล้ว",
+        "partial": "บางส่วน"
+      },
+      "columns": {
+        "id": "รหัส",
+        "partnerStatus": "สถานะพาร์ทเนอร์",
+        "status": "สถานะ",
+        "updated": "ปรับปรุงเมื่อ",
+        "created": "สร้างเมื่อ"
+      },
+      "detail": {
+        "heading": "คำสั่งซื้อสินค้าคงคลัง",
+        "missingId": "ไม่พบรหัสคำสั่งซื้อ",
+        "orderId": "รหัสคำสั่งซื้อ",
+        "status": "สถานะ",
+        "partnerStatus": "สถานะพาร์ทเนอร์",
+        "linesHeading": "รายการ",
+        "linesDescription": "จำนวนที่ร้องขอเทียบกับจำนวนที่จัดส่งแล้ว",
+        "noLines": "ไม่มีรายการ",
+        "linePrefix": "รายการ",
+        "columns": {
+          "item": "สินค้า",
+          "requested": "ร้องขอ",
+          "fulfilled": "จัดส่งแล้ว",
+          "remaining": "คงเหลือ"
+        },
+        "activities": {
+          "title": "กิจกรรม",
+          "completed": "เสร็จสมบูรณ์",
+          "pending": "รอการดำเนินการ"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "ยินดีต้อนรับ! มาตั้งค่าพื้นที่ทำงานของคุณกันเถอะ",
+      "steps": {
+        "about": "เกี่ยวกับคุณ",
+        "logo": "โลโก้และแบรนด์",
+        "people": "ทีมงาน"
+      },
+      "businessTypes": {
+        "manufacturer": "ผู้ผลิต / ผู้ผลิตสินค้า",
+        "seller": "ผู้ขาย / ผู้ค้าปลีก",
+        "designer": "นักออกแบบ / ผู้สร้างสรรค์",
+        "wholesaler": "ผู้ค้าส่ง / ผู้จัดจำหน่าย",
+        "artisan": "ช่างฝีมือ / ผู้ประดิษฐ์",
+        "individual": "บุคคล (แบบ, ฟรีแลนซ์ ฯลฯ)",
+        "other": "อื่นๆ"
+      },
+      "about": {
+        "heading": "บอกเราเกี่ยวกับธุรกิจของคุณ",
+        "description": "ข้อมูลนี้จะช่วยให้เราปรับแต่งประสบการณ์การใช้งานให้เหมาะกับคุณ และเชื่อมคุณเข้ากับเครื่องมือที่เหมาะสม",
+        "businessName": "ชื่อธุรกิจ",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "ธุรกิจของคุณตรงกับประเภทใดมากที่สุด?",
+        "businessTypePlaceholder": "เลือกประเภทธุรกิจ",
+        "descriptionLabel": "คำอธิบายสั้นๆ",
+        "descriptionPlaceholder": "คุณผลิตหรือขายสินค้าอะไร? ลูกค้าของคุณเป็นใคร?",
+        "website": "เว็บไซต์",
+        "phone": "โทรศัพท์",
+        "optional": "(ไม่บังคับ)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "อัปโหลดโลโก้บริษัทของคุณ",
+        "description": "โลโก้นี้จะปรากฏบนโปรไฟล์พาร์ทเนอร์และหน้าร้านค้าของคุณ คุณสามารถเปลี่ยนแปลงได้ตลอดเวลา",
+        "clickToChange": "คลิกเพื่อเปลี่ยน",
+        "clickToUpload": "คลิกเพื่ออัปโหลด หรือลากและวางไฟล์",
+        "fileTypes": "SVG, PNG, JPG (สูงสุด 5MB)"
+      },
+      "team": {
+        "heading": "เพิ่มสมาชิกทีมของคุณ",
+        "description": "เชิญผู้ที่จะช่วยจัดการร้านค้าและสินค้าของคุณ ขั้นตอนนี้ไม่บังคับ — คุณสามารถเพิ่มสมาชิกทีมได้ภายหลัง",
+        "success": "การเริ่มต้นใช้งานเสร็จสมบูรณ์!",
+        "firstName": "ชื่อ",
+        "firstNamePlaceholder": "จอห์น",
+        "lastName": "นามสกุล",
+        "lastNamePlaceholder": "โด",
+        "email": "อีเมล",
+        "emailPlaceholder": "john@company.com",
+        "remove": "ลบ",
+        "addAnother": "+ เพิ่มบุคคลอีกคน"
+      },
+      "footer": {
+        "skip": "ข้ามไปก่อน",
+        "stepCount": "ขั้นตอน {{current}} จากทั้งหมด {{total}}",
+        "back": "ย้อนกลับ",
+        "continue": "ดำเนินการต่อ",
+        "complete": "เสร็จสิ้นการตั้งค่า"
+      },
+      "errors": {
+        "unknown": "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ"
+      }
+    },
+    "plan": {
+      "heading": "แผนและใบแจ้งหนี้",
+      "description": "เลือกแผนที่เหมาะกับธุรกิจของคุณ",
+      "labels": {
+        "plan": "แผน",
+        "price": "ราคา",
+        "period": "ระยะเวลา",
+        "payment": "การชำระเงิน"
+      },
+      "providerPayu": "PayU (อินเดีย)",
+      "providerStripe": "Stripe (นานาชาติ)",
+      "cancelSubscription": "ยกเลิกการสมัครใช้งาน",
+      "noSubscription": "ไม่มีการสมัครใช้งานที่ใช้งานอยู่ โปรดเลือกแผนด้านล่างเพื่อเริ่มต้น",
+      "chooseHeading": "เลือกแผนของคุณ",
+      "chooseDescription": "ทุกแผนรวมถึงสินค้าไม่จำกัด บัญชีทีมงาน และระบบจัดส่งแบบเรียลไทม์ โดยไม่มีข้อจำกัดในการขาย",
+      "badges": {
+        "current": "ปัจจุบัน",
+        "popular": "ยอดนิยม"
+      },
+      "currentPlan": "แผนปัจจุบัน",
+      "cta": {
+        "getStarted": "เริ่มต้นใช้งาน",
+        "downgrade": "ลดระดับแผน",
+        "upgrade": "อัปเกรดแผน"
+      },
+      "whatsIncluded": "สิ่งที่รวมอยู่",
+      "features": {
+        "unlimitedProducts": "สินค้าไม่จำกัด",
+        "unlimitedSelling": "การขายไม่จำกัด",
+        "unlimitedStaff": "บัญชีทีมงานไม่จำกัด",
+        "storefrontSource": "ซอร์สโค้ดหน้าร้านค้า",
+        "customDomain": "โดเมนแบบกำหนดเอง",
+        "jytEmails": "อีเมล JYT",
+        "liveShipping": "ระบบจัดส่งแบบเรียลไทม์ (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "ค่าธรรมเนียมการประมวลผลการชำระเงิน",
+        "analyticsAdvanced": "การวิเคราะห์ขั้นสูง",
+        "analyticsBasic": "การวิเคราะห์พื้นฐาน",
+        "aiChatSupport": "การสนับสนุนผ่านแชท AI",
+        "customModules": "โมดูลแบบกำหนดเอง",
+        "customApis": "API แบบกำหนดเอง",
+        "prioritySupport": "การสนับสนุนแบบเร่งด่วน",
+        "whiteLabel": "ไวท์เลเบิล"
+      },
+      "comparison": {
+        "heading": "เปรียบเทียบคุณสมบัติ",
+        "featureColumn": "คุณสมบัติ",
+        "priceRow": "ราคา",
+        "rows": {
+          "unlimitedProducts": "สินค้า",
+          "unlimitedSelling": "การขาย",
+          "unlimitedStaff": "บัญชีทีมงาน",
+          "storefrontSource": "ซอร์สโค้ดหน้าร้านค้า",
+          "customDomain": "โดเมนแบบกำหนดเอง",
+          "themeCustomization": "ตัวแก้ไขธีม",
+          "jytEmails": "อีเมล JYT",
+          "liveShipping": "ระบบจัดส่งแบบเรียลไทม์",
+          "paymentFee": "ค่าธรรมเนียมการชำระเงิน",
+          "analytics": "การวิเคราะห์",
+          "aiChatSupport": "การสนับสนุนผ่านแชท AI",
+          "customModules": "โมดูลแบบกำหนดเอง",
+          "customApis": "API แบบกำหนดเอง",
+          "prioritySupport": "การสนับสนุนแบบเร่งด่วน",
+          "whiteLabel": "ไวท์เลเบิล"
+        },
+        "values": {
+          "unlimited": "ไม่จำกัด",
+          "yes": "ใช่",
+          "no": "ไม่",
+          "analyticsAdvanced": "ขั้นสูง",
+          "analyticsBasic": "พื้นฐาน",
+          "free": "ฟรี"
+        }
+      },
+      "paymentInfo": "การชำระเงินดำเนินการผ่าน {{provider}} ค่าธรรมเนียมการประมวลผลการชำระเงินจะเรียกเก็บเฉพาะเมื่อลูกค้าชำระผ่านเกตเวย์การชำระเงิน JYT เท่านั้น คุณสามารถใช้ข้อมูลประจำตัวผู้ให้บริการการชำระเงินของตนเองเพื่อหลีกเลี่ยงค่าธรรมเนียมแพลตฟอร์ม",
+      "prompts": {
+        "switchTitle": "เปลี่ยนไปใช้แผน {{plan}}",
+        "switchPaidDescription": "คุณจะถูกเรียกเก็บเงิน {{price}}/{{interval}} ผ่าน {{provider}} แผนปัจจุบันของคุณจะถูกแทนที่",
+        "switchFreeDescription": "คุณจะเปลี่ยนไปใช้แผนฟรี แผนปัจจุบันของคุณจะถูกยกเลิก",
+        "payWith": "ชำระผ่าน {{provider}}",
+        "switch": "เปลี่ยน",
+        "cancel": "ยกเลิก",
+        "cancelTitle": "ยกเลิกการสมัครใช้งาน",
+        "cancelDescription": "คุณแน่ใจหรือไม่? คุณจะยังคงสามารถใช้งานได้จนถึงสิ้นรอบการเรียกเก็บเงินปัจจุบัน และสามารถสมัครใช้งานใหม่ได้ทุกเมื่อ",
+        "cancelConfirm": "ยกเลิกการสมัครใช้งาน",
+        "keepPlan": "คงแผนไว้"
+      },
+      "toast": {
+        "paymentSuccess": "ชำระเงินสำเร็จ! แผนของคุณถูกเปิดใช้งานแล้ว",
+        "paymentFailed": "การชำระเงินล้มเหลว กรุณาลองอีกครั้ง",
+        "paymentCanceled": "การชำระเงินถูกยกเลิก",
+        "paymentError": "ข้อผิดพลาดการชำระเงิน: {{message}}",
+        "paymentUnknown": "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ",
+        "switchedTo": "เปลี่ยนไปใช้แผน {{plan}} แล้ว",
+        "switchFailed": "ไม่สามารถเปลี่ยนแผนได้",
+        "canceled": "การสมัครใช้งานถูกยกเลิกแล้ว",
+        "cancelFailed": "ไม่สามารถยกเลิกได้",
+        "somethingWrong": "เกิดข้อผิดพลาดบางอย่าง"
+      }
+    },
+    "people": {
+      "heading": "สมาชิกทีม",
+      "description": "จัดการบุคคลในองค์กรของคุณ ผู้ดูแลระบบสามารถเข้าสู่ระบบแดชบอร์ดได้",
+      "addPerson": "เพิ่มบุคคล",
+      "empty": "ยังไม่มีสมาชิกทีม โปรดเพิ่มบุคคลแรกของคุณด้านบน",
+      "columns": {
+        "name": "ชื่อ",
+        "email": "อีเมล",
+        "access": "การเข้าถึง",
+        "accessDashboard": "แดชบอร์ด",
+        "accessTeamOnly": "ทีมงานเท่านั้น",
+        "role": "บทบาท",
+        "added": "เพิ่มเมื่อ"
+      },
+      "drawer": {
+        "title": "เพิ่มบุคคล",
+        "description": "เพิ่มสมาชิกทีมลงในองค์กรของคุณ",
+        "emailLabel": "อีเมล *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "ชื่อ",
+        "firstNamePlaceholder": "จอห์น",
+        "lastName": "นามสกุล",
+        "lastNamePlaceholder": "โด",
+        "phone": "โทรศัพท์",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "สร้างในฐานะผู้ดูแลระบบแดชบอร์ด",
+        "adminHint": "บุคคลนี้จะได้รับข้อมูลรับรองการเข้าสู่ระบบ และสามารถเข้าถึงแดชบอร์ดพาร์ทเนอร์ได้",
+        "teamHint": "บุคคลนี้จะแสดงเป็นสมาชิกทีม แต่จะไม่มีสิทธิเข้าถึงแดชบอร์ด",
+        "role": "บทบาท",
+        "roleAdmin": "ผู้ดูแลระบบ — สิทธิ์เต็มรูปแบบ",
+        "roleManager": "ผู้จัดการ — สินค้าและคำสั่งซื้อ",
+        "roleOwner": "เจ้าของ — สิทธิ์เต็มรูปแบบ + การเรียกเก็บเงิน",
+        "password": "รหัสผ่าน",
+        "passwordPlaceholder": "เว้นว่างไว้เพื่อสร้างโดยอัตโนมัติ",
+        "passwordHint": "หากเว้นว่างไว้ จะสร้างโดยอัตโนมัติ และจะรวมอยู่ในอีเมลต้อนรับ",
+        "freeTextRole": "บทบาท",
+        "freeTextRolePlaceholder": "เช่น นักออกแบบ ช่างทอ ผู้ควบคุมคุณภาพ",
+        "freeTextRoleHint": "บทบาทแบบข้อความอิสระเพื่อวัตถุประสงค์ในการจัดการองค์กร",
+        "cancel": "ยกเลิก",
+        "addAdmin": "เพิ่มผู้ดูแลระบบ"
+      },
+      "toast": {
+        "emailRequired": "จำเป็นต้องระบุอีเมล",
+        "adminAdded": "เพิ่มผู้ดูแลระบบสำเร็จ",
+        "adminAddedDescription": "ส่งอีเมลต้อนรับไปยัง {{email}} รหัสผ่านชั่วคราว: {{password}}",
+        "addAdminFailed": "ไม่สามารถเพิ่มผู้ดูแลระบบได้",
+        "personAdded": "เพิ่มบุคคลเรียบร้อยแล้ว",
+        "personAddedDescription": "{{email}} ถูกเพิ่มในฐานะ {{role}} พวกเขาจะไม่มีสิทธิเข้าสู่ระบบแดชบอร์ด",
+        "addPersonFailed": "ไม่สามารถเพิ่มบุคคลได้"
+      }
+    },
+    "payments": {
+      "heading": "การชำระเงิน",
+      "subheading": "วิธีการชำระเงิน",
+      "create": "สร้าง",
+      "recentHeading": "การชำระเงินล่าสุด",
+      "recentDescription": "ดูการชำระเงินล่าสุด",
+      "emptyMethods": "ไม่มีวิธีการชำระเงิน",
+      "emptyPayments": "ไม่มีการชำระเงิน",
+      "columns": {
+        "type": "ประเภท",
+        "accountName": "ชื่อบัญชี",
+        "details": "รายละเอียด",
+        "bank": "ธนาคาร",
+        "walletPrefix": "กระเป๋าเงิน",
+        "added": "เพิ่มเมื่อ",
+        "paymentId": "รหัสการชำระเงิน",
+        "amount": "จำนวนเงิน",
+        "currency": "สกุลเงิน"
+      },
+      "typeLabels": {
+        "bankAccount": "บัญชีธนาคาร",
+        "cashAccount": "บัญชีเงินสด",
+        "digitalWallet": "กระเป๋าเงินดิจิทัล"
+      },
+      "form": {
+        "heading": "เพิ่มวิธีการชำระเงิน",
+        "description": "เพิ่มการอ้างอิงวิธีการจ่ายเงิน",
+        "missingPartner": "ขาดข้อมูลพาร์ทเนอร์",
+        "type": "ประเภท",
+        "typePlaceholder": "เลือกประเภท",
+        "accountName": "ชื่อบัญชี",
+        "accountNumber": "เลขที่บัญชี",
+        "bankName": "ชื่อธนาคาร",
+        "ifsc": "IFSC",
+        "walletId": "รหัสกระเป๋าเงิน",
+        "cancel": "ยกเลิก",
+        "create": "สร้าง"
+      },
+      "toast": {
+        "created": "สร้างวิธีการชำระเงินเรียบร้อยแล้ว"
+      }
+    },
+    "paymentProviders": {
+      "heading": "ข้อมูลรับรองผู้ให้บริการการชำระเงิน",
+      "subHeading": "ข้อมูลรับรองผู้ให้บริการการชำระเงินของคุณ ข้อมูลเหล่านี้จะแทนที่ค่าเริ่มต้นของแพลตฟอร์มสำหรับร้านค้าของคุณ",
+      "empty": {
+        "heading": "ยังไม่ได้กำหนดค่าข้อมูลรับรองผู้ให้บริการการชำระเงิน",
+        "description": "คุณกำลังใช้ข้อมูลรับรองร่วมของแพลตฟอร์ม โปรดเพิ่มข้อมูลรับรองของคุณเองเพื่อใช้บัญชีผู้ค้าของคุณเอง"
+      },
+      "columns": {
+        "provider": "ผู้ให้บริการ",
+        "status": "สถานะ",
+        "statusActive": "ใช้งานอยู่",
+        "statusInactive": "ไม่ใช้งาน",
+        "credentials": "ข้อมูลรับรอง",
+        "added": "เพิ่มเมื่อ"
+      },
+      "removePrompt": {
+        "description": "ลบข้อมูลรับรอง {{provider}} ของคุณหรือไม่? ร้านค้าของคุณจะกลับไปใช้ข้อมูลรับรองร่วมของแพลตฟอร์ม"
+      },
+      "toast": {
+        "removed": "ลบข้อมูลรับรองเรียบร้อยแล้ว",
+        "removeFailed": "ไม่สามารถลบข้อมูลรับรองได้",
+        "saved": "บันทึกข้อมูลรับรองการชำระเงินเรียบร้อยแล้ว",
+        "saveFailed": "ไม่สามารถบันทึกข้อมูลรับรองได้"
+      },
+      "form": {
+        "heading": "เพิ่มข้อมูลรับรองการชำระเงิน",
+        "description": "กำหนดค่าข้อมูลรับรองผู้ให้บริการการชำระเงินของคุณเอง ข้อมูลนี้จะแทนที่ค่าเริ่มต้นของแพลตฟอร์มสำหรับร้านค้าของคุณ",
+        "provider": "ผู้ให้บริการ",
+        "merchantKey": "คีย์ผู้ค้า",
+        "merchantKeyPlaceholder": "คีย์ผู้ค้า PayU ของคุณ",
+        "merchantSalt": "ซอลต์ผู้ค้า",
+        "merchantSaltPlaceholder": "ซอลต์ผู้ค้า PayU ของคุณ",
+        "mode": "โหมด",
+        "modeTest": "ทดสอบ",
+        "modeLive": "จริง",
+        "stripeApiKey": "คีย์ API ของ Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... หรือ sk_test_...",
+        "stripeApiKeyHint": "คีย์ลับของ Stripe ที่คุณได้รับจากแดชบอร์ด Stripe"
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "ประเภทธุรกิจ",
+        "description": "เลือกวิธีที่คุณใช้ JYT ซึ่งจะควบคุมรายการนำทางที่ปรากฏในแถบด้านข้างของคุณ",
+        "active": "ใช้งานอยู่",
+        "seller": {
+          "title": "ผู้ขาย",
+          "description": "ขายสินค้าออนไลน์ ดูสินค้า คำสั่งซื้อ ลูกค้า หมวดหมู่ และคอลเลกชัน"
+        },
+        "manufacturer": {
+          "title": "ผู้ผลิต",
+          "description": "ออกแบบและผลิตสิ่งทอ ดูแบบดีไซน์ คำสั่งซื้อสินค้าคงคลัง การผลิต งาน และอื่นๆ"
+        },
+        "individual": {
+          "title": "บุคคล",
+          "description": "ทำงานตามงานที่ได้รับมอบหมาย ดูงาน โฟลเดอร์ที่แชร์ และการยื่นขอรับชำระเงิน"
+        }
+      },
+      "status": {
+        "heading": "การเริ่มต้นใช้งาน",
+        "description": "ติดตามความคืบหน้าของการเริ่มต้นใช้งาน และเปิดการไหลของการเริ่มต้นใช้งานอีกครั้ง",
+        "label": "สถานะ",
+        "completed": "เสร็จสมบูรณ์",
+        "notCompleted": "ยังไม่เสร็จสมบูรณ์",
+        "open": "เปิดการเริ่มต้นใช้งาน"
+      }
+    }
   }
 }

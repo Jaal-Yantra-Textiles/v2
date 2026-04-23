@@ -3,6 +3,7 @@ import { Container, Heading, Text, Button } from "@medusajs/ui"
 import { PlusMini } from "@medusajs/icons"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
@@ -23,24 +24,25 @@ import { toast } from "@medusajs/ui"
 const columnHelper = createDataTableColumnHelper<ContentPage>()
 const PAGE_SIZE = 20
 
-const STATUS_OPTIONS = [
-  { label: "Published", value: "Published" },
-  { label: "Draft", value: "Draft" },
-  { label: "Archived", value: "Archived" },
-]
-
-const PAGE_TYPE_OPTIONS = [
-  { label: "Home", value: "Home" },
-  { label: "About", value: "About" },
-  { label: "Contact", value: "Contact" },
-  { label: "Custom", value: "Custom" },
-  { label: "Service", value: "Service" },
-  { label: "Portfolio", value: "Portfolio" },
-  { label: "Landing", value: "Landing" },
-]
-
 export const ContentList = () => {
+  const { t } = useTranslation()
   const navigate = useNavigate()
+
+  const STATUS_OPTIONS = [
+    { label: t("partner.content.statusOptions.published"), value: "Published" },
+    { label: t("partner.content.statusOptions.draft"), value: "Draft" },
+    { label: t("partner.content.statusOptions.archived"), value: "Archived" },
+  ]
+
+  const PAGE_TYPE_OPTIONS = [
+    { label: t("partner.content.typeOptions.home"), value: "Home" },
+    { label: t("partner.content.typeOptions.about"), value: "About" },
+    { label: t("partner.content.typeOptions.contact"), value: "Contact" },
+    { label: t("partner.content.typeOptions.custom"), value: "Custom" },
+    { label: t("partner.content.typeOptions.service"), value: "Service" },
+    { label: t("partner.content.typeOptions.portfolio"), value: "Portfolio" },
+    { label: t("partner.content.typeOptions.landing"), value: "Landing" },
+  ]
 
   // Store & storefront checks
   const { stores, isPending: storesLoading } = usePartnerStores()
@@ -115,9 +117,9 @@ export const ContentList = () => {
   const handleCreatePages = async () => {
     try {
       await createWebsite()
-      toast.success("Pages created successfully")
+      toast.success(t("partner.content.toast.pagesCreated"))
     } catch (e: any) {
-      toast.error(e?.message || "Failed to create pages")
+      toast.error(e?.message || t("partner.content.toast.createFailed"))
     }
   }
 
@@ -125,15 +127,15 @@ export const ContentList = () => {
   const columns = useMemo(
     () => [
       columnHelper.accessor("title", {
-        header: () => "Title",
+        header: () => t("partner.content.columns.title"),
         cell: ({ getValue }) => getValue() || "-",
       }),
       columnHelper.accessor("slug", {
-        header: () => "Slug",
+        header: () => t("partner.content.columns.slug"),
         cell: ({ getValue }) => `/${getValue()}`,
       }),
       columnHelper.accessor("page_type", {
-        header: () => "Type",
+        header: () => t("partner.content.columns.type"),
         cell: ({ getValue }) => (
           <Badge color="grey" size="2xsmall">
             {getValue()}
@@ -141,7 +143,7 @@ export const ContentList = () => {
         ),
       }),
       columnHelper.accessor("status", {
-        header: () => "Status",
+        header: () => t("partner.content.columns.status"),
         cell: ({ getValue }) => {
           const status = getValue()
           const color =
@@ -158,7 +160,7 @@ export const ContentList = () => {
         },
       }),
     ],
-    []
+    [t]
   )
 
   const filters = useMemo<Filter[]>(
@@ -166,17 +168,17 @@ export const ContentList = () => {
       {
         type: "select",
         key: "status",
-        label: "Status",
+        label: t("partner.content.filters.status"),
         options: STATUS_OPTIONS,
       },
       {
         type: "select",
         key: "page_type",
-        label: "Type",
+        label: t("partner.content.filters.type"),
         options: PAGE_TYPE_OPTIONS,
       },
     ],
-    []
+    [t]
   )
 
   const { table } = useDataTable({
@@ -196,23 +198,20 @@ export const ContentList = () => {
 
   const noRecordsConfig = noStoreReady
     ? {
-        title: "No store created",
-        message:
-          "Create a store first to manage your storefront content.",
+        title: t("partner.content.empty.noStoreTitle"),
+        message: t("partner.content.empty.noStoreMessage"),
       }
     : notProvisioned
       ? {
-          title: "Storefront not enabled",
-          message:
-            "Enable your storefront in store settings to start managing pages.",
+          title: t("partner.content.empty.notProvisionedTitle"),
+          message: t("partner.content.empty.notProvisionedMessage"),
         }
       : noWebsite
         ? {
-            title: "No pages yet",
-            message:
-              "Create your default pages to get started with your storefront content.",
+            title: t("partner.content.empty.noPagesTitle"),
+            message: t("partner.content.empty.noPagesMessage"),
           }
-        : { message: "No pages found" }
+        : { message: t("partner.content.empty.noMatches") }
 
   if (isError) {
     throw error
@@ -222,15 +221,15 @@ export const ContentList = () => {
   const headerAction = noWebsite ? (
     <Button size="small" onClick={handleCreatePages} disabled={isCreating}>
       <PlusMini className="mr-1.5" />
-      {isCreating ? "Creating..." : "Create Pages"}
+      {isCreating ? t("partner.content.actions.creatingPages") : t("partner.content.actions.createPages")}
     </Button>
   ) : noStoreReady ? (
     <Button size="small" onClick={() => navigate("/create-store")}>
-      Create Store
+      {t("partner.content.actions.createStore")}
     </Button>
   ) : notProvisioned ? (
     <Button size="small" onClick={() => navigate("/settings/store")}>
-      Enable Storefront
+      {t("partner.content.actions.enableStorefront")}
     </Button>
   ) : null
 
@@ -243,7 +242,7 @@ export const ContentList = () => {
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
           <div>
-            <Heading>Content</Heading>
+            <Heading>{t("partner.content.heading")}</Heading>
             {storefrontDomain && (
               <Text size="small" className="text-ui-fg-subtle">{storefrontDomain}</Text>
             )}
@@ -260,9 +259,9 @@ export const ContentList = () => {
           pageSize={PAGE_SIZE}
           filters={filters}
           orderBy={[
-            { key: "title", label: "Title" },
-            { key: "slug", label: "Slug" },
-            { key: "status", label: "Status" },
+            { key: "title", label: t("partner.content.columns.title") },
+            { key: "slug", label: t("partner.content.columns.slug") },
+            { key: "status", label: t("partner.content.columns.status") },
           ]}
           search
           queryObject={raw}

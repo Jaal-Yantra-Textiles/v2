@@ -54,6 +54,20 @@ const LANGUAGES_PATH = path.join(__dirname, "../../src/i18n/languages.ts")
 const DEFAULT_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free"
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+// Alibaba Cloud DashScope (native Qwen API) — OpenAI-compatible endpoint.
+// Used when DASHSCOPE_API_KEY is set AND the requested model is a raw Qwen
+// model id (e.g. "qwen-plus", "qwen3-max"). The OpenRouter-style "qwen/..."
+// ids still go through OpenRouter as before.
+const DASHSCOPE_URL_INTL =
+  "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+const DASHSCOPE_URL_CN =
+  "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+const DEFAULT_DASHSCOPE_MODEL = "qwen-plus"
+
+function isDashScopeModel(modelId) {
+  return typeof modelId === "string" && !modelId.includes("/")
+}
+
 function parseArgs(argv) {
   const args = { flags: new Set(), opts: {}, positional: [] }
   for (const a of argv.slice(2)) {
@@ -186,14 +200,13 @@ function buildPrompt(languageName, sectionName, sectionJson) {
   ].join("\n")
 }
 
-async function callModel({ apiKey, model, prompt }) {
-  const res = await fetch(OPENROUTER_URL, {
+async function callOpenAICompatible({ url, apiKey, model, prompt, providerLabel, extraHeaders = {} }) {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://jyt.local/partner-ui",
-      "X-Title": "partner-ui i18n translator",
+      ...extraHeaders,
     },
     body: JSON.stringify({
       model,
@@ -207,12 +220,11 @@ async function callModel({ apiKey, model, prompt }) {
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`OpenRouter ${res.status}: ${text.slice(0, 400)}`)
+    throw new Error(`${providerLabel} ${res.status}: ${text.slice(0, 400)}`)
   }
   const json = await res.json()
   const content = json?.choices?.[0]?.message?.content
   if (!content) throw new Error("Empty model response")
-  // Strip accidental code fences just in case
   const cleaned = content
     .trim()
     .replace(/^```(?:json)?/i, "")
@@ -223,6 +235,41 @@ async function callModel({ apiKey, model, prompt }) {
   } catch (e) {
     throw new Error(`Model returned invalid JSON: ${e.message}\n---\n${cleaned.slice(0, 400)}`)
   }
+}
+
+async function callModel({ provider, apiKey, model, prompt }) {
+  if (provider === "dashscope") {
+    // Try intl endpoint first (works outside China). Fall back to CN on network/region error.
+    try {
+      return await callOpenAICompatible({
+        url: DASHSCOPE_URL_INTL,
+        apiKey,
+        model,
+        prompt,
+        providerLabel: "DashScope-Intl",
+      })
+    } catch (e) {
+      if (!/ENOTFOUND|403|404/.test(String(e.message))) throw e
+      return await callOpenAICompatible({
+        url: DASHSCOPE_URL_CN,
+        apiKey,
+        model,
+        prompt,
+        providerLabel: "DashScope-CN",
+      })
+    }
+  }
+  return callOpenAICompatible({
+    url: OPENROUTER_URL,
+    apiKey,
+    model,
+    prompt,
+    providerLabel: "OpenRouter",
+    extraHeaders: {
+      "HTTP-Referer": "https://jyt.local/partner-ui",
+      "X-Title": "partner-ui i18n translator",
+    },
+  })
 }
 
 function sectionIsUntranslated(enSection, trSection) {
@@ -239,14 +286,34 @@ async function main() {
     process.exit(1)
   }
 
-  const model = args.opts.model || process.env.MODEL || DEFAULT_MODEL
+  // Prefer DashScope (direct Alibaba Cloud Qwen API) when DASHSCOPE_API_KEY is
+  // set — OpenRouter's free Qwen tier is heavily rate-limited. Fallback to
+  // OpenRouter if no DashScope key, or if the caller explicitly requests an
+  // OpenRouter-style model id (containing "/").
+  const explicitModel = args.opts.model || process.env.MODEL
+  const hasDashScope = !!process.env.DASHSCOPE_API_KEY
+  const hasOpenRouter = !!process.env.OPENROUTER_API_KEY
+  const preferDashScope = hasDashScope && (!explicitModel || isDashScopeModel(explicitModel))
+  const provider = preferDashScope ? "dashscope" : "openrouter"
+  const model =
+    explicitModel ||
+    (preferDashScope ? DEFAULT_DASHSCOPE_MODEL : DEFAULT_MODEL)
+  const apiKey = preferDashScope
+    ? process.env.DASHSCOPE_API_KEY
+    : process.env.OPENROUTER_API_KEY
+
   const concurrency = Math.max(1, parseInt(args.opts.concurrency || "1", 10))
   const languageName = detectLanguageName(locale)
   const targetPath = path.join(TRANSLATIONS_DIR, `${locale}.json`)
 
-  const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey && !args.flags.has("dry-run")) {
-    console.error("Missing OPENROUTER_API_KEY (or pass --dry-run).")
+    if (preferDashScope) {
+      console.error("Missing DASHSCOPE_API_KEY (or pass --dry-run).")
+    } else {
+      console.error(
+        "Missing API key: set DASHSCOPE_API_KEY (preferred) or OPENROUTER_API_KEY."
+      )
+    }
     process.exit(1)
   }
 
@@ -281,7 +348,7 @@ async function main() {
   })
 
   console.log(
-    `Target ${languageName} (${locale}) · model ${model} · concurrency ${concurrency} · ${todo.length}/${sections.length} sections`,
+    `Target ${languageName} (${locale}) · ${provider}:${model} · concurrency ${concurrency} · ${todo.length}/${sections.length} sections`,
   )
 
   if (args.flags.has("dry-run")) {
@@ -297,7 +364,7 @@ async function main() {
     const prompt = buildPrompt(languageName, sectionName, en[sectionName])
     let translated
     try {
-      translated = await callModel({ apiKey, model, prompt })
+      translated = await callModel({ provider, apiKey, model, prompt })
       validateStructure(en[sectionName], translated, sectionName)
     } catch (err) {
       console.error(`FAIL  ${sectionName}: ${err.message}`)

@@ -255,7 +255,24 @@
       },
       "main": {
         "store": "Store",
-        "storeSettings": "Store settings"
+        "storeSettings": "Store settings",
+        "home": "Home",
+        "designs": "Designs",
+        "productionRuns": "Production Runs",
+        "tasks": "Tasks",
+        "paymentSubmissions": "Payment Submissions",
+        "inventoryOrders": "Inventory Orders",
+        "sharedFolders": "Shared Folders",
+        "products": "Products",
+        "categories": "Categories",
+        "collections": "Collections",
+        "productTypes": "Types",
+        "stock": "Stock",
+        "orders": "Orders",
+        "customers": "Customers",
+        "webStore": "WebStore",
+        "content": "Content",
+        "theme": "Theme"
       },
       "settings": {
         "header": "Settings",
@@ -3233,6 +3250,530 @@
         "description": "Are you sure you want to update \"{{name}}\"?",
         "confirmText": "Update",
         "cancelText": "Cancel"
+      }
+    }
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Store",
+      "regions": "Regions",
+      "locationsShipping": "Locations & Shipping",
+      "salesChannels": "Sales Channels",
+      "taxRegions": "Tax Regions",
+      "returnReasons": "Return Reasons",
+      "refundReasons": "Refund Reasons",
+      "onboarding": "Onboarding",
+      "people": "People",
+      "payments": "Payments",
+      "paymentConfig": "Payment Config",
+      "planBilling": "Plan & Billing"
+    },
+    "home": {
+      "dashboard": "Dashboard",
+      "welcome": "Welcome",
+      "gettingStarted": {
+        "heading": "Getting Started",
+        "description": "Complete these steps to set up your workspace.",
+        "onboardingLabel": "Complete onboarding",
+        "onboardingDescription": "Add your details and team.",
+        "open": "Open",
+        "workspaceLabel": "Choose workspace type",
+        "change": "Change",
+        "seller": "Seller",
+        "manufacturer": "Manufacturer",
+        "individual": "Individual",
+        "verifyLabel": "Get verified",
+        "verifyDescription": "Upload verification documents.",
+        "upload": "Upload",
+        "storeLabel": "Create a store",
+        "storeDescription": "Unlock products, orders, and sales channels.",
+        "create": "Create",
+        "taskSummary_one": "{{total}} task · {{pending}} pending",
+        "taskSummary_other": "{{total}} tasks · {{pending}} pending",
+        "viewTasks": "View tasks"
+      },
+      "quickSettings": {
+        "heading": "Quick Settings",
+        "description": "Manage your store configuration.",
+        "paymentProviders": "Payment Providers",
+        "paymentProvidersDescription": "Configure how you get paid.",
+        "shippingSetup": "Shipping Setup",
+        "shippingSetupDescription": "Locations, zones, and rates.",
+        "taxRegions": "Tax Regions",
+        "taxRegionsDescription": "Configure tax rates by region.",
+        "storeSettings": "Store Settings",
+        "storeSettingsDescription": "Store details and storefront."
+      },
+      "discover": {
+        "title": "Discover Products",
+        "preview": "Cross-sell products from other partners or copy them to produce on your own.",
+        "modalDescription": "Browse products from other partners. Add them to cross-sell directly, or copy them as drafts to produce on your own.",
+        "shuffle": "Shuffle",
+        "emptyTitle": "No products available for discovery yet.",
+        "emptyDescription": "Products will appear here when other partners publish them.",
+        "showing": "Showing 8 of {{total}} products — click Shuffle to see more",
+        "copying": "Copying...",
+        "addToStore": "Add to My Store",
+        "variant_one": "{{count}} variant",
+        "variant_other": "{{count}} variants",
+        "copySuccess": "Product added to your store",
+        "copySuccessDescription": "\"{{title}}\" copied as draft.",
+        "copyFailed": "Failed to copy product",
+        "somethingWrong": "Something went wrong"
+      }
+    },
+    "sharedFolders": {
+      "heading": "Shared Folders",
+      "description": "Folders shared with you for uploading photos and documents",
+      "breadcrumb": "Shared Folders",
+      "columns": {
+        "folder": "Folder",
+        "path": "Path",
+        "files": "Files",
+        "assignedTo": "Assigned To"
+      },
+      "empty": {
+        "title": "No shared folders",
+        "message": "You don't have any shared folders yet. An admin will assign folders to you."
+      }
+    },
+    "content": {
+      "heading": "Content",
+      "columns": {
+        "title": "Title",
+        "slug": "Slug",
+        "type": "Type",
+        "status": "Status"
+      },
+      "filters": {
+        "status": "Status",
+        "type": "Type"
+      },
+      "statusOptions": {
+        "published": "Published",
+        "draft": "Draft",
+        "archived": "Archived"
+      },
+      "typeOptions": {
+        "home": "Home",
+        "about": "About",
+        "contact": "Contact",
+        "custom": "Custom",
+        "service": "Service",
+        "portfolio": "Portfolio",
+        "landing": "Landing"
+      },
+      "actions": {
+        "creatingPages": "Creating...",
+        "createPages": "Create Pages",
+        "createStore": "Create Store",
+        "enableStorefront": "Enable Storefront"
+      },
+      "toast": {
+        "pagesCreated": "Pages created successfully",
+        "createFailed": "Failed to create pages"
+      },
+      "empty": {
+        "noStoreTitle": "No store created",
+        "noStoreMessage": "Create a store first to manage your storefront content.",
+        "notProvisionedTitle": "Storefront not enabled",
+        "notProvisionedMessage": "Enable your storefront in store settings to start managing pages.",
+        "noPagesTitle": "No pages yet",
+        "noPagesMessage": "Create your default pages to get started with your storefront content.",
+        "noMatches": "No pages found"
+      }
+    },
+    "paymentSubmissions": {
+      "heading": "Payment Submissions",
+      "description": "Submit completed designs or tasks for payment",
+      "newSubmission": "New Submission",
+      "breadcrumb": "Payment Submissions",
+      "columns": {
+        "submission": "Submission",
+        "status": "Status",
+        "amount": "Amount",
+        "items": "Items",
+        "submitted": "Submitted",
+        "reviewed": "Reviewed",
+        "design_one": "{{count}} design",
+        "design_other": "{{count}} designs",
+        "task_one": "{{count}} task",
+        "task_other": "{{count}} tasks"
+      },
+      "empty": {
+        "title": "No payment submissions yet",
+        "message": "Submit your completed designs for payment by clicking New Submission."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Inventory Orders",
+      "empty": "No inventory orders",
+      "filters": {
+        "status": "Status",
+        "partnerStatus": "Partner Status"
+      },
+      "statusOptions": {
+        "pending": "Pending",
+        "processing": "Processing",
+        "shipped": "Shipped",
+        "delivered": "Delivered",
+        "cancelled": "Cancelled",
+        "partial": "Partial"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Partner Status",
+        "status": "Status",
+        "updated": "Updated",
+        "created": "Created"
+      },
+      "detail": {
+        "heading": "Inventory Order",
+        "missingId": "Missing order id",
+        "orderId": "Order ID",
+        "status": "Status",
+        "partnerStatus": "Partner status",
+        "linesHeading": "Lines",
+        "linesDescription": "Requested vs fulfilled quantities",
+        "noLines": "No lines",
+        "linePrefix": "Line",
+        "columns": {
+          "item": "Item",
+          "requested": "Requested",
+          "fulfilled": "Fulfilled",
+          "remaining": "Remaining"
+        },
+        "activities": {
+          "title": "Activities",
+          "completed": "Completed",
+          "pending": "Pending"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Welcome! Let's set up your workspace",
+      "steps": {
+        "about": "About You",
+        "logo": "Logo & Brand",
+        "people": "Team"
+      },
+      "businessTypes": {
+        "manufacturer": "Manufacturer / Producer",
+        "seller": "Seller / Retailer",
+        "designer": "Designer / Creator",
+        "wholesaler": "Wholesaler / Distributor",
+        "artisan": "Artisan / Craftsperson",
+        "individual": "Individual (Model, Freelancer, etc.)",
+        "other": "Other"
+      },
+      "about": {
+        "heading": "Tell us about your business",
+        "description": "This helps us customize your experience and connect you with the right tools.",
+        "businessName": "Business name",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "What best describes your business?",
+        "businessTypePlaceholder": "Select business type",
+        "descriptionLabel": "Brief description",
+        "descriptionPlaceholder": "What do you make or sell? Who are your customers?",
+        "website": "Website",
+        "phone": "Phone",
+        "optional": "(optional)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Upload your company logo",
+        "description": "This will appear on your partner profile and storefront. You can always change this later.",
+        "clickToChange": "Click to change",
+        "clickToUpload": "Click to upload or drag and drop",
+        "fileTypes": "SVG, PNG, JPG (MAX. 5MB)",
+        "currentLogo": "Current logo"
+      },
+      "team": {
+        "heading": "Add your team members",
+        "description": "Invite people who will help manage your store and products. This step is optional — you can add team members later.",
+        "success": "Onboarding completed successfully!",
+        "firstName": "First Name",
+        "firstNamePlaceholder": "John",
+        "lastName": "Last Name",
+        "lastNamePlaceholder": "Doe",
+        "email": "Email",
+        "emailPlaceholder": "john@company.com",
+        "remove": "Remove",
+        "addAnother": "+ Add Another Person"
+      },
+      "footer": {
+        "skip": "Skip for now",
+        "skipShort": "Skip",
+        "stepCount": "Step {{current}} of {{total}}",
+        "back": "Back",
+        "continue": "Continue",
+        "complete": "Complete Setup"
+      },
+      "toast": {
+        "completed": "Onboarding completed"
+      },
+      "errors": {
+        "unknown": "An unknown error occurred"
+      }
+    },
+    "plan": {
+      "heading": "Plan & Billing",
+      "description": "Choose the plan that fits your business",
+      "labels": {
+        "plan": "Plan",
+        "price": "Price",
+        "period": "Period",
+        "payment": "Payment"
+      },
+      "providerPayu": "PayU (India)",
+      "providerStripe": "Stripe (International)",
+      "cancelSubscription": "Cancel Subscription",
+      "noSubscription": "No active subscription. Choose a plan below to get started.",
+      "chooseHeading": "Choose Your Plan",
+      "chooseDescription": "All plans include unlimited products, staff accounts, and live shipping. No limits on selling.",
+      "badges": {
+        "current": "Current",
+        "popular": "Popular"
+      },
+      "currentPlan": "Current Plan",
+      "cta": {
+        "getStarted": "Get Started",
+        "downgrade": "Downgrade",
+        "upgrade": "Upgrade"
+      },
+      "whatsIncluded": "What's included",
+      "features": {
+        "unlimitedProducts": "Unlimited products",
+        "unlimitedSelling": "Unlimited selling",
+        "unlimitedStaff": "Unlimited staff accounts",
+        "storefrontSource": "Storefront source code",
+        "customDomain": "Custom domain",
+        "jytEmails": "JYT Emails",
+        "liveShipping": "Live shipping (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "payment processing fee",
+        "analyticsAdvanced": "Advanced analytics",
+        "analyticsBasic": "Basic analytics",
+        "aiChatSupport": "AI chat support",
+        "customModules": "Custom modules",
+        "customApis": "Custom APIs",
+        "prioritySupport": "Priority support",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "Feature Comparison",
+        "featureColumn": "Feature",
+        "priceRow": "Price",
+        "rows": {
+          "unlimitedProducts": "Products",
+          "unlimitedSelling": "Selling",
+          "unlimitedStaff": "Staff Accounts",
+          "storefrontSource": "Storefront Source Code",
+          "customDomain": "Custom Domain",
+          "themeCustomization": "Theme Editor",
+          "jytEmails": "JYT Emails",
+          "liveShipping": "Live Shipping",
+          "paymentFee": "Payment Fee",
+          "analytics": "Analytics",
+          "aiChatSupport": "AI Chat Support",
+          "customModules": "Custom Modules",
+          "customApis": "Custom APIs",
+          "prioritySupport": "Priority Support",
+          "whiteLabel": "White Label"
+        },
+        "values": {
+          "unlimited": "Unlimited",
+          "yes": "Yes",
+          "no": "No",
+          "analyticsAdvanced": "Advanced",
+          "analyticsBasic": "Basic",
+          "free": "Free"
+        }
+      },
+      "paymentInfo": "Payments processed via {{provider}}. The payment processing fee applies only when customers pay through JYT payment gateways. You can bring your own payment provider credentials to bypass platform fees.",
+      "prompts": {
+        "switchTitle": "Switch to {{plan}}",
+        "switchPaidDescription": "You will be charged {{price}}/{{interval}} via {{provider}}. Your current plan will be replaced.",
+        "switchFreeDescription": "You will switch to the free plan. Your current plan will be canceled.",
+        "payWith": "Pay with {{provider}}",
+        "switch": "Switch",
+        "cancel": "Cancel",
+        "cancelTitle": "Cancel Subscription",
+        "cancelDescription": "Are you sure? You'll keep access until the end of your billing period. You can re-subscribe at any time.",
+        "cancelConfirm": "Cancel Subscription",
+        "keepPlan": "Keep Plan"
+      },
+      "toast": {
+        "paymentSuccess": "Payment successful! Your plan has been activated.",
+        "paymentFailed": "Payment failed. Please try again.",
+        "paymentCanceled": "Payment was canceled.",
+        "paymentError": "Payment error: {{message}}",
+        "paymentUnknown": "Unknown error",
+        "switchedTo": "Switched to {{plan}}",
+        "switchFailed": "Could not switch plan",
+        "canceled": "Subscription canceled",
+        "cancelFailed": "Could not cancel",
+        "somethingWrong": "Something went wrong"
+      }
+    },
+    "people": {
+      "heading": "Team Members",
+      "description": "Manage people in your organization. Admins can log in to the dashboard.",
+      "addPerson": "Add Person",
+      "empty": "No team members yet. Add your first person above.",
+      "columns": {
+        "name": "Name",
+        "email": "Email",
+        "access": "Access",
+        "accessDashboard": "Dashboard",
+        "accessTeamOnly": "Team only",
+        "role": "Role",
+        "added": "Added"
+      },
+      "drawer": {
+        "title": "Add Person",
+        "description": "Add a team member to your organization.",
+        "emailLabel": "Email *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "First name",
+        "firstNamePlaceholder": "John",
+        "lastName": "Last name",
+        "lastNamePlaceholder": "Doe",
+        "phone": "Phone",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Create as dashboard admin",
+        "adminHint": "This person will receive login credentials and can access the partner dashboard.",
+        "teamHint": "This person will be listed as a team member but won't have dashboard access.",
+        "role": "Role",
+        "roleAdmin": "Admin — Full access",
+        "roleManager": "Manager — Products & orders",
+        "roleOwner": "Owner — Full access + billing",
+        "password": "Password",
+        "passwordPlaceholder": "Leave blank to auto-generate",
+        "passwordHint": "Auto-generated if left blank. Included in the welcome email.",
+        "freeTextRole": "Role",
+        "freeTextRolePlaceholder": "e.g. Designer, Weaver, QA",
+        "freeTextRoleHint": "Free-text role for organizational purposes.",
+        "cancel": "Cancel",
+        "addAdmin": "Add Admin"
+      },
+      "toast": {
+        "emailRequired": "Email is required",
+        "adminAdded": "Admin added successfully",
+        "adminAddedDescription": "Welcome email sent to {{email}}. Temporary password: {{password}}",
+        "addAdminFailed": "Failed to add admin",
+        "personAdded": "Person added",
+        "personAddedDescription": "{{email}} added as {{role}}. They won't have dashboard login access.",
+        "addPersonFailed": "Failed to add person"
+      }
+    },
+    "payments": {
+      "heading": "Payments",
+      "subheading": "Payment methods",
+      "create": "Create",
+      "recentHeading": "Recent payments",
+      "recentDescription": "View recent payments.",
+      "emptyMethods": "No payment methods",
+      "emptyPayments": "No payments",
+      "columns": {
+        "type": "Type",
+        "accountName": "Account Name",
+        "details": "Details",
+        "bank": "Bank",
+        "walletPrefix": "Wallet",
+        "added": "Added",
+        "paymentId": "Payment ID",
+        "amount": "Amount",
+        "currency": "Currency"
+      },
+      "typeLabels": {
+        "bankAccount": "Bank Account",
+        "cashAccount": "Cash Account",
+        "digitalWallet": "Digital Wallet"
+      },
+      "form": {
+        "heading": "Add Payment Method",
+        "description": "Add a payout method reference.",
+        "missingPartner": "Missing partner context.",
+        "type": "Type",
+        "typePlaceholder": "Select type",
+        "accountName": "Account name",
+        "accountNumber": "Account number",
+        "bankName": "Bank name",
+        "ifsc": "IFSC",
+        "walletId": "Wallet ID",
+        "cancel": "Cancel",
+        "create": "Create"
+      },
+      "toast": {
+        "created": "Payment method created"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Payment Credentials",
+      "subHeading": "Your payment provider credentials. These override platform defaults for your store.",
+      "empty": {
+        "heading": "No payment credentials configured",
+        "description": "You are using the platform's shared credentials. Add your own to use your own merchant accounts."
+      },
+      "columns": {
+        "provider": "Provider",
+        "status": "Status",
+        "statusActive": "Active",
+        "statusInactive": "Inactive",
+        "credentials": "Credentials",
+        "added": "Added"
+      },
+      "removePrompt": {
+        "description": "Remove your {{provider}} credentials? Your store will fall back to the platform's shared credentials."
+      },
+      "toast": {
+        "removed": "Credentials removed",
+        "removeFailed": "Failed to remove",
+        "saved": "Payment credentials saved",
+        "saveFailed": "Failed to save credentials"
+      },
+      "form": {
+        "heading": "Add Payment Credentials",
+        "description": "Configure your own payment provider credentials. This overrides the platform defaults for your store.",
+        "provider": "Provider",
+        "merchantKey": "Merchant Key",
+        "merchantKeyPlaceholder": "Your PayU merchant key",
+        "merchantSalt": "Merchant Salt",
+        "merchantSaltPlaceholder": "Your PayU merchant salt",
+        "mode": "Mode",
+        "modeTest": "Test",
+        "modeLive": "Live",
+        "stripeApiKey": "Stripe API Key",
+        "stripeApiKeyPlaceholder": "sk_live_... or sk_test_...",
+        "stripeApiKeyHint": "Your Stripe secret key from the Stripe dashboard."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Business Type",
+        "description": "Choose how you use JYT. This controls which navigation items appear in your sidebar.",
+        "active": "Active",
+        "seller": {
+          "title": "Seller",
+          "description": "Sell products online. See Products, Orders, Customers, Categories, and Collections."
+        },
+        "manufacturer": {
+          "title": "Manufacturer",
+          "description": "Design and manufacture textiles. See Designs, Inventory Orders, Production Runs, Tasks, and more."
+        },
+        "individual": {
+          "title": "Individual",
+          "description": "Work on assigned tasks. See Tasks, Shared Folders, and Payment Submissions."
+        }
+      },
+      "status": {
+        "heading": "Onboarding",
+        "description": "Track onboarding completion and reopen the onboarding flow.",
+        "label": "Status",
+        "completed": "Completed",
+        "notCompleted": "Not completed",
+        "open": "Open onboarding"
       }
     }
   }

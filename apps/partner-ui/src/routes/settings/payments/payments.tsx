@@ -6,6 +6,7 @@ import {
   createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
@@ -17,6 +18,7 @@ import { useMe } from "../../../hooks/api/users"
 import { useDataTable } from "../../../hooks/use-data-table"
 
 export const SettingsPayments = () => {
+  const { t } = useTranslation()
   const { user } = useMe()
   const partnerId = user?.partner_id
 
@@ -72,45 +74,49 @@ export const SettingsPayments = () => {
   const columns = useMemo(
     () => [
       columnHelper.accessor("type", {
-        header: () => "Type",
+        header: () => t("partner.payments.columns.type"),
         cell: ({ getValue }) => {
           const v = String(getValue() || "-")
-          if (v === "bank_account") return "Bank Account"
-          if (v === "cash_account") return "Cash Account"
-          if (v === "digital_wallet") return "Digital Wallet"
+          if (v === "bank_account") return t("partner.payments.typeLabels.bankAccount")
+          if (v === "cash_account") return t("partner.payments.typeLabels.cashAccount")
+          if (v === "digital_wallet") return t("partner.payments.typeLabels.digitalWallet")
           return v || "-"
         },
       }),
       columnHelper.accessor("account_name", {
-        header: () => "Account Name",
+        header: () => t("partner.payments.columns.accountName"),
         cell: ({ getValue }) => (getValue() ? String(getValue()) : "-"),
       }),
       columnHelper.accessor((row) => {
         return row.account_number || row.wallet_id || ""
       }, {
         id: "details",
-        header: () => "Details",
+        header: () => t("partner.payments.columns.details"),
         cell: ({ row }) => {
           const r = row.original
           if (r.type === "bank_account") {
             return (
               <div className="flex flex-col">
                 <Text size="xsmall" className="text-ui-fg-subtle">
-                  {r.bank_name || "Bank"}
+                  {r.bank_name || t("partner.payments.columns.bank")}
                 </Text>
               </div>
             )
           }
 
           if (r.type === "digital_wallet") {
-            return <Text size="small">Wallet: {r.wallet_id || "-"}</Text>
+            return (
+              <Text size="small">
+                {t("partner.payments.columns.walletPrefix")}: {r.wallet_id || "-"}
+              </Text>
+            )
           }
 
           return <Text size="small">-</Text>
         },
       }),
       columnHelper.accessor("created_at", {
-        header: () => "Added",
+        header: () => t("partner.payments.columns.added"),
         cell: ({ getValue }) => {
           const v = getValue()
           if (!v) return "-"
@@ -122,13 +128,13 @@ export const SettingsPayments = () => {
         },
       }),
     ],
-    [columnHelper]
+    [columnHelper, t]
   )
 
   const paymentsColumns = useMemo(
     () => [
       paymentsColumnHelper.accessor("id", {
-        header: () => "Payment ID",
+        header: () => t("partner.payments.columns.paymentId"),
         cell: ({ row }) => {
           const id = row.original.id
           const createdAt = row.original.created_at
@@ -154,7 +160,7 @@ export const SettingsPayments = () => {
         },
       }),
       paymentsColumnHelper.accessor("amount", {
-        header: () => "Amount",
+        header: () => t("partner.payments.columns.amount"),
         cell: ({ row }) => {
           const amount = row.original.amount
           const currency = (row.original.currency_code || "USD").toUpperCase()
@@ -169,14 +175,14 @@ export const SettingsPayments = () => {
         },
       }),
       paymentsColumnHelper.accessor("currency_code", {
-        header: () => "Currency",
+        header: () => t("partner.payments.columns.currency"),
         cell: ({ getValue }) => {
           const v = getValue()
           return v ? String(v).toUpperCase() : "—"
         },
       }),
     ],
-    [paymentsColumnHelper]
+    [paymentsColumnHelper, t]
   )
 
   const { table } = useDataTable({
@@ -201,13 +207,13 @@ export const SettingsPayments = () => {
         <Container className="divide-y p-0">
           <div className="flex items-center justify-between px-6 py-4">
             <div>
-              <Heading>Payments</Heading>
+              <Heading>{t("partner.payments.heading")}</Heading>
               <Text size="small" className="text-ui-fg-subtle">
-                Payment methods
+                {t("partner.payments.subheading")}
               </Text>
             </div>
             <Button size="small" variant="secondary" asChild disabled={!partnerId}>
-              <Link to="create">Create</Link>
+              <Link to="create">{t("partner.payments.create")}</Link>
             </Button>
           </div>
 
@@ -220,16 +226,16 @@ export const SettingsPayments = () => {
             pageSize={20}
             queryObject={{}}
             noRecords={{
-              message: "No payment methods",
+              message: t("partner.payments.emptyMethods"),
             }}
           />
         </Container>
 
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
-            <Heading level="h2">Recent payments</Heading>
+            <Heading level="h2">{t("partner.payments.recentHeading")}</Heading>
             <Text size="small" className="text-ui-fg-subtle">
-              View recent payments.
+              {t("partner.payments.recentDescription")}
             </Text>
           </div>
 
@@ -242,7 +248,7 @@ export const SettingsPayments = () => {
             pageSize={20}
             queryObject={{}}
             noRecords={{
-              message: "No payments",
+              message: t("partner.payments.emptyPayments"),
             }}
           />
         </Container>

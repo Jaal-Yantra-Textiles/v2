@@ -38,13 +38,12 @@ export const PaymentProvidersPage = () => {
           rowCount={payment_configs.length}
           pageSize={PAGE_SIZE}
           getRowId={(row) => row.id}
-          heading="Payment Credentials"
-          subHeading="Your payment provider credentials. These override platform defaults for your store."
+          heading={t("partner.paymentProviders.heading")}
+          subHeading={t("partner.paymentProviders.subHeading")}
           emptyState={{
             empty: {
-              heading: "No payment credentials configured",
-              description:
-                "You are using the platform's shared credentials. Add your own to use your own merchant accounts.",
+              heading: t("partner.paymentProviders.empty.heading"),
+              description: t("partner.paymentProviders.empty.description"),
             },
             filtered: {
               heading: t("general.noRecordsMessage"),
@@ -79,7 +78,9 @@ const useColumns = () => {
 
       const confirmed = await prompt({
         title: t("general.areYouSure"),
-        description: `Remove your ${providerName} credentials? Your store will fall back to the platform's shared credentials.`,
+        description: t("partner.paymentProviders.removePrompt.description", {
+          provider: providerName,
+        }),
         confirmText: t("actions.delete"),
         cancelText: t("actions.cancel"),
       })
@@ -87,8 +88,9 @@ const useColumns = () => {
       if (!confirmed) return
 
       await deleteConfig(config.id, {
-        onSuccess: () => toast.success("Credentials removed"),
-        onError: (e) => toast.error(e.message || "Failed to remove"),
+        onSuccess: () => toast.success(t("partner.paymentProviders.toast.removed")),
+        onError: (e) =>
+          toast.error(e.message || t("partner.paymentProviders.toast.removeFailed")),
       })
     },
     [t, prompt, deleteConfig]
@@ -97,18 +99,21 @@ const useColumns = () => {
   return useMemo(
     () => [
       columnHelper.accessor("provider_id", {
-        header: "Provider",
+        header: t("partner.paymentProviders.columns.provider"),
         cell: ({ getValue }) => {
           const id = getValue()
           return PROVIDER_LABELS[id] || id
         },
       }),
       columnHelper.accessor("is_active", {
-        header: "Status",
-        cell: ({ getValue }) => (getValue() ? "Active" : "Inactive"),
+        header: t("partner.paymentProviders.columns.status"),
+        cell: ({ getValue }) =>
+          getValue()
+            ? t("partner.paymentProviders.columns.statusActive")
+            : t("partner.paymentProviders.columns.statusInactive"),
       }),
       columnHelper.accessor("credentials", {
-        header: "Credentials",
+        header: t("partner.paymentProviders.columns.credentials"),
         cell: ({ getValue }) => {
           const creds = getValue()
           if (!creds) return "—"
@@ -118,7 +123,7 @@ const useColumns = () => {
         },
       }),
       columnHelper.accessor("created_at", {
-        header: "Added",
+        header: t("partner.paymentProviders.columns.added"),
         cell: ({ getValue }) => {
           const date = getValue()
           if (!date) return "—"

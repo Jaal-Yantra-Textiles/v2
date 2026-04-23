@@ -2,6 +2,7 @@ import { createDataTableColumnHelper } from "@medusajs/ui"
 import { Container, Heading } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { Filter } from "../../../components/table/data-table"
@@ -17,19 +18,20 @@ const columnHelper = createDataTableColumnHelper<PartnerInventoryOrder>()
 
 const PAGE_SIZE = 20
 
-const ORDER_STATUS_OPTIONS = [
-  { label: "Pending", value: "Pending" },
-  { label: "Processing", value: "Processing" },
-  { label: "Shipped", value: "Shipped" },
-  { label: "Delivered", value: "Delivered" },
-  { label: "Cancelled", value: "Cancelled" },
-  { label: "Partial", value: "Partial" },
-]
-
 const EXCLUDED_ORDER_STATUSES = ["Delivered", "Cancelled"]
 
 export const InventoryOrdersList = () => {
+  const { t } = useTranslation()
   const raw = useQueryParams(["offset", "q", "status", "partner_status", "order"])
+
+  const ORDER_STATUS_OPTIONS = [
+    { label: t("partner.inventoryOrders.statusOptions.pending"), value: "Pending" },
+    { label: t("partner.inventoryOrders.statusOptions.processing"), value: "Processing" },
+    { label: t("partner.inventoryOrders.statusOptions.shipped"), value: "Shipped" },
+    { label: t("partner.inventoryOrders.statusOptions.delivered"), value: "Delivered" },
+    { label: t("partner.inventoryOrders.statusOptions.cancelled"), value: "Cancelled" },
+    { label: t("partner.inventoryOrders.statusOptions.partial"), value: "Partial" },
+  ]
   const offset = raw.offset ? Number(raw.offset) : 0
   const q = raw.q?.trim() || ""
   const statusFilter = raw.status?.trim() || ""
@@ -111,39 +113,39 @@ export const InventoryOrdersList = () => {
       {
         type: "select",
         key: "status",
-        label: "Status",
+        label: t("partner.inventoryOrders.filters.status"),
         options: ORDER_STATUS_OPTIONS,
       },
       {
         type: "string",
         key: "partner_status",
-        label: "Partner Status",
+        label: t("partner.inventoryOrders.filters.partnerStatus"),
       },
     ],
-    []
+    [t]
   )
 
   const columns = useMemo(
     () => [
       columnHelper.accessor("id", {
-        header: () => "ID",
+        header: () => t("partner.inventoryOrders.columns.id"),
         cell: ({ getValue }) => String(getValue()),
       }),
       columnHelper.accessor((row) => row?.partner_info?.partner_status, {
         id: "partner_status",
-        header: () => "Partner Status",
+        header: () => t("partner.inventoryOrders.columns.partnerStatus"),
         cell: ({ getValue }) => (getValue() ? String(getValue()) : "-"),
       }),
       columnHelper.accessor("status", {
-        header: () => "Status",
+        header: () => t("partner.inventoryOrders.columns.status"),
         cell: ({ getValue }) => (getValue() ? String(getValue()) : "-"),
       }),
       columnHelper.accessor("updated_at", {
-        header: () => "Updated",
+        header: () => t("partner.inventoryOrders.columns.updated"),
         cell: ({ getValue }) => (getValue() ? String(getValue()) : "-"),
       }),
     ],
-    []
+    [t]
   )
 
   const { table } = useDataTable({
@@ -162,7 +164,7 @@ export const InventoryOrdersList = () => {
     <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
-          <Heading>Inventory Orders</Heading>
+          <Heading>{t("partner.inventoryOrders.heading")}</Heading>
         </div>
         <_DataTable
           columns={columns}
@@ -174,14 +176,14 @@ export const InventoryOrdersList = () => {
           pageSize={PAGE_SIZE}
           filters={filters}
           orderBy={[
-            { key: "id", label: "ID" },
-            { key: "created_at", label: "Created" },
-            { key: "updated_at", label: "Updated" },
+            { key: "id", label: t("partner.inventoryOrders.columns.id") },
+            { key: "created_at", label: t("partner.inventoryOrders.columns.created") },
+            { key: "updated_at", label: t("partner.inventoryOrders.columns.updated") },
           ]}
           search
           queryObject={raw}
           noRecords={{
-            message: "No inventory orders",
+            message: t("partner.inventoryOrders.empty"),
           }}
         />
       </Container>

@@ -14,6 +14,7 @@ import {
 } from "@medusajs/icons"
 import { Link } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { usePartnerAssignedTasks } from "../../hooks/api/partner-assigned-tasks"
 import { usePartnerStores } from "../../hooks/api/partner-stores"
 import { useMe } from "../../hooks/api/users"
@@ -24,6 +25,7 @@ import { queryClient } from "../../lib/query-client"
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 export const Home = () => {
+  const { t } = useTranslation()
   const { user } = useMe()
   const partner = user?.partner
   const partnerId = user?.partner_id
@@ -86,13 +88,13 @@ export const Home = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <Heading>Dashboard</Heading>
+          <Heading>{t("partner.home.dashboard")}</Heading>
           <Text size="small" className="text-ui-fg-subtle">
             {store?.name
               ? store.name
               : partner?.name
                 ? partner.name
-                : "Welcome"}
+                : t("partner.home.welcome")}
           </Text>
         </div>
       </div>
@@ -141,6 +143,7 @@ const GettingStartedCard = ({
   currentWorkspaceType?: string
   onOpenOnboarding: () => void
 }) => {
+  const { t } = useTranslation()
   const [savingWorkspaceType, setSavingWorkspaceType] = useState(false)
 
   const handleWorkspaceTypeChange = async (workspaceType: string) => {
@@ -178,21 +181,21 @@ const GettingStartedCard = ({
     <Container className="divide-y p-0">
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
-          <Heading level="h2">Getting Started</Heading>
+          <Heading level="h2">{t("partner.home.gettingStarted.heading")}</Heading>
           <Badge size="2xsmall" color={completedSteps === totalSteps ? "green" : "grey"}>
             {completedSteps}/{totalSteps}
           </Badge>
         </div>
         <Text size="small" className="text-ui-fg-subtle">
-          Complete these steps to set up your workspace.
+          {t("partner.home.gettingStarted.description")}
         </Text>
       </div>
 
       <div className="divide-y">
         <ChecklistItem
           done={onboardingDone}
-          label="Complete onboarding"
-          description="Add your details and team."
+          label={t("partner.home.gettingStarted.onboardingLabel")}
+          description={t("partner.home.gettingStarted.onboardingDescription")}
           action={
             !onboardingDone && partnerId ? (
               <button
@@ -200,7 +203,7 @@ const GettingStartedCard = ({
                 className="text-ui-fg-interactive whitespace-nowrap text-sm"
                 onClick={onOpenOnboarding}
               >
-                Open
+                {t("partner.home.gettingStarted.open")}
               </button>
             ) : null
           }
@@ -209,18 +212,20 @@ const GettingStartedCard = ({
         <div className="flex items-start gap-3 p-4">
           <Checkbox checked={!!currentWorkspaceType} disabled className="mt-0.5" />
           <div className="min-w-0 flex-1">
-            <Text size="small" weight="plus">Choose workspace type</Text>
+            <Text size="small" weight="plus">
+              {t("partner.home.gettingStarted.workspaceLabel")}
+            </Text>
             {currentWorkspaceType ? (
               <div className="flex items-center gap-2 mt-0.5">
                 <Text size="xsmall" className="text-ui-fg-subtle">
                   {currentWorkspaceType === "seller"
-                    ? "Seller"
+                    ? t("partner.home.gettingStarted.seller")
                     : currentWorkspaceType === "individual"
-                      ? "Individual"
-                      : "Manufacturer"}
+                      ? t("partner.home.gettingStarted.individual")
+                      : t("partner.home.gettingStarted.manufacturer")}
                 </Text>
                 <Link to="/settings/onboarding" className="text-ui-fg-interactive">
-                  <Text size="xsmall">Change</Text>
+                  <Text size="xsmall">{t("partner.home.gettingStarted.change")}</Text>
                 </Link>
               </div>
             ) : (
@@ -232,7 +237,7 @@ const GettingStartedCard = ({
                   className="flex items-center gap-1.5 rounded-md border border-ui-border-base px-2.5 py-1.5 text-xs hover:shadow-elevation-card-hover outline-none focus-visible:shadow-borders-focus"
                 >
                   <BuildingStorefront className="h-3.5 w-3.5 text-ui-fg-subtle" />
-                  Seller
+                  {t("partner.home.gettingStarted.seller")}
                 </button>
                 <button
                   type="button"
@@ -241,7 +246,7 @@ const GettingStartedCard = ({
                   className="flex items-center gap-1.5 rounded-md border border-ui-border-base px-2.5 py-1.5 text-xs hover:shadow-elevation-card-hover outline-none focus-visible:shadow-borders-focus"
                 >
                   <PencilSquare className="h-3.5 w-3.5 text-ui-fg-subtle" />
-                  Manufacturer
+                  {t("partner.home.gettingStarted.manufacturer")}
                 </button>
                 <button
                   type="button"
@@ -250,7 +255,7 @@ const GettingStartedCard = ({
                   className="flex items-center gap-1.5 rounded-md border border-ui-border-base px-2.5 py-1.5 text-xs hover:shadow-elevation-card-hover outline-none focus-visible:shadow-borders-focus"
                 >
                   <Users className="h-3.5 w-3.5 text-ui-fg-subtle" />
-                  Individual
+                  {t("partner.home.gettingStarted.individual")}
                 </button>
               </div>
             )}
@@ -259,12 +264,12 @@ const GettingStartedCard = ({
 
         <ChecklistItem
           done={verified}
-          label="Get verified"
-          description="Upload verification documents."
+          label={t("partner.home.gettingStarted.verifyLabel")}
+          description={t("partner.home.gettingStarted.verifyDescription")}
           action={
             !verified ? (
               <Button size="small" variant="secondary" asChild>
-                <Link to="/verification">Upload</Link>
+                <Link to="/verification">{t("partner.home.gettingStarted.upload")}</Link>
               </Button>
             ) : null
           }
@@ -272,12 +277,12 @@ const GettingStartedCard = ({
 
         <ChecklistItem
           done={hasStore}
-          label="Create a store"
-          description="Unlock products, orders, and sales channels."
+          label={t("partner.home.gettingStarted.storeLabel")}
+          description={t("partner.home.gettingStarted.storeDescription")}
           action={
             !storesPending && !hasStore ? (
               <Button size="small" variant="secondary" asChild disabled={!partnerId}>
-                <Link to="/create-store">Create</Link>
+                <Link to="/create-store">{t("partner.home.gettingStarted.create")}</Link>
               </Button>
             ) : null
           }
@@ -287,10 +292,14 @@ const GettingStartedCard = ({
       {hasStore && tasksTotal > 0 && (
         <div className="px-6 py-3 flex items-center justify-between">
           <Text size="xsmall" className="text-ui-fg-subtle">
-            {tasksTotal} task{tasksTotal !== 1 ? "s" : ""} · {tasksPending} pending
+            {t("partner.home.gettingStarted.taskSummary", {
+              count: tasksTotal,
+              total: tasksTotal,
+              pending: tasksPending,
+            })}
           </Text>
           <Link to="/tasks" className="text-ui-fg-interactive text-xs">
-            View tasks
+            {t("partner.home.gettingStarted.viewTasks")}
           </Link>
         </div>
       )}
@@ -328,29 +337,30 @@ const QuickSettingsCard = ({
   hasStore: boolean
   storeId?: string
 }) => {
+  const { t } = useTranslation()
   const settingsItems = [
     {
       icon: <CreditCard className="h-5 w-5" />,
-      label: "Payment Providers",
-      description: "Configure how you get paid.",
+      label: t("partner.home.quickSettings.paymentProviders"),
+      description: t("partner.home.quickSettings.paymentProvidersDescription"),
       to: "/settings/payments",
     },
     {
       icon: <TruckFast className="h-5 w-5" />,
-      label: "Shipping Setup",
-      description: "Locations, zones, and rates.",
+      label: t("partner.home.quickSettings.shippingSetup"),
+      description: t("partner.home.quickSettings.shippingSetupDescription"),
       to: "/settings/locations",
     },
     {
       icon: <CurrencyDollar className="h-5 w-5" />,
-      label: "Tax Regions",
-      description: "Configure tax rates by region.",
+      label: t("partner.home.quickSettings.taxRegions"),
+      description: t("partner.home.quickSettings.taxRegionsDescription"),
       to: "/settings/tax-regions",
     },
     {
       icon: <CogSixTooth className="h-5 w-5" />,
-      label: "Store Settings",
-      description: "Store details and storefront.",
+      label: t("partner.home.quickSettings.storeSettings"),
+      description: t("partner.home.quickSettings.storeSettingsDescription"),
       to: "/settings/store",
     },
   ]
@@ -358,9 +368,9 @@ const QuickSettingsCard = ({
   return (
     <Container className="divide-y p-0">
       <div className="px-6 py-4">
-        <Heading level="h2">Quick Settings</Heading>
+        <Heading level="h2">{t("partner.home.quickSettings.heading")}</Heading>
         <Text size="small" className="text-ui-fg-subtle">
-          Manage your store configuration.
+          {t("partner.home.quickSettings.description")}
         </Text>
       </div>
 
@@ -403,17 +413,18 @@ function getLowestPrice(product: DiscoverProduct): string | null {
 }
 
 const DiscoverProductCard = ({ product }: { product: DiscoverProduct }) => {
+  const { t } = useTranslation()
   const { mutateAsync: copyProduct, isPending: isCopying } = useCopyProduct()
 
   const handleCopy = async () => {
     try {
       await copyProduct(product.id)
-      toast.success("Product added to your store", {
-        description: `"${product.title}" copied as draft.`,
+      toast.success(t("partner.home.discover.copySuccess"), {
+        description: t("partner.home.discover.copySuccessDescription", { title: product.title }),
       })
     } catch (e: any) {
-      toast.error("Failed to copy product", {
-        description: e?.message || "Something went wrong",
+      toast.error(t("partner.home.discover.copyFailed"), {
+        description: e?.message || t("partner.home.discover.somethingWrong"),
       })
     }
   }
@@ -448,7 +459,7 @@ const DiscoverProductCard = ({ product }: { product: DiscoverProduct }) => {
         <div className="flex items-center gap-x-2">
           {price && <Text size="small">{price}</Text>}
           <Text size="xsmall" className="text-ui-fg-muted">
-            {variantCount} variant{variantCount !== 1 ? "s" : ""}
+            {t("partner.home.discover.variant", { count: variantCount })}
           </Text>
         </div>
       </div>
@@ -461,7 +472,7 @@ const DiscoverProductCard = ({ product }: { product: DiscoverProduct }) => {
           disabled={isCopying}
         >
           <Plus className="mr-1 h-3 w-3" />
-          {isCopying ? "Copying..." : "Add to My Store"}
+          {isCopying ? t("partner.home.discover.copying") : t("partner.home.discover.addToStore")}
         </Button>
       </div>
     </div>
@@ -473,6 +484,7 @@ const DiscoverProductCard = ({ product }: { product: DiscoverProduct }) => {
  * and opens a FocusModal with the full product grid.
  */
 const DiscoverSection = () => {
+  const { t } = useTranslation()
   const { products, count, isPending, isError, refetch } =
     useDiscoverProducts({ limit: 8 })
   const [modalOpen, setModalOpen] = useState(false)
@@ -532,7 +544,7 @@ const DiscoverSection = () => {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-x-2">
               <Text size="small" weight="plus">
-                Discover Products
+                {t("partner.home.discover.title")}
               </Text>
               {totalCount > 0 && (
                 <Badge size="2xsmall" color="blue">
@@ -541,8 +553,7 @@ const DiscoverSection = () => {
               )}
             </div>
             <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
-              Cross-sell products from other partners or copy them to produce on
-              your own.
+              {t("partner.home.discover.preview")}
             </Text>
           </div>
 
@@ -560,11 +571,10 @@ const DiscoverSection = () => {
             <div className="flex items-center justify-between w-full">
               <div>
                 <FocusModal.Title asChild>
-                  <Heading>Discover Products</Heading>
+                  <Heading>{t("partner.home.discover.title")}</Heading>
                 </FocusModal.Title>
                 <Text size="small" className="text-ui-fg-subtle mt-0.5">
-                  Browse products from other partners. Add them to cross-sell directly,
-                  or copy them as drafts to produce on your own.
+                  {t("partner.home.discover.modalDescription")}
                 </Text>
               </div>
               <Button
@@ -576,7 +586,7 @@ const DiscoverSection = () => {
                 <ArrowPath
                   className={clx("h-4 w-4", isPending && "animate-spin")}
                 />
-                Shuffle
+                {t("partner.home.discover.shuffle")}
               </Button>
             </div>
           </FocusModal.Header>
@@ -595,10 +605,10 @@ const DiscoverSection = () => {
               <div className="flex flex-col items-center justify-center py-16 gap-y-2">
                 <ShoppingBag className="h-8 w-8 text-ui-fg-muted" />
                 <Text size="small" className="text-ui-fg-subtle">
-                  No products available for discovery yet.
+                  {t("partner.home.discover.emptyTitle")}
                 </Text>
                 <Text size="xsmall" className="text-ui-fg-muted">
-                  Products will appear here when other partners publish them.
+                  {t("partner.home.discover.emptyDescription")}
                 </Text>
               </div>
             ) : (
@@ -613,8 +623,7 @@ const DiscoverSection = () => {
                     size="xsmall"
                     className="text-ui-fg-muted mt-4 text-center"
                   >
-                    Showing 8 of {totalCount} products — click Shuffle to see
-                    more
+                    {t("partner.home.discover.showing", { total: totalCount })}
                   </Text>
                 )}
               </>

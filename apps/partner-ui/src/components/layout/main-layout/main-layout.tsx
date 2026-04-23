@@ -5,6 +5,7 @@ import {
   DocumentSeries,
   EllipsisHorizontal,
   FolderOpen,
+  House,
   MagnifyingGlass,
   OpenRectArrowOut,
   PencilSquare,
@@ -181,90 +182,91 @@ const Header = () => {
 
 type WorkspaceType = "seller" | "manufacturer" | "individual"
 
-const MANUFACTURER_ROUTES: Omit<INavItem, "pathname">[] = [
-  { icon: <MagnifyingGlass />, label: "Home", to: "/" },
-  {
-    icon: <PencilSquare />,
-    label: "Designs",
-    to: "/designs",
-    items: [
-      { label: "Production Runs", to: "/production-runs" },
-      { label: "Tasks", to: "/tasks" },
-    ],
-  },
-  { icon: <CurrencyDollar />, label: "Payment Submissions", to: "/payment-submissions" },
-  { icon: <BuildingStorefront />, label: "Inventory Orders", to: "/inventory-orders" },
-  { icon: <FolderOpen />, label: "Shared Folders", to: "/shared-folders" },
-  {
-    icon: <Tag />,
-    label: "Products",
-    to: "/products",
-    items: [
-      { label: "Categories", to: "/categories" },
-      { label: "Collections", to: "/collections" },
-      { label: "Types", to: "/product-types" },
-      { label: "Stock", to: "/products/inventory" },
-    ],
-  },
-  { icon: <ShoppingCart />, label: "Orders", to: "/orders" },
-  { icon: <Users />, label: "Customers", to: "/customers" },
-  {
-    icon: <DocumentSeries />,
-    label: "WebStore",
-    to: "/content",
-    items: [
-      { label: "Content", to: "/content" },
-      { label: "Theme", to: "/webstore/theme" },
-    ],
-  },
-]
+const useCoreRoutes = (
+  workspaceType?: WorkspaceType
+): Omit<INavItem, "pathname">[] => {
+  const { t } = useTranslation()
 
-const SELLER_ROUTES: Omit<INavItem, "pathname">[] = [
-  { icon: <MagnifyingGlass />, label: "Home", to: "/" },
-  { icon: <FolderOpen />, label: "Shared Folders", to: "/shared-folders" },
-  {
-    icon: <Tag />,
-    label: "Products",
-    to: "/products",
-    items: [
-      { label: "Categories", to: "/categories" },
-      { label: "Collections", to: "/collections" },
-      { label: "Types", to: "/product-types" },
-      { label: "Stock", to: "/products/inventory" },
-    ],
-  },
-  { icon: <ShoppingCart />, label: "Orders", to: "/orders" },
-  { icon: <Users />, label: "Customers", to: "/customers" },
-  {
-    icon: <DocumentSeries />,
-    label: "WebStore",
-    to: "/content",
-    items: [
-      { label: "Content", to: "/content" },
-      { label: "Theme", to: "/webstore/theme" },
-    ],
-  },
-]
-
-const INDIVIDUAL_ROUTES: Omit<INavItem, "pathname">[] = [
-  { icon: <MagnifyingGlass />, label: "Home", to: "/" },
-  { icon: <TimelineVertical />, label: "Tasks", to: "/tasks" },
-  { icon: <FolderOpen />, label: "Shared Folders", to: "/shared-folders" },
-  { icon: <CurrencyDollar />, label: "Payment Submissions", to: "/payment-submissions" },
-]
-
-const useCoreRoutes = (workspaceType?: WorkspaceType): Omit<INavItem, "pathname">[] => {
   if (workspaceType === "seller") {
-    return SELLER_ROUTES
+    return [
+      { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+      { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
+      {
+        icon: <Tag />,
+        label: t("app.nav.main.products"),
+        to: "/products",
+        items: [
+          { label: t("app.nav.main.categories"), to: "/categories" },
+          { label: t("app.nav.main.collections"), to: "/collections" },
+          { label: t("app.nav.main.productTypes"), to: "/product-types" },
+          { label: t("app.nav.main.stock"), to: "/products/inventory" },
+        ],
+      },
+      { icon: <ShoppingCart />, label: t("app.nav.main.orders"), to: "/orders" },
+      { icon: <Users />, label: t("app.nav.main.customers"), to: "/customers" },
+      {
+        icon: <DocumentSeries />,
+        label: t("app.nav.main.webStore"),
+        to: "/content",
+        items: [
+          { label: t("app.nav.main.content"), to: "/content" },
+          { label: t("app.nav.main.theme"), to: "/webstore/theme" },
+        ],
+      },
+    ]
   }
+
   if (workspaceType === "individual") {
-    return INDIVIDUAL_ROUTES
+    return [
+      { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+      { icon: <TimelineVertical />, label: t("app.nav.main.tasks"), to: "/tasks" },
+      { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
+      { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },
+    ]
   }
-  return MANUFACTURER_ROUTES
+
+  return [
+    { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+    {
+      icon: <PencilSquare />,
+      label: t("app.nav.main.designs"),
+      to: "/designs",
+      items: [
+        { label: t("app.nav.main.productionRuns"), to: "/production-runs" },
+        { label: t("app.nav.main.tasks"), to: "/tasks" },
+      ],
+    },
+    { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },
+    { icon: <BuildingStorefront />, label: t("app.nav.main.inventoryOrders"), to: "/inventory-orders" },
+    { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
+    {
+      icon: <Tag />,
+      label: t("app.nav.main.products"),
+      to: "/products",
+      items: [
+        { label: t("app.nav.main.categories"), to: "/categories" },
+        { label: t("app.nav.main.collections"), to: "/collections" },
+        { label: t("app.nav.main.productTypes"), to: "/product-types" },
+        { label: t("app.nav.main.stock"), to: "/products/inventory" },
+      ],
+    },
+    { icon: <ShoppingCart />, label: t("app.nav.main.orders"), to: "/orders" },
+    { icon: <Users />, label: t("app.nav.main.customers"), to: "/customers" },
+    {
+      icon: <DocumentSeries />,
+      label: t("app.nav.main.webStore"),
+      to: "/content",
+      items: [
+        { label: t("app.nav.main.content"), to: "/content" },
+        { label: t("app.nav.main.theme"), to: "/webstore/theme" },
+      ],
+    },
+  ]
 }
 
 const Searchbar = () => {
   const { toggleSearch } = useSearch()
+  const { t } = useTranslation()
 
   return (
     <button
@@ -278,7 +280,7 @@ const Searchbar = () => {
       <div className="flex items-center gap-x-2">
         <MagnifyingGlass />
         <Text size="small" leading="compact" className="text-ui-fg-subtle">
-          Search
+          {t("general.search")}
         </Text>
       </div>
       <div className="flex items-center gap-x-1">
@@ -309,12 +311,13 @@ const CoreRouteSection = () => {
 }
 
 const UtilitySection = () => {
+  const { t } = useTranslation()
   return (
     <div className="pb-3">
       <nav className="flex flex-col gap-y-1 py-3">
         <NavItem
           icon={<CogSixTooth />}
-          label="Settings"
+          label={t("app.nav.settings.header")}
           to="/settings"
           type="core"
         />

@@ -104,11 +104,11 @@ const PaymentConfigCreateForm = () => {
 
     await createConfig(payload, {
       onSuccess: () => {
-        toast.success("Payment credentials saved")
+        toast.success(t("partner.paymentProviders.toast.saved"))
         handleSuccess()
       },
       onError: (e) => {
-        toast.error(e.message || "Failed to save credentials")
+        toast.error(e.message || t("partner.paymentProviders.toast.saveFailed"))
       },
     })
   })
@@ -123,10 +123,9 @@ const PaymentConfigCreateForm = () => {
         <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto">
           <div className="flex w-full max-w-[720px] flex-col gap-y-8 px-2 py-16">
             <div>
-              <Heading>Add Payment Credentials</Heading>
+              <Heading>{t("partner.paymentProviders.form.heading")}</Heading>
               <Text size="small" className="text-ui-fg-subtle mt-1">
-                Configure your own payment provider credentials. This overrides
-                the platform defaults for your store.
+                {t("partner.paymentProviders.form.description")}
               </Text>
             </div>
 
@@ -135,7 +134,7 @@ const PaymentConfigCreateForm = () => {
               name="provider_id"
               render={({ field: { onChange, ...field } }) => (
                 <Form.Item>
-                  <Form.Label>Provider</Form.Label>
+                  <Form.Label>{t("partner.paymentProviders.form.provider")}</Form.Label>
                   <Form.Control>
                     <Select {...field} onValueChange={onChange}>
                       <Select.Trigger ref={field.ref}>
@@ -161,10 +160,10 @@ const PaymentConfigCreateForm = () => {
                   name="merchant_key"
                   render={({ field }) => (
                     <Form.Item>
-                      <Form.Label>Merchant Key</Form.Label>
+                      <Form.Label>{t("partner.paymentProviders.form.merchantKey")}</Form.Label>
                       <Form.Control>
                         <Input
-                          placeholder="Your PayU merchant key"
+                          placeholder={t("partner.paymentProviders.form.merchantKeyPlaceholder")}
                           {...field}
                         />
                       </Form.Control>
@@ -177,11 +176,11 @@ const PaymentConfigCreateForm = () => {
                   name="merchant_salt"
                   render={({ field }) => (
                     <Form.Item>
-                      <Form.Label>Merchant Salt</Form.Label>
+                      <Form.Label>{t("partner.paymentProviders.form.merchantSalt")}</Form.Label>
                       <Form.Control>
                         <Input
                           type="password"
-                          placeholder="Your PayU merchant salt"
+                          placeholder={t("partner.paymentProviders.form.merchantSaltPlaceholder")}
                           {...field}
                         />
                       </Form.Control>
@@ -194,15 +193,19 @@ const PaymentConfigCreateForm = () => {
                   name="mode"
                   render={({ field: { onChange, ...field } }) => (
                     <Form.Item>
-                      <Form.Label>Mode</Form.Label>
+                      <Form.Label>{t("partner.paymentProviders.form.mode")}</Form.Label>
                       <Form.Control>
                         <Select {...field} onValueChange={onChange}>
                           <Select.Trigger ref={field.ref}>
                             <Select.Value />
                           </Select.Trigger>
                           <Select.Content>
-                            <Select.Item value="test">Test</Select.Item>
-                            <Select.Item value="live">Live</Select.Item>
+                            <Select.Item value="test">
+                              {t("partner.paymentProviders.form.modeTest")}
+                            </Select.Item>
+                            <Select.Item value="live">
+                              {t("partner.paymentProviders.form.modeLive")}
+                            </Select.Item>
                           </Select.Content>
                         </Select>
                       </Form.Control>
@@ -219,16 +222,16 @@ const PaymentConfigCreateForm = () => {
                 name="api_key"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label>Stripe API Key</Form.Label>
+                    <Form.Label>{t("partner.paymentProviders.form.stripeApiKey")}</Form.Label>
                     <Form.Control>
                       <Input
                         type="password"
-                        placeholder="sk_live_... or sk_test_..."
+                        placeholder={t("partner.paymentProviders.form.stripeApiKeyPlaceholder")}
                         {...field}
                       />
                     </Form.Control>
                     <Form.Hint>
-                      Your Stripe secret key from the Stripe dashboard.
+                      {t("partner.paymentProviders.form.stripeApiKeyHint")}
                     </Form.Hint>
                     <Form.ErrorMessage />
                   </Form.Item>

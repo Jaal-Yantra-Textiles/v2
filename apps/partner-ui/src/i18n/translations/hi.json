@@ -255,7 +255,24 @@
       },
       "main": {
         "store": "स्टोर",
-        "storeSettings": "स्टोर सेटिंग्स"
+        "storeSettings": "स्टोर सेटिंग्स",
+        "home": "होम",
+        "designs": "डिज़ाइन",
+        "productionRuns": "उत्पादन रन",
+        "tasks": "कार्य",
+        "paymentSubmissions": "भुगतान प्रस्तुतियाँ",
+        "inventoryOrders": "इन्वेंट्री ऑर्डर",
+        "sharedFolders": "साझा फ़ोल्डर",
+        "products": "उत्पाद",
+        "categories": "श्रेणियाँ",
+        "collections": "संग्रह",
+        "productTypes": "प्रकार",
+        "stock": "स्टॉक",
+        "orders": "ऑर्डर",
+        "customers": "ग्राहक",
+        "webStore": "वेबस्टोर",
+        "content": "सामग्री",
+        "theme": "थीम"
       },
       "settings": {
         "header": "सेटिंग्स",
@@ -3233,6 +3250,530 @@
         "description": "क्या आप वाकई \"{{name}}\" को अपडेट करना चाहते हैं?",
         "confirmText": "अपडेट करें",
         "cancelText": "रद्द करें"
+      }
+    }
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "स्टोर",
+      "regions": "क्षेत्र",
+      "locationsShipping": "स्थान और शिपिंग",
+      "salesChannels": "सेल्स चैनल",
+      "taxRegions": "कर क्षेत्र",
+      "returnReasons": "वापसी के कारण",
+      "refundReasons": "रिफ़ंड के कारण",
+      "onboarding": "ऑनबोर्डिंग",
+      "people": "टीम सदस्य",
+      "payments": "भुगतान",
+      "paymentConfig": "भुगतान कॉन्फ़िगरेशन",
+      "planBilling": "प्लान और बिलिंग"
+    },
+    "home": {
+      "dashboard": "डैशबोर्ड",
+      "welcome": "स्वागत है",
+      "gettingStarted": {
+        "heading": "शुरुआत करें",
+        "description": "अपने कार्यक्षेत्र को सेट करने के लिए इन चरणों को पूरा करें।",
+        "onboardingLabel": "ऑनबोर्डिंग पूर्ण करें",
+        "onboardingDescription": "अपना विवरण और टीम जोड़ें।",
+        "open": "खोलें",
+        "workspaceLabel": "कार्यक्षेत्र का प्रकार चुनें",
+        "change": "बदलें",
+        "seller": "विक्रेता",
+        "manufacturer": "निर्माता",
+        "individual": "व्यक्तिगत",
+        "verifyLabel": "सत्यापित हों",
+        "verifyDescription": "सत्यापन दस्तावेज़ अपलोड करें।",
+        "upload": "अपलोड",
+        "storeLabel": "स्टोर बनाएँ",
+        "storeDescription": "उत्पाद, ऑर्डर और बिक्री चैनल अनलॉक करें।",
+        "create": "बनाएँ",
+        "taskSummary_one": "{{total}} कार्य · {{pending}} लंबित",
+        "taskSummary_other": "{{total}} कार्य · {{pending}} लंबित",
+        "viewTasks": "कार्य देखें"
+      },
+      "quickSettings": {
+        "heading": "त्वरित सेटिंग्स",
+        "description": "अपने स्टोर कॉन्फ़िगरेशन का प्रबंधन करें।",
+        "paymentProviders": "भुगतान प्रदाता",
+        "paymentProvidersDescription": "आप कैसे भुगतान प्राप्त करते हैं, कॉन्फ़िगर करें।",
+        "shippingSetup": "शिपिंग सेटअप",
+        "shippingSetupDescription": "स्थान, क्षेत्र और दरें।",
+        "taxRegions": "टैक्स क्षेत्र",
+        "taxRegionsDescription": "क्षेत्र के अनुसार टैक्स दरें कॉन्फ़िगर करें।",
+        "storeSettings": "स्टोर सेटिंग्स",
+        "storeSettingsDescription": "स्टोर विवरण और स्टोरफ्रंट।"
+      },
+      "discover": {
+        "title": "उत्पाद खोजें",
+        "preview": "अन्य पार्टनर्स के उत्पादों को क्रॉस-सेल करें या अपने लिए उत्पादन हेतु कॉपी करें।",
+        "modalDescription": "अन्य पार्टनर्स के उत्पाद ब्राउज़ करें। उन्हें सीधे क्रॉस-सेल करने के लिए जोड़ें या अपने लिए उत्पादन हेतु ड्राफ्ट के रूप में कॉपी करें।",
+        "shuffle": "शफ़ल",
+        "emptyTitle": "खोज के लिए अभी कोई उत्पाद उपलब्ध नहीं है।",
+        "emptyDescription": "जब अन्य पार्टनर्स उत्पाद प्रकाशित करेंगे, तो वे यहाँ दिखाई देंगे।",
+        "showing": "{{total}} में से 8 उत्पाद दिखा रहे हैं — अधिक देखने के लिए शफ़ल पर क्लिक करें",
+        "copying": "कॉपी हो रहा है...",
+        "addToStore": "मेरे स्टोर में जोड़ें",
+        "variant_one": "{{count}} प्रकार",
+        "variant_other": "{{count}} प्रकार",
+        "copySuccess": "उत्पाद आपके स्टोर में जोड़ा गया",
+        "copySuccessDescription": "\"{{title}}\" ड्राफ्ट के रूप में कॉपी किया गया।",
+        "copyFailed": "उत्पाद कॉपी करने में विफल",
+        "somethingWrong": "कुछ गलत हुआ"
+      }
+    },
+    "sharedFolders": {
+      "heading": "साझा फ़ोल्डर",
+      "description": "फ़ोटो और दस्तावेज़ अपलोड करने के लिए आपके साथ साझा किए गए फ़ोल्डर",
+      "breadcrumb": "साझा फ़ोल्डर",
+      "columns": {
+        "folder": "फ़ोल्डर",
+        "path": "पथ",
+        "files": "फ़ाइलें",
+        "assignedTo": "असाइन किया गया"
+      },
+      "empty": {
+        "title": "कोई साझा फ़ोल्डर नहीं",
+        "message": "आपके पास अभी तक कोई साझा फ़ोल्डर नहीं है। एक व्यवस्थापक आपको फ़ोल्डर असाइन करेगा।"
+      }
+    },
+    "content": {
+      "heading": "सामग्री",
+      "columns": {
+        "title": "शीर्षक",
+        "slug": "स्लग",
+        "type": "प्रकार",
+        "status": "स्थिति"
+      },
+      "filters": {
+        "status": "स्थिति",
+        "type": "प्रकार"
+      },
+      "statusOptions": {
+        "published": "प्रकाशित",
+        "draft": "ड्राफ्ट",
+        "archived": "संग्रहीत"
+      },
+      "typeOptions": {
+        "home": "होम",
+        "about": "हमारे बारे में",
+        "contact": "संपर्क",
+        "custom": "कस्टम",
+        "service": "सेवा",
+        "portfolio": "पोर्टफ़ोलियो",
+        "landing": "लैंडिंग"
+      },
+      "actions": {
+        "creatingPages": "बना रहे हैं...",
+        "createPages": "पेज बनाएँ",
+        "createStore": "स्टोर बनाएँ",
+        "enableStorefront": "स्टोरफ्रंट सक्षम करें"
+      },
+      "toast": {
+        "pagesCreated": "पेज सफलतापूर्वक बनाए गए",
+        "createFailed": "पेज बनाने में विफल"
+      },
+      "empty": {
+        "noStoreTitle": "कोई स्टोर नहीं बनाया गया",
+        "noStoreMessage": "अपनी स्टोरफ्रंट सामग्री का प्रबंधन करने के लिए पहले स्टोर बनाएँ।",
+        "notProvisionedTitle": "स्टोरफ्रंट सक्षम नहीं है",
+        "notProvisionedMessage": "पेज प्रबंधन शुरू करने के लिए स्टोर सेटिंग्स में अपना स्टोरफ्रंट सक्षम करें।",
+        "noPagesTitle": "अभी कोई पेज नहीं",
+        "noPagesMessage": "अपनी स्टोरफ्रंट सामग्री के साथ शुरुआत करने के लिए अपने डिफ़ॉल्ट पेज बनाएँ।",
+        "noMatches": "कोई पेज नहीं मिला"
+      }
+    },
+    "paymentSubmissions": {
+      "heading": "भुगतान प्रस्तुतियाँ",
+      "description": "पूर्ण हुए डिज़ाइन या कार्यों को भुगतान के लिए प्रस्तुत करें",
+      "newSubmission": "नई प्रस्तुति",
+      "breadcrumb": "भुगतान प्रस्तुतियाँ",
+      "columns": {
+        "submission": "प्रस्तुति",
+        "status": "स्थिति",
+        "amount": "राशि",
+        "items": "आइटम",
+        "submitted": "प्रस्तुत किया गया",
+        "reviewed": "समीक्षित",
+        "design_one": "{{count}} डिज़ाइन",
+        "design_other": "{{count}} डिज़ाइन",
+        "task_one": "{{count}} कार्य",
+        "task_other": "{{count}} कार्य"
+      },
+      "empty": {
+        "title": "अभी तक कोई भुगतान प्रस्तुति नहीं",
+        "message": "नई प्रस्तुति पर क्लिक करके अपने पूर्ण डिज़ाइन को भुगतान के लिए प्रस्तुत करें।"
+      }
+    },
+    "inventoryOrders": {
+      "heading": "इन्वेंट्री ऑर्डर",
+      "empty": "कोई इन्वेंट्री ऑर्डर नहीं",
+      "filters": {
+        "status": "स्थिति",
+        "partnerStatus": "पार्टनर स्थिति"
+      },
+      "statusOptions": {
+        "pending": "पंडिंग",
+        "processing": "प्रोसेसिंग",
+        "shipped": "शिप किया गया",
+        "delivered": "डिलीवर किया गया",
+        "cancelled": "रद्द किया गया",
+        "partial": "आंशिक"
+      },
+      "columns": {
+        "id": "आईडी",
+        "partnerStatus": "पार्टनर स्थिति",
+        "status": "स्थिति",
+        "updated": "अपडेट किया गया",
+        "created": "बनाया गया"
+      },
+      "detail": {
+        "heading": "इन्वेंट्री ऑर्डर",
+        "missingId": "ऑर्डर आईडी अनुपलब्ध",
+        "orderId": "ऑर्डर आईडी",
+        "status": "स्थिति",
+        "partnerStatus": "पार्टनर स्थिति",
+        "linesHeading": "लाइनें",
+        "linesDescription": "अनुरोधित बनाम पूर्ण की गई मात्राएँ",
+        "noLines": "कोई लाइन नहीं",
+        "linePrefix": "लाइन",
+        "columns": {
+          "item": "आइटम",
+          "requested": "अनुरोधित",
+          "fulfilled": "पूर्ण किया गया",
+          "remaining": "शेष"
+        },
+        "activities": {
+          "title": "गतिविधियाँ",
+          "completed": "पूर्ण",
+          "pending": "पंडिंग"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "स्वागत है! अपना कार्यस्थल सेट करें",
+      "steps": {
+        "about": "आपके बारे में",
+        "logo": "लोगो और ब्रांड",
+        "people": "टीम"
+      },
+      "businessTypes": {
+        "manufacturer": "निर्माता / उत्पादक",
+        "seller": "विक्रेता / खुदरा विक्रेता",
+        "designer": "डिज़ाइनर / निर्माता",
+        "wholesaler": "थोक विक्रेता / वितरक",
+        "artisan": "कारीगर / शिल्पकार",
+        "individual": "व्यक्तिगत (मॉडल, फ्रीलांसर, आदि)",
+        "other": "अन्य"
+      },
+      "about": {
+        "heading": "अपने व्यवसाय के बारे में बताएँ",
+        "description": "यह हमें आपके अनुभव को अनुकूलित करने और आपको सही उपकरणों से जोड़ने में मदद करता है।",
+        "businessName": "व्यवसाय का नाम",
+        "businessNamePlaceholder": "एक्मे टेक्सटाइल्स",
+        "businessTypeLabel": "आपके व्यवसाय का वर्णन क्या है?",
+        "businessTypePlaceholder": "व्यवसाय का प्रकार चुनें",
+        "descriptionLabel": "संक्षिप्त विवरण",
+        "descriptionPlaceholder": "आप क्या बनाते या बेचते हैं? आपके ग्राहक कौन हैं?",
+        "website": "वेबसाइट",
+        "phone": "फ़ोन",
+        "optional": "(वैकल्पिक)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "अपना कंपनी लोगो अपलोड करें",
+        "description": "यह आपके पार्टनर प्रोफ़ाइल और स्टोरफ्रंट पर दिखाई देगा। आप इसे बाद में कभी भी बदल सकते हैं।",
+        "clickToChange": "बदलने के लिए क्लिक करें",
+        "clickToUpload": "अपलोड करने के लिए क्लिक करें या ड्रैग और ड्रॉप करें",
+        "fileTypes": "SVG, PNG, JPG (अधिकतम 5MB)",
+        "currentLogo": "वर्तमान लोगो"
+      },
+      "team": {
+        "heading": "अपने टीम सदस्यों को जोड़ें",
+        "description": "उन लोगों को आमंत्रित करें जो आपके स्टोर और उत्पादों का प्रबंधन करने में मदद करेंगे। यह चरण वैकल्पिक है — आप बाद में टीम सदस्यों को जोड़ सकते हैं।",
+        "success": "ऑनबोर्डिंग सफलतापूर्वक पूर्ण!",
+        "firstName": "पहला नाम",
+        "firstNamePlaceholder": "जॉन",
+        "lastName": "अंतिम नाम",
+        "lastNamePlaceholder": "डो",
+        "email": "ईमेल",
+        "emailPlaceholder": "john@company.com",
+        "remove": "हटाएँ",
+        "addAnother": "+ एक और व्यक्ति जोड़ें"
+      },
+      "footer": {
+        "skip": "अभी के लिए छोड़ें",
+        "skipShort": "छोड़ें",
+        "stepCount": "चरण {{current}} कुल {{total}} में से",
+        "back": "पीछे",
+        "continue": "जारी रखें",
+        "complete": "सेटअप पूर्ण करें"
+      },
+      "toast": {
+        "completed": "ऑनबोर्डिंग पूर्ण हुई"
+      },
+      "errors": {
+        "unknown": "एक अज्ञात त्रुटि हुई"
+      }
+    },
+    "plan": {
+      "heading": "प्लान और बिलिंग",
+      "description": "अपने व्यवसाय के लिए उपयुक्त प्लान चुनें",
+      "labels": {
+        "plan": "प्लान",
+        "price": "मूल्य",
+        "period": "अवधि",
+        "payment": "भुगतान"
+      },
+      "providerPayu": "PayU (भारत)",
+      "providerStripe": "Stripe (अंतर्राष्ट्रीय)",
+      "cancelSubscription": "सदस्यता रद्द करें",
+      "noSubscription": "कोई सक्रिय सदस्यता नहीं। शुरुआत करने के लिए नीचे से एक प्लान चुनें।",
+      "chooseHeading": "अपना प्लान चुनें",
+      "chooseDescription": "सभी प्लानों में असीमित उत्पाद, कर्मचारी खाते और लाइव शिपिंग शामिल हैं। बिक्री पर कोई सीमा नहीं।",
+      "badges": {
+        "current": "वर्तमान",
+        "popular": "लोकप्रिय"
+      },
+      "currentPlan": "वर्तमान प्लान",
+      "cta": {
+        "getStarted": "शुरू करें",
+        "downgrade": "डाउनग्रेड करें",
+        "upgrade": "अपग्रेड करें"
+      },
+      "whatsIncluded": "शामिल है",
+      "features": {
+        "unlimitedProducts": "असीमित उत्पाद",
+        "unlimitedSelling": "असीमित बिक्री",
+        "unlimitedStaff": "असीमित कर्मचारी खाते",
+        "storefrontSource": "स्टोरफ्रंट स्रोत कोड",
+        "customDomain": "कस्टम डोमेन",
+        "jytEmails": "JYT ईमेल",
+        "liveShipping": "लाइव शिपिंग (डेलिवरी, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "भुगतान प्रोसेसिंग शुल्क",
+        "analyticsAdvanced": "उन्नत विश्लेषण",
+        "analyticsBasic": "मूल विश्लेषण",
+        "aiChatSupport": "AI चैट समर्थन",
+        "customModules": "कस्टम मॉड्यूल",
+        "customApis": "कस्टम API",
+        "prioritySupport": "प्राथमिकता समर्थन",
+        "whiteLabel": "व्हाइट लेबल"
+      },
+      "comparison": {
+        "heading": "फ़ीचर तुलना",
+        "featureColumn": "फ़ीचर",
+        "priceRow": "मूल्य",
+        "rows": {
+          "unlimitedProducts": "उत्पाद",
+          "unlimitedSelling": "बिक्री",
+          "unlimitedStaff": "कर्मचारी खाते",
+          "storefrontSource": "स्टोरफ्रंट स्रोत कोड",
+          "customDomain": "कस्टम डोमेन",
+          "themeCustomization": "थीम संपादक",
+          "jytEmails": "JYT ईमेल",
+          "liveShipping": "लाइव शिपिंग",
+          "paymentFee": "भुगतान शुल्क",
+          "analytics": "विश्लेषण",
+          "aiChatSupport": "AI चैट समर्थन",
+          "customModules": "कस्टम मॉड्यूल",
+          "customApis": "कस्टम API",
+          "prioritySupport": "प्राथमिकता समर्थन",
+          "whiteLabel": "व्हाइट लेबल"
+        },
+        "values": {
+          "unlimited": "असीमित",
+          "yes": "हाँ",
+          "no": "नहीं",
+          "analyticsAdvanced": "उन्नत",
+          "analyticsBasic": "मूल",
+          "free": "मुफ्त"
+        }
+      },
+      "paymentInfo": "भुगतान {{provider}} के माध्यम से संसाधित किए जाते हैं। भुगतान संसाधन शुल्क केवल तभी लागू होता है जब ग्राहक JYT भुगतान गेटवे के माध्यम से भुगतान करते हैं। आप प्लेटफ़ॉर्म शुल्क से बचने के लिए अपने स्वयं के भुगतान प्रदाता क्रेडेंशियल्स ला सकते हैं।",
+      "prompts": {
+        "switchTitle": "{{plan}} पर स्विच करें",
+        "switchPaidDescription": "आपको {{provider}} के माध्यम से {{price}}/{{interval}} का भुगतान किया जाएगा। आपका वर्तमान प्लान प्रतिस्थापित हो जाएगा।",
+        "switchFreeDescription": "आप मुफ्त प्लान पर स्विच कर जाएँगे। आपका वर्तमान प्लान रद्द कर दिया जाएगा।",
+        "payWith": "{{provider}} के साथ भुगतान करें",
+        "switch": "स्विच करें",
+        "cancel": "रद्द करें",
+        "cancelTitle": "सदस्यता रद्द करें",
+        "cancelDescription": "क्या आप सुनिश्चित हैं? आपको अपनी बिलिंग अवधि के अंत तक पहुँच बनी रहेगी। आप किसी भी समय पुनः सदस्यता ले सकते हैं।",
+        "cancelConfirm": "सदस्यता रद्द करें",
+        "keepPlan": "प्लान बनाए रखें"
+      },
+      "toast": {
+        "paymentSuccess": "भुगतान सफल! आपका प्लान सक्रिय कर दिया गया है।",
+        "paymentFailed": "भुगतान विफल। कृपया पुनः प्रयास करें।",
+        "paymentCanceled": "भुगतान रद्द कर दिया गया।",
+        "paymentError": "भुगतान त्रुटि: {{message}}",
+        "paymentUnknown": "अज्ञात त्रुटि",
+        "switchedTo": "{{plan}} पर स्विच किया गया",
+        "switchFailed": "प्लान स्विच नहीं किया जा सका",
+        "canceled": "सदस्यता रद्द कर दी गई",
+        "cancelFailed": "रद्द करने में विफल",
+        "somethingWrong": "कुछ गलत हो गया"
+      }
+    },
+    "people": {
+      "heading": "टीम सदस्य",
+      "description": "अपने संगठन में लोगों का प्रबंधन करें। प्रशासक डैशबोर्ड में लॉग इन कर सकते हैं।",
+      "addPerson": "व्यक्ति जोड़ें",
+      "empty": "अभी तक कोई टीम सदस्य नहीं। ऊपर से अपना पहला व्यक्ति जोड़ें।",
+      "columns": {
+        "name": "नाम",
+        "email": "ईमेल",
+        "access": "पहुँच",
+        "accessDashboard": "डैशबोर्ड",
+        "accessTeamOnly": "केवल टीम",
+        "role": "भूमिका",
+        "added": "जोड़ा गया"
+      },
+      "drawer": {
+        "title": "व्यक्ति जोड़ें",
+        "description": "अपने संगठन में एक टीम सदस्य जोड़ें।",
+        "emailLabel": "ईमेल *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "पहला नाम",
+        "firstNamePlaceholder": "जॉन",
+        "lastName": "अंतिम नाम",
+        "lastNamePlaceholder": "डो",
+        "phone": "फ़ोन",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "डैशबोर्ड प्रशासक के रूप में बनाएँ",
+        "adminHint": "इस व्यक्ति को लॉगिन क्रेडेंशियल्स प्राप्त होंगे और वह पार्टनर डैशबोर्ड तक पहुँच सकता है।",
+        "teamHint": "यह व्यक्ति टीम सदस्य के रूप में सूचीबद्ध होगा लेकिन डैशबोर्ड तक पहुँच नहीं होगी।",
+        "role": "भूमिका",
+        "roleAdmin": "प्रशासक — पूर्ण पहुँच",
+        "roleManager": "प्रबंधक — उत्पाद और ऑर्डर",
+        "roleOwner": "मालिक — पूर्ण पहुँच + बिलिंग",
+        "password": "पासवर्ड",
+        "passwordPlaceholder": "स्वतः उत्पन्न करने के लिए खाली छोड़ें",
+        "passwordHint": "यदि खाली छोड़ा गया है तो स्वतः उत्पन्न किया जाएगा। स्वागत ईमेल में शामिल किया गया है।",
+        "freeTextRole": "भूमिका",
+        "freeTextRolePlaceholder": "उदा. डिज़ाइनर, वीवर, QA",
+        "freeTextRoleHint": "संगठनात्मक उद्देश्यों के लिए मुक्त-पाठ भूमिका।",
+        "cancel": "रद्द करें",
+        "addAdmin": "प्रशासक जोड़ें"
+      },
+      "toast": {
+        "emailRequired": "ईमेल आवश्यक है",
+        "adminAdded": "प्रशासक सफलतापूर्वक जोड़ा गया",
+        "adminAddedDescription": "स्वागत ईमेल {{email}} को भेजा गया। अस्थायी पासवर्ड: {{password}}",
+        "addAdminFailed": "प्रशासक जोड़ने में विफल",
+        "personAdded": "व्यक्ति जोड़ा गया",
+        "personAddedDescription": "{{email}} को {{role}} के रूप में जोड़ा गया। उन्हें डैशबोर्ड लॉगिन पहुँच नहीं होगी।",
+        "addPersonFailed": "व्यक्ति जोड़ने में विफल"
+      }
+    },
+    "payments": {
+      "heading": "भुगतान",
+      "subheading": "भुगतान विधियाँ",
+      "create": "बनाएँ",
+      "recentHeading": "हाल के भुगतान",
+      "recentDescription": "हाल के भुगतान देखें।",
+      "emptyMethods": "कोई भुगतान विधि नहीं",
+      "emptyPayments": "कोई भुगतान नहीं",
+      "columns": {
+        "type": "प्रकार",
+        "accountName": "खाता नाम",
+        "details": "विवरण",
+        "bank": "बैंक",
+        "walletPrefix": "वॉलेट",
+        "added": "जोड़ा गया",
+        "paymentId": "भुगतान आईडी",
+        "amount": "राशि",
+        "currency": "मुद्रा"
+      },
+      "typeLabels": {
+        "bankAccount": "बैंक खाता",
+        "cashAccount": "नकद खाता",
+        "digitalWallet": "डिजिटल वॉलेट"
+      },
+      "form": {
+        "heading": "भुगतान विधि जोड़ें",
+        "description": "एक भुगतान विधि संदर्भ जोड़ें।",
+        "missingPartner": "पार्टनर संदर्भ अनुपलब्ध।",
+        "type": "प्रकार",
+        "typePlaceholder": "प्रकार चुनें",
+        "accountName": "खाता नाम",
+        "accountNumber": "खाता संख्या",
+        "bankName": "बैंक का नाम",
+        "ifsc": "IFSC",
+        "walletId": "वॉलेट आईडी",
+        "cancel": "रद्द करें",
+        "create": "बनाएँ"
+      },
+      "toast": {
+        "created": "भुगतान विधि बनाई गई"
+      }
+    },
+    "paymentProviders": {
+      "heading": "भुगतान प्रदाता क्रेडेंशियल्स",
+      "subHeading": "आपके भुगतान प्रदाता क्रेडेंशियल्स। ये आपके स्टोर के लिए प्लेटफ़ॉर्म के डिफ़ॉल्ट को ओवरराइड करते हैं।",
+      "empty": {
+        "heading": "कोई भुगतान क्रेडेंशियल्स कॉन्फ़िगर नहीं किए गए",
+        "description": "आप प्लेटफ़ॉर्म के साझा क्रेडेंशियल्स का उपयोग कर रहे हैं। अपने स्वयं के व्यापारी खातों का उपयोग करने के लिए अपने स्वयं के क्रेडेंशियल्स जोड़ें।"
+      },
+      "columns": {
+        "provider": "प्रदाता",
+        "status": "स्थिति",
+        "statusActive": "सक्रिय",
+        "statusInactive": "निष्क्रिय",
+        "credentials": "क्रेडेंशियल्स",
+        "added": "जोड़ा गया"
+      },
+      "removePrompt": {
+        "description": "क्या आप अपने {{provider}} क्रेडेंशियल्स हटाना चाहते हैं? आपका स्टोर प्लेटफ़ॉर्म के साझा क्रेडेंशियल्स पर वापस चला जाएगा।"
+      },
+      "toast": {
+        "removed": "क्रेडेंशियल्स हटा दिए गए",
+        "removeFailed": "हटाने में विफल",
+        "saved": "भुगतान क्रेडेंशियल्स सहेजे गए",
+        "saveFailed": "क्रेडेंशियल्स सहेजने में विफल"
+      },
+      "form": {
+        "heading": "भुगतान क्रेडेंशियल्स जोड़ें",
+        "description": "अपने स्वयं के भुगतान प्रदाता क्रेडेंशियल्स कॉन्फ़िगर करें। यह आपके स्टोर के लिए प्लेटफ़ॉर्म के डिफ़ॉल्ट को ओवरराइड करता है।",
+        "provider": "प्रदाता",
+        "merchantKey": "व्यापारी कुंजी",
+        "merchantKeyPlaceholder": "आपकी PayU व्यापारी कुंजी",
+        "merchantSalt": "व्यापारी नमक",
+        "merchantSaltPlaceholder": "आपकी PayU व्यापारी नमक",
+        "mode": "मोड",
+        "modeTest": "परीक्षण",
+        "modeLive": "लाइव",
+        "stripeApiKey": "Stripe API कुंजी",
+        "stripeApiKeyPlaceholder": "sk_live_... या sk_test_...",
+        "stripeApiKeyHint": "Stripe डैशबोर्ड से आपकी Stripe गुप्त कुंजी।"
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "व्यवसाय का प्रकार",
+        "description": "JYT का उपयोग कैसे करते हैं, यह चुनें। यह आपके साइडबार में कौन से नेविगेशन आइटम दिखाए जाएँगे, यह नियंत्रित करता है।",
+        "active": "सक्रिय",
+        "seller": {
+          "title": "विक्रेता",
+          "description": "ऑनलाइन उत्पाद बेचें। उत्पाद, ऑर्डर, ग्राहक, श्रेणियाँ और संग्रह देखें।"
+        },
+        "manufacturer": {
+          "title": "निर्माता",
+          "description": "वस्त्रों का डिज़ाइन और निर्माण करें। डिज़ाइन, इन्वेंट्री ऑर्डर, उत्पादन रन, कार्य और अधिक देखें।"
+        },
+        "individual": {
+          "title": "व्यक्तिगत",
+          "description": "निर्धारित कार्यों पर काम करें। कार्य, साझा फ़ोल्डर और भुगतान प्रस्तुतियाँ देखें।"
+        }
+      },
+      "status": {
+        "heading": "ऑनबोर्डिंग",
+        "description": "ऑनबोर्डिंग पूर्णता को ट्रैक करें और ऑनबोर्डिंग प्रवाह को पुनः खोलें।",
+        "label": "स्थिति",
+        "completed": "पूर्ण",
+        "notCompleted": "अपूर्ण",
+        "open": "ऑनबोर्डिंग खोलें"
       }
     }
   }

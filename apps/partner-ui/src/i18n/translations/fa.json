@@ -2583,7 +2583,10 @@
         "placeholder": "wrong_size",
         "tooltip": "مقدار باید یک شناسه منحصر به فرد برای دلیل بازگشت باشد."
       },
-      "label": { "label": "برچسب", "placeholder": "سایز اشتباه" },
+      "label": {
+        "label": "برچسب",
+        "placeholder": "سایز اشتباه"
+      },
       "description": {
         "label": "توضیحات",
         "placeholder": "مشتری سایز اشتباه دریافت کرده است"
@@ -2928,5 +2931,409 @@
     "minutes_other": "دقیقه",
     "seconds_one": "ثانیه",
     "seconds_other": "ثانیه"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "فروشگاه",
+      "regions": "منطقه‌ها",
+      "locationsShipping": "مکان‌ها و حمل‌ونقل",
+      "salesChannels": "کانال‌های فروش",
+      "taxRegions": "مناطق مالیاتی",
+      "returnReasons": "دلایل بازگشت",
+      "refundReasons": "دلایل بازپرداخت",
+      "onboarding": "راه‌اندازی اولیه",
+      "people": "افراد",
+      "payments": "پرداخت‌ها",
+      "paymentConfig": "پیکربندی پرداخت",
+      "planBilling": "طرح و صورتحساب"
+    },
+    "paymentSubmissions": {
+      "heading": "ارسال‌های پرداخت",
+      "description": "ارسال طرح‌ها یا وظایف تکمیل‌شده برای پرداخت",
+      "newSubmission": "ارسال جدید",
+      "breadcrumb": "ارسال‌های پرداخت",
+      "columns": {
+        "submission": "ارسال",
+        "status": "وضعیت",
+        "amount": "مبلغ",
+        "items": "موارد",
+        "submitted": "ارسال‌شده",
+        "reviewed": "بررسی‌شده",
+        "design_one": "{{count}} طرح",
+        "design_other": "{{count}} طرح",
+        "task_one": "{{count}} وظیفه",
+        "task_other": "{{count}} وظیفه"
+      },
+      "empty": {
+        "title": "هنوز ارسال پرداختی وجود ندارد",
+        "message": "با کلیک روی «ارسال جدید»، طرح‌های تکمیل‌شده خود را برای پرداخت ارسال کنید."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "سفارش‌های موجودی",
+      "empty": "سفارش موجودی‌ای وجود ندارد",
+      "filters": {
+        "status": "وضعیت",
+        "partnerStatus": "وضعیت شریک"
+      },
+      "statusOptions": {
+        "pending": "در انتظار",
+        "processing": "در حال پردازش",
+        "shipped": "ارسال‌شده",
+        "delivered": "تحویل‌داده‌شده",
+        "cancelled": "لغوشده",
+        "partial": "جزئی"
+      },
+      "columns": {
+        "id": "شناسه",
+        "partnerStatus": "وضعیت شریک",
+        "status": "وضعیت",
+        "updated": "به‌روزرسانی‌شده",
+        "created": "ایجادشده"
+      },
+      "detail": {
+        "heading": "سفارش موجودی",
+        "missingId": "شناسه سفارش وجود ندارد",
+        "orderId": "شناسه سفارش",
+        "status": "وضعیت",
+        "partnerStatus": "وضعیت شریک",
+        "linesHeading": "خطوط",
+        "linesDescription": "مقدار درخواستی در مقابل مقدار تأمین‌شده",
+        "noLines": "خطی وجود ندارد",
+        "linePrefix": "خط",
+        "columns": {
+          "item": "آیتم",
+          "requested": "درخواستی",
+          "fulfilled": "تأمین‌شده",
+          "remaining": "باقی‌مانده"
+        },
+        "activities": {
+          "title": "فعالیت‌ها",
+          "completed": "تکمیل‌شده",
+          "pending": "در انتظار"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "خوش آمدید! بیایید فضای کاری شما را راه‌اندازی کنیم",
+      "steps": {
+        "about": "درباره شما",
+        "logo": "لوگو و برند",
+        "people": "تیم"
+      },
+      "businessTypes": {
+        "manufacturer": "تولیدکننده / تولیدکننده",
+        "seller": "فروشنده / خرده‌فروش",
+        "designer": "طراح / خالق",
+        "wholesaler": "عمده‌فروش / توزیع‌کننده",
+        "artisan": "هنرمند / صنعتگر",
+        "individual": "فرد (مدل، فریلنسر و غیره)",
+        "other": "سایر"
+      },
+      "about": {
+        "heading": "در مورد کسب‌وکار خود به ما بگویید",
+        "description": "این اطلاعات به ما کمک می‌کند تجربه شما را شخصی‌سازی کرده و شما را با ابزارهای مناسب متصل کنیم.",
+        "businessName": "نام کسب‌وکار",
+        "businessNamePlaceholder": "اکمه نساجی",
+        "businessTypeLabel": "بهترین توصیف برای کسب‌وکار شما چیست؟",
+        "businessTypePlaceholder": "نوع کسب‌وکار را انتخاب کنید",
+        "descriptionLabel": "شرح مختصر",
+        "descriptionPlaceholder": "شما چه چیزی تولید یا می‌فروشید؟ مشتریان شما کی هستند؟",
+        "website": "وب‌سایت",
+        "phone": "تلفن",
+        "optional": "(اختیاری)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "لوگوی شرکت خود را آپلود کنید",
+        "description": "این لوگو در پروفایل شریک و فروشگاه شما نمایش داده می‌شود. شما همیشه می‌توانید آن را بعداً تغییر دهید.",
+        "clickToChange": "برای تغییر کلیک کنید",
+        "clickToUpload": "برای آپلود کلیک کنید یا فایل را بکشید و رها کنید",
+        "fileTypes": "SVG، PNG، JPG (حداکثر ۵ مگابایت)"
+      },
+      "team": {
+        "heading": "اعضای تیم خود را اضافه کنید",
+        "description": "افرادی را که در مدیریت فروشگاه و محصولات شما کمک می‌کنند را دعوت کنید. این مرحله اختیاری است — می‌توانید اعضای تیم را بعداً اضافه کنید.",
+        "success": "راه‌اندازی اولیه با موفقیت تکمیل شد!",
+        "firstName": "نام",
+        "firstNamePlaceholder": "جان",
+        "lastName": "نام خانوادگی",
+        "lastNamePlaceholder": "دو",
+        "email": "ایمیل",
+        "emailPlaceholder": "john@company.com",
+        "remove": "حذف",
+        "addAnother": "+ افزودن فرد دیگر"
+      },
+      "footer": {
+        "skip": "اکنون رد کنید",
+        "stepCount": "مرحله {{current}} از {{total}}",
+        "back": "بازگشت",
+        "continue": "ادامه",
+        "complete": "تکمیل راه‌اندازی"
+      },
+      "errors": {
+        "unknown": "خطای ناشناخته‌ای رخ داده است"
+      }
+    },
+    "plan": {
+      "heading": "طرح و صورتحساب",
+      "description": "طرحی را انتخاب کنید که با کسب‌وکار شما سازگان دارد",
+      "labels": {
+        "plan": "طرح",
+        "price": "قیمت",
+        "period": "دوره",
+        "payment": "پرداخت"
+      },
+      "providerPayu": "PayU (هند)",
+      "providerStripe": "Stripe (بین‌المللی)",
+      "cancelSubscription": "لغو اشتراک",
+      "noSubscription": "اشتراک فعالی وجود ندارد. برای شروع، طرحی را از زیر انتخاب کنید.",
+      "chooseHeading": "طرح خود را انتخاب کنید",
+      "chooseDescription": "همه طرح‌ها شامل محصولات نامحدود، حساب‌های کارکنان و حمل‌ونقل زنده هستند. محدودیتی در فروش وجود ندارد.",
+      "badges": {
+        "current": "فعلی",
+        "popular": "محبوب"
+      },
+      "currentPlan": "طرح فعلی",
+      "cta": {
+        "getStarted": "شروع کنید",
+        "downgrade": "پایین‌تر بروید",
+        "upgrade": "بالاتر بروید"
+      },
+      "whatsIncluded": "شامل چه مواردی می‌شود",
+      "features": {
+        "unlimitedProducts": "محصولات نامحدود",
+        "unlimitedSelling": "فروش نامحدود",
+        "unlimitedStaff": "حساب‌های کارکنان نامحدود",
+        "storefrontSource": "کد منبع فروشگاه",
+        "customDomain": "دامنه سفارشی",
+        "jytEmails": "ایمیل‌های JYT",
+        "liveShipping": "حمل‌ونقل زنده (Delhivery، DHL، UPS، FedEx)",
+        "paymentFeeSuffix": "هزینه پردازش پرداخت",
+        "analyticsAdvanced": "تحلیل‌های پیشرفته",
+        "analyticsBasic": "تحلیل‌های پایه",
+        "aiChatSupport": "پشتیبانی چت هوش مصنوعی",
+        "customModules": "ماژول‌های سفارشی",
+        "customApis": "APIهای سفارشی",
+        "prioritySupport": "پشتیبانی اولویت‌دار",
+        "whiteLabel": "برند سفید"
+      },
+      "comparison": {
+        "heading": "مقایسه ویژگی‌ها",
+        "featureColumn": "ویژگی",
+        "priceRow": "قیمت",
+        "rows": {
+          "unlimitedProducts": "محصولات",
+          "unlimitedSelling": "فروش",
+          "unlimitedStaff": "حساب‌های کارکنان",
+          "storefrontSource": "کد منبع فروشگاه",
+          "customDomain": "دامنه سفارشی",
+          "themeCustomization": "ویرایشگر قالب",
+          "jytEmails": "ایمیل‌های JYT",
+          "liveShipping": "حمل‌ونقل زنده",
+          "paymentFee": "هزینه پرداخت",
+          "analytics": "تحلیل‌ها",
+          "aiChatSupport": "پشتیبانی چت هوش مصنوعی",
+          "customModules": "ماژول‌های سفارشی",
+          "customApis": "APIهای سفارشی",
+          "prioritySupport": "پشتیبانی اولویت‌دار",
+          "whiteLabel": "برند سفید"
+        },
+        "values": {
+          "unlimited": "نامحدود",
+          "yes": "بله",
+          "no": "خیر",
+          "analyticsAdvanced": "پیشرفته",
+          "analyticsBasic": "پایه",
+          "free": "رایگان"
+        }
+      },
+      "paymentInfo": "پرداخت‌ها از طریق {{provider}} پردازش می‌شوند. هزینه پردازش پرداخت تنها زمانی اعمال می‌شود که مشتریان از دروازه‌های پرداخت JYT استفاده کنند. شما می‌توانید اعتبارهای ارائه‌دهنده پرداخت خود را ارائه دهید تا از کارمزدهای پلتفرم اجتناب کنید.",
+      "prompts": {
+        "switchTitle": "تغییر به {{plan}}",
+        "switchPaidDescription": "شما به مبلغ {{price}}/{{interval}} از طریق {{provider}} هزینه خواهید داد. طرح فعلی شما جایگزین خواهد شد.",
+        "switchFreeDescription": "شما به طرح رایگان تغییر خواهید کرد. طرح فعلی شما لغو خواهد شد.",
+        "payWith": "پرداخت با {{provider}}",
+        "switch": "تغییر",
+        "cancel": "لغو",
+        "cancelTitle": "لغو اشتراک",
+        "cancelDescription": "آیا اطمینان دارید؟ دسترسی شما تا پایان دوره صورتحساب حفظ می‌شود. شما می‌توانید در هر زمانی دوباره مشترک شوید.",
+        "cancelConfirm": "لغو اشتراک",
+        "keepPlan": "نگه‌داردن طرح"
+      },
+      "toast": {
+        "paymentSuccess": "پرداخت با موفقیت انجام شد! طرح شما فعال شده است.",
+        "paymentFailed": "پرداخت ناموفق بود. لطفاً دوباره امتحان کنید.",
+        "paymentCanceled": "پرداخت لغو شد.",
+        "paymentError": "خطای پرداخت: {{message}}",
+        "paymentUnknown": "خطای ناشناخته",
+        "switchedTo": "تغییر به {{plan}}",
+        "switchFailed": "تغییر طرح امکان‌پذیر نبود",
+        "canceled": "اشتراک لغو شد",
+        "cancelFailed": "لغو امکان‌پذیر نبود",
+        "somethingWrong": "مشکلی رخ داده است"
+      }
+    },
+    "people": {
+      "heading": "اعضای تیم",
+      "description": "مدیریت افراد در سازمان شما. مدیران می‌توانند به داشبورد وارد شوند.",
+      "addPerson": "افزودن فرد",
+      "empty": "هنوز عضو تیمی وجود ندارد. اولین فرد را از بالا اضافه کنید.",
+      "columns": {
+        "name": "نام",
+        "email": "ایمیل",
+        "access": "دسترسی",
+        "accessDashboard": "داشبورد",
+        "accessTeamOnly": "فقط تیم",
+        "role": "نقش",
+        "added": "افزوده‌شده"
+      },
+      "drawer": {
+        "title": "افزودن فرد",
+        "description": "یک عضو تیم به سازمان خود اضافه کنید.",
+        "emailLabel": "ایمیل *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "نام",
+        "firstNamePlaceholder": "جان",
+        "lastName": "نام خانوادگی",
+        "lastNamePlaceholder": "دو",
+        "phone": "تلفن",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "ایجاد به عنوان مدیر داشبورد",
+        "adminHint": "این فرد اطلاعات ورود دریافت خواهد کرد و می‌تواند به داشبورد شریک دسترسی داشته باشد.",
+        "teamHint": "این فرد به عنوان عضو تیم فهرست خواهد شد اما دسترسی به داشبورد نخواهد داشت.",
+        "role": "نقش",
+        "roleAdmin": "مدیر — دسترسی کامل",
+        "roleManager": "مدیر — محصولات و سفارش‌ها",
+        "roleOwner": "مالک — دسترسی کامل + صورتحساب",
+        "password": "رمز عبور",
+        "passwordPlaceholder": "برای تولید خودکار خالی بگذارید",
+        "passwordHint": "در صورت خالی بودن، به صورت خودکار تولید می‌شود. در ایمیل خوشامدید گنجانده شده است.",
+        "freeTextRole": "نقش",
+        "freeTextRolePlaceholder": "مثلاً طراح، بافنده، کنترل کیفیت",
+        "freeTextRoleHint": "نقش متنی آزاد برای اهداف سازمانی.",
+        "cancel": "لغو",
+        "addAdmin": "افزودن مدیر"
+      },
+      "toast": {
+        "emailRequired": "ایمیل الزامی است",
+        "adminAdded": "مدیر با موفقیت اضافه شد",
+        "adminAddedDescription": "ایمیل خوشامد به {{email}} ارسال شد. رمز عبور موقت: {{password}}",
+        "addAdminFailed": "اضافه کردن مدیر ناموفق بود",
+        "personAdded": "فرد اضافه شد",
+        "personAddedDescription": "{{email}} به عنوان {{role}} اضافه شد. دسترسی به ورود به داشبورد نخواهد داشت.",
+        "addPersonFailed": "اضافه کردن فرد ناموفق بود"
+      }
+    },
+    "payments": {
+      "heading": "پرداخت‌ها",
+      "subheading": "روش‌های پرداخت",
+      "create": "ایجاد",
+      "recentHeading": "پرداخت‌های اخیر",
+      "recentDescription": "پرداخت‌های اخیر را مشاهده کنید.",
+      "emptyMethods": "روش پرداختی وجود ندارد",
+      "emptyPayments": "پرداختی وجود ندارد",
+      "columns": {
+        "type": "نوع",
+        "accountName": "نام حساب",
+        "details": "جزئیات",
+        "bank": "بانک",
+        "walletPrefix": "کیف پول",
+        "added": "افزوده‌شده",
+        "paymentId": "شناسه پرداخت",
+        "amount": "مبلغ",
+        "currency": "واحد پول"
+      },
+      "typeLabels": {
+        "bankAccount": "حساب بانکی",
+        "cashAccount": "حساب نقدی",
+        "digitalWallet": "کیف پول دیجیتال"
+      },
+      "form": {
+        "heading": "افزودن روش پرداخت",
+        "description": "ارجاع روش پرداخت را اضافه کنید.",
+        "missingPartner": "زمینه شریک وجود ندارد.",
+        "type": "نوع",
+        "typePlaceholder": "نوع را انتخاب کنید",
+        "accountName": "نام حساب",
+        "accountNumber": "شماره حساب",
+        "bankName": "نام بانک",
+        "ifsc": "کد IFSC",
+        "walletId": "شناسه کیف پول",
+        "cancel": "لغو",
+        "create": "ایجاد"
+      },
+      "toast": {
+        "created": "روش پرداخت ایجاد شد"
+      }
+    },
+    "paymentProviders": {
+      "heading": "اعتبارهای پرداخت",
+      "subHeading": "اعتبارهای ارائه‌دهنده پرداخت شما. این اعتبارها پیش‌فرض پلتفرم را برای فروشگاه شما جایگزین می‌کنند.",
+      "empty": {
+        "heading": "هیچ اعتبار پرداختی پیکربندی نشده است",
+        "description": "شما از اعتبارهای اشتراکی پلتفرم استفاده می‌کنید. برای استفاده از حساب‌های تجاری خود، اعتبارهای خود را اضافه کنید."
+      },
+      "columns": {
+        "provider": "ارائه‌دهنده",
+        "status": "وضعیت",
+        "statusActive": "فعال",
+        "statusInactive": "غیرفعال",
+        "credentials": "اعتبارها",
+        "added": "افزوده‌شده"
+      },
+      "removePrompt": {
+        "description": "آیا مایلید اعتبارهای {{provider}} خود را حذف کنید؟ فروشگاه شما به اعتبارهای اشتراکی پلتفرم بازمی‌گردد."
+      },
+      "toast": {
+        "removed": "اعتبارها حذف شدند",
+        "removeFailed": "حذف ناموفق بود",
+        "saved": "اعتبارهای پرداخت ذخیره شدند",
+        "saveFailed": "ذخیره اعتبارها ناموفق بود"
+      },
+      "form": {
+        "heading": "افزودن اعتبارهای پرداخت",
+        "description": "اعتبارهای ارائه‌دهنده پرداخت خود را پیکربندی کنید. این کار پیش‌فرض پلتفرم را برای فروشگاه شما جایگزین می‌کند.",
+        "provider": "ارائه‌دهنده",
+        "merchantKey": "کلید تاجر",
+        "merchantKeyPlaceholder": "کلید تاجر PayU شما",
+        "merchantSalt": "نمک تاجر",
+        "merchantSaltPlaceholder": "نمک تاجر PayU شما",
+        "mode": "حالت",
+        "modeTest": "آزمایشی",
+        "modeLive": "زنده",
+        "stripeApiKey": "کلید API Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... یا sk_test_...",
+        "stripeApiKeyHint": "کلید مخفی Stripe شما از داشبورد Stripe."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "نوع کسب‌وکار",
+        "description": "نحوه استفاده شما از JYT را انتخاب کنید. این انتخاب تعیین می‌کند که کدام موارد در نوار کناری شما نمایش داده شوند.",
+        "active": "فعال",
+        "seller": {
+          "title": "فروشنده",
+          "description": "محصولات را آنلاین بفروشید. محصولات، سفارش‌ها، مشتریان، دسته‌بندی‌ها و مجموعه‌ها را مشاهده کنید."
+        },
+        "manufacturer": {
+          "title": "تولیدکننده",
+          "description": "طرح‌ها و پارچه‌ها را طراحی و تولید کنید. طرح‌ها، سفارش‌های موجودی، تولیدات، وظایف و بیشتر را مشاهده کنید."
+        },
+        "individual": {
+          "title": "فرد",
+          "description": "بر روی وظایف اختصاص‌یافته کار کنید. وظایف، پوشه‌های مشترک و ارسال‌های پرداخت را مشاهده کنید."
+        }
+      },
+      "status": {
+        "heading": "راه‌اندازی اولیه",
+        "description": "پیشرفت راه‌اندازی اولیه را پیگیری کرده و جریان راه‌اندازی را دوباره باز کنید.",
+        "label": "وضعیت",
+        "completed": "تکمیل‌شده",
+        "notCompleted": "تکمیل‌نشده",
+        "open": "باز کردن راه‌اندازی اولیه"
+      }
+    }
   }
 }

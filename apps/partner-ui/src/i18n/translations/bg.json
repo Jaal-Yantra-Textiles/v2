@@ -2983,5 +2983,409 @@
     "minutes_other": "Минути",
     "seconds_one": "Секунда",
     "seconds_other": "Секунди"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Магазин",
+      "regions": "Региони",
+      "locationsShipping": "Локации и доставка",
+      "salesChannels": "Търговски канали",
+      "taxRegions": "Данъчни региони",
+      "returnReasons": "Причини за връщане",
+      "refundReasons": "Причини за възстановяване",
+      "onboarding": "Въвеждане в системата",
+      "people": "Хора",
+      "payments": "Плащания",
+      "paymentConfig": "Конфигурация на плащанията",
+      "planBilling": "Абонамент и фактуриране"
+    },
+    "paymentSubmissions": {
+      "heading": "Плащания за подадени заявки",
+      "description": "Изпратете завършени дизайн проекти или задачи за плащане",
+      "newSubmission": "Нова заявка",
+      "breadcrumb": "Плащания за подадени заявки",
+      "columns": {
+        "submission": "Заявка",
+        "status": "Статус",
+        "amount": "Сума",
+        "items": "Елементи",
+        "submitted": "Изпратена",
+        "reviewed": "Прегледана",
+        "design_one": "{{count}} дизайн",
+        "design_other": "{{count}} дизайна",
+        "task_one": "{{count}} задача",
+        "task_other": "{{count}} задачи"
+      },
+      "empty": {
+        "title": "Още няма заявки за плащане",
+        "message": "Изпратете завършените си дизайн проекти за плащане, като кликнете върху „Нова заявка“."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Заявки за инвентар",
+      "empty": "Няма заявки за инвентар",
+      "filters": {
+        "status": "Статус",
+        "partnerStatus": "Статус на партньора"
+      },
+      "statusOptions": {
+        "pending": "Чакаща",
+        "processing": "В обработка",
+        "shipped": "Изпратена",
+        "delivered": "Доставена",
+        "cancelled": "Отменена",
+        "partial": "Частична"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Статус на партньора",
+        "status": "Статус",
+        "updated": "Актуализирана",
+        "created": "Създадена"
+      },
+      "detail": {
+        "heading": "Заявка за инвентар",
+        "missingId": "Липсващ ID на заявката",
+        "orderId": "ID на заявката",
+        "status": "Статус",
+        "partnerStatus": "Статус на партньора",
+        "linesHeading": "Редове",
+        "linesDescription": "Поискани срещу изпълнени количества",
+        "noLines": "Няма редове",
+        "linePrefix": "Ред",
+        "columns": {
+          "item": "Елемент",
+          "requested": "Поискани",
+          "fulfilled": "Изпълнени",
+          "remaining": "Оставащи"
+        },
+        "activities": {
+          "title": "Дейности",
+          "completed": "Завършени",
+          "pending": "Чакащи"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Добре дошли! Нека настроим работното ви пространство",
+      "steps": {
+        "about": "За вас",
+        "logo": "Лого и бранд",
+        "people": "Екип"
+      },
+      "businessTypes": {
+        "manufacturer": "Производител / Производител",
+        "seller": "Търговец / Търговец",
+        "designer": "Дизайнер / Създател",
+        "wholesaler": "Търговец на едро / Дистрибутор",
+        "artisan": "Ремесленник / Занаятчия",
+        "individual": "Физическо лице (модел, фрийлансер и др.)",
+        "other": "Друго"
+      },
+      "about": {
+        "heading": "Разкажете ни за вашия бизнес",
+        "description": "Това ни помага да персонализираме вашия потребителски опит и да ви свържем с подходящите инструменти.",
+        "businessName": "Име на бизнеса",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "Какво най-добре описва вашия бизнес?",
+        "businessTypePlaceholder": "Изберете тип бизнес",
+        "descriptionLabel": "Кратко описание",
+        "descriptionPlaceholder": "Какво произвеждате или продавате? Кой е вашата клиентска база?",
+        "website": "Уебсайт",
+        "phone": "Телефон",
+        "optional": "(по избор)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Качете логото на вашата компания",
+        "description": "То ще се появи в профила ви на партньор и в онлайн магазина. Винаги можете да го промените по-късно.",
+        "clickToChange": "Кликнете, за да промените",
+        "clickToUpload": "Кликнете, за да качите, или влачете и пуснете",
+        "fileTypes": "SVG, PNG, JPG (макс. 5 МБ)"
+      },
+      "team": {
+        "heading": "Добавете членовете на вашия екип",
+        "description": "Поканете хора, които ще ви помогнат да управлявате магазина и продуктите си. Този стъпка е по избор — можете да добавите членове на екипа по-късно.",
+        "success": "Въвеждането в системата завърши успешно!",
+        "firstName": "Име",
+        "firstNamePlaceholder": "Иван",
+        "lastName": "Фамилия",
+        "lastNamePlaceholder": "Иванов",
+        "email": "Имейл",
+        "emailPlaceholder": "ivan@company.com",
+        "remove": "Премахни",
+        "addAnother": "+ Добави друг човек"
+      },
+      "footer": {
+        "skip": "Пропусни засега",
+        "stepCount": "Стъпка {{current}} от {{total}}",
+        "back": "Назад",
+        "continue": "Продължи",
+        "complete": "Завърши настройката"
+      },
+      "errors": {
+        "unknown": "Възникна неизвестна грешка"
+      }
+    },
+    "plan": {
+      "heading": "Абонамент и фактуриране",
+      "description": "Изберете абонамента, който най-добре отговаря на нуждите на вашия бизнес",
+      "labels": {
+        "plan": "Абонамент",
+        "price": "Цена",
+        "period": "Период",
+        "payment": "Плащане"
+      },
+      "providerPayu": "PayU (Индия)",
+      "providerStripe": "Stripe (международен)",
+      "cancelSubscription": "Откажи абонамента",
+      "noSubscription": "Няма активен абонамент. Изберете абонамент по-долу, за да започнете.",
+      "chooseHeading": "Изберете вашия абонамент",
+      "chooseDescription": "Всички абонаменти включват неограничен брой продукти, акаунти на персонала и живи доставки. Няма ограничения за продажби.",
+      "badges": {
+        "current": "Текущ",
+        "popular": "Популярен"
+      },
+      "currentPlan": "Текущ абонамент",
+      "cta": {
+        "getStarted": "Започнете",
+        "downgrade": "Свали се",
+        "upgrade": "Актуализирай"
+      },
+      "whatsIncluded": "Какво включва",
+      "features": {
+        "unlimitedProducts": "Неограничен брой продукти",
+        "unlimitedSelling": "Неограничени продажби",
+        "unlimitedStaff": "Неограничен брой акаунти на персонала",
+        "storefrontSource": "Изходен код на онлайн магазина",
+        "customDomain": "Персонализиран домейн",
+        "jytEmails": "JYT имейли",
+        "liveShipping": "Живи доставки (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "такса за обработка на плащания",
+        "analyticsAdvanced": "Разширена аналитика",
+        "analyticsBasic": "Основна аналитика",
+        "aiChatSupport": "AI чат поддръжка",
+        "customModules": "Персонализирани модули",
+        "customApis": "Персонализирани API",
+        "prioritySupport": "Приоритетна поддръжка",
+        "whiteLabel": "Бял етикет"
+      },
+      "comparison": {
+        "heading": "Сравнение на функциите",
+        "featureColumn": "Функция",
+        "priceRow": "Цена",
+        "rows": {
+          "unlimitedProducts": "Продукти",
+          "unlimitedSelling": "Продажби",
+          "unlimitedStaff": "Акаунти на персонала",
+          "storefrontSource": "Изходен код на онлайн магазина",
+          "customDomain": "Персонализиран домейн",
+          "themeCustomization": "Редактор на теми",
+          "jytEmails": "JYT имейли",
+          "liveShipping": "Живи доставки",
+          "paymentFee": "Такса за плащане",
+          "analytics": "Аналитика",
+          "aiChatSupport": "AI чат поддръжка",
+          "customModules": "Персонализирани модули",
+          "customApis": "Персонализирани API",
+          "prioritySupport": "Приоритетна поддръжка",
+          "whiteLabel": "Бял етикет"
+        },
+        "values": {
+          "unlimited": "Неограничено",
+          "yes": "Да",
+          "no": "Не",
+          "analyticsAdvanced": "Разширена",
+          "analyticsBasic": "Основна",
+          "free": "Безплатно"
+        }
+      },
+      "paymentInfo": "Плащанията се обработват чрез {{provider}}. Таксата за обработка на плащания се прилага само когато клиентите плащат чрез JYT платформи за плащане. Можете да използвате собствени данни за достъп до платформа за плащане, за да избегнете таксите на платформата.",
+      "prompts": {
+        "switchTitle": "Превключване към {{plan}}",
+        "switchPaidDescription": "Ще бъде начислена сума от {{price}}/{{interval}} чрез {{provider}}. Текущият ви абонамент ще бъде заменен.",
+        "switchFreeDescription": "Ще превключите към безплатния абонамент. Текущият ви абонамент ще бъде анулиран.",
+        "payWith": "Плати с {{provider}}",
+        "switch": "Превключи",
+        "cancel": "Откажи",
+        "cancelTitle": "Отказване на абонамента",
+        "cancelDescription": "Сигурни ли сте? Ще запазите достъп до края на текущия си период за фактуриране. Можете да се абонирате отново по всяко време.",
+        "cancelConfirm": "Откажи абонамента",
+        "keepPlan": "Запази абонамента"
+      },
+      "toast": {
+        "paymentSuccess": "Плащането е успешно! Абонаментът ви е активиран.",
+        "paymentFailed": "Плащането не успя. Моля, опитайте отново.",
+        "paymentCanceled": "Плащането беше отменено.",
+        "paymentError": "Грешка при плащане: {{message}}",
+        "paymentUnknown": "Неизвестна грешка",
+        "switchedTo": "Превключено към {{plan}}",
+        "switchFailed": "Неуспешно превключване на абонамента",
+        "canceled": "Абонаментът е отменен",
+        "cancelFailed": "Неуспешно отмяна",
+        "somethingWrong": "Възникна проблем"
+      }
+    },
+    "people": {
+      "heading": "Членове на екипа",
+      "description": "Управлявайте хората в организацията си. Администраторите могат да влизат в таблото за управление.",
+      "addPerson": "Добави човек",
+      "empty": "Още няма членове на екипа. Добавете първия си човек по-горе.",
+      "columns": {
+        "name": "Име",
+        "email": "Имейл",
+        "access": "Достъп",
+        "accessDashboard": "Табло за управление",
+        "accessTeamOnly": "Само екип",
+        "role": "Роля",
+        "added": "Добавен"
+      },
+      "drawer": {
+        "title": "Добави човек",
+        "description": "Добавете член на екипа към вашата организация.",
+        "emailLabel": "Имейл *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "Име",
+        "firstNamePlaceholder": "Иван",
+        "lastName": "Фамилия",
+        "lastNamePlaceholder": "Иванов",
+        "phone": "Телефон",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Създай като администратор на таблото",
+        "adminHint": "Този човек ще получи данни за вход и ще може да достъпва таблото за управление на партньорите.",
+        "teamHint": "Този човек ще бъде изреден като член на екипа, но няма да има достъп до таблото.",
+        "role": "Роля",
+        "roleAdmin": "Администратор — пълен достъп",
+        "roleManager": "Мениджър — продукти и поръчки",
+        "roleOwner": "Собственик — пълен достъп + фактуриране",
+        "password": "Парола",
+        "passwordPlaceholder": "Оставете празно, за да се генерира автоматично",
+        "passwordHint": "Автоматично генерирана, ако е празно. Включена в добре дошъл имейла.",
+        "freeTextRole": "Роля",
+        "freeTextRolePlaceholder": "напр. Дизайнер, Тъкач, QA",
+        "freeTextRoleHint": "Свободен текст за роля за организационни цели.",
+        "cancel": "Откажи",
+        "addAdmin": "Добави администратор"
+      },
+      "toast": {
+        "emailRequired": "Имейлът е задължителен",
+        "adminAdded": "Администраторът е добавен успешно",
+        "adminAddedDescription": "Имейлът за добре дошли е изпратен до {{email}}. Временна парола: {{password}}",
+        "addAdminFailed": "Неуспешно добавяне на администратор",
+        "personAdded": "Човекът е добавен",
+        "personAddedDescription": "{{email}} е добавен като {{role}}. Няма да има достъп до входа в таблото.",
+        "addPersonFailed": "Неуспешно добавяне на човек"
+      }
+    },
+    "payments": {
+      "heading": "Плащания",
+      "subheading": "Методи за плащане",
+      "create": "Създай",
+      "recentHeading": "Скорошни плащания",
+      "recentDescription": "Прегледайте скорошните плащания.",
+      "emptyMethods": "Няма методи за плащане",
+      "emptyPayments": "Няма плащания",
+      "columns": {
+        "type": "Тип",
+        "accountName": "Име на сметката",
+        "details": "Подробности",
+        "bank": "Банка",
+        "walletPrefix": "Джобно приложение",
+        "added": "Добавено",
+        "paymentId": "ID на плащането",
+        "amount": "Сума",
+        "currency": "Валута"
+      },
+      "typeLabels": {
+        "bankAccount": "Банкова сметка",
+        "cashAccount": "Налична сметка",
+        "digitalWallet": "Цифрово джобно приложение"
+      },
+      "form": {
+        "heading": "Добави метод за плащане",
+        "description": "Добавете референция за метод за изплащане.",
+        "missingPartner": "Липсва контекст на партньора.",
+        "type": "Тип",
+        "typePlaceholder": "Изберете тип",
+        "accountName": "Име на сметката",
+        "accountNumber": "Номер на сметката",
+        "bankName": "Име на банката",
+        "ifsc": "IFSC",
+        "walletId": "ID на джобното приложение",
+        "cancel": "Откажи",
+        "create": "Създай"
+      },
+      "toast": {
+        "created": "Методът за плащане е създаден"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Данни за достъп до платформа за плащане",
+      "subHeading": "Вашите данни за достъп до платформа за плащане. Те заместват стандартните на платформата за вашия магазин.",
+      "empty": {
+        "heading": "Няма конфигурирани данни за достъп",
+        "description": "Използвате споделените данни за достъп на платформата. Добавете своите, за да използвате собствените си търговски акаунти."
+      },
+      "columns": {
+        "provider": "Платформа",
+        "status": "Статус",
+        "statusActive": "Активен",
+        "statusInactive": "Неактивен",
+        "credentials": "Данни за достъп",
+        "added": "Добавено"
+      },
+      "removePrompt": {
+        "description": "Да премахнем ли вашите данни за достъп до {{provider}}? Магазинът ви ще се върне към споделените данни за достъп на платформата."
+      },
+      "toast": {
+        "removed": "Данните за достъп са премахнати",
+        "removeFailed": "Неуспешно премахване",
+        "saved": "Данните за достъп до плащанията са запазени",
+        "saveFailed": "Неуспешно запазване на данните за достъп"
+      },
+      "form": {
+        "heading": "Добави данни за достъп до платформа за плащане",
+        "description": "Конфигурирайте вашите собствени данни за достъп до платформа за плащане. Това замества стандартните на платформата за вашия магазин.",
+        "provider": "Платформа",
+        "merchantKey": "Търговски ключ",
+        "merchantKeyPlaceholder": "Вашият PayU търговски ключ",
+        "merchantSalt": "Търговска сол",
+        "merchantSaltPlaceholder": "Вашата PayU търговска сол",
+        "mode": "Режим",
+        "modeTest": "Тест",
+        "modeLive": "Жив",
+        "stripeApiKey": "Stripe API ключ",
+        "stripeApiKeyPlaceholder": "sk_live_... или sk_test_...",
+        "stripeApiKeyHint": "Вашият секретен ключ от Stripe таблото за управление."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Тип на бизнеса",
+        "description": "Изберете как използвате JYT. Това контролира кои елементи от менюто се показват в страничната лента.",
+        "active": "Активен",
+        "seller": {
+          "title": "Търговец",
+          "description": "Продавайте продукти онлайн. Вижте Продукти, Поръчки, Клиенти, Категории и Колекции."
+        },
+        "manufacturer": {
+          "title": "Производител",
+          "description": "Дизайн и производство на текстил. Вижте Дизайни, Заявки за инвентар, Производствени серии, Задачи и други."
+        },
+        "individual": {
+          "title": "Физическо лице",
+          "description": "Работете върху възложени задачи. Вижте Задачи, Споделени папки и Заявки за плащане."
+        }
+      },
+      "status": {
+        "heading": "Въвеждане в системата",
+        "description": "Проследявайте завършването на въвеждането и повторно отваряйте процеса.",
+        "label": "Статус",
+        "completed": "Завършено",
+        "notCompleted": "Незавършено",
+        "open": "Отвори въвеждането"
+      }
+    }
   }
 }

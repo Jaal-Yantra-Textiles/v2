@@ -2697,7 +2697,10 @@
         "placeholder": "wrong_size",
         "tooltip": "Giá trị nên là một định danh duy nhất cho lý do trả hàng."
       },
-      "label": { "label": "Nhãn", "placeholder": "Kích thước sai" },
+      "label": {
+        "label": "Nhãn",
+        "placeholder": "Kích thước sai"
+      },
       "description": {
         "label": "Mô tả",
         "placeholder": "Khách hàng nhận nhầm kích thước"
@@ -3047,5 +3050,414 @@
     "minutes_other": "Phút",
     "seconds_one": "Giây",
     "seconds_other": "Giây"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Cửa hàng",
+      "regions": "Khu vực",
+      "locationsShipping": "Địa điểm & Vận chuyển",
+      "salesChannels": "Kênh bán hàng",
+      "taxRegions": "Khu vực thuế",
+      "returnReasons": "Lý do trả hàng",
+      "refundReasons": "Lý do hoàn tiền",
+      "onboarding": "Hướng dẫn bắt đầu",
+      "people": "Nhân sự",
+      "payments": "Thanh toán",
+      "paymentConfig": "Cấu hình thanh toán",
+      "planBilling": "Gói & Hóa đơn"
+    },
+    "paymentSubmissions": {
+      "heading": "Yêu cầu thanh toán",
+      "description": "Gửi các thiết kế hoặc nhiệm vụ đã hoàn thành để thanh toán",
+      "newSubmission": "Yêu cầu mới",
+      "breadcrumb": "Yêu cầu thanh toán",
+      "columns": {
+        "submission": "Yêu cầu",
+        "status": "Trạng thái",
+        "amount": "Số tiền",
+        "items": "Mục",
+        "submitted": "Đã gửi",
+        "reviewed": "Đã xem xét",
+        "design_one": "{{count}} thiết kế",
+        "design_other": "{{count}} thiết kế",
+        "task_one": "{{count}} nhiệm vụ",
+        "task_other": "{{count}} nhiệm vụ"
+      },
+      "empty": {
+        "title": "Chưa có yêu cầu thanh toán nào",
+        "message": "Gửi thiết kế đã hoàn thành để thanh toán bằng cách nhấn vào Yêu cầu mới."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Đơn hàng tồn kho",
+      "empty": "Chưa có đơn hàng tồn kho",
+      "filters": {
+        "status": "Trạng thái",
+        "partnerStatus": "Trạng thái đối tác"
+      },
+      "statusOptions": {
+        "pending": "Chờ xử lý",
+        "processing": "Đang xử lý",
+        "shipped": "Đã vận chuyển",
+        "delivered": "Đã giao",
+        "cancelled": "Đã hủy",
+        "partial": "Một phần"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Trạng thái đối tác",
+        "status": "Trạng thái",
+        "updated": "Cập nhật",
+        "created": "Tạo"
+      },
+      "detail": {
+        "heading": "Đơn hàng tồn kho",
+        "missingId": "Thiếu ID đơn hàng",
+        "orderId": "ID đơn hàng",
+        "status": "Trạng thái",
+        "partnerStatus": "Trạng thái đối tác",
+        "linesHeading": "Dòng hàng",
+        "linesDescription": "Số lượng yêu cầu so với số lượng đã thực hiện",
+        "noLines": "Không có dòng hàng nào",
+        "linePrefix": "Dòng",
+        "columns": {
+          "item": "Mặt hàng",
+          "requested": "Yêu cầu",
+          "fulfilled": "Đã thực hiện",
+          "remaining": "Còn lại"
+        },
+        "activities": {
+          "title": "Hoạt động",
+          "completed": "Đã hoàn thành",
+          "pending": "Chờ xử lý"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Chào mừng! Hãy thiết lập không gian làm việc của bạn",
+      "steps": {
+        "about": "Giới thiệu về bạn",
+        "logo": "Logo & Thương hiệu",
+        "people": "Đội ngũ"
+      },
+      "businessTypes": {
+        "manufacturer": "Nhà sản xuất / Nhà cung cấp",
+        "seller": "Người bán / Nhà bán lẻ",
+        "designer": "Nhà thiết kế / Người sáng tạo",
+        "wholesaler": "Nhà bán buôn / Nhà phân phối",
+        "artisan": "Nghệ nhân / Thợ thủ công",
+        "individual": "Cá nhân (Người mẫu, Freelancer, v.v.)",
+        "other": "Khác"
+      },
+      "about": {
+        "heading": "Hãy cho chúng tôi biết về doanh nghiệp của bạn",
+        "description": "Điều này giúp chúng tôi cá nhân hóa trải nghiệm và kết nối bạn với các công cụ phù hợp.",
+        "businessName": "Tên doanh nghiệp",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "Loại hình doanh nghiệp nào mô tả chính xác nhất doanh nghiệp bạn?",
+        "businessTypePlaceholder": "Chọn loại hình doanh nghiệp",
+        "descriptionLabel": "Mô tả ngắn gọn",
+        "descriptionPlaceholder": "Bạn sản xuất hoặc bán gì? Khách hàng của bạn là ai?",
+        "website": "Trang web",
+        "phone": "Số điện thoại",
+        "optional": "(tùy chọn)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Tải lên logo công ty của bạn",
+        "description": "Logo này sẽ xuất hiện trên hồ sơ đối tác và gian hàng của bạn. Bạn có thể thay đổi sau bất kỳ lúc nào.",
+        "clickToChange": "Nhấp để thay đổi",
+        "clickToUpload": "Nhấp để tải lên hoặc kéo thả",
+        "fileTypes": "SVG, PNG, JPG (TỐI ĐA 5MB)",
+        "currentLogo": "Logo hiện tại"
+      },
+      "team": {
+        "heading": "Thêm thành viên đội ngũ",
+        "description": "Mời những người sẽ hỗ trợ bạn quản lý cửa hàng và sản phẩm. Bước này là tùy chọn — bạn có thể thêm thành viên sau.",
+        "success": "Hoàn tất hướng dẫn bắt đầu thành công!",
+        "firstName": "Tên",
+        "firstNamePlaceholder": "John",
+        "lastName": "Họ",
+        "lastNamePlaceholder": "Doe",
+        "email": "Email",
+        "emailPlaceholder": "john@company.com",
+        "remove": "Xóa",
+        "addAnother": "+ Thêm người khác"
+      },
+      "footer": {
+        "skip": "Bỏ qua tạm thời",
+        "skipShort": "Bỏ qua",
+        "stepCount": "Bước {{current}} trong tổng số {{total}}",
+        "back": "Quay lại",
+        "continue": "Tiếp tục",
+        "complete": "Hoàn tất thiết lập"
+      },
+      "toast": {
+        "completed": "Đã hoàn tất hướng dẫn bắt đầu"
+      },
+      "errors": {
+        "unknown": "Đã xảy ra lỗi không xác định"
+      }
+    },
+    "plan": {
+      "heading": "Gói & Hóa đơn",
+      "description": "Chọn gói phù hợp với doanh nghiệp của bạn",
+      "labels": {
+        "plan": "Gói",
+        "price": "Giá",
+        "period": "Chu kỳ",
+        "payment": "Thanh toán"
+      },
+      "providerPayu": "PayU (Ấn Độ)",
+      "providerStripe": "Stripe (Quốc tế)",
+      "cancelSubscription": "Hủy đăng ký",
+      "noSubscription": "Chưa có đăng ký hoạt động. Chọn một gói bên dưới để bắt đầu.",
+      "chooseHeading": "Chọn Gói Của Bạn",
+      "chooseDescription": "Tất cả các gói đều bao gồm sản phẩm không giới hạn, tài khoản nhân sự và vận chuyển trực tiếp. Không giới hạn khả năng bán hàng.",
+      "badges": {
+        "current": "Hiện tại",
+        "popular": "Phổ biến"
+      },
+      "currentPlan": "Gói hiện tại",
+      "cta": {
+        "getStarted": "Bắt đầu",
+        "downgrade": "Hạ cấp",
+        "upgrade": "Nâng cấp"
+      },
+      "whatsIncluded": "Bao gồm những gì",
+      "features": {
+        "unlimitedProducts": "Sản phẩm không giới hạn",
+        "unlimitedSelling": "Bán hàng không giới hạn",
+        "unlimitedStaff": "Tài khoản nhân sự không giới hạn",
+        "storefrontSource": "Mã nguồn gian hàng",
+        "customDomain": "Tên miền tùy chỉnh",
+        "jytEmails": "Email JYT",
+        "liveShipping": "Vận chuyển trực tiếp (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "phí xử lý thanh toán",
+        "analyticsAdvanced": "Phân tích nâng cao",
+        "analyticsBasic": "Phân tích cơ bản",
+        "aiChatSupport": "Hỗ trợ trò chuyện AI",
+        "customModules": "Mô-đun tùy chỉnh",
+        "customApis": "API tùy chỉnh",
+        "prioritySupport": "Hỗ trợ ưu tiên",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "So sánh tính năng",
+        "featureColumn": "Tính năng",
+        "priceRow": "Giá",
+        "rows": {
+          "unlimitedProducts": "Sản phẩm",
+          "unlimitedSelling": "Bán hàng",
+          "unlimitedStaff": "Tài khoản nhân sự",
+          "storefrontSource": "Mã nguồn gian hàng",
+          "customDomain": "Tên miền tùy chỉnh",
+          "themeCustomization": "Trình chỉnh sửa chủ đề",
+          "jytEmails": "Email JYT",
+          "liveShipping": "Vận chuyển trực tiếp",
+          "paymentFee": "Phí thanh toán",
+          "analytics": "Phân tích",
+          "aiChatSupport": "Hỗ trợ trò chuyện AI",
+          "customModules": "Mô-đun tùy chỉnh",
+          "customApis": "API tùy chỉnh",
+          "prioritySupport": "Hỗ trợ ưu tiên",
+          "whiteLabel": "White label"
+        },
+        "values": {
+          "unlimited": "Không giới hạn",
+          "yes": "Có",
+          "no": "Không",
+          "analyticsAdvanced": "Nâng cao",
+          "analyticsBasic": "Cơ bản",
+          "free": "Miễn phí"
+        }
+      },
+      "paymentInfo": "Thanh toán được xử lý thông qua {{provider}}. Phí xử lý thanh toán chỉ áp dụng khi khách hàng thanh toán qua cổng thanh toán JYT. Bạn có thể sử dụng thông tin đăng nhập nhà cung cấp thanh toán riêng để tránh phí nền tảng.",
+      "prompts": {
+        "switchTitle": "Chuyển sang {{plan}}",
+        "switchPaidDescription": "Bạn sẽ bị tính phí {{price}}/{{interval}} thông qua {{provider}}. Gói hiện tại của bạn sẽ bị thay thế.",
+        "switchFreeDescription": "Bạn sẽ chuyển sang gói miễn phí. Gói hiện tại của bạn sẽ bị hủy.",
+        "payWith": "Thanh toán bằng {{provider}}",
+        "switch": "Chuyển đổi",
+        "cancel": "Hủy",
+        "cancelTitle": "Hủy đăng ký",
+        "cancelDescription": "Bạn có chắc chắn không? Bạn vẫn giữ quyền truy cập đến hết chu kỳ thanh toán hiện tại. Bạn có thể đăng ký lại bất kỳ lúc nào.",
+        "cancelConfirm": "Hủy đăng ký",
+        "keepPlan": "Giữ gói hiện tại"
+      },
+      "toast": {
+        "paymentSuccess": "Thanh toán thành công! Gói của bạn đã được kích hoạt.",
+        "paymentFailed": "Thanh toán thất bại. Vui lòng thử lại.",
+        "paymentCanceled": "Thanh toán đã bị hủy.",
+        "paymentError": "Lỗi thanh toán: {{message}}",
+        "paymentUnknown": "Lỗi không xác định",
+        "switchedTo": "Đã chuyển sang {{plan}}",
+        "switchFailed": "Không thể chuyển gói",
+        "canceled": "Đăng ký đã bị hủy",
+        "cancelFailed": "Không thể hủy",
+        "somethingWrong": "Đã xảy ra lỗi"
+      }
+    },
+    "people": {
+      "heading": "Thành viên đội ngũ",
+      "description": "Quản lý nhân sự trong tổ chức của bạn. Quản trị viên có thể đăng nhập vào bảng điều khiển.",
+      "addPerson": "Thêm người",
+      "empty": "Chưa có thành viên đội ngũ nào. Hãy thêm người đầu tiên ở trên.",
+      "columns": {
+        "name": "Tên",
+        "email": "Email",
+        "access": "Quyền truy cập",
+        "accessDashboard": "Bảng điều khiển",
+        "accessTeamOnly": "Chỉ đội ngũ",
+        "role": "Vai trò",
+        "added": "Đã thêm"
+      },
+      "drawer": {
+        "title": "Thêm người",
+        "description": "Thêm thành viên vào tổ chức của bạn.",
+        "emailLabel": "Email *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "Tên",
+        "firstNamePlaceholder": "John",
+        "lastName": "Họ",
+        "lastNamePlaceholder": "Doe",
+        "phone": "Số điện thoại",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Tạo với tư cách quản trị viên bảng điều khiển",
+        "adminHint": "Người này sẽ nhận thông tin đăng nhập và có thể truy cập bảng điều khiển đối tác.",
+        "teamHint": "Người này sẽ được liệt kê là thành viên đội ngũ nhưng không có quyền truy cập bảng điều khiển.",
+        "role": "Vai trò",
+        "roleAdmin": "Quản trị viên — Truy cập đầy đủ",
+        "roleManager": "Quản lý — Sản phẩm & đơn hàng",
+        "roleOwner": "Chủ sở hữu — Truy cập đầy đủ + hóa đơn",
+        "password": "Mật khẩu",
+        "passwordPlaceholder": "Để trống để tự tạo",
+        "passwordHint": "Tự tạo nếu để trống. Sẽ được gửi kèm trong email chào mừng.",
+        "freeTextRole": "Vai trò",
+        "freeTextRolePlaceholder": "ví dụ: Nhà thiết kế, Thợ dệt, Kiểm soát chất lượng",
+        "freeTextRoleHint": "Vai trò dạng văn bản tự do phục vụ mục đích tổ chức.",
+        "cancel": "Hủy",
+        "addAdmin": "Thêm quản trị viên"
+      },
+      "toast": {
+        "emailRequired": "Email là bắt buộc",
+        "adminAdded": "Đã thêm quản trị viên thành công",
+        "adminAddedDescription": "Email chào mừng đã được gửi tới {{email}}. Mật khẩu tạm thời: {{password}}",
+        "addAdminFailed": "Không thể thêm quản trị viên",
+        "personAdded": "Đã thêm người",
+        "personAddedDescription": "{{email}} đã được thêm với vai trò {{role}}. Họ sẽ không có quyền đăng nhập vào bảng điều khiển.",
+        "addPersonFailed": "Không thể thêm người"
+      }
+    },
+    "payments": {
+      "heading": "Thanh toán",
+      "subheading": "Phương thức thanh toán",
+      "create": "Tạo",
+      "recentHeading": "Thanh toán gần đây",
+      "recentDescription": "Xem các khoản thanh toán gần đây.",
+      "emptyMethods": "Chưa có phương thức thanh toán nào",
+      "emptyPayments": "Chưa có khoản thanh toán nào",
+      "columns": {
+        "type": "Loại",
+        "accountName": "Tên tài khoản",
+        "details": "Chi tiết",
+        "bank": "Ngân hàng",
+        "walletPrefix": "Ví điện tử",
+        "added": "Đã thêm",
+        "paymentId": "ID thanh toán",
+        "amount": "Số tiền",
+        "currency": "Tiền tệ"
+      },
+      "typeLabels": {
+        "bankAccount": "Tài khoản ngân hàng",
+        "cashAccount": "Tài khoản tiền mặt",
+        "digitalWallet": "Ví điện tử"
+      },
+      "form": {
+        "heading": "Thêm phương thức thanh toán",
+        "description": "Thêm tham chiếu phương thức thanh toán.",
+        "missingPartner": "Thiếu ngữ cảnh đối tác.",
+        "type": "Loại",
+        "typePlaceholder": "Chọn loại",
+        "accountName": "Tên tài khoản",
+        "accountNumber": "Số tài khoản",
+        "bankName": "Tên ngân hàng",
+        "ifsc": "IFSC",
+        "walletId": "ID ví điện tử",
+        "cancel": "Hủy",
+        "create": "Tạo"
+      },
+      "toast": {
+        "created": "Đã tạo phương thức thanh toán"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Thông tin đăng nhập thanh toán",
+      "subHeading": "Thông tin đăng nhập nhà cung cấp thanh toán của bạn. Những thông tin này sẽ ghi đè cấu hình mặc định của nền tảng cho cửa hàng của bạn.",
+      "empty": {
+        "heading": "Chưa cấu hình thông tin đăng nhập thanh toán",
+        "description": "Bạn đang sử dụng thông tin đăng nhập chung của nền tảng. Hãy thêm thông tin riêng để sử dụng tài khoản thương gia của bạn."
+      },
+      "columns": {
+        "provider": "Nhà cung cấp",
+        "status": "Trạng thái",
+        "statusActive": "Đang hoạt động",
+        "statusInactive": "Không hoạt động",
+        "credentials": "Thông tin đăng nhập",
+        "added": "Đã thêm"
+      },
+      "removePrompt": {
+        "description": "Xóa thông tin đăng nhập {{provider}} của bạn? Cửa hàng của bạn sẽ quay lại sử dụng thông tin đăng nhập chung của nền tảng."
+      },
+      "toast": {
+        "removed": "Đã xóa thông tin đăng nhập",
+        "removeFailed": "Không thể xóa",
+        "saved": "Đã lưu thông tin đăng nhập thanh toán",
+        "saveFailed": "Không thể lưu thông tin đăng nhập"
+      },
+      "form": {
+        "heading": "Thêm thông tin đăng nhập thanh toán",
+        "description": "Cấu hình thông tin đăng nhập nhà cung cấp thanh toán riêng. Điều này sẽ ghi đè cấu hình mặc định của nền tảng cho cửa hàng của bạn.",
+        "provider": "Nhà cung cấp",
+        "merchantKey": "Khóa thương gia",
+        "merchantKeyPlaceholder": "Khóa thương gia PayU của bạn",
+        "merchantSalt": "Mã bảo mật thương gia",
+        "merchantSaltPlaceholder": "Mã bảo mật thương gia PayU của bạn",
+        "mode": "Chế độ",
+        "modeTest": "Kiểm thử",
+        "modeLive": "Sản xuất",
+        "stripeApiKey": "Khóa API Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... hoặc sk_test_...",
+        "stripeApiKeyHint": "Khóa bí mật Stripe của bạn từ bảng điều khiển Stripe."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Loại hình doanh nghiệp",
+        "description": "Chọn cách bạn sử dụng JYT. Điều này kiểm soát các mục điều hướng hiển thị trong thanh bên của bạn.",
+        "active": "Đang hoạt động",
+        "seller": {
+          "title": "Người bán",
+          "description": "Bán sản phẩm trực tuyến. Xem Sản phẩm, Đơn hàng, Khách hàng, Danh mục và Bộ sưu tập."
+        },
+        "manufacturer": {
+          "title": "Nhà sản xuất",
+          "description": "Thiết kế và sản xuất vải. Xem Thiết kế, Đơn hàng tồn kho, Lô sản xuất, Nhiệm vụ và nhiều hơn nữa."
+        },
+        "individual": {
+          "title": "Cá nhân",
+          "description": "Thực hiện các nhiệm vụ được giao. Xem Nhiệm vụ, Thư mục chia sẻ và Yêu cầu thanh toán."
+        }
+      },
+      "status": {
+        "heading": "Hướng dẫn bắt đầu",
+        "description": "Theo dõi tiến độ hoàn tất hướng dẫn và mở lại quy trình hướng dẫn.",
+        "label": "Trạng thái",
+        "completed": "Đã hoàn tất",
+        "notCompleted": "Chưa hoàn tất",
+        "open": "Mở hướng dẫn bắt đầu"
+      }
+    }
   }
 }

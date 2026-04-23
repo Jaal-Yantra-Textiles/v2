@@ -2666,7 +2666,10 @@
         "placeholder": "wrong_size",
         "tooltip": "הערך צריך להיות מזהה ייחודי לסיבת ההחזרה."
       },
-      "label": { "label": "תווית", "placeholder": "מידה שגויה" },
+      "label": {
+        "label": "תווית",
+        "placeholder": "מידה שגויה"
+      },
       "description": {
         "label": "תיאור",
         "placeholder": "הלקוח קיבל את המידה הלא נכונה"
@@ -3013,5 +3016,409 @@
     "minutes_other": "דקות",
     "seconds_one": "שנייה",
     "seconds_other": "שניות"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "חנות",
+      "regions": "אזורים",
+      "locationsShipping": "מיקומים ומשלוח",
+      "salesChannels": "ערוצי מכירות",
+      "taxRegions": "אזורים מיסיים",
+      "returnReasons": "סיבות להחזרה",
+      "refundReasons": "סיבות לה DEVOLUTA",
+      "onboarding": "היכרות",
+      "people": "אנשים",
+      "payments": "תשלומים",
+      "paymentConfig": "הגדרות תשלום",
+      "planBilling": "תוכנית וחיוב"
+    },
+    "paymentSubmissions": {
+      "heading": "הגשות תשלום",
+      "description": "הגש עיצובים או משימות שהושלמו לתשלום",
+      "newSubmission": "הגשה חדשה",
+      "breadcrumb": "הגשות תשלום",
+      "columns": {
+        "submission": "הגשה",
+        "status": "סטטוס",
+        "amount": "סכום",
+        "items": "פריטים",
+        "submitted": "נשלח",
+        "reviewed": "בדוק",
+        "design_one": "{{count}} עיצוב",
+        "design_other": "{{count}} עיצובים",
+        "task_one": "{{count}} משימה",
+        "task_other": "{{count}} משימות"
+      },
+      "empty": {
+        "title": "עדיין אין הגשות תשלום",
+        "message": "הגש את העיצובים שהושלמו לתשלום על ידי לחיצה על 'הגשה חדשה'."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "הזמנות מלאי",
+      "empty": "אין הזמנות מלאי",
+      "filters": {
+        "status": "סטטוס",
+        "partnerStatus": "סטטוס שותף"
+      },
+      "statusOptions": {
+        "pending": "ממתין",
+        "processing": "בעיבוד",
+        "shipped": "נשלח",
+        "delivered": "נמסר",
+        "cancelled": "בוטל",
+        "partial": "חלקי"
+      },
+      "columns": {
+        "id": "מזהה",
+        "partnerStatus": "סטטוס שותף",
+        "status": "סטטוס",
+        "updated": "עודכן",
+        "created": "נוצר"
+      },
+      "detail": {
+        "heading": "הזמנה מלאי",
+        "missingId": "מזהה ההזמנה חסר",
+        "orderId": "מזהה ההזמנה",
+        "status": "סטטוס",
+        "partnerStatus": "סטטוס שותף",
+        "linesHeading": "שורות",
+        "linesDescription": "כמויות מבוקשות לעומת ממולאות",
+        "noLines": "אין שורות",
+        "linePrefix": "שורה",
+        "columns": {
+          "item": "פריט",
+          "requested": "מבוקש",
+          "fulfilled": "מומלأ",
+          "remaining": "נותר"
+        },
+        "activities": {
+          "title": "פעילויות",
+          "completed": "הושלם",
+          "pending": "ממתין"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "ברוכים הבאים! בואו נגדר את סביבת העבודה שלכם",
+      "steps": {
+        "about": "עליכם",
+        "logo": "לוגו ומותג",
+        "people": "צוות"
+      },
+      "businessTypes": {
+        "manufacturer": "יצרן / יצרנית",
+        "seller": "מוכר / מוכרת",
+        "designer": "מעצב / מעצבת",
+        "wholesaler": "סוחר סיטונאי / סוחרת סיטונאית",
+        "artisan": "אומן / אומנת",
+        "individual": "פרט (דוגמן/ת, פרילנסר/ית וכו')",
+        "other": "אחר"
+      },
+      "about": {
+        "heading": "ספרו לנו על העסק שלכם",
+        "description": "זה עוזר לנו להתאים את החוויה שלכם ולהתחבר אתכם עם הכלים הנכונים.",
+        "businessName": "שם העסק",
+        "businessNamePlaceholder": "אكم טקסטיל",
+        "businessTypeLabel": "מה מתאר הכי טוב את העסק שלכם?",
+        "businessTypePlaceholder": "בחרו סוג עסק",
+        "descriptionLabel": "תיאור קצר",
+        "descriptionPlaceholder": "מה אתם מייצרים או מוכרים? למי לקוחותיכם?",
+        "website": "אתר",
+        "phone": "טלפון",
+        "optional": "(אופציונלי)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "העלו את הלוגו של החברה שלכם",
+        "description": "זה יופיע בפרופיל השותף שלכם ובחנות המקוונת. תוכלו לשנות זאת תמיד בהמשך.",
+        "clickToChange": "לחצו כדי לשנות",
+        "clickToUpload": "לחצו להעלאה או גררו והשליכו",
+        "fileTypes": "SVG, PNG, JPG (מקסימום 5MB)"
+      },
+      "team": {
+        "heading": "הוסיפו את חברי הצוות שלכם",
+        "description": "הזמינו אנשים שיעזרו לכם לנהל את החנות ואת המוצרים. שלב זה הוא אופציונלי — תוכלו להוסיף חברים לצוות מאוחר יותר.",
+        "success": "ההיכרות הושלמה בהצלחה!",
+        "firstName": "שם פרטי",
+        "firstNamePlaceholder": "יוחנן",
+        "lastName": "שם משפחה",
+        "lastNamePlaceholder": "דוי",
+        "email": "אימייל",
+        "emailPlaceholder": "יוחנן@חברה.קום",
+        "remove": "הסר",
+        "addAnother": "+ הוסף אדם נוסף"
+      },
+      "footer": {
+        "skip": "דלג כרגע",
+        "stepCount": "שלב {{current}} מתוך {{total}}",
+        "back": "חזור",
+        "continue": "המשך",
+        "complete": "השלם הגדרה"
+      },
+      "errors": {
+        "unknown": "אירעה שגיאה לא ידועה"
+      }
+    },
+    "plan": {
+      "heading": "תוכנית וחיוב",
+      "description": "בחרו את התוכנית המתאימה לעסק שלכם",
+      "labels": {
+        "plan": "תוכנית",
+        "price": "מחיר",
+        "period": "תקופה",
+        "payment": "תשלום"
+      },
+      "providerPayu": "PayU (הודו)",
+      "providerStripe": "Stripe (בינלאומי)",
+      "cancelSubscription": "בטל רישום",
+      "noSubscription": "אין רישום פעיל. בחרו תוכנית להלן כדי להתחיל.",
+      "chooseHeading": "בחרו את התוכנית שלכם",
+      "chooseDescription": "כל התוכניות כוללות מוצרים בלתי מוגבלים, חשבונות צוות וחישובי משלוח חיים. אין מגבלות על מכירה.",
+      "badges": {
+        "current": "נוכחית",
+        "popular": "פופולרית"
+      },
+      "currentPlan": "התוכנית הנוכחית",
+      "cta": {
+        "getStarted": "התחל",
+        "downgrade": "הורד דרגה",
+        "upgrade": "העלה דרגה"
+      },
+      "whatsIncluded": "כולל",
+      "features": {
+        "unlimitedProducts": "מוצרים בלתי מוגבלים",
+        "unlimitedSelling": "מכירה בלתי מוגבלת",
+        "unlimitedStaff": "חשבונות צוות בלתי מוגבלים",
+        "storefrontSource": "קוד מקור של חנות מקוונת",
+        "customDomain": "דומיין מותאם אישית",
+        "jytEmails": "אימיילים של JYT",
+        "liveShipping": "משלוח חי (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "עמלת עיבוד תשלומים",
+        "analyticsAdvanced": "ניתוחים מתקדמים",
+        "analyticsBasic": "ניתוחים בסיסיים",
+        "aiChatSupport": "תמיכה בצ'אט ב-AI",
+        "customModules": "מודולים מותאמים אישית",
+        "customApis": "APIs מותאמים אישית",
+        "prioritySupport": "תמיכה עדיפית",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "השוואת תכונות",
+        "featureColumn": "תכונה",
+        "priceRow": "מחיר",
+        "rows": {
+          "unlimitedProducts": "מוצרים",
+          "unlimitedSelling": "מכירה",
+          "unlimitedStaff": "חשבונות צוות",
+          "storefrontSource": "קוד מקור של חנות מקוונת",
+          "customDomain": "דומיין מותאם אישית",
+          "themeCustomization": "עורך ערכות נושא",
+          "jytEmails": "אימיילים של JYT",
+          "liveShipping": "משלוח חי",
+          "paymentFee": "עמלת תשלום",
+          "analytics": "ניתוחים",
+          "aiChatSupport": "תמיכה בצ'אט ב-AI",
+          "customModules": "מודולים מותאמים אישית",
+          "customApis": "APIs מותאמים אישית",
+          "prioritySupport": "תמיכה עדיפית",
+          "whiteLabel": "White label"
+        },
+        "values": {
+          "unlimited": "בלתי מוגבל",
+          "yes": "כן",
+          "no": "לא",
+          "analyticsAdvanced": "מתקדם",
+          "analyticsBasic": "בסיסי",
+          "free": "חינם"
+        }
+      },
+      "paymentInfo": "התשלומים מעובדים דרך {{provider}}. עמלת עיבוד התשלומים חלה רק כאשר הלקוחות משלמים דרך שערים התשלום של JYT. ניתן להביא את אישורי ספק התשלום שלכם כדי לעקוף את עמלות הפלטפורמה.",
+      "prompts": {
+        "switchTitle": "עבורו ל-{{plan}}",
+        "switchPaidDescription": "תחויבו {{price}}/{{interval}} דרך {{provider}}. התוכנית הנוכחית שלכם תוחלף.",
+        "switchFreeDescription": "תעברו לתוכנית החינמית. התוכנית הנוכחית שלכם תבוטל.",
+        "payWith": "שלם באמצעות {{provider}}",
+        "switch": "העבר",
+        "cancel": "ביטול",
+        "cancelTitle": "בטל רישום",
+        "cancelDescription": "האם אתם בטוחים? תמשיכו לקבל גישה עד לסוף תקופת החיוב. תוכלו להירשם מחדש בכל עת.",
+        "cancelConfirm": "בטל רישום",
+        "keepPlan": "שמור תוכנית"
+      },
+      "toast": {
+        "paymentSuccess": "התשלום הצליח! התוכנית שלכם הופעלה.",
+        "paymentFailed": "התשלום נכשל. נסו שוב.",
+        "paymentCanceled": "התשלום בוטל.",
+        "paymentError": "שגיאת תשלום: {{message}}",
+        "paymentUnknown": "שגיאה לא ידועה",
+        "switchedTo": "הועבר ל-{{plan}}",
+        "switchFailed": "לא ניתן היה לעבור לתוכנית",
+        "canceled": "הרשומה בוטלה",
+        "cancelFailed": "לא ניתן היה לבטל",
+        "somethingWrong": "משהו השתבש"
+      }
+    },
+    "people": {
+      "heading": "חברי צוות",
+      "description": "נהלו אנשים בארגון שלכם. מנהלים יכולים להיכנס ללוח הבקרה.",
+      "addPerson": "הוסף אדם",
+      "empty": "עדיין אין חברי צוות. הוסיפו את האדם הראשון שלכם למעלה.",
+      "columns": {
+        "name": "שם",
+        "email": "אימייל",
+        "access": "גישה",
+        "accessDashboard": "לוח בקרה",
+        "accessTeamOnly": "צוות בלבד",
+        "role": "תפקיד",
+        "added": "הוסף"
+      },
+      "drawer": {
+        "title": "הוסף אדם",
+        "description": "הוסיפו חבר צוות לארגון שלכם.",
+        "emailLabel": "אימייל *",
+        "emailPlaceholder": "אדם@דוגמה.קום",
+        "firstName": "שם פרטי",
+        "firstNamePlaceholder": "יוחנן",
+        "lastName": "שם משפחה",
+        "lastNamePlaceholder": "דוי",
+        "phone": "טלפון",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "צור כמנהל לוח בקרה",
+        "adminHint": "לאדם הזה יישלחו פרטי כניסה והוא יוכל לגשת ללוח הבקרה של השותף.",
+        "teamHint": "לאדם הזה יופיע כחבר צוות אך לא תהיה לו גישה ללוח הבקרה.",
+        "role": "תפקיד",
+        "roleAdmin": "מנהל — גישה מלאה",
+        "roleManager": "מנהל — מוצרים והזמנות",
+        "roleOwner": "בעלים — גישה מלאה + חיוב",
+        "password": "סיסמה",
+        "passwordPlaceholder": "השאר ריק כדי ליצור אוטומטית",
+        "passwordHint": "ייווצר אוטומטית אם השאירתם ריק. יכלול באימייל של ברוך הבא.",
+        "freeTextRole": "תפקיד",
+        "freeTextRolePlaceholder": "למשל: מעצב, אריג, בקרת איכות",
+        "freeTextRoleHint": "תפקיד חופשי למטרות ארגוניות.",
+        "cancel": "ביטול",
+        "addAdmin": "הוסף מנהל"
+      },
+      "toast": {
+        "emailRequired": "נדרש אימייל",
+        "adminAdded": "המנהל נוסף בהצלחה",
+        "adminAddedDescription": "אימייל ברוך הבא נשלח ל-{{email}}. סיסמה זמנית: {{password}}",
+        "addAdminFailed": "הוספת המנהל נכשלה",
+        "personAdded": "אדם נוסף",
+        "personAddedDescription": "{{email}} נוסף כ-{{role}}. לא תהיה לו גישה לכניסת לוח הבקרה.",
+        "addPersonFailed": "הוספת האדם נכשלה"
+      }
+    },
+    "payments": {
+      "heading": "תשלומים",
+      "subheading": "אמצעי תשלום",
+      "create": "צור",
+      "recentHeading": "תשלומים אחרונים",
+      "recentDescription": "הצג תשלומים אחרונים.",
+      "emptyMethods": "אין אמצעי תשלום",
+      "emptyPayments": "אין תשלומים",
+      "columns": {
+        "type": "סוג",
+        "accountName": "שם חשבון",
+        "details": "פרטים",
+        "bank": "בנק",
+        "walletPrefix": "ארנק",
+        "added": "הוסף",
+        "paymentId": "מזהה תשלום",
+        "amount": "סכום",
+        "currency": "מטבע"
+      },
+      "typeLabels": {
+        "bankAccount": "חשבון בנק",
+        "cashAccount": "חשבון מזומן",
+        "digitalWallet": "ארנק דיגיטלי"
+      },
+      "form": {
+        "heading": "הוסף אמצעי תשלום",
+        "description": "הוסף הפניה לשיטת תשלום.",
+        "missingPartner": "חסרים הקשר של השותף.",
+        "type": "סוג",
+        "typePlaceholder": "בחר סוג",
+        "accountName": "שם חשבון",
+        "accountNumber": "מספר חשבון",
+        "bankName": "שם הבנק",
+        "ifsc": "IFSC",
+        "walletId": "מזהה ארנק",
+        "cancel": "ביטול",
+        "create": "צור"
+      },
+      "toast": {
+        "created": "אמצעי תשלום נוצר"
+      }
+    },
+    "paymentProviders": {
+      "heading": "אישורים לתשלום",
+      "subHeading": "אישורי ספק התשלום שלכם. אלו מחליפים את ברירת המחדל של הפלטפורמה לחנות שלכם.",
+      "empty": {
+        "heading": "לא הוגדרו אישורים לתשלום",
+        "description": "אתם משתמשים באישורים המשותפים של הפלטפורמה. הוסיפו את האישורים שלכם כדי להשתמש בחשבון הסוחר שלכם."
+      },
+      "columns": {
+        "provider": "ספק",
+        "status": "סטטוס",
+        "statusActive": "פעיל",
+        "statusInactive": "לא פעיל",
+        "credentials": "אישורים",
+        "added": "הוסף"
+      },
+      "removePrompt": {
+        "description": "להסיר את האישורים של {{provider}}? החנות שלכם תחזור לאישורים המשותפים של הפלטפורמה."
+      },
+      "toast": {
+        "removed": "האישורים הוסרו",
+        "removeFailed": "הסרת האישורים נכשלה",
+        "saved": "אישורי התשלום נשמרו",
+        "saveFailed": "שמירה של האישורים נכשלה"
+      },
+      "form": {
+        "heading": "הוסף אישורי תשלום",
+        "description": "הגדר את אישורי ספק התשלום שלך. זה מחליף את ברירת המחדל של הפלטפורמה לחנות שלך.",
+        "provider": "ספק",
+        "merchantKey": "מפתח סוחר",
+        "merchantKeyPlaceholder": "מפתח הסוחר שלך ב-PayU",
+        "merchantSalt": "מלח סוחר",
+        "merchantSaltPlaceholder": "מלח הסוחר שלך ב-PayU",
+        "mode": "מצב",
+        "modeTest": "בדיקה",
+        "modeLive": "חי",
+        "stripeApiKey": "מפתח API של Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... או sk_test_...",
+        "stripeApiKeyHint": "המפתח הסודי שלך ב-Stripe מהדשבורד של Stripe."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "סוג עסק",
+        "description": "בחרו כיצד אתם משתמשים ב-JYT. זה קובע אילו פריטי ניווט יופיעו בצד הימני שלכם.",
+        "active": "פעיל",
+        "seller": {
+          "title": "מוכר",
+          "description": "מוכרים מוצרים באינטרנט. ראו מוצרים, הזמנות, לקוחות, קטגוריות ואוספים."
+        },
+        "manufacturer": {
+          "title": "יצרן",
+          "description": "מעצבים ויוצרים טקסטיל. ראו עיצובים, הזמנות מלאי, ריצות ייצור, משימות ועוד."
+        },
+        "individual": {
+          "title": "פרט",
+          "description": "עובדים על משימות שהוקצו. ראו משימות, תיקיות משותפות והגשת תשלומים."
+        }
+      },
+      "status": {
+        "heading": "היכרות",
+        "description": "עקבו אחר השלמת ההיכרות ופתחו מחדש את זרימת ההיכרות.",
+        "label": "סטטוס",
+        "completed": "הושלם",
+        "notCompleted": "לא הושלם",
+        "open": "פתחו את ההיכרות"
+      }
+    }
   }
 }

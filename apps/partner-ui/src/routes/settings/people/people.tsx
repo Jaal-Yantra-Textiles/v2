@@ -14,6 +14,7 @@ import {
 } from "@medusajs/ui"
 import { Plus } from "@medusajs/icons"
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { _DataTable } from "../../../components/table/data-table"
@@ -40,6 +41,7 @@ type PersonRow = {
 }
 
 export const SettingsPeople = () => {
+  const { t } = useTranslation()
   const { user, isPending: isMePending, isError, error } = useMe()
   const partnerId = user?.partner_id
 
@@ -107,7 +109,7 @@ export const SettingsPeople = () => {
 
   const handleAdd = async () => {
     if (!email.trim()) {
-      toast.error("Email is required")
+      toast.error(t("partner.people.toast.emailRequired"))
       return
     }
 
@@ -122,12 +124,15 @@ export const SettingsPeople = () => {
           role: role as "admin" | "manager" | "owner",
           password: password || undefined,
         })
-        toast.success("Admin added successfully", {
-          description: `Welcome email sent to ${email}. Temporary password: ${result.temp_password}`,
+        toast.success(t("partner.people.toast.adminAdded"), {
+          description: t("partner.people.toast.adminAddedDescription", {
+            email,
+            password: result.temp_password,
+          }),
         })
         setDrawerOpen(false)
       } catch (e) {
-        toast.error(extractErrorMessage(e, "Failed to add admin"))
+        toast.error(extractErrorMessage(e, t("partner.people.toast.addAdminFailed")))
       }
     } else {
       // Add as a linked person via the partners/:id API
@@ -146,13 +151,16 @@ export const SettingsPeople = () => {
             ],
           },
         })
-        toast.success("Person added", {
-          description: `${email} added as ${role}. They won't have dashboard login access.`,
+        toast.success(t("partner.people.toast.personAdded"), {
+          description: t("partner.people.toast.personAddedDescription", {
+            email,
+            role,
+          }),
         })
         setDrawerOpen(false)
         queryClient.invalidateQueries({ queryKey: ["partner_people"] })
       } catch (e) {
-        toast.error(extractErrorMessage(e, "Failed to add person"))
+        toast.error(extractErrorMessage(e, t("partner.people.toast.addPersonFailed")))
       }
     }
   }
@@ -171,7 +179,7 @@ export const SettingsPeople = () => {
         },
         {
           id: "name",
-          header: () => "Name",
+          header: () => t("partner.people.columns.name"),
           cell: ({ getValue, row }) => {
             const name = String(getValue() || "-")
             const r = row.original.role || "member"
@@ -189,13 +197,13 @@ export const SettingsPeople = () => {
         }
       ),
       columnHelper.accessor("email", {
-        header: () => "Email",
+        header: () => t("partner.people.columns.email"),
         cell: ({ getValue }) => (
           <Text size="small">{getValue() || "-"}</Text>
         ),
       }),
       columnHelper.accessor("is_admin", {
-        header: () => "Access",
+        header: () => t("partner.people.columns.access"),
         cell: ({ getValue }) => {
           const isAdmin = getValue()
           return (
@@ -203,13 +211,15 @@ export const SettingsPeople = () => {
               size="2xsmall"
               color={isAdmin ? "green" : "grey"}
             >
-              {isAdmin ? "Dashboard" : "Team only"}
+              {isAdmin
+                ? t("partner.people.columns.accessDashboard")
+                : t("partner.people.columns.accessTeamOnly")}
             </Badge>
           )
         },
       }),
       columnHelper.accessor("role", {
-        header: () => "Role",
+        header: () => t("partner.people.columns.role"),
         cell: ({ getValue }) => {
           const r = getValue() || "member"
           const color =
@@ -228,7 +238,7 @@ export const SettingsPeople = () => {
         },
       }),
       columnHelper.accessor("created_at", {
-        header: () => "Added",
+        header: () => t("partner.people.columns.added"),
         cell: ({ getValue }) => {
           const v = getValue()
           if (!v) return <Text size="small">-</Text>
@@ -244,7 +254,7 @@ export const SettingsPeople = () => {
         },
       }),
     ],
-    [columnHelper]
+    [columnHelper, t]
   )
 
   const { table } = useDataTable({
@@ -260,10 +270,9 @@ export const SettingsPeople = () => {
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
           <div>
-            <Heading>Team Members</Heading>
+            <Heading>{t("partner.people.heading")}</Heading>
             <Text size="small" className="text-ui-fg-subtle">
-              Manage people in your organization. Admins can log in to the
-              dashboard.
+              {t("partner.people.description")}
             </Text>
           </div>
           <Button
@@ -273,7 +282,7 @@ export const SettingsPeople = () => {
             disabled={!partnerId}
           >
             <Plus className="mr-1" />
-            Add Person
+            {t("partner.people.addPerson")}
           </Button>
         </div>
 
@@ -286,7 +295,7 @@ export const SettingsPeople = () => {
           pageSize={20}
           queryObject={{}}
           noRecords={{
-            message: "No team members yet. Add your first person above.",
+            message: t("partner.people.empty"),
           }}
         />
       </Container>
@@ -297,55 +306,55 @@ export const SettingsPeople = () => {
       >
         <Drawer.Content className="max-w-md">
           <Drawer.Header>
-            <Drawer.Title>Add Person</Drawer.Title>
+            <Drawer.Title>{t("partner.people.drawer.title")}</Drawer.Title>
             <Drawer.Description>
-              Add a team member to your organization.
+              {t("partner.people.drawer.description")}
             </Drawer.Description>
           </Drawer.Header>
           <Drawer.Body className="overflow-y-auto">
             <div className="flex flex-col gap-y-4">
               <div>
                 <Text size="small" weight="plus" className="mb-1">
-                  Email *
+                  {t("partner.people.drawer.emailLabel")}
                 </Text>
                 <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="person@example.com"
+                  placeholder={t("partner.people.drawer.emailPlaceholder")}
                   autoFocus
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Text size="small" weight="plus" className="mb-1">
-                    First name
+                    {t("partner.people.drawer.firstName")}
                   </Text>
                   <Input
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="John"
+                    placeholder={t("partner.people.drawer.firstNamePlaceholder")}
                   />
                 </div>
                 <div>
                   <Text size="small" weight="plus" className="mb-1">
-                    Last name
+                    {t("partner.people.drawer.lastName")}
                   </Text>
                   <Input
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    placeholder="Doe"
+                    placeholder={t("partner.people.drawer.lastNamePlaceholder")}
                   />
                 </div>
               </div>
               <div>
                 <Text size="small" weight="plus" className="mb-1">
-                  Phone
+                  {t("partner.people.drawer.phone")}
                 </Text>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
+                  placeholder={t("partner.people.drawer.phonePlaceholder")}
                   type="tel"
                 />
               </div>
@@ -362,12 +371,12 @@ export const SettingsPeople = () => {
                     htmlFor="create-as-admin"
                     className="cursor-pointer font-medium"
                   >
-                    Create as dashboard admin
+                    {t("partner.people.drawer.createAsAdmin")}
                   </Label>
                   <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
                     {createAsAdmin
-                      ? "This person will receive login credentials and can access the partner dashboard."
-                      : "This person will be listed as a team member but won't have dashboard access."}
+                      ? t("partner.people.drawer.adminHint")
+                      : t("partner.people.drawer.teamHint")}
                   </Text>
                 </div>
               </div>
@@ -376,7 +385,7 @@ export const SettingsPeople = () => {
                 <>
                   <div>
                     <Text size="small" weight="plus" className="mb-1">
-                      Role
+                      {t("partner.people.drawer.role")}
                     </Text>
                     <Select
                       value={role}
@@ -387,31 +396,30 @@ export const SettingsPeople = () => {
                       </Select.Trigger>
                       <Select.Content>
                         <Select.Item value="admin">
-                          Admin — Full access
+                          {t("partner.people.drawer.roleAdmin")}
                         </Select.Item>
                         <Select.Item value="manager">
-                          Manager — Products & orders
+                          {t("partner.people.drawer.roleManager")}
                         </Select.Item>
                         <Select.Item value="owner">
-                          Owner — Full access + billing
+                          {t("partner.people.drawer.roleOwner")}
                         </Select.Item>
                       </Select.Content>
                     </Select>
                   </div>
                   <div>
                     <Text size="small" weight="plus" className="mb-1">
-                      Password
+                      {t("partner.people.drawer.password")}
                     </Text>
                     <Input
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Leave blank to auto-generate"
+                      placeholder={t("partner.people.drawer.passwordPlaceholder")}
                       autoComplete="new-password"
                     />
                     <Text size="xsmall" className="text-ui-fg-muted mt-1">
-                      Auto-generated if left blank. Included in the welcome
-                      email.
+                      {t("partner.people.drawer.passwordHint")}
                     </Text>
                   </div>
                 </>
@@ -420,15 +428,15 @@ export const SettingsPeople = () => {
               {!createAsAdmin && (
                 <div>
                   <Text size="small" weight="plus" className="mb-1">
-                    Role
+                    {t("partner.people.drawer.freeTextRole")}
                   </Text>
                   <Input
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
-                    placeholder="e.g. Designer, Weaver, QA"
+                    placeholder={t("partner.people.drawer.freeTextRolePlaceholder")}
                   />
                   <Text size="xsmall" className="text-ui-fg-muted mt-1">
-                    Free-text role for organizational purposes.
+                    {t("partner.people.drawer.freeTextRoleHint")}
                   </Text>
                 </div>
               )}
@@ -442,7 +450,7 @@ export const SettingsPeople = () => {
                   size="small"
                   disabled={isAdding}
                 >
-                  Cancel
+                  {t("partner.people.drawer.cancel")}
                 </Button>
               </Drawer.Close>
               <Button
@@ -450,7 +458,9 @@ export const SettingsPeople = () => {
                 isLoading={isAdding}
                 onClick={handleAdd}
               >
-                {createAsAdmin ? "Add Admin" : "Add Person"}
+                {createAsAdmin
+                  ? t("partner.people.drawer.addAdmin")
+                  : t("partner.people.addPerson")}
               </Button>
             </div>
           </Drawer.Footer>

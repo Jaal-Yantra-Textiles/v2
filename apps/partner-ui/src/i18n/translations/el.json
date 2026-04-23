@@ -83,7 +83,6 @@
       "labels": {
         "key": "Κλειδί",
         "value": "Τιμή"
-        
       },
       "complexRow": {
         "label": "Ορισμένες γραμμές είναι απενεργοποιημένες",
@@ -2956,5 +2955,409 @@
     "minutes_other": "Λεπτά",
     "seconds_one": "Δευτερόλεπτο",
     "seconds_other": "Δευτερόλεπτα"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Κατάστημα",
+      "regions": "Περιοχές",
+      "locationsShipping": "Τοποθεσίες & Αποστολές",
+      "salesChannels": "Κανάλια Πωλήσεων",
+      "taxRegions": "Φορολογικές Περιοχές",
+      "returnReasons": "Λόγοι Επιστροφής",
+      "refundReasons": "Λόγοι Επιστροφής Χρημάτων",
+      "onboarding": "Εισαγωγή",
+      "people": "Πρόσωπα",
+      "payments": "Πληρωμές",
+      "paymentConfig": "Διαμόρφωση Πληρωμών",
+      "planBilling": "Σχέδιο & Χρέωση"
+    },
+    "paymentSubmissions": {
+      "heading": "Υποβολές Πληρωμών",
+      "description": "Υποβάλετε ολοκληρωμένα σχέδια ή εργασίες για πληρωμή",
+      "newSubmission": "Νέα Υποβολή",
+      "breadcrumb": "Υποβολές Πληρωμών",
+      "columns": {
+        "submission": "Υποβολή",
+        "status": "Κατάσταση",
+        "amount": "Ποσό",
+        "items": "Αντικείμενα",
+        "submitted": "Υποβλήθηκε",
+        "reviewed": "Ελέγχθηκε",
+        "design_one": "{{count}} σχέδιο",
+        "design_other": "{{count}} σχέδια",
+        "task_one": "{{count}} εργασία",
+        "task_other": "{{count}} εργασίες"
+      },
+      "empty": {
+        "title": "Δεν υπάρχουν ακόμη υποβολές πληρωμών",
+        "message": "Υποβάλετε τα ολοκληρωμένα σας σχέδια για πληρωμή κάνοντας κλικ στο «Νέα Υποβολή»."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Παραγγελίες Αποθέματος",
+      "empty": "Δεν υπάρχουν παραγγελίες αποθέματος",
+      "filters": {
+        "status": "Κατάσταση",
+        "partnerStatus": "Κατάσταση Συνεργάτη"
+      },
+      "statusOptions": {
+        "pending": "Εκκρεμεί",
+        "processing": "Σε εξέλιξη",
+        "shipped": "Απεστάλη",
+        "delivered": "Παραδόθηκε",
+        "cancelled": "Ακυρώθηκε",
+        "partial": "Μερική"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Κατάσταση Συνεργάτη",
+        "status": "Κατάσταση",
+        "updated": "Ενημερώθηκε",
+        "created": "Δημιουργήθηκε"
+      },
+      "detail": {
+        "heading": "Παραγγελία Αποθέματος",
+        "missingId": "Λείπει το ID της παραγγελίας",
+        "orderId": "ID Παραγγελίας",
+        "status": "Κατάσταση",
+        "partnerStatus": "Κατάσταση συνεργάτη",
+        "linesHeading": "Γραμμές",
+        "linesDescription": "Ζητούμενες έναντι εκπληρωθεισών ποσότητων",
+        "noLines": "Δεν υπάρχουν γραμμές",
+        "linePrefix": "Γραμμή",
+        "columns": {
+          "item": "Αντικείμενο",
+          "requested": "Ζητούμενο",
+          "fulfilled": "Εκπληρωμένο",
+          "remaining": "Υπόλοιπο"
+        },
+        "activities": {
+          "title": "Δραστηριότητες",
+          "completed": "Ολοκληρωμένες",
+          "pending": "Εκκρεμείς"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Καλώς ήρθατε! Ας ρυθμίσουμε τον χώρο εργασίας σας",
+      "steps": {
+        "about": "Σχετικά με Εσάς",
+        "logo": "Λογότυπο & Μάρκα",
+        "people": "Ομάδα"
+      },
+      "businessTypes": {
+        "manufacturer": "Κατασκευαστής / Παραγωγός",
+        "seller": "Πωλητής / Λιανοπωλητής",
+        "designer": "Σχεδιαστής / Δημιουργός",
+        "wholesaler": "Χονδρέμπορος / Διανομέας",
+        "artisan": "Τεχνίτης / Βιοτέχνης",
+        "individual": "Ατομικό Πρόσωπο (Μοντέλο, Φριλάνσερ, κ.λπ.)",
+        "other": "Άλλο"
+      },
+      "about": {
+        "heading": "Πείτε μας κάτι για την επιχείρησή σας",
+        "description": "Αυτό μας βοηθά να προσαρμόσουμε την εμπειρία σας και να σας συνδέσουμε με τα κατάλληλα εργαλεία.",
+        "businessName": "Όνομα επιχείρησης",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "Τι περιγράφει καλύτερα την επιχείρησή σας;",
+        "businessTypePlaceholder": "Επιλέξτε τύπο επιχείρησης",
+        "descriptionLabel": "Σύντομη περιγραφή",
+        "descriptionPlaceholder": "Τι κατασκευάζετε ή πουλάτε; Ποιοι είναι οι πελάτες σας;",
+        "website": "Ιστοσελίδα",
+        "phone": "Τηλέφωνο",
+        "optional": "(προαιρετικό)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Ανεβάστε το λογότυπο της εταιρείας σας",
+        "description": "Θα εμφανιστεί στο προφίλ του συνεργάτη και στο κατάστημα. Μπορείτε να το αλλάξετε ανά πάσα στιγμή.",
+        "clickToChange": "Κάντε κλικ για αλλαγή",
+        "clickToUpload": "Κάντε κλικ για ανέβασμα ή σύρετε και αφήστε",
+        "fileTypes": "SVG, PNG, JPG (ΜΕΓ. 5MB)"
+      },
+      "team": {
+        "heading": "Προσθέστε τα μέλη της ομάδας σας",
+        "description": "Προσκαλέστε ανθρώπους που θα βοηθήσουν στη διαχείριση του καταστήματος και των προϊόντων σας. Αυτό το βήμα είναι προαιρετικό — μπορείτε να προσθέσετε μέλη αργότερα.",
+        "success": "Η εισαγωγή ολοκληρώθηκε με επιτυχία!",
+        "firstName": "Όνομα",
+        "firstNamePlaceholder": "Γιάννης",
+        "lastName": "Επίθετο",
+        "lastNamePlaceholder": "Δούκας",
+        "email": "Email",
+        "emailPlaceholder": "john@company.com",
+        "remove": "Αφαίρεση",
+        "addAnother": "+ Προσθήκη άλλου προσώπου"
+      },
+      "footer": {
+        "skip": "Παράλειψη για τώρα",
+        "stepCount": "Βήμα {{current}} από {{total}}",
+        "back": "Πίσω",
+        "continue": "Συνέχεια",
+        "complete": "Ολοκλήρωση Ρύθμισης"
+      },
+      "errors": {
+        "unknown": "Προέκυψε άγνωστο σφάλμα"
+      }
+    },
+    "plan": {
+      "heading": "Σχέδιο & Χρέωση",
+      "description": "Επιλέξτε το σχέδιο που ταιριάζει στην επιχείρησή σας",
+      "labels": {
+        "plan": "Σχέδιο",
+        "price": "Τιμή",
+        "period": "Περίοδος",
+        "payment": "Πληρωμή"
+      },
+      "providerPayu": "PayU (Ινδία)",
+      "providerStripe": "Stripe (Διεθνές)",
+      "cancelSubscription": "Ακύρωση Συνδρομής",
+      "noSubscription": "Δεν υπάρχει ενεργή συνδρομή. Επιλέξτε ένα σχέδιο παρακάτω για να ξεκινήσετε.",
+      "chooseHeading": "Επιλέξτε το Σχέδιό σας",
+      "chooseDescription": "Όλα τα σχέδια περιλαμβάνουν απεριόριστα προϊόντα, λογαριασμούς προσωπικού και ζωντανές αποστολές. Δεν υπάρχουν όρια στις πωλήσεις.",
+      "badges": {
+        "current": "Τρέχον",
+        "popular": "Δημοφιλές"
+      },
+      "currentPlan": "Τρέχον Σχέδιο",
+      "cta": {
+        "getStarted": "Ξεκινήστε",
+        "downgrade": "Υποβάθμιση",
+        "upgrade": "Αναβάθμιση"
+      },
+      "whatsIncluded": "Τι περιλαμβάνεται",
+      "features": {
+        "unlimitedProducts": "Απεριόριστα προϊόντα",
+        "unlimitedSelling": "Απεριόριστες πωλήσεις",
+        "unlimitedStaff": "Απεριόριστοι λογαριασμοί προσωπικού",
+        "storefrontSource": "Πηγαίος κώδικας καταστήματος",
+        "customDomain": "Προσαρμοσμένο domain",
+        "jytEmails": "Emails JYT",
+        "liveShipping": "Ζωντανές αποστολές (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "χρέωση επεξεργασίας πληρωμών",
+        "analyticsAdvanced": "Προχωρημένη ανάλυση δεδομένων",
+        "analyticsBasic": "Βασική ανάλυση δεδομένων",
+        "aiChatSupport": "Υποστήριξη μέσω AI chat",
+        "customModules": "Προσαρμοσμένα modules",
+        "customApis": "Προσαρμοσμένα APIs",
+        "prioritySupport": "Προτεραιότητα υποστήριξης",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "Σύγκριση Χαρακτηριστικών",
+        "featureColumn": "Χαρακτηριστικό",
+        "priceRow": "Τιμή",
+        "rows": {
+          "unlimitedProducts": "Προϊόντα",
+          "unlimitedSelling": "Πωλήσεις",
+          "unlimitedStaff": "Λογαριασμοί Προσωπικού",
+          "storefrontSource": "Πηγαίος Κώδικας Καταστήματος",
+          "customDomain": "Προσαρμοσμένο Domain",
+          "themeCustomization": "Επεξεργαστής Θέματος",
+          "jytEmails": "Emails JYT",
+          "liveShipping": "Ζωντανές Αποστολές",
+          "paymentFee": "Χρέωση Πληρωμής",
+          "analytics": "Ανάλυση Δεδομένων",
+          "aiChatSupport": "Υποστήριξη μέσω AI Chat",
+          "customModules": "Προσαρμοσμένα Modules",
+          "customApis": "Προσαρμοσμένα APIs",
+          "prioritySupport": "Προτεραιότητα Υποστήριξης",
+          "whiteLabel": "White Label"
+        },
+        "values": {
+          "unlimited": "Απεριόριστο",
+          "yes": "Ναι",
+          "no": "Όχι",
+          "analyticsAdvanced": "Προχωρημένη",
+          "analyticsBasic": "Βασική",
+          "free": "Δωρεάν"
+        }
+      },
+      "paymentInfo": "Οι πληρωμές επεξεργάζονται μέσω {{provider}}. Η χρέωση επεξεργασίας πληρωμών εφαρμόζεται μόνο όταν οι πελάτες πληρώνουν μέσω των πυλών πληρωμής JYT. Μπορείτε να προσφέρετε τα δικά σας πιστοποιητικά πάροχου πληρωμών για να αποφύγετε τα τέλη πλατφόρμας.",
+      "prompts": {
+        "switchTitle": "Μετάβαση στο {{plan}}",
+        "switchPaidDescription": "Θα χρεωθείτε {{price}}/{{interval}} μέσω {{provider}}. Το τρέχον σχέδιό σας θα αντικατασταθεί.",
+        "switchFreeDescription": "Θα μεταβείτε στο δωρεάν σχέδιο. Το τρέχον σχέδιό σας θα ακυρωθεί.",
+        "payWith": "Πληρωμή μέσω {{provider}}",
+        "switch": "Μετάβαση",
+        "cancel": "Ακύρωση",
+        "cancelTitle": "Ακύρωση Συνδρομής",
+        "cancelDescription": "Είστε σίγουρος/η; Θα διατηρήσετε την πρόσβαση μέχρι το τέλος της περιόδου χρέωσής σας. Μπορείτε να επανασυνδρομήσετε οποιαδήποτε στιγμή.",
+        "cancelConfirm": "Ακύρωση Συνδρομής",
+        "keepPlan": "Διατήρηση Σχεδίου"
+      },
+      "toast": {
+        "paymentSuccess": "Η πληρωμή ήταν επιτυχής! Το σχέδιό σας έχει ενεργοποιηθεί.",
+        "paymentFailed": "Η πληρωμή απέτυχε. Προσπαθήστε ξανά.",
+        "paymentCanceled": "Η πληρωμή ακυρώθηκε.",
+        "paymentError": "Σφάλμα πληρωμής: {{message}}",
+        "paymentUnknown": "Άγνωστο σφάλμα",
+        "switchedTo": "Μεταβιβάστηκε στο {{plan}}",
+        "switchFailed": "Αδυναμία μετάβασης σε άλλο σχέδιο",
+        "canceled": "Η συνδρομή ακυρώθηκε",
+        "cancelFailed": "Αδυναμία ακύρωσης",
+        "somethingWrong": "Προέκυψε κάποιο πρόβλημα"
+      }
+    },
+    "people": {
+      "heading": "Μέλη Ομάδας",
+      "description": "Διαχειριστείτε τα πρόσωπα στην οργάνωσή σας. Οι διαχειριστές μπορούν να συνδέονται στον πίνακα ελέγχου.",
+      "addPerson": "Προσθήκη Προσώπου",
+      "empty": "Δεν υπάρχουν ακόμη μέλη ομάδας. Προσθέστε το πρώτο πρόσωπο παραπάνω.",
+      "columns": {
+        "name": "Όνομα",
+        "email": "Email",
+        "access": "Πρόσβαση",
+        "accessDashboard": "Πίνακας ελέγχου",
+        "accessTeamOnly": "Μόνο ομάδα",
+        "role": "Ρόλος",
+        "added": "Προστέθηκε"
+      },
+      "drawer": {
+        "title": "Προσθήκη Προσώπου",
+        "description": "Προσθέστε ένα μέλος της ομάδας στην οργάνωσή σας.",
+        "emailLabel": "Email *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "Όνομα",
+        "firstNamePlaceholder": "Γιάννης",
+        "lastName": "Επίθετο",
+        "lastNamePlaceholder": "Δούκας",
+        "phone": "Τηλέφωνο",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Δημιουργία ως διαχειριστής πίνακα ελέγχου",
+        "adminHint": "Αυτό το πρόσωπο θα λάβει πιστοποιητικά σύνδεσης και θα μπορεί να προσβαίνει στον πίνακα ελέγχου του συνεργάτη.",
+        "teamHint": "Αυτό το πρόσωπο θα καταγραφεί ως μέλος της ομάδας, αλλά δεν θα έχει πρόσβαση στον πίνακα ελέγχου.",
+        "role": "Ρόλος",
+        "roleAdmin": "Διαχειριστής — Πλήρης πρόσβαση",
+        "roleManager": "Διαχειριστής — Προϊόντα & παραγγελίες",
+        "roleOwner": "Ιδιοκτήτης — Πλήρης πρόσβαση + χρέωση",
+        "password": "Κωδικός πρόσβασης",
+        "passwordPlaceholder": "Αφήστε κενό για αυτόματη δημιουργία",
+        "passwordHint": "Θα δημιουργηθεί αυτόματα αν αφεθεί κενό. Περιλαμβάνεται στο email καλωσορίσματος.",
+        "freeTextRole": "Ρόλος",
+        "freeTextRolePlaceholder": "π.χ. Σχεδιαστής, Υφαντής, QA",
+        "freeTextRoleHint": "Ελεύθερο κείμενο για οργανωτικούς σκοπούς.",
+        "cancel": "Ακύρωση",
+        "addAdmin": "Προσθήκη Διαχειριστή"
+      },
+      "toast": {
+        "emailRequired": "Το email είναι υποχρεωτικό",
+        "adminAdded": "Ο διαχειριστής προστέθηκε με επιτυχία",
+        "adminAddedDescription": "Το email καλωσορίσματος απεστάλη στο {{email}}. Προσωρινός κωδικός: {{password}}",
+        "addAdminFailed": "Αποτυχία προσθήκης διαχειριστή",
+        "personAdded": "Το πρόσωπο προστέθηκε",
+        "personAddedDescription": "{{email}} προστέθηκε ως {{role}}. Δεν θα έχει πρόσβαση στον πίνακα ελέγχου.",
+        "addPersonFailed": "Αποτυχία προσθήκης προσώπου"
+      }
+    },
+    "payments": {
+      "heading": "Πληρωμές",
+      "subheading": "Μέθοδοι πληρωμής",
+      "create": "Δημιουργία",
+      "recentHeading": "Πρόσφατες πληρωμές",
+      "recentDescription": "Προβολή πρόσφατων πληρωμών.",
+      "emptyMethods": "Δεν υπάρχουν μέθοδοι πληρωμής",
+      "emptyPayments": "Δεν υπάρχουν πληρωμές",
+      "columns": {
+        "type": "Τύπος",
+        "accountName": "Όνομα λογαριασμού",
+        "details": "Λεπτομέρειες",
+        "bank": "Τράπεζα",
+        "walletPrefix": "Πορτοφόλι",
+        "added": "Προστέθηκε",
+        "paymentId": "ID Πληρωμής",
+        "amount": "Ποσό",
+        "currency": "Νόμισμα"
+      },
+      "typeLabels": {
+        "bankAccount": "Τραπεζικός Λογαριασμός",
+        "cashAccount": "Μετρητά",
+        "digitalWallet": "Ψηφιακό Πορτοφόλι"
+      },
+      "form": {
+        "heading": "Προσθήκη Μεθόδου Πληρωμής",
+        "description": "Προσθέστε μια αναφορά μεθόδου απόδοσης.",
+        "missingPartner": "Λείπει το πλαίσιο συνεργάτη.",
+        "type": "Τύπος",
+        "typePlaceholder": "Επιλέξτε τύπο",
+        "accountName": "Όνομα λογαριασμού",
+        "accountNumber": "Αριθμός λογαριασμού",
+        "bankName": "Όνομα τράπεζας",
+        "ifsc": "IFSC",
+        "walletId": "ID Πορτοφολιού",
+        "cancel": "Ακύρωση",
+        "create": "Δημιουργία"
+      },
+      "toast": {
+        "created": "Η μέθοδος πληρωμής δημιουργήθηκε"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Πιστοποιητικά Πληρωμών",
+      "subHeading": "Τα πιστοποιητικά του πάροχου πληρωμών σας. Αυτά αντικαθιστούν τις προεπιλεγμένες ρυθμίσεις της πλατφόρμας για το κατάστημά σας.",
+      "empty": {
+        "heading": "Δεν έχουν διαμορφωθεί πιστοποιητικά πληρωμών",
+        "description": "Χρησιμοποιείτε τα κοινά πιστοποιητικά της πλατφόρμας. Προσθέστε τα δικά σας για να χρησιμοποιήσετε τους δικούς σας λογαριασμούς εμπόρου."
+      },
+      "columns": {
+        "provider": "Πάροχος",
+        "status": "Κατάσταση",
+        "statusActive": "Ενεργό",
+        "statusInactive": "Ανενεργό",
+        "credentials": "Πιστοποιητικά",
+        "added": "Προστέθηκε"
+      },
+      "removePrompt": {
+        "description": "Να αφαιρεθούν τα πιστοποιητικά {{provider}}; Το κατάστημά σας θα επανέλθει στα κοινά πιστοποιητικά της πλατφόρμας."
+      },
+      "toast": {
+        "removed": "Τα πιστοποιητικά αφαιρέθηκαν",
+        "removeFailed": "Αποτυχία αφαίρεσης",
+        "saved": "Τα πιστοποιητικά πληρωμών αποθηκεύτηκαν",
+        "saveFailed": "Αποτυχία αποθήκευσης πιστοποιητικών"
+      },
+      "form": {
+        "heading": "Προσθήκη Πιστοποιητικών Πληρωμών",
+        "description": "Ρυθμίστε τα δικά σας πιστοποιητικά πάροχου πληρωμών. Αυτό αντικαθιστά τις προεπιλεγμένες ρυθμίσεις της πλατφόρμας για το κατάστημά σας.",
+        "provider": "Πάροχος",
+        "merchantKey": "Κλειδί Εμπόρου",
+        "merchantKeyPlaceholder": "Το κλειδί εμπόρου PayU",
+        "merchantSalt": "Salt Εμπόρου",
+        "merchantSaltPlaceholder": "Το salt εμπόρου PayU",
+        "mode": "Λειτουργία",
+        "modeTest": "Δοκιμή",
+        "modeLive": "Ζωντανή",
+        "stripeApiKey": "Κλειδί API Stripe",
+        "stripeApiKeyPlaceholder": "sk_live_... ή sk_test_...",
+        "stripeApiKeyHint": "Το μυστικό κλειδί Stripe από τον πίνακα ελέγχου Stripe."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "Τύπος Επιχείρησης",
+        "description": "Επιλέξτε πώς χρησιμοποιείτε το JYT. Αυτό καθορίζει ποια στοιχεία πλοήγησης εμφανίζονται στην πλευρική μπάρα σας.",
+        "active": "Ενεργό",
+        "seller": {
+          "title": "Πωλητής",
+          "description": "Πωλείτε προϊόντα online. Βλέπετε Προϊόντα, Παραγγελίες, Πελάτες, Κατηγορίες και Συλλογές."
+        },
+        "manufacturer": {
+          "title": "Κατασκευαστής",
+          "description": "Σχεδιάζετε και κατασκευάζετε υφάσματα. Βλέπετε Σχέδια, Παραγγελίες Αποθέματος, Παραγωγικές Σειρές, Εργασίες και περισσότερα."
+        },
+        "individual": {
+          "title": "Ατομικό Πρόσωπο",
+          "description": "Εργάζεστε σε ανατεθείσες εργασίες. Βλέπετε Εργασίες, Κοινά Φάκελα και Υποβολές Πληρωμών."
+        }
+      },
+      "status": {
+        "heading": "Εισαγωγή",
+        "description": "Παρακολουθήστε την ολοκλήρωση της εισαγωγής και επαναλάβετε τη διαδικασία εισαγωγής.",
+        "label": "Κατάσταση",
+        "completed": "Ολοκληρώθηκε",
+        "notCompleted": "Δεν ολοκληρώθηκε",
+        "open": "Άνοιγμα εισαγωγής"
+      }
+    }
   }
 }

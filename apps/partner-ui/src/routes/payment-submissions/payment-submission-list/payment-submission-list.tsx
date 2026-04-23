@@ -8,6 +8,7 @@ import {
 } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
@@ -42,6 +43,7 @@ const statusColor = (
 }
 
 export const PaymentSubmissionList = () => {
+  const { t } = useTranslation()
   const raw = useQueryParams(["offset"])
   const offset = raw.offset ? Number(raw.offset) : 0
 
@@ -59,7 +61,7 @@ export const PaymentSubmissionList = () => {
   const columns = useMemo(
     () => [
       columnHelper.accessor("id", {
-        header: "Submission",
+        header: t("partner.paymentSubmissions.columns.submission"),
         cell: (ctx) => {
           const row = ctx.row.original
           return (
@@ -77,7 +79,7 @@ export const PaymentSubmissionList = () => {
         },
       }),
       columnHelper.accessor("status", {
-        header: "Status",
+        header: t("partner.paymentSubmissions.columns.status"),
         cell: (ctx) => (
           <Badge color={statusColor(ctx.getValue())}>
             {ctx.getValue().replace("_", " ")}
@@ -85,14 +87,14 @@ export const PaymentSubmissionList = () => {
         ),
       }),
       columnHelper.accessor("total_amount", {
-        header: "Amount",
+        header: t("partner.paymentSubmissions.columns.amount"),
         cell: (ctx) => {
           const row = ctx.row.original
           return `${(row.currency || "inr").toUpperCase()} ${Number(ctx.getValue()).toLocaleString()}`
         },
       }),
       columnHelper.accessor("items", {
-        header: "Items",
+        header: t("partner.paymentSubmissions.columns.items"),
         cell: (ctx) => {
           const items = ctx.getValue() || []
           const designCount = items.filter(
@@ -102,27 +104,29 @@ export const PaymentSubmissionList = () => {
             (i) => i.source_type === "task" || (!i.source_type && i.task_id)
           ).length
           const parts: string[] = []
-          if (designCount) parts.push(`${designCount} design${designCount !== 1 ? "s" : ""}`)
-          if (taskCount) parts.push(`${taskCount} task${taskCount !== 1 ? "s" : ""}`)
+          if (designCount)
+            parts.push(t("partner.paymentSubmissions.columns.design", { count: designCount }))
+          if (taskCount)
+            parts.push(t("partner.paymentSubmissions.columns.task", { count: taskCount }))
           return parts.length ? parts.join(" · ") : items.length
         },
       }),
       columnHelper.accessor("submitted_at", {
-        header: "Submitted",
+        header: t("partner.paymentSubmissions.columns.submitted"),
         cell: (ctx) => {
           const v = ctx.getValue()
           return v ? new Date(v).toLocaleDateString() : "—"
         },
       }),
       columnHelper.accessor("reviewed_at", {
-        header: "Reviewed",
+        header: t("partner.paymentSubmissions.columns.reviewed"),
         cell: (ctx) => {
           const v = ctx.getValue()
           return v ? new Date(v).toLocaleDateString() : "—"
         },
       }),
     ],
-    []
+    [t]
   )
 
   const { table } = useDataTable({
@@ -145,13 +149,13 @@ export const PaymentSubmissionList = () => {
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
           <div>
-            <Heading>Payment Submissions</Heading>
+            <Heading>{t("partner.paymentSubmissions.heading")}</Heading>
             <Text className="text-ui-fg-subtle" size="small">
-              Submit completed designs or tasks for payment
+              {t("partner.paymentSubmissions.description")}
             </Text>
           </div>
           <Button size="small" asChild>
-            <Link to="create">New Submission</Link>
+            <Link to="create">{t("partner.paymentSubmissions.newSubmission")}</Link>
           </Button>
         </div>
         <_DataTable
@@ -163,9 +167,8 @@ export const PaymentSubmissionList = () => {
           isLoading={isPending}
           navigateTo={(row) => `/payment-submissions/${row.original.id}`}
           noRecords={{
-            title: "No payment submissions yet",
-            message:
-              "Submit your completed designs for payment by clicking New Submission.",
+            title: t("partner.paymentSubmissions.empty.title"),
+            message: t("partner.paymentSubmissions.empty.message"),
           }}
         />
       </Container>

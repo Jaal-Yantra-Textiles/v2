@@ -3022,5 +3022,409 @@
     "minutes_other": "분",
     "seconds_one": "초",
     "seconds_other": "초"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "스토어",
+      "regions": "지역",
+      "locationsShipping": "위치 및 배송",
+      "salesChannels": "판매 채널",
+      "taxRegions": "세금 지역",
+      "returnReasons": "반품 사유",
+      "refundReasons": "환불 사유",
+      "onboarding": "온보딩",
+      "people": "팀원",
+      "payments": "결제",
+      "paymentConfig": "결제 설정",
+      "planBilling": "요금제 및 청구"
+    },
+    "paymentSubmissions": {
+      "heading": "결제 제출",
+      "description": "완료된 디자인 또는 작업을 결제를 위해 제출하세요",
+      "newSubmission": "새 제출",
+      "breadcrumb": "결제 제출",
+      "columns": {
+        "submission": "제출",
+        "status": "상태",
+        "amount": "금액",
+        "items": "항목",
+        "submitted": "제출됨",
+        "reviewed": "검토됨",
+        "design_one": "{{count}}개의 디자인",
+        "design_other": "{{count}}개의 디자인",
+        "task_one": "{{count}}개의 작업",
+        "task_other": "{{count}}개의 작업"
+      },
+      "empty": {
+        "title": "아직 결제 제출이 없습니다",
+        "message": "새 제출을 클릭하여 완료된 디자인을 결제를 위해 제출하세요."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "재고 주문",
+      "empty": "재고 주문이 없습니다",
+      "filters": {
+        "status": "상태",
+        "partnerStatus": "파트너 상태"
+      },
+      "statusOptions": {
+        "pending": "대기 중",
+        "processing": "처리 중",
+        "shipped": "배송 완료",
+        "delivered": "배송 완료",
+        "cancelled": "취소됨",
+        "partial": "부분 처리"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "파트너 상태",
+        "status": "상태",
+        "updated": "업데이트됨",
+        "created": "생성됨"
+      },
+      "detail": {
+        "heading": "재고 주문",
+        "missingId": "주문 ID가 누락됨",
+        "orderId": "주문 ID",
+        "status": "상태",
+        "partnerStatus": "파트너 상태",
+        "linesHeading": "라인",
+        "linesDescription": "요청 수량 대비 이행 수량",
+        "noLines": "라인이 없습니다",
+        "linePrefix": "라인",
+        "columns": {
+          "item": "항목",
+          "requested": "요청됨",
+          "fulfilled": "이행됨",
+          "remaining": "잔여"
+        },
+        "activities": {
+          "title": "활동 내역",
+          "completed": "완료됨",
+          "pending": "대기 중"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "환영합니다! 워크스페이스를 설정해 보세요",
+      "steps": {
+        "about": "귀하에 대해",
+        "logo": "로고 및 브랜드",
+        "people": "팀"
+      },
+      "businessTypes": {
+        "manufacturer": "제조사 / 생산자",
+        "seller": "판매자 / 소매업자",
+        "designer": "디자이너 / 창작자",
+        "wholesaler": "도매업자 / 유통업체",
+        "artisan": "장인 / 공예가",
+        "individual": "개인(모델, 프리랜서 등)",
+        "other": "기타"
+      },
+      "about": {
+        "heading": "귀하의 사업에 대해 알려주세요",
+        "description": "이 정보는 귀하의 경험을 맞춤화하고 적절한 도구와 연결해 드리는 데 도움이 됩니다.",
+        "businessName": "사업명",
+        "businessNamePlaceholder": "Acme Textiles",
+        "businessTypeLabel": "귀하의 사업 유형은 무엇인가요?",
+        "businessTypePlaceholder": "사업 유형 선택",
+        "descriptionLabel": "간단한 설명",
+        "descriptionPlaceholder": "무엇을 제작하거나 판매하시나요? 고객은 누구인가요?",
+        "website": "웹사이트",
+        "phone": "전화번호",
+        "optional": "(선택 사항)",
+        "websitePlaceholder": "https://acmetextiles.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "회사 로고 업로드",
+        "description": "이 로고는 파트너 프로필 및 스토어프론트에 표시됩니다. 나중에 언제든지 변경할 수 있습니다.",
+        "clickToChange": "클릭하여 변경",
+        "clickToUpload": "클릭하여 업로드하거나 드래그 앤 드롭",
+        "fileTypes": "SVG, PNG, JPG (최대 5MB)"
+      },
+      "team": {
+        "heading": "팀원 추가",
+        "description": "스토어 및 제품 관리를 도와줄 팀원을 초대하세요. 이 단계는 선택 사항이며, 나중에 팀원을 추가할 수 있습니다.",
+        "success": "온보딩이 성공적으로 완료되었습니다!",
+        "firstName": "이름",
+        "firstNamePlaceholder": "John",
+        "lastName": "성",
+        "lastNamePlaceholder": "Doe",
+        "email": "이메일",
+        "emailPlaceholder": "john@company.com",
+        "remove": "제거",
+        "addAnother": "+ 다른 사람 추가"
+      },
+      "footer": {
+        "skip": "지금은 건너뛰기",
+        "stepCount": "단계 {{current}} / {{total}}",
+        "back": "뒤로",
+        "continue": "계속하기",
+        "complete": "설정 완료"
+      },
+      "errors": {
+        "unknown": "알 수 없는 오류가 발생했습니다"
+      }
+    },
+    "plan": {
+      "heading": "요금제 및 청구",
+      "description": "귀하의 비즈니스에 맞는 요금제를 선택하세요",
+      "labels": {
+        "plan": "요금제",
+        "price": "가격",
+        "period": "기간",
+        "payment": "결제"
+      },
+      "providerPayu": "PayU(인도)",
+      "providerStripe": "Stripe(국제)",
+      "cancelSubscription": "구독 취소",
+      "noSubscription": "활성 구독이 없습니다. 시작하려면 아래에서 요금제를 선택하세요.",
+      "chooseHeading": "요금제 선택",
+      "chooseDescription": "모든 요금제에는 무제한 제품, 직원 계정, 실시간 배송 기능이 포함됩니다. 판매에 대한 제한은 없습니다.",
+      "badges": {
+        "current": "현재",
+        "popular": "인기"
+      },
+      "currentPlan": "현재 요금제",
+      "cta": {
+        "getStarted": "시작하기",
+        "downgrade": "다운그레이드",
+        "upgrade": "업그레이드"
+      },
+      "whatsIncluded": "포함 내용",
+      "features": {
+        "unlimitedProducts": "무제한 제품",
+        "unlimitedSelling": "무제한 판매",
+        "unlimitedStaff": "무제한 직원 계정",
+        "storefrontSource": "스토어프론트 소스 코드",
+        "customDomain": "맞춤 도메인",
+        "jytEmails": "JYT 이메일",
+        "liveShipping": "실시간 배송(Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "결제 처리 수수료",
+        "analyticsAdvanced": "고급 분석",
+        "analyticsBasic": "기본 분석",
+        "aiChatSupport": "AI 챗 지원",
+        "customModules": "맞춤 모듈",
+        "customApis": "맞춤 API",
+        "prioritySupport": "우선 지원",
+        "whiteLabel": "화이트 라벨"
+      },
+      "comparison": {
+        "heading": "기능 비교",
+        "featureColumn": "기능",
+        "priceRow": "가격",
+        "rows": {
+          "unlimitedProducts": "제품",
+          "unlimitedSelling": "판매",
+          "unlimitedStaff": "직원 계정",
+          "storefrontSource": "스토어프론트 소스 코드",
+          "customDomain": "맞춤 도메인",
+          "themeCustomization": "테마 편집기",
+          "jytEmails": "JYT 이메일",
+          "liveShipping": "실시간 배송",
+          "paymentFee": "결제 수수료",
+          "analytics": "분석",
+          "aiChatSupport": "AI 챗 지원",
+          "customModules": "맞춤 모듈",
+          "customApis": "맞춤 API",
+          "prioritySupport": "우선 지원",
+          "whiteLabel": "화이트 라벨"
+        },
+        "values": {
+          "unlimited": "무제한",
+          "yes": "예",
+          "no": "아니오",
+          "analyticsAdvanced": "고급",
+          "analyticsBasic": "기본",
+          "free": "무료"
+        }
+      },
+      "paymentInfo": "결제는 {{provider}}를 통해 처리됩니다. 결제 처리 수수료는 고객이 JYT 결제 게이트웨이를 통해 결제할 때만 적용됩니다. 플랫폼 수수료를 우회하려면 자체 결제 제공업체 자격 증명을 사용할 수 있습니다.",
+      "prompts": {
+        "switchTitle": "{{plan}}으로 전환",
+        "switchPaidDescription": "{{provider}}를 통해 {{price}}/{{interval}}이 청구됩니다. 현재 요금제는 대체됩니다.",
+        "switchFreeDescription": "무료 요금제로 전환됩니다. 현재 요금제는 해지됩니다.",
+        "payWith": "{{provider}}로 결제",
+        "switch": "전환",
+        "cancel": "취소",
+        "cancelTitle": "구독 취소",
+        "cancelDescription": "정말로 취소하시겠습니까? 청구 기간 종료까지는 서비스 이용이 계속됩니다. 언제든지 다시 구독할 수 있습니다.",
+        "cancelConfirm": "구독 취소",
+        "keepPlan": "요금제 유지"
+      },
+      "toast": {
+        "paymentSuccess": "결제가 성공했습니다! 요금제가 활성화되었습니다.",
+        "paymentFailed": "결제에 실패했습니다. 다시 시도해 주세요.",
+        "paymentCanceled": "결제가 취소되었습니다.",
+        "paymentError": "결제 오류: {{message}}",
+        "paymentUnknown": "알 수 없는 오류",
+        "switchedTo": "{{plan}}으로 전환됨",
+        "switchFailed": "요금제 전환이 불가능합니다",
+        "canceled": "구독이 취소되었습니다",
+        "cancelFailed": "취소에 실패했습니다",
+        "somethingWrong": "문제가 발생했습니다"
+      }
+    },
+    "people": {
+      "heading": "팀원",
+      "description": "조직 내 인원을 관리하세요. 관리자는 대시보드에 로그인할 수 있습니다.",
+      "addPerson": "사람 추가",
+      "empty": "아직 팀원이 없습니다. 위에서 첫 번째 팀원을 추가하세요.",
+      "columns": {
+        "name": "이름",
+        "email": "이메일",
+        "access": "접근 권한",
+        "accessDashboard": "대시보드",
+        "accessTeamOnly": "팀 전용",
+        "role": "역할",
+        "added": "추가됨"
+      },
+      "drawer": {
+        "title": "사람 추가",
+        "description": "조직에 팀원을 추가하세요.",
+        "emailLabel": "이메일 *",
+        "emailPlaceholder": "person@example.com",
+        "firstName": "이름",
+        "firstNamePlaceholder": "John",
+        "lastName": "성",
+        "lastNamePlaceholder": "Doe",
+        "phone": "전화번호",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "대시보드 관리자로 생성",
+        "adminHint": "이 사람에게 로그인 자격 증명이 발급되며, 파트너 대시보드에 접근할 수 있습니다.",
+        "teamHint": "이 사람은 팀원으로 등록되지만, 대시보드 접근 권한은 없습니다.",
+        "role": "역할",
+        "roleAdmin": "관리자 — 전체 접근 권한",
+        "roleManager": "매니저 — 제품 및 주문",
+        "roleOwner": "소유자 — 전체 접근 권한 + 청구",
+        "password": "비밀번호",
+        "passwordPlaceholder": "자동 생성하려면 비워 두세요",
+        "passwordHint": "비워 두면 자동 생성되며, 환영 이메일에 포함됩니다.",
+        "freeTextRole": "역할",
+        "freeTextRolePlaceholder": "예: 디자이너, 직조사, QA",
+        "freeTextRoleHint": "조직적 목적을 위한 자유 입력 역할.",
+        "cancel": "취소",
+        "addAdmin": "관리자 추가"
+      },
+      "toast": {
+        "emailRequired": "이메일은 필수 입력 항목입니다",
+        "adminAdded": "관리자가 성공적으로 추가되었습니다",
+        "adminAddedDescription": "{{email}}로 환영 이메일이 전송되었습니다. 임시 비밀번호: {{password}}",
+        "addAdminFailed": "관리자 추가에 실패했습니다",
+        "personAdded": "사람이 추가되었습니다",
+        "personAddedDescription": "{{email}}이(가) {{role}}로 추가되었습니다. 대시보드 로그인 접근 권한은 없습니다.",
+        "addPersonFailed": "사람 추가에 실패했습니다"
+      }
+    },
+    "payments": {
+      "heading": "결제",
+      "subheading": "결제 수단",
+      "create": "생성",
+      "recentHeading": "최근 결제",
+      "recentDescription": "최근 결제 내역을 확인하세요.",
+      "emptyMethods": "결제 수단이 없습니다",
+      "emptyPayments": "결제 내역이 없습니다",
+      "columns": {
+        "type": "유형",
+        "accountName": "계좌명",
+        "details": "상세 정보",
+        "bank": "은행",
+        "walletPrefix": "지갑",
+        "added": "추가됨",
+        "paymentId": "결제 ID",
+        "amount": "금액",
+        "currency": "통화"
+      },
+      "typeLabels": {
+        "bankAccount": "은행 계좌",
+        "cashAccount": "현금 계좌",
+        "digitalWallet": "디지털 지갑"
+      },
+      "form": {
+        "heading": "결제 수단 추가",
+        "description": "지급 수단 참조를 추가하세요.",
+        "missingPartner": "파트너 컨텍스트가 누락되었습니다.",
+        "type": "유형",
+        "typePlaceholder": "유형 선택",
+        "accountName": "계좌명",
+        "accountNumber": "계좌번호",
+        "bankName": "은행명",
+        "ifsc": "IFSC",
+        "walletId": "지갑 ID",
+        "cancel": "취소",
+        "create": "생성"
+      },
+      "toast": {
+        "created": "결제 수단이 생성되었습니다"
+      }
+    },
+    "paymentProviders": {
+      "heading": "결제 제공업체 자격 증명",
+      "subHeading": "귀하의 결제 제공업체 자격 증명. 이 설정은 스토어의 플랫폼 기본값을 재정의합니다.",
+      "empty": {
+        "heading": "결제 자격 증명이 구성되지 않음",
+        "description": "플랫폼의 공유 자격 증명을 사용 중입니다. 자체 상점 계정을 사용하려면 직접 자격 증명을 추가하세요."
+      },
+      "columns": {
+        "provider": "제공업체",
+        "status": "상태",
+        "statusActive": "활성",
+        "statusInactive": "비활성",
+        "credentials": "자격 증명",
+        "added": "추가됨"
+      },
+      "removePrompt": {
+        "description": "{{provider}} 자격 증명을 제거하시겠습니까? 스토어는 플랫폼의 공유 자격 증명으로 복귀합니다."
+      },
+      "toast": {
+        "removed": "자격 증명이 제거되었습니다",
+        "removeFailed": "제거에 실패했습니다",
+        "saved": "결제 자격 증명이 저장되었습니다",
+        "saveFailed": "자격 증명 저장에 실패했습니다"
+      },
+      "form": {
+        "heading": "결제 자격 증명 추가",
+        "description": "자체 결제 제공업체 자격 증명을 구성하세요. 이 설정은 스토어의 플랫폼 기본값을 재정의합니다.",
+        "provider": "제공업체",
+        "merchantKey": "상점 키",
+        "merchantKeyPlaceholder": "PayU 상점 키",
+        "merchantSalt": "상점 솔트",
+        "merchantSaltPlaceholder": "PayU 상점 솔트",
+        "mode": "모드",
+        "modeTest": "테스트",
+        "modeLive": "실제",
+        "stripeApiKey": "Stripe API 키",
+        "stripeApiKeyPlaceholder": "sk_live_... 또는 sk_test_...",
+        "stripeApiKeyHint": "Stripe 대시보드에서 가져온 Stripe 비밀 키입니다."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "사업 유형",
+        "description": "JYT를 어떻게 사용할지 선택하세요. 이 설정은 사이드바에 표시되는 탐색 항목을 제어합니다.",
+        "active": "활성",
+        "seller": {
+          "title": "판매자",
+          "description": "온라인으로 제품을 판매합니다. 제품, 주문, 고객, 카테고리, 컬렉션을 확인할 수 있습니다."
+        },
+        "manufacturer": {
+          "title": "제조사",
+          "description": "섬유 제품을 설계 및 제조합니다. 디자인, 재고 주문, 생산 런, 작업 등을 확인할 수 있습니다."
+        },
+        "individual": {
+          "title": "개인",
+          "description": "할당된 작업을 수행합니다. 작업, 공유 폴더, 결제 제출을 확인할 수 있습니다."
+        }
+      },
+      "status": {
+        "heading": "온보딩",
+        "description": "온보딩 완료 상태를 추적하고 온보딩 흐름을 다시 열 수 있습니다.",
+        "label": "상태",
+        "completed": "완료됨",
+        "notCompleted": "미완료",
+        "open": "온보딩 열기"
+      }
+    }
   }
 }

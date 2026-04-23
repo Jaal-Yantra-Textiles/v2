@@ -1,6 +1,7 @@
 import { BuildingStorefront, PencilSquare, Users } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Text, clx } from "@medusajs/ui"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
@@ -10,36 +11,39 @@ import { queryClient } from "../../../lib/query-client"
 
 type WorkspaceType = "seller" | "manufacturer" | "individual"
 
-const WORKSPACE_TYPE_OPTIONS: {
-  value: WorkspaceType
-  title: string
-  description: string
-  icon: React.ReactNode
-}[] = [
-  {
-    value: "seller",
-    title: "Seller",
-    description:
-      "Sell products online. See Products, Orders, Customers, Categories, and Collections.",
-    icon: <BuildingStorefront className="h-6 w-6" />,
-  },
-  {
-    value: "manufacturer",
-    title: "Manufacturer",
-    description:
-      "Design and manufacture textiles. See Designs, Inventory Orders, Production Runs, Tasks, and more.",
-    icon: <PencilSquare className="h-6 w-6" />,
-  },
-  {
-    value: "individual",
-    title: "Individual",
-    description:
-      "Work on assigned tasks. See Tasks, Shared Folders, and Payment Submissions.",
-    icon: <Users className="h-6 w-6" />,
-  },
-]
-
 export const SettingsOnboarding = () => {
+  const { t } = useTranslation()
+  const WORKSPACE_TYPE_OPTIONS = useMemo<
+    {
+      value: WorkspaceType
+      title: string
+      description: string
+      icon: React.ReactNode
+    }[]
+  >(
+    () => [
+      {
+        value: "seller",
+        title: t("partner.onboardingSettings.businessType.seller.title"),
+        description: t("partner.onboardingSettings.businessType.seller.description"),
+        icon: <BuildingStorefront className="h-6 w-6" />,
+      },
+      {
+        value: "manufacturer",
+        title: t("partner.onboardingSettings.businessType.manufacturer.title"),
+        description: t("partner.onboardingSettings.businessType.manufacturer.description"),
+        icon: <PencilSquare className="h-6 w-6" />,
+      },
+      {
+        value: "individual",
+        title: t("partner.onboardingSettings.businessType.individual.title"),
+        description: t("partner.onboardingSettings.businessType.individual.description"),
+        icon: <Users className="h-6 w-6" />,
+      },
+    ],
+    [t]
+  )
+
   const { user } = useMe()
   const partnerId = user?.partner_id
   const currentWorkspaceType = (
@@ -88,10 +92,9 @@ export const SettingsOnboarding = () => {
     <SingleColumnPage widgets={{ before: [], after: [] }}>
       <Container className="divide-y p-0">
         <div className="px-6 py-4">
-          <Heading>Business Type</Heading>
+          <Heading>{t("partner.onboardingSettings.businessType.heading")}</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            Choose how you use JYT. This controls which navigation items appear
-            in your sidebar.
+            {t("partner.onboardingSettings.businessType.description")}
           </Text>
         </div>
 
@@ -117,7 +120,9 @@ export const SettingsOnboarding = () => {
                   {opt.title}
                 </Text>
                 {currentWorkspaceType === opt.value && (
-                  <Badge size="2xsmall" color="green">Active</Badge>
+                  <Badge size="2xsmall" color="green">
+                    {t("partner.onboardingSettings.businessType.active")}
+                  </Badge>
                 )}
               </div>
               <Text className="text-ui-fg-subtle" size="small">
@@ -130,24 +135,28 @@ export const SettingsOnboarding = () => {
 
       <Container className="divide-y p-0">
         <div className="px-6 py-4">
-          <Heading>Onboarding</Heading>
+          <Heading>{t("partner.onboardingSettings.status.heading")}</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            Track onboarding completion and reopen the onboarding flow.
+            {t("partner.onboardingSettings.status.description")}
           </Text>
         </div>
 
         <div className="flex items-center justify-between px-6 py-4">
           <div>
             <Text size="small" weight="plus">
-              Status
+              {t("partner.onboardingSettings.status.label")}
             </Text>
             <Text size="small" className="text-ui-fg-subtle">
-              {status.completed ? "Completed" : "Not completed"}
+              {status.completed
+                ? t("partner.onboardingSettings.status.completed")
+                : t("partner.onboardingSettings.status.notCompleted")}
             </Text>
           </div>
 
           <Button size="small" variant="secondary" asChild disabled={!partnerId}>
-            <Link to="/onboarding">Open onboarding</Link>
+            <Link to="/onboarding">
+              {t("partner.onboardingSettings.status.open")}
+            </Link>
           </Button>
         </div>
       </Container>

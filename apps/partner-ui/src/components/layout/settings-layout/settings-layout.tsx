@@ -23,54 +23,18 @@ const useSettingRoutes = (): INavItem[] => {
 
   return useMemo(
     () => [
-      {
-        label: "Store",
-        to: "/settings/store",
-      },
-      {
-        label: "Regions",
-        to: "/settings/regions",
-      },
-      {
-        label: "Locations & Shipping",
-        to: "/settings/locations",
-      },
-      {
-        label: "Sales Channels",
-        to: "/settings/sales-channels",
-      },
-      {
-        label: "Tax Regions",
-        to: "/settings/tax-regions",
-      },
-      {
-        label: "Return Reasons",
-        to: "/settings/return-reasons",
-      },
-      {
-        label: "Refund Reasons",
-        to: "/settings/refund-reasons",
-      },
-      {
-        label: "Onboarding",
-        to: "/settings/onboarding",
-      },
-      {
-        label: "People",
-        to: "/settings/people",
-      },
-      {
-        label: "Payments",
-        to: "/settings/payments",
-      },
-      {
-        label: "Payment Config",
-        to: "/settings/payment-providers",
-      },
-      {
-        label: "Plan & Billing",
-        to: "/settings/plan",
-      },
+      { label: t("partner.settingsSidebar.store"), to: "/settings/store" },
+      { label: t("partner.settingsSidebar.regions"), to: "/settings/regions" },
+      { label: t("partner.settingsSidebar.locationsShipping"), to: "/settings/locations" },
+      { label: t("partner.settingsSidebar.salesChannels"), to: "/settings/sales-channels" },
+      { label: t("partner.settingsSidebar.taxRegions"), to: "/settings/tax-regions" },
+      { label: t("partner.settingsSidebar.returnReasons"), to: "/settings/return-reasons" },
+      { label: t("partner.settingsSidebar.refundReasons"), to: "/settings/refund-reasons" },
+      { label: t("partner.settingsSidebar.onboarding"), to: "/settings/onboarding" },
+      { label: t("partner.settingsSidebar.people"), to: "/settings/people" },
+      { label: t("partner.settingsSidebar.payments"), to: "/settings/payments" },
+      { label: t("partner.settingsSidebar.paymentConfig"), to: "/settings/payment-providers" },
+      { label: t("partner.settingsSidebar.planBilling"), to: "/settings/plan" },
     ],
     [t]
   )

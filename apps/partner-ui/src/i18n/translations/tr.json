@@ -2957,5 +2957,409 @@
     "minutes_other": "Dakikalar",
     "seconds_one": "Saniye",
     "seconds_other": "Saniyeler"
+  },
+  "partner": {
+    "settingsSidebar": {
+      "store": "Mağaza",
+      "regions": "Bölgeler",
+      "locationsShipping": "Konumlar ve Kargo",
+      "salesChannels": "Satış Kanalları",
+      "taxRegions": "Vergi Bölgeleri",
+      "returnReasons": "İade Nedenleri",
+      "refundReasons": "Para İadesi Nedenleri",
+      "onboarding": "Başlangıç",
+      "people": "Kişiler",
+      "payments": "Ödemeler",
+      "paymentConfig": "Ödeme Yapılandırması",
+      "planBilling": "Plan ve Faturalandırma"
+    },
+    "paymentSubmissions": {
+      "heading": "Ödeme Gönderimleri",
+      "description": "Tamamlanmış tasarımları veya görevleri ödeme için gönderin",
+      "newSubmission": "Yeni Gönderim",
+      "breadcrumb": "Ödeme Gönderimleri",
+      "columns": {
+        "submission": "Gönderim",
+        "status": "Durum",
+        "amount": "Tutar",
+        "items": "Öğeler",
+        "submitted": "Gönderildi",
+        "reviewed": "İncelendi",
+        "design_one": "{{count}} tasarım",
+        "design_other": "{{count}} tasarım",
+        "task_one": "{{count}} görev",
+        "task_other": "{{count}} görev"
+      },
+      "empty": {
+        "title": "Henüz ödeme gönderimi yok",
+        "message": "Yeni Gönderim'e tıklayarak tamamlanmış tasarımlarınızı ödeme için gönderin."
+      }
+    },
+    "inventoryOrders": {
+      "heading": "Stok Siparişleri",
+      "empty": "Stok siparişi yok",
+      "filters": {
+        "status": "Durum",
+        "partnerStatus": "Ortak Durumu"
+      },
+      "statusOptions": {
+        "pending": "Bekliyor",
+        "processing": "İşleniyor",
+        "shipped": "Kargolandı",
+        "delivered": "Teslim Edildi",
+        "cancelled": "İptal Edildi",
+        "partial": "Kısmen"
+      },
+      "columns": {
+        "id": "ID",
+        "partnerStatus": "Ortak Durumu",
+        "status": "Durum",
+        "updated": "Güncellendi",
+        "created": "Oluşturuldu"
+      },
+      "detail": {
+        "heading": "Stok Siparişi",
+        "missingId": "Sipariş kimliği eksik",
+        "orderId": "Sipariş Kimliği",
+        "status": "Durum",
+        "partnerStatus": "Ortak durumu",
+        "linesHeading": "Satırlar",
+        "linesDescription": "Talep edilen vs. karşılanan miktarlar",
+        "noLines": "Satır yok",
+        "linePrefix": "Satır",
+        "columns": {
+          "item": "Öğe",
+          "requested": "Talep Edilen",
+          "fulfilled": "Karşılanan",
+          "remaining": "Kalan"
+        },
+        "activities": {
+          "title": "Etkinlikler",
+          "completed": "Tamamlandı",
+          "pending": "Bekliyor"
+        }
+      }
+    },
+    "onboardingModal": {
+      "title": "Hoş geldiniz! Çalışma alanınızı ayarlayalım",
+      "steps": {
+        "about": "Hakkınızda",
+        "logo": "Logo ve Marka",
+        "people": "Takım"
+      },
+      "businessTypes": {
+        "manufacturer": "Üretici / Üretim Yapan",
+        "seller": "Satıcı / Perakendeci",
+        "designer": "Tasarımcı / Yaratıcı",
+        "wholesaler": "Toptancı / Dağıtıcı",
+        "artisan": "Usta / El Sanatçısı",
+        "individual": "Bireysel (Model, Serbest Çalışan vb.)",
+        "other": "Diğer"
+      },
+      "about": {
+        "heading": "İşletmeniz hakkında bize bilgi verin",
+        "description": "Bu, deneyiminizi özelleştirmemize ve doğru araçlarla bağlantı kurmanıza yardımcı olur.",
+        "businessName": "İşletme adı",
+        "businessNamePlaceholder": "Acme Tekstil",
+        "businessTypeLabel": "İşletmenizi en iyi tanımlayan nedir?",
+        "businessTypePlaceholder": "İşletme türünü seçin",
+        "descriptionLabel": "Kısa açıklama",
+        "descriptionPlaceholder": "Ne üretiyorsunuz veya satıyorsunuz? Müşterileriniz kim?",
+        "website": "Web sitesi",
+        "phone": "Telefon",
+        "optional": "(isteğe bağlı)",
+        "websitePlaceholder": "https://acmetekstil.com",
+        "phonePlaceholder": "+91 98765 43210"
+      },
+      "logo": {
+        "heading": "Şirket logonuzu yükleyin",
+        "description": "Bu, ortak profilinizde ve mağaza ön yüzünüzde görünecektir. Dilerseniz daha sonra değiştirebilirsiniz.",
+        "clickToChange": "Değiştirmek için tıklayın",
+        "clickToUpload": "Yüklemek için tıklayın veya sürükleyip bırakın",
+        "fileTypes": "SVG, PNG, JPG (EN FAZLA 5 MB)"
+      },
+      "team": {
+        "heading": "Takım üyelerinizi ekleyin",
+        "description": "Mağazanızı ve ürünlerinizi yönetmenize yardımcı olacak kişileri davet edin. Bu adım isteğe bağlıdır — takım üyelerini daha sonra da ekleyebilirsiniz.",
+        "success": "Başlangıç başarıyla tamamlandı!",
+        "firstName": "Ad",
+        "firstNamePlaceholder": "Ahmet",
+        "lastName": "Soyad",
+        "lastNamePlaceholder": "Yılmaz",
+        "email": "E-posta",
+        "emailPlaceholder": "ahmet@firma.com",
+        "remove": "Kaldır",
+        "addAnother": "+ Başka Bir Kişi Ekle"
+      },
+      "footer": {
+        "skip": "Şimdi atla",
+        "stepCount": "{{current}}. adım / {{total}}",
+        "back": "Geri",
+        "continue": "Devam Et",
+        "complete": "Kurulumu Tamamla"
+      },
+      "errors": {
+        "unknown": "Bilinmeyen bir hata oluştu"
+      }
+    },
+    "plan": {
+      "heading": "Plan ve Faturalandırma",
+      "description": "İşletmenize uygun planı seçin",
+      "labels": {
+        "plan": "Plan",
+        "price": "Fiyat",
+        "period": "Dönem",
+        "payment": "Ödeme"
+      },
+      "providerPayu": "PayU (Hindistan)",
+      "providerStripe": "Stripe (Uluslararası)",
+      "cancelSubscription": "Aboneliği İptal Et",
+      "noSubscription": "Aktif abonelik yok. Başlamak için aşağıdaki planlardan birini seçin.",
+      "chooseHeading": "Planınızı Seçin",
+      "chooseDescription": "Tüm planlar sınırsız ürün, personel hesabı ve canlı kargo içerir. Satışta sınır yoktur.",
+      "badges": {
+        "current": "Mevcut",
+        "popular": "Popüler"
+      },
+      "currentPlan": "Mevcut Plan",
+      "cta": {
+        "getStarted": "Başlayın",
+        "downgrade": "Düşür",
+        "upgrade": "Yükselt"
+      },
+      "whatsIncluded": "Neler dahil?",
+      "features": {
+        "unlimitedProducts": "Sınırsız ürün",
+        "unlimitedSelling": "Sınırsız satış",
+        "unlimitedStaff": "Sınırsız personel hesabı",
+        "storefrontSource": "Mağaza ön yüzü kaynak kodu",
+        "customDomain": "Özelleştirilmiş alan adı",
+        "jytEmails": "JYT E-postaları",
+        "liveShipping": "Canlı kargo (Delhivery, DHL, UPS, FedEx)",
+        "paymentFeeSuffix": "ödeme işleme ücreti",
+        "analyticsAdvanced": "Gelişmiş analizler",
+        "analyticsBasic": "Temel analizler",
+        "aiChatSupport": "Yapay zeka sohbet desteği",
+        "customModules": "Özelleştirilmiş modüller",
+        "customApis": "Özelleştirilmiş API'ler",
+        "prioritySupport": "Öncelikli destek",
+        "whiteLabel": "White label"
+      },
+      "comparison": {
+        "heading": "Özellik Karşılaştırması",
+        "featureColumn": "Özellik",
+        "priceRow": "Fiyat",
+        "rows": {
+          "unlimitedProducts": "Ürünler",
+          "unlimitedSelling": "Satış",
+          "unlimitedStaff": "Personel Hesapları",
+          "storefrontSource": "Mağaza Ön Yüzü Kaynak Kodu",
+          "customDomain": "Özelleştirilmiş Alan Adı",
+          "themeCustomization": "Tema Düzenleyicisi",
+          "jytEmails": "JYT E-postaları",
+          "liveShipping": "Canlı Kargo",
+          "paymentFee": "Ödeme Ücreti",
+          "analytics": "Analizler",
+          "aiChatSupport": "Yapay Zeka Sohbet Desteği",
+          "customModules": "Özelleştirilmiş Modüller",
+          "customApis": "Özelleştirilmiş API'ler",
+          "prioritySupport": "Öncelikli Destek",
+          "whiteLabel": "White Label"
+        },
+        "values": {
+          "unlimited": "Sınırsız",
+          "yes": "Evet",
+          "no": "Hayır",
+          "analyticsAdvanced": "Gelişmiş",
+          "analyticsBasic": "Temel",
+          "free": "Ücretsiz"
+        }
+      },
+      "paymentInfo": "Ödemeler {{provider}} üzerinden işlenir. Ödeme işleme ücreti yalnızca müşteriler JYT ödeme ağ geçitleri aracılığıyla ödeme yaptığında uygulanır. Platform ücretlerinden kaçınmak için kendi ödeme sağlayıcınızın kimlik bilgilerini kullanabilirsiniz.",
+      "prompts": {
+        "switchTitle": "{{plan}} planına geçiş yap",
+        "switchPaidDescription": "{{provider}} üzerinden {{price}}/{{interval}} ücreti tahsil edilecek. Mevcut planınız değiştirilecek.",
+        "switchFreeDescription": "Ücretsiz plana geçiş yapacaksınız. Mevcut planınız iptal edilecek.",
+        "payWith": "{{provider}} ile öde",
+        "switch": "Geçiş Yap",
+        "cancel": "İptal",
+        "cancelTitle": "Aboneliği İptal Et",
+        "cancelDescription": "Emin misiniz? Faturalandırma döneminizin sonuna kadar erişime devam edeceksiniz. Her zaman yeniden abone olabilirsiniz.",
+        "cancelConfirm": "Aboneliği İptal Et",
+        "keepPlan": "Planı Koru"
+      },
+      "toast": {
+        "paymentSuccess": "Ödeme başarılı! Planınız etkinleştirildi.",
+        "paymentFailed": "Ödeme başarısız oldu. Lütfen tekrar deneyin.",
+        "paymentCanceled": "Ödeme iptal edildi.",
+        "paymentError": "Ödeme hatası: {{message}}",
+        "paymentUnknown": "Bilinmeyen hata",
+        "switchedTo": "{{plan}} planına geçildi",
+        "switchFailed": "Plan değiştirilemedi",
+        "canceled": "Abonelik iptal edildi",
+        "cancelFailed": "İptal edilemedi",
+        "somethingWrong": "Bir şeyler ters gitti"
+      }
+    },
+    "people": {
+      "heading": "Takım Üyeleri",
+      "description": "Kuruluşunuzdaki kişileri yönetin. Yöneticiler panoya giriş yapabilir.",
+      "addPerson": "Kişi Ekle",
+      "empty": "Henüz takım üyesi yok. İlk kişiyi yukarıdan ekleyin.",
+      "columns": {
+        "name": "Ad",
+        "email": "E-posta",
+        "access": "Erişim",
+        "accessDashboard": "Panel",
+        "accessTeamOnly": "Sadece takım",
+        "role": "Rol",
+        "added": "Eklendi"
+      },
+      "drawer": {
+        "title": "Kişi Ekle",
+        "description": "Kuruluşunuza bir takım üyesi ekleyin.",
+        "emailLabel": "E-posta *",
+        "emailPlaceholder": "kisi@ornek.com",
+        "firstName": "Ad",
+        "firstNamePlaceholder": "Ahmet",
+        "lastName": "Soyad",
+        "lastNamePlaceholder": "Yılmaz",
+        "phone": "Telefon",
+        "phonePlaceholder": "+91 98765 43210",
+        "createAsAdmin": "Panoda yönetici olarak oluştur",
+        "adminHint": "Bu kişi giriş kimlik bilgileri alacak ve ortak panosuna erişebilecek.",
+        "teamHint": "Bu kişi takım üyesi olarak listelenecek ancak panoya erişimi olmayacak.",
+        "role": "Rol",
+        "roleAdmin": "Yönetici — Tam erişim",
+        "roleManager": "Yönetici — Ürünler ve siparişler",
+        "roleOwner": "Sahip — Tam erişim + faturalandırma",
+        "password": "Parola",
+        "passwordPlaceholder": "Otomatik oluşturmak için boş bırakın",
+        "passwordHint": "Boş bırakılırsa otomatik oluşturulur. Hoş geldin e-postasına dahil edilir.",
+        "freeTextRole": "Rol",
+        "freeTextRolePlaceholder": "örn. Tasarımcı, Dokumacı, Kalite Kontrol",
+        "freeTextRoleHint": "Kurumsal amaçlar için serbest metin rolü.",
+        "cancel": "İptal",
+        "addAdmin": "Yönetici Ekle"
+      },
+      "toast": {
+        "emailRequired": "E-posta zorunludur",
+        "adminAdded": "Yönetici başarıyla eklendi",
+        "adminAddedDescription": "Hoş geldin e-postası {{email}} adresine gönderildi. Geçici parola: {{password}}",
+        "addAdminFailed": "Yönetici eklenemedi",
+        "personAdded": "Kişi eklendi",
+        "personAddedDescription": "{{email}}, {{role}} olarak eklendi. Panoya giriş erişimi olmayacak.",
+        "addPersonFailed": "Kişi eklenemedi"
+      }
+    },
+    "payments": {
+      "heading": "Ödemeler",
+      "subheading": "Ödeme yöntemleri",
+      "create": "Oluştur",
+      "recentHeading": "Son ödemeler",
+      "recentDescription": "Son ödemeleri görüntüleyin.",
+      "emptyMethods": "Ödeme yöntemi yok",
+      "emptyPayments": "Ödeme yok",
+      "columns": {
+        "type": "Tür",
+        "accountName": "Hesap adı",
+        "details": "Ayrıntılar",
+        "bank": "Banka",
+        "walletPrefix": "Cüzdan",
+        "added": "Eklendi",
+        "paymentId": "Ödeme Kimliği",
+        "amount": "Tutar",
+        "currency": "Para birimi"
+      },
+      "typeLabels": {
+        "bankAccount": "Banka Hesabı",
+        "cashAccount": "Nakit Hesabı",
+        "digitalWallet": "Dijital Cüzdan"
+      },
+      "form": {
+        "heading": "Ödeme Yöntemi Ekle",
+        "description": "Bir ödeme yöntemi referansı ekleyin.",
+        "missingPartner": "Ortak bağlamı eksik.",
+        "type": "Tür",
+        "typePlaceholder": "Tür seçin",
+        "accountName": "Hesap adı",
+        "accountNumber": "Hesap numarası",
+        "bankName": "Banka adı",
+        "ifsc": "IFSC",
+        "walletId": "Cüzdan Kimliği",
+        "cancel": "İptal",
+        "create": "Oluştur"
+      },
+      "toast": {
+        "created": "Ödeme yöntemi oluşturuldu"
+      }
+    },
+    "paymentProviders": {
+      "heading": "Ödeme Sağlayıcı Kimlik Bilgileri",
+      "subHeading": "Ödeme sağlayıcı kimlik bilgileriniz. Bunlar mağazanız için platform varsayılanlarını geçersiz kılar.",
+      "empty": {
+        "heading": "Ödeme kimlik bilgileri yapılandırılmamış",
+        "description": "Platformun paylaşılan kimlik bilgilerini kullanıyorsunuz. Kendi tüccar hesaplarınızı kullanmak için kendi kimlik bilgilerinizi ekleyin."
+      },
+      "columns": {
+        "provider": "Sağlayıcı",
+        "status": "Durum",
+        "statusActive": "Aktif",
+        "statusInactive": "Pasif",
+        "credentials": "Kimlik Bilgileri",
+        "added": "Eklendi"
+      },
+      "removePrompt": {
+        "description": "{{provider}} kimlik bilgilerinizi kaldırmak mı istiyorsunuz? Mağazanız platformun paylaşılan kimlik bilgilerine geri dönecek."
+      },
+      "toast": {
+        "removed": "Kimlik bilgileri kaldırıldı",
+        "removeFailed": "Kaldırılamadı",
+        "saved": "Ödeme kimlik bilgileri kaydedildi",
+        "saveFailed": "Kimlik bilgileri kaydedilemedi"
+      },
+      "form": {
+        "heading": "Ödeme Kimlik Bilgileri Ekle",
+        "description": "Kendi ödeme sağlayıcınızın kimlik bilgilerini yapılandırın. Bu, mağazanız için platform varsayılanlarını geçersiz kılar.",
+        "provider": "Sağlayıcı",
+        "merchantKey": "Tüccar Anahtarı",
+        "merchantKeyPlaceholder": "PayU tüccar anahtarınız",
+        "merchantSalt": "Tüccar Tuzu",
+        "merchantSaltPlaceholder": "PayU tüccar tuzunuz",
+        "mode": "Mod",
+        "modeTest": "Test",
+        "modeLive": "Canlı",
+        "stripeApiKey": "Stripe API Anahtarı",
+        "stripeApiKeyPlaceholder": "sk_live_... veya sk_test_...",
+        "stripeApiKeyHint": "Stripe panosundan aldığınız Stripe gizli anahtarınız."
+      }
+    },
+    "onboardingSettings": {
+      "businessType": {
+        "heading": "İşletme Türü",
+        "description": "JYT'yi nasıl kullandığınızı seçin. Bu, yan çubuğunuzda hangi gezinme öğelerinin görüneceğini belirler.",
+        "active": "Aktif",
+        "seller": {
+          "title": "Satıcı",
+          "description": "Ürünleri çevrimiçi satın. Ürünler, Siparişler, Müşteriler, Kategoriler ve Koleksiyonlar bölümüne bakın."
+        },
+        "manufacturer": {
+          "title": "Üretici",
+          "description": "Tekstil tasarlayın ve üretin. Tasarımlar, Stok Siparişleri, Üretim Serileri, Görevler ve daha fazlasına bakın."
+        },
+        "individual": {
+          "title": "Bireysel",
+          "description": "Atanan görevler üzerinde çalışın. Görevler, Paylaşılan Klasörler ve Ödeme Gönderimleri bölümüne bakın."
+        }
+      },
+      "status": {
+        "heading": "Başlangıç",
+        "description": "Başlangıç tamamlanma durumunu izleyin ve başlangıç akışını yeniden açın.",
+        "label": "Durum",
+        "completed": "Tamamlandı",
+        "notCompleted": "Tamamlanmadı",
+        "open": "Başlangıç akışını aç"
+      }
+    }
   }
 }
