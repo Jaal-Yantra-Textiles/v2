@@ -68,6 +68,7 @@ export const GET = async (
       "admins.phone",
       "admins.role",
       "admins.is_active",
+      "admins.preferred_language",
       "admins.created_at",
     ],
     filters: { id: partnerId },

@@ -10,6 +10,8 @@ export type AdminPartnerAdmin = {
   last_name?: string
   phone?: string
   role?: "owner" | "admin" | "manager"
+  preferred_language?: string | null
+  is_active?: boolean
 }
 
 export interface AdminPartner {
@@ -183,6 +185,40 @@ export const useAddPartnerAdmin = (partnerId: string) => {
       sdk.client.fetch<AddPartnerAdminResponse>(
         `/admin/partners/${partnerId}/admins`,
         { method: "POST", body: payload }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.details() })
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.lists() })
+    },
+  })
+}
+
+export type UpdatePartnerAdminPayload = {
+  first_name?: string | null
+  last_name?: string | null
+  phone?: string | null
+  role?: "owner" | "admin" | "manager"
+  preferred_language?: string | null
+  is_active?: boolean
+}
+
+export type UpdatePartnerAdminResponse = {
+  admin: AdminPartnerAdmin
+}
+
+export const useUpdatePartnerAdmin = (partnerId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      adminId,
+      data,
+    }: {
+      adminId: string
+      data: UpdatePartnerAdminPayload
+    }) =>
+      sdk.client.fetch<UpdatePartnerAdminResponse>(
+        `/admin/partners/${partnerId}/admins/${adminId}`,
+        { method: "PATCH", body: data }
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: partnersQueryKeys.details() })

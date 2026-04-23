@@ -1,6 +1,8 @@
+import { PencilSquare } from "@medusajs/icons"
 import { Container, Heading, StatusBadge, Text } from "@medusajs/ui"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
+import { ActionMenu } from "../../../../../components/common/action-menu"
 import { languages } from "../../../../../i18n/languages"
 import type { PartnerUser } from "../../../../../hooks/api/users"
 
@@ -44,6 +46,19 @@ export const ProfileGeneralSection = ({ user }: ProfileGeneralSectionProps) => {
             {t("profile.manageYourProfileDetails")}
           </Text>
         </div>
+        <ActionMenu
+          groups={[
+            {
+              actions: [
+                {
+                  icon: <PencilSquare />,
+                  label: t("profile.edit.header"),
+                  to: "edit",
+                },
+              ],
+            },
+          ]}
+        />
       </div>
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" leading="compact" weight="plus">

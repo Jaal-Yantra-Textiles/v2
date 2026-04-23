@@ -1,3 +1,4 @@
+import { Outlet } from "react-router-dom"
 import { useMe } from "../../../hooks/api/users"
 import { ProfileGeneralSection } from "./components/profile-general-section"
 
@@ -25,6 +26,7 @@ export const ProfileDetail = () => {
       }}
     >
       <ProfileGeneralSection user={user} />
+      <Outlet />
     </SingleColumnPage>
   )
 }

@@ -14,8 +14,17 @@ import {
 import { useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Plus } from "@medusajs/icons"
-import { partnersQueryKeys, useUpdatePartner, useAddPartnerAdmin } from "../../hooks/api/partners-admin"
+import {
+  partnersQueryKeys,
+  useUpdatePartner,
+  useAddPartnerAdmin,
+  useUpdatePartnerAdmin,
+} from "../../hooks/api/partners-admin"
 import { Select } from "@medusajs/ui"
+import {
+  PARTNER_ADMIN_LANGUAGES,
+  getLanguageDisplayName,
+} from "../../lib/partner-admin-languages"
 
 export type AdminPartnerAdmin = {
   id: string
@@ -24,6 +33,7 @@ export type AdminPartnerAdmin = {
   last_name?: string
   phone?: string
   role?: "owner" | "admin" | "manager"
+  preferred_language?: string | null
 }
 
 export const PartnerAdminsSection = ({
@@ -106,6 +116,41 @@ export const PartnerAdminsSection = ({
   const [newRole, setNewRole] = useState<"admin" | "manager" | "owner">("admin")
   const [newPassword, setNewPassword] = useState("")
   const { mutateAsync: addAdmin, isPending: isAdding } = useAddPartnerAdmin(partnerId)
+
+  // Set-language drawer state
+  const [languageDrawerOpen, setLanguageDrawerOpen] = useState(false)
+  const [pendingLanguage, setPendingLanguage] = useState<string>("en")
+  const { mutateAsync: updateAdmin, isPending: isSavingLanguage } =
+    useUpdatePartnerAdmin(partnerId)
+
+  const openLanguageDrawer = () => {
+    if (!selectedAdmin) {
+      toast.error("Select exactly one admin")
+      return
+    }
+    setPendingLanguage(selectedAdmin.preferred_language || "en")
+    setLanguageDrawerOpen(true)
+  }
+
+  const handleSaveLanguage = async () => {
+    if (!selectedAdminId) return
+    try {
+      await updateAdmin({
+        adminId: selectedAdminId,
+        data: { preferred_language: pendingLanguage },
+      })
+      toast.success("Language updated", {
+        description: `Set to ${getLanguageDisplayName(pendingLanguage)}. Next time this admin loads partner-ui it will apply.`,
+      })
+      setLanguageDrawerOpen(false)
+      clearSelection()
+      await queryClient.invalidateQueries({ queryKey: partnersQueryKeys.details() })
+    } catch (e: any) {
+      toast.error("Failed to update language", {
+        description: e?.message || "Could not update language",
+      })
+    }
+  }
 
   const openDrawer = () => {
     if (!selectedAdminId) {
@@ -195,6 +240,7 @@ export const PartnerAdminsSection = ({
               <Table.HeaderCell>Name</Table.HeaderCell>
               <Table.HeaderCell>Email</Table.HeaderCell>
               <Table.HeaderCell>Role</Table.HeaderCell>
+              <Table.HeaderCell>Language</Table.HeaderCell>
             </Table.Row>
           </Table.Header>
           <Table.Body>
@@ -203,6 +249,7 @@ export const PartnerAdminsSection = ({
                 <Table.Cell>
                   <Text size="small" className="text-ui-fg-subtle">No admins added yet.</Text>
                 </Table.Cell>
+                <Table.Cell />
                 <Table.Cell />
                 <Table.Cell />
               </Table.Row>
@@ -219,6 +266,7 @@ export const PartnerAdminsSection = ({
                   <Table.Cell>{[a.first_name, a.last_name].filter(Boolean).join(" ") || "—"}</Table.Cell>
                   <Table.Cell>{a.email}</Table.Cell>
                   <Table.Cell>{a.role || "admin"}</Table.Cell>
+                  <Table.Cell>{getLanguageDisplayName(a.preferred_language)}</Table.Cell>
                 </Table.Row>
               ))
             )}
@@ -234,6 +282,13 @@ export const PartnerAdminsSection = ({
             action={openDrawer}
             label="Update password"
             shortcut="p"
+            disabled={selectedCount !== 1}
+          />
+          <CommandBar.Seperator />
+          <CommandBar.Command
+            action={openLanguageDrawer}
+            label="Set language"
+            shortcut="l"
             disabled={selectedCount !== 1}
           />
           <CommandBar.Seperator />
@@ -283,6 +338,61 @@ export const PartnerAdminsSection = ({
                 </Button>
               </Drawer.Close>
               <Button size="small" isLoading={isPending} onClick={handleUpdatePassword}>
+                Save
+              </Button>
+            </div>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
+      <Drawer
+        open={languageDrawerOpen}
+        onOpenChange={(o) => setLanguageDrawerOpen(o)}
+      >
+        <Drawer.Content className="max-w-md">
+          <Drawer.Header>
+            <Drawer.Title>Set language</Drawer.Title>
+            <Drawer.Description>
+              {selectedAdmin
+                ? `Enforces the partner-ui dashboard language for ${selectedAdmin.email}. The admin can still change it themselves.`
+                : "Select an admin"}
+            </Drawer.Description>
+          </Drawer.Header>
+          <Drawer.Body className="overflow-y-auto">
+            <div className="flex flex-col gap-y-4">
+              <div>
+                <Text size="small" className="text-ui-fg-subtle mb-1">
+                  Language
+                </Text>
+                <Select
+                  value={pendingLanguage}
+                  onValueChange={(v) => setPendingLanguage(v)}
+                >
+                  <Select.Trigger>
+                    <Select.Value />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {PARTNER_ADMIN_LANGUAGES.map((lang) => (
+                      <Select.Item key={lang.code} value={lang.code}>
+                        {lang.display_name}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              </div>
+            </div>
+          </Drawer.Body>
+          <Drawer.Footer>
+            <div className="flex w-full items-center justify-end gap-x-2">
+              <Drawer.Close asChild>
+                <Button variant="secondary" size="small" disabled={isSavingLanguage}>
+                  Cancel
+                </Button>
+              </Drawer.Close>
+              <Button
+                size="small"
+                isLoading={isSavingLanguage}
+                onClick={handleSaveLanguage}
+              >
                 Save
               </Button>
             </div>

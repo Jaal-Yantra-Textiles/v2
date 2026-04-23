@@ -870,6 +870,12 @@ export function getPartnerRouteMap(): RouteObject[] {
                 {
                   path: "profile",
                   lazy: () => import("../../routes/profile/profile-detail"),
+                  children: [
+                    {
+                      path: "edit",
+                      lazy: () => import("../../routes/profile/profile-edit"),
+                    },
+                  ],
                 },
                 {
                   path: "store",
