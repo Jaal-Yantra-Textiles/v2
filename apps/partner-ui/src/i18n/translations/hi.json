@@ -399,354 +399,354 @@
     "availableIn": "<0>{{x}}</0> में से <1>{{y}}</1> सेल्स चैनलों में उपलब्ध"
   },
   "products": {
-    "domain": "Products",
+    "domain": "उत्पाद",
     "list": {
-      "noRecordsMessage": "Create your first product to start selling."
+      "noRecordsMessage": "बिक्री शुरू करने के लिए अपना पहला उत्पाद बनाएं।"
     },
     "edit": {
-      "header": "Edit Product",
-      "description": "Edit the product details.",
-      "successToast": "Product {{title}} was successfully updated."
+      "header": "उत्पाद संपादित करें",
+      "description": "उत्पाद विवरण संपादित करें।",
+      "successToast": "उत्पाद {{title}} सफलतापूर्वक अपडेट किया गया।"
     },
     "create": {
-      "title": "Create Product",
-      "description": "Create a new product.",
-      "header": "General",
+      "title": "उत्पाद बनाएं",
+      "description": "नया उत्पाद बनाएं।",
+      "header": "सामान्य",
       "tabs": {
-        "details": "Details",
-        "organize": "Organize",
-        "variants": "Variants",
-        "inventory": "Inventory kits"
+        "details": "विवरण",
+        "organize": "व्यवस्थित करें",
+        "variants": "वेरिएंट",
+        "inventory": "इन्वेंटरी किट"
       },
       "errors": {
-        "variants": "Please select at least one variant.",
-        "options": "Please create at least one option.",
-        "uniqueSku": "SKU must be unique."
+        "variants": "कृपया कम से कम एक वेरिएंट चुनें।",
+        "options": "कृपया कम से कम एक विकल्प बनाएं।",
+        "uniqueSku": "SKU अद्वितीय होना चाहिए।"
       },
       "inventory": {
-        "heading": "Inventory kits",
-        "label": "Add inventory items to the variant's inventory kit.",
-        "itemPlaceholder": "Select inventory item",
-        "quantityPlaceholder": "How many of these are needed for the kit?"
+        "heading": "इन्वेंटरी किट",
+        "label": "वेरिएंट की इन्वेंटरी किट में इन्वेंटरी आइटम जोड़ें।",
+        "itemPlaceholder": "इन्वेंटरी आइटम चुनें",
+        "quantityPlaceholder": "किट के लिए इनमें से कितने की आवश्यकता है?"
       },
       "variants": {
-        "header": "Variants",
-        "subHeadingTitle": "Yes, this is a product with variants",
-        "subHeadingDescription": "When unchecked, we will create a default variant for you",
+        "header": "वेरिएंट",
+        "subHeadingTitle": "हां, यह वेरिएंट वाला उत्पाद है",
+        "subHeadingDescription": "अनचेक करने पर, हम आपके लिए एक डिफ़ॉल्ट वेरिएंट बनाएंगे",
         "optionTitle": {
-          "placeholder": "Size"
+          "placeholder": "साइज़"
         },
         "optionValues": {
-          "placeholder": "Small, Medium, Large"
+          "placeholder": "छोटा, मध्यम, बड़ा"
         },
         "productVariants": {
-          "label": "Product variants",
-          "hint": "This ranking will affect the variants' order in your storefront.",
-          "alert": "Add options to create variants.",
-          "tip": "Variants left unchecked won't be created. You can always create and edit variants afterwards but this list fits the variations in your product options."
+          "label": "उत्पाद वेरिएंट",
+          "hint": "यह रैंकिंग आपके स्टोरफ्रंट में वेरिएंट के क्रम को प्रभावित करेगी।",
+          "alert": "वेरिएंट बनाने के लिए विकल्प जोड़ें।",
+          "tip": "अनचेक किए गए वेरिएंट नहीं बनाए जाएंगे। आप बाद में हमेशा वेरिएंट बना और संपादित कर सकते हैं लेकिन यह सूची आपके उत्पाद विकल्पों में भिन्नताओं के अनुरूप है।"
         },
         "productOptions": {
-          "label": "Product options",
-          "hint": "Define the options for the product, e.g. color, size, etc."
+          "label": "उत्पाद विकल्प",
+          "hint": "उत्पाद के लिए विकल्प परिभाषित करें, जैसे रंग, साइज़, आदि।"
         }
       },
-      "successToast": "Product {{title}} was successfully created."
+      "successToast": "उत्पाद {{title}} सफलतापूर्वक बनाया गया।"
     },
     "export": {
-      "header": "Export Product List",
-      "description": "Export the product list to a CSV file.",
+      "header": "उत्पाद सूची निर्यात करें",
+      "description": "उत्पाद सूची को CSV फ़ाइल में निर्यात करें।",
       "success": {
-        "title": "We are processing your export",
-        "description": "Exporting data may take a few minutes. We will notify you when we are done."
+        "title": "हम आपके निर्यात को प्रोसेस कर रहे हैं",
+        "description": "डेटा निर्यात करने में कुछ मिनट लग सकते हैं। पूरा होने पर हम आपको सूचित करेंगे।"
       },
       "filters": {
-        "title": "Filters",
-        "description": "Apply filters in the table overview to adjust this view"
+        "title": "फ़िल्टर",
+        "description": "इस दृश्य को समायोजित करने के लिए तालिका अवलोकन में फ़िल्टर लागू करें"
       },
       "columns": {
-        "title": "Columns",
-        "description": "Customize the exported data to meet specific needs"
+        "title": "कॉलम",
+        "description": "विशिष्ट आवश्यकताओं को पूरा करने के लिए निर्यात किए गए डेटा को अनुकूलित करें"
       }
     },
     "import": {
-      "header": "Import Product List",
-      "uploadLabel": "Import Products",
-      "uploadHint": "Drag and drop a CSV file or click to upload",
-      "description": "Import products by providing a CSV file in a pre-defined format",
+      "header": "उत्पाद सूची आयात करें",
+      "uploadLabel": "उत्पाद आयात करें",
+      "uploadHint": "CSV फ़ाइल को ड्रैग और ड्रॉप करें या अपलोड करने के लिए क्लिक करें",
+      "description": "पूर्व-निर्धारित प्रारूप में CSV फ़ाइल प्रदान करके उत्पाद आयात करें",
       "template": {
-        "title": "Unsure about how to arrange your list?",
-        "description": "Download the template below to ensure you are following the correct format."
+        "title": "अपनी सूची को कैसे व्यवस्थित करें इसके बारे में अनिश्चित हैं?",
+        "description": "सही प्रारूप का पालन सुनिश्चित करने के लिए नीचे दिया गया टेम्पलेट डाउनलोड करें।"
       },
       "upload": {
-        "title": "Upload a CSV file",
-        "description": "Through imports you can add or update products. To update existing products you must use the existing handle and ID, to update existing variants you must use the existing ID. You will be asked for confirmation before we import products.",
-        "preprocessing": "Preprocessing...",
-        "productsToCreate": "Products will be created",
-        "productsToUpdate": "Products will be updated"
+        "title": "CSV फ़ाइल अपलोड करें",
+        "description": "आयात के माध्यम से आप उत्पाद जोड़ या अपडेट कर सकते हैं। मौजूदा उत्पादों को अपडेट करने के लिए आपको मौजूदा हैंडल और ID का उपयोग करना होगा, मौजूदा वेरिएंट को अपडेट करने के लिए आपको मौजूदा ID का उपयोग करना होगा। उत्पाद आयात करने से पहले हम आपसे पुष्टि मांगेंगे।",
+        "preprocessing": "प्रीप्रोसेसिंग...",
+        "productsToCreate": "उत्पाद बनाए जाएंगे",
+        "productsToUpdate": "उत्पाद अपडेट किए जाएंगे"
       },
       "success": {
-        "title": "We are processing your import",
-        "description": "Importing data may take a while. We will notify you when we are done."
+        "title": "हम आपके आयात को प्रोसेस कर रहे हैं",
+        "description": "डेटा आयात करने में कुछ समय लग सकता है। पूरा होने पर हम आपको सूचित करेंगे।"
       }
     },
-    "deleteWarning": "You are about to delete the product {{title}}. This action cannot be undone.",
+    "deleteWarning": "आप उत्पाद {{title}} को हटाने वाले हैं। इस क्रिया को पूर्ववत नहीं किया जा सकता।",
     "variants": {
-      "header": "Variants",
+      "header": "वेरिएंट",
       "empty": {
-        "heading": "No variants",
-        "description": "There are no variants to display."
+        "heading": "कोई वेरिएंट नहीं",
+        "description": "प्रदर्शित करने के लिए कोई वेरिएंट नहीं हैं।"
       },
       "filtered": {
-        "heading": "No results",
-        "description": "No variants match the current filter criteria."
+        "heading": "कोई परिणाम नहीं",
+        "description": "कोई भी वेरिएंट वर्तमान फ़िल्टर मानदंड से मेल नहीं खाता।"
       }
     },
-    "attributes": "Attributes",
-    "editAttributes": "Edit Attributes",
-    "editOptions": "Edit Options",
-    "editPrices": "Edit prices",
+    "attributes": "विशेषताएं",
+    "editAttributes": "विशेषताएं संपादित करें",
+    "editOptions": "विकल्प संपादित करें",
+    "editPrices": "मूल्य संपादित करें",
     "media": {
-      "label": "Media",
-      "editHint": "Add media to the product to showcase it in your storefront.",
-      "manageImageVariants": "Manage associated variants",
-      "makeThumbnail": "Make thumbnail",
-      "uploadImagesLabel": "Upload images",
-      "uploadImagesHint": "Drag and drop images here or click to upload.",
-      "invalidFileType": "'{{name}}' is not a supported file type. Supported file types are: {{types}}.",
-      "fileTooLarge": "One or more files exceed the maximum file size of {{size}}: {{name}}",
-      "failedToUpload": "Failed to upload the added media. Please try again.",
-      "deleteWarning_one": "You are about to delete {{count}} image. This action cannot be undone.",
-      "deleteWarning_other": "You are about to delete {{count}} images. This action cannot be undone.",
-      "deleteWarningWithThumbnail_one": "You are about to delete {{count}} image including the thumbnail. This action cannot be undone.",
-      "deleteWarningWithThumbnail_other": "You are about to delete {{count}} images including the thumbnail. This action cannot be undone.",
-      "thumbnailTooltip": "Thumbnail",
-      "galleryLabel": "Gallery",
-      "downloadImageLabel": "Download current image",
-      "deleteImageLabel": "Delete current image",
+      "label": "मीडिया",
+      "editHint": "अपने स्टोरफ्रंट में उत्पाद को प्रदर्शित करने के लिए मीडिया जोड़ें।",
+      "manageImageVariants": "संबद्ध वेरिएंट प्रबंधित करें",
+      "makeThumbnail": "थंबनेल बनाएं",
+      "uploadImagesLabel": "छवियां अपलोड करें",
+      "uploadImagesHint": "छवियों को यहां ड्रैग और ड्रॉप करें या अपलोड करने के लिए क्लिक करें।",
+      "invalidFileType": "'{{name}}' समर्थित फ़ाइल प्रकार नहीं है। समर्थित फ़ाइल प्रकार हैं: {{types}}।",
+      "fileTooLarge": "एक या अधिक फ़ाइलें अधिकतम फ़ाइल साइज़ {{size}} से अधिक हैं: {{name}}",
+      "failedToUpload": "जोड़े गए मीडिया को अपलोड करने में विफल। कृपया पुनः प्रयास करें।",
+      "deleteWarning_one": "आप {{count}} छवि हटाने वाले हैं। इस क्रिया को पूर्ववत नहीं किया जा सकता।",
+      "deleteWarning_other": "आप {{count}} छवियां हटाने वाले हैं। इस क्रिया को पूर्ववत नहीं किया जा सकता।",
+      "deleteWarningWithThumbnail_one": "आप थंबनेल सहित {{count}} छवि हटाने वाले हैं। इस क्रिया को पूर्ववत नहीं किया जा सकता।",
+      "deleteWarningWithThumbnail_other": "आप थंबनेल सहित {{count}} छवियां हटाने वाले हैं। इस क्रिया को पूर्ववत नहीं किया जा सकता।",
+      "thumbnailTooltip": "थंबनेल",
+      "galleryLabel": "गैलरी",
+      "downloadImageLabel": "वर्तमान छवि डाउनलोड करें",
+      "deleteImageLabel": "वर्तमान छवि हटाएं",
       "emptyState": {
-        "header": "No media yet",
-        "description": "Add media to showcase it in your storefront.",
-        "action": "Add media"
+        "header": "अभी तक कोई मीडिया नहीं",
+        "description": "अपने स्टोरफ्रंट में प्रदर्शित करने के लिए मीडिया जोड़ें।",
+        "action": "मीडिया जोड़ें"
       },
-      "successToast": "Media was successfully updated.",
-      "variantImages": "Variant images",
-      "showAvailableImages": "Show available images",
-      "availableImages": "Select images",
-      "selectToAdd": "Add product images to the variant. To add new images, add them to the product first.",
-      "removeSelected": "Remove Selected"
+      "successToast": "मीडिया सफलतापूर्वक अपडेट किया गया।",
+      "variantImages": "वेरिएंट छवियां",
+      "showAvailableImages": "उपलब्ध छवियां दिखाएं",
+      "availableImages": "छवियां चुनें",
+      "selectToAdd": "वेरिएंट में उत्पाद छवियां जोड़ें। नई छवियां जोड़ने के लिए, पहले उन्हें उत्पाद में जोड़ें।",
+      "removeSelected": "चयनित हटाएं"
     },
     "variantMedia": {
-      "label": "Variant Media",
-      "manageVariants": "Manage variants",
-      "addToMultipleVariants": "Add to multiple variants",
-      "manageVariantsDescription": "Manage associated variants for the image",
-      "successToast": "Image variants successfully updated.",
+      "label": "वेरिएंट मीडिया",
+      "manageVariants": "वेरिएंट प्रबंधित करें",
+      "addToMultipleVariants": "एकाधिक वेरिएंट में जोड़ें",
+      "manageVariantsDescription": "छवि के लिए संबद्ध वेरिएंट प्रबंधित करें",
+      "successToast": "छवि वेरिएंट सफलतापूर्वक अपडेट किए गए।",
       "emptyState": {
-        "header": "No media yet",
-        "description": "Add media to the variant to showcase it in your storefront.",
-        "action": "Add media"
+        "header": "अभी तक कोई मीडिया नहीं",
+        "description": "अपने स्टोरफ्रंट में प्रदर्शित करने के लिए वेरिएंट में मीडिया जोड़ें।",
+        "action": "मीडिया जोड़ें"
       }
     },
-    "discountableHint": "When unchecked, discounts will not be applied to this product.",
-    "noSalesChannels": "Not available in any sales channels",
-    "variantCount_one": "{{count}} variant",
-    "variantCount_other": "{{count}} variants",
-    "deleteVariantWarning": "You are about to delete the variant {{title}}. This action cannot be undone.",
+    "discountableHint": "अनचेक करने पर, इस उत्पाद पर छूट लागू नहीं होगी।",
+    "noSalesChannels": "किसी भी बिक्री चैनल में उपलब्ध नहीं",
+    "variantCount_one": "{{count}} वेरिएंट",
+    "variantCount_other": "{{count}} वेरिएंट",
+    "deleteVariantWarning": "आप वेरिएंट {{title}} को हटाने वाले हैं। इस क्रिया को पूर्ववत नहीं किया जा सकता।",
     "productStatus": {
-      "draft": "Draft",
-      "published": "Published",
-      "proposed": "Proposed",
-      "rejected": "Rejected"
+      "draft": "ड्राफ़्ट",
+      "published": "प्रकाशित",
+      "proposed": "प्रस्तावित",
+      "rejected": "अस्वीकृत"
     },
     "columns": {
-      "product_display": "Product",
-      "variants_count": "Variants",
-      "sales_channels_display": "Sales Channels",
-      "collection": "Collection",
-      "status": "Status",
-      "thumbnail": "Thumbnail",
-      "title": "Title",
-      "handle": "Handle",
-      "created_at": "Created",
-      "updated_at": "Updated"
+      "product_display": "उत्पाद",
+      "variants_count": "वेरिएंट",
+      "sales_channels_display": "बिक्री चैनल",
+      "collection": "संग्रह",
+      "status": "स्थिति",
+      "thumbnail": "थंबनेल",
+      "title": "शीर्षक",
+      "handle": "हैंडल",
+      "created_at": "बनाया गया",
+      "updated_at": "अपडेट किया गया"
     },
     "fields": {
       "title": {
-        "label": "Title",
-        "hint": "Give your product a short and clear title.<0/>50-60 characters is the recommended length for search engines.",
-        "placeholder": "Winter jacket"
+        "label": "शीर्षक",
+        "hint": "अपने उत्पाद को एक संक्षिप्त और स्पष्ट शीर्षक दें।<0/>खोज इंजन के लिए 50-60 वर्ण अनुशंसित लंबाई है।",
+        "placeholder": "विंटर जैकेट"
       },
       "subtitle": {
-        "label": "Subtitle",
-        "placeholder": "Warm and cosy"
+        "label": "उपशीर्षक",
+        "placeholder": "गर्म और आरामदायक"
       },
       "handle": {
-        "label": "Handle",
-        "tooltip": "The handle is used to reference the product in your storefront. If not specified, the handle will be generated from the product title.",
+        "label": "हैंडल",
+        "tooltip": "हैंडल का उपयोग आपके स्टोरफ्रंट में उत्पाद को संदर्भित करने के लिए किया जाता है। यदि निर्दिष्ट नहीं है, तो हैंडल उत्पाद शीर्षक से जेनरेट किया जाएगा।",
         "placeholder": "winter-jacket"
       },
       "description": {
-        "label": "Description",
-        "hint": "Give your product a short and clear description.<0/>120-160 characters is the recommended length for search engines.",
-        "placeholder": "A warm and cozy jacket"
+        "label": "विवरण",
+        "hint": "अपने उत्पाद को एक संक्षिप्त और स्पष्ट विवरण दें।<0/>खोज इंजन के लिए 120-160 वर्ण अनुशंसित लंबाई है।",
+        "placeholder": "एक गर्म और आरामदायक जैकेट"
       },
       "discountable": {
-        "label": "Discountable",
-        "hint": "When unchecked, discounts will not be applied to this product"
+        "label": "छूट योग्य",
+        "hint": "अनचेक करने पर, इस उत्पाद पर छूट लागू नहीं होगी"
       },
       "shipping_profile": {
-        "label": "Shipping profile",
-        "hint": "Connect the product to a shipping profile"
+        "label": "शिपिंग प्रोफ़ाइल",
+        "hint": "उत्पाद को शिपिंग प्रोफ़ाइल से कनेक्ट करें"
       },
       "type": {
-        "label": "Type"
+        "label": "प्रकार"
       },
       "collection": {
-        "label": "Collection"
+        "label": "संग्रह"
       },
       "categories": {
-        "label": "Categories"
+        "label": "श्रेणियां"
       },
       "tags": {
-        "label": "Tags"
+        "label": "टैग"
       },
       "sales_channels": {
-        "label": "Sales channels",
-        "hint": "This product will only be available in the default sales channel if left untouched."
+        "label": "बिक्री चैनल",
+        "hint": "यदि अछूता छोड़ दिया जाए तो यह उत्पाद केवल डिफ़ॉल्ट बिक्री चैनल में उपलब्ध होगा।"
       },
       "countryOrigin": {
-        "label": "Country of origin"
+        "label": "मूल देश"
       },
       "material": {
-        "label": "Material"
+        "label": "सामग्री"
       },
       "width": {
-        "label": "Width"
+        "label": "चौड़ाई"
       },
       "length": {
-        "label": "Length"
+        "label": "लंबाई"
       },
       "height": {
-        "label": "Height"
+        "label": "ऊंचाई"
       },
       "weight": {
-        "label": "Weight"
+        "label": "वज़न"
       },
       "options": {
-        "label": "Product options",
-        "hint": "Options are used to define the color, size, etc. of the product",
-        "add": "Add option",
-        "optionTitle": "Option title",
-        "optionTitlePlaceholder": "Color",
-        "variations": "Variations (comma-separated)",
-        "variantionsPlaceholder": "Red, Blue, Green"
+        "label": "उत्पाद विकल्प",
+        "hint": "विकल्पों का उपयोग उत्पाद के रंग, साइज़ आदि को परिभाषित करने के लिए किया जाता है",
+        "add": "विकल्प जोड़ें",
+        "optionTitle": "विकल्प शीर्षक",
+        "optionTitlePlaceholder": "रंग",
+        "variations": "भिन्नताएं (अल्पविराम से अलग)",
+        "variantionsPlaceholder": "लाल, नीला, हरा"
       },
       "variants": {
-        "label": "Product variants",
-        "hint": "Variants left unchecked won't be created, This ranking will affect how the variants are ranked in your frontend."
+        "label": "उत्पाद वेरिएंट",
+        "hint": "अनचेक किए गए वेरिएंट नहीं बनाए जाएंगे, यह रैंकिंग प्रभावित करेगी कि आपके फ्रंटएंड में वेरिएंट कैसे रैंक किए जाते हैं।"
       },
       "mid_code": {
-        "label": "Mid code"
+        "label": "Mid कोड"
       },
       "hs_code": {
-        "label": "HS code"
+        "label": "HS कोड"
       }
     },
     "variant": {
       "edit": {
-        "header": "Edit Variant",
-        "success": "Product variant edited successfully"
+        "header": "वेरिएंट संपादित करें",
+        "success": "उत्पाद वेरिएंट सफलतापूर्वक संपादित किया गया"
       },
       "create": {
-        "header": "Variant details"
+        "header": "वेरिएंट विवरण"
       },
-      "deleteWarning": "Are you sure you want to delete this variant?",
-      "pricesPagination": "1 - {{current}} of {{total}} prices",
-      "tableItemAvailable": "{{availableCount}} available",
-      "tableItem_one": "{{availableCount}} available at {{locationCount}} location",
-      "tableItem_other": "{{availableCount}} available at {{locationCount}} locations",
+      "deleteWarning": "क्या आप वाकई इस वेरिएंट को हटाना चाहते हैं?",
+      "pricesPagination": "1 - {{current}} कुल {{total}} मूल्यों में से",
+      "tableItemAvailable": "{{availableCount}} उपलब्ध",
+      "tableItem_one": "{{availableCount}} उपलब्ध {{locationCount}} स्थान पर",
+      "tableItem_other": "{{availableCount}} उपलब्ध {{locationCount}} स्थानों पर",
       "inventory": {
-        "notManaged": "Not managed",
-        "manageItems": "Manage inventory items",
-        "notManagedDesc": "Inventory is not managed for this variant. Turn on ‘Manage Inventory’ to track the variant's inventory.",
-        "manageKit": "Manage inventory kit",
-        "navigateToItem": "Go to inventory item",
+        "notManaged": "प्रबंधित नहीं",
+        "manageItems": "इन्वेंटरी आइटम प्रबंधित करें",
+        "notManagedDesc": "इस वेरिएंट के लिए इन्वेंटरी प्रबंधित नहीं है। वेरिएंट की इन्वेंटरी ट्रैक करने के लिए 'इन्वेंटरी प्रबंधित करें' चालू करें।",
+        "manageKit": "इन्वेंटरी किट प्रबंधित करें",
+        "navigateToItem": "इन्वेंटरी आइटम पर जाएं",
         "actions": {
-          "inventoryItems": "Go to inventory item",
-          "inventoryKit": "Show inventory items"
+          "inventoryItems": "इन्वेंटरी आइटम पर जाएं",
+          "inventoryKit": "इन्वेंटरी आइटम दिखाएं"
         },
-        "inventoryKit": "Inventory Kit",
-        "inventoryKitHint": "Does this variant consist of several inventory items?",
+        "inventoryKit": "इन्वेंटरी किट",
+        "inventoryKitHint": "क्या यह वेरिएंट कई इन्वेंटरी आइटम से मिलकर बना है?",
         "validation": {
-          "itemId": "Please select inventory item.",
-          "quantity": "Quantity is required. Please input a positive number."
+          "itemId": "कृपया इन्वेंटरी आइटम चुनें।",
+          "quantity": "मात्रा आवश्यक है। कृपया एक सकारात्मक संख्या दर्ज करें।"
         },
-        "header": "Stock & Inventory",
-        "editItemDetails": "Edit item details",
-        "manageInventoryLabel": "Manage inventory",
-        "manageInventoryHint": "When enabled, we'll change the inventory quantity for you when orders and returns are created.",
-        "allowBackordersLabel": "Allow backorders",
-        "allowBackordersHint": "When enabled, customers can purchase the variant even if there's no available quantity.",
+        "header": "स्टॉक और इन्वेंटरी",
+        "editItemDetails": "आइटम विवरण संपादित करें",
+        "manageInventoryLabel": "इन्वेंटरी प्रबंधित करें",
+        "manageInventoryHint": "सक्षम होने पर, जब ऑर्डर और रिटर्न बनाए जाते हैं तो हम आपके लिए इन्वेंटरी मात्रा बदल देंगे।",
+        "allowBackordersLabel": "बैकऑर्डर की अनुमति दें",
+        "allowBackordersHint": "सक्षम होने पर, ग्राहक वेरिएंट खरीद सकते हैं भले ही कोई उपलब्ध मात्रा न हो।",
         "toast": {
-          "levelsBatch": "Inventory levels updated.",
-          "update": "Inventory item updated successfully.",
-          "updateLevel": "Inventory level updated successfully.",
-          "itemsManageSuccess": "Inventory items successfully updated."
+          "levelsBatch": "इन्वेंटरी स्तर अपडेट किए गए।",
+          "update": "इन्वेंटरी आइटम सफलतापूर्वक अपडेट किया गया।",
+          "updateLevel": "इन्वेंटरी स्तर सफलतापूर्वक अपडेट किया गया।",
+          "itemsManageSuccess": "इन्वेंटरी आइटम सफलतापूर्वक अपडेट किए गए।"
         }
       }
     },
     "options": {
-      "header": "Options",
+      "header": "विकल्प",
       "edit": {
-        "header": "Edit Option",
-        "successToast": "Option {{title}} was successfully updated."
+        "header": "विकल्प संपादित करें",
+        "successToast": "विकल्प {{title}} सफलतापूर्वक अपडेट किया गया।"
       },
       "create": {
-        "header": "Create Option",
-        "successToast": "Option {{title}} was successfully created."
+        "header": "विकल्प बनाएं",
+        "successToast": "विकल्प {{title}} सफलतापूर्वक बनाया गया।"
       },
-      "deleteWarning": "You are about to delete the product option: {{title}}. This action cannot be undone."
+      "deleteWarning": "आप उत्पाद विकल्प: {{title}} को हटाने वाले हैं। इस क्रिया को पूर्ववत नहीं किया जा सकता।"
     },
     "organization": {
-      "header": "Organize",
+      "header": "व्यवस्थित करें",
       "edit": {
-        "header": "Edit Organization",
+        "header": "संगठन संपादित करें",
         "toasts": {
-          "success": "Successfully updated the organization of {{title}}."
+          "success": "{{title}} का संगठन सफलतापूर्वक अपडेट किया गया।"
         }
       }
     },
     "stock": {
-      "heading": "Manage product stock levels and locations",
-      "description": "Update the stocked inventory levels for all of the product's variants.",
-      "loading": "Hang on this may take a moment...",
+      "heading": "उत्पाद स्टॉक स्तर और स्थान प्रबंधित करें",
+      "description": "उत्पाद के सभी वेरिएंट के लिए स्टॉक की गई इन्वेंटरी स्तर अपडेट करें।",
+      "loading": "रुकिए इसमें कुछ समय लग सकता है...",
       "tooltips": {
-        "alreadyManaged": "This inventory item is already editable under {{title}}.",
-        "alreadyManagedWithSku": "This inventory item is already editable under {{title}} ({{sku}})."
+        "alreadyManaged": "यह इन्वेंटरी आइटम पहले से ही {{title}} के अंतर्गत संपादन योग्य है।",
+        "alreadyManagedWithSku": "यह इन्वेंटरी आइटम पहले से ही {{title}} ({{sku}}) के अंतर्गत संपादन योग्य है।"
       }
     },
     "shippingProfile": {
-      "header": "Shipping configuration",
+      "header": "शिपिंग कॉन्फ़िगरेशन",
       "edit": {
-        "header": "Shipping Configuration",
+        "header": "शिपिंग कॉन्फ़िगरेशन",
         "toasts": {
-          "success": "Successfully updated the shipping profile for {{title}}."
+          "success": "{{title}} के लिए शिपिंग प्रोफ़ाइल सफलतापूर्वक अपडेट की गई।"
         }
       },
       "create": {
         "errors": {
-          "required": "Shipping profile is required"
+          "required": "शिपिंग प्रोफ़ाइल आवश्यक है"
         }
       }
     },
     "toasts": {
       "delete": {
         "success": {
-          "header": "Product deleted",
-          "description": "{{title}} was successfully deleted."
+          "header": "उत्पाद हटाया गया",
+          "description": "{{title}} सफलतापूर्वक हटाया गया।"
         },
         "error": {
-          "header": "Failed to delete product"
+          "header": "उत्पाद हटाने में विफल"
         }
       }
     }
@@ -1045,475 +1045,475 @@
     }
   },
   "orders": {
-    "giftCardsStoreCreditLines": "Gift cards & credit lines",
+    "giftCardsStoreCreditLines": "गिफ्ट कार्ड और क्रेडिट लाइन",
     "creditLines": {
-      "title": "Credit lines",
-      "total": "Sum of all credit lines",
-      "creditOrDebit": "Credit / Debit",
-      "createCreditLine": "Create credit line",
-      "createCreditLineSuccess": "Credit line created successfully",
-      "createCreditLineError": "Error creating credit line",
-      "createCreditLineDescription": "Create a credit line for amount {{amount}}",
-      "operation": "Operation",
-      "credit": "Credit",
-      "creditDescription": "Adds a positive sum to the order",
-      "debit": "Debit",
-      "debitDescription": "Subtracts a negative sum from the order"
+      "title": "क्रेडिट लाइन",
+      "total": "सभी क्रेडिट लाइन का योग",
+      "creditOrDebit": "क्रेडिट / डेबिट",
+      "createCreditLine": "क्रेडिट लाइन बनाएं",
+      "createCreditLineSuccess": "क्रेडिट लाइन सफलतापूर्वक बनाई गई",
+      "createCreditLineError": "क्रेडिट लाइन बनाने में त्रुटि",
+      "createCreditLineDescription": "राशि {{amount}} के लिए क्रेडिट लाइन बनाएं",
+      "operation": "ऑपरेशन",
+      "credit": "क्रेडिट",
+      "creditDescription": "ऑर्डर में सकारात्मक राशि जोड़ता है",
+      "debit": "डेबिट",
+      "debitDescription": "ऑर्डर से नकारात्मक राशि घटाता है"
     },
     "balanceSettlement": {
-      "title": "Balance settlement",
-      "settlementType": "Settlement type",
+      "title": "बैलेंस सेटलमेंट",
+      "settlementType": "सेटलमेंट प्रकार",
       "settlementTypes": {
-        "paymentMethod": "Payment method",
-        "paymentMethodDescription": "Refund amount to the payment method",
-        "creditLine": "Store credit",
-        "creditLineDescription": "Refund amount as store credit"
+        "paymentMethod": "पेमेंट विधि",
+        "paymentMethodDescription": "पेमेंट विधि में राशि रिफंड करें",
+        "creditLine": "स्टोर क्रेडिट",
+        "creditLineDescription": "स्टोर क्रेडिट के रूप में राशि रिफंड करें"
       }
     },
-    "domain": "Orders",
-    "claim": "Claim",
-    "exchange": "Exchange",
-    "return": "Return",
-    "cancelWarning": "You are about to cancel the order {{id}}. This action cannot be undone.",
-    "orderCanceled": "Order canceled successfully",
-    "onDateFromSalesChannel": "{{date}} from {{salesChannel}}",
+    "domain": "ऑर्डर",
+    "claim": "क्लेम",
+    "exchange": "एक्सचेंज",
+    "return": "रिटर्न",
+    "cancelWarning": "आप ऑर्डर {{id}} को कैंसल करने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+    "orderCanceled": "ऑर्डर सफलतापूर्वक कैंसल किया गया",
+    "onDateFromSalesChannel": "{{date}} को {{salesChannel}} से",
     "list": {
-      "noRecordsMessage": "Your orders will show up here."
+      "noRecordsMessage": "आपके ऑर्डर यहां दिखाई देंगे।"
     },
     "status": {
-      "not_paid": "Not paid",
-      "pending": "Pending",
-      "completed": "Completed",
-      "draft": "Draft",
-      "archived": "Archived",
-      "canceled": "Canceled",
-      "requires_action": "Requires action"
+      "not_paid": "भुगतान नहीं किया गया",
+      "pending": "लंबित",
+      "completed": "पूर्ण",
+      "draft": "ड्राफ्ट",
+      "archived": "संग्रहीत",
+      "canceled": "कैंसल किया गया",
+      "requires_action": "कार्रवाई आवश्यक"
     },
     "summary": {
-      "requestReturn": "Request return",
-      "allocateItems": "Allocate items",
-      "editOrder": "Edit order",
-      "editOrderContinue": "Continue order edit",
-      "inventoryKit": "Consists of {{count}}x inventory items",
-      "itemTotal": "Item Total",
-      "shippingTotal": "Shipping Total",
-      "discountTotal": "Discount Total",
-      "taxTotalIncl": "Tax Total (included)",
-      "itemSubtotal": "Item Subtotal",
-      "shippingSubtotal": "Shipping Subtotal",
-      "discountSubtotal": "Discount Subtotal",
-      "taxTotal": "Tax Total",
-      "totalAfterDiscount": "Total After Discount"
+      "requestReturn": "रिटर्न अनुरोध करें",
+      "allocateItems": "आइटम आवंटित करें",
+      "editOrder": "ऑर्डर संपादित करें",
+      "editOrderContinue": "ऑर्डर संपादन जारी रखें",
+      "inventoryKit": "{{count}}x इन्वेंटरी आइटम शामिल हैं",
+      "itemTotal": "आइटम कुल",
+      "shippingTotal": "शिपिंग कुल",
+      "discountTotal": "छूट कुल",
+      "taxTotalIncl": "टैक्स कुल (शामिल)",
+      "itemSubtotal": "आइटम उपयोग",
+      "shippingSubtotal": "शिपिंग उपयोग",
+      "discountSubtotal": "छूट उपयोग",
+      "taxTotal": "टैक्स कुल",
+      "totalAfterDiscount": "छूट के बाद कुल"
     },
     "transfer": {
-      "title": "Transfer ownership",
-      "requestSuccess": "Order transfer request sent to: {{email}}.",
-      "currentOwner": "Current owner",
-      "newOwner": "New owner",
-      "currentOwnerDescription": "The customer currently related to this order.",
-      "newOwnerDescription": "The customer to transfer this order to."
+      "title": "स्वामित्व ट्रांसफर करें",
+      "requestSuccess": "ऑर्डर ट्रांसफर अनुरोध भेजा गया: {{email}}।",
+      "currentOwner": "वर्तमान स्वामी",
+      "newOwner": "नया स्वामी",
+      "currentOwnerDescription": "वर्तमान में इस ऑर्डर से संबंधित ग्राहक।",
+      "newOwnerDescription": "वह ग्राहक जिसे यह ऑर्डर ट्रांसफर करना है।"
     },
     "payment": {
-      "title": "Payments",
-      "isReadyToBeCaptured": "Payment <0/> is ready to be captured.",
-      "totalPaidByCustomer": "Total paid by customer",
-      "totalStoreCreditRefunds": "Total store credit refunds",
-      "capture": "Capture payment",
-      "capture_short": "Capture",
-      "refund": "Refund",
-      "markAsPaid": "Mark as paid",
-      "statusLabel": "Payment status",
-      "statusTitle": "Payment Status",
+      "title": "भुगतान",
+      "isReadyToBeCaptured": "भुगतान <0/> कैप्चर करने के लिए तैयार है।",
+      "totalPaidByCustomer": "ग्राहक द्वारा कुल भुगतान",
+      "totalStoreCreditRefunds": "कुल स्टोर क्रेडिट रिफंड",
+      "capture": "भुगतान कैप्चर करें",
+      "capture_short": "कैप्चर",
+      "refund": "रिफंड",
+      "markAsPaid": "भुगतान किया गया चिह्नित करें",
+      "statusLabel": "भुगतान स्थिति",
+      "statusTitle": "भुगतान स्थिति",
       "status": {
-        "notPaid": "Not paid",
-        "authorized": "Authorized",
-        "partiallyAuthorized": "Partially authorized",
-        "awaiting": "Awaiting",
-        "captured": "Captured",
-        "partiallyRefunded": "Partially refunded",
-        "partiallyCaptured": "Partially captured",
-        "refunded": "Refunded",
-        "canceled": "Canceled",
-        "requiresAction": "Requires action"
+        "notPaid": "भुगतान नहीं किया गया",
+        "authorized": "अधिकृत",
+        "partiallyAuthorized": "आंशिक रूप से अधिकृत",
+        "awaiting": "प्रतीक्षारत",
+        "captured": "कैप्चर किया गया",
+        "partiallyRefunded": "आंशिक रूप से रिफंड किया गया",
+        "partiallyCaptured": "आंशिक रूप से कैप्चर किया गया",
+        "refunded": "रिफंड किया गया",
+        "canceled": "कैंसल किया गया",
+        "requiresAction": "कार्रवाई आवश्यक"
       },
-      "capturePayment": "Payment of {{amount}} will be captured.",
-      "capturePaymentSuccess": "Payment of {{amount}} successfully captured",
-      "markAsPaidPayment": "Payment of {{amount}} will be marked as paid.",
-      "markAsPaidPaymentSuccess": "Payment of {{amount}} successfully marked as paid",
-      "createRefund": "Create Refund",
-      "refundPaymentSuccess": "Refund of amount {{amount}} successful",
-      "createRefundWrongQuantity": "Quantity should be a number between 1 and {{number}}",
-      "refundAmount": "Refund {{ amount }}",
-      "paymentLink": "Copy payment link for {{ amount }}",
-      "selectPaymentToRefund": "Select payment to refund"
+      "capturePayment": "{{amount}} का भुगतान कैप्चर किया जाएगा।",
+      "capturePaymentSuccess": "{{amount}} का भुगतान सफलतापूर्वक कैप्चर किया गया",
+      "markAsPaidPayment": "{{amount}} का भुगतान भुगतान किया गया चिह्नित किया जाएगा।",
+      "markAsPaidPaymentSuccess": "{{amount}} का भुगतान सफलतापूर्वक भुगतान किया गया चिह्नित किया गया",
+      "createRefund": "रिफंड बनाएं",
+      "refundPaymentSuccess": "{{amount}} राशि का रिफंड सफल",
+      "createRefundWrongQuantity": "मात्रा 1 और {{number}} के बीच एक संख्या होनी चाहिए",
+      "refundAmount": "{{ amount }} रिफंड करें",
+      "paymentLink": "{{ amount }} के लिए भुगतान लिंक कॉपी करें",
+      "selectPaymentToRefund": "रिफंड करने के लिए भुगतान चुनें"
     },
     "edits": {
-      "title": "Edit order",
-      "confirm": "Confirm Edit",
-      "confirmText": "You are about to confirm an Order Edit. This action cannot be undone.",
-      "cancel": "Cancel Edit",
-      "currentItems": "Current items",
-      "currentItemsDescription": "Adjust item quantity or remove.",
-      "addItemsDescription": "You can add new items to the order.",
-      "addItems": "Add items",
-      "amountPaid": "Amount paid",
-      "newTotal": "New total",
-      "differenceDue": "Difference due",
-      "create": "Edit Order",
-      "currentTotal": "Current total",
-      "noteHint": "Add an internal note for the edit",
-      "cancelSuccessToast": "Order edit canceled",
-      "createSuccessToast": "Order edit request created",
-      "activeChangeError": "There is already active order change on the order (return, claim, exchange etc.). Please finish or cancel the change before editing the order.",
+      "title": "ऑर्डर संपादित करें",
+      "confirm": "संपादन पुष्टि करें",
+      "confirmText": "आप ऑर्डर संपादन की पुष्टि करने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "cancel": "संपादन कैंसल करें",
+      "currentItems": "वर्तमान आइटम",
+      "currentItemsDescription": "आइटम मात्रा समायोजित करें या हटाएं।",
+      "addItemsDescription": "आप ऑर्डर में नए आइटम जोड़ सकते हैं।",
+      "addItems": "आइटम जोड़ें",
+      "amountPaid": "भुगतान की गई राशि",
+      "newTotal": "नया कुल",
+      "differenceDue": "देय अंतर",
+      "create": "ऑर्डर संपादित करें",
+      "currentTotal": "वर्तमान कुल",
+      "noteHint": "संपादन के लिए आंतरिक नोट जोड़ें",
+      "cancelSuccessToast": "ऑर्डर संपादन कैंसल किया गया",
+      "createSuccessToast": "ऑर्डर संपादन अनुरोध बनाया गया",
+      "activeChangeError": "ऑर्डर पर पहले से एक सक्रिय ऑर्डर परिवर्तन है (रिटर्न, क्लेम, एक्सचेंज आदि)। कृपया ऑर्डर संपादित करने से पहले परिवर्तन समाप्त करें या कैंसल करें।",
       "panel": {
-        "title": "Order edit requested",
-        "titlePending": "Order edit pending"
+        "title": "ऑर्डर संपादन अनुरोधित",
+        "titlePending": "ऑर्डर संपादन लंबित"
       },
       "toast": {
-        "canceledSuccessfully": "Order edit cancelled",
-        "confirmedSuccessfully": "Order edit confirmed"
+        "canceledSuccessfully": "ऑर्डर संपादन कैंसल किया गया",
+        "confirmedSuccessfully": "ऑर्डर संपादन पुष्टि की गई"
       },
       "validation": {
-        "quantityLowerThanFulfillment": "Cannot set quantity to be less then or equal to fulfilled quantity"
+        "quantityLowerThanFulfillment": "मात्रा को पूर्ण की गई मात्रा से कम या बराबर सेट नहीं किया जा सकता"
       }
     },
     "edit": {
       "email": {
-        "title": "Edit email",
-        "requestSuccess": "Order email updated to {{email}}."
+        "title": "ईमेल संपादित करें",
+        "requestSuccess": "ऑर्डर ईमेल {{email}} में अपडेट किया गया।"
       },
       "shippingAddress": {
-        "title": "Edit shipping address",
-        "requestSuccess": "Order shipping address updated."
+        "title": "शिपिंग पता संपादित करें",
+        "requestSuccess": "ऑर्डर शिपिंग पता अपडेट किया गया।"
       },
       "billingAddress": {
-        "title": "Edit billing address",
-        "requestSuccess": "Order billing address updated."
+        "title": "बिलिंग पता संपादित करें",
+        "requestSuccess": "ऑर्डर बिलिंग पता अपडेट किया गया।"
       }
     },
     "returns": {
-      "create": "Create Return",
-      "confirm": "Confirm Return",
-      "confirmText": "You are about to confirm a Return. This action cannot be undone.",
-      "inbound": "Inbound",
-      "outbound": "Outbound",
-      "sendNotification": "Send notification",
-      "sendNotificationHint": "Notify customer about return.",
-      "returnTotal": "Return total",
-      "inboundTotal": "Inbound total",
-      "estDifference": "Estimated difference",
-      "outstandingAmount": "Outstanding amount",
-      "reason": "Reason",
-      "reasonHint": "Choose why the customer want to return items.",
-      "note": "Note",
-      "noInventoryLevel": "No inventory level",
-      "noInventoryLevelDesc": "The selected location does not have an inventory level for the selected items. The return can be requested but can’t be received until an inventory level is created for the selected location.",
-      "noteHint": "You can type freely if you want to specify something.",
-      "location": "Location",
-      "locationHint": "Choose which location you want to return the items to.",
-      "inboundShipping": "Return shipping",
-      "inboundShippingHint": "Choose which method you want to use.",
-      "returnableQuantityLabel": "Returnable quantity",
-      "refundableAmountLabel": "Refundable amount",
-      "returnRequestedInfo": "{{requestedItemsCount}}x items return requested",
-      "returnReceivedInfo": "{{requestedItemsCount}}x items return received",
-      "itemReceived": "Items received",
-      "returnRequested": "Return requested",
-      "damagedItemReceived": "Damaged items received",
-      "damagedItemsReturned": "{{quantity}}x damaged items returned",
-      "activeChangeError": "There is an active order change in progress on this order. Please finish or discard the change first.",
+      "create": "रिटर्न बनाएं",
+      "confirm": "रिटर्न पुष्टि करें",
+      "confirmText": "आप रिटर्न की पुष्टि करने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "inbound": "इनबाउंड",
+      "outbound": "आउटबाउंड",
+      "sendNotification": "सूचना भेजें",
+      "sendNotificationHint": "ग्राहक को रिटर्न के बारे में सूचित करें।",
+      "returnTotal": "रिटर्न कुल",
+      "inboundTotal": "इनबाउंड कुल",
+      "estDifference": "अनुमानित अंतर",
+      "outstandingAmount": "बकाया राशि",
+      "reason": "कारण",
+      "reasonHint": "चुनें कि ग्राहक आइटम क्यों रिटर्न करना चाहता है।",
+      "note": "नोट",
+      "noInventoryLevel": "कोई इन्वेंटरी स्तर नहीं",
+      "noInventoryLevelDesc": "चयनित स्थान पर चयनित आइटम के लिए इन्वेंटरी स्तर नहीं है। रिटर्न का अनुरोध किया जा सकता है लेकिन चयनित स्थान के लिए इन्वेंटरी स्तर बनाए जाने तक प्राप्त नहीं किया जा सकता।",
+      "noteHint": "यदि आप कुछ निर्दिष्ट करना चाहते हैं तो स्वतंत्र रूप से टाइप कर सकते हैं।",
+      "location": "स्थान",
+      "locationHint": "चुनें कि आप आइटम किस स्थान पर रिटर्न करना चाहते हैं।",
+      "inboundShipping": "रिटर्न शिपिंग",
+      "inboundShippingHint": "चुनें कि आप किस विधि का उपयोग करना चाहते हैं।",
+      "returnableQuantityLabel": "रिटर्न योग्य मात्रा",
+      "refundableAmountLabel": "रिफंड योग्य राशि",
+      "returnRequestedInfo": "{{requestedItemsCount}}x आइटम रिटर्न अनुरोधित",
+      "returnReceivedInfo": "{{requestedItemsCount}}x आइटम रिटर्न प्राप्त",
+      "itemReceived": "आइटम प्राप्त",
+      "returnRequested": "रिटर्न अनुरोधित",
+      "damagedItemReceived": "क्षतिग्रस्त आइटम प्राप्त",
+      "damagedItemsReturned": "{{quantity}}x क्षतिग्रस्त आइटम रिटर्न किए गए",
+      "activeChangeError": "इस ऑर्डर पर एक सक्रिय ऑर्डर परिवर्तन प्रगति में है। कृपया पहले परिवर्तन समाप्त करें या रद्द करें।",
       "cancel": {
-        "title": "Cancel Return",
-        "description": "Are you sure you want to cancel the return request?"
+        "title": "रिटर्न कैंसल करें",
+        "description": "क्या आप वाकई रिटर्न अनुरोध कैंसल करना चाहते हैं?"
       },
       "placeholders": {
         "noReturnShippingOptions": {
-          "title": "No return shipping options found",
-          "hint": "No return shipping options were created for the location. You can create one at <LinkComponent>Location & Shipping</LinkComponent>."
+          "title": "कोई रिटर्न शिपिंग विकल्प नहीं मिला",
+          "hint": "स्थान के लिए कोई रिटर्न शिपिंग विकल्प नहीं बनाया गया। आप <LinkComponent>स्थान और शिपिंग</LinkComponent> पर एक बना सकते हैं।"
         },
         "outboundShippingOptions": {
-          "title": "No outbound shipping options found",
-          "hint": "No outbound shipping options were created for the location. You can create one at <LinkComponent>Location & Shipping</LinkComponent>."
+          "title": "कोई आउटबाउंड शिपिंग विकल्प नहीं मिला",
+          "hint": "स्थान के लिए कोई आउटबाउंड शिपिंग विकल्प नहीं बनाया गया। आप <LinkComponent>स्थान और शिपिंग</LinkComponent> पर एक बना सकते हैं।"
         }
       },
       "receive": {
-        "action": "Receive items",
+        "action": "आइटम प्राप्त करें",
         "receiveItems": "{{ returnType }} {{ id }}",
-        "restockAll": "Restock all items",
-        "itemsLabel": "Items received",
-        "title": "Receive items for #{{returnId}}",
-        "sendNotificationHint": "Notify customer about received return.",
-        "inventoryWarning": "Please note that we will automatically adjust the inventory levels based on your input above.",
-        "writeOffInputLabel": "How many of the items are damaged?",
+        "restockAll": "सभी आइटम पुनः स्टॉक करें",
+        "itemsLabel": "आइटम प्राप्त",
+        "title": "#{{returnId}} के लिए आइटम प्राप्त करें",
+        "sendNotificationHint": "ग्राहक को प्राप्त रिटर्न के बारे में सूचित करें।",
+        "inventoryWarning": "कृपया ध्यान दें कि हम आपके ऊपर दिए गए इनपुट के आधार पर स्वचालित रूप से इन्वेंटरी स्तर समायोजित करेंगे।",
+        "writeOffInputLabel": "कितने आइटम क्षतिग्रस्त हैं?",
         "toast": {
-          "success": "Return received successfully.",
-          "errorLargeValue": "Quantity is greater than requested item quantity.",
-          "errorNegativeValue": "Quantity cannot be a negative value.",
-          "errorLargeDamagedValue": "Damaged items quantity + non damaged received quantity exceeds total item quantity on the return. Please decrease quantity of non damaged items."
+          "success": "रिटर्न सफलतापूर्वक प्राप्त किया गया।",
+          "errorLargeValue": "मात्रा अनुरोधित आइटम मात्रा से अधिक है।",
+          "errorNegativeValue": "मात्रा नकारात्मक मान नहीं हो सकती।",
+          "errorLargeDamagedValue": "क्षतिग्रस्त आइटम मात्रा + गैर क्षतिग्रस्त प्राप्त मात्रा रिटर्न पर कुल आइटम मात्रा से अधिक है। कृपया गैर क्षतिग्रस्त आइटम की मात्रा कम करें।"
         }
       },
       "toast": {
-        "canceledSuccessfully": "Return canceled successfully",
-        "confirmedSuccessfully": "Return confirmed successfully"
+        "canceledSuccessfully": "रिटर्न सफलतापूर्वक कैंसल किया गया",
+        "confirmedSuccessfully": "रिटर्न सफलतापूर्वक पुष्टि की गई"
       },
       "panel": {
-        "title": "Return initiated",
-        "description": "There is an open return request to be completed"
+        "title": "रिटर्न आरंभ किया गया",
+        "description": "पूर्ण करने के लिए एक खुला रिटर्न अनुरोध है"
       }
     },
     "claims": {
-      "create": "Create Claim",
-      "confirm": "Confirm Claim",
-      "confirmText": "You are about to confirm a Claim. This action cannot be undone.",
-      "manage": "Manage Claim",
-      "outbound": "Outbound",
-      "outboundItemAdded": "{{itemsCount}}x added through claim",
-      "outboundTotal": "Outbound total",
-      "outboundShipping": "Outbound shipping",
-      "outboundShippingHint": "Choose which method you want to use.",
-      "refundAmount": "Estimated difference",
-      "activeChangeError": "There is an active order change on this order. Please finish or discard the previous change.",
+      "create": "क्लेम बनाएं",
+      "confirm": "क्लेम पुष्टि करें",
+      "confirmText": "आप क्लेम की पुष्टि करने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "manage": "क्लेम प्रबंधित करें",
+      "outbound": "आउटबाउंड",
+      "outboundItemAdded": "{{itemsCount}}x क्लेम के माध्यम से जोड़ा गया",
+      "outboundTotal": "आउटबाउंड कुल",
+      "outboundShipping": "आउटबाउंड शिपिंग",
+      "outboundShippingHint": "चुनें कि आप किस विधि का उपयोग करना चाहते हैं।",
+      "refundAmount": "अनुमानित अंतर",
+      "activeChangeError": "इस ऑर्डर पर एक सक्रिय ऑर्डर परिवर्तन है। कृपया पिछला परिवर्तन समाप्त करें या रद्द करें।",
       "actions": {
         "cancelClaim": {
-          "successToast": "Claim was successfully canceled."
+          "successToast": "क्लेम सफलतापूर्वक कैंसल किया गया।"
         }
       },
       "cancel": {
-        "title": "Cancel Claim",
-        "description": "Are you sure you want to cancel the claim?"
+        "title": "क्लेम कैंसल करें",
+        "description": "क्या आप वाकई क्लेम कैंसल करना चाहते हैं?"
       },
       "tooltips": {
-        "onlyReturnShippingOptions": "This list will consist of only return shipping options."
+        "onlyReturnShippingOptions": "इस सूची में केवल रिटर्न शिपिंग विकल्प शामिल होंगे।"
       },
       "toast": {
-        "canceledSuccessfully": "Claim canceled successfully",
-        "confirmedSuccessfully": "Claim confirmed successfully"
+        "canceledSuccessfully": "क्लेम सफलतापूर्वक कैंसल किया गया",
+        "confirmedSuccessfully": "क्लेम सफलतापूर्वक पुष्टि की गई"
       },
       "panel": {
-        "title": "Claim initiated",
-        "description": "There is an open claim request to be completed"
+        "title": "क्लेम आरंभ किया गया",
+        "description": "पूर्ण करने के लिए एक खुला क्लेम अनुरोध है"
       }
     },
     "exchanges": {
-      "create": "Create Exchange",
-      "manage": "Manage Exchange",
-      "confirm": "Confirm Exchange",
-      "confirmText": "You are about to confirm an Exchange. This action cannot be undone.",
-      "outbound": "Outbound",
-      "outboundItemAdded": "{{itemsCount}}x added through exchange",
-      "outboundTotal": "Outbound total",
-      "outboundShipping": "Outbound shipping",
-      "outboundShippingHint": "Choose which method you want to use.",
-      "refundAmount": "Estimated difference",
-      "carryOverPromotion": "Carry over promotions",
-      "carryOverPromotionHint": "Apply the order's promotions to the exchange items",
-      "carryOverPromotionTooltip": "Only fixed type promotions with EACH allocation and percentage type promotions with EACH or ACROSS allocation can be carried over to outbound exchange items.",
-      "activeChangeError": "There is an active order change on this order. Please finish or discard the previous change.",
+      "create": "एक्सचेंज बनाएं",
+      "manage": "एक्सचेंज प्रबंधित करें",
+      "confirm": "एक्सचेंज पुष्टि करें",
+      "confirmText": "आप एक्सचेंज की पुष्टि करने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "outbound": "आउटबाउंड",
+      "outboundItemAdded": "{{itemsCount}}x एक्सचेंज के माध्यम से जोड़ा गया",
+      "outboundTotal": "आउटबाउंड कुल",
+      "outboundShipping": "आउटबाउंड शिपिंग",
+      "outboundShippingHint": "चुनें कि आप किस विधि का उपयोग करना चाहते हैं।",
+      "refundAmount": "अनुमानित अंतर",
+      "carryOverPromotion": "प्रमोशन आगे ले जाएं",
+      "carryOverPromotionHint": "एक्सचेंज आइटम पर ऑर्डर के प्रमोशन लागू करें",
+      "carryOverPromotionTooltip": "केवल EACH आवंटन के साथ निश्चित प्रकार के प्रमोशन और EACH या ACROSS आवंटन के साथ प्रतिशत प्रकार के प्रमोशन आउटबाउंड एक्सचेंज आइटम पर आगे ले जाए जा सकते हैं।",
+      "activeChangeError": "इस ऑर्डर पर एक सक्रिय ऑर्डर परिवर्तन है। कृपया पिछला परिवर्तन समाप्त करें या रद्द करें।",
       "actions": {
         "cancelExchange": {
-          "successToast": "Exchange was successfully canceled."
+          "successToast": "एक्सचेंज सफलतापूर्वक कैंसल किया गया।"
         }
       },
       "cancel": {
-        "title": "Cancel Exchange",
-        "description": "Are you sure you want to cancel the exchange?"
+        "title": "एक्सचेंज कैंसल करें",
+        "description": "क्या आप वाकई एक्सचेंज कैंसल करना चाहते हैं?"
       },
       "tooltips": {
-        "onlyReturnShippingOptions": "This list will consist of only return shipping options."
+        "onlyReturnShippingOptions": "इस सूची में केवल रिटर्न शिपिंग विकल्प शामिल होंगे।"
       },
       "toast": {
-        "canceledSuccessfully": "Exchange canceled successfully",
-        "confirmedSuccessfully": "Exchange confirmed successfully"
+        "canceledSuccessfully": "एक्सचेंज सफलतापूर्वक कैंसल किया गया",
+        "confirmedSuccessfully": "एक्सचेंज सफलतापूर्वक पुष्टि की गई"
       },
       "panel": {
-        "title": "Exchange initiated",
-        "description": "There is an open exchange request to be completed"
+        "title": "एक्सचेंज आरंभ किया गया",
+        "description": "पूर्ण करने के लिए एक खुला एक्सचेंज अनुरोध है"
       }
     },
     "reservations": {
-      "allocatedLabel": "Allocated",
-      "notAllocatedLabel": "Not allocated"
+      "allocatedLabel": "आवंटित",
+      "notAllocatedLabel": "आवंटित नहीं"
     },
     "allocateItems": {
-      "action": "Allocate items",
-      "title": "Allocate order items",
-      "locationDescription": "Choose which location you want to allocate from.",
-      "itemsToAllocate": "Items to allocate",
-      "itemsToAllocateDesc": "Select the number of items you wish to allocate",
-      "search": "Search items",
-      "consistsOf": "Consists of {{num}}x inventory items",
-      "requires": "Requires {{num}} per variant",
+      "action": "आइटम आवंटित करें",
+      "title": "ऑर्डर आइटम आवंटित करें",
+      "locationDescription": "चुनें कि आप किस स्थान से आवंटित करना चाहते हैं।",
+      "itemsToAllocate": "आवंटित करने के लिए आइटम",
+      "itemsToAllocateDesc": "उन आइटम की संख्या चुनें जिन्हें आप आवंटित करना चाहते हैं",
+      "search": "आइटम खोजें",
+      "consistsOf": "{{num}}x इन्वेंटरी आइटम शामिल हैं",
+      "requires": "प्रति वेरिएंट {{num}} आवश्यक",
       "toast": {
-        "created": "Items successfully allocated",
-        "error": "Failed to allocate following items: {{items}}"
+        "created": "आइटम सफलतापूर्वक आवंटित किए गए",
+        "error": "निम्नलिखित आइटम आवंटित करने में विफल: {{items}}"
       },
       "error": {
-        "quantityNotAllocated": "There are unallocated items."
+        "quantityNotAllocated": "अनावंटित आइटम हैं।"
       }
     },
     "shipment": {
-      "title": "Mark fulfillment shipped",
-      "trackingNumber": "Tracking number",
-      "trackingUrl": "Tracking URL",
-      "labelUrl": "Label URL",
-      "addTracking": "Add tracking number",
-      "sendNotification": "Send notification",
-      "sendNotificationHint": "Notify the customer about this shipment.",
-      "toastCreated": "Shipment created successfully."
+      "title": "फुलफिलमेंट को शिप किया गया चिह्नित करें",
+      "trackingNumber": "ट्रैकिंग नंबर",
+      "trackingUrl": "ट्रैकिंग URL",
+      "labelUrl": "लेबल URL",
+      "addTracking": "ट्रैकिंग नंबर जोड़ें",
+      "sendNotification": "सूचना भेजें",
+      "sendNotificationHint": "ग्राहक को इस शिपमेंट के बारे में सूचित करें।",
+      "toastCreated": "शिपमेंट सफलतापूर्वक बनाया गया।"
     },
     "fulfillment": {
-      "cancelWarning": "You are about to cancel a fulfillment. This action cannot be undone.",
-      "markAsDeliveredWarning": "You are about to mark fulfillment as delivered. This action cannot be undone.",
-      "differentOptionSelected": "The selected shipping option is different from the one selected by the customer.",
-      "disabledItemTooltip": "The shipping option you have selected don’t allow fulfillment of this item",
-      "unfulfilledItems": "Unfulfilled Items",
-      "statusLabel": "Fulfillment status",
-      "statusTitle": "Fulfillment Status",
-      "fulfillItems": "Fulfill items",
-      "awaitingFulfillmentBadge": "Awaiting fulfillment",
-      "requiresShipping": "Requires shipping",
-      "number": "Fulfillment #{{number}}",
-      "itemsToFulfill": "Items to fulfill",
-      "create": "Create Fulfillment",
-      "available": "Available",
-      "inStock": "In stock",
-      "markAsShipped": "Mark as shipped",
-      "markAsPickedUp": "Mark as picked up",
-      "markAsDelivered": "Mark as delivered",
-      "itemsToFulfillDesc": "Choose items and quantities to fulfill",
-      "locationDescription": "Choose which location you want to fulfill items from.",
-      "sendNotificationHint": "Notify customers about the created fulfillment.",
-      "methodDescription": "Choose a different shipping method from the one customer selected",
+      "cancelWarning": "आप फुलफिलमेंट कैंसल करने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "markAsDeliveredWarning": "आप फुलफिलमेंट को डिलीवर किया गया चिह्नित करने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "differentOptionSelected": "चयनित शिपिंग विकल्प ग्राहक द्वारा चुने गए विकल्प से भिन्न है।",
+      "disabledItemTooltip": "आपके द्वारा चुना गया शिपिंग विकल्प इस आइटम की फुलफिलमेंट की अनुमति नहीं देता",
+      "unfulfilledItems": "अपूर्ण आइटम",
+      "statusLabel": "फुलफिलमेंट स्थिति",
+      "statusTitle": "फुलफिलमेंट स्थिति",
+      "fulfillItems": "आइटम पूर्ण करें",
+      "awaitingFulfillmentBadge": "फुलफिलमेंट प्रतीक्षारत",
+      "requiresShipping": "शिपिंग आवश्यक",
+      "number": "फुलफिलमेंट #{{number}}",
+      "itemsToFulfill": "पूर्ण करने के लिए आइटम",
+      "create": "फुलफिलमेंट बनाएं",
+      "available": "उपलब्ध",
+      "inStock": "स्टॉक में",
+      "markAsShipped": "शिप किया गया चिह्नित करें",
+      "markAsPickedUp": "पिक अप किया गया चिह्नित करें",
+      "markAsDelivered": "डिलीवर किया गया चिह्नित करें",
+      "itemsToFulfillDesc": "पूर्ण करने के लिए आइटम और मात्रा चुनें",
+      "locationDescription": "चुनें कि आप किस स्थान से आइटम पूर्ण करना चाहते हैं।",
+      "sendNotificationHint": "बनाए गए फुलफिलमेंट के बारे में ग्राहकों को सूचित करें।",
+      "methodDescription": "ग्राहक द्वारा चुनी गई विधि से भिन्न शिपिंग विधि चुनें",
       "error": {
-        "wrongQuantity": "Only one item is available for fulfillment",
-        "wrongQuantity_other": "Quantity should be a number between 1 and {{number}}",
-        "noItems": "No items to fulfill.",
-        "noShippingOption": "Shipping option is required",
-        "noLocation": "Location is required"
+        "wrongQuantity": "फुलफिलमेंट के लिए केवल एक आइटम उपलब्ध है",
+        "wrongQuantity_other": "मात्रा 1 और {{number}} के बीच एक संख्या होनी चाहिए",
+        "noItems": "पूर्ण करने के लिए कोई आइटम नहीं।",
+        "noShippingOption": "शिपिंग विकल्प आवश्यक है",
+        "noLocation": "स्थान आवश्यक है"
       },
       "status": {
-        "notFulfilled": "Not fulfilled",
-        "partiallyFulfilled": "Partially fulfilled",
-        "fulfilled": "Fulfilled",
-        "partiallyShipped": "Partially shipped",
-        "shipped": "Shipped",
-        "delivered": "Delivered",
-        "partiallyDelivered": "Partially delivered",
-        "partiallyReturned": "Partially returned",
-        "returned": "Returned",
-        "canceled": "Canceled",
-        "requiresAction": "Requires action"
+        "notFulfilled": "पूर्ण नहीं किया गया",
+        "partiallyFulfilled": "आंशिक रूप से पूर्ण",
+        "fulfilled": "पूर्ण",
+        "partiallyShipped": "आंशिक रूप से शिप किया गया",
+        "shipped": "शिप किया गया",
+        "delivered": "डिलीवर किया गया",
+        "partiallyDelivered": "आंशिक रूप से डिलीवर किया गया",
+        "partiallyReturned": "आंशिक रूप से रिटर्न किया गया",
+        "returned": "रिटर्न किया गया",
+        "canceled": "कैंसल किया गया",
+        "requiresAction": "कार्रवाई आवश्यक"
       },
       "toast": {
-        "created": "Fulfillment created successfully",
-        "canceled": "Fulfillment successfully canceled",
-        "fulfillmentShipped": "Cannot cancel an already shipped fulfillment",
-        "fulfillmentDelivered": "Fulfillment marked as delivered successfully",
-        "fulfillmentPickedUp": "Fulfillment marked as picked up successfully"
+        "created": "फुलफिलमेंट सफलतापूर्वक बनाया गया",
+        "canceled": "फुलफिलमेंट सफलतापूर्वक कैंसल किया गया",
+        "fulfillmentShipped": "पहले से शिप किए गए फुलफिलमेंट को कैंसल नहीं किया जा सकता",
+        "fulfillmentDelivered": "फुलफिलमेंट सफलतापूर्वक डिलीवर किया गया चिह्नित किया गया",
+        "fulfillmentPickedUp": "फुलफिलमेंट सफलतापूर्वक पिक अप किया गया चिह्नित किया गया"
       },
-      "trackingLabel": "Tracking",
-      "shippingFromLabel": "Shipping from",
-      "itemsLabel": "Items"
+      "trackingLabel": "ट्रैकिंग",
+      "shippingFromLabel": "से शिपिंग",
+      "itemsLabel": "आइटम"
     },
     "refund": {
-      "title": "Create Refund",
-      "sendNotificationHint": "Notify customers about the created refund.",
-      "systemPayment": "System payment",
-      "systemPaymentDesc": "One or more of your payments is a system payment. Be aware, that captures and refunds are not handled by Medusa for such payments.",
+      "title": "रिफंड बनाएं",
+      "sendNotificationHint": "बनाए गए रिफंड के बारे में ग्राहकों को सूचित करें।",
+      "systemPayment": "सिस्टम भुगतान",
+      "systemPaymentDesc": "आपके एक या अधिक भुगतान सिस्टम भुगतान हैं। ध्यान रखें कि ऐसे भुगतानों के लिए कैप्चर और रिफंड Medusa द्वारा संभाले नहीं जाते।",
       "error": {
-        "amountToLarge": "Cannot refund more than the original order amount.",
-        "amountNegative": "Refund amount must be a positive number.",
-        "reasonRequired": "Please select a refund reason."
+        "amountToLarge": "मूल ऑर्डर राशि से अधिक रिफंड नहीं किया जा सकता।",
+        "amountNegative": "रिफंड राशि एक सकारात्मक संख्या होनी चाहिए।",
+        "reasonRequired": "कृपया रिफंड कारण चुनें।"
       }
     },
     "customer": {
-      "contactLabel": "Contact",
-      "editEmail": "Edit email",
-      "transferOwnership": "Transfer ownership",
-      "editBillingAddress": "Edit billing address",
-      "editShippingAddress": "Edit shipping address"
+      "contactLabel": "संपर्क",
+      "editEmail": "ईमेल संपादित करें",
+      "transferOwnership": "स्वामित्व ट्रांसफर करें",
+      "editBillingAddress": "बिलिंग पता संपादित करें",
+      "editShippingAddress": "शिपिंग पता संपादित करें"
     },
     "activity": {
-      "header": "Activity",
-      "showMoreActivities_one": "Show {{count}} more activity",
-      "showMoreActivities_other": "Show {{count}} more activities",
+      "header": "गतिविधि",
+      "showMoreActivities_one": "{{count}} और गतिविधि दिखाएं",
+      "showMoreActivities_other": "{{count}} और गतिविधियां दिखाएं",
       "comment": {
-        "label": "Comment",
-        "placeholder": "Leave a comment",
-        "addButtonText": "Add comment",
-        "deleteButtonText": "Delete comment"
+        "label": "टिप्पणी",
+        "placeholder": "टिप्पणी छोड़ें",
+        "addButtonText": "टिप्पणी जोड़ें",
+        "deleteButtonText": "टिप्पणी हटाएं"
       },
-      "from": "From",
-      "to": "To",
+      "from": "से",
+      "to": "को",
       "events": {
         "common": {
-          "toReturn": "To return",
-          "toSend": "To send"
+          "toReturn": "रिटर्न करने के लिए",
+          "toSend": "भेजने के लिए"
         },
         "placed": {
-          "title": "Order placed",
-          "fromSalesChannel": "from {{salesChannel}}"
+          "title": "ऑर्डर दिया गया",
+          "fromSalesChannel": "{{salesChannel}} से"
         },
         "canceled": {
-          "title": "Order canceled"
+          "title": "ऑर्डर कैंसल किया गया"
         },
         "payment": {
-          "awaiting": "Awaiting payment",
-          "captured": "Payment captured",
-          "canceled": "Payment canceled",
-          "refunded": "Payment refunded"
+          "awaiting": "भुगतान प्रतीक्षारत",
+          "captured": "भुगतान कैप्चर किया गया",
+          "canceled": "भुगतान कैंसल किया गया",
+          "refunded": "भुगतान रिफंड किया गया"
         },
         "fulfillment": {
-          "created": "Items fulfilled",
-          "canceled": "Fulfillment canceled",
-          "shipped": "Items shipped",
-          "delivered": "Items delivered",
-          "items_one": "{{count}} item",
-          "items_other": "{{count}} items"
+          "created": "आइटम पूर्ण किए गए",
+          "canceled": "फुलफिलमेंट कैंसल किया गया",
+          "shipped": "आइटम शिप किए गए",
+          "delivered": "आइटम डिलीवर किए गए",
+          "items_one": "{{count}} आइटम",
+          "items_other": "{{count}} आइटम"
         },
         "return": {
-          "created": "Return #{{returnId}} requested",
-          "canceled": "Return #{{returnId}} canceled",
-          "received": "Return #{{returnId}} received",
-          "items_one": "{{count}} item returned",
-          "items_other": "{{count}} items returned"
+          "created": "रिटर्न #{{returnId}} अनुरोधित",
+          "canceled": "रिटर्न #{{returnId}} कैंसल किया गया",
+          "received": "रिटर्न #{{returnId}} प्राप्त",
+          "items_one": "{{count}} आइटम रिटर्न किया गया",
+          "items_other": "{{count}} आइटम रिटर्न किए गए"
         },
         "note": {
-          "comment": "Comment",
-          "byLine": "by {{author}}"
+          "comment": "टिप्पणी",
+          "byLine": "{{author}} द्वारा"
         },
         "claim": {
-          "created": "Claim #{{claimId}} requested",
-          "canceled": "Claim #{{claimId}} canceled",
-          "itemsInbound": "{{count}} item to return",
-          "itemsOutbound": "{{count}} item to send"
+          "created": "क्लेम #{{claimId}} अनुरोधित",
+          "canceled": "क्लेम #{{claimId}} कैंसल किया गया",
+          "itemsInbound": "{{count}} आइटम रिटर्न करने के लिए",
+          "itemsOutbound": "{{count}} आइटम भेजने के लिए"
         },
         "exchange": {
-          "created": "Exchange #{{exchangeId}} requested",
-          "canceled": "Exchange #{{exchangeId}} canceled",
-          "itemsInbound": "{{count}} item to return",
-          "itemsOutbound": "{{count}} item to send"
+          "created": "एक्सचेंज #{{exchangeId}} अनुरोधित",
+          "canceled": "एक्सचेंज #{{exchangeId}} कैंसल किया गया",
+          "itemsInbound": "{{count}} आइटम रिटर्न करने के लिए",
+          "itemsOutbound": "{{count}} आइटम भेजने के लिए"
         },
         "edit": {
-          "requested": "Order edit #{{editId}} requested",
-          "confirmed": "Order edit #{{editId}} confirmed"
+          "requested": "ऑर्डर संपादन #{{editId}} अनुरोधित",
+          "confirmed": "ऑर्डर संपादन #{{editId}} पुष्टि की गई"
         },
         "transfer": {
-          "requested": "Order transfer #{{transferId}} requested",
-          "confirmed": "Order transfer #{{transferId}} confirmed",
-          "declined": "Order transfer #{{transferId}} declined"
+          "requested": "ऑर्डर ट्रांसफर #{{transferId}} अनुरोधित",
+          "confirmed": "ऑर्डर ट्रांसफर #{{transferId}} पुष्टि की गई",
+          "declined": "ऑर्डर ट्रांसफर #{{transferId}} अस्वीकृत"
         },
         "update_order": {
-          "shipping_address": "Shipping address updated",
-          "billing_address": "Billing address updated",
-          "email": "Email updated"
+          "shipping_address": "शिपिंग पता अपडेट किया गया",
+          "billing_address": "बिलिंग पता अपडेट किया गया",
+          "email": "ईमेल अपडेट किया गया"
         }
       }
     },
     "fields": {
-      "displayId": "Display ID",
-      "refundableAmount": "Refundable amount",
-      "returnableQuantity": "Returnable quantity"
+      "displayId": "डिस्प्ले ID",
+      "refundableAmount": "रिफंड योग्य राशि",
+      "returnableQuantity": "रिटर्न योग्य मात्रा"
     }
   },
   "draftOrders": {
@@ -1560,881 +1560,881 @@
     }
   },
   "stockLocations": {
-    "domain": "Locations & Shipping",
+    "domain": "स्थान और शिपिंग",
     "list": {
-      "description": "Manage your store's stock locations and shipping options.",
-      "noRecordsMessage": "No records",
-      "noRecordsMessageEmpty": "No locations found",
-      "noRecordsMessageFiltered": "No locations found matching the filters"
+      "description": "अपने स्टोर के स्टॉक स्थानों और शिपिंग विकल्पों को प्रबंधित करें।",
+      "noRecordsMessage": "कोई रिकॉर्ड नहीं",
+      "noRecordsMessageEmpty": "कोई स्थान नहीं मिला",
+      "noRecordsMessageFiltered": "फ़िल्टर से मेल खाने वाला कोई स्थान नहीं मिला"
     },
     "create": {
-      "header": "Create Stock Location",
-      "hint": "A stock location is a physical site where products are stored and shipped from.",
-      "successToast": "Location {{name}} was successfully created."
+      "header": "स्टॉक स्थान बनाएं",
+      "hint": "स्टॉक स्थान एक भौतिक साइट है जहां उत्पाद संग्रहीत और शिप किए जाते हैं।",
+      "successToast": "स्थान {{name}} सफलतापूर्वक बनाया गया।"
     },
     "edit": {
-      "header": "Edit Stock Location",
-      "viewInventory": "View inventory",
-      "successToast": "Location {{name}} was successfully updated."
+      "header": "स्टॉक स्थान संपादित करें",
+      "viewInventory": "इन्वेंटरी देखें",
+      "successToast": "स्थान {{name}} सफलतापूर्वक अपडेट किया गया।"
     },
     "delete": {
-      "confirmation": "You are about to delete the stock location \"{{name}}\". This action cannot be undone.",
-      "successToast": "Location \"{{name}}\" was successfully deleted."
+      "confirmation": "आप स्टॉक स्थान \"{{name}}\" को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "स्थान \"{{name}}\" सफलतापूर्वक हटाया गया।"
     },
     "fulfillmentProviders": {
-      "header": "Fulfillment Providers",
-      "shippingOptionsTooltip": "This dropdown will only consist of providers enabled for this location. Add them to the location if the dropdown is disabled.",
-      "label": "Connected fulfillment providers",
-      "connectedTo": "Connected to {{count}} of {{total}} fulfillment providers",
-      "noProviders": "This Stock Location is not connected to any fulfillment providers.",
-      "action": "Connect Providers",
-      "successToast": "Fulfillment providers for stock location were successfully updated."
+      "header": "फुलफिलमेंट प्रदाता",
+      "shippingOptionsTooltip": "इस ड्रॉपडाउन में केवल इस स्थान के लिए सक्षम प्रदाता होंगे। यदि ड्रॉपडाउन अक्षम है तो उन्हें स्थान में जोड़ें।",
+      "label": "कनेक्टेड फुलफिलमेंट प्रदाता",
+      "connectedTo": "{{total}} में से {{count}} फुलफिलमेंट प्रदाताओं से कनेक्टेड",
+      "noProviders": "यह स्टॉक स्थान किसी भी फुलफिलमेंट प्रदाता से कनेक्ट नहीं है।",
+      "action": "प्रदाता कनेक्ट करें",
+      "successToast": "स्टॉक स्थान के लिए फुलफिलमेंट प्रदाता सफलतापूर्वक अपडेट किए गए।"
     },
     "fulfillmentSets": {
       "pickup": {
-        "header": "Pickup"
+        "header": "पिकअप"
       },
       "shipping": {
-        "header": "Shipping"
+        "header": "शिपिंग"
       },
       "disable": {
-        "confirmation": "Are you sure that you want to disable \"{{name}}\"? This will delete all associated service zones and shipping options, and cannot be undone.",
-        "pickup": "Pickup was successfully disabled.",
-        "shipping": "Shipping was successfully disabled."
+        "confirmation": "क्या आप वाकई \"{{name}}\" को अक्षम करना चाहते हैं? इससे सभी संबंधित सर्विस ज़ोन और शिपिंग विकल्प हटा दिए जाएंगे, और इसे पूर्ववत नहीं किया जा सकता।",
+        "pickup": "पिकअप सफलतापूर्वक अक्षम किया गया।",
+        "shipping": "शिपिंग सफलतापूर्वक अक्षम की गई।"
       },
       "enable": {
-        "pickup": "Pickup was successfully enabled.",
-        "shipping": "Shipping was successfully enabled."
+        "pickup": "पिकअप सफलतापूर्वक सक्षम किया गया।",
+        "shipping": "शिपिंग सफलतापूर्वक सक्षम की गई।"
       }
     },
     "sidebar": {
-      "header": "Shipping Configuration",
+      "header": "शिपिंग कॉन्फ़िगरेशन",
       "shippingProfiles": {
-        "label": "Shipping Profiles",
-        "description": "Group products by shipping requirements"
+        "label": "शिपिंग प्रोफाइल",
+        "description": "शिपिंग आवश्यकताओं के अनुसार उत्पादों को समूहित करें"
       },
       "shippingOptionTypes": {
-        "label": "Shipping Option Types",
-        "description": "Group shipping options by types"
+        "label": "शिपिंग विकल्प प्रकार",
+        "description": "शिपिंग विकल्पों को प्रकार के अनुसार समूहित करें"
       }
     },
     "salesChannels": {
-      "header": "Sales Channels",
-      "hint": "Manage the sales channels that are connected to this location.",
-      "label": "Connected sales channels",
-      "connectedTo": "Connected to {{count}} of {{total}} sales channels",
-      "noChannels": "The location is not connected to any sales channels.",
-      "action": "Connect sales channels",
-      "successToast": "Sales channels were successfully updated."
+      "header": "सेल्स चैनल",
+      "hint": "इस स्थान से कनेक्टेड सेल्स चैनलों को प्रबंधित करें।",
+      "label": "कनेक्टेड सेल्स चैनल",
+      "connectedTo": "{{total}} में से {{count}} सेल्स चैनलों से कनेक्टेड",
+      "noChannels": "यह स्थान किसी भी सेल्स चैनल से कनेक्ट नहीं है।",
+      "action": "सेल्स चैनल कनेक्ट करें",
+      "successToast": "सेल्स चैनल सफलतापूर्वक अपडेट किए गए।"
     },
     "pickupOptions": {
       "edit": {
-        "header": "Edit Pickup Option"
+        "header": "पिकअप विकल्प संपादित करें"
       }
     },
     "shippingOptions": {
       "create": {
         "shipping": {
-          "header": "Create Shipping Option for {{zone}}",
-          "hint": "Create a new shipping option to define how products are shipped from this location.",
-          "label": "Shipping options",
-          "successToast": "Shipping option {{name}} was successfully created."
+          "header": "{{zone}} के लिए शिपिंग विकल्प बनाएं",
+          "hint": "इस स्थान से उत्पादों को कैसे शिप किया जाता है, यह परिभाषित करने के लिए एक नया शिपिंग विकल्प बनाएं।",
+          "label": "शिपिंग विकल्प",
+          "successToast": "शिपिंग विकल्प {{name}} सफलतापूर्वक बनाया गया।"
         },
         "pickup": {
-          "header": "Create Pickup Option for {{zone}}",
-          "hint": "Create a new pickup option to define how products are picked up from this location.",
-          "label": "Pickup options",
-          "successToast": "Pickup option {{name}} was successfully created."
+          "header": "{{zone}} के लिए पिकअप विकल्प बनाएं",
+          "hint": "इस स्थान से उत्पादों को कैसे पिकअप किया जाता है, यह परिभाषित करने के लिए एक नया पिकअप विकल्प बनाएं।",
+          "label": "पिकअप विकल्प",
+          "successToast": "पिकअप विकल्प {{name}} सफलतापूर्वक बनाया गया।"
         },
         "returns": {
-          "header": "Create a Return Option for {{zone}}",
-          "hint": "Create a new return option to define how products are returned to this location.",
-          "label": "Return options",
-          "successToast": "Return option {{name}} was successfully created."
+          "header": "{{zone}} के लिए रिटर्न विकल्प बनाएं",
+          "hint": "इस स्थान पर उत्पादों को कैसे रिटर्न किया जाता है, यह परिभाषित करने के लिए एक नया रिटर्न विकल्प बनाएं।",
+          "label": "रिटर्न विकल्प",
+          "successToast": "रिटर्न विकल्प {{name}} सफलतापूर्वक बनाया गया।"
         },
         "tabs": {
-          "details": "Details",
-          "prices": "Prices"
+          "details": "विवरण",
+          "prices": "मूल्य"
         },
-        "action": "Create option"
+        "action": "विकल्प बनाएं"
       },
       "delete": {
-        "confirmation": "You are about to delete the shipping option \"{{name}}\". This action cannot be undone.",
-        "successToast": "Shipping option {{name}} was successfully deleted."
+        "confirmation": "आप शिपिंग विकल्प \"{{name}}\" को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+        "successToast": "शिपिंग विकल्प {{name}} सफलतापूर्वक हटाया गया।"
       },
       "edit": {
-        "header": "Edit Shipping Option",
-        "action": "Edit option",
-        "successToast": "Shipping option {{name}} was successfully updated."
+        "header": "शिपिंग विकल्प संपादित करें",
+        "action": "विकल्प संपादित करें",
+        "successToast": "शिपिंग विकल्प {{name}} सफलतापूर्वक अपडेट किया गया।"
       },
       "pricing": {
-        "action": "Edit prices"
+        "action": "मूल्य संपादित करें"
       },
       "conditionalPrices": {
-        "header": "Conditional Prices for {{name}}",
-        "description": "Manage the conditional prices for this shipping option based on the cart item total.",
+        "header": "{{name}} के लिए सशर्त मूल्य",
+        "description": "कार्ट आइटम कुल के आधार पर इस शिपिंग विकल्प के लिए सशर्त मूल्य प्रबंधित करें।",
         "attributes": {
-          "cartItemTotal": "Cart item total"
+          "cartItemTotal": "कार्ट आइटम कुल"
         },
         "summaries": {
-          "range": "If <0>{{attribute}}</0> is between <1>{{gte}}</1> and <2>{{lte}}</2>",
-          "greaterThan": "If <0>{{attribute}}</0> ≥ <1>{{gte}}</1>",
-          "lessThan": "If <0>{{attribute}}</0> ≤ <1>{{lte}}</1>"
+          "range": "यदि <0>{{attribute}}</0> <1>{{gte}}</1> और <2>{{lte}}</2> के बीच है",
+          "greaterThan": "यदि <0>{{attribute}}</0> ≥ <1>{{gte}}</1>",
+          "lessThan": "यदि <0>{{attribute}}</0> ≤ <1>{{lte}}</1>"
         },
         "actions": {
-          "addPrice": "Add price",
-          "manageConditionalPrices": "Manage conditional prices"
+          "addPrice": "मूल्य जोड़ें",
+          "manageConditionalPrices": "सशर्त मूल्य प्रबंधित करें"
         },
         "rules": {
-          "amount": "Shipping option price",
-          "gte": "Minimum cart item total",
-          "lte": "Maximum cart item total"
+          "amount": "शिपिंग विकल्प मूल्य",
+          "gte": "न्यूनतम कार्ट आइटम कुल",
+          "lte": "अधिकतम कार्ट आइटम कुल"
         },
         "customRules": {
-          "label": "Custom rules",
-          "tooltip": "This conditional price has rules that cannot be managed in the dashboard.",
-          "eq": "Cart item total must equal",
-          "gt": "Cart item total must be greater than",
-          "lt": "Cart item total must be less than"
+          "label": "कस्टम नियम",
+          "tooltip": "इस सशर्त मूल्य में ऐसे नियम हैं जिन्हें डैशबोर्ड में प्रबंधित नहीं किया जा सकता।",
+          "eq": "कार्ट आइटम कुल बराबर होना चाहिए",
+          "gt": "कार्ट आइटम कुल अधिक होना चाहिए",
+          "lt": "कार्ट आइटम कुल कम होना चाहिए"
         },
         "errors": {
-          "amountRequired": "Shipping option price is required",
-          "minOrMaxRequired": "At least one of minimum or maximum cart item total must be provided",
-          "minGreaterThanMax": "Minimum cart item total must be less than or equal to maximum cart item total",
-          "duplicateAmount": "Shipping option price must be unique for each condition",
-          "overlappingConditions": "Conditions must be unique across all price rules"
+          "amountRequired": "शिपिंग विकल्प मूल्य आवश्यक है",
+          "minOrMaxRequired": "न्यूनतम या अधिकतम कार्ट आइटम कुल में से कम से कम एक प्रदान किया जाना चाहिए",
+          "minGreaterThanMax": "न्यूनतम कार्ट आइटम कुल अधिकतम कार्ट आइटम कुल से कम या बराबर होना चाहिए",
+          "duplicateAmount": "प्रत्येक शर्त के लिए शिपिंग विकल्प मूल्य अद्वितीय होना चाहिए",
+          "overlappingConditions": "सभी मूल्य नियमों में शर्तें अद्वितीय होनी चाहिए"
         }
       },
       "fields": {
         "count": {
-          "shipping_one": "{{count}} shipping option",
-          "shipping_other": "{{count}} shipping options",
-          "pickup_one": "{{count}} pickup option",
-          "pickup_other": "{{count}} pickup options",
-          "returns_one": "{{count}} return option",
-          "returns_other": "{{count}} return options"
+          "shipping_one": "{{count}} शिपिंग विकल्प",
+          "shipping_other": "{{count}} शिपिंग विकल्प",
+          "pickup_one": "{{count}} पिकअप विकल्प",
+          "pickup_other": "{{count}} पिकअप विकल्प",
+          "returns_one": "{{count}} रिटर्न विकल्प",
+          "returns_other": "{{count}} रिटर्न विकल्प"
         },
         "priceType": {
-          "label": "Price type",
+          "label": "मूल्य प्रकार",
           "options": {
             "fixed": {
-              "label": "Fixed",
-              "hint": "The shipping option's price is fixed and does not change based on the order's contents."
+              "label": "निश्चित",
+              "hint": "शिपिंग विकल्प का मूल्य निश्चित है और ऑर्डर की सामग्री के आधार पर नहीं बदलता।"
             },
             "calculated": {
-              "label": "Calculated",
-              "hint": "The shipping option's price is calculated by the fulfillment provider during checkout."
+              "label": "गणना की गई",
+              "hint": "शिपिंग विकल्प का मूल्य चेकआउट के दौरान फुलफिलमेंट प्रदाता द्वारा गणना की जाती है।"
             }
           }
         },
         "enableInStore": {
-          "label": "Enable in store",
-          "hint": "Whether customers can use this option during checkout."
+          "label": "स्टोर में सक्षम करें",
+          "hint": "क्या ग्राहक चेकआउट के दौरान इस विकल्प का उपयोग कर सकते हैं।"
         },
-        "provider": "Fulfillment provider",
-        "profile": "Shipping profile",
-        "type": "Shipping option type",
-        "fulfillmentOption": "Fulfillment option"
+        "provider": "फुलफिलमेंट प्रदाता",
+        "profile": "शिपिंग प्रोफाइल",
+        "type": "शिपिंग विकल्प प्रकार",
+        "fulfillmentOption": "फुलफिलमेंट विकल्प"
       }
     },
     "serviceZones": {
       "create": {
-        "headerPickup": "Create Service Zone for Pickup from {{location}}",
-        "headerShipping": "Create Service Zone for Shipping from {{location}}",
-        "action": "Create service zone",
-        "successToast": "Service zone {{name}} was successfully created."
+        "headerPickup": "{{location}} से पिकअप के लिए सर्विस ज़ोन बनाएं",
+        "headerShipping": "{{location}} से शिपिंग के लिए सर्विस ज़ोन बनाएं",
+        "action": "सर्विस ज़ोन बनाएं",
+        "successToast": "सर्विस ज़ोन {{name}} सफलतापूर्वक बनाया गया।"
       },
       "edit": {
-        "header": "Edit Service Zone",
-        "successToast": "Service zone {{name}} was successfully updated."
+        "header": "सर्विस ज़ोन संपादित करें",
+        "successToast": "सर्विस ज़ोन {{name}} सफलतापूर्वक अपडेट किया गया।"
       },
       "delete": {
-        "confirmation": "You are about to delete the service zone \"{{name}}\". This action cannot be undone.",
-        "successToast": "Service zone {{name}} was successfully deleted."
+        "confirmation": "आप सर्विस ज़ोन \"{{name}}\" को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+        "successToast": "सर्विस ज़ोन {{name}} सफलतापूर्वक हटाया गया।"
       },
       "manageAreas": {
-        "header": "Manage Areas for {{name}}",
-        "action": "Manage areas",
-        "label": "Areas",
-        "hint": "Select the geographical areas that the service zone covers.",
-        "successToast": "Areas for {{name}} were successfully updated."
+        "header": "{{name}} के लिए क्षेत्र प्रबंधित करें",
+        "action": "क्षेत्र प्रबंधित करें",
+        "label": "क्षेत्र",
+        "hint": "उन भौगोलिक क्षेत्रों का चयन करें जो सर्विस ज़ोन कवर करता है।",
+        "successToast": "{{name}} के लिए क्षेत्र सफलतापूर्वक अपडेट किए गए।"
       },
       "fields": {
-        "noRecords": "There are no service zones to add shipping options to.",
-        "tip": "A service zone is a collection of geographical zones or areas. It's used to restrict available shipping options to a defined set of locations."
+        "noRecords": "शिपिंग विकल्प जोड़ने के लिए कोई सर्विस ज़ोन नहीं है।",
+        "tip": "सर्विस ज़ोन भौगोलिक क्षेत्रों या एरिया का संग्रह है। इसका उपयोग उपलब्ध शिपिंग विकल्पों को परिभाषित स्थानों के सेट तक सीमित करने के लिए किया जाता है।"
       }
     }
   },
   "shippingProfile": {
-    "domain": "Shipping Profiles",
-    "subtitle": "Group products with similar shipping requirements into profiles.",
+    "domain": "शिपिंग प्रोफ़ाइल",
+    "subtitle": "समान शिपिंग आवश्यकताओं वाले उत्पादों को प्रोफ़ाइल में समूहित करें।",
     "create": {
-      "header": "Create Shipping Profile",
-      "hint": "Create a new shipping profile to group products with similar shipping requirements.",
-      "successToast": "Shipping profile {{name}} was successfully created."
+      "header": "शिपिंग प्रोफ़ाइल बनाएं",
+      "hint": "समान शिपिंग आवश्यकताओं वाले उत्पादों को समूहित करने के लिए एक नई शिपिंग प्रोफ़ाइल बनाएं।",
+      "successToast": "शिपिंग प्रोफ़ाइल {{name}} सफलतापूर्वक बनाई गई।"
     },
     "delete": {
-      "title": "Delete Shipping Profile",
-      "description": "You are about to delete the shipping profile {{name}}. This action cannot be undone.",
-      "successToast": "Shipping profile {{name}} was successfully deleted."
+      "title": "शिपिंग प्रोफ़ाइल हटाएं",
+      "description": "आप शिपिंग प्रोफ़ाइल {{name}} को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "शिपिंग प्रोफ़ाइल {{name}} सफलतापूर्वक हटाई गई।"
     },
     "tooltip": {
-      "type": "Enter shipping profile type, for example: Heavy, Oversized, Freight-only, etc."
+      "type": "शिपिंग प्रोफ़ाइल प्रकार दर्ज करें, उदाहरण के लिए: भारी, बड़े आकार का, केवल माल ढुलाई, आदि।"
     }
   },
   "taxRegions": {
-    "domain": "Tax Regions",
+    "domain": "कर क्षेत्र",
     "list": {
-      "hint": "Manage what you charge your customers when they shop from different countries and regions."
+      "hint": "प्रबंधित करें कि जब ग्राहक विभिन्न देशों और क्षेत्रों से खरीदारी करते हैं तो आप उनसे क्या शुल्क लेते हैं।"
     },
     "delete": {
-      "confirmation": "You are about to delete a tax region. This action cannot be undone.",
-      "successToast": "The tax region was successfully deleted."
+      "confirmation": "आप एक कर क्षेत्र हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "कर क्षेत्र सफलतापूर्वक हटा दिया गया।"
     },
     "create": {
-      "header": "Create Tax Region",
-      "hint": "Create a new tax region to define tax rates for a specific country.",
+      "header": "कर क्षेत्र बनाएं",
+      "hint": "किसी विशिष्ट देश के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।",
       "errors": {
-        "missingProvider": "Provider is required when creating a tax region.",
-        "missingCountry": "Country is required when creating a tax region."
+        "missingProvider": "कर क्षेत्र बनाते समय प्रदाता आवश्यक है।",
+        "missingCountry": "कर क्षेत्र बनाते समय देश आवश्यक है।"
       },
-      "successToast": "The tax region was successfully created."
+      "successToast": "कर क्षेत्र सफलतापूर्वक बनाया गया।"
     },
     "edit": {
-      "header": "Edit Tax Region",
-      "hint": "Edit the tax region details.",
-      "successToast": "The tax region was successfully updated."
+      "header": "कर क्षेत्र संपादित करें",
+      "hint": "कर क्षेत्र विवरण संपादित करें।",
+      "successToast": "कर क्षेत्र सफलतापूर्वक अपडेट किया गया।"
     },
     "province": {
-      "header": "Provinces",
+      "header": "प्रांत",
       "create": {
-        "header": "Create Province Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific province."
+        "header": "प्रांत कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट प्रांत के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "provider": {
-      "header": "Tax Provider"
+      "header": "कर प्रदाता"
     },
     "state": {
-      "header": "States",
+      "header": "राज्य",
       "create": {
-        "header": "Create State Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific state."
+        "header": "राज्य कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट राज्य के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "stateOrTerritory": {
-      "header": "States or Territories",
+      "header": "राज्य या क्षेत्र",
       "create": {
-        "header": "Create State/Territory Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific state/territory."
+        "header": "राज्य/क्षेत्र कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट राज्य/क्षेत्र के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "county": {
-      "header": "Counties",
+      "header": "काउंटी",
       "create": {
-        "header": "Create County Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific county."
+        "header": "काउंटी कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट काउंटी के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "region": {
-      "header": "Regions",
+      "header": "क्षेत्र",
       "create": {
-        "header": "Create Region Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific region."
+        "header": "क्षेत्र कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट क्षेत्र के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "department": {
-      "header": "Departments",
+      "header": "विभाग",
       "create": {
-        "header": "Create Department Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific department."
+        "header": "विभाग कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट विभाग के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "territory": {
-      "header": "Territories",
+      "header": "क्षेत्र",
       "create": {
-        "header": "Create Territory Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific territory."
+        "header": "क्षेत्र कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट क्षेत्र के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "prefecture": {
-      "header": "Prefectures",
+      "header": "प्रीफेक्चर",
       "create": {
-        "header": "Create Prefecture Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific prefecture."
+        "header": "प्रीफेक्चर कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट प्रीफेक्चर के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "district": {
-      "header": "Districts",
+      "header": "जिले",
       "create": {
-        "header": "Create District Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific district."
+        "header": "जिला कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट जिले के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "governorate": {
-      "header": "Governorates",
+      "header": "गवर्नरेट",
       "create": {
-        "header": "Create Governorate Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific governorate."
+        "header": "गवर्नरेट कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट गवर्नरेट के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "canton": {
-      "header": "Cantons",
+      "header": "कैंटन",
       "create": {
-        "header": "Create Canton Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific canton."
+        "header": "कैंटन कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट कैंटन के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "emirate": {
-      "header": "Emirates",
+      "header": "अमीरात",
       "create": {
-        "header": "Create Emirate Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific emirate."
+        "header": "अमीरात कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट अमीरात के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "sublevel": {
-      "header": "Sublevels",
+      "header": "उपस्तर",
       "create": {
-        "header": "Create Sublevel Tax Region",
-        "hint": "Create a new tax region to define tax rates for a specific sublevel."
+        "header": "उपस्तर कर क्षेत्र बनाएं",
+        "hint": "किसी विशिष्ट उपस्तर के लिए कर दरें परिभाषित करने हेतु नया कर क्षेत्र बनाएं।"
       }
     },
     "taxOverrides": {
-      "header": "Overrides",
+      "header": "ओवरराइड",
       "create": {
-        "header": "Create Override",
-        "hint": "Create a tax rate that overrides the default tax rates for selected conditions."
+        "header": "ओवरराइड बनाएं",
+        "hint": "चयनित शर्तों के लिए डिफ़ॉल्ट कर दरों को ओवरराइड करने वाली कर दर बनाएं।"
       },
       "edit": {
-        "header": "Edit Override",
-        "hint": "Edit the tax rate that overrides the default tax rates for selected conditions."
+        "header": "ओवरराइड संपादित करें",
+        "hint": "चयनित शर्तों के लिए डिफ़ॉल्ट कर दरों को ओवरराइड करने वाली कर दर संपादित करें।"
       }
     },
     "taxRates": {
       "create": {
-        "header": "Create Tax Rate",
-        "hint": "Create a new tax rate to define the tax rate for a region.",
-        "successToast": "Tax rate was successfully created."
+        "header": "कर दर बनाएं",
+        "hint": "किसी क्षेत्र के लिए कर दर परिभाषित करने हेतु नई कर दर बनाएं।",
+        "successToast": "कर दर सफलतापूर्वक बनाई गई।"
       },
       "edit": {
-        "header": "Edit Tax Rate",
-        "hint": "Edit the tax rate to define the tax rate for a region.",
-        "successToast": "Tax rate was successfully updated."
+        "header": "कर दर संपादित करें",
+        "hint": "किसी क्षेत्र के लिए कर दर परिभाषित करने हेतु कर दर संपादित करें।",
+        "successToast": "कर दर सफलतापूर्वक अपडेट की गई।"
       },
       "delete": {
-        "confirmation": "You are about to delete the tax rate \"{{name}}\". This action cannot be undone.",
-        "successToast": "Tax rate was successfully deleted."
+        "confirmation": "आप कर दर \"{{name}}\" हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+        "successToast": "कर दर सफलतापूर्वक हटा दी गई।"
       }
     },
     "fields": {
       "isCombinable": {
-        "label": "Combinable",
-        "hint": "Whether this tax rate can be combined with the default rate from the tax region.",
-        "true": "Combinable",
-        "false": "Not combinable"
+        "label": "संयोज्य",
+        "hint": "क्या यह कर दर कर क्षेत्र की डिफ़ॉल्ट दर के साथ संयोजित की जा सकती है।",
+        "true": "संयोज्य",
+        "false": "संयोज्य नहीं"
       },
       "defaultTaxRate": {
-        "label": "Default tax rate",
-        "tooltip": "The default tax rate for this region. An example is the standard VAT rate for a country or region.",
-        "action": "Create default tax rate"
+        "label": "डिफ़ॉल्ट कर दर",
+        "tooltip": "इस क्षेत्र के लिए डिफ़ॉल्ट कर दर। उदाहरण किसी देश या क्षेत्र के लिए मानक VAT दर है।",
+        "action": "डिफ़ॉल्ट कर दर बनाएं"
       },
-      "taxRate": "Tax rate",
-      "taxCode": "Tax code",
-      "taxProvider": "Tax provider",
+      "taxRate": "कर दर",
+      "taxCode": "कर कोड",
+      "taxProvider": "कर प्रदाता",
       "targets": {
-        "label": "Targets",
-        "hint": "Select the targets that this tax rate will apply to.",
+        "label": "लक्ष्य",
+        "hint": "वे लक्ष्य चुनें जिन पर यह कर दर लागू होगी।",
         "options": {
-          "product": "Products",
-          "productCollection": "Product collections",
-          "productTag": "Product tags",
-          "productType": "Product types",
-          "customerGroup": "Customer groups",
-          "shippingOption": "Shipping options"
+          "product": "उत्पाद",
+          "productCollection": "उत्पाद संग्रह",
+          "productTag": "उत्पाद टैग",
+          "productType": "उत्पाद प्रकार",
+          "customerGroup": "ग्राहक समूह",
+          "shippingOption": "शिपिंग विकल्प"
         },
         "operators": {
-          "in": "in",
-          "on": "on",
-          "and": "and"
+          "in": "में",
+          "on": "पर",
+          "and": "और"
         },
         "placeholders": {
-          "product": "Search for products",
-          "productCollection": "Search for product collections",
-          "productTag": "Search for product tags",
-          "productType": "Search for product types",
-          "customerGroup": "Search for customer groups",
-          "shippingOption": "Search for shipping options"
+          "product": "उत्पाद खोजें",
+          "productCollection": "उत्पाद संग्रह खोजें",
+          "productTag": "उत्पाद टैग खोजें",
+          "productType": "उत्पाद प्रकार खोजें",
+          "customerGroup": "ग्राहक समूह खोजें",
+          "shippingOption": "शिपिंग विकल्प खोजें"
         },
         "tags": {
-          "product": "Product",
-          "productCollection": "Product collection",
-          "productTag": "Product tag",
-          "productType": "Product type",
-          "customerGroup": "Customer group",
-          "shippingOption": "Shipping option"
+          "product": "उत्पाद",
+          "productCollection": "उत्पाद संग्रह",
+          "productTag": "उत्पाद टैग",
+          "productType": "उत्पाद प्रकार",
+          "customerGroup": "ग्राहक समूह",
+          "shippingOption": "शिपिंग विकल्प"
         },
         "modal": {
-          "header": "Add targets"
+          "header": "लक्ष्य जोड़ें"
         },
-        "values_one": "{{count}} value",
-        "values_other": "{{count}} values",
-        "numberOfTargets_one": "{{count}} target",
-        "numberOfTargets_other": "{{count}} targets",
-        "additionalValues_one": "and {{count}} more value",
-        "additionalValues_other": "and {{count}} more values",
-        "action": "Add target"
+        "values_one": "{{count}} मान",
+        "values_other": "{{count}} मान",
+        "numberOfTargets_one": "{{count}} लक्ष्य",
+        "numberOfTargets_other": "{{count}} लक्ष्य",
+        "additionalValues_one": "और {{count}} अधिक मान",
+        "additionalValues_other": "और {{count}} अधिक मान",
+        "action": "लक्ष्य जोड़ें"
       },
       "sublevels": {
         "labels": {
-          "province": "Province",
-          "state": "State",
-          "region": "Region",
-          "stateOrTerritory": "State/Territory",
-          "department": "Department",
-          "county": "County",
-          "territory": "Territory",
-          "prefecture": "Prefecture",
-          "district": "District",
-          "governorate": "Governorate",
-          "emirate": "Emirate",
-          "canton": "Canton",
-          "sublevel": "Sublevel code"
+          "province": "प्रांत",
+          "state": "राज्य",
+          "region": "क्षेत्र",
+          "stateOrTerritory": "राज्य/क्षेत्र",
+          "department": "विभाग",
+          "county": "काउंटी",
+          "territory": "क्षेत्र",
+          "prefecture": "प्रीफेक्चर",
+          "district": "जिला",
+          "governorate": "गवर्नरेट",
+          "emirate": "अमीरात",
+          "canton": "कैंटन",
+          "sublevel": "उपस्तर कोड"
         },
         "placeholders": {
-          "province": "Select province",
-          "state": "Select state",
-          "region": "Select region",
-          "stateOrTerritory": "Select state/territory",
-          "department": "Select department",
-          "county": "Select county",
-          "territory": "Select territory",
-          "prefecture": "Select prefecture",
-          "district": "Select district",
-          "governorate": "Select governorate",
-          "emirate": "Select emirate",
-          "canton": "Select canton"
+          "province": "प्रांत चुनें",
+          "state": "राज्य चुनें",
+          "region": "क्षेत्र चुनें",
+          "stateOrTerritory": "राज्य/क्षेत्र चुनें",
+          "department": "विभाग चुनें",
+          "county": "काउंटी चुनें",
+          "territory": "क्षेत्र चुनें",
+          "prefecture": "प्रीफेक्चर चुनें",
+          "district": "जिला चुनें",
+          "governorate": "गवर्नरेट चुनें",
+          "emirate": "अमीरात चुनें",
+          "canton": "कैंटन चुनें"
         },
         "tooltips": {
-          "sublevel": "Enter the ISO 3166-2 code for the sublevel tax region.",
-          "notPartOfCountry": "{{province}} does not appear to be part of {{country}}. Please double-check if this is correct."
+          "sublevel": "उपस्तर कर क्षेत्र के लिए ISO 3166-2 कोड दर्ज करें।",
+          "notPartOfCountry": "{{province}}, {{country}} का हिस्सा नहीं लगता। कृपया जांचें कि यह सही है या नहीं।"
         },
         "alert": {
-          "header": "Sublevel regions are disabled for this tax region",
-          "description": "Sublevel regions are disabled for this region by default. You can enable them to create sublevel regions like provinces, states, or territories.",
-          "action": "Enable sublevel regions"
+          "header": "इस कर क्षेत्र के लिए उपस्तर क्षेत्र अक्षम हैं",
+          "description": "इस क्षेत्र के लिए उपस्तर क्षेत्र डिफ़ॉल्ट रूप से अक्षम हैं। आप उन्हें सक्षम कर सकते हैं ताकि प्रांत, राज्य या क्षेत्र जैसे उपस्तर क्षेत्र बना सकें।",
+          "action": "उपस्तर क्षेत्र सक्षम करें"
         }
       },
       "noDefaultRate": {
-        "label": "No default rate",
-        "tooltip": "This tax region does not have a default tax rate. If there is a standard rate, such as a country's VAT, please add it to this region."
+        "label": "कोई डिफ़ॉल्ट दर नहीं",
+        "tooltip": "इस कर क्षेत्र में डिफ़ॉल्ट कर दर नहीं है। यदि कोई मानक दर है, जैसे देश का VAT, तो कृपया इसे इस क्षेत्र में जोड़ें।"
       }
     }
   },
   "promotions": {
-    "domain": "Promotions",
+    "domain": "प्रमोशन",
     "sections": {
-      "details": "Promotion Details"
+      "details": "प्रमोशन विवरण"
     },
     "tabs": {
-      "template": "Type",
-      "details": "Details",
-      "campaign": "Campaign"
+      "template": "प्रकार",
+      "details": "विवरण",
+      "campaign": "कैम्पेन"
     },
     "fields": {
-      "type": "Type",
-      "value_type": "Value Type",
-      "value": "Value",
-      "campaign": "Campaign",
-      "method": "Method",
-      "allocation": "Allocation",
-      "allocationTooltip": "Each enforces the quantity limit per item, while Once enforces the quantity limit across the entire cart",
-      "addCondition": "Add condition",
-      "clearAll": "Clear all",
-      "taxInclusive": "Tax Inclusive",
-      "usageLimit": "Usage Limit",
-      "usage": "Usage",
+      "type": "प्रकार",
+      "value_type": "मूल्य प्रकार",
+      "value": "मूल्य",
+      "campaign": "कैम्पेन",
+      "method": "विधि",
+      "allocation": "आवंटन",
+      "allocationTooltip": "Each प्रत्येक आइटम पर मात्रा सीमा लागू करता है, जबकि Once पूरे कार्ट पर मात्रा सीमा लागू करता है",
+      "addCondition": "शर्त जोड़ें",
+      "clearAll": "सभी साफ़ करें",
+      "taxInclusive": "टैक्स सहित",
+      "usageLimit": "उपयोग सीमा",
+      "usage": "उपयोग",
       "amount": {
-        "tooltip": "Select the currency code to enable setting the amount"
+        "tooltip": "राशि सेट करने के लिए करेंसी कोड चुनें"
       },
       "conditions": {
         "rules": {
-          "title": "Who can use this code?",
-          "description": "Which customer is allowed to use the promotion code? Promotion code can be used by all customers if left untouched."
+          "title": "यह कोड कौन उपयोग कर सकता है?",
+          "description": "किस ग्राहक को प्रमोशन कोड उपयोग करने की अनुमति है? यदि अछूता छोड़ दिया जाए तो प्रमोशन कोड सभी ग्राहकों द्वारा उपयोग किया जा सकता है।"
         },
         "target-rules": {
           "order": {
-            "title": "What items will the promotion be applied to?",
-            "description": "The promotion will be applied to items that match the following conditions."
+            "title": "प्रमोशन किन आइटम पर लागू होगा?",
+            "description": "प्रमोशन उन आइटम पर लागू होगा जो निम्नलिखित शर्तों से मेल खाते हैं।"
           },
           "shipping_methods": {
-            "title": "What shipping methods will the promotion be applied to?",
-            "description": "The promotion will be applied to shipping methods that match the following conditions."
+            "title": "प्रमोशन किन शिपिंग विधियों पर लागू होगा?",
+            "description": "प्रमोशन उन शिपिंग विधियों पर लागू होगा जो निम्नलिखित शर्तों से मेल खाती हैं।"
           },
           "items": {
-            "title": "What items will the promotion be applied to?",
-            "description": "The promotion will be applied to items that match the following conditions."
+            "title": "प्रमोशन किन आइटम पर लागू होगा?",
+            "description": "प्रमोशन उन आइटम पर लागू होगा जो निम्नलिखित शर्तों से मेल खाते हैं।"
           }
         },
         "buy-rules": {
-          "title": "What needs to be in the cart to unlock the promotion?",
-          "description": "If these conditions match, we enable the promotion on the target items."
+          "title": "प्रमोशन अनलॉक करने के लिए कार्ट में क्या होना चाहिए?",
+          "description": "यदि ये शर्तें मेल खाती हैं, तो हम लक्षित आइटम पर प्रमोशन सक्षम करते हैं।"
         }
       }
     },
     "tooltips": {
-      "campaignType": "The currency code must be selected in the promotion to set a spend budget."
+      "campaignType": "खर्च बजट सेट करने के लिए प्रमोशन में करेंसी कोड चुना जाना चाहिए।"
     },
     "errors": {
-      "requiredField": "Required field",
-      "promotionTabError": "Fix errors in Promotion Tab before proceeding"
+      "requiredField": "आवश्यक फ़ील्ड",
+      "promotionTabError": "आगे बढ़ने से पहले प्रमोशन टैब में त्रुटियां ठीक करें"
     },
     "toasts": {
-      "promotionCreateSuccess": "Promotion ({{code}}) was successfully created."
+      "promotionCreateSuccess": "प्रमोशन ({{code}}) सफलतापूर्वक बनाया गया।"
     },
     "create": {},
     "edit": {
-      "title": "Edit Promotion Details",
+      "title": "प्रमोशन विवरण संपादित करें",
       "rules": {
-        "title": "Edit usage conditions"
+        "title": "उपयोग शर्तें संपादित करें"
       },
       "target-rules": {
-        "title": "Edit item conditions"
+        "title": "आइटम शर्तें संपादित करें"
       },
       "buy-rules": {
-        "title": "Edit buy rules"
+        "title": "खरीद नियम संपादित करें"
       }
     },
     "campaign": {
-      "header": "Campaign",
+      "header": "कैम्पेन",
       "edit": {
-        "header": "Edit Campaign",
-        "successToast": "Successfully updated the campaign of the promotion."
+        "header": "कैम्पेन संपादित करें",
+        "successToast": "प्रमोशन का कैम्पेन सफलतापूर्वक अपडेट किया गया।"
       },
       "actions": {
-        "goToCampaign": "Go to campaign"
+        "goToCampaign": "कैम्पेन पर जाएं"
       }
     },
     "campaign_currency": {
-      "tooltip": "This is the promotion's currency. Change it from the Details tab."
+      "tooltip": "यह प्रमोशन की करेंसी है। इसे विवरण टैब से बदलें।"
     },
     "form": {
-      "required": "Required",
-      "and": "AND",
-      "selectAttribute": "Select Attribute",
+      "required": "आवश्यक",
+      "and": "और",
+      "selectAttribute": "विशेषता चुनें",
       "campaign": {
         "existing": {
-          "title": "Existing Campaign",
-          "description": "Add promotion to an existing campaign.",
+          "title": "मौजूदा कैम्पेन",
+          "description": "मौजूदा कैम्पेन में प्रमोशन जोड़ें।",
           "placeholder": {
-            "title": "No existing campaigns",
-            "desc": "You can create one to track multiple promotions and set budget limits."
+            "title": "कोई मौजूदा कैम्पेन नहीं",
+            "desc": "आप कई प्रमोशन ट्रैक करने और बजट सीमा सेट करने के लिए एक बना सकते हैं।"
           }
         },
         "new": {
-          "title": "New Campaign",
-          "description": "Create a new campaign for this promotion."
+          "title": "नया कैम्पेन",
+          "description": "इस प्रमोशन के लिए एक नया कैम्पेन बनाएं।"
         },
         "none": {
-          "title": "Without Campaign",
-          "description": "Proceed without associating promotion with campaign"
+          "title": "कैम्पेन के बिना",
+          "description": "प्रमोशन को कैम्पेन से जोड़े बिना आगे बढ़ें"
         }
       },
       "taxInclusive": {
-        "title": "Does promotion include taxes?",
-        "description": "Enable this field to apply the promotion after taxes"
+        "title": "क्या प्रमोशन में टैक्स शामिल है?",
+        "description": "टैक्स के बाद प्रमोशन लागू करने के लिए यह फ़ील्ड सक्षम करें"
       },
       "status": {
-        "label": "Status",
+        "label": "स्थिति",
         "draft": {
-          "title": "Draft",
-          "description": "Customers will not be able to use the code yet"
+          "title": "ड्राफ़्ट",
+          "description": "ग्राहक अभी तक कोड का उपयोग नहीं कर पाएंगे"
         },
         "active": {
-          "title": "Active",
-          "description": "Customers will be able to use the code"
+          "title": "सक्रिय",
+          "description": "ग्राहक कोड का उपयोग कर पाएंगे"
         },
         "inactive": {
-          "title": "Inactive",
-          "description": "Customers will no longer be able to use the code"
+          "title": "निष्क्रिय",
+          "description": "ग्राहक अब कोड का उपयोग नहीं कर पाएंगे"
         }
       },
       "method": {
-        "label": "Method",
+        "label": "विधि",
         "code": {
-          "title": "Promotion code",
-          "description": "Customers must enter this code at checkout"
+          "title": "प्रमोशन कोड",
+          "description": "ग्राहकों को चेकआउट पर यह कोड दर्ज करना होगा"
         },
         "automatic": {
-          "title": "Automatic",
-          "description": "Customers will see this promotion at checkout"
+          "title": "स्वचालित",
+          "description": "ग्राहकों को चेकआउट पर यह प्रमोशन दिखाई देगा"
         }
       },
       "max_quantity": {
-        "title": "Maximum Quantity",
-        "description": "Maximum quantity of items this promotion applies to."
+        "title": "अधिकतम मात्रा",
+        "description": "आइटम की अधिकतम मात्रा जिस पर यह प्रमोशन लागू होता है।"
       },
       "type": {
         "standard": {
-          "title": "Standard",
-          "description": "A standard promotion"
+          "title": "स्टैंडर्ड",
+          "description": "एक स्टैंडर्ड प्रमोशन"
         },
         "buyget": {
           "title": "Buy Get",
-          "description": "Buy X get Y promotion"
+          "description": "X खरीदें Y पाएं प्रमोशन"
         }
       },
       "allocation": {
         "each": {
           "title": "Each",
-          "description": "Applies value on each item"
+          "description": "प्रत्येक आइटम पर मूल्य लागू करता है"
         },
         "across": {
           "title": "Across",
-          "description": "Applies value across items"
+          "description": "आइटम पर मूल्य लागू करता है"
         },
         "once": {
           "title": "Once",
-          "description": "Applies value to a limited number of items"
+          "description": "सीमित संख्या में आइटम पर मूल्य लागू करता है"
         }
       },
       "code": {
-        "title": "Code",
-        "description": "The code your customers will enter during checkout."
+        "title": "कोड",
+        "description": "वह कोड जो आपके ग्राहक चेकआउट के दौरान दर्ज करेंगे।"
       },
       "value": {
-        "title": "Promotion Value",
-        "invalid": "Invalid promotion value"
+        "title": "प्रमोशन मूल्य",
+        "invalid": "अमान्य प्रमोशन मूल्य"
       },
       "value_type": {
         "fixed": {
-          "title": "Fixed amount",
-          "description": "The amount to be discounted. eg. 100"
+          "title": "निश्चित राशि",
+          "description": "छूट की जाने वाली राशि। जैसे 100"
         },
         "percentage": {
-          "title": "Percentage",
-          "description": "The percentage to discount off the amount. eg. 8%"
+          "title": "प्रतिशत",
+          "description": "राशि पर छूट का प्रतिशत। जैसे 8%"
         }
       },
       "limit": {
-        "title": "Usage Limit",
-        "description": "Maximum number of times this promotion can be used across all orders. Leave empty for unlimited usage."
+        "title": "उपयोग सीमा",
+        "description": "सभी ऑर्डर में इस प्रमोशन का अधिकतम उपयोग। असीमित उपयोग के लिए खाली छोड़ें।"
       }
     },
-    "deleteWarning": "You are about to delete the promotion {{code}}. This action cannot be undone.",
-    "createPromotionTitle": "Create Promotion",
-    "type": "Promotion type",
+    "deleteWarning": "आप प्रमोशन {{code}} को हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
+    "createPromotionTitle": "प्रमोशन बनाएं",
+    "type": "प्रमोशन प्रकार",
     "conditions": {
-      "add": "Add condition",
+      "add": "शर्त जोड़ें",
       "list": {
-        "noRecordsMessage": "Add a condition to restrict what items the promotion applies to."
+        "noRecordsMessage": "प्रमोशन किन आइटम पर लागू होता है यह प्रतिबंधित करने के लिए एक शर्त जोड़ें।"
       }
     }
   },
   "campaigns": {
-    "domain": "Campaigns",
-    "details": "Campaign details",
+    "domain": "कैंपेन",
+    "details": "कैंपेन विवरण",
     "status": {
-      "active": "Active",
-      "expired": "Expired",
-      "scheduled": "Scheduled"
+      "active": "सक्रिय",
+      "expired": "समाप्त",
+      "scheduled": "निर्धारित"
     },
     "delete": {
-      "title": "Are you sure?",
-      "description": "You are about to delete the campaign '{{name}}'. This action cannot be undone.",
-      "successToast": "Campaign '{{name}}' was successfully deleted."
+      "title": "क्या आप सुनिश्चित हैं?",
+      "description": "आप कैंपेन '{{name}}' को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "कैंपेन '{{name}}' सफलतापूर्वक हटाया गया।"
     },
     "edit": {
-      "header": "Edit Campaign",
-      "description": "Edit the details of the campaign.",
-      "successToast": "Campaign '{{name}}' was successfully updated."
+      "header": "कैंपेन संपादित करें",
+      "description": "कैंपेन का विवरण संपादित करें।",
+      "successToast": "कैंपेन '{{name}}' सफलतापूर्वक अपडेट किया गया।"
     },
     "configuration": {
-      "header": "Configuration",
+      "header": "कॉन्फ़िगरेशन",
       "edit": {
-        "header": "Edit Campaign Configuration",
-        "description": "Edit the configuration of the campaign.",
-        "successToast": "Campaign configuration was successfully updated."
+        "header": "कैंपेन कॉन्फ़िगरेशन संपादित करें",
+        "description": "कैंपेन का कॉन्फ़िगरेशन संपादित करें।",
+        "successToast": "कैंपेन कॉन्फ़िगरेशन सफलतापूर्वक अपडेट किया गया।"
       }
     },
     "create": {
-      "title": "Create Campaign",
-      "description": "Create a promotional campaign.",
-      "hint": "Create a promotional campaign.",
-      "header": "Create Campaign",
-      "successToast": "Campaign '{{name}}' was successfully created."
+      "title": "कैंपेन बनाएं",
+      "description": "प्रचार कैंपेन बनाएं।",
+      "hint": "प्रचार कैंपेन बनाएं।",
+      "header": "कैंपेन बनाएं",
+      "successToast": "कैंपेन '{{name}}' सफलतापूर्वक बनाया गया।"
     },
     "fields": {
-      "name": "Name",
-      "identifier": "Identifier",
-      "start_date": "Start date",
-      "end_date": "End date",
-      "total_spend": "Budget spent",
-      "total_used": "Budget used",
-      "totalUsedByAttribute": "Total used",
-      "budget_limit": "Budget limit",
+      "name": "नाम",
+      "identifier": "पहचानकर्ता",
+      "start_date": "आरंभ तिथि",
+      "end_date": "समाप्ति तिथि",
+      "total_spend": "बजट खर्च",
+      "total_used": "बजट उपयोग",
+      "totalUsedByAttribute": "कुल उपयोग",
+      "budget_limit": "बजट सीमा",
       "campaign_id": {
-        "hint": "Disabled campaigns have budget in a different currency than the promotion."
+        "hint": "अक्षम कैंपेन का बजट प्रमोशन से भिन्न मुद्रा में है।"
       }
     },
     "budget": {
       "attribute": {
-        "customer_id": "customer",
-        "customer_email": "email"
+        "customer_id": "ग्राहक",
+        "customer_email": "ईमेल"
       },
       "create": {
-        "hint": "Create a budget for the campaign.",
-        "header": "Campaign Budget"
+        "hint": "कैंपेन के लिए बजट बनाएं।",
+        "header": "कैंपेन बजट"
       },
-      "details": "Campaign budget",
+      "details": "कैंपेन बजट",
       "fields": {
-        "type": "Type",
-        "currency": "Currency",
-        "limit": "Limit",
-        "used": "Used",
-        "budgetAttribute": "Limit usage per",
-        "budgetAttributeTooltip": "Define how many times the promotion can be used by each customer or email.",
-        "totalUsedByAttribute": "Budget limit per: {{attribute}}",
-        "totalUsedByAttributeCustomerId": "Budget limit per customer",
-        "totalUsedByAttributeEmail": "Budget limit per email"
+        "type": "प्रकार",
+        "currency": "मुद्रा",
+        "limit": "सीमा",
+        "used": "उपयोग किया गया",
+        "budgetAttribute": "प्रति सीमा उपयोग",
+        "budgetAttributeTooltip": "परिभाषित करें कि प्रत्येक ग्राहक या ईमेल द्वारा प्रमोशन का कितनी बार उपयोग किया जा सकता है।",
+        "totalUsedByAttribute": "बजट सीमा प्रति: {{attribute}}",
+        "totalUsedByAttributeCustomerId": "बजट सीमा प्रति ग्राहक",
+        "totalUsedByAttributeEmail": "बजट सीमा प्रति ईमेल"
       },
       "type": {
         "spend": {
-          "title": "Spend",
-          "description": "Set a limit on the total discounted amount of all promotion usages."
+          "title": "खर्च",
+          "description": "सभी प्रमोशन उपयोगों की कुल छूट राशि पर सीमा निर्धारित करें।"
         },
         "usage": {
-          "title": "Usage",
-          "description": "Set a limit on how many times the promotion can be used."
+          "title": "उपयोग",
+          "description": "प्रमोशन का कितनी बार उपयोग किया जा सकता है, इस पर सीमा निर्धारित करें।"
         },
         "useByAttribute": {
-          "title": "Usage by attribute (customer id, email, etc.)",
-          "titleCustomerId": "Usage per customer",
-          "titleEmail": "Usage per email",
-          "description": "Set a limit on how many times the promotion can be used by a specific attribute value."
+          "title": "विशेषता द्वारा उपयोग (ग्राहक आईडी, ईमेल, आदि)",
+          "titleCustomerId": "प्रति ग्राहक उपयोग",
+          "titleEmail": "प्रति ईमेल उपयोग",
+          "description": "किसी विशिष्ट विशेषता मान द्वारा प्रमोशन का कितनी बार उपयोग किया जा सकता है, इस पर सीमा निर्धारित करें।"
         }
       },
       "edit": {
-        "header": "Edit Campaign Budget"
+        "header": "कैंपेन बजट संपादित करें"
       }
     },
     "promotions": {
       "remove": {
-        "title": "Remove promotion from campaign",
-        "description": "You are about to remove {{count}} promotion(s) from the campaign. This action cannot be undone."
+        "title": "कैंपेन से प्रमोशन हटाएं",
+        "description": "आप कैंपेन से {{count}} प्रमोशन हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।"
       },
-      "alreadyAdded": "This promotion has already been added to the campaign.",
-      "alreadyAddedDiffCampaign": "This promotion has already been added to a different campaign ({{name}}).",
-      "currencyMismatch": "Currency of the promotion and campaign doesn't match",
+      "alreadyAdded": "यह प्रमोशन पहले से ही कैंपेन में जोड़ा जा चुका है।",
+      "alreadyAddedDiffCampaign": "यह प्रमोशन पहले से ही एक अलग कैंपेन ({{name}}) में जोड़ा जा चुका है।",
+      "currencyMismatch": "प्रमोशन और कैंपेन की मुद्रा मेल नहीं खाती",
       "toast": {
-        "success": "Successfully added {{count}} promotion(s) to campaign"
+        "success": "कैंपेन में {{count}} प्रमोशन सफलतापूर्वक जोड़े गए"
       },
       "add": {
         "list": {
-          "noRecordsMessage": "Create a promotion first."
+          "noRecordsMessage": "पहले एक प्रमोशन बनाएं।"
         }
       },
       "list": {
-        "noRecordsMessage": "There are no promotions in the campaign."
+        "noRecordsMessage": "कैंपेन में कोई प्रमोशन नहीं हैं।"
       }
     },
-    "deleteCampaignWarning": "You are about to delete the campaign {{name}}. This action cannot be undone.",
+    "deleteCampaignWarning": "आप कैंपेन {{name}} को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
     "totalSpend": "<0>{{amount}}</0> <1>{{currency}}</1>"
   },
   "priceLists": {
-    "domain": "Price Lists",
-    "subtitle": "Create sales or override prices for specific conditions.",
+    "domain": "मूल्य सूचियाँ",
+    "subtitle": "विशिष्ट शर्तों के लिए बिक्री बनाएं या मूल्य ओवरराइड करें।",
     "delete": {
-      "confirmation": "You are about to delete the price list \"{{title}}\". This action cannot be undone.",
-      "successToast": "Price list \"{{title}}\" was successfully deleted."
+      "confirmation": "आप मूल्य सूची \"{{title}}\" को हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
+      "successToast": "मूल्य सूची \"{{title}}\" सफलतापूर्वक हटा दी गई।"
     },
     "create": {
-      "header": "Create Price List",
-      "subheader": "Create a new price list to manage the prices of your products.",
+      "header": "मूल्य सूची बनाएं",
+      "subheader": "अपने उत्पादों की कीमतों को प्रबंधित करने के लिए एक नई मूल्य सूची बनाएं।",
       "tabs": {
-        "details": "Details",
-        "products": "Products",
-        "prices": "Prices"
+        "details": "विवरण",
+        "products": "उत्पाद",
+        "prices": "मूल्य"
       },
-      "successToast": "Price list {{title}} was successfully created.",
+      "successToast": "मूल्य सूची {{title}} सफलतापूर्वक बनाई गई।",
       "products": {
         "list": {
-          "noRecordsMessage": "Create a product first."
+          "noRecordsMessage": "पहले एक उत्पाद बनाएं।"
         }
       }
     },
     "edit": {
-      "header": "Edit Price List",
-      "successToast": "Price list {{title}} was successfully updated."
+      "header": "मूल्य सूची संपादित करें",
+      "successToast": "मूल्य सूची {{title}} सफलतापूर्वक अपडेट की गई।"
     },
     "configuration": {
-      "header": "Configuration",
+      "header": "कॉन्फ़िगरेशन",
       "edit": {
-        "header": "Edit Price List Configuration",
-        "description": "Edit the configuration of the price list.",
-        "successToast": "Price list configuration was successfully updated."
+        "header": "मूल्य सूची कॉन्फ़िगरेशन संपादित करें",
+        "description": "मूल्य सूची का कॉन्फ़िगरेशन संपादित करें।",
+        "successToast": "मूल्य सूची कॉन्फ़िगरेशन सफलतापूर्वक अपडेट किया गया।"
       }
     },
     "products": {
-      "header": "Products",
+      "header": "उत्पाद",
       "actions": {
-        "addProducts": "Add products",
-        "editPrices": "Edit prices"
+        "addProducts": "उत्पाद जोड़ें",
+        "editPrices": "मूल्य संपादित करें"
       },
       "delete": {
-        "confirmation_one": "You are about to delete the prices for {{count}} product in the price list. This action cannot be undone.",
-        "confirmation_other": "You are about to delete the prices for {{count}} products in the price list. This action cannot be undone.",
-        "successToast_one": "Successfully deleted prices for {{count}} product.",
-        "successToast_other": "Successfully deleted prices for {{count}} products."
+        "confirmation_one": "आप मूल्य सूची में {{count}} उत्पाद के मूल्य हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
+        "confirmation_other": "आप मूल्य सूची में {{count}} उत्पादों के मूल्य हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
+        "successToast_one": "{{count}} उत्पाद के मूल्य सफलतापूर्वक हटाए गए।",
+        "successToast_other": "{{count}} उत्पादों के मूल्य सफलतापूर्वक हटाए गए।"
       },
       "add": {
-        "successToast": "Prices were successfully added to the price list."
+        "successToast": "मूल्य सूची में मूल्य सफलतापूर्वक जोड़े गए।"
       },
       "edit": {
-        "successToast": "Prices were successfully updated."
+        "successToast": "मूल्य सफलतापूर्वक अपडेट किए गए।"
       }
     },
     "fields": {
       "priceOverrides": {
-        "label": "Price overrides",
-        "header": "Price Overrides"
+        "label": "मूल्य ओवरराइड",
+        "header": "मूल्य ओवरराइड"
       },
       "status": {
-        "label": "Status",
+        "label": "स्थिति",
         "options": {
-          "active": "Active",
-          "draft": "Draft",
-          "expired": "Expired",
-          "scheduled": "Scheduled"
+          "active": "सक्रिय",
+          "draft": "ड्राफ़्ट",
+          "expired": "समाप्त",
+          "scheduled": "निर्धारित"
         }
       },
       "type": {
-        "label": "Type",
-        "hint": "Choose the type of price list you want to create.",
+        "label": "प्रकार",
+        "hint": "आप जो मूल्य सूची बनाना चाहते हैं उसका प्रकार चुनें।",
         "options": {
           "sale": {
-            "label": "Sale",
-            "description": "Sale prices are temporary price changes for products."
+            "label": "बिक्री",
+            "description": "बिक्री मूल्य उत्पादों के लिए अस्थायी मूल्य परिवर्तन हैं।"
           },
           "override": {
-            "label": "Override",
-            "description": "Overrides are usually used to create customer-specific prices."
+            "label": "ओवरराइड",
+            "description": "ओवरराइड का उपयोग आमतौर पर ग्राहक-विशिष्ट मूल्य बनाने के लिए किया जाता है।"
           }
         }
       },
       "startsAt": {
-        "label": "Price list has a start date?",
-        "hint": "Schedule the price list to activate in the future."
+        "label": "क्या मूल्य सूची की प्रारंभ तिथि है?",
+        "hint": "भविष्य में सक्रिय होने के लिए मूल्य सूची को शेड्यूल करें।"
       },
       "endsAt": {
-        "label": "Price list has an expiry date?",
-        "hint": "Schedule the price list to deactivate in the future."
+        "label": "क्या मूल्य सूची की समाप्ति तिथि है?",
+        "hint": "भविष्य में निष्क्रिय होने के लिए मूल्य सूची को शेड्यूल करें।"
       },
       "customerAvailability": {
-        "header": "Choose customer groups",
-        "label": "Customer availability",
-        "hint": "Choose which customer groups the price list should be applied to.",
-        "placeholder": "Search for customer groups",
-        "attribute": "Customer groups"
+        "header": "ग्राहक समूह चुनें",
+        "label": "ग्राहक उपलब्धता",
+        "hint": "चुनें कि मूल्य सूची किन ग्राहक समूहों पर लागू होनी चाहिए।",
+        "placeholder": "ग्राहक समूह खोजें",
+        "attribute": "ग्राहक समूह"
       }
     }
   },
@@ -2459,236 +2459,236 @@
     }
   },
   "users": {
-    "domain": "Users",
-    "editUser": "Edit User",
-    "inviteUser": "Invite User",
-    "inviteUserHint": "Invite a new user to your store.",
-    "sendInvite": "Send invite",
-    "pendingInvites": "Pending Invites",
-    "deleteInviteWarning": "You are about to delete the invite for {{email}}. This action cannot be undone.",
-    "resendInvite": "Resend invite",
-    "copyInviteLink": "Copy invite link",
-    "expiredOnDate": "Expired on {{date}}",
-    "validFromUntil": "Valid from <0>{{from}}</0> - <1>{{until}}</1>",
-    "acceptedOnDate": "Accepted on {{date}}",
+    "domain": "उपयोगकर्ता",
+    "editUser": "उपयोगकर्ता संपादित करें",
+    "inviteUser": "उपयोगकर्ता आमंत्रित करें",
+    "inviteUserHint": "अपने स्टोर में नया उपयोगकर्ता आमंत्रित करें।",
+    "sendInvite": "आमंत्रण भेजें",
+    "pendingInvites": "लंबित आमंत्रण",
+    "deleteInviteWarning": "आप {{email}} के लिए आमंत्रण हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
+    "resendInvite": "आमंत्रण पुनः भेजें",
+    "copyInviteLink": "आमंत्रण लिंक कॉपी करें",
+    "expiredOnDate": "{{date}} को समाप्त",
+    "validFromUntil": "<0>{{from}}</0> से <1>{{until}}</1> तक मान्य",
+    "acceptedOnDate": "{{date}} को स्वीकृत",
     "inviteStatus": {
-      "accepted": "Accepted",
-      "pending": "Pending",
-      "expired": "Expired"
+      "accepted": "स्वीकृत",
+      "pending": "लंबित",
+      "expired": "समाप्त"
     },
     "roles": {
-      "admin": "Admin",
-      "developer": "Developer",
-      "member": "Member"
+      "admin": "एडमिन",
+      "developer": "डेवलपर",
+      "member": "सदस्य"
     },
     "list": {
       "empty": {
-        "heading": "No users found",
-        "description": "Once a user has been invited, they will appear here."
+        "heading": "कोई उपयोगकर्ता नहीं मिला",
+        "description": "एक बार उपयोगकर्ता को आमंत्रित करने के बाद, वे यहां दिखाई देंगे।"
       },
       "filtered": {
-        "heading": "No results",
-        "description": "No users match the current filter criteria."
+        "heading": "कोई परिणाम नहीं",
+        "description": "वर्तमान फ़िल्टर मानदंड से कोई उपयोगकर्ता मेल नहीं खाता।"
       }
     },
-    "deleteUserWarning": "You are about to delete the user {{name}}. This action cannot be undone.",
-    "deleteUserSuccess": "User {{name}} deleted successfully",
-    "invite": "Invite"
+    "deleteUserWarning": "आप उपयोगकर्ता {{name}} को हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
+    "deleteUserSuccess": "उपयोगकर्ता {{name}} सफलतापूर्वक हटाया गया",
+    "invite": "आमंत्रित करें"
   },
   "store": {
-    "domain": "Store",
-    "manageYourStoresDetails": "Manage your store's details",
-    "editStore": "Edit store",
-    "defaultCurrency": "Default currency",
-    "defaultLocale": "Default locale",
-    "defaultRegion": "Default region",
-    "defaultSalesChannel": "Default sales channel",
-    "defaultLocation": "Default location",
-    "swapLinkTemplate": "Swap link template",
-    "paymentLinkTemplate": "Payment link template",
-    "inviteLinkTemplate": "Invite link template",
-    "locales": "Locales",
-    "currencies": "Currencies",
-    "addCurrencies": "Add currencies",
-    "enableTaxInclusivePricing": "Enable tax inclusive pricing",
-    "disableTaxInclusivePricing": "Disable tax inclusive pricing",
-    "removeCurrencyWarning_one": "You are about to remove {{count}} currency from your store. Ensure that you have removed all prices using the currency before proceeding.",
-    "removeCurrencyWarning_other": "You are about to remove {{count}} currencies from your store. Ensure that you have removed all prices using the currencies before proceeding.",
-    "removeLocaleWarning_one": "You are about to remove {{count}} locale from your store. Any translation using this locale will be removed.",
-    "removeLocaleWarning_other": "You are about to remove {{count}} locales from your store. Any translation using these locales will be removed.",
-    "currencyAlreadyAdded": "The currency has already been added to your store.",
-    "localeAlreadyAdded": "The locale has already been added to your store.",
+    "domain": "स्टोर",
+    "manageYourStoresDetails": "अपने स्टोर का विवरण प्रबंधित करें",
+    "editStore": "स्टोर संपादित करें",
+    "defaultCurrency": "डिफ़ॉल्ट मुद्रा",
+    "defaultLocale": "डिफ़ॉल्ट लोकेल",
+    "defaultRegion": "डिफ़ॉल्ट क्षेत्र",
+    "defaultSalesChannel": "डिफ़ॉल्ट बिक्री चैनल",
+    "defaultLocation": "डिफ़ॉल्ट स्थान",
+    "swapLinkTemplate": "स्वैप लिंक टेम्पलेट",
+    "paymentLinkTemplate": "भुगतान लिंक टेम्पलेट",
+    "inviteLinkTemplate": "आमंत्रण लिंक टेम्पलेट",
+    "locales": "लोकेल",
+    "currencies": "मुद्राएं",
+    "addCurrencies": "मुद्राएं जोड़ें",
+    "enableTaxInclusivePricing": "कर सहित मूल्य निर्धारण सक्षम करें",
+    "disableTaxInclusivePricing": "कर सहित मूल्य निर्धारण अक्षम करें",
+    "removeCurrencyWarning_one": "आप अपने स्टोर से {{count}} मुद्रा हटाने वाले हैं। आगे बढ़ने से पहले सुनिश्चित करें कि आपने इस मुद्रा का उपयोग करने वाली सभी कीमतें हटा दी हैं।",
+    "removeCurrencyWarning_other": "आप अपने स्टोर से {{count}} मुद्राएं हटाने वाले हैं। आगे बढ़ने से पहले सुनिश्चित करें कि आपने इन मुद्राओं का उपयोग करने वाली सभी कीमतें हटा दी हैं।",
+    "removeLocaleWarning_one": "आप अपने स्टोर से {{count}} लोकेल हटाने वाले हैं। इस लोकेल का उपयोग करने वाला कोई भी अनुवाद हटा दिया जाएगा।",
+    "removeLocaleWarning_other": "आप अपने स्टोर से {{count}} लोकेल हटाने वाले हैं। इन लोकेल का उपयोग करने वाले सभी अनुवाद हटा दिए जाएंगे।",
+    "currencyAlreadyAdded": "यह मुद्रा पहले से ही आपके स्टोर में जोड़ी जा चुकी है।",
+    "localeAlreadyAdded": "यह लोकेल पहले से ही आपके स्टोर में जोड़ा जा चुका है।",
     "edit": {
-      "header": "Edit Store"
+      "header": "स्टोर संपादित करें"
     },
     "toast": {
-      "update": "Store successfully updated",
-      "currenciesUpdated": "Currencies updated successfully",
-      "localesUpdated": "Locales updated successfully",
-      "currenciesRemoved": "Removed currencies from the store successfully",
-      "localesRemoved": "Removed locales from the store successfully",
-      "updatedTaxInclusivitySuccessfully": "Tax inclusive pricing updated successfully"
+      "update": "स्टोर सफलतापूर्वक अपडेट किया गया",
+      "currenciesUpdated": "मुद्राएं सफलतापूर्वक अपडेट की गईं",
+      "localesUpdated": "लोकेल सफलतापूर्वक अपडेट किए गए",
+      "currenciesRemoved": "स्टोर से मुद्राएं सफलतापूर्वक हटाई गईं",
+      "localesRemoved": "स्टोर से लोकेल सफलतापूर्वक हटाए गए",
+      "updatedTaxInclusivitySuccessfully": "कर सहित मूल्य निर्धारण सफलतापूर्वक अपडेट किया गया"
     }
   },
   "regions": {
-    "domain": "Regions",
-    "subtitle": "A region is an area that you sell products in. It can cover multiple countries, and has different tax rates, providers, and currency.",
-    "createRegion": "Create Region",
-    "createRegionHint": "Manage tax rates and providers for a set of countries.",
-    "addCountries": "Add countries",
-    "editRegion": "Edit Region",
-    "countriesHint": "Add the countries included in this region.",
-    "deleteRegionWarning": "You are about to delete the region {{name}}. This action cannot be undone.",
-    "removeCountriesWarning_one": "You are about to remove {{count}} country from the region. This action cannot be undone.",
-    "removeCountriesWarning_other": "You are about to remove {{count}} countries from the region. This action cannot be undone.",
-    "removeCountryWarning": "You are about to remove the country {{name}} from the region. This action cannot be undone.",
-    "automaticTaxesHint": "When enabled, taxes will only be calculated at checkout based on the shipping address.",
-    "taxInclusiveHint": "When enabled, prices in the region will be tax inclusive.",
-    "providersHint": "Add which payment providers are available in this region.",
-    "shippingOptions": "Shipping Options",
-    "deleteShippingOptionWarning": "You are about to delete the shipping option {{name}}. This action cannot be undone.",
-    "return": "Return",
-    "outbound": "Outbound",
-    "priceType": "Price Type",
-    "flatRate": "Flat Rate",
-    "calculated": "Calculated",
+    "domain": "क्षेत्र",
+    "subtitle": "क्षेत्र वह इलाका है जहाँ आप उत्पाद बेचते हैं। यह कई देशों को कवर कर सकता है, और इसमें अलग-अलग कर दरें, प्रदाता और मुद्रा होती है।",
+    "createRegion": "क्षेत्र बनाएं",
+    "createRegionHint": "देशों के समूह के लिए कर दरें और प्रदाता प्रबंधित करें।",
+    "addCountries": "देश जोड़ें",
+    "editRegion": "क्षेत्र संपादित करें",
+    "countriesHint": "इस क्षेत्र में शामिल देश जोड़ें।",
+    "deleteRegionWarning": "आप क्षेत्र {{name}} को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+    "removeCountriesWarning_one": "आप क्षेत्र से {{count}} देश को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+    "removeCountriesWarning_other": "आप क्षेत्र से {{count}} देशों को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+    "removeCountryWarning": "आप क्षेत्र से देश {{name}} को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+    "automaticTaxesHint": "सक्षम होने पर, कर केवल शिपिंग पते के आधार पर चेकआउट के समय गणना किए जाएंगे।",
+    "taxInclusiveHint": "सक्षम होने पर, क्षेत्र में कीमतें कर सहित होंगी।",
+    "providersHint": "जोड़ें कि इस क्षेत्र में कौन से भुगतान प्रदाता उपलब्ध हैं।",
+    "shippingOptions": "शिपिंग विकल्प",
+    "deleteShippingOptionWarning": "आप शिपिंग विकल्प {{name}} को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+    "return": "रिटर्न",
+    "outbound": "आउटबाउंड",
+    "priceType": "मूल्य प्रकार",
+    "flatRate": "फ्लैट रेट",
+    "calculated": "गणना की गई",
     "list": {
-      "noRecordsMessage": "Create a region for the areas that you sell in."
+      "noRecordsMessage": "उन क्षेत्रों के लिए एक क्षेत्र बनाएं जहाँ आप बेचते हैं।"
     },
     "toast": {
-      "delete": "Region deleted successfully",
-      "edit": "Region edit saved",
-      "create": "Region created successfully",
-      "countries": "Region countries updated successfully"
+      "delete": "क्षेत्र सफलतापूर्वक हटाया गया",
+      "edit": "क्षेत्र संपादन सहेजा गया",
+      "create": "क्षेत्र सफलतापूर्वक बनाया गया",
+      "countries": "क्षेत्र के देश सफलतापूर्वक अपडेट किए गए"
     },
     "shippingOption": {
-      "createShippingOption": "Create Shipping Option",
-      "createShippingOptionHint": "Create a new shipping option for the region.",
-      "editShippingOption": "Edit Shipping Option",
-      "fulfillmentMethod": "Fulfillment Method",
+      "createShippingOption": "शिपिंग विकल्प बनाएं",
+      "createShippingOptionHint": "क्षेत्र के लिए एक नया शिपिंग विकल्प बनाएं।",
+      "editShippingOption": "शिपिंग विकल्प संपादित करें",
+      "fulfillmentMethod": "पूर्ति विधि",
       "type": {
-        "outbound": "Outbound",
-        "outboundHint": "Use this if you are creating a shipping option for sending products to the customer.",
-        "return": "Return",
-        "returnHint": "Use this if you are creating a shipping option for the customer to return products to you."
+        "outbound": "आउटबाउंड",
+        "outboundHint": "इसका उपयोग करें यदि आप ग्राहक को उत्पाद भेजने के लिए शिपिंग विकल्प बना रहे हैं।",
+        "return": "रिटर्न",
+        "returnHint": "इसका उपयोग करें यदि आप ग्राहक द्वारा आपको उत्पाद वापस करने के लिए शिपिंग विकल्प बना रहे हैं।"
       },
       "priceType": {
-        "label": "Price Type",
-        "flatRate": "Flat rate",
-        "calculated": "Calculated"
+        "label": "मूल्य प्रकार",
+        "flatRate": "फ्लैट रेट",
+        "calculated": "गणना की गई"
       },
       "availability": {
-        "adminOnly": "Admin only",
-        "adminOnlyHint": "When enabled, the shipping option will only be available in the admin dashboard, and not in the storefront."
+        "adminOnly": "केवल एडमिन",
+        "adminOnlyHint": "सक्षम होने पर, शिपिंग विकल्प केवल एडमिन डैशबोर्ड में उपलब्ध होगा, स्टोरफ्रंट में नहीं।"
       },
-      "taxInclusiveHint": "When enabled, the shipping option's price will be tax inclusive.",
+      "taxInclusiveHint": "सक्षम होने पर, शिपिंग विकल्प की कीमत कर सहित होगी।",
       "requirements": {
-        "label": "Requirements",
-        "hint": "Specify the requirements for the shipping option."
+        "label": "आवश्यकताएं",
+        "hint": "शिपिंग विकल्प के लिए आवश्यकताएं निर्दिष्ट करें।"
       }
     }
   },
   "taxes": {
-    "domain": "Tax Regions",
-    "domainDescription": "Manage your tax region",
+    "domain": "कर क्षेत्र",
+    "domainDescription": "अपने कर क्षेत्र का प्रबंधन करें",
     "countries": {
-      "taxCountriesHint": "Tax settings apply to the listed countries."
+      "taxCountriesHint": "कर सेटिंग्स सूचीबद्ध देशों पर लागू होती हैं।"
     },
     "settings": {
-      "editTaxSettings": "Edit Tax Settings",
-      "taxProviderLabel": "Tax provider",
-      "systemTaxProviderLabel": "System Tax Provider",
-      "calculateTaxesAutomaticallyLabel": "Calculate taxes automatically",
-      "calculateTaxesAutomaticallyHint": "When enabled, tax rates will be calculated automatically and applied to carts. When disabled, taxes must be manually computed at checkout. Manual taxes are recommended for usage with third-party tax providers.",
-      "applyTaxesOnGiftCardsLabel": "Apply taxes on gift cards",
-      "applyTaxesOnGiftCardsHint": "When enabled, taxes will be applied to gift cards at checkout. In some countries, tax regulations require the application of taxes to gift cards upon purchase.",
-      "defaultTaxRateLabel": "Default tax rate",
-      "defaultTaxCodeLabel": "Default tax code"
+      "editTaxSettings": "कर सेटिंग्स संपादित करें",
+      "taxProviderLabel": "कर प्रदाता",
+      "systemTaxProviderLabel": "सिस्टम कर प्रदाता",
+      "calculateTaxesAutomaticallyLabel": "कर स्वचालित रूप से गणना करें",
+      "calculateTaxesAutomaticallyHint": "सक्षम होने पर, कर दरों की गणना स्वचालित रूप से की जाएगी और कार्ट पर लागू की जाएगी। अक्षम होने पर, चेकआउट पर करों की मैन्युअल गणना करनी होगी। तृतीय-पक्ष कर प्रदाताओं के साथ उपयोग के लिए मैन्युअल कर अनुशंसित हैं।",
+      "applyTaxesOnGiftCardsLabel": "गिफ्ट कार्ड पर कर लागू करें",
+      "applyTaxesOnGiftCardsHint": "सक्षम होने पर, चेकआउट पर गिफ्ट कार्ड पर कर लागू किए जाएंगे। कुछ देशों में, कर नियमों के अनुसार खरीद पर गिफ्ट कार्ड पर कर लागू करना आवश्यक है।",
+      "defaultTaxRateLabel": "डिफ़ॉल्ट कर दर",
+      "defaultTaxCodeLabel": "डिफ़ॉल्ट कर कोड"
     },
     "defaultRate": {
-      "sectionTitle": "Default Tax Rate"
+      "sectionTitle": "डिफ़ॉल्ट कर दर"
     },
     "taxRate": {
-      "sectionTitle": "Tax Rates",
-      "createTaxRate": "Create Tax Rate",
-      "createTaxRateHint": "Create a new tax rate for the region.",
-      "deleteRateDescription": "You are about to delete the tax rate {{name}}. This action cannot be undone.",
-      "editRateAction": "Edit rate",
-      "editOverridesAction": "Edit overrides",
-      "editOverridesTitle": "Edit Tax Rate Overrides",
-      "editOverridesHint": "Specify the overrides for the tax rate.",
-      "deleteTaxRateWarning": "You are about to delete the tax rate {{name}}. This action cannot be undone.",
-      "productOverridesLabel": "Product overrides",
-      "productOverridesHint": "Specify the product overrides for the tax rate.",
-      "addProductOverridesAction": "Add product overrides",
-      "productTypeOverridesLabel": "Product type overrides",
-      "productTypeOverridesHint": "Specify the product type overrides for the tax rate.",
-      "addProductTypeOverridesAction": "Add product type overrides",
-      "shippingOptionOverridesLabel": "Shipping option overrides",
-      "shippingOptionOverridesHint": "Specify the shipping option overrides for the tax rate.",
-      "addShippingOptionOverridesAction": "Add shipping option overrides",
-      "productOverridesHeader": "Products",
-      "productTypeOverridesHeader": "Product Types",
-      "shippingOptionOverridesHeader": "Shipping Options"
+      "sectionTitle": "कर दरें",
+      "createTaxRate": "कर दर बनाएं",
+      "createTaxRateHint": "क्षेत्र के लिए एक नई कर दर बनाएं।",
+      "deleteRateDescription": "आप कर दर {{name}} को हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
+      "editRateAction": "दर संपादित करें",
+      "editOverridesAction": "ओवरराइड संपादित करें",
+      "editOverridesTitle": "कर दर ओवरराइड संपादित करें",
+      "editOverridesHint": "कर दर के लिए ओवरराइड निर्दिष्ट करें।",
+      "deleteTaxRateWarning": "आप कर दर {{name}} को हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
+      "productOverridesLabel": "उत्पाद ओवरराइड",
+      "productOverridesHint": "कर दर के लिए उत्पाद ओवरराइड निर्दिष्ट करें।",
+      "addProductOverridesAction": "उत्पाद ओवरराइड जोड़ें",
+      "productTypeOverridesLabel": "उत्पाद प्रकार ओवरराइड",
+      "productTypeOverridesHint": "कर दर के लिए उत्पाद प्रकार ओवरराइड निर्दिष्ट करें।",
+      "addProductTypeOverridesAction": "उत्पाद प्रकार ओवरराइड जोड़ें",
+      "shippingOptionOverridesLabel": "शिपिंग विकल्प ओवरराइड",
+      "shippingOptionOverridesHint": "कर दर के लिए शिपिंग विकल्प ओवरराइड निर्दिष्ट करें।",
+      "addShippingOptionOverridesAction": "शिपिंग विकल्प ओवरराइड जोड़ें",
+      "productOverridesHeader": "उत्पाद",
+      "productTypeOverridesHeader": "उत्पाद प्रकार",
+      "shippingOptionOverridesHeader": "शिपिंग विकल्प"
     }
   },
   "locations": {
-    "domain": "Locations",
-    "editLocation": "Edit location",
-    "addSalesChannels": "Add sales channels",
-    "noLocationsFound": "No locations found",
-    "selectLocations": "Select locations that stock the item.",
-    "deleteLocationWarning": "You are about to delete the location {{name}}. This action cannot be undone.",
-    "removeSalesChannelsWarning_one": "You are about to remove {{count}} sales channel from the location.",
-    "removeSalesChannelsWarning_other": "You are about to remove {{count}} sales channels from the location.",
+    "domain": "स्थान",
+    "editLocation": "स्थान संपादित करें",
+    "addSalesChannels": "बिक्री चैनल जोड़ें",
+    "noLocationsFound": "कोई स्थान नहीं मिला",
+    "selectLocations": "उन स्थानों का चयन करें जहाँ वस्तु का स्टॉक है।",
+    "deleteLocationWarning": "आप स्थान {{name}} को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+    "removeSalesChannelsWarning_one": "आप स्थान से {{count}} बिक्री चैनल हटाने वाले हैं।",
+    "removeSalesChannelsWarning_other": "आप स्थान से {{count}} बिक्री चैनल हटाने वाले हैं।",
     "toast": {
-      "create": "Location created successfully",
-      "update": "Location updated successfully",
-      "removeChannel": "Sales channel removed successfully"
+      "create": "स्थान सफलतापूर्वक बनाया गया",
+      "update": "स्थान सफलतापूर्वक अपडेट किया गया",
+      "removeChannel": "बिक्री चैनल सफलतापूर्वक हटाया गया"
     }
   },
   "reservations": {
-    "domain": "Reservations",
-    "subtitle": "Manage the reserved quantity of inventory items.",
-    "deleteWarning": "You are about to delete a reservation. This action cannot be undone."
+    "domain": "आरक्षण",
+    "subtitle": "इन्वेंट्री आइटम की आरक्षित मात्रा प्रबंधित करें।",
+    "deleteWarning": "आप एक आरक्षण हटाने वाले हैं। इस क्रिया को पूर्ववत नहीं किया जा सकता।"
   },
   "salesChannels": {
-    "domain": "Sales Channels",
-    "subtitle": "Manage the online and offline channels you sell products on.",
+    "domain": "बिक्री चैनल",
+    "subtitle": "उन ऑनलाइन और ऑफ़लाइन चैनलों को प्रबंधित करें जिन पर आप उत्पाद बेचते हैं।",
     "list": {
       "empty": {
-        "heading": "No sales channels found",
-        "description": "Once a sales channel has been created, it will appear here."
+        "heading": "कोई बिक्री चैनल नहीं मिला",
+        "description": "एक बार बिक्री चैनल बनाने के बाद, यह यहाँ दिखाई देगा।"
       },
       "filtered": {
-        "heading": "No results",
-        "description": "No sales channels match the current filter criteria."
+        "heading": "कोई परिणाम नहीं",
+        "description": "वर्तमान फ़िल्टर मानदंड से कोई बिक्री चैनल मेल नहीं खाता।"
       }
     },
-    "createSalesChannel": "Create Sales Channel",
-    "createSalesChannelHint": "Create a new sales channel to sell your products on.",
-    "enabledHint": "Specify whether the sales channel is enabled.",
-    "removeProductsWarning_one": "You are about to remove {{count}} product from {{sales_channel}}.",
-    "removeProductsWarning_other": "You are about to remove {{count}} products from {{sales_channel}}.",
-    "addProducts": "Add Products",
-    "editSalesChannel": "Edit sales channel",
-    "productAlreadyAdded": "The product has already been added to the sales channel.",
-    "deleteSalesChannelWarning": "You are about to delete the sales channel {{name}}. This action cannot be undone.",
+    "createSalesChannel": "बिक्री चैनल बनाएं",
+    "createSalesChannelHint": "अपने उत्पादों को बेचने के लिए एक नया बिक्री चैनल बनाएं।",
+    "enabledHint": "निर्दिष्ट करें कि बिक्री चैनल सक्षम है या नहीं।",
+    "removeProductsWarning_one": "आप {{sales_channel}} से {{count}} उत्पाद हटाने वाले हैं।",
+    "removeProductsWarning_other": "आप {{sales_channel}} से {{count}} उत्पाद हटाने वाले हैं।",
+    "addProducts": "उत्पाद जोड़ें",
+    "editSalesChannel": "बिक्री चैनल संपादित करें",
+    "productAlreadyAdded": "उत्पाद पहले से ही बिक्री चैनल में जोड़ा जा चुका है।",
+    "deleteSalesChannelWarning": "आप बिक्री चैनल {{name}} को हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
     "toast": {
-      "create": "Sales channel created successfully",
-      "update": "Sales channel updated successfully",
-      "delete": "Sales channel deleted successfully"
+      "create": "बिक्री चैनल सफलतापूर्वक बनाया गया",
+      "update": "बिक्री चैनल सफलतापूर्वक अपडेट किया गया",
+      "delete": "बिक्री चैनल सफलतापूर्वक हटाया गया"
     },
     "tooltip": {
-      "cannotDeleteDefault": "Cannot delete default sales channel"
+      "cannotDeleteDefault": "डिफ़ॉल्ट बिक्री चैनल हटाया नहीं जा सकता"
     },
     "products": {
       "list": {
-        "noRecordsMessage": "There are no products in the sales channel."
+        "noRecordsMessage": "बिक्री चैनल में कोई उत्पाद नहीं है।"
       },
       "add": {
         "list": {
-          "noRecordsMessage": "Create a product first."
+          "noRecordsMessage": "पहले एक उत्पाद बनाएं।"
         }
       }
     }
@@ -2699,148 +2699,148 @@
       "secret": "Secret API Keys"
     },
     "subtitle": {
-      "publishable": "Manage API keys used in the storefront to limit the scope of requests to specific sales channels.",
-      "secret": "Manage API keys used to authenticate admin users in admin applications."
+      "publishable": "स्टोरफ्रंट में उपयोग की जाने वाली API keys को प्रबंधित करें ताकि अनुरोधों को विशिष्ट बिक्री चैनलों तक सीमित किया जा सके।",
+      "secret": "एडमिन एप्लिकेशन में एडमिन उपयोगकर्ताओं को प्रमाणित करने के लिए उपयोग की जाने वाली API keys को प्रबंधित करें।"
     },
     "status": {
-      "active": "Active",
-      "revoked": "Revoked"
+      "active": "सक्रिय",
+      "revoked": "निरस्त"
     },
     "type": {
       "publishable": "Publishable",
       "secret": "Secret"
     },
     "create": {
-      "createPublishableHeader": "Create Publishable API Key",
-      "createPublishableHint": "Create a new publishable API key to limit the scope of requests to specific sales channels.",
-      "createSecretHeader": "Create Secret API Key",
-      "createSecretHint": "Create a new secret API key to access the Medusa API as an authenticated admin user.",
-      "secretKeyCreatedHeader": "Secret Key Created",
-      "secretKeyCreatedHint": "Your new secret key has been generated. Copy and securely store it now. This is the only time it will be displayed.",
-      "copySecretTokenSuccess": "Secret key was copied to clipboard.",
-      "copySecretTokenFailure": "Failed to copy secret key to clipboard.",
-      "successToast": "API key was successfully created."
+      "createPublishableHeader": "Publishable API Key बनाएं",
+      "createPublishableHint": "अनुरोधों को विशिष्ट बिक्री चैनलों तक सीमित करने के लिए एक नई publishable API key बनाएं।",
+      "createSecretHeader": "Secret API Key बनाएं",
+      "createSecretHint": "प्रमाणित एडमिन उपयोगकर्ता के रूप में Medusa API तक पहुंचने के लिए एक नई secret API key बनाएं।",
+      "secretKeyCreatedHeader": "Secret Key बनाई गई",
+      "secretKeyCreatedHint": "आपकी नई secret key जेनरेट हो गई है। इसे अभी कॉपी करें और सुरक्षित रूप से संग्रहीत करें। यह केवल इस बार प्रदर्शित होगी।",
+      "copySecretTokenSuccess": "Secret key क्लिपबोर्ड पर कॉपी हो गई।",
+      "copySecretTokenFailure": "Secret key को क्लिपबोर्ड पर कॉपी करने में विफल।",
+      "successToast": "API key सफलतापूर्वक बनाई गई।"
     },
     "edit": {
-      "header": "Edit API Key",
-      "description": "Edit the API key's title.",
-      "successToast": "API key {{title}} was successfully updated."
+      "header": "API Key संपादित करें",
+      "description": "API key का शीर्षक संपादित करें।",
+      "successToast": "API key {{title}} सफलतापूर्वक अपडेट की गई।"
     },
     "salesChannels": {
-      "title": "Add Sales Channels",
-      "description": "Add the sales channels that the API key should be limited to.",
-      "successToast_one": "{{count}} sales channel was successfully added to the API key.",
-      "successToast_other": "{{count}} sales channels were successfully added to the API key.",
-      "alreadyAddedTooltip": "The sales channel has already been added to the API key.",
+      "title": "बिक्री चैनल जोड़ें",
+      "description": "वे बिक्री चैनल जोड़ें जिन तक API key को सीमित किया जाना चाहिए।",
+      "successToast_one": "{{count}} बिक्री चैनल API key में सफलतापूर्वक जोड़ा गया।",
+      "successToast_other": "{{count}} बिक्री चैनल API key में सफलतापूर्वक जोड़े गए।",
+      "alreadyAddedTooltip": "बिक्री चैनल पहले से ही API key में जोड़ा जा चुका है।",
       "list": {
-        "noRecordsMessage": "There are no sales channels in the publishable API key's scope."
+        "noRecordsMessage": "Publishable API key के दायरे में कोई बिक्री चैनल नहीं हैं।"
       }
     },
     "delete": {
-      "warning": "You are about to delete the API key {{title}}. This action cannot be undone.",
-      "successToast": "API key {{title}} was successfully deleted."
+      "warning": "आप API key {{title}} को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "API key {{title}} सफलतापूर्वक हटाई गई।"
     },
     "revoke": {
-      "warning": "You are about to revoke the API key {{title}}. This action cannot be undone.",
-      "successToast": "API key {{title}} was successfully revoked."
+      "warning": "आप API key {{title}} को निरस्त करने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "API key {{title}} सफलतापूर्वक निरस्त की गई।"
     },
     "addSalesChannels": {
       "list": {
-        "noRecordsMessage": "Create a sales channel first."
+        "noRecordsMessage": "पहले एक बिक्री चैनल बनाएं।"
       }
     },
     "removeSalesChannel": {
-      "warning": "You are about to remove the sales channel {{name}} from the API key. This action cannot be undone.",
-      "warningBatch_one": "You are about to remove {{count}} sales channel from the API key. This action cannot be undone.",
-      "warningBatch_other": "You are about to remove {{count}} sales channels from the API key. This action cannot be undone.",
-      "successToast": "Sales channel was successfully removed from the API key.",
-      "successToastBatch_one": "{{count}} sales channel was successfully removed from the API key.",
-      "successToastBatch_other": "{{count}} sales channels were successfully removed from the API key."
+      "warning": "आप API key से बिक्री चैनल {{name}} को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "warningBatch_one": "आप API key से {{count}} बिक्री चैनल को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "warningBatch_other": "आप API key से {{count}} बिक्री चैनल को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "बिक्री चैनल API key से सफलतापूर्वक हटाया गया।",
+      "successToastBatch_one": "{{count}} बिक्री चैनल API key से सफलतापूर्वक हटाया गया।",
+      "successToastBatch_other": "{{count}} बिक्री चैनल API key से सफलतापूर्वक हटाए गए।"
     },
     "actions": {
-      "revoke": "Revoke API key",
-      "copy": "Copy API key",
-      "copySuccessToast": "API key was copied to clipboard."
+      "revoke": "API key निरस्त करें",
+      "copy": "API key कॉपी करें",
+      "copySuccessToast": "API key क्लिपबोर्ड पर कॉपी हो गई।"
     },
     "table": {
-      "lastUsedAtHeader": "Last Used At",
-      "createdAtHeader": "Revoked At"
+      "lastUsedAtHeader": "अंतिम उपयोग",
+      "createdAtHeader": "निरस्त किया गया"
     },
     "fields": {
-      "lastUsedAtLabel": "Last used at",
-      "revokedByLabel": "Revoked by",
-      "revokedAtLabel": "Revoked at",
-      "createdByLabel": "Created by"
+      "lastUsedAtLabel": "अंतिम उपयोग",
+      "revokedByLabel": "निरस्तकर्ता",
+      "revokedAtLabel": "निरस्त किया गया",
+      "createdByLabel": "निर्माता"
     }
   },
   "returnReasons": {
-    "domain": "Return Reasons",
-    "subtitle": "Manage reasons for returned items.",
-    "calloutHint": "Manage the reasons to categorize returns.",
-    "editReason": "Edit Return Reason",
+    "domain": "रिटर्न कारण",
+    "subtitle": "रिटर्न किए गए आइटम के कारणों को प्रबंधित करें।",
+    "calloutHint": "रिटर्न को वर्गीकृत करने के लिए कारणों को प्रबंधित करें।",
+    "editReason": "रिटर्न कारण संपादित करें",
     "create": {
-      "header": "Add Return Reason",
-      "subtitle": "Specify the most common reasons for returns.",
-      "hint": "Create a new return reason to categorize returns.",
-      "successToast": "Return reason {{label}} was successfully created."
+      "header": "रिटर्न कारण जोड़ें",
+      "subtitle": "रिटर्न के सबसे सामान्य कारण निर्दिष्ट करें।",
+      "hint": "रिटर्न को वर्गीकृत करने के लिए एक नया रिटर्न कारण बनाएं।",
+      "successToast": "रिटर्न कारण {{label}} सफलतापूर्वक बनाया गया।"
     },
     "edit": {
-      "header": "Edit Return Reason",
-      "subtitle": "Edit the value of the return reason.",
-      "successToast": "Return reason {{label}} was successfully updated."
+      "header": "रिटर्न कारण संपादित करें",
+      "subtitle": "रिटर्न कारण का मान संपादित करें।",
+      "successToast": "रिटर्न कारण {{label}} सफलतापूर्वक अपडेट किया गया।"
     },
     "delete": {
-      "confirmation": "You are about to delete the return reason \"{{label}}\". This action cannot be undone.",
-      "successToast": "Return reason \"{{label}}\" was successfully deleted."
+      "confirmation": "आप रिटर्न कारण \"{{label}}\" को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "रिटर्न कारण \"{{label}}\" सफलतापूर्वक हटाया गया।"
     },
     "fields": {
       "value": {
-        "label": "Value",
+        "label": "मान",
         "placeholder": "wrong_size",
-        "tooltip": "The value should be a unique identifier for the return reason."
+        "tooltip": "मान रिटर्न कारण के लिए एक अद्वितीय पहचानकर्ता होना चाहिए।"
       },
       "label": {
-        "label": "Label",
-        "placeholder": "Wrong size"
+        "label": "लेबल",
+        "placeholder": "गलत साइज़"
       },
       "description": {
-        "label": "Description",
-        "placeholder": "Customer received the wrong size"
+        "label": "विवरण",
+        "placeholder": "ग्राहक को गलत साइज़ मिला"
       }
     }
   },
   "refundReasons": {
-    "domain": "Refund Reasons",
-    "subtitle": "Manage reasons for issuing refunds.",
-    "calloutHint": "Manage the reasons to categorize refunds.",
-    "editReason": "Edit Refund Reason",
+    "domain": "रिफंड कारण",
+    "subtitle": "रिफंड जारी करने के कारणों को प्रबंधित करें।",
+    "calloutHint": "रिफंड को वर्गीकृत करने के कारणों को प्रबंधित करें।",
+    "editReason": "रिफंड कारण संपादित करें",
     "create": {
-      "header": "Add Refund Reason",
-      "subtitle": "Specify the most common reasons for refunds.",
-      "hint": "Create a new refund reason to categorize refunds.",
-      "successToast": "Refund reason {{label}} was successfully created."
+      "header": "रिफंड कारण जोड़ें",
+      "subtitle": "रिफंड के सबसे सामान्य कारण निर्दिष्ट करें।",
+      "hint": "रिफंड को वर्गीकृत करने के लिए एक नया रिफंड कारण बनाएं।",
+      "successToast": "रिफंड कारण {{label}} सफलतापूर्वक बनाया गया।"
     },
     "edit": {
-      "header": "Edit Refund Reason",
-      "subtitle": "Edit the value of the refund reason.",
-      "successToast": "Refund reason {{label}} was successfully updated."
+      "header": "रिफंड कारण संपादित करें",
+      "subtitle": "रिफंड कारण का मान संपादित करें।",
+      "successToast": "रिफंड कारण {{label}} सफलतापूर्वक अपडेट किया गया।"
     },
     "delete": {
-      "confirmation": "You are about to delete the refund reason \"{{label}}\". This action cannot be undone.",
-      "successToast": "Refund reason was successfully deleted."
+      "confirmation": "आप रिफंड कारण \"{{label}}\" को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "रिफंड कारण सफलतापूर्वक हटाया गया।"
     },
     "fields": {
       "label": {
-        "label": "Label",
-        "placeholder": "Gesture of goodwill"
+        "label": "लेबल",
+        "placeholder": "सद्भावना का संकेत"
       },
       "code": {
-        "label": "Code",
+        "label": "कोड",
         "placeholder": "gesture_of_goodwill"
       },
       "description": {
-        "label": "Description",
-        "placeholder": "Customer had a bad shopping experience"
+        "label": "विवरण",
+        "placeholder": "ग्राहक का खरीदारी अनुभव खराब रहा"
       }
     }
   },
@@ -2891,135 +2891,135 @@
     "invalidLinkHint": "अपना पासवर्ड फिर से रीसेट करने का प्रयास करें।"
   },
   "workflowExecutions": {
-    "domain": "Workflows",
-    "subtitle": "View and keep track of workflow executions in your Medusa application.",
-    "transactionIdLabel": "Transaction ID",
-    "workflowIdLabel": "Workflow ID",
-    "progressLabel": "Progress",
-    "stepsCompletedLabel_one": "{{completed}} of {{count}} step",
-    "stepsCompletedLabel_other": "{{completed}} of {{count}} steps",
+    "domain": "वर्कफ़्लो",
+    "subtitle": "अपने Medusa एप्लिकेशन में वर्कफ़्लो निष्पादन देखें और ट्रैक करें।",
+    "transactionIdLabel": "ट्रांज़ैक्शन ID",
+    "workflowIdLabel": "वर्कफ़्लो ID",
+    "progressLabel": "प्रगति",
+    "stepsCompletedLabel_one": "{{count}} स्टेप में से {{completed}}",
+    "stepsCompletedLabel_other": "{{count}} स्टेप में से {{completed}}",
     "list": {
-      "noRecordsMessage": "No workflows have been executed, yet."
+      "noRecordsMessage": "अभी तक कोई वर्कफ़्लो निष्पादित नहीं हुआ है।"
     },
     "history": {
-      "sectionTitle": "History",
-      "runningState": "Running...",
-      "awaitingState": "Awaiting",
-      "failedState": "Failed",
-      "skippedState": "Skipped",
-      "skippedFailureState": "Skipped (Failure)",
-      "definitionLabel": "Definition",
-      "outputLabel": "Output",
-      "compensateInputLabel": "Compensate input",
-      "revertedLabel": "Reverted",
-      "errorLabel": "Error"
+      "sectionTitle": "इतिहास",
+      "runningState": "चल रहा है...",
+      "awaitingState": "प्रतीक्षारत",
+      "failedState": "विफल",
+      "skippedState": "छोड़ा गया",
+      "skippedFailureState": "छोड़ा गया (विफलता)",
+      "definitionLabel": "परिभाषा",
+      "outputLabel": "आउटपुट",
+      "compensateInputLabel": "कम्पेनसेट इनपुट",
+      "revertedLabel": "वापस लिया गया",
+      "errorLabel": "त्रुटि"
     },
     "state": {
-      "done": "Done",
-      "failed": "Failed",
-      "reverted": "Reverted",
-      "invoking": "Invoking",
-      "compensating": "Compensating",
-      "notStarted": "Not started"
+      "done": "पूर्ण",
+      "failed": "विफल",
+      "reverted": "वापस लिया गया",
+      "invoking": "आह्वान हो रहा है",
+      "compensating": "कम्पेनसेट हो रहा है",
+      "notStarted": "शुरू नहीं हुआ"
     },
     "transaction": {
       "state": {
-        "waitingToCompensate": "Waiting to compensate"
+        "waitingToCompensate": "कम्पेनसेट करने की प्रतीक्षा में"
       }
     },
     "step": {
       "state": {
-        "skipped": "Skipped",
-        "skippedFailure": "Skipped (Failure)",
-        "dormant": "Dormant",
-        "timeout": "Timeout"
+        "skipped": "छोड़ा गया",
+        "skippedFailure": "छोड़ा गया (विफलता)",
+        "dormant": "निष्क्रिय",
+        "timeout": "टाइमआउट"
       }
     }
   },
   "shippingOptionTypes": {
-    "domain": "Shipping Option Types",
-    "subtitle": "Organize your shipping options into types.",
+    "domain": "शिपिंग विकल्प प्रकार",
+    "subtitle": "अपने शिपिंग विकल्पों को प्रकारों में व्यवस्थित करें।",
     "create": {
-      "header": "Create Shipping Option Type",
-      "hint": "Create a new shipping option type to categorize your shipping options.",
-      "successToast": "Shipping option type {{label}} was successfully created."
+      "header": "शिपिंग विकल्प प्रकार बनाएं",
+      "hint": "अपने शिपिंग विकल्पों को वर्गीकृत करने के लिए एक नया शिपिंग विकल्प प्रकार बनाएं।",
+      "successToast": "शिपिंग विकल्प प्रकार {{label}} सफलतापूर्वक बनाया गया।"
     },
     "edit": {
-      "header": "Edit Shipping Option Type",
-      "successToast": "Shipping option type {{label}} was successfully updated."
+      "header": "शिपिंग विकल्प प्रकार संपादित करें",
+      "successToast": "शिपिंग विकल्प प्रकार {{label}} सफलतापूर्वक अपडेट किया गया।"
     },
     "delete": {
-      "confirmation": "You are about to delete the shipping option type \"{{label}}\". This action cannot be undone.",
-      "successToast": "Shipping option type \"{{label}}\" was successfully deleted."
+      "confirmation": "आप शिपिंग विकल्प प्रकार \"{{label}}\" को हटाने वाले हैं। यह क्रिया पूर्ववत नहीं की जा सकती।",
+      "successToast": "शिपिंग विकल्प प्रकार \"{{label}}\" सफलतापूर्वक हटाया गया।"
     },
     "fields": {
-      "label": "Label",
-      "code": "Code",
-      "description": "Description"
+      "label": "लेबल",
+      "code": "कोड",
+      "description": "विवरण"
     }
   },
   "productTypes": {
-    "domain": "Product Types",
-    "subtitle": "Organize your products into types.",
+    "domain": "उत्पाद प्रकार",
+    "subtitle": "अपने उत्पादों को प्रकारों में व्यवस्थित करें।",
     "create": {
-      "header": "Create Product Type",
-      "hint": "Create a new product type to categorize your products.",
-      "successToast": "Product type {{value}} was successfully created."
+      "header": "उत्पाद प्रकार बनाएं",
+      "hint": "अपने उत्पादों को वर्गीकृत करने के लिए एक नया उत्पाद प्रकार बनाएं।",
+      "successToast": "उत्पाद प्रकार {{value}} सफलतापूर्वक बनाया गया।"
     },
     "edit": {
-      "header": "Edit Product Type",
-      "successToast": "Product type {{value}} was successfully updated."
+      "header": "उत्पाद प्रकार संपादित करें",
+      "successToast": "उत्पाद प्रकार {{value}} सफलतापूर्वक अपडेट किया गया।"
     },
     "delete": {
-      "confirmation": "You are about to delete the product type \"{{value}}\". This action cannot be undone.",
-      "successToast": "Product type \"{{value}}\" was successfully deleted."
+      "confirmation": "आप उत्पाद प्रकार \"{{value}}\" को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "उत्पाद प्रकार \"{{value}}\" सफलतापूर्वक हटाया गया।"
     },
     "fields": {
-      "value": "Value"
+      "value": "मान"
     }
   },
   "productTags": {
-    "domain": "Product Tags",
+    "domain": "उत्पाद टैग",
     "create": {
-      "header": "Create Product Tag",
-      "subtitle": "Create a new product tag to categorize your products.",
-      "successToast": "Product tag {{value}} was successfully created."
+      "header": "उत्पाद टैग बनाएं",
+      "subtitle": "अपने उत्पादों को वर्गीकृत करने के लिए एक नया उत्पाद टैग बनाएं।",
+      "successToast": "उत्पाद टैग {{value}} सफलतापूर्वक बनाया गया।"
     },
     "edit": {
-      "header": "Edit Product Tag",
-      "subtitle": "Edit the value of the product tag.",
-      "successToast": "Product tag {{value}} was successfully updated."
+      "header": "उत्पाद टैग संपादित करें",
+      "subtitle": "उत्पाद टैग का मान संपादित करें।",
+      "successToast": "उत्पाद टैग {{value}} सफलतापूर्वक अपडेट किया गया।"
     },
     "delete": {
-      "confirmation": "You are about to delete the product tag {{value}}. This action cannot be undone.",
-      "successToast": "Product tag {{value}} was successfully deleted."
+      "confirmation": "आप उत्पाद टैग {{value}} को हटाने वाले हैं। यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+      "successToast": "उत्पाद टैग {{value}} सफलतापूर्वक हटाया गया।"
     },
     "fields": {
-      "value": "Value"
+      "value": "मान"
     }
   },
   "notifications": {
-    "domain": "Notifications",
+    "domain": "सूचनाएं",
     "emptyState": {
-      "title": "No notifications",
-      "description": "You don't have any notifications at the moment, but once you do they will live here."
+      "title": "कोई सूचना नहीं",
+      "description": "आपके पास इस समय कोई सूचना नहीं है, लेकिन जब होगी तो वे यहां दिखाई देंगी।"
     },
     "accessibility": {
-      "description": "Notifications about Medusa activities will be listed here."
+      "description": "Medusa गतिविधियों के बारे में सूचनाएं यहां सूचीबद्ध होंगी।"
     }
   },
   "errors": {
-    "serverError": "Server error - Try again later.",
-    "invalidCredentials": "Wrong email or password"
+    "serverError": "सर्वर त्रुटि - बाद में पुनः प्रयास करें।",
+    "invalidCredentials": "गलत ईमेल या पासवर्ड"
   },
   "statuses": {
-    "scheduled": "Scheduled",
-    "expired": "Expired",
-    "active": "Active",
-    "inactive": "Inactive",
-    "draft": "Draft",
-    "enabled": "Enabled",
-    "disabled": "Disabled"
+    "scheduled": "निर्धारित",
+    "expired": "समाप्त",
+    "active": "सक्रिय",
+    "inactive": "निष्क्रिय",
+    "draft": "ड्राफ़्ट",
+    "enabled": "सक्षम",
+    "disabled": "अक्षम"
   },
   "labels": {
     "productVariant": "उत्पाद वेरिएंट",
@@ -3201,38 +3201,38 @@
     "values": "मान"
   },
   "dateTime": {
-    "years_one": "Year",
-    "years_other": "Years",
-    "months_one": "Month",
-    "months_other": "Months",
-    "weeks_one": "Week",
-    "weeks_other": "Weeks",
-    "days_one": "Day",
-    "days_other": "Days",
-    "hours_one": "Hour",
-    "hours_other": "Hours",
-    "minutes_one": "Minute",
-    "minutes_other": "Minutes",
-    "seconds_one": "Second",
-    "seconds_other": "Seconds"
+    "years_one": "वर्ष",
+    "years_other": "वर्ष",
+    "months_one": "महीना",
+    "months_other": "महीने",
+    "weeks_one": "सप्ताह",
+    "weeks_other": "सप्ताह",
+    "days_one": "दिन",
+    "days_other": "दिन",
+    "hours_one": "घंटा",
+    "hours_other": "घंटे",
+    "minutes_one": "मिनट",
+    "minutes_other": "मिनट",
+    "seconds_one": "सेकंड",
+    "seconds_other": "सेकंड"
   },
   "views": {
-    "save": "Save",
-    "saveAsNew": "Save as new view",
-    "updateDefaultForEveryone": "Update default for everyone",
-    "updateViewName": "Update view",
+    "save": "सहेजें",
+    "saveAsNew": "नए व्यू के रूप में सहेजें",
+    "updateDefaultForEveryone": "सभी के लिए डिफ़ॉल्ट अपडेट करें",
+    "updateViewName": "व्यू अपडेट करें",
     "prompts": {
       "updateDefault": {
-        "title": "Update default view",
-        "description": "This will update the default view for all users. Are you sure?",
-        "confirmText": "Update for everyone",
-        "cancelText": "Cancel"
+        "title": "डिफ़ॉल्ट व्यू अपडेट करें",
+        "description": "यह सभी उपयोगकर्ताओं के लिए डिफ़ॉल्ट व्यू अपडेट कर देगा। क्या आप सुनिश्चित हैं?",
+        "confirmText": "सभी के लिए अपडेट करें",
+        "cancelText": "रद्द करें"
       },
       "updateView": {
-        "title": "Update view",
-        "description": "Are you sure you want to update \"{{name}}\"?",
-        "confirmText": "Update",
-        "cancelText": "Cancel"
+        "title": "व्यू अपडेट करें",
+        "description": "क्या आप वाकई \"{{name}}\" को अपडेट करना चाहते हैं?",
+        "confirmText": "अपडेट करें",
+        "cancelText": "रद्द करें"
       }
     }
   }

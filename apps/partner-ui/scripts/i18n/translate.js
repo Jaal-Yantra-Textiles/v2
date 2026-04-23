@@ -51,7 +51,7 @@ const TRANSLATIONS_DIR = path.join(__dirname, "../../src/i18n/translations")
 const EN_PATH = path.join(TRANSLATIONS_DIR, "en.json")
 const LANGUAGES_PATH = path.join(__dirname, "../../src/i18n/languages.ts")
 
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5"
+const DEFAULT_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free"
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 function parseArgs(argv) {
