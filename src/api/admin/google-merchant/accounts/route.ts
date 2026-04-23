@@ -17,17 +17,39 @@ type CreateBody = {
   api_config?: Record<string, any>
 }
 
+const SORTABLE_FIELDS = new Set(["name", "merchant_id", "account_email", "created_at"])
+
+const parseOrder = (raw: unknown): Record<string, "ASC" | "DESC"> => {
+  if (typeof raw !== "string" || !raw) return { created_at: "DESC" }
+  const [field, dirRaw] = raw.split(":")
+  if (!SORTABLE_FIELDS.has(field)) return { created_at: "DESC" }
+  const dir = dirRaw?.toUpperCase() === "ASC" ? "ASC" : "DESC"
+  return { [field]: dir }
+}
+
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const service = req.scope.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
   const limit = Math.min(Number(req.query.limit) || 50, 200)
   const offset = Number(req.query.offset) || 0
   const filters: Record<string, any> = {}
-  if (req.query.q) filters.name = req.query.q
+
+  if (req.query.q) {
+    const q = String(req.query.q)
+    filters.$or = [
+      { name: { $ilike: `%${q}%` } },
+      { merchant_id: { $ilike: `%${q}%` } },
+      { account_email: { $ilike: `%${q}%` } },
+    ]
+  }
+
+  // `connected` is derived from refresh_token presence.
+  if (req.query.connected === "true") filters.refresh_token = { $ne: null }
+  else if (req.query.connected === "false") filters.refresh_token = null
 
   const [accounts, count] = await service.listAndCountGoogleMerchantAccounts(filters, {
     take: limit,
     skip: offset,
-    order: { created_at: "DESC" },
+    order: parseOrder(req.query.order),
   })
 
   res.status(200).json({

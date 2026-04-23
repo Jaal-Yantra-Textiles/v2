@@ -1,4 +1,18 @@
-import { Button, Container, Drawer, Heading, Input, Label, StatusBadge, Text, toast, usePrompt } from "@medusajs/ui"
+import { EllipsisHorizontal } from "@medusajs/icons"
+import {
+  Button,
+  Container,
+  Drawer,
+  DropdownMenu,
+  Heading,
+  IconButton,
+  Input,
+  Label,
+  StatusBadge,
+  Text,
+  toast,
+  usePrompt,
+} from "@medusajs/ui"
 import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
@@ -18,6 +32,8 @@ const DetailPage = () => {
   const { account, isLoading } = useGoogleMerchantAccount(id)
   const deleteMutation = useDeleteGoogleMerchantAccount()
   const initiateOAuth = useInitiateGoogleMerchantOAuth()
+  const importMutation = useImportExistingGoogleProducts(id || "")
+  const bulkSync = useBulkSyncGoogleMerchant(id || "")
   const [editOpen, setEditOpen] = useState(false)
   const prompt = usePrompt()
 
@@ -47,7 +63,8 @@ const DetailPage = () => {
   const handleDelete = async () => {
     const confirmed = await prompt({
       title: "Delete account?",
-      description: "Delete this Google Merchant account? Linked products will lose sync status and OAuth tokens will be revoked locally.",
+      description:
+        "Delete this Google Merchant account? Linked products will lose sync status and OAuth tokens will be revoked locally.",
       confirmText: "Delete",
       cancelText: "Cancel",
       variant: "danger",
@@ -62,30 +79,120 @@ const DetailPage = () => {
     }
   }
 
+  const handleImport = async () => {
+    if (!account.connected) {
+      toast.error("Connect the account first.")
+      return
+    }
+    const confirmed = await prompt({
+      title: "Import existing Google listings?",
+      description:
+        "Pull existing Google Merchant Center listings and link them to Medusa products. Matches on product handle, variant SKU, or normalized equivalents — same-source products refresh their link.",
+      confirmText: "Import",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+    try {
+      const r = await importMutation.mutateAsync(undefined)
+      const parts = [
+        `${r.linked} linked`,
+        `${r.refreshed} refreshed`,
+        `${r.matched} matched`,
+        `${r.google_total} on Google`,
+        `${r.unmatched.length} unmatched`,
+      ]
+      if (r.errors.length) parts.push(`${r.errors.length} errors`)
+      toast.success(parts.join(" · "))
+    } catch (e: any) {
+      toast.error(e?.message || "Import failed")
+    }
+  }
+
+  const handleSyncAll = async () => {
+    if (!account.connected) {
+      toast.error("Connect the account first — complete OAuth.")
+      return
+    }
+    const confirmed = await prompt({
+      title: "Sync all products?",
+      description:
+        "Queue every Medusa product for sync to this Google Merchant account. Runs in the background — you'll see progress in the Sync History below.",
+      confirmText: "Sync all",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+    try {
+      const resp = await bulkSync.mutateAsync(undefined)
+      toast.success(`Bulk sync started (job ${resp.job.id.slice(0, 8)}…)`)
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to start bulk sync")
+    }
+  }
+
   return (
     <Container className="divide-y p-0">
       <div className="flex justify-between px-6 py-4">
         <div>
           <Heading>{account.name}</Heading>
-          <Text size="small" className="text-ui-fg-subtle">Merchant ID: {account.merchant_id}</Text>
+          <Text size="small" className="text-ui-fg-subtle">
+            Merchant ID: {account.merchant_id}
+          </Text>
         </div>
         <div className="flex items-center gap-x-2">
           <StatusBadge color={account.connected ? "green" : "orange"}>
             {account.connected ? "Connected" : "Not connected"}
           </StatusBadge>
-          {!account.connected ? (
-            <Button size="small" variant="primary" onClick={handleConnect} isLoading={initiateOAuth.isPending}>
+          {!account.connected && (
+            <Button
+              size="small"
+              variant="primary"
+              onClick={handleConnect}
+              isLoading={initiateOAuth.isPending}
+            >
               Connect to Google
             </Button>
-          ) : (
-            <Button size="small" variant="secondary" onClick={handleConnect} isLoading={initiateOAuth.isPending}>
-              Reconnect
-            </Button>
           )}
-          <ImportExistingButton accountId={account.id} connected={account.connected} />
-          <SyncAllButton accountId={account.id} connected={account.connected} />
-          <Button size="small" variant="secondary" onClick={() => setEditOpen(true)}>Edit</Button>
-          <Button size="small" variant="danger" onClick={handleDelete}>Delete</Button>
+          <DropdownMenu>
+            <DropdownMenu.Trigger asChild>
+              <IconButton size="small" variant="transparent" aria-label="Account actions">
+                <EllipsisHorizontal />
+              </IconButton>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content>
+              {account.connected && (
+                <>
+                  <DropdownMenu.Item
+                    disabled={importMutation.isPending}
+                    onClick={handleImport}
+                  >
+                    Import from Google
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    disabled={bulkSync.isPending}
+                    onClick={handleSyncAll}
+                  >
+                    Sync All Products
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    disabled={initiateOAuth.isPending}
+                    onClick={handleConnect}
+                  >
+                    Reconnect
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Separator />
+                </>
+              )}
+              <DropdownMenu.Item onClick={() => setEditOpen(true)}>
+                Edit
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className="text-ui-fg-error"
+                onClick={handleDelete}
+              >
+                Delete
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -281,67 +388,6 @@ function DataSourceBanner({
         </Button>
       </div>
     </div>
-  )
-}
-
-function ImportExistingButton({ accountId, connected }: { accountId: string; connected: boolean }) {
-  const mutate = useImportExistingGoogleProducts(accountId)
-  const prompt = usePrompt()
-  const handle = async () => {
-    if (!connected) {
-      toast.error("Connect the account first.")
-      return
-    }
-    const confirmed = await prompt({
-      title: "Import existing Google listings?",
-      description:
-        "Pull existing Google Merchant Center listings and link them to Medusa products whose handle matches the Google offerId.",
-      confirmText: "Import",
-      cancelText: "Cancel",
-    })
-    if (!confirmed) return
-    try {
-      const r = await mutate.mutateAsync(undefined)
-      toast.success(
-        `Linked ${r.linked} / ${r.matched} matched · ${r.google_total} total in Google · ${r.unmatched.length} unmatched`
-      )
-    } catch (e: any) {
-      toast.error(e?.message || "Import failed")
-    }
-  }
-  return (
-    <Button size="small" variant="secondary" onClick={handle} isLoading={mutate.isPending} disabled={!connected}>
-      Import from Google
-    </Button>
-  )
-}
-
-function SyncAllButton({ accountId, connected }: { accountId: string; connected: boolean }) {
-  const bulk = useBulkSyncGoogleMerchant(accountId)
-  const prompt = usePrompt()
-  const handle = async () => {
-    if (!connected) {
-      toast.error("Connect the account first — complete OAuth.")
-      return
-    }
-    const confirmed = await prompt({
-      title: "Sync all products?",
-      description: "Queue every Medusa product for sync to this Google Merchant account. Runs in the background — you'll see progress in the Sync History below.",
-      confirmText: "Sync all",
-      cancelText: "Cancel",
-    })
-    if (!confirmed) return
-    try {
-      const resp = await bulk.mutateAsync(undefined)
-      toast.success(`Bulk sync started (job ${resp.job.id.slice(0, 8)}…)`)
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to start bulk sync")
-    }
-  }
-  return (
-    <Button size="small" variant="secondary" onClick={handle} isLoading={bulk.isPending} disabled={!connected}>
-      Sync All Products
-    </Button>
   )
 }
 

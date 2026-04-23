@@ -42,7 +42,13 @@ export type GoogleMerchantSyncJob = {
   updated_at: string
 }
 
-export function useGoogleMerchantAccounts(params?: { limit?: number; offset?: number; q?: string }) {
+export function useGoogleMerchantAccounts(params?: {
+  limit?: number
+  offset?: number
+  q?: string
+  order?: string
+  connected?: "true" | "false"
+}) {
   const query = useQuery({
     queryKey: KEYS.list(params || {}),
     queryFn: () =>
@@ -223,8 +229,11 @@ export type ImportExistingResult = {
   google_total: number
   matched: number
   linked: number
+  refreshed: number
+  externally_managed: number
   skipped_existing_link: number
   unmatched: Array<{ offer_id: string; google_name: string }>
+  errors: Array<{ offer_id: string; reason: string }>
 }
 
 export function useImportExistingGoogleProducts(account_id: string) {
