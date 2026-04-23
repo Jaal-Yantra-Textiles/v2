@@ -1,9 +1,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
-import { GOOGLE_MERCHANT_MODULE } from "../../../../../modules/google_merchant"
+import { GOOGLE_MERCHANT_MODULE, validateApiConfigPatch } from "../../../../../modules/google_merchant"
 import { ENCRYPTION_MODULE } from "../../../../../modules/encryption"
 import type GoogleMerchantService from "../../../../../modules/google_merchant/service"
 import type EncryptionService from "../../../../../modules/encryption/service"
+import type { GoogleMerchantApiConfig } from "../../../../../modules/google_merchant"
 import { sanitizeAccount } from "../helpers"
 
 type UpdateBody = Partial<{
@@ -14,7 +15,7 @@ type UpdateBody = Partial<{
   redirect_uri: string
   scope: string | null
   account_email: string | null
-  api_config: Record<string, any> | null
+  api_config: GoogleMerchantApiConfig | Record<string, any> | null
   is_active: boolean
 }>
 
@@ -33,12 +34,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 }
 
 export const POST = async (req: MedusaRequest<UpdateBody>, res: MedusaResponse) => {
-  const { service } = await getAccount(req)
+  const { service, account } = await getAccount(req)
   const encryption = req.scope.resolve(ENCRYPTION_MODULE) as EncryptionService
   const body = req.body || {}
 
   const update: Record<string, any> = { id: req.params.id }
-  for (const key of ["name", "merchant_id", "client_id", "redirect_uri", "scope", "account_email", "api_config", "is_active"]) {
+  for (const key of ["name", "merchant_id", "client_id", "redirect_uri", "scope", "account_email", "is_active"]) {
     if (body[key as keyof UpdateBody] !== undefined) {
       update[key] = body[key as keyof UpdateBody]
     }
@@ -47,9 +48,25 @@ export const POST = async (req: MedusaRequest<UpdateBody>, res: MedusaResponse) 
     update.client_secret = encryption.encrypt(body.client_secret)
   }
 
+  // api_config is treated as a partial merge patch so the UI can edit one
+  // field without wiping the rest (e.g. saving feed_label shouldn't drop
+  // data_source_name written by the oauth/detect flow).
+  if (body.api_config !== undefined) {
+    if (body.api_config === null) {
+      update.api_config = null
+    } else {
+      try {
+        const patch = validateApiConfigPatch(body.api_config)
+        update.api_config = { ...(account.api_config || {}), ...patch }
+      } catch (e: any) {
+        throw new MedusaError(MedusaError.Types.INVALID_DATA, e.message)
+      }
+    }
+  }
+
   await service.updateGoogleMerchantAccounts(update)
-  const [account] = await service.listGoogleMerchantAccounts({ id: req.params.id }, { take: 1 })
-  res.status(200).json({ account: sanitizeAccount(account) })
+  const [updated] = await service.listGoogleMerchantAccounts({ id: req.params.id }, { take: 1 })
+  res.status(200).json({ account: sanitizeAccount(updated) })
 }
 
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {

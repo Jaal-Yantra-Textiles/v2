@@ -23,7 +23,6 @@ import {
   useBulkSyncGoogleMerchant,
   useGoogleMerchantSyncJobs,
   useGoogleMerchantDataSourceAction,
-  useImportExistingGoogleProducts,
 } from "../../../../hooks/api/google-merchant"
 
 const DetailPage = () => {
@@ -32,7 +31,6 @@ const DetailPage = () => {
   const { account, isLoading } = useGoogleMerchantAccount(id)
   const deleteMutation = useDeleteGoogleMerchantAccount()
   const initiateOAuth = useInitiateGoogleMerchantOAuth()
-  const importMutation = useImportExistingGoogleProducts(id || "")
   const bulkSync = useBulkSyncGoogleMerchant(id || "")
   const [editOpen, setEditOpen] = useState(false)
   const prompt = usePrompt()
@@ -79,33 +77,12 @@ const DetailPage = () => {
     }
   }
 
-  const handleImport = async () => {
+  const handleImport = () => {
     if (!account.connected) {
       toast.error("Connect the account first.")
       return
     }
-    const confirmed = await prompt({
-      title: "Import existing Google listings?",
-      description:
-        "Pull existing Google Merchant Center listings and link them to Medusa products. Matches on product handle, variant SKU, or normalized equivalents — same-source products refresh their link.",
-      confirmText: "Import",
-      cancelText: "Cancel",
-    })
-    if (!confirmed) return
-    try {
-      const r = await importMutation.mutateAsync(undefined)
-      const parts = [
-        `${r.linked} linked`,
-        `${r.refreshed} refreshed`,
-        `${r.matched} matched`,
-        `${r.google_total} on Google`,
-        `${r.unmatched.length} unmatched`,
-      ]
-      if (r.errors.length) parts.push(`${r.errors.length} errors`)
-      toast.success(parts.join(" · "))
-    } catch (e: any) {
-      toast.error(e?.message || "Import failed")
-    }
+    navigate(`/settings/google-merchant/${account.id}/import`)
   }
 
   const handleSyncAll = async () => {
@@ -161,10 +138,7 @@ const DetailPage = () => {
             <DropdownMenu.Content>
               {account.connected && (
                 <>
-                  <DropdownMenu.Item
-                    disabled={importMutation.isPending}
-                    onClick={handleImport}
-                  >
+                  <DropdownMenu.Item onClick={handleImport}>
                     Import from Google
                   </DropdownMenu.Item>
                   <DropdownMenu.Item

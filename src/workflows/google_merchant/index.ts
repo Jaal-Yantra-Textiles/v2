@@ -8,3 +8,7 @@ export { importExistingProductsFromGoogleWorkflow } from "./workflows/import-exi
 export { importExistingProductsFromGoogleStep } from "./steps/import-existing-products-from-google"
 export { takeoverProductFromGoogleWorkflow } from "./workflows/takeover-product-from-google"
 export { takeoverProductStep } from "./steps/takeover-product-from-google"
+export { previewImportFromGoogleWorkflow } from "./workflows/preview-import-from-google"
+export { previewImportFromGoogleStep } from "./steps/preview-import-from-google"
+export { commitImportMappingsWorkflow } from "./workflows/commit-import-mappings"
+export { commitImportMappingsStep } from "./steps/commit-import-mappings"

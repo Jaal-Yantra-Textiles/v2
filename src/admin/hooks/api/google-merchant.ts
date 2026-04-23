@@ -250,6 +250,74 @@ export function useImportExistingGoogleProducts(account_id: string) {
   })
 }
 
+export type GoogleMerchantPreviewMatchReason =
+  | "handle"
+  | "sku"
+  | "normalized_handle"
+  | "normalized_sku"
+
+export type GoogleMerchantPreviewItem = {
+  offer_id: string
+  google_name: string
+  data_source: string | null
+  content_language: string | null
+  feed_label: string | null
+  is_externally_managed: boolean
+  suggested_product_id: string | null
+  suggested_product_handle: string | null
+  suggested_match_reason: GoogleMerchantPreviewMatchReason | null
+  existing_link: {
+    product_id: string
+    is_same_source: boolean
+  } | null
+}
+
+export type GoogleMerchantPreviewResult = {
+  account_id: string
+  google_total: number
+  our_data_source: string | null
+  items: GoogleMerchantPreviewItem[]
+}
+
+export function usePreviewGoogleMerchantImport(account_id: string) {
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<GoogleMerchantPreviewResult>(
+        `/admin/google-merchant/accounts/${account_id}/import/preview`,
+        { method: "POST", body: {} }
+      ),
+  })
+}
+
+export type GoogleMerchantCommitMapping = {
+  offer_id: string
+  product_id: string
+  google_name?: string
+  source_data_source?: string | null
+}
+
+export type GoogleMerchantCommitResult = {
+  account_id: string
+  linked: number
+  refreshed: number
+  skipped: number
+  errors: Array<{ offer_id: string; product_id: string; reason: string }>
+}
+
+export function useCommitGoogleMerchantImport(account_id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { mappings: GoogleMerchantCommitMapping[] }) =>
+      sdk.client.fetch<GoogleMerchantCommitResult>(
+        `/admin/google-merchant/accounts/${account_id}/import/commit`,
+        { method: "POST", body }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(account_id) })
+    },
+  })
+}
+
 export function useBulkSyncGoogleMerchant(account_id: string) {
   const qc = useQueryClient()
   return useMutation({
