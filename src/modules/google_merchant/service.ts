@@ -1,4 +1,5 @@
 import { MedusaService, MedusaError } from "@medusajs/framework/utils"
+import type { MedusaContainer } from "@medusajs/framework/types"
 import GoogleMerchantAccount from "./models/google_merchant_account"
 import GoogleMerchantSyncJob from "./models/google_merchant_sync_job"
 import { GoogleMerchantProvider } from "./provider"
@@ -27,9 +28,13 @@ class GoogleMerchantService extends MedusaService({
    * persisting the new token when the stored one is missing or near expiry.
    *
    * Callers should never touch access_token / refresh_token directly.
+   *
+   * `container` must be the app-level container (req.scope from an API route
+   * or the step's `container`). The module's own __container__ cannot resolve
+   * other modules under module isolation.
    */
-  async getAuthedProvider(accountId: string): Promise<AuthedProvider> {
-    const encryption = this.#encryption()
+  async getAuthedProvider(accountId: string, container: MedusaContainer): Promise<AuthedProvider> {
+    const encryption = this.#encryption(container)
 
     const [account] = await this.listGoogleMerchantAccounts({ id: accountId }, { take: 1 })
     if (!account) {
@@ -66,8 +71,8 @@ class GoogleMerchantService extends MedusaService({
   /**
    * Force a token refresh regardless of expiry — useful after an API call returns 401.
    */
-  async refreshAndStoreAccessToken(accountId: string): Promise<string> {
-    const encryption = this.#encryption()
+  async refreshAndStoreAccessToken(accountId: string, container: MedusaContainer): Promise<string> {
+    const encryption = this.#encryption(container)
     const [account] = await this.listGoogleMerchantAccounts({ id: accountId }, { take: 1 })
     if (!account?.refresh_token) {
       throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Account not authenticated")
@@ -88,8 +93,8 @@ class GoogleMerchantService extends MedusaService({
     return refreshed.access_token
   }
 
-  #encryption(): EncryptionService {
-    return (this as any).__container__.resolve(ENCRYPTION_MODULE) as EncryptionService
+  #encryption(container: MedusaContainer): EncryptionService {
+    return container.resolve(ENCRYPTION_MODULE) as EncryptionService
   }
 
   async #ensureValidAccessToken(

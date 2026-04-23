@@ -36,7 +36,7 @@ export const unsyncProductFromGoogleStep = createStep(
 
     if (googleProductName) {
       try {
-        const { provider, accessToken } = await googleMerchantService.getAuthedProvider(input.account_id)
+        const { provider, accessToken } = await googleMerchantService.getAuthedProvider(input.account_id, container)
         await provider.deleteProduct(accessToken, googleProductName, sourceDs)
       } catch (e: any) {
         logger?.warn?.(

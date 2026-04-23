@@ -5,7 +5,7 @@ import type GoogleMerchantService from "../../../../../../modules/google_merchan
 
 async function getAuthed(req: MedusaRequest) {
   const service = req.scope.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
-  const { account, provider, accessToken } = await service.getAuthedProvider(req.params.id)
+  const { account, provider, accessToken } = await service.getAuthedProvider(req.params.id, req.scope)
   return { service, account, provider, accessToken }
 }
 

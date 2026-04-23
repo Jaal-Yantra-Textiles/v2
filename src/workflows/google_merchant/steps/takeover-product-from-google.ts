@@ -45,7 +45,7 @@ export const takeoverProductStep = createStep(
       })
     }
 
-    const { provider, accessToken } = await service.getAuthedProvider(input.account_id)
+    const { provider, accessToken } = await service.getAuthedProvider(input.account_id, container)
 
     let deleted = false
     let warning: string | undefined

@@ -37,7 +37,7 @@ export const importExistingProductsFromGoogleStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const service = container.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
 
-    const { account, provider, accessToken } = await service.getAuthedProvider(input.account_id)
+    const { account, provider, accessToken } = await service.getAuthedProvider(input.account_id, container)
 
     // Paginate through the account's computed products (Merchant API only supports list on
     // `products`, not `productInputs` — but each Product includes offerId + dataSource).

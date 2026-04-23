@@ -34,7 +34,7 @@ export const syncProductToGoogleStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const googleMerchantService = container.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
 
-    const { account, provider, accessToken } = await googleMerchantService.getAuthedProvider(input.account_id)
+    const { account, provider, accessToken } = await googleMerchantService.getAuthedProvider(input.account_id, container)
 
     const { data: products } = await query.graph({
       entity: "product",
@@ -145,7 +145,7 @@ export const syncProductToGoogleStep = createStep(
     const googleMerchantService = container.resolve(GOOGLE_MERCHANT_MODULE) as GoogleMerchantService
 
     try {
-      const { provider, accessToken } = await googleMerchantService.getAuthedProvider(state.account_id)
+      const { provider, accessToken } = await googleMerchantService.getAuthedProvider(state.account_id, container)
       await provider.deleteProduct(accessToken, state.google_product_name)
     } catch (e: any) {
       logger?.warn?.(

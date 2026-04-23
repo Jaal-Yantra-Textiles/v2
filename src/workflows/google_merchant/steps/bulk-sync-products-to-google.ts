@@ -30,7 +30,7 @@ export const bulkSyncProductsToGoogleStep = createStep(
 
     let authed: { account: any; provider: any; accessToken: string }
     try {
-      authed = await service.getAuthedProvider(input.account_id)
+      authed = await service.getAuthedProvider(input.account_id, container)
     } catch (e: any) {
       await failJob(service, input.job_id, e?.message || "Failed to authenticate with Google")
       throw e
