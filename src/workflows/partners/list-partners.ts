@@ -62,8 +62,10 @@ export const listPartnersStep = createStep(
       pagination: {
         skip: input.offset || 0,
         take: input.limit || 20,
-        // Caller-supplied sort wins; otherwise newest first.
-        order: input.order ?? { created_at: "DESC" },
+        // Caller-supplied sort wins; otherwise newest first. Cast because
+        // RemoteQueryFunction typings expect a strict OrderBy shape while
+        // we accept a free-form Record<string, ASC|DESC>.
+        order: (input.order ?? { created_at: "DESC" }) as any,
       },
     })
 

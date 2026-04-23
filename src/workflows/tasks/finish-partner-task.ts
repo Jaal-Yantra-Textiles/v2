@@ -8,6 +8,7 @@ import {
   createWorkflow,
   StepResponse,
   WorkflowResponse,
+  transform,
 } from "@medusajs/framework/workflows-sdk"
 import type { IWorkflowEngineService } from "@medusajs/types"
 import TaskService from "../../modules/tasks/service"
@@ -101,17 +102,25 @@ export const finishPartnerTaskWorkflow = createWorkflow(
   (input: FinishPartnerTaskInput) => {
     markTaskStepsCompletedStep({ task_id: input.task_id })
 
-    const updatedTasks = updateTaskStep({
-      id: input.task_id,
-      update: {
-        status: Status.completed,
-        ...(input.cost?.actual_cost != null && input.cost.actual_cost > 0
-          ? { actual_cost: input.cost.actual_cost }
-          : {}),
-        ...(input.cost?.cost_type ? { cost_type: input.cost.cost_type } : {}),
-        ...(input.cost?.cost_currency ? { cost_currency: input.cost.cost_currency } : {}),
-      },
-    }) as any
+    // `input` is a compose-time proxy; runtime conditional logic on its
+    // properties (!= null, > 0, conditional spreads) must be wrapped in
+    // transform() so it only evaluates when the step graph actually runs.
+    const updateInput = transform({ input }, (data) => {
+      const cost = data.input.cost || {}
+      return {
+        id: data.input.task_id,
+        update: {
+          status: Status.completed,
+          ...(cost.actual_cost != null && cost.actual_cost > 0
+            ? { actual_cost: cost.actual_cost }
+            : {}),
+          ...(cost.cost_type ? { cost_type: cost.cost_type } : {}),
+          ...(cost.cost_currency ? { cost_currency: cost.cost_currency } : {}),
+        },
+      }
+    })
+
+    const updatedTasks = updateTaskStep(updateInput) as any
 
     signalTaskFinishGateStep({ updatedTasks })
 

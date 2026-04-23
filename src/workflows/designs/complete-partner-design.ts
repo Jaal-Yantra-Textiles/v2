@@ -43,67 +43,90 @@ const assertAssignmentNotCancelledStep = createStep(
   }
 )
 
-// Tolerant best-effort signal to a sendDesignToPartner workflow step. Swallows
+// Tolerant best-effort signal to a sendDesignToPartner workflow gate. Swallows
 // all engine errors — gates like await-design-redo/refinish are expected to be
-// absent for happy-path completions.
-const softSignalDesignStep = createStep(
-  "complete-design-soft-signal",
-  async (
-    input: {
-      design_id: string
-      step_id: string
-      kind: "success" | "failed"
-      updatedDesign: any
-    },
-    { container }
-  ) => {
-    const engineService: IWorkflowEngineService = container.resolve(
-      Modules.WORKFLOW_ENGINE
-    )
-    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
-
-    try {
-      const taskLinksResult = await query.graph({
-        entity: "designs",
-        fields: ["id", "tasks.*"],
-        filters: { id: input.design_id },
-      })
-
-      const txCandidates: any[] = []
-      for (const design of taskLinksResult.data || []) {
-        for (const task of (design as any).tasks || []) {
-          if (task?.transaction_id) txCandidates.push(task)
-        }
-      }
-      if (!txCandidates.length) return new StepResponse({ signaled: false })
-
-      txCandidates.sort(
-        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+// absent for happy-path completions. Each gate gets its own uniquely-named step
+// instance because Medusa's workflow SDK disallows invoking the same step
+// object twice in one workflow body.
+const makeSoftSignalStep = (
+  stepName: string,
+  gateId: string,
+  kind: "success" | "failed"
+) =>
+  createStep(
+    stepName,
+    async (
+      input: { design_id: string; updatedDesign: any },
+      { container }
+    ) => {
+      const engineService: IWorkflowEngineService = container.resolve(
+        Modules.WORKFLOW_ENGINE
       )
-      const workflowTransactionId = txCandidates[0].transaction_id
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
-      const updatedDesign = Array.isArray(input.updatedDesign)
-        ? input.updatedDesign[0]
-        : input.updatedDesign
-      const targetId = updatedDesign?.id || input.design_id
+      try {
+        const taskLinksResult = await query.graph({
+          entity: "designs",
+          fields: ["id", "tasks.*"],
+          filters: { id: input.design_id },
+        })
 
-      const idempotencyKey = {
-        action: TransactionHandlerType.INVOKE,
-        transactionId: workflowTransactionId,
-        stepId: input.step_id,
-        workflowId: sendDesignToPartnerWorkflow.getName(),
+        const txCandidates: any[] = []
+        for (const design of taskLinksResult.data || []) {
+          for (const task of (design as any).tasks || []) {
+            if (task?.transaction_id) txCandidates.push(task)
+          }
+        }
+        if (!txCandidates.length) return new StepResponse({ signaled: false })
+
+        txCandidates.sort(
+          (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        )
+        const workflowTransactionId = txCandidates[0].transaction_id
+
+        const updatedDesign = Array.isArray(input.updatedDesign)
+          ? input.updatedDesign[0]
+          : input.updatedDesign
+        const targetId = updatedDesign?.id || input.design_id
+
+        const idempotencyKey = {
+          action: TransactionHandlerType.INVOKE,
+          transactionId: workflowTransactionId,
+          stepId: gateId,
+          workflowId: sendDesignToPartnerWorkflow.getName(),
+        }
+        const stepResponse = new StepResponse(updatedDesign, targetId)
+        if (kind === "success") {
+          await engineService.setStepSuccess({ idempotencyKey, stepResponse })
+        } else {
+          await engineService.setStepFailure({ idempotencyKey, stepResponse })
+        }
+        return new StepResponse({ signaled: true })
+      } catch {
+        return new StepResponse({ signaled: false })
       }
-      const stepResponse = new StepResponse(updatedDesign, targetId)
-      if (input.kind === "success") {
-        await engineService.setStepSuccess({ idempotencyKey, stepResponse })
-      } else {
-        await engineService.setStepFailure({ idempotencyKey, stepResponse })
-      }
-      return new StepResponse({ signaled: true })
-    } catch {
-      return new StepResponse({ signaled: false })
     }
-  }
+  )
+
+const signalAwaitDesignInventoryStep = makeSoftSignalStep(
+  "complete-design-signal-await-inventory",
+  "await-design-inventory",
+  "success"
+)
+const signalAwaitDesignRedoStep = makeSoftSignalStep(
+  "complete-design-signal-await-redo",
+  "await-design-redo",
+  "failed"
+)
+const signalAwaitDesignRefinishStep = makeSoftSignalStep(
+  "complete-design-signal-await-refinish",
+  "await-design-refinish",
+  "failed"
+)
+const signalAwaitDesignCompletedStep = makeSoftSignalStep(
+  "complete-design-signal-await-completed",
+  "await-design-completed",
+  "success"
 )
 
 const validateAndFetchDesignStep = createStep(
@@ -295,30 +318,10 @@ export const completePartnerDesignWorkflow = createWorkflow(
 
     // Best-effort sendDesignToPartner gate signaling. Each call is tolerant —
     // missing gates (redo/refinish in happy path) are expected.
-    softSignalDesignStep({
-      design_id: input.design_id,
-      step_id: "await-design-inventory",
-      kind: "success",
-      updatedDesign,
-    })
-    softSignalDesignStep({
-      design_id: input.design_id,
-      step_id: "await-design-redo",
-      kind: "failed",
-      updatedDesign,
-    })
-    softSignalDesignStep({
-      design_id: input.design_id,
-      step_id: "await-design-refinish",
-      kind: "failed",
-      updatedDesign,
-    })
-    softSignalDesignStep({
-      design_id: input.design_id,
-      step_id: "await-design-completed",
-      kind: "success",
-      updatedDesign,
-    })
+    signalAwaitDesignInventoryStep({ design_id: input.design_id, updatedDesign })
+    signalAwaitDesignRedoStep({ design_id: input.design_id, updatedDesign })
+    signalAwaitDesignRefinishStep({ design_id: input.design_id, updatedDesign })
+    signalAwaitDesignCompletedStep({ design_id: input.design_id, updatedDesign })
 
     return new WorkflowResponse({
       success: true,
