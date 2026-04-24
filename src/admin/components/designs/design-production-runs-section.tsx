@@ -97,9 +97,24 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
               <Text className="text-ui-fg-subtle">No production runs yet</Text>
             </div>
           ) : (
-            runs.map((run: any) => (
-              <ProductionRunRow key={String(run.id)} run={run} partnerNameMap={partnerNameMap} />
-            ))
+            (() => {
+              // A run is a "parent" when another run in the list references it
+              // via parent_run_id. Parent runs are aggregators — the actual
+              // dispatch happens on their children, so the parent itself
+              // should never show a Dispatch button.
+              const parentIds = new Set<string>()
+              for (const r of runs as any[]) {
+                if (r?.parent_run_id) parentIds.add(String(r.parent_run_id))
+              }
+              return runs.map((run: any) => (
+                <ProductionRunRow
+                  key={String(run.id)}
+                  run={run}
+                  partnerNameMap={partnerNameMap}
+                  isParent={parentIds.has(String(run.id))}
+                />
+              ))
+            })()
           )}
         </div>
       )}
@@ -107,20 +122,29 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
   )
 }
 
-const ProductionRunRow = ({ run, partnerNameMap = {} }: { run: any; partnerNameMap?: Record<string, string> }) => {
+const ProductionRunRow = ({
+  run,
+  partnerNameMap = {},
+  isParent = false,
+}: {
+  run: any
+  partnerNameMap?: Record<string, string>
+  isParent?: boolean
+}) => {
   const id = String(run.id)
   const status = String(run.status || "-")
   const dispatchState = String(run.dispatch_state || "idle")
   const partnerId = run.partner_id ? String(run.partner_id) : "-"
   const quantity = run.quantity ?? "-"
   const canCancel = !["completed", "cancelled"].includes(status)
-  // Hide once the dispatch workflow has progressed past idle OR the run has
-  // moved past "approved" — stale list data sometimes leaves status=approved
-  // after a dispatch, so dispatch_state is the authoritative signal.
+  // Dispatch is only meaningful for leaf runs that have a partner, haven't
+  // entered the dispatch workflow yet, and haven't already been dispatched.
   const canDispatch =
     status === "approved" &&
     dispatchState === "idle" &&
-    !run.dispatch_completed_at
+    !run.dispatch_completed_at &&
+    !!run.partner_id &&
+    !isParent
 
   const cancelRun = useCancelProductionRun(id)
 
@@ -151,11 +175,14 @@ const ProductionRunRow = ({ run, partnerNameMap = {} }: { run: any; partnerNameM
             <div className="flex flex-col overflow-hidden">
               <span className="text-ui-fg-base font-medium truncate">
                 {run.run_type === "sample" ? "Sample" : "Production"} Run
+                {isParent ? " (parent)" : ""}
               </span>
               <span className="text-ui-fg-subtle text-xs truncate">
-                {partnerId !== "-"
-                  ? `Partner: ${partnerNameMap[partnerId] || partnerId}`
-                  : "No partner assigned"}
+                {isParent
+                  ? "Aggregator — dispatch happens on child runs"
+                  : partnerId !== "-"
+                    ? `Partner: ${partnerNameMap[partnerId] || partnerId}`
+                    : "No partner assigned"}
                 {quantity !== "-" ? ` · Qty: ${quantity}` : ""}
               </span>
             </div>
