@@ -14,6 +14,7 @@ export type GoogleMerchantAccount = {
   has_client_secret: boolean
   has_refresh_token: boolean
   token_expires_at?: string | null
+  token_refreshed_at?: string | null
   api_config?: Record<string, any> | null
   created_at: string
   updated_at: string
@@ -94,6 +95,21 @@ export function useUpdateGoogleMerchantAccount(id: string) {
         method: "POST",
         body,
       }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: KEYS.all })
+    },
+  })
+}
+
+export function useRefreshGoogleMerchantToken(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<{ account: GoogleMerchantAccount }>(
+        `/admin/google-merchant/accounts/${id}/refresh-token`,
+        { method: "POST" }
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: KEYS.all })

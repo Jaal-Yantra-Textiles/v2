@@ -85,10 +85,12 @@ class GoogleMerchantService extends MedusaService({
       merchant_id: account.merchant_id,
     })
     const refreshed = await provider.refreshAccessToken(refreshToken)
+    const now = new Date()
     await this.updateGoogleMerchantAccounts({
       id: account.id,
       access_token: JSON.stringify(encryption.encrypt(refreshed.access_token)),
-      token_expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000) : null,
+      token_expires_at: refreshed.expires_in ? new Date(now.getTime() + refreshed.expires_in * 1000) : null,
+      token_refreshed_at: now,
     })
     return refreshed.access_token
   }
@@ -111,10 +113,12 @@ class GoogleMerchantService extends MedusaService({
     }
 
     const refreshed = await provider.refreshAccessToken(refreshToken)
+    const now = new Date()
     await this.updateGoogleMerchantAccounts({
       id: account.id,
       access_token: JSON.stringify(encryption.encrypt(refreshed.access_token)),
-      token_expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000) : null,
+      token_expires_at: refreshed.expires_in ? new Date(now.getTime() + refreshed.expires_in * 1000) : null,
+      token_refreshed_at: now,
     })
     return refreshed.access_token
   }

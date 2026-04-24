@@ -23,7 +23,68 @@ import {
   useBulkSyncGoogleMerchant,
   useGoogleMerchantSyncJobs,
   useGoogleMerchantDataSourceAction,
+  useRefreshGoogleMerchantToken,
 } from "../../../../hooks/api/google-merchant"
+
+const formatRelative = (iso?: string | null): string => {
+  if (!iso) return "never"
+  const ms = Date.now() - new Date(iso).getTime()
+  if (ms < 0) return new Date(iso).toLocaleString()
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return `${d}d ago`
+}
+
+type TokenHealth = {
+  label: string
+  color: "green" | "orange" | "red" | "grey"
+  hint: string
+}
+
+const deriveTokenHealth = (
+  connected: boolean,
+  expiresAt?: string | null,
+  refreshedAt?: string | null
+): TokenHealth => {
+  if (!connected) {
+    return { label: "Not connected", color: "grey", hint: "Complete OAuth to store tokens." }
+  }
+  if (!expiresAt) {
+    return {
+      label: refreshedAt ? "Valid" : "Unknown",
+      color: refreshedAt ? "green" : "orange",
+      hint: refreshedAt
+        ? `Refreshed ${formatRelative(refreshedAt)}`
+        : "No refresh recorded yet — run a sync or click Refresh.",
+    }
+  }
+  const msLeft = new Date(expiresAt).getTime() - Date.now()
+  const minutes = Math.round(msLeft / 60000)
+  if (msLeft <= 0) {
+    return {
+      label: "Expired",
+      color: "red",
+      hint: "Access token expired. It will auto-refresh on next call, or refresh now.",
+    }
+  }
+  if (msLeft < 5 * 60 * 1000) {
+    return {
+      label: "Expiring soon",
+      color: "orange",
+      hint: `Expires in ${minutes}m — next call will refresh.`,
+    }
+  }
+  return {
+    label: "Valid",
+    color: "green",
+    hint: `Expires in ${minutes}m · last refreshed ${formatRelative(refreshedAt)}`,
+  }
+}
 
 const DetailPage = () => {
   const { id } = useParams<{ id: string }>()
@@ -32,6 +93,7 @@ const DetailPage = () => {
   const deleteMutation = useDeleteGoogleMerchantAccount()
   const initiateOAuth = useInitiateGoogleMerchantOAuth()
   const bulkSync = useBulkSyncGoogleMerchant(id || "")
+  const refreshToken = useRefreshGoogleMerchantToken(id || "")
   const [editOpen, setEditOpen] = useState(false)
   const prompt = usePrompt()
 
@@ -83,6 +145,19 @@ const DetailPage = () => {
       return
     }
     navigate(`/settings/google-merchant/${account.id}/import`)
+  }
+
+  const handleRefreshToken = async () => {
+    if (!account.connected) {
+      toast.error("Connect the account first.")
+      return
+    }
+    try {
+      await refreshToken.mutateAsync()
+      toast.success("Access token refreshed")
+    } catch (e: any) {
+      toast.error(e?.message || "Refresh failed — check OAuth credentials")
+    }
   }
 
   const handleSyncAll = async () => {
@@ -148,6 +223,12 @@ const DetailPage = () => {
                     Sync All Products
                   </DropdownMenu.Item>
                   <DropdownMenu.Item
+                    disabled={refreshToken.isPending}
+                    onClick={handleRefreshToken}
+                  >
+                    Refresh access token
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
                     disabled={initiateOAuth.isPending}
                     onClick={handleConnect}
                   >
@@ -176,6 +257,55 @@ const DetailPage = () => {
         currentName={(account.api_config as any)?.data_source_name || null}
       />
 
+      {account.connected && (() => {
+        const health = deriveTokenHealth(
+          account.connected,
+          account.token_expires_at,
+          account.token_refreshed_at
+        )
+        return (
+          <div className="px-6 py-4">
+            <div className="flex items-start justify-between gap-x-4">
+              <div className="flex flex-col gap-y-1">
+                <div className="flex items-center gap-x-2">
+                  <Text size="small" weight="plus">OAuth token</Text>
+                  <StatusBadge color={health.color}>{health.label}</StatusBadge>
+                </div>
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  {health.hint}
+                </Text>
+                <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+                  <div className="flex flex-col">
+                    <Text size="xsmall" className="text-ui-fg-subtle">Expires at</Text>
+                    <Text size="xsmall">
+                      {account.token_expires_at
+                        ? new Date(account.token_expires_at).toLocaleString()
+                        : "—"}
+                    </Text>
+                  </div>
+                  <div className="flex flex-col">
+                    <Text size="xsmall" className="text-ui-fg-subtle">Last refreshed</Text>
+                    <Text size="xsmall">
+                      {account.token_refreshed_at
+                        ? `${formatRelative(account.token_refreshed_at)} · ${new Date(account.token_refreshed_at).toLocaleString()}`
+                        : "never"}
+                    </Text>
+                  </div>
+                </div>
+              </div>
+              <Button
+                size="small"
+                variant="secondary"
+                isLoading={refreshToken.isPending}
+                onClick={handleRefreshToken}
+              >
+                Refresh now
+              </Button>
+            </div>
+          </div>
+        )
+      })()}
+
       <div className="px-6 py-4 grid grid-cols-2 gap-y-3">
         <Detail label="Account Email" value={account.account_email || "—"} />
         <Detail label="OAuth Client ID" value={account.client_id} />
@@ -185,10 +315,6 @@ const DetailPage = () => {
         <Detail label="Content Language" value={(account.api_config as any)?.content_language || "—"} />
         <Detail label="Feed Label" value={(account.api_config as any)?.feed_label || "—"} />
         <Detail label="Currency" value={(account.api_config as any)?.currency_code || "—"} />
-        <Detail
-          label="Token Expiry"
-          value={account.token_expires_at ? new Date(account.token_expires_at).toLocaleString() : "—"}
-        />
         <Detail
           label="Data source"
           value={(account.api_config as any)?.data_source_name || "—"}

@@ -11,6 +11,7 @@ const GoogleMerchantAccount = model.define("google_merchant_account", {
   access_token: model.text().nullable(),
   refresh_token: model.json().nullable(),
   token_expires_at: model.dateTime().nullable(),
+  token_refreshed_at: model.dateTime().nullable(),
   account_email: model.text().nullable(),
   is_active: model.boolean().default(false),
   api_config: model.json().nullable(),
