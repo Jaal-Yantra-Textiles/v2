@@ -42,6 +42,49 @@ const matchReasonLabel = (
   }
 }
 
+// Classify known Google Merchant API errors into actionable guidance.
+// The raw messages bubble up from axios via the provider and are useful but
+// impenetrable in a toast — here we translate them into something an admin
+// can act on.
+const classifyPreviewError = (raw: string): {
+  title: string
+  description: string
+  docsUrl?: string
+  docsLabel?: string
+} => {
+  const msg = raw || ""
+  if (/not registered with the merchant account/i.test(msg)) {
+    const projectMatch = msg.match(/GCP project with id ([^\s]+) and number (\d+)/)
+    return {
+      title: "GCP project not registered with this Merchant account",
+      description: projectMatch
+        ? `Register GCP project ${projectMatch[1]} (number ${projectMatch[2]}) with this Merchant Center account, then wait ~5 minutes and retry.`
+        : "Register your GCP project with this Merchant Center account, then wait ~5 minutes and retry.",
+      docsUrl:
+        "https://developers.google.com/merchant/api/guides/quickstart/direct-api-calls#step_1_register_as_a_developer",
+      docsLabel: "Open registration guide",
+    }
+  }
+  if (/invalid_grant|invalid token|unauthorized|401/i.test(msg)) {
+    return {
+      title: "Authentication expired",
+      description:
+        "The stored OAuth credentials for this account are no longer accepted. Re-authenticate the account and try again.",
+    }
+  }
+  if (/PERMISSION_DENIED|forbidden|403/i.test(msg)) {
+    return {
+      title: "Insufficient permissions",
+      description:
+        "The service account or user doesn't have access to this Merchant Center account. Check that it has at least Standard access.",
+    }
+  }
+  return {
+    title: "Couldn't load Google products",
+    description: msg || "Unknown error from Google Merchant API.",
+  }
+}
+
 export const ImportGoogleMerchantProducts = () => {
   const { id } = useParams<{ id: string }>()
   const accountId = id as string
@@ -54,10 +97,11 @@ export const ImportGoogleMerchantProducts = () => {
   const [previewResult, setPreviewResult] = useState<
     Awaited<ReturnType<typeof preview.mutateAsync>> | null
   >(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
 
-  // Fire the preview once on mount.
-  useEffect(() => {
+  const runPreview = () => {
     if (!accountId) return
+    setPreviewError(null)
     preview
       .mutateAsync()
       .then((result) => {
@@ -73,8 +117,13 @@ export const ImportGoogleMerchantProducts = () => {
         setRows(initial)
       })
       .catch((e: any) => {
-        toast.error(e?.message || "Failed to load Google products")
+        setPreviewError(e?.message || "Failed to load Google products")
       })
+  }
+
+  // Fire the preview once on mount.
+  useEffect(() => {
+    runPreview()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId])
 
@@ -236,7 +285,49 @@ export const ImportGoogleMerchantProducts = () => {
               <Text className="text-ui-fg-subtle">Fetching products from Google…</Text>
             </div>
           )}
-          {!isLoading && items.length === 0 && previewResult && (
+          {!isLoading && previewError && (() => {
+            const info = classifyPreviewError(previewError)
+            return (
+              <div className="mx-6 my-6 rounded-md border border-ui-border-error bg-ui-bg-base px-5 py-4">
+                <Text size="base" weight="plus" className="text-ui-fg-error">
+                  {info.title}
+                </Text>
+                <Text size="small" className="text-ui-fg-subtle mt-1">
+                  {info.description}
+                </Text>
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-ui-fg-subtle text-xs">
+                    Raw error
+                  </summary>
+                  <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-ui-fg-muted">
+                    {previewError}
+                  </pre>
+                </details>
+                <div className="mt-4 flex items-center gap-x-2">
+                  {info.docsUrl && (
+                    <a
+                      href={info.docsUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      <Button size="small" variant="secondary">
+                        {info.docsLabel || "Open docs"}
+                      </Button>
+                    </a>
+                  )}
+                  <Button
+                    size="small"
+                    variant="primary"
+                    onClick={runPreview}
+                    isLoading={preview.isPending}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            )
+          })()}
+          {!isLoading && !previewError && items.length === 0 && previewResult && (
             <div className="px-6 py-10 text-center">
               <Text className="text-ui-fg-subtle">
                 No products found in this Merchant Center account.
