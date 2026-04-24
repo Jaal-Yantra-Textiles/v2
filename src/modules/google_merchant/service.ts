@@ -95,6 +95,30 @@ class GoogleMerchantService extends MedusaService({
     return refreshed.access_token
   }
 
+  /**
+   * One-time-per-GCP-project registration that links the project (where this
+   * account's OAuth client lives) with the Merchant Center account. Without
+   * this, Merchant API read endpoints return PERMISSION_DENIED with a
+   * `not registered with the merchant account` message.
+   */
+  async registerDeveloperWithMerchant(
+    accountId: string,
+    container: MedusaContainer,
+    developerEmail?: string
+  ): Promise<{ name: string; gcpIds?: string[] }> {
+    const { account, provider, accessToken } = await this.getAuthedProvider(
+      accountId,
+      container
+    )
+    const email = developerEmail || account.account_email || undefined
+    const result = await provider.registerDeveloperGcp(
+      accessToken,
+      account.merchant_id,
+      email
+    )
+    return { name: result.name, gcpIds: result.gcpIds }
+  }
+
   #encryption(container: MedusaContainer): EncryptionService {
     return container.resolve(ENCRYPTION_MODULE) as EncryptionService
   }

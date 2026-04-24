@@ -14,6 +14,7 @@ import { RouteFocusModal } from "../modal/route-focus-modal"
 import {
   usePreviewGoogleMerchantImport,
   useCommitGoogleMerchantImport,
+  useRegisterGoogleMerchantDeveloper,
   type GoogleMerchantPreviewItem,
   type GoogleMerchantCommitMapping,
 } from "../../hooks/api/google-merchant"
@@ -92,6 +93,7 @@ export const ImportGoogleMerchantProducts = () => {
 
   const preview = usePreviewGoogleMerchantImport(accountId)
   const commit = useCommitGoogleMerchantImport(accountId)
+  const registerDev = useRegisterGoogleMerchantDeveloper(accountId)
 
   const [rows, setRows] = useState<Record<string, RowSelection>>({})
   const [previewResult, setPreviewResult] = useState<
@@ -287,6 +289,22 @@ export const ImportGoogleMerchantProducts = () => {
           )}
           {!isLoading && previewError && (() => {
             const info = classifyPreviewError(previewError)
+            const isRegistration =
+              /not registered with the merchant account/i.test(previewError)
+
+            const handleRegisterAndRetry = async () => {
+              try {
+                await registerDev.mutateAsync(undefined)
+                toast.success("GCP project registered with Merchant Center")
+                runPreview()
+              } catch (e: any) {
+                toast.error(
+                  e?.message ||
+                    "Registration call failed — you may need to retry in 5 minutes"
+                )
+              }
+            }
+
             return (
               <div className="mx-6 my-6 rounded-md border border-ui-border-error bg-ui-bg-base px-5 py-4">
                 <Text size="base" weight="plus" className="text-ui-fg-error">
@@ -295,6 +313,13 @@ export const ImportGoogleMerchantProducts = () => {
                 <Text size="small" className="text-ui-fg-subtle mt-1">
                   {info.description}
                 </Text>
+                {isRegistration && (
+                  <Text size="xsmall" className="text-ui-fg-subtle mt-2">
+                    The "Register GCP project" button below calls Merchant
+                    API's <code>developerRegistration:registerGcp</code>{" "}
+                    endpoint for you — no Merchant Center UI step required.
+                  </Text>
+                )}
                 <details className="mt-3">
                   <summary className="cursor-pointer text-ui-fg-subtle text-xs">
                     Raw error
@@ -304,6 +329,16 @@ export const ImportGoogleMerchantProducts = () => {
                   </pre>
                 </details>
                 <div className="mt-4 flex items-center gap-x-2">
+                  {isRegistration && (
+                    <Button
+                      size="small"
+                      variant="primary"
+                      onClick={handleRegisterAndRetry}
+                      isLoading={registerDev.isPending}
+                    >
+                      Register GCP project
+                    </Button>
+                  )}
                   {info.docsUrl && (
                     <a
                       href={info.docsUrl}
@@ -317,7 +352,7 @@ export const ImportGoogleMerchantProducts = () => {
                   )}
                   <Button
                     size="small"
-                    variant="primary"
+                    variant={isRegistration ? "secondary" : "primary"}
                     onClick={runPreview}
                     isLoading={preview.isPending}
                   >

@@ -39,6 +39,7 @@ const DEFAULT_SCOPE = "https://www.googleapis.com/auth/content"
 const USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 const MERCHANT_API_BASE = "https://merchantapi.googleapis.com/products/v1"
 const DATASOURCES_API_BASE = "https://merchantapi.googleapis.com/datasources/v1"
+const ACCOUNTS_API_BASE = "https://merchantapi.googleapis.com/accounts/v1"
 
 export type DataSourceChannel = "ONLINE_PRODUCTS" | "LOCAL_PRODUCTS" | "PRODUCTS"
 
@@ -287,6 +288,40 @@ export class GoogleMerchantProvider {
     } catch (error: any) {
       const msg = error.response?.data?.error?.message || error.message
       throw new Error(`Google Merchant listProducts failed: ${msg}`)
+    }
+  }
+
+  /**
+   * One-time per GCP project: links the caller's GCP project (the one the
+   * OAuth client was created in) to the Merchant Center account. Required
+   * before read endpoints like `products.list` are accepted.
+   *
+   * https://developers.google.com/merchant/api/guides/quickstart/registration
+   */
+  async registerDeveloperGcp(
+    accessToken: string,
+    merchantId: string,
+    developerEmail?: string
+  ): Promise<{ name: string; gcpIds?: string[]; raw: any }> {
+    try {
+      const response = await axios.post(
+        `${ACCOUNTS_API_BASE}/accounts/${merchantId}/developerRegistration:registerGcp`,
+        developerEmail ? { developerEmail } : {},
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      )
+      return {
+        name: response.data?.name,
+        gcpIds: response.data?.gcpIds,
+        raw: response.data,
+      }
+    } catch (error: any) {
+      const msg = error.response?.data?.error?.message || error.message
+      throw new Error(`Google Merchant registerGcp failed: ${msg}`)
     }
   }
 }

@@ -117,6 +117,20 @@ export function useRefreshGoogleMerchantToken(id: string) {
   })
 }
 
+export function useRegisterGoogleMerchantDeveloper(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body?: { developer_email?: string }) =>
+      sdk.client.fetch<{ registration: { name: string; gcpIds?: string[] } }>(
+        `/admin/google-merchant/accounts/${id}/register-developer`,
+        { method: "POST", body: body || {} }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+    },
+  })
+}
+
 export function useDeleteGoogleMerchantAccount() {
   const qc = useQueryClient()
   return useMutation({

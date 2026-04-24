@@ -24,6 +24,7 @@ import {
   useGoogleMerchantSyncJobs,
   useGoogleMerchantDataSourceAction,
   useRefreshGoogleMerchantToken,
+  useRegisterGoogleMerchantDeveloper,
 } from "../../../../hooks/api/google-merchant"
 
 const formatRelative = (iso?: string | null): string => {
@@ -94,6 +95,7 @@ const DetailPage = () => {
   const initiateOAuth = useInitiateGoogleMerchantOAuth()
   const bulkSync = useBulkSyncGoogleMerchant(id || "")
   const refreshToken = useRefreshGoogleMerchantToken(id || "")
+  const registerDev = useRegisterGoogleMerchantDeveloper(id || "")
   const [editOpen, setEditOpen] = useState(false)
   const prompt = usePrompt()
 
@@ -145,6 +147,24 @@ const DetailPage = () => {
       return
     }
     navigate(`/settings/google-merchant/${account.id}/import`)
+  }
+
+  const handleRegisterDeveloper = async () => {
+    if (!account.connected) {
+      toast.error("Connect the account first.")
+      return
+    }
+    try {
+      const r = await registerDev.mutateAsync(undefined)
+      const ids = r.registration.gcpIds?.join(", ")
+      toast.success(
+        ids
+          ? `GCP project ${ids} registered with Merchant Center`
+          : "GCP project registered with Merchant Center"
+      )
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to register GCP project")
+    }
   }
 
   const handleRefreshToken = async () => {
@@ -227,6 +247,12 @@ const DetailPage = () => {
                     onClick={handleRefreshToken}
                   >
                     Refresh access token
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    disabled={registerDev.isPending}
+                    onClick={handleRegisterDeveloper}
+                  >
+                    Register GCP project
                   </DropdownMenu.Item>
                   <DropdownMenu.Item
                     disabled={initiateOAuth.isPending}
