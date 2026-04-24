@@ -229,6 +229,9 @@ export const config: SubscriberConfig = {
     "production_run.finished",
     "production_run.completed",
     "production_run.cancelled",
+    "production_run.reminder_assignment_pending",
+    "production_run.reminder_not_started",
+    "production_run.reminder_idle",
 
     // Feedback
     "feedback.feedback.created",

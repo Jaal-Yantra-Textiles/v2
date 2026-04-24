@@ -138,6 +138,20 @@ const notes = $trigger?.payload?.notes || run?.cancelled_reason || "No reason pr
 const producedQty = String($trigger?.payload?.produced_quantity ?? run?.produced_quantity ?? quantity)
 const reason = $trigger?.payload?.reason || null
 
+// Reminder-event aging — reminder events are fired by the scheduled
+// reminder seed (src/scripts/seed-production-run-reminders-flow.ts) and
+// carry a reminder_kind in the payload. We compute a human-friendly age
+// label from run timestamps so the template body reads like "2 days ago".
+function ageInDays(iso) {
+  if (!iso) return null
+  const ms = Date.now() - new Date(iso).getTime()
+  if (!Number.isFinite(ms) || ms < 0) return null
+  return Math.max(1, Math.floor(ms / 86400000))
+}
+const daysSinceAssignment = ageInDays(run?.created_at) ?? 1
+const daysSinceAccepted = ageInDays(run?.accepted_at) ?? 1
+const daysSinceStarted = ageInDays(run?.started_at) ?? 3
+
 // Template map. Keep placeholder counts identical to the Meta template body.
 // Canonical template names live in
 // src/scripts/whatsapp-templates/partner-run-templates.ts and end in _v2 —
@@ -157,6 +171,21 @@ const map = {
     template: "jyt_production_run_completed_v3",
     vars: [partnerName, runId, designName, producedQty],
   },
+  // Reminders — fired daily by the scheduled reminder seed. Each event
+  // carries a fresh per-day context_id so the 60-min dedup on
+  // (context_type, context_id) does not swallow the next day's send.
+  "production_run.reminder_assignment_pending": {
+    template: "jyt_production_run_reminder_pending_v1",
+    vars: [partnerName, designName, runId, String(daysSinceAssignment)],
+  },
+  "production_run.reminder_not_started": {
+    template: "jyt_production_run_reminder_not_started_v1",
+    vars: [partnerName, designName, runId, String(daysSinceAccepted)],
+  },
+  "production_run.reminder_idle": {
+    template: "jyt_production_run_reminder_idle_v1",
+    vars: [partnerName, designName, runId, producedQty, quantity],
+  },
   // Add more mappings here as templates get approved in Meta.
   // "production_run.accepted":  { template: "…", vars: [...] },
   // "production_run.started":   { template: "…", vars: [...] },
@@ -168,6 +197,20 @@ if (!config) {
   return { skipped: true, reason: "no_template_for_event", event: eventName }
 }
 
+// Per-day context_id for reminder events so the standard 60-min dedup on
+// (context_type, context_id) does NOT swallow the next day's reminder.
+// Format: "<runId>:reminder:<YYYY-MM-DD>". Same-day retries still dedup,
+// which is the safe behaviour we want.
+const isReminderEvent = eventName.indexOf("production_run.reminder_") === 0
+let contextId = runId
+if (isReminderEvent) {
+  const d = new Date()
+  const yyyy = d.getUTCFullYear()
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0")
+  const dd = String(d.getUTCDate()).padStart(2, "0")
+  contextId = runId + ":reminder:" + yyyy + "-" + mm + "-" + dd
+}
+
 return {
   skipped: false,
   event: eventName,
@@ -176,7 +219,12 @@ return {
   template_name: config.template,
   variables: config.vars,
   context_type: "production_run",
-  context_id: runId,
+  // context_id drives send_whatsapp dedup. For reminder events it carries
+  // the per-day suffix so consecutive days don't dedup each other.
+  context_id: contextId,
+  // run_id is always the raw run id — use this for deep links and any
+  // user-facing display so the per-day suffix never leaks out.
+  run_id: runId,
   design_image_url: designImageUrl,
   design_name: designName,
 }
@@ -370,7 +418,7 @@ const FLOW_DEF = {
       position_y: Y_GEN_LINK,
       options: {
         partner_id: "{{ resolve_template.partner_id }}",
-        run_id: "{{ resolve_template.context_id }}",
+        run_id: "{{ resolve_template.run_id }}",
         type: "production_run",
         // base_url falls back to PARTNER_PORTAL_URL env then to the
         // hard-coded partner subdomain in the operation implementation.
@@ -394,7 +442,7 @@ const FLOW_DEF = {
         // flow still succeeds overall.
         image_url: "{{ resolve_template.design_image_url }}",
         caption:
-          "{{ resolve_template.design_name }} — Run {{ resolve_template.context_id }}\n" +
+          "{{ resolve_template.design_name }} — Run {{ resolve_template.run_id }}\n" +
           "Open in portal (no password): {{ gen_link.url }}",
         skip_if_no_image: true,
         context_type: "production_run",
