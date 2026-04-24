@@ -333,6 +333,93 @@ export const useUpdateProductionRun = (
   })
 }
 
+// --- Production-run task hooks ---
+
+export type AdminProductionRunTask = Record<string, any> & {
+  id: string
+  title?: string
+  description?: string
+  status?: string
+  priority?: string
+  start_date?: string | null
+  end_date?: string | null
+  parent_task_id?: string | null
+  subtasks?: AdminProductionRunTask[]
+}
+
+export type AdminProductionRunTaskResponse = {
+  task: AdminProductionRunTask
+}
+
+export const useProductionRunTask = (
+  runId: string,
+  taskId: string,
+  options?: Omit<
+    UseQueryOptions<
+      AdminProductionRunTaskResponse,
+      FetchError,
+      AdminProductionRunTaskResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...productionRunQueryKeys.detail(runId), "tasks", taskId],
+    queryFn: async () =>
+      sdk.client.fetch<AdminProductionRunTaskResponse>(
+        `/admin/production-runs/${runId}/tasks/${taskId}`,
+        { method: "GET" }
+      ),
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
+export type AdminUpdateProductionRunTaskPayload = {
+  title?: string
+  description?: string
+  status?: string
+  priority?: string
+  start_date?: Date | string | null
+  end_date?: Date | string | null
+  metadata?: Record<string, any>
+}
+
+export const useUpdateProductionRunTask = (
+  runId: string,
+  taskId: string,
+  options?: UseMutationOptions<
+    AdminProductionRunTaskResponse,
+    FetchError,
+    AdminUpdateProductionRunTaskPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<AdminProductionRunTaskResponse>(
+        `/admin/production-runs/${runId}/tasks/${taskId}`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({
+        queryKey: [...productionRunQueryKeys.detail(runId), "tasks", taskId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: productionRunQueryKeys.detail(runId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: productionRunQueryKeys.lists(),
+      })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
 export type AdminRecreateProductionRunPayload = {
   designs: Array<{
     design_id: string

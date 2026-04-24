@@ -1,14 +1,17 @@
-import { useParams } from "react-router-dom";
-import { useDesignTask } from "../../../../../hooks/api/design-tasks";
-import { Heading, Text, Skeleton } from "@medusajs/ui";
-import { useTranslation } from "react-i18next";
-import { EditTaskForm } from "../../../../../components/designs/design-task-edit-section";
-import { RouteDrawer } from "../../../../../components/modal/route-drawer/route-drawer";
+import { Heading, Skeleton, Text } from "@medusajs/ui"
+import { useParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
-export default function TaskEditPage() {
-  const { id, taskId } = useParams();
-  const { t } = useTranslation();
-  const { task, isLoading, error } = useDesignTask(id!, taskId!);
+import { RouteDrawer } from "../../../../../components/modal/route-drawer/route-drawer"
+import { EditProductionRunTaskForm } from "../../../../../components/production-runs/production-run-task-edit-form"
+import { useProductionRunTask } from "../../../../../hooks/api/production-runs"
+
+export default function ProductionRunTaskEditPage() {
+  const { id, taskId } = useParams()
+  const { t } = useTranslation()
+  const { task, isLoading, error } = useProductionRunTask(id!, taskId!, {
+    enabled: !!id && !!taskId,
+  })
 
   if (isLoading) {
     return (
@@ -26,7 +29,7 @@ export default function TaskEditPage() {
           </div>
         </div>
       </RouteDrawer>
-    );
+    )
   }
 
   if (error || !task) {
@@ -41,20 +44,20 @@ export default function TaskEditPage() {
           </Text>
         </div>
       </RouteDrawer>
-    );
+    )
   }
 
   return (
     <RouteDrawer>
       <RouteDrawer.Header>
         <div className="flex flex-col gap-y-0.5">
-          <Heading>{task.title}</Heading>
+          <Heading>{task.title || task.id}</Heading>
           <Text size="xsmall" className="text-ui-fg-subtle">
             {t("tasks.edit.subtitle", "Edit task details")}
           </Text>
         </div>
       </RouteDrawer.Header>
-      <EditTaskForm task={task} designId={id!} />
+      <EditProductionRunTaskForm task={task} runId={id!} />
     </RouteDrawer>
-  );
+  )
 }

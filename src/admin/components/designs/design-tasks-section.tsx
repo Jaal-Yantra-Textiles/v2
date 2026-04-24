@@ -96,13 +96,26 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
     return collected;
   };
 
-  // Function to get only top-level tasks
-  const getTopLevelTasks = (tasks: AdminDesignTask[] = []): TaskItem[] => {
-    return collectTasks(tasks.filter(task => !task.parent_task_id));
+  // Build a flat, ordered list where each top-level task is immediately
+  // followed by its subtasks. This lets admins open sub-tasks for editing
+  // directly from the Tasks section rather than having to view the canvas.
+  const buildNestedTaskList = (tasks: AdminDesignTask[] = []): TaskItem[] => {
+    const flat: TaskItem[] = [];
+    const topLevel = tasks.filter((t) => !t.parent_task_id);
+
+    for (const parent of topLevel) {
+      flat.push(...collectTasks([parent], false));
+      if (parent.subtasks?.length) {
+        flat.push(...collectTasks(parent.subtasks, true));
+      }
+    }
+
+    return flat;
   };
 
-  // Transform design tasks into TaskItem objects, only showing top-level tasks
-  const taskItems: TaskItem[] = isLoading ? [] : getTopLevelTasks(design.tasks || []);
+  // Transform design tasks into TaskItem objects, including sub-tasks nested
+  // under each parent so every task is clickable/editable from this section.
+  const taskItems: TaskItem[] = isLoading ? [] : buildNestedTaskList(design.tasks || []);
 
   // Get all tasks including subtasks for the completion counter
   const allTasks: TaskItem[] = isLoading ? [] : collectTasks(design.tasks || [], false);
@@ -347,7 +360,7 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
       <Link
         to={link}
         key={task.id}
-        className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
+        className={`outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover ${task.isSubtask ? "ml-6 border-l-2 border-ui-border-base pl-3" : ""}`}
       >
         <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors">
           <div className="flex items-center gap-3">
