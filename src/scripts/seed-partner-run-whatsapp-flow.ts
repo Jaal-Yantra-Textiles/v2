@@ -596,6 +596,11 @@ export default async function seedPartnerRunWhatsAppFlow({
       status: FLOW_DEF.status,
       trigger_type: FLOW_DEF.trigger_type,
       trigger_config: FLOW_DEF.trigger_config,
+      // canvas_state holds the React Flow nodes/edges the editor renders.
+      // Without this the editor opens to an empty canvas and the human has
+      // to recreate every connection by hand (operations + connections rows
+      // exist in their own tables but the editor reads canvas_state).
+      canvas_state: FLOW_DEF.canvas_state,
     },
     operations: FLOW_DEF.operations,
     connections: FLOW_DEF.connections,
