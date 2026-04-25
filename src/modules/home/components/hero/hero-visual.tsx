@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion"
 import HeroScrollButton from "./hero-scroll-button"
+import imageLoader from "@lib/util/image-loader"
 
 interface HeroVisualProps {
   imageUrl: string | null
@@ -9,8 +10,11 @@ interface HeroVisualProps {
   floatingImageUrl: string | null
 }
 
+// Routes Cloudflare-hosted heroes through `/cdn-cgi/image/...` (so the
+// browser-fetched source is already <4MB) and falls back to Vercel's
+// optimizer for everything else. Same logic as the next/image custom loader.
 function nextImg(url: string, w: 384 | 640 | 750 | 1080, q = 85) {
-  return `/_next/image?url=${encodeURIComponent(url)}&w=${w}&q=${q}`
+  return imageLoader({ src: url, width: w, quality: q })
 }
 
 export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisualProps) {

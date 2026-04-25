@@ -1,4 +1,9 @@
+"use client"
+
+import Image from "next/image"
+
 import { ShowcasePartner } from "@lib/data/partner-showcase"
+import imageLoader from "@lib/util/image-loader"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { Text } from "@medusajs/ui"
 
@@ -19,9 +24,12 @@ export function PartnerCard({ partner }: { partner: ShowcasePartner }) {
       {/* Partner header */}
       <div className="flex items-center gap-x-3">
         {partner.logo ? (
-          <img
+          <Image
             src={partner.logo}
             alt={partner.name}
+            width={40}
+            height={40}
+            loader={imageLoader}
             className="h-10 w-10 rounded-full object-cover border border-neutral-100"
           />
         ) : (
@@ -58,12 +66,15 @@ export function PartnerCard({ partner }: { partner: ShowcasePartner }) {
           {partner.featured_products.map((product) => {
             const cardBody = (
               <>
-                <div className="aspect-square overflow-hidden rounded-lg bg-neutral-100">
+                <div className="relative aspect-square overflow-hidden rounded-lg bg-neutral-100">
                   {product.thumbnail ? (
-                    <img
+                    <Image
                       src={product.thumbnail}
                       alt={product.title}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 200px"
+                      loader={imageLoader}
+                      className="object-cover transition-transform group-hover:scale-105"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-neutral-400">
