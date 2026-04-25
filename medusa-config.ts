@@ -144,6 +144,18 @@ module.exports = defineConfig({
               channels: ["feed", "email"],
             },
           },
+          {
+            // Audit-only — the real WhatsApp send happens in
+            // src/modules/social-provider/whatsapp-service.ts. This provider
+            // exists so callers can persist a notification row via
+            // notificationModuleService.createNotifications({ channel: "whatsapp", … })
+            // after the upstream send succeeds.
+            resolve: "./src/modules/notification-whatsapp-audit",
+            id: "whatsapp-audit",
+            options: {
+              channels: ["whatsapp"],
+            },
+          },
         ],
       },
     },

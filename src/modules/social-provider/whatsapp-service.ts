@@ -5,6 +5,24 @@ import { ENCRYPTION_MODULE } from "../encryption"
 import type EncryptionService from "../encryption/service"
 import type { EncryptedData } from "../encryption"
 import type { WhatsAppPlatformApiConfig } from "../socials/types/whatsapp-platform"
+import {
+  recordWhatsappNotification,
+  type RecordWhatsappNotificationInput,
+} from "../messaging/lib/record-whatsapp-notification"
+
+/**
+ * Optional audit context callers can attach to a send. When present, the
+ * service writes a row to the Notification Module after Meta accepts the
+ * message. Omit when the send isn't worth auditing (admin help dumps,
+ * transient error replies — see `whatsapp-admin-handler.ts`).
+ *
+ * `to` is filled in from the recipient on the send call — callers don't
+ * need to repeat it. `wa_message_id` is filled in from Meta's response.
+ */
+export type WhatsAppAuditContext = Omit<
+  RecordWhatsappNotificationInput,
+  "to" | "wa_message_id"
+>
 
 const GRAPH_API_VERSION = "v21.0"
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`
@@ -221,8 +239,14 @@ export default class WhatsAppService {
   /**
    * Send a text message to a WhatsApp number
    * @param replyToWaMessageId - WhatsApp message ID to reply to (shows quoted message)
+   * @param audit - optional context for Notification Module audit row
    */
-  async sendTextMessage(to: string, text: string, replyToWaMessageId?: string): Promise<WhatsAppMessageResponse> {
+  async sendTextMessage(
+    to: string,
+    text: string,
+    replyToWaMessageId?: string,
+    audit?: WhatsAppAuditContext
+  ): Promise<WhatsAppMessageResponse> {
     const payload: any = {
       messaging_product: "whatsapp",
       to,
@@ -232,7 +256,7 @@ export default class WhatsAppService {
     if (replyToWaMessageId) {
       payload.context = { message_id: replyToWaMessageId }
     }
-    return this.sendRequest(payload)
+    return this.sendRequest(payload, to, audit)
   }
 
   /**
@@ -240,14 +264,19 @@ export default class WhatsAppService {
    */
   async sendInteractiveMessage(
     to: string,
-    interactive: WhatsAppInteractiveMessage
+    interactive: WhatsAppInteractiveMessage,
+    audit?: WhatsAppAuditContext
   ): Promise<WhatsAppMessageResponse> {
-    return this.sendRequest({
-      messaging_product: "whatsapp",
+    return this.sendRequest(
+      {
+        messaging_product: "whatsapp",
+        to,
+        type: "interactive",
+        interactive,
+      },
       to,
-      type: "interactive",
-      interactive,
-    })
+      audit
+    )
   }
 
   /**
@@ -262,7 +291,8 @@ export default class WhatsAppService {
       parameters: Array<{ type: string; text?: string; image?: { link: string } }>
       sub_type?: string
       index?: number
-    }>
+    }>,
+    audit?: WhatsAppAuditContext
   ): Promise<WhatsAppMessageResponse> {
     const payload: any = {
       messaging_product: "whatsapp",
@@ -278,7 +308,11 @@ export default class WhatsAppService {
       payload.template.components = components
     }
 
-    return this.sendRequest(payload)
+    return this.sendRequest(payload, to, {
+      // Default the template field so callers don't have to.
+      template: templateName,
+      ...(audit ?? {}),
+    })
   }
 
   /**
@@ -493,14 +527,19 @@ export default class WhatsAppService {
   async sendImageMessage(
     to: string,
     imageUrl: string,
-    caption?: string
+    caption?: string,
+    audit?: WhatsAppAuditContext
   ): Promise<WhatsAppMessageResponse> {
-    return this.sendRequest({
-      messaging_product: "whatsapp",
+    return this.sendRequest(
+      {
+        messaging_product: "whatsapp",
+        to,
+        type: "image",
+        image: { link: imageUrl, ...(caption ? { caption } : {}) },
+      },
       to,
-      type: "image",
-      image: { link: imageUrl, ...(caption ? { caption } : {}) },
-    })
+      audit
+    )
   }
 
   /**
@@ -510,18 +549,23 @@ export default class WhatsAppService {
     to: string,
     documentUrl: string,
     caption?: string,
-    filename?: string
+    filename?: string,
+    audit?: WhatsAppAuditContext
   ): Promise<WhatsAppMessageResponse> {
-    return this.sendRequest({
-      messaging_product: "whatsapp",
-      to,
-      type: "document",
-      document: {
-        link: documentUrl,
-        ...(caption ? { caption } : {}),
-        ...(filename ? { filename } : {}),
+    return this.sendRequest(
+      {
+        messaging_product: "whatsapp",
+        to,
+        type: "document",
+        document: {
+          link: documentUrl,
+          ...(caption ? { caption } : {}),
+          ...(filename ? { filename } : {}),
+        },
       },
-    })
+      to,
+      audit
+    )
   }
 
   /**
@@ -530,14 +574,19 @@ export default class WhatsAppService {
   async sendVideoMessage(
     to: string,
     videoUrl: string,
-    caption?: string
+    caption?: string,
+    audit?: WhatsAppAuditContext
   ): Promise<WhatsAppMessageResponse> {
-    return this.sendRequest({
-      messaging_product: "whatsapp",
+    return this.sendRequest(
+      {
+        messaging_product: "whatsapp",
+        to,
+        type: "video",
+        video: { link: videoUrl, ...(caption ? { caption } : {}) },
+      },
       to,
-      type: "video",
-      video: { link: videoUrl, ...(caption ? { caption } : {}) },
-    })
+      audit
+    )
   }
 
   /**
@@ -620,7 +669,17 @@ export default class WhatsAppService {
     })
   }
 
-  private async sendRequest(payload: any): Promise<WhatsAppMessageResponse> {
+  /**
+   * Lowest-level Meta send. When `to` and `audit` are provided, writes a
+   * Notification Module audit row after Meta accepts the message. Audit
+   * is intentionally last-arg + optional so non-message calls (e.g.
+   * markAsRead) skip it cleanly.
+   */
+  private async sendRequest(
+    payload: any,
+    to?: string,
+    audit?: WhatsAppAuditContext
+  ): Promise<WhatsAppMessageResponse> {
     await this.ensureConfig()
 
     if (!this.phoneNumberId || !this.accessToken) {
@@ -648,6 +707,21 @@ export default class WhatsAppService {
       )
     }
 
-    return (await resp.json()) as WhatsAppMessageResponse
+    const result = (await resp.json()) as WhatsAppMessageResponse
+
+    // Notification Module audit — best-effort. The recordWhatsappNotification
+    // helper swallows its own errors so a flaky NOTIFICATION resolve never
+    // bubbles up here. Skipped when caller didn't pass `to` (e.g. markAsRead)
+    // or didn't opt into auditing by providing `audit`.
+    if (to && audit && this.appContainer_) {
+      const wamid = result?.messages?.[0]?.id ?? null
+      await recordWhatsappNotification(this.appContainer_, {
+        ...audit,
+        to,
+        wa_message_id: wamid,
+      })
+    }
+
+    return result
   }
 }

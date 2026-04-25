@@ -6,6 +6,7 @@ import type SocialProviderService from "../../social-provider/service"
 import { SOCIALS_MODULE } from "../../socials"
 import type SocialsService from "../../socials/service"
 import { MESSAGING_MODULE } from "../../messaging"
+import type { WhatsAppAuditContext } from "../../social-provider/whatsapp-service"
 
 /**
  * Send a WhatsApp message from a visual flow — template (preferred) or text.
@@ -307,7 +308,42 @@ export const sendWhatsAppOperation: OperationDefinition = {
               ]
             : []
 
-        waResponse = await whatsapp.sendTemplateMessage(to, templateName, lang, components)
+        // Audit context — picked up by WhatsAppService and written to the
+        // Notification Module after Meta accepts the send. trigger_type
+        // resolves the originating event for wildcard flows (e.g.
+        // "production_run.reminder_assignment_pending") or falls back to the
+        // visual flow id for ad-hoc triggers.
+        const triggerType =
+          (typeof dataChain?.$trigger?.event === "string"
+            ? dataChain.$trigger.event
+            : null) || `visual_flow:${context.flowId}`
+
+        const buildAudit = (
+          extraData: Record<string, unknown> = {}
+        ): WhatsAppAuditContext => ({
+          template: templateName,
+          partner_id: resolvedPartnerId,
+          resource_type: contextType ?? null,
+          resource_id: contextId ?? null,
+          trigger_type: triggerType,
+          idempotency_key: contextType && contextId ? `${contextType}:${contextId}` : null,
+          data: {
+            mode: "template",
+            flow_id: context.flowId,
+            execution_id: context.executionId,
+            operation_key: context.operationKey,
+            platform_id: platform?.id ?? null,
+            ...extraData,
+          },
+        })
+
+        waResponse = await whatsapp.sendTemplateMessage(
+          to,
+          templateName,
+          lang,
+          components,
+          buildAudit({ variables: variableValues })
+        )
         messageType = "template"
         contentPreview = `[template:${templateName}] ${variableValues.join(" · ")}`.slice(0, 500)
       } else if (mode === "image") {
@@ -332,7 +368,28 @@ export const sendWhatsAppOperation: OperationDefinition = {
           ? interpolateString(options.caption, dataChain).slice(0, 1024)
           : undefined
 
-        waResponse = await whatsapp.sendImageMessage(to, imageUrl, caption)
+        const triggerType =
+          (typeof dataChain?.$trigger?.event === "string"
+            ? dataChain.$trigger.event
+            : null) || `visual_flow:${context.flowId}`
+
+        waResponse = await whatsapp.sendImageMessage(to, imageUrl, caption, {
+          template: null,
+          partner_id: resolvedPartnerId,
+          resource_type: contextType ?? null,
+          resource_id: contextId ?? null,
+          trigger_type: triggerType,
+          idempotency_key: contextType && contextId ? `${contextType}:${contextId}:image` : null,
+          data: {
+            mode: "image",
+            flow_id: context.flowId,
+            execution_id: context.executionId,
+            operation_key: context.operationKey,
+            platform_id: platform?.id ?? null,
+            image_url: imageUrl,
+            caption,
+          },
+        })
         messageType = "media"
         contentPreview = `[image] ${caption || imageUrl}`.slice(0, 500)
       } else {
@@ -340,7 +397,27 @@ export const sendWhatsAppOperation: OperationDefinition = {
         if (!body.trim()) {
           return failed('mode="text" requires body')
         }
-        waResponse = await whatsapp.sendTextMessage(to, body)
+
+        const triggerType =
+          (typeof dataChain?.$trigger?.event === "string"
+            ? dataChain.$trigger.event
+            : null) || `visual_flow:${context.flowId}`
+
+        waResponse = await whatsapp.sendTextMessage(to, body, undefined, {
+          template: null,
+          partner_id: resolvedPartnerId,
+          resource_type: contextType ?? null,
+          resource_id: contextId ?? null,
+          trigger_type: triggerType,
+          idempotency_key: contextType && contextId ? `${contextType}:${contextId}:text` : null,
+          data: {
+            mode: "text",
+            flow_id: context.flowId,
+            execution_id: context.executionId,
+            operation_key: context.operationKey,
+            platform_id: platform?.id ?? null,
+          },
+        })
         messageType = "text"
         contentPreview = body.slice(0, 500)
       }
@@ -406,6 +483,10 @@ export const sendWhatsAppOperation: OperationDefinition = {
       } catch (persistErr: any) {
         persistError = persistErr?.message ?? "persist failed"
       }
+
+      // Notification Module audit row was already written by WhatsAppService
+      // when the leaf send method was called above (see whatsapp-service.ts
+      // sendRequest). No second write needed here.
 
       return {
         success: true,

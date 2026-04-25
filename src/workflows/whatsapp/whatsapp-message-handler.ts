@@ -14,6 +14,7 @@ import WhatsAppService from "../../modules/social-provider/whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
+import type { WhatsAppAuditContext } from "../../modules/social-provider/whatsapp-service"
 import { downloadAndSaveWhatsAppMedia, attachMediaToRunDesign } from "./whatsapp-media-helper"
 import { BUTTON_TITLE_ACTIONS } from "../../scripts/whatsapp-templates/partner-run-templates"
 
@@ -201,14 +202,32 @@ export async function handleIncomingMessage(
       })
     }
   }
+  // Default audit context for every send the message handler makes — picked
+  // up by WhatsAppService and written to the Notification Module after Meta
+  // accepts. Per-call sites that want a more specific trigger_type override
+  // by passing audit themselves.
+  const defaultAudit: WhatsAppAuditContext = {
+    partner_id: partner.partnerId,
+    trigger_type: "whatsapp_message_handler",
+    data: { conversation_id: conversationId },
+  }
   const whatsapp = Object.create(whatsappRaw) as typeof whatsappRaw
-  whatsapp.sendTextMessage = async (to: string, text: string, replyTo?: string) => {
-    const result = await whatsappRaw.sendTextMessage(to, text, replyTo)
+  whatsapp.sendTextMessage = async (
+    to: string,
+    text: string,
+    replyTo?: string,
+    audit?: WhatsAppAuditContext
+  ) => {
+    const result = await whatsappRaw.sendTextMessage(to, text, replyTo, audit ?? defaultAudit)
     persistSend(result, text)
     return result
   }
-  whatsapp.sendInteractiveMessage = async (to: string, interactive: any) => {
-    const result = await whatsappRaw.sendInteractiveMessage(to, interactive)
+  whatsapp.sendInteractiveMessage = async (
+    to: string,
+    interactive: any,
+    audit?: WhatsAppAuditContext
+  ) => {
+    const result = await whatsappRaw.sendInteractiveMessage(to, interactive, audit ?? defaultAudit)
     persistSend(result, interactive?.body?.text || "[interactive]")
     return result
   }
@@ -1497,5 +1516,9 @@ async function persistOutboundMessage(
     id: conversationId,
     last_message_at: new Date(),
   })
+
+  // Notification Module audit row was already written by WhatsAppService
+  // sendRequest() — the wrapper at the top of handleIncomingMessage passes
+  // a default audit context to the underlying send.
 }
 

@@ -1,5 +1,6 @@
 import { Modules } from "@medusajs/framework/utils"
 import WhatsAppService from "../../modules/social-provider/whatsapp-service"
+import type { WhatsAppAuditContext } from "../../modules/social-provider/whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
@@ -114,22 +115,22 @@ export async function handleAdminMessage(
         return await handleViewPartner(scope, whatsapp, message.from, args[0])
 
       case "create_partner":
-        return await handleCreatePartner(scope, whatsapp, message.from, args)
+        return await handleCreatePartner(scope, whatsapp, message.from, args, admin)
 
       case "runs":
         return await handleListRuns(scope, whatsapp, message.from)
 
       case "run":
-        return await handleViewRun(scope, whatsapp, message.from, args[0])
+        return await handleViewRun(scope, whatsapp, message.from, args[0], admin)
 
       case "approve_run":
-        return await handleApproveRun(scope, whatsapp, message.from, args[0])
+        return await handleApproveRun(scope, whatsapp, message.from, args[0], admin)
 
       case "cancel_run":
-        return await handleCancelRun(scope, whatsapp, message.from, args[0])
+        return await handleCancelRun(scope, whatsapp, message.from, args[0], admin)
 
       case "send_run":
-        return await handleSendRun(scope, whatsapp, message.from, args[0])
+        return await handleSendRun(scope, whatsapp, message.from, args[0], admin)
 
       case "payments":
         return await handleListPayments(scope, whatsapp, message.from)
@@ -365,7 +366,8 @@ async function handleCreatePartner(
   scope: any,
   whatsapp: WhatsAppService,
   phone: string,
-  args: string[]
+  args: string[],
+  admin: ResolvedAdmin
 ): Promise<AdminHandlerResult> {
   // Expected: create partner <name> <email> <phone>
   // Name can have spaces if quoted, but for WhatsApp simplicity: first arg = name, second = email, third = phone
@@ -416,9 +418,22 @@ async function handleCreatePartner(
 
     const partnerId = (result as any)?.partnerWithAdmin?.createdPartner?.id || "unknown"
 
+    const audit: WhatsAppAuditContext = {
+      trigger_type: "whatsapp_admin.partner_created",
+      resource_type: "partner",
+      resource_id: partnerId,
+      data: {
+        admin_user_id: admin.userId,
+        admin_name: admin.name,
+        partner_name: name,
+        partner_email: email,
+      },
+    }
     await whatsapp.sendTextMessage(
       phone,
-      `Partner created!\n\n*${name}*\nEmail: ${email}${adminPhone ? `\nPhone: ${adminPhone}` : ""}\nID: \`${partnerId}\``
+      `Partner created!\n\n*${name}*\nEmail: ${email}${adminPhone ? `\nPhone: ${adminPhone}` : ""}\nID: \`${partnerId}\``,
+      undefined,
+      audit
     )
     return { handled: true, action: "create_partner" }
   } catch (e: any) {
@@ -476,7 +491,8 @@ async function handleViewRun(
   scope: any,
   whatsapp: WhatsAppService,
   phone: string,
-  runId: string
+  runId: string,
+  admin: ResolvedAdmin
 ): Promise<AdminHandlerResult> {
   if (!runId) {
     await whatsapp.sendTextMessage(phone, "Usage: `run <run_id>`")
@@ -523,12 +539,28 @@ async function handleViewRun(
   }
 
   if (buttons.length > 0) {
-    await whatsapp.sendInteractiveMessage(phone, {
-      type: "button",
-      body: { text: lines.join("\n") },
-      action: { buttons },
-    })
+    const audit: WhatsAppAuditContext = {
+      trigger_type: "whatsapp_admin.run_view_prompt",
+      resource_type: "production_run",
+      resource_id: runId,
+      data: {
+        admin_user_id: admin.userId,
+        admin_name: admin.name,
+        run_status: run.status,
+        offered_actions: buttons.map((b) => b.reply.id),
+      },
+    }
+    await whatsapp.sendInteractiveMessage(
+      phone,
+      {
+        type: "button",
+        body: { text: lines.join("\n") },
+        action: { buttons },
+      },
+      audit
+    )
   } else {
+    // No actionable state — read-only detail view, not worth auditing.
     await whatsapp.sendTextMessage(phone, lines.join("\n"))
   }
 
@@ -539,7 +571,8 @@ async function handleApproveRun(
   scope: any,
   whatsapp: WhatsAppService,
   phone: string,
-  runId: string
+  runId: string,
+  admin: ResolvedAdmin
 ): Promise<AdminHandlerResult> {
   if (!runId) {
     await whatsapp.sendTextMessage(phone, "Usage: `approve run <run_id>`")
@@ -552,15 +585,29 @@ async function handleApproveRun(
 
   const designName = await getDesignName(scope, runId)
 
-  await whatsapp.sendInteractiveMessage(phone, {
-    type: "button",
-    body: { text: `Run *${runId}* approved.\nDesign: ${designName}\n\nSend to partner now?` },
-    action: {
-      buttons: [
-        { type: "reply", reply: { id: `send_run:${runId}`, title: "Send to Partner" } },
-      ],
+  const audit: WhatsAppAuditContext = {
+    trigger_type: "whatsapp_admin.run_approved",
+    resource_type: "production_run",
+    resource_id: runId,
+    data: {
+      admin_user_id: admin.userId,
+      admin_name: admin.name,
+      design_name: designName,
     },
-  })
+  }
+  await whatsapp.sendInteractiveMessage(
+    phone,
+    {
+      type: "button",
+      body: { text: `Run *${runId}* approved.\nDesign: ${designName}\n\nSend to partner now?` },
+      action: {
+        buttons: [
+          { type: "reply", reply: { id: `send_run:${runId}`, title: "Send to Partner" } },
+        ],
+      },
+    },
+    audit
+  )
 
   return { handled: true, action: "approve_run" }
 }
@@ -569,7 +616,8 @@ async function handleCancelRun(
   scope: any,
   whatsapp: WhatsAppService,
   phone: string,
-  runId: string
+  runId: string,
+  admin: ResolvedAdmin
 ): Promise<AdminHandlerResult> {
   if (!runId) {
     await whatsapp.sendTextMessage(phone, "Usage: `cancel run <run_id>`")
@@ -610,7 +658,17 @@ async function handleCancelRun(
     }])
   } catch { /* non-fatal */ }
 
-  await whatsapp.sendTextMessage(phone, `Run *${runId}* has been cancelled.`)
+  const audit: WhatsAppAuditContext = {
+    trigger_type: "whatsapp_admin.run_cancelled",
+    resource_type: "production_run",
+    resource_id: runId,
+    data: {
+      admin_user_id: admin.userId,
+      admin_name: admin.name,
+      previous_status: run.status,
+    },
+  }
+  await whatsapp.sendTextMessage(phone, `Run *${runId}* has been cancelled.`, undefined, audit)
   return { handled: true, action: "cancel_run" }
 }
 
@@ -618,7 +676,8 @@ async function handleSendRun(
   scope: any,
   whatsapp: WhatsAppService,
   phone: string,
-  runId: string
+  runId: string,
+  admin: ResolvedAdmin
 ): Promise<AdminHandlerResult> {
   if (!runId) {
     await whatsapp.sendTextMessage(phone, "Usage: `send run <run_id>`")
@@ -640,9 +699,23 @@ async function handleSendRun(
   })
 
   const designName = await getDesignName(scope, run.design_id)
+  const audit: WhatsAppAuditContext = {
+    trigger_type: "whatsapp_admin.run_sent_to_production",
+    resource_type: "production_run",
+    resource_id: runId,
+    data: {
+      admin_user_id: admin.userId,
+      admin_name: admin.name,
+      design_name: designName,
+      partner_id: run.partner_id ?? null,
+      template_names: templateNames,
+    },
+  }
   await whatsapp.sendTextMessage(
     phone,
-    `Run *${runId}* sent to partner.\nDesign: ${designName}\n\nThe partner will receive a WhatsApp notification.`
+    `Run *${runId}* sent to partner.\nDesign: ${designName}\n\nThe partner will receive a WhatsApp notification.`,
+    undefined,
+    audit
   )
   return { handled: true, action: "send_run" }
 }
@@ -715,9 +788,25 @@ async function handleReviewPayment(
   })
 
   const emoji = decision === "approve" ? "Approved" : "Rejected"
+  const audit: WhatsAppAuditContext = {
+    trigger_type:
+      decision === "approve"
+        ? "whatsapp_admin.payment_approved"
+        : "whatsapp_admin.payment_rejected",
+    resource_type: "payment_submission",
+    resource_id: submissionId,
+    data: {
+      admin_user_id: admin.userId,
+      admin_name: admin.name,
+      decision,
+      ...(reason ? { rejection_reason: reason } : {}),
+    },
+  }
   await whatsapp.sendTextMessage(
     phone,
-    `Payment *${submissionId}* ${emoji.toLowerCase()}.${reason ? `\nReason: ${reason}` : ""}`
+    `Payment *${submissionId}* ${emoji.toLowerCase()}.${reason ? `\nReason: ${reason}` : ""}`,
+    undefined,
+    audit
   )
   return { handled: true, action: `${decision}_payment` }
 }
