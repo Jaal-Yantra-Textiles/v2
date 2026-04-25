@@ -84,6 +84,7 @@ const CartDropdown = ({
           <LocalizedClientLink
             className="hover:text-ui-fg-base"
             href="/cart"
+            prefetch={false}
             data-testid="nav-cart-link"
           >{`Cart (${totalItems})`}</LocalizedClientLink>
         </PopoverButton>
@@ -191,7 +192,7 @@ const CartDropdown = ({
                       })}
                     </span>
                   </div>
-                  <LocalizedClientLink href="/cart" passHref>
+                  <LocalizedClientLink href="/cart" prefetch={false} passHref>
                     <Button
                       className="w-full"
                       size="large"

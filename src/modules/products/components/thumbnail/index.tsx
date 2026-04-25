@@ -5,6 +5,7 @@ import Image from "next/image"
 import React from "react"
 
 import PlaceholderImage from "@modules/common/icons/placeholder-image"
+import { isUnoptimizableImageUrl } from "@lib/util/image-optimizer"
 
 type ThumbnailProps = {
   thumbnail?: string | null
@@ -98,6 +99,7 @@ const ImageOrPlaceholder = ({
         quality={75}
         sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
         fill
+        unoptimized={isUnoptimizableImageUrl(image)}
         onLoad={() => setIsLoaded(true)}
       />
     </div>

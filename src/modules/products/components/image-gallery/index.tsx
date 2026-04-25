@@ -5,6 +5,8 @@ import { Container } from "@medusajs/ui"
 import Image from "next/image"
 import { useState } from "react"
 
+import { isUnoptimizableImageUrl } from "@lib/util/image-optimizer"
+
 const GalleryImage = ({ image, index }: { image: HttpTypes.StoreProductImage; index: number }) => {
   const [isLoaded, setIsLoaded] = useState(false)
 
@@ -24,6 +26,7 @@ const GalleryImage = ({ image, index }: { image: HttpTypes.StoreProductImage; in
           alt={`Product image ${index + 1}`}
           fill
           sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
+          unoptimized={isUnoptimizableImageUrl(image.url)}
           onLoad={() => setIsLoaded(true)}
         />
       )}
