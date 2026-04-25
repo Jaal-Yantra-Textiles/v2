@@ -1,9 +1,9 @@
 {
-  "name": "medusa-next",
+  "name": "@jyt/storefront",
   "version": "1.0.3",
   "private": true,
   "author": "Kasper Fabricius Kristensen <kasper@medusajs.com> & Victor Gerbrands <victor@medusajs.com> (https://www.medusajs.com)",
-  "description": "Next.js Starter to be used with Medusa V2",
+  "description": "JYT web storefront (Next.js, Medusa v2 sales channel).",
   "keywords": [
     "medusa-storefront"
   ],
@@ -68,30 +68,5 @@
     "tailwindcss": "^3.0.23",
     "typescript": "^5.3.2",
     "vitest": "^4.0.18"
-  },
-  "packageManager": "pnpm@9.0.0",
-  "overrides": {
-    "react": "19.0.4",
-    "react-dom": "19.0.4"
-  },
-  "pnpm": {
-    "overrides": {
-      "@types/react": "19.0.4",
-      "@types/react-dom": "19.0.4",
-      "react": "19.0.4",
-      "react-dom": "19.0.4"
-    },
-    "peerDependencyRules": {
-      "ignoreMissing": [
-        "@types/react",
-        "@types/react-dom",
-        "react",
-        "react-dom"
-      ],
-      "allowedVersions": {
-        "react": "19.0.4",
-        "react-dom": "19.0.4"
-      }
-    }
   }
 }

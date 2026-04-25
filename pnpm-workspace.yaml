@@ -2,3 +2,4 @@ packages:
   - "apps/partner-ui"
   - "apps/media-gallery"
   - "apps/storefront-starter"
+  - "apps/storefront"
