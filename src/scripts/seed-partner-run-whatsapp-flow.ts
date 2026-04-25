@@ -137,6 +137,34 @@ if (!phone) {
   return { skipped: true, reason: "no_phone", event: eventName, partner_id: partner.id }
 }
 
+// Pick the partner's preferred WhatsApp language. Priority:
+//   1. admin whose phone matches the resolved recipient phone
+//   2. any active admin with a preferred_language set
+//   3. any admin with a preferred_language set (inactive included)
+// Falls back to null so send_whatsapp's own conv-metadata / phone-heuristic
+// chain still has a chance. Phone match is digits-only suffix to tolerate
+// "+91 …", "91…", and "0…" stylings.
+function digitsOnly(v) {
+  return (v || "").replace(/[^0-9]/g, "")
+}
+function phoneMatch(a, b) {
+  const ad = digitsOnly(a), bd = digitsOnly(b)
+  if (!ad || !bd) return false
+  return ad === bd || ad.endsWith(bd) || bd.endsWith(ad)
+}
+const allAdmins = partner.admins || []
+const matchedAdmin =
+  allAdmins.find(a => a && a.preferred_language && phoneMatch(a.phone, phone))
+const activeWithLang =
+  allAdmins.find(a => a && a.is_active && a.preferred_language)
+const anyWithLang =
+  allAdmins.find(a => a && a.preferred_language)
+const languageCode =
+  matchedAdmin?.preferred_language ||
+  activeWithLang?.preferred_language ||
+  anyWithLang?.preferred_language ||
+  null
+
 // Extract cancellation / completion context from the event payload where available.
 const notes = $trigger?.payload?.notes || run?.cancelled_reason || "No reason provided"
 const producedQty = String($trigger?.payload?.produced_quantity ?? run?.produced_quantity ?? quantity)
@@ -222,6 +250,11 @@ return {
   partner_id: partner.id,
   template_name: config.template,
   variables: config.vars,
+  // Emit the resolved language so the send op uses the partner's saved
+  // preference (admin.preferred_language) rather than falling through to
+  // the operation's conv-metadata / phone-heuristic default. Empty string
+  // when no preference is on file → send_whatsapp's own chain takes over.
+  language_code: languageCode || "",
   context_type: "production_run",
   // context_id drives send_whatsapp dedup. For reminder events it carries
   // the per-day suffix so consecutive days don't dedup each other.
@@ -329,6 +362,7 @@ const FLOW_DEF = {
           "admins.last_name",
           "admins.phone",
           "admins.is_active",
+          "admins.preferred_language",
         ],
         filters: { id: "{{ $trigger.payload.partner_id }}" },
         limit: 1,
@@ -406,6 +440,10 @@ const FLOW_DEF = {
         mode: "template",
         template_name: "{{ resolve_template.template_name }}",
         variables: "{{ resolve_template.variables }}",
+        // Honor the partner's saved language preference. Empty string
+        // (no preference on file) lets send_whatsapp's own resolver
+        // chain (conv metadata → phone heuristic → env → "hi") take over.
+        language_code: "{{ resolve_template.language_code }}",
         context_type: "{{ resolve_template.context_type }}",
         context_id: "{{ resolve_template.context_id }}",
         // Standard 60-minute dedup on (context_type, context_id) — blocks

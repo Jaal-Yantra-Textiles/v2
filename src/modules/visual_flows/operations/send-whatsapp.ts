@@ -266,6 +266,11 @@ export const sendWhatsAppOperation: OperationDefinition = {
       let waResponse: any = null
       let messageType: "template" | "text" | "media" = "template"
       let contentPreview = ""
+      // Captured per-mode below so we can persist them onto
+      // messaging_message.metadata for after-the-fact auditing of which
+      // template/language Meta actually saw. Stays null for non-template modes.
+      let resolvedTemplateName: string | null = null
+      let resolvedLanguageCode: string | null = null
 
       if (mode === "template") {
         const templateName = options.template_name
@@ -346,6 +351,8 @@ export const sendWhatsAppOperation: OperationDefinition = {
         )
         messageType = "template"
         contentPreview = `[template:${templateName}] ${variableValues.join(" · ")}`.slice(0, 500)
+        resolvedTemplateName = templateName
+        resolvedLanguageCode = lang
       } else if (mode === "image") {
         const imageUrl = options.image_url
           ? interpolateString(options.image_url, dataChain).trim()
@@ -457,6 +464,10 @@ export const sendWhatsAppOperation: OperationDefinition = {
             execution_id: context.executionId,
             operation_key: context.operationKey,
             sender_platform_id: platform?.id ?? null,
+            // Auditable record of what Meta actually saw — null for
+            // non-template modes (text/media don't have these concepts).
+            template_name: resolvedTemplateName,
+            language_code: resolvedLanguageCode,
           },
         })
         messageId = msg?.id ?? null
