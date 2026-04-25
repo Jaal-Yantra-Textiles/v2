@@ -3,6 +3,7 @@
   "version": "12.15.0",
   "private": true,
   "workspaces": [
+    "apps/analytics",
     "apps/partner-ui",
     "apps/media-gallery",
     "apps/storefront-starter"
@@ -40,7 +41,7 @@
     "predeploy:force": "medusa db:migrate --execute-all-links",
     "generate-ui": "medusa exec ./src/scripts/generate-ui-v2.ts",
     "resolve:aliases": "tsc --showConfig -p tsconfig.json > tsconfig.resolved.json && tsc-alias -p tsconfig.resolved.json && rimraf tsconfig.resolved.json",
-    "build:analytics": "node ./src/scripts/build-analytics.js",
+    "analytics:build": "turbo run build --filter=@jyt/analytics",
     "generate:plans": "ts-node src/scripts/generate-route-plans.ts",
     "seed:plans": "ts-node src/scripts/seed-plans.ts",
     "specs:store": "medusa exec ./src/scripts/specs/store-specs-in-db.ts",
@@ -210,10 +211,10 @@
     "sass": "^1.89.2",
     "sass-embedded": "^1.89.2",
     "semantic-release": "^23.0.0",
-    "terser": "^5.44.1",
     "ts-node": "^10.9.2",
     "tsc-alias": "^1.8.16",
     "tsx": "^4.19.2",
+    "turbo": "^2.0.14",
     "typescript": "^5.9.3",
     "vite": "^5.4.14",
     "yalc": "^1.0.0-pre.53"
