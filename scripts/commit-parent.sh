@@ -227,18 +227,22 @@ run_ai_suggest() {
     return 1
   fi
 
-  local files_tmp diff_tmp
+  local files_tmp diff_tmp resp_tmp
   files_tmp="$(mktemp -t jyt-ai-files.XXXXXX)"
   diff_tmp="$(mktemp -t jyt-ai-diff.XXXXXX)"
+  resp_tmp="$(mktemp -t jyt-ai-resp.XXXXXX)"
+  trap "rm -f '$files_tmp' '$diff_tmp' '$resp_tmp'" RETURN
+
   printf '%s' "$files" >"$files_tmp"
   printf '%s' "$diff"  >"$diff_tmp"
 
-  local payload
-  payload="$(python3 - "$DASHSCOPE_MODEL" "$files_tmp" "$diff_tmp" <<'PY'
+  local payload_tmp
+  payload_tmp="$(mktemp -t jyt-ai-payload.XXXXXX)"
+  python3 - "$DASHSCOPE_MODEL" "$files_tmp" "$diff_tmp" "$payload_tmp" <<'PY'
 import json, sys
 model = sys.argv[1]
-with open(sys.argv[2]) as f: files = f.read()
-with open(sys.argv[3]) as f: diff  = f.read()
+with open(sys.argv[2], encoding="utf-8", errors="replace") as f: files = f.read()
+with open(sys.argv[3], encoding="utf-8", errors="replace") as f: diff  = f.read()
 system = (
     "You write git commit messages for the jyt Medusa e-commerce backend. "
     "Respond with ONE line in conventional-commit format: "
@@ -247,19 +251,20 @@ system = (
     "Keep under 72 chars. No quotes, no trailing period, no explanation."
 )
 user = f"Files changed:\n{files or '(none)'}\n\nDiff (may be truncated):\n{diff or '(empty)'}"
-print(json.dumps({
-    "model": model,
-    "messages": [
-        {"role": "system", "content": system},
-        {"role": "user",   "content": user},
-    ],
-    "temperature": 0.2,
-}))
+with open(sys.argv[4], 'w', encoding="utf-8") as out:
+    json.dump({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user",   "content": user},
+        ],
+        "temperature": 0.2,
+    }, out)
 PY
-)"
+  [[ -f "$payload_tmp" ]] || { c_warn "ai: payload generation failed"; return 1; }
+  trap "rm -f '$files_tmp' '$diff_tmp' '$resp_tmp' '$payload_tmp'" RETURN
 
-  local resp_tmp http_code
-  resp_tmp="$(mktemp -t jyt-ai-resp.XXXXXX)"
+  local http_code
   # Write the body directly to a file — avoids bash $(...) truncating on NULs
   # or locale quirks. --max-time is generous enough for qwen-plus to finish
   # even on larger diffs; --retry handles transient network blips.
@@ -268,13 +273,12 @@ PY
     "$DASHSCOPE_BASE_URL/chat/completions" \
     -H "Authorization: Bearer $DASHSCOPE_API_KEY" \
     -H "Content-Type: application/json" \
-    -d "$payload" 2>/dev/null)" || http_code="000"
-  rm -f "$files_tmp" "$diff_tmp"
+    -d "@$payload_tmp" 2>/dev/null)" || http_code="000"
 
   if [[ "$http_code" != "200" ]]; then
     c_warn "ai: request failed (http $http_code)"
     [[ -s "$resp_tmp" ]] && head -c 400 "$resp_tmp" >&2 && echo >&2
-    rm -f "$resp_tmp"; return 1
+    return 1
   fi
 
   local msg
@@ -304,8 +308,7 @@ for ch in ('"', "'", '`'):
     if first.startswith(ch) and first.endswith(ch): first = first[1:-1]
 print(first)
 PY
-)" || { rm -f "$resp_tmp"; c_warn "ai: couldn't parse response"; return 1; }
-  rm -f "$resp_tmp"
+)" || { c_warn "ai: couldn't parse response"; return 1; }
 
   [[ -z "$msg" ]] && { c_warn "ai: empty message"; return 1; }
   printf '%s\n' "$msg"

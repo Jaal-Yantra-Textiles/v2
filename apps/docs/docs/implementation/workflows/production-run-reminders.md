@@ -129,6 +129,25 @@ With `context_id` carrying a per-day suffix, downstream nodes that *display* the
 ### 6. Three new event names registered with the visual-flow subscriber
 `src/subscribers/visual-flow-event-trigger.ts` was extended to subscribe to `production_run.reminder_assignment_pending`, `.reminder_not_started`, `.reminder_idle`. Without this, the eventBus wouldn't deliver the new events to the visual-flow trigger machinery — even though the existing flow's `event_pattern: "production_run.*"` would otherwise match.
 
+## Language selection at send time
+
+Reminders are written once, sent to partners across multiple WABAs in different languages. Selection happens **at send time inside the `send_whatsapp` operation** — it is not the responsibility of the reminder flow or the discoverer.
+
+Resolution order (`src/modules/visual_flows/operations/send-whatsapp.ts:277-282`):
+
+1. Explicit `options.language_code` on the send node (the reminder flow does **not** set this).
+2. `resolveLanguageFromConversation(messagingService, partnerId, to)` — looks at the partner's WhatsApp conversation history for a previously-saved language preference.
+3. `inferLanguageFromPhonePrefix(to)` — heuristic: `+91` → `hi`, everything else → `en`.
+4. Env `WHATSAPP_TEMPLATE_LANG`.
+5. Default `hi`.
+
+Per-platform policy for which languages get **submitted to a WABA** at template creation time is `languagesForPlatform(platform)` in `src/scripts/whatsapp-templates/partner-run-templates.ts:251`:
+- Platforms with `+91` in `api_config.country_codes` → `["en", "hi"]`
+- Every other platform → `["en"]`
+- Override via env `WHATSAPP_PLATFORM_LANGUAGES="AU=en;IN=en,hi;Europe=en,it"` matched against `api_config.label`.
+
+**Implication for these three reminder templates:** every IN-region WABA needs both `en` and `hi` approved before the flow is activated, otherwise partners with Hindi conversation history fall back to whatever language the resolver picks next, and a partner whose phone is `+91` but whose conversation has no saved language gets `hi` — if `hi` isn't approved on that WABA, the send fails. Both variants are required.
+
 ## Cron timing — read this before activating
 
 The repo's cron evaluator (`src/jobs/run-scheduled-visual-flows.ts:82-103`) uses `date.getMinutes()` and `date.getHours()` — that is, **the container's local time**, not UTC. The seed script uses `30 4 * * 1-5`, which is 10:00 IST Mon-Fri **only if the container runs in UTC**.
@@ -144,15 +163,163 @@ If the container runs in IST, edit the flow in the admin UI and change the cron 
 
 ## Activation Gate
 
-1. **Templates approved on every WABA.** Three new templates:
+1. **Templates approved on every WABA.** Three new templates, each with `en` + `hi` variants for IN-region WABAs (six creates total per IN WABA, two per non-IN WABA):
    - `jyt_production_run_reminder_pending_v1` (4 vars)
    - `jyt_production_run_reminder_not_started_v1` (4 vars)
    - `jyt_production_run_reminder_idle_v1` (5 vars)
 
-   Check status:
+   Specs are in `src/scripts/whatsapp-templates/partner-run-templates.ts` (the canonical source, used by both paths below).
+
+   **Path A — CLI fan-out (recommended for multi-WABA setups):**
+   ```bash
+   # Dry-run: show plan, no network calls
+   MODE=dry-run npx medusa exec ./src/scripts/manage-whatsapp-templates.ts
+
+   # Submit only the missing variants, on every configured WhatsApp platform
+   MODE=upsert  npx medusa exec ./src/scripts/manage-whatsapp-templates.ts
+
+   # Restrict to specific platforms
+   PLATFORM_IDS=spfm_01ABC,spfm_01DEF \
+     MODE=upsert npx medusa exec ./src/scripts/manage-whatsapp-templates.ts
+   ```
+
+   **Path B — Admin API (one POST per template variant):**
+
+   The existing route `POST /admin/social-platforms/whatsapp/templates?platform_id=<id>` accepts a `{ name, category, language, components }` body and forwards to Meta's Graph API. Six bodies follow — paste into Postman / curl / the admin client.
+
+   <details>
+   <summary><strong>Body 1 — `jyt_production_run_reminder_pending_v1` (en)</strong></summary>
+
+   ```json
+   {
+     "name": "jyt_production_run_reminder_pending_v1",
+     "category": "UTILITY",
+     "language": "en",
+     "components": [
+       {
+         "type": "BODY",
+         "text": "Hi {{1}}, a quick reminder — production run {{3}} for design {{2}} has been waiting for your response.\n\n*Waiting since:* {{4}} day(s) ago\n\nPlease open the partner portal and tap Accept or Decline so we can plan the next steps. Reply here if you need help.",
+         "example": { "body_text": [["Rajesh", "Block Print Kurta", "prun_01ABC", "2"]] }
+       }
+     ]
+   }
+   ```
+   </details>
+
+   <details>
+   <summary><strong>Body 2 — `jyt_production_run_reminder_pending_v1` (hi)</strong></summary>
+
+   ```json
+   {
+     "name": "jyt_production_run_reminder_pending_v1",
+     "category": "UTILITY",
+     "language": "hi",
+     "components": [
+       {
+         "type": "BODY",
+         "text": "नमस्ते {{1}}, याद दिला रहे हैं — डिज़ाइन {{2}} के लिए प्रोडक्शन रन {{3}} अभी भी आपके उत्तर की प्रतीक्षा में है।\n\n*प्रतीक्षा अवधि:* {{4}} दिन\n\nकृपया पार्टनर पोर्टल खोलें और स्वीकार करें या मना करें पर टैप करें ताकि हम अगले कदम तय कर सकें। मदद चाहिए तो यहीं उत्तर दें।",
+         "example": { "body_text": [["राजेश", "ब्लॉक प्रिंट कुर्ता", "prun_01ABC", "2"]] }
+       }
+     ]
+   }
+   ```
+   </details>
+
+   <details>
+   <summary><strong>Body 3 — `jyt_production_run_reminder_not_started_v1` (en)</strong></summary>
+
+   ```json
+   {
+     "name": "jyt_production_run_reminder_not_started_v1",
+     "category": "UTILITY",
+     "language": "en",
+     "components": [
+       {
+         "type": "BODY",
+         "text": "Hi {{1}}, just checking in — you've accepted production run {{3}} for design {{2}}, but we haven't seen it start yet.\n\n*Days since acceptance:* {{4}}\n\nIf you've already begun, please tap Start in the partner portal so we can track progress. Reply here if you're blocked on anything and the team will help.",
+         "example": { "body_text": [["Rajesh", "Block Print Kurta", "prun_01ABC", "2"]] }
+       }
+     ]
+   }
+   ```
+   </details>
+
+   <details>
+   <summary><strong>Body 4 — `jyt_production_run_reminder_not_started_v1` (hi)</strong></summary>
+
+   ```json
+   {
+     "name": "jyt_production_run_reminder_not_started_v1",
+     "category": "UTILITY",
+     "language": "hi",
+     "components": [
+       {
+         "type": "BODY",
+         "text": "नमस्ते {{1}}, बस संपर्क कर रहे हैं — आपने डिज़ाइन {{2}} के लिए प्रोडक्शन रन {{3}} स्वीकार किया है, लेकिन काम अभी शुरू नहीं हुआ है।\n\n*स्वीकृति के बाद के दिन:* {{4}}\n\nयदि आप पहले से शुरू कर चुके हैं, तो कृपया पार्टनर पोर्टल में Start (शुरू करें) पर टैप करें ताकि हम प्रगति ट्रैक कर सकें। कोई बाधा हो तो यहीं उत्तर दें, टीम मदद करेगी।",
+         "example": { "body_text": [["राजेश", "ब्लॉक प्रिंट कुर्ता", "prun_01ABC", "2"]] }
+       }
+     ]
+   }
+   ```
+   </details>
+
+   <details>
+   <summary><strong>Body 5 — `jyt_production_run_reminder_idle_v1` (en)</strong></summary>
+
+   ```json
+   {
+     "name": "jyt_production_run_reminder_idle_v1",
+     "category": "UTILITY",
+     "language": "en",
+     "components": [
+       {
+         "type": "BODY",
+         "text": "Hi {{1}}, checking in on production run {{3}} for design {{2}} — it's been quiet for a few days.\n\n*Progress:* {{4}} of {{5}} pieces produced\n\nPlease log a fresh produced-quantity update in the partner portal so we know where things stand. Reply here if you're blocked and the team will help.",
+         "example": { "body_text": [["Rajesh", "Block Print Kurta", "prun_01ABC", "120", "250"]] }
+       }
+     ]
+   }
+   ```
+   </details>
+
+   <details>
+   <summary><strong>Body 6 — `jyt_production_run_reminder_idle_v1` (hi)</strong></summary>
+
+   ```json
+   {
+     "name": "jyt_production_run_reminder_idle_v1",
+     "category": "UTILITY",
+     "language": "hi",
+     "components": [
+       {
+         "type": "BODY",
+         "text": "नमस्ते {{1}}, डिज़ाइन {{2}} के लिए प्रोडक्शन रन {{3}} पर अपडेट चाहिए — कुछ दिनों से कोई गतिविधि नहीं है।\n\n*प्रगति:* {{5}} में से {{4}} पीस पूरे\n\nकृपया पार्टनर पोर्टल में ताज़ा उत्पादित मात्रा अपडेट दर्ज करें ताकि हमें वर्तमान स्थिति का पता चले। कोई बाधा हो तो यहीं उत्तर दें, टीम मदद करेगी।",
+         "example": { "body_text": [["राजेश", "ब्लॉक प्रिंट कुर्ता", "prun_01ABC", "120", "250"]] }
+       }
+     ]
+   }
+   ```
+   </details>
+
+   **Curl pattern (Path B):**
+   ```bash
+   curl -X POST "$BACKEND/admin/social-platforms/whatsapp/templates?platform_id=$PLATFORM_ID" \
+     -H "Authorization: Bearer $ADMIN_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d @body-1.json
+   ```
+
+   Repeat with `platform_id` swapped for each WABA you need approved on. Send the `hi` bodies only against IN-region WABAs (those with `+91` in `country_codes`); skip `hi` for non-IN WABAs (`languagesForPlatform` policy).
+
+   **Verifying approval status (either path):**
    ```bash
    MODE=dry-run npx medusa exec ./src/scripts/manage-whatsapp-templates.ts
+   # …or via the admin API:
+   curl -s "$BACKEND/admin/social-platforms/whatsapp/templates?platform_id=$PLATFORM_ID&status=APPROVED" \
+     -H "Authorization: Bearer $ADMIN_TOKEN" | jq '.templates[] | select(.name | startswith("jyt_production_run_reminder_"))'
    ```
+
+   Meta typically returns `APPROVED` within minutes for UTILITY templates with no buttons; occasionally hours. Don't activate the flow until all six rows show `APPROVED`.
 
 2. **Existing wildcard flow re-seeded** so the new template mappings are live in DB. The seed refuses to overwrite — rename the existing flow to `… [OLD]` first (preserves execution history) and re-run:
    ```bash

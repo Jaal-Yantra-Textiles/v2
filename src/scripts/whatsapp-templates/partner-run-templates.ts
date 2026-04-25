@@ -150,6 +150,126 @@ const TEMPLATE_COMPLETED: TemplateSpec = {
 }
 
 /**
+ * Reminder fired when a run sits in `status='sent_to_partner'` for >24h
+ * without an `accepted_at`. Driven by the scheduled discoverer flow
+ * (src/scripts/seed-production-run-reminders-flow.ts) which emits
+ * `production_run.reminder_assignment_pending` events.
+ *
+ * Variables (must stay in this order — the seed maps them positionally):
+ *   {{1}} partner name
+ *   {{2}} design name
+ *   {{3}} run id
+ *   {{4}} days since assignment
+ *
+ * No buttons — keep informational. The send_image follow-up node in the
+ * existing wildcard flow attaches the design thumbnail + a no-password
+ * portal deep-link as a separate WhatsApp message after the template.
+ */
+const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
+  name: "jyt_production_run_reminder_pending_v1",
+  category: "UTILITY",
+  languages: [
+    {
+      language: "en",
+      body:
+        "Hi {{1}}, a quick reminder — production run {{3}} for design " +
+        "{{2}} has been waiting for your response.\n\n" +
+        "*Waiting since:* {{4}} day(s) ago\n\n" +
+        "Please open the partner portal and tap Accept or Decline so we " +
+        "can plan the next steps. Reply here if you need help.",
+      examples: ["Rajesh", "Block Print Kurta", "prun_01ABC", "2"],
+    },
+    {
+      language: "hi",
+      body:
+        "नमस्ते {{1}}, याद दिला रहे हैं — डिज़ाइन {{2}} के लिए प्रोडक्शन " +
+        "रन {{3}} अभी भी आपके उत्तर की प्रतीक्षा में है।\n\n" +
+        "*प्रतीक्षा अवधि:* {{4}} दिन\n\n" +
+        "कृपया पार्टनर पोर्टल खोलें और स्वीकार करें या मना करें पर टैप " +
+        "करें ताकि हम अगले कदम तय कर सकें। मदद चाहिए तो यहीं उत्तर दें।",
+      examples: ["राजेश", "ब्लॉक प्रिंट कुर्ता", "prun_01ABC", "2"],
+    },
+  ],
+}
+
+/**
+ * Reminder fired when `accepted_at` is set but `started_at` is null after
+ * 24h. Variables (positional, must match the seed's vars array):
+ *   {{1}} partner name
+ *   {{2}} design name
+ *   {{3}} run id
+ *   {{4}} days since acceptance
+ */
+const TEMPLATE_REMINDER_NOT_STARTED: TemplateSpec = {
+  name: "jyt_production_run_reminder_not_started_v1",
+  category: "UTILITY",
+  languages: [
+    {
+      language: "en",
+      body:
+        "Hi {{1}}, just checking in — you've accepted production run " +
+        "{{3}} for design {{2}}, but we haven't seen it start yet.\n\n" +
+        "*Days since acceptance:* {{4}}\n\n" +
+        "If you've already begun, please tap Start in the partner portal " +
+        "so we can track progress. Reply here if you're blocked on " +
+        "anything and the team will help.",
+      examples: ["Rajesh", "Block Print Kurta", "prun_01ABC", "2"],
+    },
+    {
+      language: "hi",
+      body:
+        "नमस्ते {{1}}, बस संपर्क कर रहे हैं — आपने डिज़ाइन {{2}} के लिए " +
+        "प्रोडक्शन रन {{3}} स्वीकार किया है, लेकिन काम अभी शुरू नहीं " +
+        "हुआ है।\n\n" +
+        "*स्वीकृति के बाद के दिन:* {{4}}\n\n" +
+        "यदि आप पहले से शुरू कर चुके हैं, तो कृपया पार्टनर पोर्टल में " +
+        "Start (शुरू करें) पर टैप करें ताकि हम प्रगति ट्रैक कर सकें। " +
+        "कोई बाधा हो तो यहीं उत्तर दें, टीम मदद करेगी।",
+      examples: ["राजेश", "ब्लॉक प्रिंट कुर्ता", "prun_01ABC", "2"],
+    },
+  ],
+}
+
+/**
+ * Reminder fired when `status='in_progress'` but no produced-quantity
+ * activity for >72h. Variables (positional, must match the seed's vars
+ * array):
+ *   {{1}} partner name
+ *   {{2}} design name
+ *   {{3}} run id
+ *   {{4}} produced quantity (so far)
+ *   {{5}} total / target quantity
+ */
+const TEMPLATE_REMINDER_IDLE: TemplateSpec = {
+  name: "jyt_production_run_reminder_idle_v1",
+  category: "UTILITY",
+  languages: [
+    {
+      language: "en",
+      body:
+        "Hi {{1}}, checking in on production run {{3}} for design {{2}} " +
+        "— it's been quiet for a few days.\n\n" +
+        "*Progress:* {{4}} of {{5}} pieces produced\n\n" +
+        "Please log a fresh produced-quantity update in the partner " +
+        "portal so we know where things stand. Reply here if you're " +
+        "blocked and the team will help.",
+      examples: ["Rajesh", "Block Print Kurta", "prun_01ABC", "120", "250"],
+    },
+    {
+      language: "hi",
+      body:
+        "नमस्ते {{1}}, डिज़ाइन {{2}} के लिए प्रोडक्शन रन {{3}} पर अपडेट " +
+        "चाहिए — कुछ दिनों से कोई गतिविधि नहीं है।\n\n" +
+        "*प्रगति:* {{5}} में से {{4}} पीस पूरे\n\n" +
+        "कृपया पार्टनर पोर्टल में ताज़ा उत्पादित मात्रा अपडेट दर्ज करें " +
+        "ताकि हमें वर्तमान स्थिति का पता चले। कोई बाधा हो तो यहीं उत्तर " +
+        "दें, टीम मदद करेगी।",
+      examples: ["राजेश", "ब्लॉक प्रिंट कुर्ता", "prun_01ABC", "120", "250"],
+    },
+  ],
+}
+
+/**
  * The very first message a partner gets — fired from the admin UI's
  * "Connect on WhatsApp" button (src/api/admin/partners/[id]/whatsapp-verify).
  * Keep deliberately generic — this is the conversation opener; the partner
@@ -189,6 +309,9 @@ export const PARTNER_RUN_TEMPLATES: TemplateSpec[] = [
   TEMPLATE_ASSIGNED,
   TEMPLATE_CANCELLED,
   TEMPLATE_COMPLETED,
+  TEMPLATE_REMINDER_PENDING,
+  TEMPLATE_REMINDER_NOT_STARTED,
+  TEMPLATE_REMINDER_IDLE,
 ]
 
 /**
@@ -202,6 +325,9 @@ export const TEMPLATE_NAMES = {
   RUN_ASSIGNED: TEMPLATE_ASSIGNED.name,
   RUN_CANCELLED: TEMPLATE_CANCELLED.name,
   RUN_COMPLETED: TEMPLATE_COMPLETED.name,
+  RUN_REMINDER_PENDING: TEMPLATE_REMINDER_PENDING.name,
+  RUN_REMINDER_NOT_STARTED: TEMPLATE_REMINDER_NOT_STARTED.name,
+  RUN_REMINDER_IDLE: TEMPLATE_REMINDER_IDLE.name,
 } as const
 
 // ──────────────────────────────────────────────────────────────────────────────
