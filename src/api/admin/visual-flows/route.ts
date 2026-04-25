@@ -85,6 +85,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { MedusaError } from "@medusajs/framework/utils"
 import { VISUAL_FLOWS_MODULE } from "../../../modules/visual_flows"
 import VisualFlowService from "../../../modules/visual_flows/service"
 import { z } from "@medusajs/framework/zod"
@@ -120,46 +121,74 @@ const createFlowSchema = z.object({
   })).optional(),
 })
 
+// The admin DataTable `select` filter stores its value as an array
+// (e.g. ["active"]), and `qs` serializes that to repeated query params.
+// Accept either form and normalize below.
+const STATUS_VALUES = ["active", "inactive", "draft"] as const
+const TRIGGER_VALUES = ["event", "schedule", "webhook", "manual", "another_flow"] as const
+
+const statusFilterSchema = z
+  .union([z.enum(STATUS_VALUES), z.array(z.enum(STATUS_VALUES))])
+  .optional()
+
+const triggerFilterSchema = z
+  .union([z.enum(TRIGGER_VALUES), z.array(z.enum(TRIGGER_VALUES))])
+  .optional()
+
 const listQuerySchema = z.object({
-  status: z.enum(["active", "inactive", "draft"]).optional(),
-  trigger_type: z.enum(["event", "schedule", "webhook", "manual", "another_flow"]).optional(),
+  status: statusFilterSchema,
+  trigger_type: triggerFilterSchema,
   limit: z.coerce.number().optional().default(50),
   offset: z.coerce.number().optional().default(0),
+  q: z.string().optional(),
 })
+
+const toArray = <T>(v: T | T[] | undefined): T[] | undefined =>
+  v === undefined ? undefined : Array.isArray(v) ? v : [v]
 
 /**
  * GET /admin/visual-flows
  * List all visual flows
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  try {
-    const service: VisualFlowService = req.scope.resolve(VISUAL_FLOWS_MODULE)
-    
-    const query = listQuerySchema.parse(req.query)
-    
-    const filters: Record<string, any> = {}
-    if (query.status) filters.status = query.status
-    if (query.trigger_type) filters.trigger_type = query.trigger_type
-    
-    const [flows, count] = await service.listAndCountVisualFlows(
-      filters,
-      {
-        take: query.limit,
-        skip: query.offset,
-        order: { created_at: "DESC" },
-        relations: ['operations']
-      }
+  const service: VisualFlowService = req.scope.resolve(VISUAL_FLOWS_MODULE)
+
+  const parsed = listQuerySchema.safeParse(req.query)
+  if (!parsed.success) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Invalid query: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`
     )
-    
-    res.json({
-      flows,
-      count,
-      limit: query.limit,
-      offset: query.offset,
-    })
-  } catch (error: any) {
-    res.status(400).json({ error: error.message })
   }
+  const query = parsed.data
+
+  const statuses = toArray(query.status)
+  const triggers = toArray(query.trigger_type)
+
+  const filters: Record<string, any> = {}
+  if (statuses?.length) {
+    filters.status = statuses.length === 1 ? statuses[0] : { $in: statuses }
+  }
+  if (triggers?.length) {
+    filters.trigger_type = triggers.length === 1 ? triggers[0] : { $in: triggers }
+  }
+  if (query.q) {
+    filters.name = { $ilike: `%${query.q}%` }
+  }
+
+  const [flows, count] = await service.listAndCountVisualFlows(filters, {
+    take: query.limit,
+    skip: query.offset,
+    order: { created_at: "DESC" },
+    relations: ["operations"],
+  })
+
+  res.json({
+    flows,
+    count,
+    limit: query.limit,
+    offset: query.offset,
+  })
 }
 
 /**
@@ -167,40 +196,42 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * Create a new visual flow using workflow
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  try {
-    const data = createFlowSchema.parse(req.body)
-    
-    // Use workflow for transactional creation with rollback support
-    const { result: flow, errors } = await createVisualFlowWorkflow(req.scope).run({
-      input: {
-        name: data.name,
-        description: data.description,
-        status: data.status,
-        trigger_type: data.trigger_type,
-        trigger_config: data.trigger_config,
-        canvas_state: data.canvas_state,
-        metadata: data.metadata,
-        operations: data.operations?.map((op, index) => ({
-          ...op,
-          position_x: op.position_x || 0,
-          position_y: op.position_y || 0,
-          sort_order: op.sort_order || index,
-        })),
-        connections: data.connections,
-      },
-    })
-    
-    if (errors?.length) {
-      console.error("[visual-flows] Create workflow errors:", errors)
-      return res.status(500).json({ error: "Failed to create flow", details: errors })
-    }
-    
-    res.status(201).json({ flow })
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Validation error", details: error.errors })
-    } else {
-      res.status(400).json({ error: error.message })
-    }
+  const parsed = createFlowSchema.safeParse(req.body)
+  if (!parsed.success) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Invalid body: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`
+    )
   }
+  const data = parsed.data
+
+  // Use workflow for transactional creation with rollback support
+  const { result: flow, errors } = await createVisualFlowWorkflow(req.scope).run({
+    input: {
+      name: data.name,
+      description: data.description,
+      status: data.status,
+      trigger_type: data.trigger_type,
+      trigger_config: data.trigger_config,
+      canvas_state: data.canvas_state,
+      metadata: data.metadata,
+      operations: data.operations?.map((op, index) => ({
+        ...op,
+        position_x: op.position_x || 0,
+        position_y: op.position_y || 0,
+        sort_order: op.sort_order || index,
+      })),
+      connections: data.connections,
+    },
+  })
+
+  if (errors?.length) {
+    console.error("[visual-flows] Create workflow errors:", errors)
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `Failed to create flow: ${errors.map((e: any) => e?.error?.message ?? String(e)).join("; ")}`
+    )
+  }
+
+  res.status(201).json({ flow })
 }

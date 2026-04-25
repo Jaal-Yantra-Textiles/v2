@@ -45,8 +45,12 @@ const Y_RESOLVE = 560
 const Y_COND = 700
 const Y_SEND = 840
 const Y_GEN_LINK = 980
-const Y_SEND_IMAGE = 1120
+const Y_HAS_IMAGE = 1120
+const Y_FOLLOWUP = 1260
 const Y_SKIP = 840
+
+// X for the no-image follow-up so it sits next to the image branch.
+const X_LEFT_ALT = 350
 
 // ─── Code for the resolve_template node ──────────────────────────────────────
 //
@@ -252,26 +256,30 @@ const FLOW_DEF = {
     viewport: { x: 0, y: 0, zoom: 0.7 },
     nodes: [
       { id: "trigger", type: "trigger", position: { x: X_CENTER, y: -20 }, data: { label: "Production Run — any event", triggerType: "event", triggerConfig: { event_pattern: "production_run.*" } } },
-      { id: "read_run",         type: "operation", position: { x: X_CENTER, y: Y_READ_RUN },     data: { label: "Read Production Run", operationKey: "read_run",         operationType: "read_data"    } },
-      { id: "read_partner",     type: "operation", position: { x: X_CENTER, y: Y_READ_PARTNER }, data: { label: "Read Partner",        operationKey: "read_partner",     operationType: "read_data"    } },
-      { id: "read_design",      type: "operation", position: { x: X_CENTER, y: Y_READ_DESIGN },  data: { label: "Read Design",         operationKey: "read_design",      operationType: "read_data"    } },
-      { id: "resolve_template", type: "operation", position: { x: X_CENTER, y: Y_RESOLVE },      data: { label: "Resolve Template",    operationKey: "resolve_template", operationType: "execute_code" } },
-      { id: "has_template",     type: "operation", position: { x: X_CENTER, y: Y_COND },         data: { label: "Has Template?",       operationKey: "has_template",     operationType: "condition"    } },
-      { id: "send",             type: "operation", position: { x: X_LEFT,   y: Y_SEND },         data: { label: "Send WhatsApp",       operationKey: "send",             operationType: "send_whatsapp" } },
-      { id: "gen_link",         type: "operation", position: { x: X_LEFT,   y: Y_GEN_LINK },     data: { label: "Generate Deep-Link",  operationKey: "gen_link",         operationType: "generate_partner_deeplink" } },
-      { id: "send_image",       type: "operation", position: { x: X_LEFT,   y: Y_SEND_IMAGE },   data: { label: "Send Design Image",   operationKey: "send_image",       operationType: "send_whatsapp" } },
-      { id: "log_skip",         type: "operation", position: { x: X_RIGHT,  y: Y_SKIP },         data: { label: "Log: Skipped",        operationKey: "log_skip",         operationType: "log"          } },
+      { id: "read_run",         type: "operation", position: { x: X_CENTER,   y: Y_READ_RUN },     data: { label: "Read Production Run", operationKey: "read_run",         operationType: "read_data"    } },
+      { id: "read_partner",     type: "operation", position: { x: X_CENTER,   y: Y_READ_PARTNER }, data: { label: "Read Partner",        operationKey: "read_partner",     operationType: "read_data"    } },
+      { id: "read_design",      type: "operation", position: { x: X_CENTER,   y: Y_READ_DESIGN },  data: { label: "Read Design",         operationKey: "read_design",      operationType: "read_data"    } },
+      { id: "resolve_template", type: "operation", position: { x: X_CENTER,   y: Y_RESOLVE },      data: { label: "Resolve Template",    operationKey: "resolve_template", operationType: "execute_code" } },
+      { id: "has_template",     type: "operation", position: { x: X_CENTER,   y: Y_COND },         data: { label: "Has Template?",       operationKey: "has_template",     operationType: "condition"    } },
+      { id: "send",             type: "operation", position: { x: X_LEFT,     y: Y_SEND },         data: { label: "Send WhatsApp",       operationKey: "send",             operationType: "send_whatsapp" } },
+      { id: "gen_link",         type: "operation", position: { x: X_LEFT,     y: Y_GEN_LINK },     data: { label: "Generate Deep-Link",  operationKey: "gen_link",         operationType: "generate_partner_deeplink" } },
+      { id: "has_image",        type: "operation", position: { x: X_LEFT,     y: Y_HAS_IMAGE },    data: { label: "Has Design Image?",   operationKey: "has_image",        operationType: "condition"    } },
+      { id: "send_image",       type: "operation", position: { x: X_LEFT,     y: Y_FOLLOWUP },     data: { label: "Send Design Image",   operationKey: "send_image",       operationType: "send_whatsapp" } },
+      { id: "send_link_text",   type: "operation", position: { x: X_LEFT_ALT, y: Y_FOLLOWUP },     data: { label: "Send Link (text)",    operationKey: "send_link_text",   operationType: "send_whatsapp" } },
+      { id: "log_skip",         type: "operation", position: { x: X_RIGHT,    y: Y_SKIP },         data: { label: "Log: Skipped",        operationKey: "log_skip",         operationType: "log"          } },
     ],
     edges: [
-      { id: "e-0", source: "trigger",          sourceHandle: "default", target: "read_run",         targetHandle: "default" },
-      { id: "e-1", source: "read_run",         sourceHandle: "default", target: "read_partner",     targetHandle: "default" },
-      { id: "e-2", source: "read_partner",     sourceHandle: "default", target: "read_design",      targetHandle: "default" },
-      { id: "e-3", source: "read_design",      sourceHandle: "default", target: "resolve_template", targetHandle: "default" },
-      { id: "e-4", source: "resolve_template", sourceHandle: "default", target: "has_template",     targetHandle: "default" },
-      { id: "e-5", source: "has_template",     sourceHandle: "success", target: "send",             targetHandle: "default" },
-      { id: "e-6", source: "has_template",     sourceHandle: "failure", target: "log_skip",         targetHandle: "default" },
-      { id: "e-7", source: "send",             sourceHandle: "success", target: "gen_link",         targetHandle: "default" },
-      { id: "e-8", source: "gen_link",         sourceHandle: "default", target: "send_image",       targetHandle: "default" },
+      { id: "e-0",  source: "trigger",          sourceHandle: "default", target: "read_run",         targetHandle: "default" },
+      { id: "e-1",  source: "read_run",         sourceHandle: "default", target: "read_partner",     targetHandle: "default" },
+      { id: "e-2",  source: "read_partner",     sourceHandle: "default", target: "read_design",      targetHandle: "default" },
+      { id: "e-3",  source: "read_design",      sourceHandle: "default", target: "resolve_template", targetHandle: "default" },
+      { id: "e-4",  source: "resolve_template", sourceHandle: "default", target: "has_template",     targetHandle: "default" },
+      { id: "e-5",  source: "has_template",     sourceHandle: "success", target: "send",             targetHandle: "default" },
+      { id: "e-6",  source: "has_template",     sourceHandle: "failure", target: "log_skip",         targetHandle: "default" },
+      { id: "e-7",  source: "send",             sourceHandle: "success", target: "gen_link",         targetHandle: "default" },
+      { id: "e-8",  source: "gen_link",         sourceHandle: "default", target: "has_image",        targetHandle: "default" },
+      { id: "e-9",  source: "has_image",        sourceHandle: "success", target: "send_image",       targetHandle: "default" },
+      { id: "e-10", source: "has_image",        sourceHandle: "failure", target: "send_link_text",   targetHandle: "default" },
     ],
   },
 
@@ -425,26 +433,41 @@ const FLOW_DEF = {
       },
     },
 
-    // ── 6d. Send design image with deep-link caption (best-effort) ────────
+    // ── 6d. Branch on whether resolve_template found a design image ────────
+    // Without this branch, designs with no thumbnail/moodboard/media URL
+    // never get the portal link (it lived only in send_image's caption).
+    {
+      operation_key: "has_image",
+      operation_type: "condition",
+      name: "Has Design Image?",
+      sort_order: 7,
+      position_x: X_LEFT,
+      position_y: Y_HAS_IMAGE,
+      options: {
+        condition_mode: "expression",
+        // Truthy non-empty design_image_url → success branch (image+caption).
+        // Empty/null → failure branch (plain text with the link).
+        expression: "!!resolve_template.design_image_url",
+        filter_rule: { "resolve_template.design_image_url": { _ne: null } },
+      },
+    },
+
+    // ── 6e. Send design image with deep-link caption (image branch) ───────
     {
       operation_key: "send_image",
       operation_type: "send_whatsapp",
       name: "Send Design Image",
-      sort_order: 7,
+      sort_order: 8,
       position_x: X_LEFT,
-      position_y: Y_SEND_IMAGE,
+      position_y: Y_FOLLOWUP,
       options: {
         to: "{{ resolve_template.to }}",
         partner_id: "{{ resolve_template.partner_id }}",
         mode: "image",
-        // When the design has no thumbnail/moodboard/media URL, the
-        // operation exits via its "failure" branch instead of erroring —
-        // flow still succeeds overall.
         image_url: "{{ resolve_template.design_image_url }}",
         caption:
           "{{ resolve_template.design_name }} — Run {{ resolve_template.run_id }}\n" +
           "Open in portal (no password): {{ gen_link.url }}",
-        skip_if_no_image: true,
         context_type: "production_run",
         context_id: "{{ resolve_template.context_id }}",
         // Dedup off — the template send already dedups on the same
@@ -455,12 +478,36 @@ const FLOW_DEF = {
       },
     },
 
+    // ── 6f. Send the portal link as plain text (no-image branch) ──────────
+    // The template send opened the 24-hour session window, so a follow-up
+    // text delivers without needing another approved template.
+    {
+      operation_key: "send_link_text",
+      operation_type: "send_whatsapp",
+      name: "Send Link (text)",
+      sort_order: 9,
+      position_x: X_LEFT_ALT,
+      position_y: Y_FOLLOWUP,
+      options: {
+        to: "{{ resolve_template.to }}",
+        partner_id: "{{ resolve_template.partner_id }}",
+        mode: "text",
+        body:
+          "{{ resolve_template.design_name }} — Run {{ resolve_template.run_id }}\n" +
+          "Open in portal (no password): {{ gen_link.url }}",
+        context_type: "production_run",
+        context_id: "{{ resolve_template.context_id }}",
+        dedup_window_minutes: 0,
+        require_partner: true,
+      },
+    },
+
     // ── 6b. Log skip (failure branch) ──────────────────────────────────────
     {
       operation_key: "log_skip",
       operation_type: "log",
       name: "Log: Skipped",
-      sort_order: 8,
+      sort_order: 10,
       position_x: X_RIGHT,
       position_y: Y_SKIP,
       options: {
@@ -480,7 +527,9 @@ const FLOW_DEF = {
     { source_id: "has_template",     source_handle: "success", target_id: "send",             connection_type: "success" as const },
     { source_id: "has_template",     source_handle: "failure", target_id: "log_skip",         connection_type: "failure" as const },
     { source_id: "send",             source_handle: "success", target_id: "gen_link",         connection_type: "success" as const },
-    { source_id: "gen_link",         source_handle: "default", target_id: "send_image",       connection_type: "default" as const },
+    { source_id: "gen_link",         source_handle: "default", target_id: "has_image",        connection_type: "default" as const },
+    { source_id: "has_image",        source_handle: "success", target_id: "send_image",       connection_type: "success" as const },
+    { source_id: "has_image",        source_handle: "failure", target_id: "send_link_text",   connection_type: "failure" as const },
   ],
 }
 

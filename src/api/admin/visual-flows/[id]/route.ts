@@ -69,10 +69,14 @@
  * - 500: Workflow execution errors
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { MedusaError } from "@medusajs/framework/utils"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import VisualFlowService from "../../../../modules/visual_flows/service"
 import { z } from "@medusajs/framework/zod"
 import { updateVisualFlowWorkflow, deleteVisualFlowWorkflow } from "../../../../workflows/visual-flows"
+
+// retrieveVisualFlow already throws a NOT_FOUND MedusaError; let it bubble
+// so the framework maps it to 404 instead of the catch-all 400 we had before.
 
 const operationSchema = z.object({
   id: z.string().optional(),
@@ -116,20 +120,15 @@ const updateFlowSchema = z.object({
  * Get a single visual flow with operations and connections
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  try {
-    const { id } = req.params
-    const service: VisualFlowService = req.scope.resolve(VISUAL_FLOWS_MODULE)
-    
-    const flow = await service.getFlowWithDetails(id)
-    
-    if (!flow) {
-      return res.status(404).json({ error: "Flow not found" })
-    }
-    
-    res.json({ flow })
-  } catch (error: any) {
-    res.status(400).json({ error: error.message })
+  const { id } = req.params
+  const service: VisualFlowService = req.scope.resolve(VISUAL_FLOWS_MODULE)
+
+  const flow = await service.getFlowWithDetails(id)
+  if (!flow) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, `Flow ${id} not found`)
   }
+
+  res.json({ flow })
 }
 
 /**
@@ -137,50 +136,50 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * Update a visual flow with operations and connections using workflow
  */
 export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
-  try {
-    const { id } = req.params
-    
-    const data = updateFlowSchema.parse(req.body)
-    
-    // Debug logging
-    console.log("[visual-flows PUT] Received update:", {
-      id,
-      operationsCount: data.operations?.length || 0,
-      connectionsCount: data.connections?.length || 0,
-      operations: data.operations?.map(o => ({ key: o.operation_key, type: o.operation_type })),
-    })
-    
-    // Use workflow for transactional update with rollback support
-    const { result: flow, errors } = await updateVisualFlowWorkflow(req.scope).run({
-      input: {
-        id,
-        name: data.name,
-        description: data.description,
-        status: data.status,
-        icon: data.icon,
-        color: data.color,
-        trigger_type: data.trigger_type,
-        trigger_config: data.trigger_config,
-        canvas_state: data.canvas_state,
-        metadata: data.metadata,
-        operations: data.operations,
-        connections: data.connections,
-      },
-    })
-    
-    if (errors?.length) {
-      console.error("[visual-flows] Update workflow errors:", errors)
-      return res.status(500).json({ error: "Failed to update flow", details: errors })
-    }
-    
-    res.json({ flow })
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Validation error", details: error.errors })
-    } else {
-      res.status(400).json({ error: error.message })
-    }
+  const { id } = req.params
+
+  const parsed = updateFlowSchema.safeParse(req.body)
+  if (!parsed.success) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Invalid body: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`
+    )
   }
+  const data = parsed.data
+
+  console.log("[visual-flows PUT] Received update:", {
+    id,
+    operationsCount: data.operations?.length || 0,
+    connectionsCount: data.connections?.length || 0,
+    operations: data.operations?.map((o) => ({ key: o.operation_key, type: o.operation_type })),
+  })
+
+  const { result: flow, errors } = await updateVisualFlowWorkflow(req.scope).run({
+    input: {
+      id,
+      name: data.name,
+      description: data.description,
+      status: data.status,
+      icon: data.icon,
+      color: data.color,
+      trigger_type: data.trigger_type,
+      trigger_config: data.trigger_config,
+      canvas_state: data.canvas_state,
+      metadata: data.metadata,
+      operations: data.operations,
+      connections: data.connections,
+    },
+  })
+
+  if (errors?.length) {
+    console.error("[visual-flows] Update workflow errors:", errors)
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `Failed to update flow: ${errors.map((e: any) => e?.error?.message ?? String(e)).join("; ")}`
+    )
+  }
+
+  res.json({ flow })
 }
 
 /**
@@ -188,21 +187,19 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
  * Delete a visual flow using workflow
  */
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
-  try {
-    const { id } = req.params
-    
-    // Use workflow for transactional delete with rollback support
-    const { result, errors } = await deleteVisualFlowWorkflow(req.scope).run({
-      input: { flowId: id },
-    })
-    
-    if (errors?.length) {
-      console.error("[visual-flows] Delete workflow errors:", errors)
-      return res.status(500).json({ error: "Failed to delete flow", details: errors })
-    }
-    
-    res.status(200).json({ success: true, id })
-  } catch (error: any) {
-    res.status(400).json({ error: error.message })
+  const { id } = req.params
+
+  const { errors } = await deleteVisualFlowWorkflow(req.scope).run({
+    input: { flowId: id },
+  })
+
+  if (errors?.length) {
+    console.error("[visual-flows] Delete workflow errors:", errors)
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `Failed to delete flow: ${errors.map((e: any) => e?.error?.message ?? String(e)).join("; ")}`
+    )
   }
+
+  res.status(200).json({ success: true, id })
 }

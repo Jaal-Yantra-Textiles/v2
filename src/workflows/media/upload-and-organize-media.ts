@@ -9,6 +9,7 @@ import {
 import { uploadFilesWorkflow } from "@medusajs/medusa/core-flows";
 import { MEDIA_MODULE } from "../../modules/media";
 import MediaFileService from "../../modules/media/service";
+import { sanitizeFilename } from "../../utils/sanitize-filename";
 
 // Define first to avoid TDZ when referenced by workflows declared later
 export const validateExistingFolderStep = createStep(
@@ -127,8 +128,11 @@ export const uploadFilesStep = createStep(
         // Otherwise assume it's already base64 or valid text content
         contentString = raw
       }
+      // Sanitize filename so it produces a safe S3 key. Original (unsafe)
+      // name is preserved on the MediaFile record below for display.
+      const safeFilename = sanitizeFilename(f.filename)
       const payload = {
-        filename: f.filename,
+        filename: safeFilename,
         mimeType: f.mimeType,
         content: contentString,
         access: "public" as const,
