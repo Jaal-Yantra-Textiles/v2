@@ -47,6 +47,17 @@ module.exports = defineConfig({
      view_configrations: true,
   },
 
+  plugins: [
+    {
+      resolve: "@medusajs/draft-order",
+      options: {},
+    },
+    {
+      resolve: "@medusajs/loyalty-plugin",
+      options: {},
+    },
+  ],
+
   modules: [
     // Custom app modules
     {
