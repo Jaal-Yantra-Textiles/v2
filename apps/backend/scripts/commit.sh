@@ -382,7 +382,12 @@ if [ "$NEW_BRANCH_MODE" = true ]; then
     # along, so staged changes survive the switch. If main has moved in a
     # way that conflicts with the working tree, git refuses — we surface
     # that and let the user resolve manually rather than silently stashing.
-    if ! git checkout -b "$new_branch_name" origin/main 2>&1; then
+    #
+    # `--no-track` is critical: without it, the new branch silently sets
+    # `origin/main` as its upstream, which then causes `git push` to fail
+    # later with "upstream branch does not match the name of your current
+    # branch". push.sh sets the correct upstream on first push instead.
+    if ! git checkout -b "$new_branch_name" --no-track origin/main 2>&1; then
         echo -e "${RED}Could not branch off origin/main — likely a working-tree conflict${NC}"
         echo -e "${YELLOW}Stash unstaged changes and retry, or branch manually.${NC}"
         exit 1

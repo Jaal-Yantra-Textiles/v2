@@ -48,7 +48,19 @@ if [ -z "$current_branch" ]; then
 fi
 
 if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-    HAS_UPSTREAM=true
+    upstream_full=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}')
+    upstream_branch="${upstream_full#*/}"
+    # Treat name-mismatch as "no real upstream". This catches the case
+    # where a branch was created off origin/main and accidentally inherits
+    # `origin/main` as its upstream — pushing in that state fails with
+    # "upstream branch does not match the name of your current branch".
+    if [ "$upstream_branch" = "$current_branch" ]; then
+        HAS_UPSTREAM=true
+    else
+        echo -e "${YELLOW}Branch tracks ${upstream_full}, not its own remote.${NC}"
+        echo -e "${YELLOW}Treating as fresh — will push with --set-upstream.${NC}"
+        HAS_UPSTREAM=false
+    fi
 else
     HAS_UPSTREAM=false
 fi
