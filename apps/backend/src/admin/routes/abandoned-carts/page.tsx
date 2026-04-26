@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ShoppingCart } from "@medusajs/icons";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import debounce from "lodash/debounce";
 import {
@@ -181,21 +181,38 @@ const AbandonedCartsPage = () => {
     [],
   );
 
-  // Filter values come from the FilterMenu's `filtering` state. We coerce
-  // defensively because select filters can land as either a single string
-  // or undefined depending on whether the user has interacted with them.
-  const tierRaw = filtering["tier"];
-  const tier: AbandonedCartTier =
-    typeof tierRaw === "string" ? (tierRaw as AbandonedCartTier) : "has_items";
+  // Filter values come from the FilterMenu's `filtering` state. The
+  // DataTable returns select-filter values as `string | string[]` —
+  // checked elsewhere in the codebase (see saved-reports-tab.tsx).
+  // The previous implementation only handled the bare-string case and
+  // silently fell back to defaults whenever the array shape was
+  // returned, which made the whole FilterMenu look inert.
+  const readFilterValue = (key: string): string | undefined => {
+    const v = filtering[key];
+    if (Array.isArray(v)) return typeof v[0] === "string" ? v[0] : undefined;
+    return typeof v === "string" ? v : undefined;
+  };
 
-  const idleRaw = filtering["idle_minutes"];
-  const idleMinutes = typeof idleRaw === "string" ? idleRaw : "60";
+  const tier: AbandonedCartTier =
+    (readFilterValue("tier") as AbandonedCartTier | undefined) ?? "has_items";
+  const idleMinutes = readFilterValue("idle_minutes") ?? "60";
+  const hasShipping = readFilterValue("has_shipping") as
+    | "yes"
+    | "no"
+    | undefined;
+
+  // Reset pagination when filters or search change — otherwise switching
+  // tier on page 5 leaves you stranded on a non-existent page.
+  useEffect(() => {
+    setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
+  }, [tier, idleMinutes, hasShipping, search]);
 
   const offset = pagination.pageIndex * pagination.pageSize;
 
   const queryParams: AbandonedCartsQuery = {
     tier,
     idle_minutes: Number(idleMinutes),
+    has_shipping: hasShipping,
     limit: pagination.pageSize,
     offset,
     q: search || undefined,
