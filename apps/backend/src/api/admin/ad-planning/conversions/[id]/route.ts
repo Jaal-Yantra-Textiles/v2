@@ -38,7 +38,7 @@ const UpdateConversionSchema = z.object({
   conversion_value: z.number().optional().nullable(),
   person_id: z.string().optional().nullable(),
   attribution_model: z.enum(["last_click", "first_click", "linear", "time_decay"]).optional(),
-  metadata: z.record(z.any()).optional().nullable(),
+  metadata: z.record(z.string(), z.any()).optional().nullable(),
 });
 
 /**

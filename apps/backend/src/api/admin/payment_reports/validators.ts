@@ -22,7 +22,7 @@ export const CreatePaymentReportSchema = z.object({
   entity_id:    z.string().optional(),   // required when entity_type != "all"
   status:       z.enum(["Pending", "Processing", "Completed", "Failed", "Cancelled"]).optional(),
   payment_type: z.enum(["Bank", "Cash", "Digital_Wallet"]).optional(),
-  metadata:     z.record(z.any()).optional(),
+  metadata:     z.record(z.string(), z.any()).optional(),
 })
 export type CreatePaymentReport = z.infer<typeof CreatePaymentReportSchema>
 
@@ -44,6 +44,6 @@ export type Payment_report = CreatePaymentReport
 
 export const UpdatePaymentReportSchema = z.object({
   name:     z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 export type UpdatePayment_report = z.infer<typeof UpdatePaymentReportSchema>

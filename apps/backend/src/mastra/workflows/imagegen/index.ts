@@ -94,7 +94,7 @@ export const triggerSchema = z.object({
         z.object({
           id: z.string(),
           type: z.enum(["image", "text", "shape"]).default("image"),
-          data: z.record(z.any()),
+          data: z.record(z.string(), z.any()),
         })
       ),
     })

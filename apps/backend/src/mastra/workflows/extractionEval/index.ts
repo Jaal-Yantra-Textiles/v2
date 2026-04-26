@@ -56,7 +56,7 @@ export const triggerSchema = z.object({
 
 export const evalResultSchema = z.object({
   /** Best available extraction result (merged original + refined). */
-  extraction: z.record(z.any()),
+  extraction: z.record(z.string(), z.any()),
   /** 0–1 composite quality score. */
   score: z.number().min(0).max(1),
   quality: z.enum(["excellent", "good", "acceptable", "poor"]),
@@ -133,7 +133,7 @@ const extractStep = createStep({
   id: "extract",
   inputSchema: triggerSchema,
   outputSchema: z.object({
-    extraction: z.record(z.any()),
+    extraction: z.record(z.string(), z.any()),
     input: z.string(),
     system_prompt: z.string().optional(),
     schema_fields: z.array(schemaFieldSchema),
@@ -162,7 +162,7 @@ const extractStep = createStep({
 const evalStep = createStep({
   id: "eval",
   inputSchema: z.object({
-    extraction: z.record(z.any()),
+    extraction: z.record(z.string(), z.any()),
     input: z.string(),
     system_prompt: z.string().optional(),
     schema_fields: z.array(schemaFieldSchema),
@@ -170,7 +170,7 @@ const evalStep = createStep({
     built_system_prompt: z.string(),
   }),
   outputSchema: z.object({
-    extraction: z.record(z.any()),
+    extraction: z.record(z.string(), z.any()),
     score: z.number(),
     missing_fields: z.array(z.string()),
     input: z.string(),
@@ -222,7 +222,7 @@ const evalStep = createStep({
 const refineStep = createStep({
   id: "refine",
   inputSchema: z.object({
-    extraction: z.record(z.any()),
+    extraction: z.record(z.string(), z.any()),
     score: z.number(),
     missing_fields: z.array(z.string()),
     input: z.string(),

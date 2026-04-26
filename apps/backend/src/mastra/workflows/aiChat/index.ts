@@ -70,7 +70,7 @@ const inputSchema = z.object({
   message: z.string(),
   threadId: z.string().optional(),
   resourceId: z.string().optional(),
-  context: z.record(z.any()).optional(),
+  context: z.record(z.string(), z.any()).optional(),
   // Human-in-the-loop: clarification from previous interaction
   clarification: clarificationContextSchema.optional(),
 })

@@ -11,7 +11,7 @@ const aggregateOptionsSchema = z.object({
     .array(z.string())
     .optional()
     .describe("Fields to fetch from query.graph (required for non-count aggregates and groupBy)"),
-  filters: z.record(z.any()).optional().describe("Filter conditions"),
+  filters: z.record(z.string(), z.any()).optional().describe("Filter conditions"),
   aggregate: z
     .object({
       fn: z

@@ -36,7 +36,7 @@ export const bulkTriggerWorkflowOperation: OperationDefinition = {
      * All other {{ operation_key.field }} references to the data chain also work.
      */
     input_template: z
-      .record(z.any())
+      .record(z.string(), z.any())
       .optional()
       .describe(
         "Input object passed to each workflow invocation. " +

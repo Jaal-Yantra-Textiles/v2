@@ -22,14 +22,12 @@ const BaseTaskSchema = z.object({
   priority: z.nativeEnum(PriorityLevel).optional(),
   status: z.nativeEnum(Status).optional(),
   due_date: z.preprocess(dateTransformer, z.date()).optional(),
-  start_date: z.preprocess(dateTransformer, z.date()).optional().default((val) => {
-    console.log(val)
-    if (val === undefined) {
-      return new Date()
-    }
-    return val
-  }),
-  metadata: z.record(z.any()).optional(),
+  // .default() runs only when the input is undefined, so () => new Date() is
+  // exactly the "use today if missing" behavior the previous (val)=>... was
+  // approximating. Zod v4 dropped the (val)=>... overload — defaults are now
+  // strictly thunks with no input arg.
+  start_date: z.preprocess(dateTransformer, z.date()).optional().default(() => new Date()),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 // ============= Child Task Schema =============
@@ -46,7 +44,7 @@ const TemplateBasedCreation = z.object({
   template_names: z.array(z.string())
     .min(1, "At least one template name is required"),
   child_tasks: z.array(ChildTaskSchema).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   dependency_type: z.enum(DEPENDENCY_TYPES).optional()
 })
 

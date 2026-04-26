@@ -8,13 +8,13 @@ const logger = new PinoLogger()
 // Schema definitions for design validation
 const triggerSchema = z.object({
   designPrompt: z.string(),
-  existingValues: z.record(z.any()).optional()
+  existingValues: z.record(z.string(), z.any()).optional()
 });
 
 // EditorJS block types schema
 const editorJsBlockSchema = z.object({
   type: z.string(),
-  data: z.record(z.any())
+  data: z.record(z.string(), z.any())
 });
 
 const editorJsSchema = z.object({
@@ -40,7 +40,7 @@ const designSchema = z.object({
   ]),
   priority: z.enum(["Low", "Medium", "High", "Urgent"]),
   target_completion_date: z.string().optional(),
-  custom_sizes: z.record(z.record(z.number())).optional(),
+  custom_sizes: z.record(z.record(z.string(), z.number())).optional(),
   color_palette: z.array(z.object({
     name: z.string(),
     code: z.string()
@@ -48,7 +48,7 @@ const designSchema = z.object({
   tags: z.array(z.string()),
   estimated_cost: z.number().optional(),
   designer_notes: z.union([z.string(), editorJsSchema]),
-  metadata: z.record(z.any()).optional()
+  metadata: z.record(z.string(), z.any()).optional()
 });
 
 // Design generation step

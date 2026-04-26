@@ -95,7 +95,7 @@ const CreateConversionSchema = z.object({
   utm_medium: z.string().optional(),
   utm_campaign: z.string().optional(),
   converted_at: z.string().optional(), // ISO date string
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 /**

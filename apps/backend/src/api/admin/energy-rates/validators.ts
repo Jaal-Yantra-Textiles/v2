@@ -18,7 +18,7 @@ export const AdminCreateEnergyRateReq = z.object({
   region: z.string().optional(),
   isActive: z.boolean().optional(),
   notes: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type AdminCreateEnergyRateReq = z.infer<typeof AdminCreateEnergyRateReq>
@@ -38,7 +38,7 @@ export const AdminUpdateEnergyRateReq = z.object({
   region: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
   notes: z.string().nullable().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type AdminUpdateEnergyRateReq = z.infer<typeof AdminUpdateEnergyRateReq>

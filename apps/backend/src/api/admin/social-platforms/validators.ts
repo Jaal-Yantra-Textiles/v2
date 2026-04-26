@@ -40,8 +40,8 @@ export const SocialPlatformSchema = z.object({
   base_url: z.string().url().optional().nullable(),
   description: z.string().optional().nullable(),
   status: PlatformStatusSchema.default("active"),
-  api_config: z.record(z.unknown()).optional().nullable(),
-  metadata: z.record(z.unknown()).optional().nullable(),
+  api_config: z.record(z.string(), z.unknown()).optional().nullable(),
+  metadata: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export type SocialPlatform = z.infer<typeof SocialPlatformSchema>;
@@ -54,8 +54,8 @@ export const UpdateSocialPlatformSchema = z.object({
   base_url: z.string().url().optional().nullable(),
   description: z.string().optional().nullable(),
   status: PlatformStatusSchema.optional(),
-  api_config: z.record(z.unknown()).optional().nullable(),
-  metadata: z.record(z.unknown()).optional().nullable(),
+  api_config: z.record(z.string(), z.unknown()).optional().nullable(),
+  metadata: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export const listSocialPlatformsQuerySchema = z.object({

@@ -36,8 +36,8 @@ const blockSchema = z.object({
     "Section",
     "Custom"
   ]),
-  content: z.record(z.any()).optional(),
-  settings: z.record(z.any()).optional(),
+  content: z.record(z.string(), z.any()).optional(),
+  settings: z.record(z.string(), z.any()).optional(),
   order: z.number()
 });
 

@@ -21,7 +21,7 @@ export const AdminPostDesignTaskReq = z.object({
   end_date: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
   eventable: z.boolean().optional(),
   notifiable: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export const AdminPutDesignTaskReq = AdminPostDesignTaskReq.partial()

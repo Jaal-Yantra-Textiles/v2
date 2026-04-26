@@ -6,7 +6,7 @@ export const PartnerCreateRegionReq = z.object({
   countries: z.array(z.string()).optional(),
   payment_providers: z.array(z.string()).optional(),
   automatic_taxes: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerCreateRegionReqType = z.infer<typeof PartnerCreateRegionReq>
@@ -17,7 +17,7 @@ export const PartnerUpdateRegionReq = z.object({
   countries: z.array(z.string()).optional(),
   payment_providers: z.array(z.string()).optional(),
   automatic_taxes: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerUpdateRegionReqType = z.infer<typeof PartnerUpdateRegionReq>
@@ -34,7 +34,7 @@ export const PartnerUpdateLocationReq = z.object({
       country_code: z.string().optional(),
     })
     .optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerUpdateLocationReqType = z.infer<typeof PartnerUpdateLocationReq>
@@ -94,7 +94,7 @@ export const PartnerCreateShippingOptionReq = z.object({
       })
     )
     .optional(),
-  data: z.record(z.any()).optional(),
+  data: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerCreateShippingOptionReqType = z.infer<typeof PartnerCreateShippingOptionReq>
@@ -131,7 +131,7 @@ export const PartnerUpdateShippingOptionReq = z.object({
       })
     )
     .optional(),
-  data: z.record(z.any()).optional(),
+  data: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerUpdateShippingOptionReqType = z.infer<typeof PartnerUpdateShippingOptionReq>
@@ -157,7 +157,7 @@ export const PartnerUpdateStoreReq = z.object({
   default_sales_channel_id: z.string().nullable().optional(),
   default_region_id: z.string().nullable().optional(),
   default_location_id: z.string().nullable().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerUpdateStoreReqType = z.infer<typeof PartnerUpdateStoreReq>
@@ -167,7 +167,7 @@ export const PartnerCreateSalesChannelReq = z.object({
   name: z.string().min(1),
   description: z.string().nullable().optional(),
   is_disabled: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerCreateSalesChannelReqType = z.infer<typeof PartnerCreateSalesChannelReq>
@@ -176,7 +176,7 @@ export const PartnerUpdateSalesChannelReq = z.object({
   name: z.string().optional(),
   description: z.string().nullable().optional(),
   is_disabled: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerUpdateSalesChannelReqType = z.infer<typeof PartnerUpdateSalesChannelReq>
@@ -193,14 +193,14 @@ export const PartnerCreateTaxRegionReq = z.object({
       name: z.string().optional(),
     })
     .optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerCreateTaxRegionReqType = z.infer<typeof PartnerCreateTaxRegionReq>
 
 export const PartnerUpdateTaxRegionReq = z.object({
   province_code: z.string().nullable().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type PartnerUpdateTaxRegionReqType = z.infer<typeof PartnerUpdateTaxRegionReq>

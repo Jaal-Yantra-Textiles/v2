@@ -78,7 +78,7 @@ const UpdateSegmentSchema = z.object({
   is_active: z.boolean().optional(),
   auto_update: z.boolean().optional(),
   color: z.string().optional().nullable(),
-  metadata: z.record(z.any()).optional().nullable(),
+  metadata: z.record(z.string(), z.any()).optional().nullable(),
   rebuild: z.boolean().optional(),
 });
 

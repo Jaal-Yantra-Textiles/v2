@@ -69,7 +69,7 @@ export const uploadMediaSchema = z.object({
         }
       }
       return val;
-    }, z.record(z.any()))
+    }, z.record(z.string(), z.any()))
     .optional(),
 });
 

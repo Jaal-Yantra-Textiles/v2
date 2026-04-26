@@ -17,7 +17,7 @@ export const PartnerCreateStoreReq = z
             })
           )
           .min(1, "At least one supported currency is required"),
-        metadata: z.record(z.any()).optional(),
+        metadata: z.record(z.string(), z.any()).optional(),
       })
       .strict(),
 
@@ -35,7 +35,7 @@ export const PartnerCreateStoreReq = z
         currency_code: z.string().min(1),
         countries: z.array(z.string().min(2)).min(1), // lower-case ISO2, e.g., ["us"]
         payment_providers: z.array(z.string()).optional(),
-        metadata: z.record(z.any()).optional(),
+        metadata: z.record(z.string(), z.any()).optional(),
       })
       .strict(),
 
@@ -52,7 +52,7 @@ export const PartnerCreateStoreReq = z
             country_code: z.string().length(2), // upper-case ISO2 expected by stock locations
           })
           .strict(),
-        metadata: z.record(z.any()).optional(),
+        metadata: z.record(z.string(), z.any()).optional(),
       })
       .strict(),
   })

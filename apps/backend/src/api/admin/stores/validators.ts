@@ -10,7 +10,7 @@ export const createStoreSchema = z.object({
   default_sales_channel_id: z.string().optional(),
   default_region_id: z.string().optional(),
   default_location_id: z.string().optional(),
-  metadata: z.record(z.any()).optional()
+  metadata: z.record(z.string(), z.any()).optional()
 });
 
 // Schema for updating a store
@@ -23,7 +23,7 @@ export const updateStoreSchema = z.object({
   default_sales_channel_id: z.string().optional(),
   default_region_id: z.string().optional(),
   default_location_id: z.string().optional(),
-  metadata: z.record(z.any()).optional()
+  metadata: z.record(z.string(), z.any()).optional()
 });
 
 // Schema for listing stores with query parameters

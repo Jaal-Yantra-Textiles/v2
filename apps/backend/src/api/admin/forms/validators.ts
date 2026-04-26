@@ -20,10 +20,10 @@ export const AdminCreateFormFieldSchema = z.object({
   required: z.boolean().default(false),
   placeholder: z.string().nullable().optional(),
   help_text: z.string().nullable().optional(),
-  options: z.record(z.any()).nullable().optional(),
-  validation: z.record(z.any()).nullable().optional(),
+  options: z.record(z.string(), z.any()).nullable().optional(),
+  validation: z.record(z.string(), z.any()).nullable().optional(),
   order: z.number().optional(),
-  metadata: z.record(z.any()).nullable().optional(),
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
 })
 
 export const AdminCreateFormSchema = z
@@ -36,8 +36,8 @@ export const AdminCreateFormSchema = z
     status: z.enum(["draft", "published", "archived"]).default("draft"),
     submit_label: z.string().nullable().optional(),
     success_message: z.string().nullable().optional(),
-    settings: z.record(z.any()).nullable().optional(),
-    metadata: z.record(z.any()).nullable().optional(),
+    settings: z.record(z.string(), z.any()).nullable().optional(),
+    metadata: z.record(z.string(), z.any()).nullable().optional(),
     fields: z.array(AdminCreateFormFieldSchema).optional(),
   })
   .refine(
@@ -55,8 +55,8 @@ export const AdminUpdateFormSchema = z
     status: z.enum(["draft", "published", "archived"]).optional(),
     submit_label: z.string().nullable().optional(),
     success_message: z.string().nullable().optional(),
-    settings: z.record(z.any()).nullable().optional(),
-    metadata: z.record(z.any()).nullable().optional(),
+    settings: z.record(z.string(), z.any()).nullable().optional(),
+    metadata: z.record(z.string(), z.any()).nullable().optional(),
   })
   .refine(
     (v) => v.website_id !== undefined || v.domain !== undefined || Object.keys(v).length > 0,

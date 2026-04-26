@@ -83,7 +83,7 @@ const operationSchema = z.object({
   operation_key: z.string(),
   operation_type: z.string(),
   name: z.string().optional().nullable(),
-  options: z.record(z.any()).optional(),
+  options: z.record(z.string(), z.any()).optional(),
   position_x: z.number(),
   position_y: z.number(),
   sort_order: z.number(),
@@ -96,9 +96,9 @@ const connectionSchema = z.object({
   target_id: z.string(),
   target_handle: z.string().optional(),
   connection_type: z.enum(["success", "failure", "default"]).optional(),
-  condition: z.record(z.any()).optional().nullable(),
+  condition: z.record(z.string(), z.any()).optional().nullable(),
   label: z.string().optional().nullable(),
-  style: z.record(z.any()).optional().nullable(),
+  style: z.record(z.string(), z.any()).optional().nullable(),
 })
 
 const updateFlowSchema = z.object({
@@ -108,9 +108,9 @@ const updateFlowSchema = z.object({
   icon: z.string().optional().nullable(),
   color: z.string().optional().nullable(),
   trigger_type: z.enum(["event", "schedule", "webhook", "manual", "another_flow"]).optional(),
-  trigger_config: z.record(z.any()).optional(),
-  canvas_state: z.record(z.any()).optional(),
-  metadata: z.record(z.any()).optional(),
+  trigger_config: z.record(z.string(), z.any()).optional(),
+  canvas_state: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   operations: z.array(operationSchema).optional(),
   connections: z.array(connectionSchema).optional(),
 })

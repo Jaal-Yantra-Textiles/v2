@@ -13,7 +13,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const parsed = LinkMediaFolderBody.safeParse((req as any).validatedBody || req.body)
   if (!parsed.success) {
-    return res.status(400).json({ message: parsed.error.errors[0].message })
+    return res.status(400).json({ message: parsed.error.issues[0].message })
   }
 
   const { folder_id } = parsed.data

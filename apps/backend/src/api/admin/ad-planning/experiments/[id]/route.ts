@@ -18,7 +18,7 @@ const UpdateExperimentSchema = z.object({
   minimum_detectable_effect: z.number().nullable().optional(),
   primary_metric: z.enum(["conversion_rate", "ctr", "cpc", "roas", "leads", "revenue"]).optional(),
   website_id: z.string().nullable().optional(),
-  metadata: z.record(z.any()).nullable().optional(),
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
 });
 
 /**

@@ -166,9 +166,12 @@ export const POST = async (
     )
   }
 
-  const payload = resource.validators?.create
+  // Zod v4 narrows .parse return types more strictly; the dynamic resource
+  // validators are typed generically so the result lands as `unknown`. The
+  // schema actually returns an object — cast to satisfy the handler's type.
+  const payload = (resource.validators?.create
     ? resource.validators.create.parse(req.body)
-    : req.body
+    : req.body) as Record<string, unknown>;
 
   const created = await resource.handlers.create({
     scope: req.scope,

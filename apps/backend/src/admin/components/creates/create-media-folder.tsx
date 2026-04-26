@@ -69,7 +69,7 @@ export const CreateMediaFolderComponent = () => {
       } catch (error) {
         // Handle Zod validation errors
         if (error instanceof z.ZodError) {
-          error.errors.forEach((err) => {
+          error.issues.forEach((err) => {
             const fieldName = err.path.join('.')
             toast.error(`${fieldName}: ${err.message}`)
           })

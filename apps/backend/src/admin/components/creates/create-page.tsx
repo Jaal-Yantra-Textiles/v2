@@ -35,7 +35,7 @@ const pageSchema = z.object({
     meta_description: z.string().optional(),
     meta_keywords: z.string().optional(),
     published_at: z.string().datetime().optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
     genMetaDataLLM: z.boolean().optional().default(false),
   }))
 });

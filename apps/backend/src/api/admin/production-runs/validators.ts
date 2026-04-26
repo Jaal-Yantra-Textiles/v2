@@ -17,7 +17,7 @@ export const AdminCreateProductionRunReq = z.object({
   variant_id: z.string().optional(),
   order_id: z.string().optional(),
   order_line_item_id: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export const AdminApproveProductionRunReq = z.object({

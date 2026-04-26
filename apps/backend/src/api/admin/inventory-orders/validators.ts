@@ -8,7 +8,7 @@ export const inventoryOrderLineInputSchema = z.object({
   // Allow decimal quantities >= 0 (0 allowed for empty seeded rows)
   quantity: z.number().nonnegative("Quantity must be zero or positive"),
   price: z.number().nonnegative("Price must be zero or positive"),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 // Base ZodObject — kept separately so we can call .partial() on it for the
@@ -23,8 +23,8 @@ const inventoryOrdersBaseSchema = z.object({
   status: z.enum(["Pending", "Processing", "Shipped", "Delivered", "Cancelled"]),
   expected_delivery_date: z.coerce.date(),
   order_date: z.coerce.date(),
-  metadata: z.record(z.unknown()).optional(),
-  shipping_address: z.record(z.unknown()),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  shipping_address: z.record(z.string(), z.unknown()),
   stock_location_id: z.string(),
   from_stock_location_id: z.string().optional(),
   to_stock_location_id: z.string().optional(),
@@ -37,7 +37,8 @@ export const createInventoryOrdersSchema = inventoryOrdersBaseSchema.superRefine
     ctx.addIssue({
       code: z.ZodIssueCode.too_small,
       minimum: 1,
-      type: "number",
+      // Zod v4 renamed the legacy `type` field to `origin` for size-bound issues.
+      origin: "number",
       inclusive: true,
       message: "Order quantity must be a positive number for non-sample orders",
       path: ["quantity"],

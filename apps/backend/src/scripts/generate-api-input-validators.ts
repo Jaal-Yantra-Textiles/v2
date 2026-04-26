@@ -38,7 +38,7 @@ const mapModelTypeToZod = (modelType: string, fieldName: string): string => {
 
   // Handle JSON fields
   if (modelType.startsWith('model.json')) {
-    return 'z.record(z.unknown())';
+    return 'z.record(z.string(), z.unknown())';
   }
 
   // Handle boolean fields

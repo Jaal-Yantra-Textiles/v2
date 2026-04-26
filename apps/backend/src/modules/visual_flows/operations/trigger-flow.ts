@@ -22,7 +22,7 @@ export const triggerFlowOperation: OperationDefinition = {
   optionsSchema: z.object({
     flow_id: z.string().describe("ID of the flow to trigger"),
     flow_name: z.string().optional().describe("Name of the flow (for display)"),
-    input: z.record(z.any()).optional().describe("Input data to pass to the flow"),
+    input: z.record(z.string(), z.any()).optional().describe("Input data to pass to the flow"),
     wait_for_completion: z.boolean().default(true).describe("Wait for the triggered flow to complete"),
   }),
   

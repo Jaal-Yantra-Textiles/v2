@@ -164,9 +164,12 @@ export const PATCH = async (
     )
   }
 
-  const payload = resource.validators?.update
+  // Zod v4 narrows .parse return types more strictly; the dynamic resource
+  // validators are typed generically so the result lands as `unknown`. The
+  // schema actually returns an object — cast to satisfy the handler's type.
+  const payload = (resource.validators?.update
     ? resource.validators.update.parse(req.body)
-    : req.body
+    : req.body) as Record<string, unknown>;
 
   const updated = await resource.handlers.update({
     scope: req.scope,

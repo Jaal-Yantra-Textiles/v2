@@ -124,7 +124,7 @@ const partnerAttachMediaSchema = z.object({
       })
     )
     .min(1),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 // POST /partners/designs/:designId/media/attach
@@ -164,7 +164,7 @@ export const POST = async (
   // 3) Validate body
   const parse = partnerAttachMediaSchema.safeParse(req.body)
   if (!parse.success) {
-    throw new MedusaError(MedusaError.Types.INVALID_DATA, parse.error.errors.map(e => e.message).join(", "))
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, parse.error.issues.map(e => e.message).join(", "))
   }
   const { media_files, metadata } = parse.data
 
