@@ -20,8 +20,8 @@ export const bulkUpdateDataOperation: OperationDefinition = {
     items: z
       .array(
         z.object({
-          selector: z.record(z.any()).optional().describe("Selector to find record (e.g., { id: '...' })"),
-          data: z.record(z.any()).describe("Data to update"),
+          selector: z.record(z.string(), z.any()).optional().describe("Selector to find record (e.g., { id: '...' })"),
+          data: z.record(z.string(), z.any()).describe("Data to update"),
         })
       )
       .describe("Update items"),

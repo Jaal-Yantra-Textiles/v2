@@ -15,15 +15,15 @@ const blockBaseSchema = z.object({
     "Section",
     "Custom"
   ]),
-  content: z.record(z.unknown()),
-  settings: z.record(z.unknown()).optional(),
+  content: z.record(z.string(), z.unknown()),
+  settings: z.record(z.string(), z.unknown()).optional(),
   order: z.number().optional(),
   status: z.enum([
     "Active",
     "Inactive",
     "Draft"
   ]).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 
@@ -40,7 +40,7 @@ export const ReadBlocksQuerySchema = z.object({
       }
       return val;
     },
-    z.record(z.unknown()).optional()
+    z.record(z.string(), z.unknown()).optional()
   ),
   filters: z.preprocess(
     (val) => {
@@ -53,7 +53,7 @@ export const ReadBlocksQuerySchema = z.object({
       }
       return val;
     },
-    z.record(z.unknown()).optional()
+    z.record(z.string(), z.unknown()).optional()
   ),
   page: z.preprocess(
     (val) => {

@@ -19,7 +19,7 @@ const timeSeriesOptionsSchema = z.object({
   entity: z.string().describe("Entity name to query via query.graph"),
   dateField: z.string().describe("Field on the entity to bucket by"),
   fields: z.array(z.string()).optional(),
-  filters: z.record(z.any()).optional(),
+  filters: z.record(z.string(), z.any()).optional(),
   aggregate: z
     .object({
       fn: z.enum(["count", "sum", "avg", "min", "max"]).default("count"),

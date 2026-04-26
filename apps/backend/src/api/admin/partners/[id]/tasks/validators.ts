@@ -9,7 +9,7 @@ const childTaskSchema = z.object({
     priority: z.nativeEnum(PriorityLevel).optional(),
     start_date: z.string().or(z.date()).optional(),
     end_date: z.string().or(z.date()).optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
 });
 
 /**
@@ -26,7 +26,7 @@ export const AdminCreatePartnerTaskReq = z.object({
     eventable: z.boolean().optional(),
     notifiable: z.boolean().optional(),
     message: z.string().optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
     child_tasks: z.array(childTaskSchema).optional(),
     dependency_type: z.enum(["blocking", "related", "subtask"]).optional(),
 });

@@ -63,14 +63,14 @@ const CreateGoalSchema = z.object({
     pathname_pattern: z.string().optional(),
     min_time_seconds: z.number().optional(),
     min_scroll_percent: z.number().optional(),
-    custom_conditions: z.record(z.any()).optional(),
+    custom_conditions: z.record(z.string(), z.any()).optional(),
   }),
   default_value: z.number().optional(),
   value_from_event: z.boolean().default(false),
   is_active: z.boolean().default(true),
   website_id: z.string().optional(),
   priority: z.number().default(0),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 /**

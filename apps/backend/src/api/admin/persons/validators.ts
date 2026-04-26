@@ -13,11 +13,11 @@ export const personSchema = z.object({
     z.null(),
     z.undefined()
   ]).optional(), // Optional field that accepts string, null, or undefined
-  metadata: z.record(z.any()).optional(), // Optional field for additional data
+  metadata: z.record(z.string(), z.any()).optional(), // Optional field for additional data
   addresses: z.array(z.any()).optional(),
   state: z.enum(["Onboarding", "Onboarding Finished", "Stalled", "Conflicted"]).optional(),
   avatar: z.string().optional(),
-  public_metadata: z.record(z.any()).optional(),
+  public_metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export const ReadPersonQuerySchema = z.object({

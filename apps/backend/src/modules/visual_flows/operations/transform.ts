@@ -10,7 +10,7 @@ export const transformOperation: OperationDefinition = {
   category: "utility",
   
   optionsSchema: z.object({
-    json: z.record(z.any()).describe("JSON structure with variable interpolation"),
+    json: z.record(z.string(), z.any()).describe("JSON structure with variable interpolation"),
   }),
   
   defaultOptions: {

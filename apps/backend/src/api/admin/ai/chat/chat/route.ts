@@ -75,7 +75,7 @@ export const POST = async (req: MedusaRequest<AdminAiChatReqType>, res: MedusaRe
     )
 
     if (!parsed.success) {
-      const message = parsed.error.errors.map((e) => e.message).join(", ")
+      const message = parsed.error.issues.map((e) => e.message).join(", ")
       throw new MedusaError(MedusaError.Types.INVALID_DATA, message || "Invalid request body")
     }
 

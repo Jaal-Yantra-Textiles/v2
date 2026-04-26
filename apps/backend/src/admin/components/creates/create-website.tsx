@@ -19,7 +19,7 @@ export const websiteSchema = z.object({
   supported_languages: z.record(z.string(), z.string()).optional(),
   favicon_url: z.string().url().optional(),
   analytics_id: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 

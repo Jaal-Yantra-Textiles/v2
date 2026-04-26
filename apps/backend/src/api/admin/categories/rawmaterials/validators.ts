@@ -12,7 +12,7 @@ export const ReadRawMaterialCategoriesSchema = z.object({
       }
       return val;
     },
-    z.record(z.unknown()).optional()
+    z.record(z.string(), z.unknown()).optional()
   ),
   filters: z.preprocess(
     (val) => {
@@ -25,7 +25,7 @@ export const ReadRawMaterialCategoriesSchema = z.object({
       }
       return val;
     },
-    z.record(z.unknown()).optional()
+    z.record(z.string(), z.unknown()).optional()
   ),
   page: z.preprocess(
     (val) => {
@@ -63,8 +63,8 @@ export const CreateMaterialTypeSchema = z.object({
     "Accessory",
     "Other"
   ]).optional().default("Other"),
-  properties: z.record(z.any()).optional(),
-  metadata: z.record(z.any()).optional()
+  properties: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional()
 });
 
 export type CreateMaterialTypeType = z.infer<typeof CreateMaterialTypeSchema>;

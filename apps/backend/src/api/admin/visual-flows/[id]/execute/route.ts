@@ -62,8 +62,8 @@ import { executeVisualFlowWorkflow } from "../../../../../workflows/visual-flows
 import { VISUAL_FLOWS_MODULE } from "../../../../../modules/visual_flows"
 
 const executeSchema = z.object({
-  trigger_data: z.record(z.any()).optional(),
-  metadata: z.record(z.any()).optional(),
+  trigger_data: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   /** When set, copies trigger_data from the referenced execution instead of running fresh. */
   replay_execution_id: z.string().optional(),
 })
@@ -128,7 +128,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     })
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Validation error", details: error.errors })
+      res.status(400).json({ error: "Validation error", details: error.issues })
     } else {
       res.status(400).json({ error: error.message })
     }

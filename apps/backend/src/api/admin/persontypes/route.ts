@@ -123,7 +123,7 @@ export const POST = async (
   if (!parsed.success) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      parsed.error.errors?.[0]?.message || "Invalid person type payload"
+      parsed.error.issues?.[0]?.message || "Invalid person type payload"
     );
   }
 

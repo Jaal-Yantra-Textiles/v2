@@ -25,7 +25,7 @@ const designColorSchema = z.object({
 
 const designSizeSetSchema = z.object({
   size_label: z.string(),
-  measurements: z.record(z.number()),
+  measurements: z.record(z.string(), z.number()),
 });
 
 export const designSchema = z.object({
@@ -52,19 +52,19 @@ export const designSchema = z.object({
   }),
   design_files: z.array(z.string()).optional(),
   thumbnail_url: z.string().url().optional(),
-  custom_sizes: z.record(z.any()).optional(),
+  custom_sizes: z.record(z.string(), z.any()).optional(),
   color_palette: colorPaletteSchema.optional(),
   tags: z.array(z.string()).optional(),
   estimated_cost: z.number().optional(),
   designer_notes: z.string().optional(),
   feedback_history: feedbackHistorySchema.optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   media_files: z.array(z.object({
     id: z.string().optional(),
     url: z.string().url(),
     isThumbnail: z.boolean().optional().default(false)
   })).optional(),
-  moodboard: z.record(z.any()).optional(),
+  moodboard: z.record(z.string(), z.any()).optional(),
   // New structured fields (optional)
   colors: z.array(designColorSchema).optional(),
   size_sets: z.array(designSizeSetSchema).optional(),
@@ -85,7 +85,7 @@ export const ReadDesignsQuerySchema = z.object({
 
 export const CreateDesignLLMSchema = z.object({
   designPrompt: z.string(),
-  existingValues: z.record(z.any()).optional()
+  existingValues: z.record(z.string(), z.any()).optional()
 });
 
 export const LinkDesignPartnerSchema = z.object({

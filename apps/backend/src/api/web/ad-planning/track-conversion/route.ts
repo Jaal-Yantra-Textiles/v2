@@ -32,7 +32,7 @@ export const TrackConversionSchema = z.object({
   utm_campaign: z.string().optional(),
   utm_term: z.string().optional(),
   utm_content: z.string().optional(),
-  metadata: z.record(z.any()).optional().nullable(),
+  metadata: z.record(z.string(), z.any()).optional().nullable(),
 });
 
 export type TrackConversionRequest = z.infer<typeof TrackConversionSchema>;

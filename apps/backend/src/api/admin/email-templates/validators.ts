@@ -12,7 +12,7 @@ export const EmailTemplateSchema = z.object({
   template_key: z.string(),
   subject: z.string().min(1, "Subject is required"),
   html_content: z.string(),
-  variables: z.record(z.unknown()).nullable().optional(),
+  variables: z.record(z.string(), z.unknown()).nullable().optional(),
   is_active: z.boolean().default(true),
   template_type: z.string(),
 });

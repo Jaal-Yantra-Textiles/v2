@@ -33,7 +33,7 @@ export const bulkCreateDataOperation: OperationDefinition = {
      * When omitted the item is used as-is.
      */
     item_template: z
-      .record(z.any())
+      .record(z.string(), z.any())
       .optional()
       .describe(
         "Shape of each record to create. Use {{ item.field }} to reference the current item, " +

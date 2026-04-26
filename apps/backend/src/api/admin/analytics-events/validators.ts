@@ -15,7 +15,7 @@ export const AnalyticsEventCreateSchema = z.object({
   os: z.string().nullable().optional(),
   device_type: z.enum(["desktop", "mobile", "tablet", "unknown"]).default("unknown"),
   country: z.string().nullable().optional(),
-  metadata: z.record(z.any()).nullable().optional(),
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
   timestamp: z.coerce.date(),
 });
 
@@ -36,7 +36,7 @@ export const AnalyticsEventUpdateSchema = z.object({
   os: z.string().nullable().optional(),
   device_type: z.enum(["desktop", "mobile", "tablet", "unknown"]).optional(),
   country: z.string().nullable().optional(),
-  metadata: z.record(z.any()).nullable().optional(),
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
   timestamp: z.coerce.date().optional(),
 });
 

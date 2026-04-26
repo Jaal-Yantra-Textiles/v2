@@ -15,7 +15,7 @@ export const createDashboardSchema = z.object({
   description: z.string().optional(),
   icon: z.string().optional(),
   color: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export const updateDashboardSchema = createDashboardSchema.partial()
@@ -34,10 +34,10 @@ export const panelBaseSchema = z.object({
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   operation_type: z.string().min(1),
-  operation_options: z.record(z.any()).default({}),
-  display: z.record(z.any()).optional(),
+  operation_options: z.record(z.string(), z.any()).default({}),
+  display: z.record(z.string(), z.any()).optional(),
   cache_ttl_seconds: z.number().int().nonnegative().nullable().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export const createPanelSchema = panelBaseSchema
@@ -46,6 +46,6 @@ export const updatePanelSchema = panelBaseSchema.partial()
 
 export const previewPanelSchema = z.object({
   operation_type: z.string().min(1),
-  operation_options: z.record(z.any()).default({}),
-  display: z.record(z.any()).optional(),
+  operation_options: z.record(z.string(), z.any()).default({}),
+  display: z.record(z.string(), z.any()).optional(),
 })

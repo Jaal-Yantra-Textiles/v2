@@ -27,9 +27,9 @@ const pageBaseSchema = z.object({
     if (!val) return null;
     return val instanceof Date ? val : new Date(val);
   }),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   genMetaDataLLM: z.boolean().optional().default(false),
-  public_metadata: z.record(z.unknown()).optional(),
+  public_metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const pageSchema = pageBaseSchema;

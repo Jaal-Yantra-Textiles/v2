@@ -21,7 +21,7 @@ export const ListInventoryItemRawMaterialsQuerySchema = z.object({
       }
       return val
     },
-    z.record(z.unknown()).optional()
+    z.record(z.string(), z.unknown()).optional()
   ),
 })
 

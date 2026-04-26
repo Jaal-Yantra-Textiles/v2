@@ -25,7 +25,7 @@ export type ExtractInboundEmailBody = z.infer<typeof extractInboundEmailSchema>
 
 export const executeInboundEmailSchema = z.object({
   action_type: z.string().min(1, "action_type is required"),
-  params: z.record(z.unknown()),
+  params: z.record(z.string(), z.unknown()),
 })
 
 export type ExecuteInboundEmailBody = z.infer<typeof executeInboundEmailSchema>

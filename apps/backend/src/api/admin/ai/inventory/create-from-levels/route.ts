@@ -115,7 +115,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const parsed = BodySchema.safeParse((req as any).validatedBody || (req.body as BodyType))
     if (!parsed.success) {
-      const msg = parsed.error.errors.map((e) => e.message).join(", ")
+      const msg = parsed.error.issues.map((e) => e.message).join(", ")
       throw new MedusaError(MedusaError.Types.INVALID_DATA, msg || "Invalid request body")
     }
     const body = parsed.data

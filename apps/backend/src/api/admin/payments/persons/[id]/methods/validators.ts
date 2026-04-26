@@ -19,6 +19,6 @@ export const CreatePaymentMethodForPersonSchema = z.object({
   bank_name: z.string().optional(),
   ifsc_code: z.string().optional(),
   wallet_id: z.string().optional(),
-  metadata: z.record(z.any()).nullish(),
+  metadata: z.record(z.string(), z.any()).nullish(),
 })
 export type CreatePaymentMethodForPerson = z.infer<typeof CreatePaymentMethodForPersonSchema>

@@ -9,7 +9,7 @@ export const PaymentSchema = z.object({
   status: StatusEnum.optional(),
   payment_type: PaymentTypeEnum,
   payment_date: z.coerce.date(),
-  metadata: z.record(z.any()).nullish(),
+  metadata: z.record(z.string(), z.any()).nullish(),
   paid_to_id: z.string().optional(),
 });
 
@@ -21,7 +21,7 @@ export const UpdatePaymentSchema = z.object({
   status: StatusEnum.optional(),
   payment_type: PaymentTypeEnum.optional(),
   payment_date: z.coerce.date().optional(),
-  metadata: z.record(z.any()).nullish(),
+  metadata: z.record(z.string(), z.any()).nullish(),
   paid_to_id: z.string().optional(),
 });
 

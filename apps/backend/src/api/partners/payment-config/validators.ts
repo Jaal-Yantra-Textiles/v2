@@ -11,7 +11,7 @@ export const CreatePaymentConfigSchema = z.object({
     api_key: z.string().optional(),
   }),
   is_active: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export const UpdatePaymentConfigSchema = z.object({
@@ -22,5 +22,5 @@ export const UpdatePaymentConfigSchema = z.object({
     api_key: z.string().optional(),
   }).optional(),
   is_active: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })

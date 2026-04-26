@@ -14,7 +14,7 @@ export const sendEmailOperation: OperationDefinition = {
     subject: z.string().describe("Email subject"),
     template: z.string().optional().describe("Email template key"),
     body: z.string().optional().describe("Email body (HTML or plain text)"),
-    data: z.record(z.any()).optional().describe("Template data"),
+    data: z.record(z.string(), z.any()).optional().describe("Template data"),
   }),
   
   defaultOptions: {

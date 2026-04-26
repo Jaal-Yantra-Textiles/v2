@@ -74,7 +74,7 @@ const CreateSegmentSchema = z.object({
   is_active: z.boolean().default(true),
   auto_update: z.boolean().default(true),
   color: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 /**

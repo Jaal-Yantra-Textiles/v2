@@ -4,7 +4,7 @@ const categorySchema = z.object({
   id: z.string().optional(),
   name: z.string().optional(),
   description: z.string().optional(),
-  metadata: z.record(z.any()).optional()
+  metadata: z.record(z.string(), z.any()).optional()
 });
 
 export const taskTemplateSchema = z.object({
@@ -15,11 +15,11 @@ export const taskTemplateSchema = z.object({
   estimated_cost: z.number().min(0).optional(),
   cost_currency: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
-  required_fields: z.record(z.any()).optional(),
+  required_fields: z.record(z.string(), z.any()).optional(),
   eventable: z.boolean().optional(),
   notifiable: z.boolean().optional(),
   message_template: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   category_id: z.string().optional()
 });
 

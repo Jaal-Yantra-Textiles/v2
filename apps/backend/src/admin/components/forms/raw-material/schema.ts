@@ -32,7 +32,7 @@ export const newMaterialTypeSchema = z.object({
     "Accessory",
     "Other"
   ]).default("Other").optional(),
-  properties: z.record(z.any()).optional(),
+  properties: z.record(z.string(), z.any()).optional(),
 });
 
 // Union type for material_type - can be string, existing type object, or new type object
@@ -81,7 +81,7 @@ export const rawMaterialFormSchema = z.object({
   width: z.string().optional(),
   weight: z.string().optional(),
   grade: z.string().optional(),
-  certification: z.record(z.any()).optional(),
+  certification: z.record(z.string(), z.any()).optional(),
   usage_guidelines: z.string().optional(),
   storage_requirements: z.string().optional(),
   material_type_properties: materialTypePropertiesSchema,

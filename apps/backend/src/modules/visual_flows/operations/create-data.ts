@@ -12,7 +12,7 @@ export const createDataOperation: OperationDefinition = {
   optionsSchema: z.object({
     module: z.string().describe("Module identifier (e.g., 'person', 'designs')"),
     collection: z.string().describe("Collection/entity name (e.g., 'People', 'Designs')"),
-    data: z.record(z.any()).describe("Data to create"),
+    data: z.record(z.string(), z.any()).describe("Data to create"),
   }),
   
   defaultOptions: {

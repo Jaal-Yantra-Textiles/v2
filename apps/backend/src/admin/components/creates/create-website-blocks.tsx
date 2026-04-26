@@ -29,8 +29,8 @@ const blockSchema = z.object({
       "Testimonial",
       "MainContent"
     ]),
-    content: z.record(z.unknown()).optional(),
-    settings: z.record(z.unknown()).optional(),
+    content: z.record(z.string(), z.unknown()).optional(),
+    settings: z.record(z.string(), z.unknown()).optional(),
     order: z.number().min(0)
   })).min(1, "At least one block is required")
 });

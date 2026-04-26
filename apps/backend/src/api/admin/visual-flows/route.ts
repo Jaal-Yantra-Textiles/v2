@@ -99,14 +99,14 @@ const createFlowSchema = z.object({
   icon: z.string().optional(),
   color: z.string().optional(),
   trigger_type: z.enum(["event", "schedule", "webhook", "manual", "another_flow"]),
-  trigger_config: z.record(z.any()).optional(),
-  canvas_state: z.record(z.any()).optional(),
-  metadata: z.record(z.any()).optional(),
+  trigger_config: z.record(z.string(), z.any()).optional(),
+  canvas_state: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   operations: z.array(z.object({
     operation_key: z.string(),
     operation_type: z.string(),
     name: z.string().optional(),
-    options: z.record(z.any()).optional(),
+    options: z.record(z.string(), z.any()).optional(),
     position_x: z.number().optional(),
     position_y: z.number().optional(),
     sort_order: z.number().optional(),
@@ -117,7 +117,7 @@ const createFlowSchema = z.object({
     target_id: z.string(),
     target_handle: z.string().optional(),
     connection_type: z.enum(["success", "failure", "default"]).optional(),
-    condition: z.record(z.any()).optional(),
+    condition: z.record(z.string(), z.any()).optional(),
   })).optional(),
 })
 
