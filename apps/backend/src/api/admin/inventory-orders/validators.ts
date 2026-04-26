@@ -11,8 +11,11 @@ export const inventoryOrderLineInputSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
-// Input schema for creating inventory orders
-export const createInventoryOrdersSchema = z.object({
+// Base ZodObject — kept separately so we can call .partial() on it for the
+// update schema. Going through createInventoryOrdersSchema._def.schema breaks
+// under Zod v4 (the internal _def shape changed; superRefine no longer exposes
+// the inner schema at that path).
+const inventoryOrdersBaseSchema = z.object({
   order_lines: z.array(inventoryOrderLineInputSchema).min(1, "At least one order line is required"),
   // Allow decimal order quantity (sum of line quantities)
   quantity: z.number().nonnegative("Order quantity must be zero or positive"),
@@ -26,7 +29,10 @@ export const createInventoryOrdersSchema = z.object({
   from_stock_location_id: z.string().optional(),
   to_stock_location_id: z.string().optional(),
   is_sample: z.boolean().optional().default(false),
-}).superRefine((data, ctx) => {
+});
+
+// Input schema for creating inventory orders
+export const createInventoryOrdersSchema = inventoryOrdersBaseSchema.superRefine((data, ctx) => {
   if (!data.is_sample && data.quantity <= 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.too_small,
@@ -64,7 +70,7 @@ export const ReadSingleInventoryOrderQuerySchema = z.object({
 })
 
 // Input schema for updating inventory orders
-export const updateInventoryOrdersSchema = createInventoryOrdersSchema._def.schema.partial();
+export const updateInventoryOrdersSchema = inventoryOrdersBaseSchema.partial();
 
 // Type definitions for inventory orders
 export type UpdateInventoryOrder = z.infer<typeof updateInventoryOrdersSchema>;
