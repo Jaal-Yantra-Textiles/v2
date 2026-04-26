@@ -17,7 +17,7 @@ const emailTemplateSchema = z.object({
   description: z.string().optional(),
   template_key: z.string().min(1, "Template key is required"),
   template_type: z.string().min(1, "Template type is required"),
-  from: z.string().email("Valid email is required"),
+  from: z.email("Valid email is required"),
   to: z.string().optional(),
   cc: z.string().optional(),
   bcc: z.string().optional(),

@@ -23,7 +23,7 @@ const pageBaseSchema = z.object({
   meta_title: z.string().optional(),
   meta_description: z.string().optional(),
   meta_keywords: z.string().optional(),
-  published_at: z.union([z.date(), z.string().datetime()]).optional().transform((val) => {
+  published_at: z.union([z.date(), z.iso.datetime()]).optional().transform((val) => {
     if (!val) return null;
     return val instanceof Date ? val : new Date(val);
   }),
@@ -39,7 +39,7 @@ export const createPagesSchema = z.object({
 });
 
 export const deletePageSchema = z.object({
-  pageId: z.string().uuid("Invalid ID format"),
+  pageId: z.uuid("Invalid ID format"),
 });
 
 // Modified to directly use the union without the payload wrapper

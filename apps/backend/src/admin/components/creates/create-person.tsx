@@ -14,7 +14,7 @@ import { Form } from "../common/form";
 const personFormSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email address"),
+  email: z.email("Invalid email address"),
   // Allow null for date_of_birth but validate if provided
   date_of_birth: z.union([
     z.date().refine(

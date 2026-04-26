@@ -22,8 +22,8 @@ const BaseSchema = z.object({
   // Optional fields for platform-specific payload
   post_type: z.enum(["photo", "feed", "reel"]).optional(),
   message: z.string().optional(),
-  link: z.string().url().optional(),
-  media_urls: z.array(z.string().url()).optional(),
+  link: z.url().optional(),
+  media_urls: z.array(z.url()).optional(),
   // Chosen page to target (stored into metadata.page_id on submit)
   page_id: z.string().optional(),
   // Instagram target account (stored into metadata.ig_user_id)

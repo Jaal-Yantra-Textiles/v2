@@ -17,11 +17,11 @@ const mapModelTypeToZod = (modelType: string, fieldName: string): string => {
   if (modelType.startsWith('model.text')) {
     // Email fields
     if (fieldName.includes('email') || fieldName === 'to' || fieldName === 'from' || fieldName === 'cc' || fieldName === 'bcc') {
-      return 'z.string().email()';
+      return 'z.email()';
     }
     // URL fields
     if (fieldName.includes('url') || fieldName.includes('link')) {
-      return 'z.string().url()';
+      return 'z.url()';
     }
     // Required text with minimum length
     if (modelType.includes('.searchable()') || fieldName === 'name' || fieldName === 'title' || fieldName === 'subject') {
@@ -57,7 +57,7 @@ const mapModelTypeToZod = (modelType: string, fieldName: string): string => {
       const defaultValue = defaultMatch[1];
       // Handle email fields with defaults
       if (fieldName.includes('email') || fieldName === 'to' || fieldName === 'from' || fieldName === 'cc' || fieldName === 'bcc') {
-        return `z.string().email().default(${defaultValue})`;
+        return `z.email().default(${defaultValue})`;
       }
       return `z.string().default(${defaultValue})`;
     }

@@ -23,7 +23,7 @@ const agreementSchema = z.object({
   template_key: z.string().optional(),
   valid_from: z.string().optional(),
   valid_until: z.string().optional(),
-  from_email: z.string().email("Invalid email format").optional().or(z.literal("")),
+  from_email: z.email("Invalid email format").optional().or(z.literal("")),
   content: z.string().min(1, "Content is required"),
 });
 

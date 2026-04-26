@@ -15,7 +15,7 @@ export const CreatePublishingCampaignSchema = z.object({
   platform_id: z.string().min(1, "Platform ID is required"),
   content_rule: ContentRuleSchema.optional(),
   interval_hours: z.number().int().min(1).default(24),
-  start_at: z.string().datetime().optional(),
+  start_at: z.iso.datetime().optional(),
 })
 
 export type CreatePublishingCampaign = z.infer<typeof CreatePublishingCampaignSchema>

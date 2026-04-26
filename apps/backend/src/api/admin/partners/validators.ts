@@ -4,13 +4,13 @@ export const PostPartnerSchema = z.object({
   partner: z.object({
     name: z.string().min(1),
     handle: z.string().optional(),
-    logo: z.string().url().optional(),
+    logo: z.url().optional(),
     status: z.enum(["active", "inactive", "pending"]).optional().default("pending"),
     is_verified: z.boolean().optional().default(false),
     workspace_type: z.enum(["seller", "manufacturer", "individual"]).optional().default("manufacturer"),
   }),
   admin: z.object({
-    email: z.string().email(),
+    email: z.email(),
     first_name: z.string().min(1),
     last_name: z.string().min(1),
     phone: z.string().optional(),

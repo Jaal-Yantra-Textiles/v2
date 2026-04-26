@@ -31,7 +31,7 @@ const partnerAdminSchema = z.object({
     workspace_type: z.enum(WORKSPACE_TYPE_ENUM).default("manufacturer"),
   }),
   admin: z.object({
-    email: z.string().email("Invalid email"),
+    email: z.email("Invalid email"),
     first_name: z.string().min(1, "First name is required"),
     last_name: z.string().min(1, "Last name is required"),
     phone: z.string().optional(),

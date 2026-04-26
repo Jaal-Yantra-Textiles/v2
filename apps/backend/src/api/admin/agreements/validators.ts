@@ -8,7 +8,7 @@ export const CreateAgreementSchema = z.object({
   template_key: z.string().optional(),
   valid_from: z.string().transform((val) => val ? new Date(val) : undefined).optional(),
   valid_until: z.string().transform((val) => val ? new Date(val) : undefined).optional(),
-  from_email: z.string().email().optional(),
+  from_email: z.email().optional(),
   content: z.string().optional(),
   metadata: z.record(z.any()).default({}),
 });
@@ -21,7 +21,7 @@ export const UpdateAgreementSchema = z.object({
   template_key: z.string().optional(),
   valid_from: z.string().transform((val) => val ? new Date(val) : undefined).optional(),
   valid_until: z.string().transform((val) => val ? new Date(val) : undefined).optional(),
-  from_email: z.string().email().optional(),
+  from_email: z.email().optional(),
   content: z.string().optional(),
   metadata: z.record(z.any()).optional(),
 });

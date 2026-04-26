@@ -42,7 +42,7 @@ async function createAgentWithModel(modelId: string): Promise<Agent> {
 
 // 1. Define the input schema for the workflow
 const triggerSchema = z.object({
-  imageUrl: z.string().url("A valid image URL is required."),
+  imageUrl: z.url("A valid image URL is required."),
   hint: z.string().optional(),
   productData: z.object({
     designers: z.array(z.string()).optional(),
